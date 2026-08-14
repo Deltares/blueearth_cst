@@ -91,9 +91,9 @@ def test_script_is_relative_to_the_repo_root():
 # ---------------------------------------------------------------------------
 
 _SNAKEFILES = (
-    ("wf1", "Snakefile_model_creation"),
-    ("wf2", "Snakefile_climate_projections"),
-    ("wf3", "Snakefile_climate_experiment"),
+    ("wf1", "build_model.smk"),
+    ("wf2", "analyze_projections.smk"),
+    ("wf3", "run_stress_test.smk"),
 )
 
 

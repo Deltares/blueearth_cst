@@ -95,19 +95,19 @@ actually run them.
 For a full end-to-end check that builds and runs the test model to completion
 (needs the data files from step 5 and Julia, and takes a few minutes):
 ```powershell
-pytest tests/test_workflow_model_creation.py --run-integration
+pytest tests/test_workflow_build_model.py --run-integration
 ```
 
 There is a matching end-to-end check for the climate-projections workflow. It
 downloads CMIP6 data from the internet and must run *after* the model-creation
 workflow (it reuses that model's basin outline):
 ```powershell
-pytest tests/test_workflow_climate_projections.py --run-integration
+pytest tests/test_workflow_analyze_projections.py --run-integration
 ```
 
 Or run the small test model directly:
 ```powershell
-snakemake all -c 1 -s Snakefile_model_creation --configfile test_case/snake_config_baseline.yml
+snakemake all -c 1 -s build_model.smk --configfile test_case/snake_config_baseline.yml
 ```
 
 ## Troubleshooting

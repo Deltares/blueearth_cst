@@ -64,7 +64,7 @@ from blueearth_cst.shared import plot_style
 #
 # RASTER_DPI is a deliberate re-export, not a leftover: `shared/plot_map.py`
 # imports it from here, and that file is a Snakemake `script:` target
-# (Snakefile_model_creation rule 1.12), so editing it would fire the `code`
+# (build_model.smk rule 1.12), so editing it would fire the `code`
 # rerun trigger on every project_dir for no behavioural gain. It moves to a
 # direct `plot_style` import in the plotting sweep, alongside a change to that
 # file that is worth the invalidation.

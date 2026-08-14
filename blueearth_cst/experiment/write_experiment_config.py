@@ -1,7 +1,7 @@
 """Record an experiment's own configuration, and freeze it once it has run.
 
 R9 P4 commit 4. ``experiments/<id>/config/experiment.yml`` holds the experiment
-id and the resolved ``workflows.climate_experiment`` section — the parameters
+id and the resolved ``workflows.run_stress_test`` section — the parameters
 that define *this* experiment, beside the ``model_reference.yml`` that records
 which model it used.
 
@@ -24,7 +24,7 @@ declaring it would invert the DAG — this file is written long before the log.
 
 **The marker PATH is passed in, never rebuilt here.** It used to be a module
 constant joined onto ``exp_dir``, which the 2026-08-11 move of WF3's run records
-to ``{project_dir}/logs/wf3_climate_experiment_<experiment>.log`` invalidated:
+to ``{project_dir}/logs/wf3_run_stress_test_<experiment>.log`` invalidated:
 the log is no longer under the experiment at all. A marker path this module
 composes for itself is a second spelling of a name the Snakefile owns, and when
 the two drift the failure is SILENT — ``has_run_successfully`` returns ``False``
@@ -48,7 +48,7 @@ def build_experiment_config(experiment: str, experiment_cfg) -> dict:
     """The document: the id plus this experiment's own resolved section."""
     return {
         "experiment_name": experiment,
-        "climate_experiment": dict(experiment_cfg or {}),
+        "run_stress_test": dict(experiment_cfg or {}),
     }
 
 
@@ -88,8 +88,8 @@ def _frozen_differences(recorded: dict, document: dict) -> list:
     the project — the same default, and the same reasoning, as
     ``refuse_retired_experiment_keys``.
     """
-    was = recorded.get("climate_experiment") or {}
-    now = document.get("climate_experiment") or {}
+    was = recorded.get("run_stress_test") or {}
+    now = document.get("run_stress_test") or {}
     changed = sorted(
         key
         for key in set(was) | set(now)
@@ -105,7 +105,7 @@ def _frozen_differences(recorded: dict, document: dict) -> list:
     changed += sorted(
         key
         for key in set(recorded) | set(document)
-        if key not in ("experiment_name", "climate_experiment")
+        if key not in ("experiment_name", "run_stress_test")
     )
     return changed
 
@@ -166,7 +166,7 @@ if __name__ == "__main__":
             _prev = Path(sm.output.experiment_config)
             before = (
                 (yaml.safe_load(_prev.read_text(encoding="utf-8")) or {}).get(
-                    "climate_experiment"
+                    "run_stress_test"
                 )
                 or {}
                 if _prev.is_file()
@@ -178,10 +178,10 @@ if __name__ == "__main__":
                 experiment=sm.params.experiment,
                 experiment_cfg=sm.params.experiment_cfg,
             )
-            dropped = sorted(set(before) - set(doc["climate_experiment"]))
+            dropped = sorted(set(before) - set(doc["run_stress_test"]))
             log_row(
                 f"experiment config recorded for {doc['experiment_name']!r} "
-                f"({len(doc['climate_experiment'])} setting(s))"
+                f"({len(doc['run_stress_test'])} setting(s))"
                 + (
                     f"; migrated forward, dropped retired key(s): {', '.join(dropped)}"
                     if dropped

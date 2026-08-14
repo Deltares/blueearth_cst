@@ -23,13 +23,13 @@ shared:
   clim_historical: era5
 
 workflows:
-  model_creation:
+  build_model:
     enabled: true
     model_build_config: config/defaults/wflow_build_model.yml
     waterbodies_config: config/defaults/wflow_update_waterbodies.yml
     wflow_outvars: ["river discharge", "groundwater recharge"]
     observations_timeseries: test_case/test_data/observations_timeseries.csv
-  climate_projections:
+  analyze_projections:
     enabled: true
     clim_project: cmip6
     models:
@@ -50,7 +50,7 @@ workflows:
     future_horizons:
       far: [2070, 2090]
 
-  climate_experiment:
+  run_stress_test:
     enabled: true
     experiment_name: experiment
     realizations_num: 2

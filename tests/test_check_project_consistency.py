@@ -41,19 +41,19 @@ _BASE_CFG = {
         "clim_historical": "era5",
     },
     "workflows": {
-        "model_creation": {
+        "build_model": {
             "enabled": True,
             "model_build_config": "config/defaults/wflow_build_model.yml",
             "waterbodies_config": "config/defaults/wflow_update_waterbodies.yml",
             "wflow_outvars": ["river discharge"],
         },
-        "climate_projections": {
+        "analyze_projections": {
             "enabled": True,
             "clim_project": "cmip6",
             "models": ["NOAA-GFDL/GFDL-ESM4"],
             "scenarios": ["ssp245", "ssp585"],
         },
-        "climate_experiment": {
+        "run_stress_test": {
             "experiment_name": "experiment",
             "realizations_num": 2,
         },
@@ -69,8 +69,8 @@ def _write(path: Path, cfg: dict) -> Path:
 @pytest.fixture()
 def snapshots(tmp_path):
     """Write matching wf1 + wf2 snapshots from _BASE_CFG; return their paths."""
-    wf1 = _write(tmp_path / "snake_config_model_creation.yml", _BASE_CFG)
-    wf2 = _write(tmp_path / "snake_config_climate_projections.yml", _BASE_CFG)
+    wf1 = _write(tmp_path / "snake_config_build_model.yml", _BASE_CFG)
+    wf2 = _write(tmp_path / "snake_config_analyze_projections.yml", _BASE_CFG)
     return wf1, wf2
 
 
@@ -89,13 +89,13 @@ def test_b_mutated_basin_resolution_fails_naming_key(snapshots):
     assert any("shared.basin" in d and "resolution" in d for d in diffs)
 
 
-def test_c_mutated_model_creation_fails(snapshots):
+def test_c_mutated_build_model_fails(snapshots):
     wf1, wf2 = snapshots
     live = copy.deepcopy(_BASE_CFG)
-    live["workflows"]["model_creation"]["wflow_outvars"] = ["actual evapotranspiration"]
+    live["workflows"]["build_model"]["wflow_outvars"] = ["actual evapotranspiration"]
     diffs = compare_project_consistency(live, wf1, wf2)
     assert diffs
-    assert any("workflows.model_creation" in d for d in diffs)
+    assert any("workflows.build_model" in d for d in diffs)
 
 
 def test_d_flat_vs_binned_paths_pass(tmp_path):
@@ -104,15 +104,15 @@ def test_d_flat_vs_binned_paths_pass(tmp_path):
     # Snapshot uses NEW binned catalog paths; experiment config uses OLD flat
     # paths for the mapped keys. Symmetric normalization makes them equal.
     snapshot_cfg = copy.deepcopy(_BASE_CFG)
-    wf1 = _write(tmp_path / "snake_config_model_creation.yml", snapshot_cfg)
+    wf1 = _write(tmp_path / "snake_config_build_model.yml", snapshot_cfg)
 
     live = copy.deepcopy(_BASE_CFG)
     live["project"]["data_sources"] = "config\\deltares_data.yml"
     live["project"]["data_sources_climate"] = "config\\cmip6_data.yml"
-    live["workflows"]["model_creation"]["model_build_config"] = (
+    live["workflows"]["build_model"]["model_build_config"] = (
         "config\\wflow_build_model.yml"
     )
-    live["workflows"]["model_creation"]["waterbodies_config"] = (
+    live["workflows"]["build_model"]["waterbodies_config"] = (
         "config\\wflow_update_waterbodies.yml"
     )
 
@@ -125,8 +125,8 @@ def test_e_missing_wf1_snapshot_fails_with_run_first_message(tmp_path):
     diffs = compare_project_consistency(copy.deepcopy(_BASE_CFG), missing)
     assert diffs
     assert any(
-        "run Snakefile_model_creation first" in d.lower()
-        or "run snakefile_model_creation first" in d.lower()
+        "run build_model.smk first" in d.lower()
+        or "run snakefile_build_model first" in d.lower()
         for d in diffs
     )
 
@@ -139,19 +139,19 @@ def test_f_mutated_historical_window_passes_not_guarded(snapshots):
     assert diffs == []
 
 
-def test_g_mutated_climate_projections_with_wf2_snapshot_fails(snapshots):
+def test_g_mutated_analyze_projections_with_wf2_snapshot_fails(snapshots):
     wf1, wf2 = snapshots
     live = copy.deepcopy(_BASE_CFG)
-    live["workflows"]["climate_projections"]["scenarios"] = ["ssp126"]
+    live["workflows"]["analyze_projections"]["scenarios"] = ["ssp126"]
     diffs = compare_project_consistency(live, wf1, wf2)
     assert diffs
-    assert any("workflows.climate_projections" in d for d in diffs)
+    assert any("workflows.analyze_projections" in d for d in diffs)
 
 
-def test_h_mutated_climate_projections_without_wf2_snapshot_passes(snapshots):
+def test_h_mutated_analyze_projections_without_wf2_snapshot_passes(snapshots):
     wf1, _ = snapshots
     live = copy.deepcopy(_BASE_CFG)
-    live["workflows"]["climate_projections"]["scenarios"] = ["ssp126"]
+    live["workflows"]["analyze_projections"]["scenarios"] = ["ssp126"]
     # No wf2 snapshot -> projections section unchecked + logged, passes.
     diffs = compare_project_consistency(live, wf1, wf2_snapshot_path=None)
     assert diffs == []

@@ -130,12 +130,12 @@ docker pull containers.deltares.nl/CST/cst_workflows:0.1.0
 
 The toolbox provides three [Snakemake](https://snakemake.github.io/) workflows:
 
-- **Snakefile_model_creation** — builds a Wflow model from global data for the
+- **build_model.smk** — builds a Wflow model from global data for the
   selected region and runs / analyses it for a historical period.
-- **Snakefile_climate_projections** — derives future climate statistics
+- **analyze_projections.smk** — derives future climate statistics
   (temperature and precipitation change) for a chosen set of CMIP scenarios and
   GCMs.
-- **Snakefile_climate_experiment** — generates future weather realizations,
+- **run_stress_test.smk** — generates future weather realizations,
   applies stress-test perturbations, and runs the hydrological model on each
   realization × stress combination.
 
@@ -166,8 +166,8 @@ only.)
 Each workflow keeps its established current config copy for project-consistency
 checks, and writes one **`run_record.yml`** describing the run it just did:
 
-- `<project_dir>/config/runs/model_creation/run_record.yml`
-- `<project_dir>/config/runs/climate_projections/run_record.yml`
+- `<project_dir>/config/runs/build_model/run_record.yml`
+- `<project_dir>/config/runs/analyze_projections/run_record.yml`
 - `<exp_dir>/config/run_record.yml` — inside the experiment, which is WF3's
   natural partition
 
@@ -188,7 +188,7 @@ remote or mutable dataset can change under an unchanged catalog entry without
 moving either digest.
 
 Only the keys a workflow actually reads go into its digests, so editing the
-`climate_experiment` section does not invalidate the model-creation record.
+`run_stress_test` section does not invalidate the model-creation record.
 
 **A referenced file is copied into the project only when the toolbox repository
 cannot give it back.** A catalog or template that lives in the checkout, is
@@ -227,10 +227,10 @@ across-workflow invocation manifest is the wrapper's.
 Each workflow records itself in **one log and one benchmark table**, both
 regenerated on every run:
 
-- **Snakefile_model_creation** — `logs/wf1_model_creation.log`
-- **Snakefile_climate_projections** — `logs/wf2_climate_projections.log`
-- **Snakefile_climate_experiment** —
-  `logs/wf3_climate_experiment_<experiment>.log`
+- **build_model.smk** — `logs/wf1_build_model.log`
+- **analyze_projections.smk** — `logs/wf2_analyze_projections.log`
+- **run_stress_test.smk** —
+  `logs/wf3_run_stress_test_<experiment>.log`
 
 All three land in the project's own `logs/`, so one run's records sit side by
 side. WF3 is experiment-scoped, so its records carry the experiment id in the
@@ -255,7 +255,7 @@ your choice:
 ```console
 $ pixi shell
 $ cd blueearth_cst
-$ snakemake all -c 1 -s Snakefile_model_creation \
+$ snakemake all -c 1 -s build_model.smk \
     --configfile test_case/snake_config_baseline.yml
 ```
 
@@ -361,15 +361,15 @@ drift or if hydromt gains a documented way to pin forcing encoding.
 
 A script is available to run via Docker: `scripts/run_snake_docker.sh`.
 
-### Snakefile_model_creation
+### build_model.smk
 
 Builds a hydrological Wflow model and runs / analyses it for a historical
 period.
 
 ```console
-$ python scripts/plot_workflow_dag.py -s Snakefile_model_creation --configfile test_case/snake_config_baseline.yml
-$ snakemake --unlock -s Snakefile_model_creation --configfile test_case/snake_config_baseline.yml
-$ snakemake all -c 1 -s Snakefile_model_creation --configfile test_case/snake_config_baseline.yml
+$ python scripts/plot_workflow_dag.py -s build_model.smk --configfile test_case/snake_config_baseline.yml
+$ snakemake --unlock -s build_model.smk --configfile test_case/snake_config_baseline.yml
+$ snakemake all -c 1 -s build_model.smk --configfile test_case/snake_config_baseline.yml
 ```
 
 The first command renders a DAG visualization (requires Graphviz's `dot`). It
@@ -380,18 +380,18 @@ the same way its log and benchmark table do. It renders the graph and runs nothi
 clears any leftover working-directory lock from a prior crash. The third runs
 the workflow.
 
-### Snakefile_climate_projections
+### analyze_projections.smk
 
 Derives future climate statistics (expected temperature and precipitation
 change) for selected CMIP scenarios and GCMs.
 
 ```console
-$ python scripts/plot_workflow_dag.py -s Snakefile_climate_projections --configfile test_case/snake_config_baseline.yml
-$ snakemake --unlock -s Snakefile_climate_projections --configfile test_case/snake_config_baseline.yml
-$ snakemake all -c 1 -s Snakefile_climate_projections --configfile test_case/snake_config_baseline.yml --keep-going
+$ python scripts/plot_workflow_dag.py -s analyze_projections.smk --configfile test_case/snake_config_baseline.yml
+$ snakemake --unlock -s analyze_projections.smk --configfile test_case/snake_config_baseline.yml
+$ snakemake all -c 1 -s analyze_projections.smk --configfile test_case/snake_config_baseline.yml --keep-going
 ```
 
-### Snakefile_climate_experiment
+### run_stress_test.smk
 
 Prepares future weather realizations and stress-test perturbations, runs them
 through the hydrological model, and aggregates the discharge statistics.
@@ -420,16 +420,16 @@ $ pixi run python scripts/suggest_experiment_name.py <your config> --name dry_sc
 
 It reserves the directory atomically (versioning a *generated* collision to
 `_v2`; a name you chose is never silently renamed) and writes
-`workflows.climate_experiment.experiment_name` back into the config, leaving its
+`workflows.run_stress_test.experiment_name` back into the config, leaving its
 comments and layout intact. `--dry-run` prints the suggestion without writing.
 An **existing value is never overwritten**: the experiment directory is what a
 completed run's outputs are addressed by, so silently renaming it would strand
 them. Clear the key by hand to go back to the default.
 
 ```console
-$ python scripts/plot_workflow_dag.py -s Snakefile_climate_experiment --configfile test_case/snake_config_baseline.yml
-$ snakemake --unlock -s Snakefile_climate_experiment --configfile test_case/snake_config_baseline.yml
-$ snakemake all -c 1 -s Snakefile_climate_experiment --configfile test_case/snake_config_baseline.yml
+$ python scripts/plot_workflow_dag.py -s run_stress_test.smk --configfile test_case/snake_config_baseline.yml
+$ snakemake --unlock -s run_stress_test.smk --configfile test_case/snake_config_baseline.yml
+$ snakemake all -c 1 -s run_stress_test.smk --configfile test_case/snake_config_baseline.yml
 ```
 
 ## Testing

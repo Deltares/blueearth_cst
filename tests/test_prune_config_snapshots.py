@@ -25,9 +25,9 @@ def project(tmp_path):
     root = tmp_path / "proj"
 
     bundles = [
-        root / "config/runs/model_creation/1a22a14838f3",
-        root / "config/runs/climate_projections/61868971c618",
-        root / "experiments/exp1/config/runs/climate_experiment/278159763309",
+        root / "config/runs/build_model/1a22a14838f3",
+        root / "config/runs/analyze_projections/61868971c618",
+        root / "experiments/exp1/config/runs/run_stress_test/278159763309",
     ]
     for bundle in bundles:
         bundle.mkdir(parents=True)
@@ -37,7 +37,7 @@ def project(tmp_path):
         # The GENERATED experiment catalog, written over generated forcing at
         # run time. The design keeps it, and a pattern match on
         # `config/catalogs/` across the whole tree would delete it.
-        root / "experiments/exp1/config/catalogs/data_catalog_climate_experiment.yml",
+        root / "experiments/exp1/config/catalogs/data_catalog_run_stress_test.yml",
         # Outside-repo files the predicate copies BY DESIGN. Losing these costs
         # the project its record of what it was evaluated against.
         root / "config/basin_data/output_locations.csv",
@@ -66,9 +66,9 @@ def test_bundles_are_found_in_the_project_and_the_experiment(project):
     found = {p.relative_to(root).as_posix() for p in pcs.find_bundles(root)}
 
     assert found == {
-        "config/runs/model_creation/1a22a14838f3",
-        "config/runs/climate_projections/61868971c618",
-        "experiments/exp1/config/runs/climate_experiment/278159763309",
+        "config/runs/build_model/1a22a14838f3",
+        "config/runs/analyze_projections/61868971c618",
+        "experiments/exp1/config/runs/run_stress_test/278159763309",
     }
 
 
@@ -157,7 +157,7 @@ def test_the_default_run_deletes_nothing(project, capsys):
     assert exit_code == 0
     assert "DRY RUN" in capsys.readouterr().out
     assert all(path.is_file() for path in keep)
-    assert (root / "config/runs/model_creation/1a22a14838f3").is_dir()
+    assert (root / "config/runs/build_model/1a22a14838f3").is_dir()
 
 
 def test_delete_removes_the_bundles_and_keeps_everything_protected(project):
@@ -166,9 +166,9 @@ def test_delete_removes_the_bundles_and_keeps_everything_protected(project):
 
     pcs.main(["--config", str(config), "--delete"])
 
-    assert not (root / "config/runs/model_creation/1a22a14838f3").exists()
+    assert not (root / "config/runs/build_model/1a22a14838f3").exists()
     assert not (
-        root / "experiments/exp1/config/runs/climate_experiment/278159763309"
+        root / "experiments/exp1/config/runs/run_stress_test/278159763309"
     ).exists()
     for path in keep:
         assert path.is_file(), f"{path} was deleted and must not have been"
@@ -177,8 +177,8 @@ def test_delete_removes_the_bundles_and_keeps_everything_protected(project):
 def test_a_migrated_project_reports_nothing_to_do(tmp_path, capsys):
     """It is a one-shot migration, so a second run must find nothing."""
     root = tmp_path / "proj"
-    (root / "config/runs/model_creation").mkdir(parents=True)
-    (root / "config/runs/model_creation/run_record.yml").write_text(
+    (root / "config/runs/build_model").mkdir(parents=True)
+    (root / "config/runs/build_model/run_record.yml").write_text(
         "schema_version: 2\n", encoding="utf-8"
     )
     config = tmp_path / "cfg.yml"
@@ -189,4 +189,4 @@ def test_a_migrated_project_reports_nothing_to_do(tmp_path, capsys):
     pcs.main(["--config", str(config)])
 
     assert "already in the new shape" in capsys.readouterr().out
-    assert (root / "config/runs/model_creation/run_record.yml").is_file()
+    assert (root / "config/runs/build_model/run_record.yml").is_file()

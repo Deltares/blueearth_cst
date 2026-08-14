@@ -199,7 +199,7 @@ def test_copied_config_all_four_keys_normalize(tmp_path):
                 "data_sources_climate": "config/cmip6_data.yml",
             },
             "workflows": {
-                "model_creation": {
+                "build_model": {
                     "model_build_config": "config/wflow_build_model.yml",
                     "waterbodies_config": "config/wflow_update_waterbodies.yml",
                 }
@@ -214,7 +214,7 @@ def test_copied_config_all_four_keys_normalize(tmp_path):
                 "data_sources_climate": "config/catalogs/cmip6_data.yml",
             },
             "workflows": {
-                "model_creation": {
+                "build_model": {
                     "model_build_config": "config/defaults/wflow_build_model.yml",
                     "waterbodies_config": "config/defaults/wflow_update_waterbodies.yml",
                 }
@@ -235,7 +235,7 @@ def test_copied_config_normalizes_the_intermediate_templates_era(tmp_path):
         ref,
         {
             "workflows": {
-                "model_creation": {
+                "build_model": {
                     "model_build_config": "config/templates/wflow_build_model.yml",
                     "waterbodies_config": "config/templates/wflow_update_waterbodies.yml",
                 }
@@ -246,7 +246,7 @@ def test_copied_config_normalizes_the_intermediate_templates_era(tmp_path):
         cur,
         {
             "workflows": {
-                "model_creation": {
+                "build_model": {
                     "model_build_config": "config/defaults/wflow_build_model.yml",
                     "waterbodies_config": "config/defaults/wflow_update_waterbodies.yml",
                 }

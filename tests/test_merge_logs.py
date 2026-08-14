@@ -44,7 +44,7 @@ def test_one_header_then_a_banner_per_rule(tmp_path):
             "2.04_derive_change_factors": None,
         },
     )
-    out = tmp_path / "logs" / "wf2_climate_projections.log"
+    out = tmp_path / "logs" / "wf2_analyze_projections.log"
     merge_logs(
         ["2.01_fetch_gcm_raw", "2.04_derive_change_factors"], str(out), parts_dir
     )
@@ -53,7 +53,7 @@ def test_one_header_then_a_banner_per_rule(tmp_path):
     # exactly one provenance header, and it is the merged log's own
     assert text.count("# BlueEarth-CST") == 1
     assert text.startswith("# BlueEarth-CST")
-    assert "# log: wf2_climate_projections.log | merged " in text
+    assert "# log: wf2_analyze_projections.log | merged " in text
     # per-part headers are stripped, bodies survive
     assert "started 14:12:37" not in text
     assert "body of modelA" in text and "body of 2.04_derive_change_factors" in text
@@ -79,7 +79,7 @@ def test_the_merged_log_defines_the_folder_tokens_its_rows_use(tmp_path, monkeyp
     monkeypatch.setenv(su._PATH_TOKENS_ENV, "")
     su.declare_path_tokens(model=tmp_path / "models" / "hydrology" / "wflow")
     parts_dir = _parts(tmp_path, {"1.07_build_wflow_model": None})
-    out = tmp_path / "logs" / "wf1_model_creation.log"
+    out = tmp_path / "logs" / "wf1_build_model.log"
     merge_logs(["1.07_build_wflow_model"], str(out), parts_dir)
     assert "# <model>: models/hydrology/wflow" in out.read_text(encoding="utf-8")
 
@@ -157,7 +157,7 @@ def test_remove_parts_clears_the_parts_tree(tmp_path):
         tmp_path,
         {"2.01_fetch_gcm_raw": ["modelA"], "2.04_derive_change_factors": None},
     )
-    out = tmp_path / "logs" / "wf2_climate_projections.log"
+    out = tmp_path / "logs" / "wf2_analyze_projections.log"
     merge_logs(
         ["2.01_fetch_gcm_raw", "2.04_derive_change_factors"],
         str(out),

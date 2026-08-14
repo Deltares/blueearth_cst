@@ -77,10 +77,10 @@ def _cfg(tmp_path, experiment_name=None):
     project_dir.mkdir(exist_ok=True)
     doc = {
         "project": {"project_dir": str(project_dir).replace("\\", "/")},
-        "workflows": {"climate_experiment": {"enabled": True}},
+        "workflows": {"run_stress_test": {"enabled": True}},
     }
     if experiment_name is not None:
-        doc["workflows"]["climate_experiment"]["experiment_name"] = experiment_name
+        doc["workflows"]["run_stress_test"]["experiment_name"] = experiment_name
     p = tmp_path / "cfg.yml"
     p.write_text(yaml.safe_dump(doc), encoding="utf-8")
     return p
@@ -91,7 +91,7 @@ def test_cli_writes_when_absent(tmp_path):
     res = _run(cfg)
     assert res.returncode == 0, res.stderr
     doc = yaml.safe_load(cfg.read_text(encoding="utf-8"))
-    assert doc["workflows"]["climate_experiment"]["experiment_name"] == "gabon_20260728"
+    assert doc["workflows"]["run_stress_test"]["experiment_name"] == "gabon_20260728"
 
 
 def test_cli_refuses_to_overwrite(tmp_path):
@@ -159,7 +159,7 @@ def test_the_template_config_does_not_hardcode_an_experiment_name():
             encoding="utf-8"
         )
     )
-    section = template["workflows"]["climate_experiment"]
+    section = template["workflows"]["run_stress_test"]
     assert "experiment_name" not in section, (
         "snake_config.template.yml must not set experiment_name: a copied "
         "template would inherit the placeholder, and "
@@ -176,7 +176,7 @@ def test_the_test_fixtures_deliberately_KEEP_a_fixed_name():
         "test_case/snake_config_wf2_fast.yml",
     ):
         doc = yaml.safe_load((SNAKEDIR / rel).read_text(encoding="utf-8"))
-        assert doc["workflows"]["climate_experiment"]["experiment_name"]
+        assert doc["workflows"]["run_stress_test"]["experiment_name"]
 
 
 # --- the write must not destroy the config it edits ----------------------------
@@ -201,7 +201,7 @@ def _annotated_cfg(tmp_path, body):
 
 
 CE_BLOCK = (
-    "  climate_experiment:\n"
+    "  run_stress_test:\n"
     "    enabled: true\n"
     "    realizations_num: 2  # trailing comment\n"
     "    stress_test:\n"
@@ -234,7 +234,7 @@ def test_cli_fills_a_bare_key_in_place_keeping_its_comment(tmp_path):
     treats as unset (its refusal test is `is not None`)."""
     cfg = _annotated_cfg(
         tmp_path,
-        "  climate_experiment:\n"
+        "  run_stress_test:\n"
         "    enabled: true\n"
         "    experiment_name:   # fill me in\n"
         "    realizations_num: 2\n",
@@ -250,7 +250,7 @@ def test_the_new_key_lands_below_the_comments_that_document_it(tmp_path):
     insertion goes after it, not between the comment and its heading."""
     cfg = _annotated_cfg(
         tmp_path,
-        "  climate_experiment:\n"
+        "  run_stress_test:\n"
         "    enabled: true\n"
         "    # experiment_name is left unset on purpose; run the command\n"
         "    realizations_num: 2\n",
@@ -269,14 +269,14 @@ def test_cli_leaves_unrelated_structure_intact(tmp_path):
     before = yaml.safe_load(cfg.read_text(encoding="utf-8"))
     assert _run(cfg).returncode == 0
     after = yaml.safe_load(cfg.read_text(encoding="utf-8"))
-    before["workflows"]["climate_experiment"]["experiment_name"] = "gabon_20260728"
+    before["workflows"]["run_stress_test"]["experiment_name"] = "gabon_20260728"
     assert after == before
 
 
 def test_an_uneditable_config_reserves_nothing(tmp_path):
     """Failing after the reservation would strand an experiments/<id>/ for a
     config the command then could not write to anyway."""
-    cfg = _annotated_cfg(tmp_path, "  climate_experiment: {enabled: true}\n")
+    cfg = _annotated_cfg(tmp_path, "  run_stress_test: {enabled: true}\n")
     before = cfg.read_text(encoding="utf-8")
     res = _run(cfg)
     assert res.returncode == 2
@@ -307,28 +307,26 @@ def test_the_shipped_template_is_editable_by_this_command(tmp_path):
     after = cfg.read_text(encoding="utf-8")
     assert after.count("#") == n_comments_before
     assert (
-        yaml.safe_load(after)["workflows"]["climate_experiment"]["experiment_name"]
+        yaml.safe_load(after)["workflows"]["run_stress_test"]["experiment_name"]
         == "gabon_20260728"
     )
 
 
-def test_a_missing_climate_experiment_block_is_appended(tmp_path):
+def test_a_missing_run_stress_test_block_is_appended(tmp_path):
     """The yaml.safe_dump this replaced created absent blocks via setdefault;
     dropping that would break configs the command used to accept."""
     cfg = _annotated_cfg(
         tmp_path,
-        "  model_creation:\n"
+        "  build_model:\n"
         "    enabled: true  # keep me\n"
         "\n"
         "# a trailing comment that belongs to no block\n",
     )
     assert _run(cfg).returncode == 0
     doc = yaml.safe_load(cfg.read_text(encoding="utf-8"))
-    assert doc["workflows"]["climate_experiment"] == {
-        "experiment_name": "gabon_20260728"
-    }
-    assert doc["workflows"]["model_creation"] == {"enabled": True}
+    assert doc["workflows"]["run_stress_test"] == {"experiment_name": "gabon_20260728"}
+    assert doc["workflows"]["build_model"] == {"enabled": True}
     text = cfg.read_text(encoding="utf-8")
     assert "# keep me" in text and "belongs to no block" in text
     # The appended block goes before the dangling comment, not after it.
-    assert text.index("climate_experiment") < text.index("belongs to no block")
+    assert text.index("run_stress_test") < text.index("belongs to no block")

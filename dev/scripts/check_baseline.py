@@ -17,7 +17,7 @@ substitute: it is rounded to 5 decimal places, and on discharge running
 tolerance comparator below exists to detect.
 
 It is NOT a `rule all` target of
-Snakefile_model_creation (whose `rule all` lists only the 3 PNGs + config
+build_model.smk (whose `rule all` lists only the 3 PNGs + config
 snapshot + outlet_index.csv); it is fingerprinted beyond `rule all` for
 constant-parameter-preservation coverage (ADR 0001, t260719a). A byte-hash is
 wrong for it: raw daily discharge is full float64 and maximally LSB-sensitive,
@@ -64,9 +64,9 @@ how the residual was closed, not a description of the current gate.)
 
 Usage:
     python dev/scripts/check_baseline.py record
-    python dev/scripts/check_baseline.py record --workflow model_creation   # merge one slice
+    python dev/scripts/check_baseline.py record --workflow build_model   # merge one slice
     python dev/scripts/check_baseline.py check
-    python dev/scripts/check_baseline.py check --workflow model_creation
+    python dev/scripts/check_baseline.py check --workflow build_model
     python dev/scripts/check_baseline.py compare --ref A/output.csv --cur B/output.csv
     python dev/scripts/check_baseline.py {record,check} --project-dir test_case/test
 """
@@ -220,8 +220,8 @@ VOLATILE_NC_ATTRS = frozenset(
 # (workflow, kind, path-template). Templates are resolved against project_dir.
 # The workflow tag scopes `check --workflow <name>` / `record --workflow <name>`
 # (repeatable); it selects a path universe applied symmetrically to the recorded
-# and current sides. Mirrors `rule all` across Snakefile_model_creation,
-# Snakefile_climate_projections, Snakefile_climate_experiment — plus the one
+# and current sides. Mirrors `rule all` across build_model.smk,
+# analyze_projections.smk, run_stress_test.smk — plus the one
 # beyond-`rule all` discharge target (see module docstring / ADR 0001).
 # R07 (dev/milestones/r07/migration_project-layout.md §3a is the authority; this list is
 # written FROM that table). 14 live targets: all 14 change manifest key via the
@@ -235,35 +235,35 @@ VOLATILE_NC_ATTRS = frozenset(
 # semantic_tree_diff runs against the retained pre-R07 reference tree and the
 # comparator-based discharge anchor (migration map §7a).
 TARGETS: list[tuple[str, str, str]] = [
-    # Snakefile_model_creation -- B10 (commit 12) splits the project-level
+    # build_model.smk -- B10 (commit 12) splits the project-level
     # plots/ tree by DEPICTED subject: model inputs, the model, the run.
     # Per-station evaluation figures are keyed by wflow_id (2026-08-10), so no
     # single name is config-invariant. FIGURE_KINDS targets are excluded from
     # the gate by default anyway; the run's numbers are covered by output.csv
     # and performance_metrics.csv.
     (
-        "model_creation",
+        "build_model",
         "png",
         "{project_dir}/data/spatial/plots/basin_area.png",
     ),
     (
-        "model_creation",
+        "build_model",
         "png",
         "{project_dir}/models/hydrology/wflow/forcing/plots/forcing_precip_map.png",
     ),
     (
-        "model_creation",
+        "build_model",
         "yaml",
-        "{project_dir}/config/runs/snake_config_model_creation.yml",
+        "{project_dir}/config/runs/snake_config_build_model.yml",
     ),
     # Unmoved within the tree (prefix change only) -- and exception 3(d)
     # requires it to stay that way: if discharge moves at all, stop.
     (
-        "model_creation",
+        "build_model",
         "discharge",
         "{project_dir}/models/hydrology/wflow/run_default/output.csv",
     ),
-    # Snakefile_climate_projections -- B3 (commit 9) tiers ONLY the three
+    # analyze_projections.smk -- B3 (commit 9) tiers ONLY the three
     # summary files; the three PNGs deliberately stay put (arch-10).
     # S8-05: a SWAP, not a subtraction. The three wide
     # `annual_change_scalar_stats_summary*` files were retired, and dropping them
@@ -272,41 +272,41 @@ TARGETS: list[tuple[str, str, str]] = [
     # carry strictly more -- both values per row, per-row provenance, and the
     # future level the wide form never held.
     (
-        "climate_projections",
+        "analyze_projections",
         "csv",
         "{clim_project_dir}/summary/{clim_project}_change_factors_annual.csv",
     ),
     (
-        "climate_projections",
+        "analyze_projections",
         "csv",
         "{clim_project_dir}/summary/{clim_project}_change_factors_monthly.csv",
     ),
     # S8-07 renamed all three figures.
     (
-        "climate_projections",
+        "analyze_projections",
         "png",
         "{clim_project_dir}/plots/{clim_project}_change_factor_cloud.png",
     ),
     (
-        "climate_projections",
+        "analyze_projections",
         "png",
         "{clim_project_dir}/plots/{clim_project}_precip_annual_absolute.png",
     ),
     (
-        "climate_projections",
+        "analyze_projections",
         "png",
         "{clim_project_dir}/plots/{clim_project}_temp_annual_absolute.png",
     ),
     (
-        "climate_projections",
+        "analyze_projections",
         "yaml",
-        "{project_dir}/config/runs/snake_config_climate_projections.yml",
+        "{project_dir}/config/runs/snake_config_analyze_projections.yml",
     ),
-    # Snakefile_climate_experiment. R9 P3 renames the two tables and moves them
+    # run_stress_test.smk. R9 P3 renames the two tables and moves them
     # from indicators/ to results/. The wf3 config snapshot does NOT join
     # config/runs/: it stays inside the experiment (arch-10), content only.
     # R11 CR-2: ONE table per output variable, so this set follows the SEED
-    # config's `workflows.model_creation.wflow_outvars`, which is
+    # config's `workflows.build_model.wflow_outvars`, which is
     # `["river discharge"]` -> `q_indicators.csv` alone. `basin_indicators.csv`
     # no longer exists; its contents are now per-variable tables, and the seed
     # requests no basin variables.
@@ -321,15 +321,15 @@ TARGETS: list[tuple[str, str, str]] = [
     # on numeric noise that indicates no defect. Compared against a stored
     # reference table with a per-group tolerance instead -- see the indicator
     # block and INDICATOR_ATOL_FRAC.
-    ("climate_experiment", "indicator", "{exp_dir}/results/q_indicators.csv"),
+    ("run_stress_test", "indicator", "{exp_dir}/results/q_indicators.csv"),
     (
-        "climate_experiment",
+        "run_stress_test",
         "yaml",
-        "{exp_dir}/config/snake_config_climate_experiment.yml",
+        "{exp_dir}/config/snake_config_run_stress_test.yml",
     ),
 ]
 
-WORKFLOWS = ("model_creation", "climate_projections", "climate_experiment")
+WORKFLOWS = ("build_model", "analyze_projections", "run_stress_test")
 
 #: Fingerprint kinds that are FIGURES rather than data. Excluded by default.
 #:

@@ -16,7 +16,7 @@ docker run \
     snakemake all \
     -F \
     -c 4 \
-    -s ${docker_root}/Snakefile_model_creation \
+    -s ${docker_root}/build_model.smk \
     --configfile ${docker_root}/test_case/snake_config_baseline_linux.yml
 
 docker run \
@@ -27,7 +27,7 @@ docker run \
     snakemake all \
     -F \
     -c 4 \
-    -s ${docker_root}/Snakefile_climate_experiment \
+    -s ${docker_root}/run_stress_test.smk \
     --configfile ${docker_root}/test_case/snake_config_baseline_linux.yml
 
 docker run \
@@ -38,5 +38,5 @@ docker run \
     snakemake all \
     -F \
     -c 4 \
-    -s ${docker_root}/Snakefile_climate_projections \
+    -s ${docker_root}/analyze_projections.smk \
     --configfile ${docker_root}/test_case/snake_config_baseline_linux.yml

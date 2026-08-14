@@ -33,7 +33,7 @@ path_static = "staticmaps.nc"
 path_forcing = "forcing/inmaps_historical.nc"
 """
 
-SNAKEFILE = Path(__file__).resolve().parents[1] / "Snakefile_climate_experiment"
+SNAKEFILE = Path(__file__).resolve().parents[1] / "run_stress_test.smk"
 
 
 def _model(tmp_path):
@@ -302,7 +302,12 @@ def _script_modules():
 
     repo = SNAKEFILE.parent
     found = {REGION_SCRIPT}
-    for snakefile in sorted(repo.glob("Snakefile_*")):
+    # `*.smk`, and asserted non-empty: this globbed `Snakefile_*` until the
+    # 2026-08-14 rename, after which it matched nothing and the caller checked
+    # an empty script set while staying green.
+    entry_points = sorted(repo.glob("*.smk"))
+    assert entry_points, f"no workflow entry points (*.smk) under {repo}"
+    for snakefile in entry_points:
         text = snakefile.read_text(encoding="utf-8")
         found |= set(re.findall(r'script:\s*"([^"]+\.py)"', text))
     return sorted(repo / rel for rel in found if (repo / rel).is_file())

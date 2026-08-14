@@ -1,8 +1,8 @@
 """R07 B1: the three ``extract_historical_climate`` declarations are ONE rule.
 
-The store producer is declared in ``Snakefile_model_creation`` (rule 1.10),
-``Snakefile_climate_experiment`` (rule 3.02) and — since WF2 v2.0 migration
-step 1 — ``Snakefile_climate_projections`` (rule 2.11), all from the same
+The store producer is declared in ``build_model.smk`` (rule 1.10),
+``run_stress_test.smk`` (rule 3.02) and — since WF2 v2.0 migration
+step 1 — ``analyze_projections.smk`` (rule 2.11), all from the same
 ``snake_utils.climate_store_rule`` object. Nothing in the rule grammar enforces
 that they stay identical, and a per-workflow difference re-creates the
 wf1<->wf3 re-extraction oscillation the design forbids (P2(b), ext1-02/ext2-01).
@@ -222,8 +222,8 @@ def declarations(request, config_variants):
     config_path = config_variants[request.param]
     out = {"_variant": request.param}
     for label, snakefile in (
-        ("wf1", "Snakefile_model_creation"),
-        ("wf3", "Snakefile_climate_experiment"),
+        ("wf1", "build_model.smk"),
+        ("wf3", "run_stress_test.smk"),
     ):
         workflow = _parse_workflow(snakefile, config_path)
         rule = workflow.get_rule(RULE_NAME)
@@ -232,7 +232,7 @@ def declarations(request, config_variants):
     # declared the producer only to obtain the region polygon, and the region is
     # now its own artifact. Kept here so the absence is ASSERTED rather than
     # silently untested.
-    out["wf2_workflow"] = _parse_workflow("Snakefile_climate_projections", config_path)
+    out["wf2_workflow"] = _parse_workflow("analyze_projections.smk", config_path)
     return out
 
 
@@ -413,7 +413,7 @@ def test_chirps_branch_declares_and_consumes_one_orography_path(tmp_path):
     cfg_path = tmp_path / "snake_config_chirps.yml"
     cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
 
-    workflow = _parse_workflow("Snakefile_climate_experiment", cfg_path)
+    workflow = _parse_workflow("run_stress_test.smk", cfg_path)
     producer = workflow.get_rule(RULE_NAME)
     catalog_rule = workflow.get_rule("write_climate_data_catalog")
 
@@ -426,5 +426,5 @@ def test_chirps_branch_declares_and_consumes_one_orography_path(tmp_path):
     )
 
     # wf1 declares the same sidecar output on the same branch.
-    wf1 = _parse_workflow("Snakefile_model_creation", cfg_path)
+    wf1 = _parse_workflow("build_model.smk", cfg_path)
     assert str(wf1.get_rule(RULE_NAME).output.oro_nc) == oro_out

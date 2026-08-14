@@ -2,7 +2,7 @@
 
 The hand-rolled one-liner everyone reaches for::
 
-    snakemake -s Snakefile_model_creation --configfile <cfg> --dag | dot -Tpng > dag_model.png
+    snakemake -s build_model.smk --configfile <cfg> --dag | dot -Tpng > dag_model.png
 
 writes ``dag_model.png`` wherever the shell happens to be -- in practice the
 repo root -- and names it after nothing in particular. The graph describes ONE
@@ -41,12 +41,12 @@ config; every ``dev/scripts/`` tool reports on the repository instead
 
 Usage (inside ``pixi shell``, or via ``pixi run``, from the repo root)::
 
-    python scripts/plot_workflow_dag.py -s Snakefile_model_creation --configfile <cfg>
-    python scripts/plot_workflow_dag.py -s Snakefile_climate_experiment --configfile <cfg> \\
+    python scripts/plot_workflow_dag.py -s build_model.smk --configfile <cfg>
+    python scripts/plot_workflow_dag.py -s run_stress_test.smk --configfile <cfg> \\
         --mode rulegraph --format svg
 
     # anything after `--` is forwarded to snakemake verbatim
-    python scripts/plot_workflow_dag.py -s Snakefile_climate_projections --configfile <cfg> \\
+    python scripts/plot_workflow_dag.py -s analyze_projections.smk --configfile <cfg> \\
         -- --config foo=bar
 
 Not a Snakemake rule and deliberately so: a rule that renders the DAG would sit
@@ -77,11 +77,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Snakefile -> workflow number. The `wf<N>` labelling is the repo's existing
 # convention for per-workflow artifacts; keep this in step with the merged-log
-# names in blueearth_cst/shared/merge_logs.py (logs/wf1_model_creation.log ...).
+# names in blueearth_cst/shared/merge_logs.py (logs/wf1_build_model.log ...).
 WORKFLOW_NUMBER = {
-    "Snakefile_model_creation": 1,
-    "Snakefile_climate_projections": 2,
-    "Snakefile_climate_experiment": 3,
+    "build_model.smk": 1,
+    "analyze_projections.smk": 2,
+    "run_stress_test.smk": 3,
 }
 
 # Where under project_dir the graph lands. One directory for all three
@@ -97,7 +97,7 @@ def plot_relpath(
 
     ``logs/dag/<project_name>_wf<N>_<mode>.<fmt>``, with WF3 carrying its
     ``experiment_name`` between the workflow number and the mode -- the same
-    scheme the merged log (``wf3_climate_experiment_<experiment>.log``) and the
+    scheme the merged log (``wf3_run_stress_test_<experiment>.log``) and the
     benchmark table (``wf3_benchmarks_<experiment>.md``) use. Directory and
     filename are built together because for WF3 they are one decision: the id
     has to appear in exactly one of them, and it is the name.
@@ -108,9 +108,9 @@ def plot_relpath(
     """
     stem = f"{project_name}_wf{number}"
     if number == 3:
-        experiment = (
-            (config.get("workflows") or {}).get("climate_experiment") or {}
-        ).get("experiment_name")
+        experiment = ((config.get("workflows") or {}).get("run_stress_test") or {}).get(
+            "experiment_name"
+        )
         if experiment:
             stem = f"{stem}_{experiment}"
     return PLOT_SUBDIR / f"{stem}_{mode}.{image_format}"
@@ -239,7 +239,7 @@ def main() -> int:
         "--snakefile",
         type=Path,
         required=True,
-        help="the Snakefile to graph (e.g. Snakefile_model_creation)",
+        help="the Snakefile to graph (e.g. build_model.smk)",
     )
     parser.add_argument(
         "--configfile",

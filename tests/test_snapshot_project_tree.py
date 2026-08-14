@@ -27,8 +27,8 @@ def _config(project_dir):
             },
         },
         "workflows": {
-            "climate_experiment": {"experiment_name": "my_experiment"},
-            "climate_projections": {"clim_project": "cmip6"},
+            "run_stress_test": {"experiment_name": "my_experiment"},
+            "analyze_projections": {"clim_project": "cmip6"},
         },
     }
 
@@ -93,12 +93,12 @@ def test_snakemake_metadata_is_excluded_but_nothing_else_is(tmp_path):
     an observed snapshot exists to carry artifacts no rule declares."""
     _touch(tmp_path, ".snakemake/log/whatever.log")
     _touch(tmp_path, "hydrology_model/hydromt.log")  # undeclared, kept
-    _touch(tmp_path, "logs/wf1_model_creation.log")  # excluded from tree
+    _touch(tmp_path, "logs/wf1_build_model.log")  # excluded from tree
     _touch(tmp_path, "hydrology_model/.model_built")  # dotfile, kept
     assert spt.list_tree(tmp_path) == [
         "hydrology_model/.model_built",
         "hydrology_model/hydromt.log",
-        "logs/wf1_model_creation.log",
+        "logs/wf1_build_model.log",
     ]
 
 

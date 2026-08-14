@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-SNAKEFILE = REPO / "Snakefile_model_creation"
+SNAKEFILE = REPO / "build_model.smk"
 CONFIG = REPO / "tests" / "snake_config_fixture.yml"
 
 

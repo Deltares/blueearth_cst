@@ -12,7 +12,7 @@ It is opt-in and slow. It needs:
 
 Run it with::
 
-    pixi run pytest tests/test_workflow_model_creation.py --run-integration
+    pixi run pytest tests/test_workflow_build_model.py --run-integration
 
 Skipped by default, and self-skips if the data mirror or Julia is absent.
 """
@@ -75,7 +75,7 @@ def _catalog_root():
     return roots[0] if roots else None
 
 
-def test_model_creation_end_to_end():
+def test_build_model_end_to_end():
     """Force a full rebuild of workflow 1 and assert Wflow output is produced."""
     root = _catalog_root()
     if root is None or not exists(root):
@@ -84,10 +84,7 @@ def test_model_creation_end_to_end():
         pytest.skip("julia not on PATH (juliaup-managed Julia 1.11.7 required)")
 
     os.chdir(SNAKEDIR)
-    cmd = (
-        f"snakemake all -c 1 -s Snakefile_model_creation "
-        f"--configfile {CONFIG} --forceall"
-    )
+    cmd = f"snakemake all -c 1 -s build_model.smk --configfile {CONFIG} --forceall"
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
     assert result.returncode == 0, (

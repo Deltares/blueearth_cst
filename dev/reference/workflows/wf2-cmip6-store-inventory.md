@@ -12,7 +12,7 @@ Method:   anonymous gcsfs directory listing of
           Last-Modified 2022-06-28).
 ```
 
-Companion documents: `wf2_climate_projections_overview.md` (rule-level map of WF2
+Companion documents: `wf2_analyze_projections_overview.md` (rule-level map of WF2
 today), `wf2-climate-analysis-v2-design.md` (the rework this feeds).
 
 ---
@@ -50,7 +50,7 @@ for order-of-magnitude realm coverage, not for availability decisions.
   the combined open has already raised. Worth an explicit uniqueness check in v2.
 - Variables are renamed in the adapter: `pr→precip`, `tas→temp`, `rsds→kin`,
   `psl→press_msl`. Only those four CMIP6 variables are reachable today.
-- `Snakefile_climate_projections` has no `{member}` wildcard.
+- `analyze_projections.smk` has no `{member}` wildcard.
   `blueearth_cst/projections/get_stats_climate_proj.py` **loops** the configured
   `members:` list and merges the results along a `member` dimension, so
   multi-member ensembles are supported by the code.
@@ -206,7 +206,7 @@ new catalog with byte-identical URIs, so existing configs are unaffected
 (`pytest tests/test_cli.py`: 9 passed).
 
 **Member selection is a config-side decision, and a global list cannot be
-optimal.** `Snakefile_climate_projections` reads one `members:` list and passes
+optimal.** `analyze_projections.smk` reads one `members:` list and passes
 it to every model job, so the catalog alone does not remove the `r1i1p1f1` pin.
 Two facts constrain the default:
 

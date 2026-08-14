@@ -78,8 +78,8 @@ def map_parameters(config: dict) -> dict:
     shared = config["shared"]
     workflows = config.get("workflows", {})
     window = shared["historical_window"]
-    experiment = workflows.get("climate_experiment", {})
-    projections = workflows.get("climate_projections", {})
+    experiment = workflows.get("run_stress_test", {})
+    projections = workflows.get("analyze_projections", {})
     return {
         "project_dir": project["project_dir"],
         "experiment_name": experiment.get("experiment_name", "experiment"),

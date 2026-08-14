@@ -163,8 +163,8 @@ when R6 adds module composition or a wrapper script).
 > **Amended 2026-07-17.** The three per-workflow contract docs
 > (`dev/reference/workflows/<name>.md`) are moved out of R1: each is written as
 > the opening act of the milestone that refactors that workflow
-> (R3 → model_creation, R4 → climate_projections, R5 →
-> climate_experiment). Rationale: a contract doc written when its
+> (R3 → build_model, R4 → analyze_projections, R5 →
+> run_stress_test). Rationale: a contract doc written when its
 > workflow is freshly in focus is better-informed, and R1 shrinks to
 > mostly mechanical config migration.
 
@@ -285,14 +285,14 @@ guides (function lengths, comment conventions).
 
 ### R3 — Workflow 1: model builder (sealed 2026-07-19)
 
-**Status.** Sealed 2026-07-19 — `Snakefile_model_creation` + its scripts
+**Status.** Sealed 2026-07-19 — `build_model.smk` + its scripts
 cleaned up: shared `get_config` and `tee_to_log` in `src/snake_utils.py`
 (the cross-cutting patterns R4/R5 inherit), per-rule `log:`/`benchmark:` on
 every non-trivial rule, deprecated path labels renamed, `setup_gauges` hardened
 (raises on unknown `wflow_outvars`), the waterbodies rule encapsulated with a
 removal trigger + structured sentinel, and a new `outlet_index.csv` rule-all
 output settling the outlet-naming contract. R2 naming applied to workflow-1
-identifiers; the deferred R1 contract doc `dev/reference/workflows/model_creation.md`
+identifiers; the deferred R1 contract doc `dev/reference/workflows/build_model.md`
 written. **Behavior-preserving**, verified by a full `--forceall` WF1 rebuild:
 `check_baseline` 14/14, all per-rule logs written, `outlet_index.csv` and the
 structured sentinel correct. Suite 73 passed, 3 skipped, 2 xfailed. Constant-
@@ -301,7 +301,7 @@ baseline move); the workflow-3 `CyclicGraphException` `test_cli` ratchet is
 retained for R5. Full design, external GPT-5.6 review, and integration-
 verification record in `dev/milestones/r03/`. Merged to `main` 2026-07-19.
 
-**Goal.** Clean up `Snakefile_model_creation` and the scripts it
+**Goal.** Clean up `build_model.smk` and the scripts it
 calls — orchestration *and* analytical code. Establish the
 cross-cutting Snakefile patterns that R4 and R5 inherit.
 
@@ -316,9 +316,9 @@ cross-cutting Snakefile patterns that R4 and R5 inherit.
 
 **Workflow-1 deliverables.**
 - Opening act, before code changes: write
-  `dev/reference/workflows/model_creation.md` (contract doc deferred from R1;
+  `dev/reference/workflows/build_model.md` (contract doc deferred from R1;
   format in `dev/milestones/r01/modularity-contracts-design.md` §4).
-- Any load-bearing `ruleorder:` in `Snakefile_model_creation` either
+- Any load-bearing `ruleorder:` in `build_model.smk` either
   tightened (preferred) or commented in-place with the reason.
 - Per-rule `log:` and `benchmark:` directives on every non-trivial
   rule in this Snakefile.
@@ -338,23 +338,23 @@ cross-cutting Snakefile patterns that R4 and R5 inherit.
   of the M1 baseline — preserved, or intentionally updated with a
   documented diff in `dev/milestones/r03/baseline_diffs.md`.
 - New unit tests added and passing.
-- `dev/reference/workflows/model_creation.md` contract doc committed.
+- `dev/reference/workflows/build_model.md` contract doc committed.
 
 **Out of scope.**
-- `Snakefile_climate_projections` content changes (R4) — except the
+- `analyze_projections.smk` content changes (R4) — except the
   shared helper import.
-- `Snakefile_climate_experiment` content changes (R5) — same caveat.
+- `run_stress_test.smk` content changes (R5) — same caveat.
 - Repo-wide directory restructuring (R6).
 
 **Tag.** `r03-model-builder`.
 
 ### R4 — Workflow 2: climate projections (sealed 2026-07-20)
 
-**Status.** Sealed 2026-07-20 — `Snakefile_climate_projections` + its four
+**Status.** Sealed 2026-07-20 — `analyze_projections.smk` + its four
 `src/` scripts cleaned up, inheriting the R3 patterns. Design accepted via a
 `design-review-loop` run (3-lens internal panel + 3 external GPT rounds +
 round-cap arbitration; 24/24 findings closed) at `dev/milestones/r04/`. Landed in 11
-commits (`1a8809e`..seal): contract doc `dev/reference/workflows/climate_projections.md`;
+commits (`1a8809e`..seal): contract doc `dev/reference/workflows/analyze_projections.md`;
 the load-bearing `ruleorder:` resolved as evidence-backed stale-insurance
 (dry-run refuted the `AGENTS.md` "load-bearing" claim — `AGENTS.md` corrected);
 per-rule `log:`/`benchmark:` + `tee_to_log` on all five non-trivial rules
@@ -380,16 +380,16 @@ loss, probe-localized to the hydromt catalog read, a dependency op (task
 flips its test xfail→xpass and fails the suite until the owning task removes the
 marker. Full design, reviews, audit, and probe in `dev/milestones/r04/`.
 
-**Goal.** Clean up `Snakefile_climate_projections` and the scripts it
+**Goal.** Clean up `analyze_projections.smk` and the scripts it
 calls. Inherit the patterns established in R3 (shared helper,
 configfile mechanism, log/benchmark conventions).
 
 **Deliverables.**
 - Opening act, before code changes: write
-  `dev/reference/workflows/climate_projections.md` (contract doc deferred from
+  `dev/reference/workflows/analyze_projections.md` (contract doc deferred from
   R1; format in `dev/milestones/r01/modularity-contracts-design.md` §4).
 - The load-bearing `ruleorder:` directive in
-  `Snakefile_climate_projections` either tightened or commented
+  `analyze_projections.smk` either tightened or commented
   in-place with the reason.
 - Per-rule `log:` and `benchmark:` on every non-trivial rule in this
   Snakefile.
@@ -406,7 +406,7 @@ configfile mechanism, log/benchmark conventions).
   the M1 baseline — preserved, or intentionally updated with a
   documented diff in `dev/milestones/r04/baseline_diffs.md`.
 - New unit tests added and passing.
-- `dev/reference/workflows/climate_projections.md` contract doc committed.
+- `dev/reference/workflows/analyze_projections.md` contract doc committed.
 
 **Out of scope.**
 - Workflow-1 or workflow-3 changes (other than shared helper
@@ -417,13 +417,13 @@ configfile mechanism, log/benchmark conventions).
 
 ### R5 — Workflow 3: climate experiment (sealed 2026-07-20)
 
-**Status.** Sealed 2026-07-20 — `Snakefile_climate_experiment` + its `src/`
+**Status.** Sealed 2026-07-20 — `run_stress_test.smk` + its `src/`
 scripts + the R weathergen layer (`src/weathergen/generate_weather.R`,
 `impose_climate_change.R`) cleaned up, inheriting the R3/R4 patterns. Design
 accepted via a `design-review-loop` run (3-lens internal panel + 2 external GPT
 rounds + round-cap arbitration; 21/21 findings closed) at `dev/milestones/r05/`. Landed in
 12 commits (no commit 4; `8b356f3`..seal): contract doc
-`dev/reference/workflows/climate_experiment.md`; `stress_test_grid` helper extracted to
+`dev/reference/workflows/run_stress_test.md`; `stress_test_grid` helper extracted to
 `snake_utils.py` (strict `step_num`, removing the Snakefile's silent default-1 —
 output-neutral hardening); `prepare_weagen_config.py` config assembly extracted
 into importable functions above a guard; the **CyclicGraphException** resolved
@@ -438,7 +438,7 @@ arg-binding + arity checks + progress `message()`s; `_fid → _path` label
 renames; and the wf3 Python-helper unit tests.
 
 **Behavior-preserving.** The end-to-end milestone gate
-(`check_baseline check --workflow model_creation --workflow climate_experiment`,
+(`check_baseline check --workflow build_model --workflow run_stress_test`,
 after a full fresh wf3 regen) matched **7/7 targets** (4 wf1 + 3 wf3) — **no
 manifest re-record**. The two computational-path commits are each confirmed
 output-equivalent by a dedicated ext1-3 characterization on the exact artifact
@@ -487,13 +487,13 @@ layer is gated end-to-end by the milestone baseline run + the `test_cli` dry-run
 with the §5a arity checks as the R-layer's correctness net. Full design, reviews,
 and dispositions in `dev/milestones/r05/`.
 
-**Goal.** Clean up `Snakefile_climate_experiment` and the scripts it
+**Goal.** Clean up `run_stress_test.smk` and the scripts it
 calls — including the R weathergen layer. Inherit the patterns from
 R3.
 
 **Deliverables.**
 - Opening act, before code changes: write
-  `dev/reference/workflows/climate_experiment.md` (contract doc deferred from
+  `dev/reference/workflows/run_stress_test.md` (contract doc deferred from
   R1; format in `dev/milestones/r01/modularity-contracts-design.md` §4).
 - Per-rule `log:` and `benchmark:` on every non-trivial rule in this
   Snakefile.
@@ -515,7 +515,7 @@ R3.
   the M1 baseline — preserved, or intentionally updated with a
   documented diff in `dev/milestones/r05/baseline_diffs.md`.
 - New unit tests added and passing.
-- `dev/reference/workflows/climate_experiment.md` contract doc committed.
+- `dev/reference/workflows/run_stress_test.md` contract doc committed.
 
 **Out of scope.**
 - Workflow-1 or workflow-2 changes (other than shared helper
@@ -901,7 +901,7 @@ for executable files, and the Snakefiles at the repo root.
 
 **Scope — artifact half.** Collapse the duplicate climate stores into one
 region-keyed store (B1); move wflow forcing into the engine subtree (B2); tier
-`climate_projections/` (B3); climate figures from the climate store, never from
+`analyze_projections/` (B3); climate figures from the climate store, never from
 wflow forcing (B4); two symmetric engine subtrees in the experiment —
 `weather_generator/` and `hydrology_runs/` (B5); demote `stress_test/` to
 `_work/` (B6); `model_results/` → `indicators/` (B7); auto-*suggest*
@@ -1024,7 +1024,7 @@ unconverged, so the owner arbitrated all nine surviving findings — the final
 version's changes therefore carry no external verdict, which the design states on
 its face. Accepted design: `dev/reference/workflows/wf2-climate-analysis-v2-design.md`;
 audit trail: `dev/reference/workflows/wf2-climate-analysis-v2-design-review-record.md`;
-current-state map: `dev/reference/workflows/wf2_climate_projections_overview.md`; store
+current-state map: `dev/reference/workflows/wf2_analyze_projections_overview.md`; store
 inventory: `dev/reference/workflows/wf2-cmip6-store-inventory.md`.
 
 **Owner rulings that shaped it.** Clip the GCM reference to the 2014 end of the
@@ -1035,7 +1035,7 @@ statistics are ex-post (R3′/R3″); v2.0 is monthly GCM projections analysis w
 no observed-data comparison (R4); the basin-averaged monthly series per run is a
 declared deliverable (R5). Arbitration: 30 calendar years 1985–2014 (A1), picked
 dry-month defaults (A2), non-`pr`/`tas` variables selectable but best-effort
-(A3). Open questions settled 2026-07-29: extend `Snakefile_climate_projections`
+(A3). Open questions settled 2026-07-29: extend `analyze_projections.smk`
 in place rather than opening a 4th entry point (OQ-1); rename `save_grids` →
 `save_gridded` at step 5e (OQ-12).
 
@@ -1080,7 +1080,7 @@ yet.
 ## Phase 6 — Project tree redesign (R9 SEALED 2026-08-07)
 
 Registered 2026-08-04. Phase 4 consolidated the generated tree it inherited —
-producer-oriented roots (`climate_historical/`, `climate_projections/`,
+producer-oriented roots (`climate_historical/`, `analyze_projections/`,
 `hydrology_model/`), tidied but not rethought. Phase 6 replaces those roots with
 domain ones and settles four things Phase 4 left to convention: how generated
 files are named, what a model fingerprint actually has to cover, when an
@@ -1174,7 +1174,7 @@ ruling 6 marked superseded.
 
 **Resolved across design v6–v8**, all toward what the code emits: the config
 snapshot **stays under `config/`** (the decider being that
-`config/runs/snake_config_model_creation.yml` is a declared `input:` of WF3's
+`config/runs/snake_config_build_model.yml` is a declared `input:` of WF3's
 drift guard, so it is a consumed contract artifact rather than an archive); the
 climate store **keeps its source+window cache key**; `cmip6/raw/` and `scalar/`
 are both kept, `scalar/` being R8's ruling S8-03; `change_factors/` stays as two
@@ -1208,7 +1208,7 @@ rather than relocating a file, and R9 must budget it as new capability.
 `dev/milestones/r09/project-tree-task-brief.md`. The complexity gate classified
 R9 as several independently verifiable subsystems rather than one unit, so it is
 a master brief plus five phase briefs, matching R7's shape. Phases are strictly
-sequential — every phase but P1 edits `Snakefile_climate_experiment`, so they
+sequential — every phase but P1 edits `run_stress_test.smk`, so they
 cannot run in parallel worktrees — and P1 (the `semantic_tree_diff` comparator)
 deliberately precedes the migration, because a move made before its comparator
 exists has no regression detector. Three human gates: comparator, scientific
@@ -1597,7 +1597,7 @@ Scope one before it becomes board items.
   *Direction raised by Ümit 2026-07-21 (test/pre06, Observation re: WF1's 11
   rules).* NOT covered by R6's current lock list (which is repo/directory
   layout + `enabled:`); this is rule-level composition *within* a workflow — a
-  new R6 axis. WF1 today has 12 rules (1.01–1.12; see `Snakefile_model_creation`
+  new R6 axis. WF1 today has 12 rules (1.01–1.12; see `build_model.smk`
   and naming.md §9): copy_config, prepare_build_config, create_model,
   add_reservoirs_lakes_glaciers, add_gauges_and_outputs, write_outlet_index,
   setup_runtime, add_forcing, run_wflow, plot_results, plot_map, plot_forcing.

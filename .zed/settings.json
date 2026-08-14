@@ -34,12 +34,14 @@
     "**/test_case"
   ],
 
-  // The three Snakefiles are extensionless (`Snakefile_model_creation`, ...), so
-  // the Snakemake extension's own path_suffixes (`Snakefile`, `snakefile`,
-  // `smk`) do not match them. Requires the `snakemake` extension; without it
-  // these open as plain text.
+  // The workflow entry points carry `.smk` since 2026-08-14, which the
+  // `snakemake` extension's own path_suffixes (`Snakefile`, `snakefile`,
+  // `smk`) already match — so this mapping is no longer load-bearing and is
+  // kept only to cover a checkout where the extension is absent. Before the
+  // rename the three were extensionless and nothing matched them, so they
+  // opened as plain text.
   "file_types": {
-    "Snakemake": ["Snakefile_*", "*.smk"]
+    "Snakemake": ["*.smk"]
   },
 
   "languages": {

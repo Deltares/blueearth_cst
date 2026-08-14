@@ -34,7 +34,7 @@ from pathlib import Path
 
 #: WF3 rule 3.00b `check_project_consistency` takes this as a mandatory
 #: `ancient()` input; its absence is a rule-level MissingInputException.
-LEAF_WF1_SNAPSHOT = "config/runs/snake_config_model_creation.yml"
+LEAF_WF1_SNAPSHOT = "config/runs/snake_config_build_model.yml"
 
 #: WF3 rule 3.01c `write_model_reference` (R9 P4), the first WF3 rule to declare
 #: model files as inputs. Both are `ancient()`: the reference must not re-derive
@@ -53,7 +53,7 @@ LEAVES: tuple[str, ...] = (LEAF_WF1_SNAPSHOT, LEAF_MODEL_TOML, LEAF_MODEL_READY)
 #: and existence-checks it in the script, because the projections overlay is
 #: optional and must not be force-required. `test_guard_invalidation` stages it
 #: because its assertions are about the guard's COMPARISON, not the DAG.
-EXTRA_WF2_SNAPSHOT = "config/runs/snake_config_climate_projections.yml"
+EXTRA_WF2_SNAPSHOT = "config/runs/snake_config_analyze_projections.yml"
 
 #: NOT read by either downstream workflow. R07 B1 retired the extraction's
 #: `ancient(region.geojson)` input and ADR 0003 gave WF2 and WF3 their own

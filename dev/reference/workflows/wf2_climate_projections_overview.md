@@ -1,4 +1,4 @@
-# WF2 — rule-level overview (`Snakefile_climate_projections`)
+# WF2 — rule-level overview (`analyze_projections.smk`)
 
 Working aid for the planned efficiency/modularity rework of workflow 2. Records
 **current** behavior, rule by rule: what each rule does, what it consumes, what
@@ -7,9 +7,9 @@ it writes, and which rule consumes that output.
 Scope split — this file is strictly **rule/DAG level**. The behavioral contract
 (owned config keys, the `precip`/`temp` unit split, `save_grids` semantics, the
 known metadata regression, downstream-consumer semantics) lives in
-`dev/reference/workflows/climate_projections.md` and is **not** repeated here.
+`dev/reference/workflows/analyze_projections.md` and is **not** repeated here.
 
-Grounded in `Snakefile_climate_projections`,
+Grounded in `analyze_projections.smk`,
 `blueearth_cst/projections/*.py`, `blueearth_cst/shared/merge_{logs,benchmarks}.py`,
 `blueearth_cst/model/copy_config_files.py`, and the seed config
 `config/workflows/snake_config_model_test.yml`.
@@ -17,7 +17,7 @@ Grounded in `Snakefile_climate_projections`,
 Path shorthand used below:
 
 - `PD` = `project.project_dir`
-- `CPD` = `{PD}/climate_projections/{clim_project}` (seed: `.../cmip6`)
+- `CPD` = `{PD}/analyze_projections/{clim_project}` (seed: `.../cmip6`)
 - `BD` = `{PD}/hydrology_model` (workflow-1 product)
 
 ---
@@ -78,8 +78,8 @@ until 2.09 and 2.08 have run.
 | in | `{CPD}/summary/{proj}_change_factors_{annual,monthly}.csv` | 2.06 |
 | in | `{CPD}/plots/{proj}_change_factor_cloud.png` | 2.06 |
 | in | `{CPD}/plots/{proj}_{precip,temp}_annual_absolute.png` | 2.07 |
-| in | `{PD}/config/runs/snake_config_climate_projections.yml` | 2.04 |
-| in | `{PD}/logs/wf2_climate_projections.log` | 2.09 |
+| in | `{PD}/config/runs/snake_config_analyze_projections.yml` | 2.04 |
+| in | `{PD}/logs/wf2_analyze_projections.log` | 2.09 |
 | in | `{PD}/benchmarks/wf2_benchmarks.md` | 2.08 |
 
 ### 2.04 `fetch_gcm_slice` — `{series_key}`
@@ -120,7 +120,7 @@ the source YAML, Snakemake's merged config, advanced settings, and the CMIP6
 catalog snapshot.
 
 - **In:** `config_path`. **Out:** the current YAML plus
-  `{PD}/config/runs/climate_projections/{digest}/`.
+  `{PD}/config/runs/analyze_projections/{digest}/`.
 - Side effect, not declared: each catalog copied to `{PD}/config/catalogs/`.
 - **Connections:** an isolated leaf consumed only by `all`; never gates compute.
 
@@ -145,7 +145,7 @@ change factors for every `(point, horizon)`, and writes every result artifact.
   the 17-significant-digit reprs that made Excel prompt to convert the file on
   every open, and guarantees no cell is ever in exponent form. Both change-factor
   CSVs are `check_baseline.py` targets, so the format change required a scoped
-  `record --workflow climate_projections`.
+  `record --workflow analyze_projections`.
 
 ### 2.07 `plot_gcm_timeseries` — gather
 
@@ -159,7 +159,7 @@ Reopens all scalar series and renders the eight figures. Figure-only since S8-02
 ### 2.09 `gather_logs`
 
 **Every** WF2 rule that logs writes a part under `logs/_parts/`; this rule merges
-all of them into ONE `logs/wf2_climate_projections.log` and then deletes the
+all of them into ONE `logs/wf2_analyze_projections.log` and then deletes the
 parts, pruning the emptied dirs (so a clean full run leaves no `logs/_parts/`).
 That is the only WF2 file left in `logs/` — the deal `benchmarks/wf2_benchmarks.md`
 already had.
@@ -179,8 +179,8 @@ the benchmark table. Since [R10-5] that is also dependency order. `input:` is th
 terminal artifact set, so the rule is scheduled after every logging rule.
 
 The rule is shared verbatim by all three workflows — WF1 1.17
-(`logs/wf1_model_creation.log`), WF3 3.18
-(`logs/wf3_climate_experiment_<experiment>.log`) — differing only in the label
+(`logs/wf1_build_model.log`), WF3 3.18
+(`logs/wf3_run_stress_test_<experiment>.log`) — differing only in the label
 list, the parts dir and the output name.
 
 Same partial-re-run caveat as 2.08: only the rules that re-ran have parts, so the
@@ -231,7 +231,7 @@ says what happened.
                  ▼ (ordering edge; the CSV is declared, unread)        │
         2.07 plot_gcm_timeseries ─► plots/*.png  ──────────────┤
                  │                                                     │
-                 ├─► 2.09 gather_logs ─► logs/wf2_climate_projections.log
+                 ├─► 2.09 gather_logs ─► logs/wf2_analyze_projections.log
                  │        (+ deletes logs/_parts/)                     │
                  │                                                     │
                  └─► 2.08 gather_benchmarks ─► benchmarks/wf2_benchmarks.md
@@ -334,7 +334,7 @@ proposals.
     extension (`plots/precipitation_anomaly_projections_{n}`, matplotlib appends
     `.png`), while its temp counterpart passes `.png` explicitly.
 
-11. **Doc discrepancy (not fixed here):** `dev/reference/workflows/climate_projections.md`
-    lists the config snapshot at `{PD}/config/snake_config_climate_projections.yml`;
-    the Snakefile writes `{PD}/config/runs/snake_config_climate_projections.yml`.
+11. **Doc discrepancy (not fixed here):** `dev/reference/workflows/analyze_projections.md`
+    lists the config snapshot at `{PD}/config/snake_config_analyze_projections.yml`;
+    the Snakefile writes `{PD}/config/runs/snake_config_analyze_projections.yml`.
     The Snakefile is authoritative.

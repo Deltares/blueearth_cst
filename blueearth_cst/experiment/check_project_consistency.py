@@ -1,8 +1,8 @@
 """wf3 startup drift guard: experiment config vs project snapshots.
 
 An experiment config is a *full* config (approach A). Its project-level
-sections (``project``, ``shared.basin``, ``workflows.model_creation``,
-``workflows.climate_projections``) must describe the same project the built
+sections (``project``, ``shared.basin``, ``workflows.build_model``,
+``workflows.analyze_projections``) must describe the same project the built
 model / overlay came from — otherwise the experiment silently reuses a
 ``models/hydrology/wflow/`` built under different settings. This rule (3.00b
 ``check_project_consistency``) runs at wf3 rule time and fails loud on
@@ -35,11 +35,11 @@ from blueearth_cst.shared.snake_utils import log_row  # noqa: E402
 
 # The four project-level sections the guard compares (design §3b "exact guarded
 # key set"). Each is compared against the snapshot of the workflow that OWNS it;
-# ``workflows.climate_projections`` is compared against the wf2 snapshot only
+# ``workflows.analyze_projections`` is compared against the wf2 snapshot only
 # when that snapshot exists (else unchecked + logged — the projections overlay
 # is optional per the CST method and must not be force-required).
-_WF1_GUARDED = ("project", ("shared", "basin"), ("workflows", "model_creation"))
-_WF2_GUARDED = (("workflows", "climate_projections"),)
+_WF1_GUARDED = ("project", ("shared", "basin"), ("workflows", "build_model"))
+_WF2_GUARDED = (("workflows", "analyze_projections"),)
 
 # Directional OLD->NEW path map (pre-R6 flat -> post-R6 binned), mirroring
 # dev/scripts/semantic_tree_diff.py COPIED_CONFIG_PATH_MAP (dev/ scripts are
@@ -55,8 +55,8 @@ _COPIED_CONFIG_PATH_MAP: dict[str, dict[str, str]] = {
     "data_sources": {
         "config\\deltares_data.yml": "config/catalogs/deltares_data.yml",
         "config\\deltares_data_linux.yml": "config/catalogs/deltares_data_linux.yml",
-        "config\\deltares_data_climate_projections.yml": "config/catalogs/deltares_data_climate_projections.yml",
-        "config\\deltares_data_climate_projections_linux.yml": "config/catalogs/deltares_data_climate_projections_linux.yml",
+        "config\\deltares_data_analyze_projections.yml": "config/catalogs/deltares_data_analyze_projections.yml",
+        "config\\deltares_data_analyze_projections_linux.yml": "config/catalogs/deltares_data_analyze_projections_linux.yml",
         "config\\cmip6_data.yml": "config/catalogs/cmip6_data.yml",
     },
     "data_sources_climate": {
@@ -155,19 +155,17 @@ def compare_project_consistency(
     directly on staged config/snapshot pairs.
 
     - The wf1 snapshot is MANDATORY: when missing, a single "run
-      Snakefile_model_creation first" message is returned (the friendlier
+      build_model.smk first" message is returned (the friendlier
       duplicate of the rule-level ``MissingInputException``, design §3b).
-    - ``project``, ``shared.basin``, ``workflows.model_creation`` are compared
+    - ``project``, ``shared.basin``, ``workflows.build_model`` are compared
       against the wf1 snapshot.
-    - ``workflows.climate_projections`` is compared against the wf2 snapshot
+    - ``workflows.analyze_projections`` is compared against the wf2 snapshot
       ONLY when it exists; when absent (wf2 never ran) that section is logged
       unchecked and passes — it does not fall back to the wf1 copy.
     """
     wf1_path = Path(wf1_snapshot_path)
     if not wf1_path.is_file():
-        return [
-            f"No project snapshot at {wf1_path}; run Snakefile_model_creation first."
-        ]
+        return [f"No project snapshot at {wf1_path}; run build_model.smk first."]
     wf1_snapshot = yaml.safe_load(wf1_path.read_text(encoding="utf-8"))
 
     diffs: list[str] = []
@@ -181,7 +179,7 @@ def compare_project_consistency(
             diffs += _compare_section(live_cfg, wf2_snapshot, path)
     else:
         log_row(
-            "wf2 snapshot absent; workflows.climate_projections unchecked (passes)",
+            "wf2 snapshot absent; workflows.analyze_projections unchecked (passes)",
             module="guard",
         )
     return diffs

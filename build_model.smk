@@ -46,7 +46,7 @@ shared_cfg = config["shared"]
 # WF2 and WF3 also read. Figures are terminal artifacts, so this changes no
 # number -- but a figure labelled 'annual' should mean the basin's year.
 WATER_YEAR_START = resolve_water_year_start(get_config(shared_cfg, "water_year_start"))
-my_cfg = config["workflows"]["model_creation"]
+my_cfg = config["workflows"]["build_model"]
 
 # Project — paths and external resources
 project_dir = get_config(project_cfg, "project_dir", optional=False)
@@ -160,14 +160,14 @@ _observations_input = (
 # digest over the WHOLE config meant an edit to any other workflow's section
 # minted a fresh one. What replaces it is `run_record.yml`: current-only and
 # one per workflow.
-RUN_RECORD = f"{project_dir}/config/runs/model_creation/run_record.yml"
+RUN_RECORD = f"{project_dir}/config/runs/build_model/run_record.yml"
 
 # The consumed-key PROJECTION: the config paths this workflow actually reads.
 # Digesting the projection rather than the whole file is what stops a WF3-only
 # edit from re-firing WF1's record. A path this config lacks raises at parse
 # time -- the declaration is a claim about what the workflow reads, so a typo
 # must not quietly narrow the digest.
-CONFIG_PROJECTION = ("project", "shared", "workflows.model_creation")
+CONFIG_PROJECTION = ("project", "shared", "workflows.build_model")
 
 # Every external file this workflow's configuration points at. Hashed at parse
 # time so the digest below moves when one is edited IN PLACE -- the recorded
@@ -202,8 +202,8 @@ CONFIGURATION_INPUTS_DIGEST = configuration_inputs_digest(
 # the same string from the same shape, so the two cannot drift.
 #
 # Not a config value and not part of rule 3.01's guard digest, which serializes
-# `project`, `shared.basin`, `workflows.model_creation` and
-# `workflows.climate_projections` only — so this move does not flip the digest
+# `project`, `shared.basin`, `workflows.build_model` and
+# `workflows.analyze_projections` only — so this move does not flip the digest
 # and cannot make an existing project's drift guard refuse to run.
 basin_dir = f"{project_dir}/models/hydrology/wflow"
 
@@ -222,7 +222,7 @@ _forcing_climate_pngs = [f"{FORCING_PLOTS_DIR}/{name}" for name in figure_names(
 
 # --- The shared historical-climate store (R07 B1) -----------------------------
 # ONE producer contract, built here and identically in
-# Snakefile_climate_experiment, and splatted into rule 1.04 / rule 3.08 below.
+# run_stress_test.smk, and splatted into rule 1.04 / rule 3.08 below.
 # Everything content- or execution-determining (script, the single catalog
 # input, outputs, params) comes from this object; only message/log/benchmark are
 # workflow-local. tests/test_climate_store_contract.py parses both workflows and
@@ -264,11 +264,11 @@ REGION = region_rule(
 # the one call site where that differs from the module-level `spatial_cfg`
 # above: §8b requires the shared rule's params to be a pure function of
 # `project` + `shared.basin`, so the deprecated
-# `workflows.model_creation.output_locations` fallback cannot feed it.
+# `workflows.build_model.output_locations` fallback cannot feed it.
 #
 # THE COST WAS REAL AND SILENT, AND IS NOW REFUSED AT THE SEAM. Rule 1.06 used
 # to receive `my_cfg` and so honoured the legacy key on its way to the
-# partition. A config that set ONLY `workflows.model_creation.output_locations`
+# partition. A config that set ONLY `workflows.build_model.output_locations`
 # then reached this rule with no gauge points at all, so its parent basins fell
 # back to the AUTOMATIC partition: different subbasins, a different
 # location_registry.csv, and different wflow_id values — with no error, because
@@ -321,7 +321,7 @@ SPATIAL_UNITS = spatial_units_rule(
 
 # --- log layout ---------------------------------------------------------------
 # EVERY WF1 rule that logs writes a PART under logs/_parts/, and rule 1.17 merges
-# the parts into ONE logs/wf1_model_creation.log, then deletes them. So the only
+# the parts into ONE logs/wf1_build_model.log, then deletes them. So the only
 # WF1 file left in logs/ after a full run is that merged log — matching WF2 (2.09)
 # and WF3 (3.18), and the deal benchmarks/wf1_benchmarks.md already had.
 #
@@ -354,7 +354,7 @@ SPATIAL_UNITS = spatial_units_rule(
 # sliced the list to the first one anywhere, so a bracketed followups reference
 # truncated the label set it read. That parser is gone ([R10-10]), and the one
 # that replaced it anchors the closing bracket at column 0.
-WORKFLOW_LOG_NAME = "wf1_model_creation.log"
+WORKFLOW_LOG_NAME = "wf1_build_model.log"
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
 
 # The run's key folders, stated ONCE. `run_header` prints them at the top of the
@@ -436,7 +436,7 @@ WF1_TERMINALS = [
 # the config snapshot and the two gathered artifacts.
 WF1_TARGETS = [
     *WF1_TERMINALS,
-    f"{project_dir}/config/runs/snake_config_model_creation.yml",
+    f"{project_dir}/config/runs/snake_config_build_model.yml",
     f"{project_dir}/logs/{WORKFLOW_LOG_NAME}",
     f"{project_dir}/benchmarks/wf1_benchmarks.md",
 ]
@@ -461,7 +461,7 @@ rule snapshot_config:
         **_observations_input,
     params:
         data_catalogs = DATA_SOURCES,
-        workflow_name = "model_creation",
+        workflow_name = "build_model",
         config_dir = f"{project_dir}/config",
         effective_config = config,
         advanced_settings = ADVANCED_SETTINGS,
@@ -470,7 +470,7 @@ rule snapshot_config:
         # a structure. This is what keeps the record FRESH; see its definition.
         configuration_inputs_sha256 = CONFIGURATION_INPUTS_DIGEST,
     output:
-        config_snake_out = f"{project_dir}/config/runs/snake_config_model_creation.yml",
+        config_snake_out = f"{project_dir}/config/runs/snake_config_build_model.yml",
         run_record = RUN_RECORD,
     script:
         "blueearth_cst/model/copy_config_files.py"
@@ -773,7 +773,7 @@ rule run_wflow:
         # It was temp()'d from 2026-08-10 on the explicit ground that it was a
         # DUPLICATE -- the built TOML set `loglevel = "info"`, at which Wflow
         # sends the same records to the terminal and the file, and
-        # run_logged.py captured the terminal into logs/wf1_model_creation.log.
+        # run_logged.py captured the terminal into logs/wf1_build_model.log.
         # `_BASE_CONFIG` now also sets `[logging] silent = true`, which turns
         # off the terminal half to stop Julia's box-drawing blocks from
         # swamping the console. That removes the duplication the temp()
@@ -810,7 +810,7 @@ rule run_wflow:
         """python -u "{run_logged}" "{log}" -- {wflow_julia} -e "using Wflow; Wflow.run()" "{params.toml_path}" """
 
 # 1.04  extract_historical_climate — the SHARED historical-climate store producer
-# (R07 B1). This declaration and rule 3.08 in Snakefile_climate_experiment are
+# (R07 B1). This declaration and rule 3.08 in run_stress_test.smk are
 # the same rule: identical name, script, single catalog input, outputs and
 # params, all splatted from CLIMATE_STORE. Only message/log/benchmark are
 # workflow-local. wf1's old `climate_historical/wf1_raw/` store and its
@@ -1019,7 +1019,7 @@ rule write_run_metadata:
         # and a reader exempted by an argument is how the next one gets missed.
         model_final = ancient(f"{basin_dir}/.model_final"),
     params:
-        workflow_name = "model_creation",
+        workflow_name = "build_model",
         effective_config_sha256 = EFFECTIVE_CONFIG_DIGEST,
         configuration_inputs_sha256 = CONFIGURATION_INPUTS_DIGEST,
     output:
@@ -1236,7 +1236,7 @@ def _journal(event):
         JOURNAL_PATH,
         journal_event(
             invocation_id=INVOCATION_ID,
-            workflow="model_creation",
+            workflow="build_model",
             event=event,
             toolbox=_JOURNAL_TOOLBOX,
             effective_config_sha256=EFFECTIVE_CONFIG_DIGEST,
@@ -1264,7 +1264,7 @@ def _summary(failed):
     try:
         print(
             run_summary(
-                "wf1 model_creation",
+                "wf1 build_model",
                 project_dir,
                 WORKFLOW_LOG_NAME,
                 "wf1_benchmarks.md",
@@ -1292,7 +1292,7 @@ def _header():
     """
     try:
         print(
-            run_header("wf1 model_creation", project_dir, config_path),
+            run_header("wf1 build_model", project_dir, config_path),
             file=sys.stderr,
         )
     except Exception as exc:  # noqa: BLE001 -- never break a run over a banner

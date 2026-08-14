@@ -1,7 +1,7 @@
 """End-to-end smoke test for the climate-experiment workflow (workflow 3).
 
 Like the workflow 1 and 2 smoke tests, this actually runs ``snakemake all`` to
-completion — here on ``Snakefile_climate_experiment``: it extracts historical
+completion — here on ``run_stress_test.smk``: it extracts historical
 climate for the basin, generates stochastic weather realizations (weathergenr,
 R), perturbs them across the stress-test grid, runs Wflow.jl for every
 realization x stress-test combination, and reduces the runs to the Qstats/basin
@@ -17,7 +17,7 @@ It needs:
 
 Run it with::
 
-    pixi run pytest tests/test_workflow_climate_experiment.py --run-integration
+    pixi run pytest tests/test_workflow_run_stress_test.py --run-integration
 
 Skipped by default, and self-skips if any prerequisite is absent. Config is
 read lazily inside the test (never at import time) so a config-schema change
@@ -74,13 +74,13 @@ def _weathergenr_available():
     return result.returncode == 0
 
 
-def test_climate_experiment_end_to_end():
+def test_run_stress_test_end_to_end():
     """Force a full rebuild of workflow 3 and assert the indicator tables are produced."""
     cfg = _load_cfg()
     # R01 sectioned schema: project_dir under project, experiment_name under
-    # workflows.climate_experiment.
+    # workflows.run_stress_test.
     project_dir = cfg["project"]["project_dir"]
-    experiment = cfg["workflows"]["climate_experiment"]["experiment_name"]
+    experiment = cfg["workflows"]["run_stress_test"]["experiment_name"]
 
     root = _catalog_root(cfg)
     if root is None or not exists(root):
@@ -99,10 +99,7 @@ def test_climate_experiment_end_to_end():
         pytest.skip("weathergenr not loadable via Rscript (run `pixi run install`)")
 
     os.chdir(SNAKEDIR)
-    cmd = (
-        f"snakemake all -c 1 -s Snakefile_climate_experiment "
-        f"--configfile {CONFIG} --forceall"
-    )
+    cmd = f"snakemake all -c 1 -s run_stress_test.smk --configfile {CONFIG} --forceall"
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
     assert result.returncode == 0, (

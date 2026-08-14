@@ -81,7 +81,7 @@ def resolve_gauge_points_path(
     """Resolve the canonical gauge file, rejecting a legacy-only config.
 
     ``shared.basin.gauge_points`` is canonical. The former
-    ``workflows.model_creation.output_locations`` key is accepted only ALONGSIDE
+    ``workflows.build_model.output_locations`` key is accepted only ALONGSIDE
     it, naming the same file, so a staged migration can carry both; two
     different populated paths are an error rather than a precedence rule.
 
@@ -90,7 +90,7 @@ def resolve_gauge_points_path(
     rule 1.03 ``delineate_spatial_units``, and ADR 0003 §8b requires that
     rule's params to be a pure function of ``project`` + ``shared.basin`` —
     it is declared by all three workflows and the other two carry no
-    ``workflows.model_creation`` section at all. So the legacy key reaches the
+    ``workflows.build_model`` section at all. So the legacy key reaches the
     evaluation rule that reads the registry back but NOT the rule that writes
     it: delineation silently falls back to the automatic partition, and the
     failure surfaces a whole model build later as observation station IDs that
@@ -103,11 +103,11 @@ def resolve_gauge_points_path(
 
     if has_canonical and has_legacy:
         canonical_path = _path_value(canonical, "shared.basin.gauge_points")
-        legacy_path = _path_value(legacy, "workflows.model_creation.output_locations")
+        legacy_path = _path_value(legacy, "workflows.build_model.output_locations")
         if _normalized_path(canonical_path) != _normalized_path(legacy_path):
             raise ValueError(
                 "Conflicting gauge-point paths: shared.basin.gauge_points="
-                f"{canonical!r} and workflows.model_creation.output_locations="
+                f"{canonical!r} and workflows.build_model.output_locations="
                 f"{legacy!r}. Keep only shared.basin.gauge_points, or make the "
                 "two values identical during migration."
             )
@@ -115,9 +115,9 @@ def resolve_gauge_points_path(
     if has_canonical:
         return _path_value(canonical, "shared.basin.gauge_points")
     if has_legacy:
-        legacy_path = _path_value(legacy, "workflows.model_creation.output_locations")
+        legacy_path = _path_value(legacy, "workflows.build_model.output_locations")
         raise ValueError(
-            "workflows.model_creation.output_locations is no longer honoured on "
+            "workflows.build_model.output_locations is no longer honoured on "
             "its own: move the path to shared.basin.gauge_points.\n\n"
             "    shared:\n"
             "      basin:\n"
@@ -202,7 +202,7 @@ def parse_spatial_config(
     if model_cfg is None:
         model_cfg = {}
     if not isinstance(model_cfg, Mapping):
-        raise TypeError("workflows.model_creation must be a mapping")
+        raise TypeError("workflows.build_model must be a mapping")
 
     automatic_cfg = basin_cfg.get("automatic_subbasins", {}) or {}
     if not isinstance(automatic_cfg, Mapping):

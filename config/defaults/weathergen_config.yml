@@ -91,7 +91,7 @@ generate_weather:
   #   dry_spell_factor, wet_spell_factor
   #
   # The two spell factors come from the PROJECT config, under
-  # `workflows.climate_experiment.stress_test` beside `temp:` and `precip:` —
+  # `workflows.run_stress_test.stress_test` beside `temp:` and `precip:` —
   # they are stress-test perturbation knobs, not toolbox defaults. Absent
   # there, both default to twelve 1.0s (no adjustment).
   #

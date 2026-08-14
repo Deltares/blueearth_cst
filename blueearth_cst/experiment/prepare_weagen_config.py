@@ -44,7 +44,7 @@ def _transient_flag(stress_test_cfg, variable):
         return stress_test_cfg[variable]["transient_change"]
     except (KeyError, TypeError):
         raise ValueError(
-            f"workflows.climate_experiment.stress_test.{variable}.transient_change "
+            f"workflows.run_stress_test.stress_test.{variable}.transient_change "
             "is required: it decides whether the perturbation ramps over the run "
             "or applies as a step, and the weather generator has no defensible "
             "default for it."
@@ -86,7 +86,7 @@ def build_weagen_config(
     here, so the file no longer implies otherwise.
     """
     yml_snake = read_yml(snake_config_path)
-    experiment_cfg = yml_snake["workflows"]["climate_experiment"]
+    experiment_cfg = yml_snake["workflows"]["run_stress_test"]
 
     yml_dict = read_yml(default_config_path)
     # Section and key names are weathergenr 1.2.0's own function and argument

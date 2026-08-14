@@ -299,11 +299,11 @@ def _check_ns(project_dir, manifest_path, workflow=None, tolerance=0.0):
     )
 
 
-def _write_climate_experiment_targets(project_dir: str) -> str:
+def _write_run_stress_test_targets(project_dir: str) -> str:
     """Materialize every workflow-3 target. Returns the indicator table path."""
     indicator = ""
     for workflow, kind, template in cb.TARGETS:
-        if workflow != "climate_experiment":
+        if workflow != "run_stress_test":
             continue
         path = cb.resolve(template, project_dir)
         p = Path(path)
@@ -325,7 +325,7 @@ def _write_climate_experiment_targets(project_dir: str) -> str:
 @pytest.fixture
 def experiment_only_project(tmp_path):
     project_dir = str(tmp_path)
-    indicator = _write_climate_experiment_targets(project_dir)
+    indicator = _write_run_stress_test_targets(project_dir)
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text(
         json.dumps(
@@ -337,7 +337,7 @@ def experiment_only_project(tmp_path):
         )
     )
     rc = cb.cmd_record(
-        _record_ns(project_dir, manifest_path, workflow=["climate_experiment"])
+        _record_ns(project_dir, manifest_path, workflow=["run_stress_test"])
     )
     assert rc == 0
     return project_dir, manifest_path, indicator
@@ -356,7 +356,7 @@ def test_roundtrip_records_reference_table_and_checks_clean(
     assert (Path(manifest_path).parent / row["ref_table"]).exists()
 
     rc = cb.cmd_check(
-        _check_ns(project_dir, manifest_path, workflow=["climate_experiment"])
+        _check_ns(project_dir, manifest_path, workflow=["run_stress_test"])
     )
     assert rc == 0 and "OK -" in capsys.readouterr().out
 
@@ -369,7 +369,7 @@ def test_roundtrip_passes_an_immaterial_move(experiment_only_project, capsys):
     df.to_csv(indicator, index=False)
 
     rc = cb.cmd_check(
-        _check_ns(project_dir, manifest_path, workflow=["climate_experiment"])
+        _check_ns(project_dir, manifest_path, workflow=["run_stress_test"])
     )
     assert rc == 0, capsys.readouterr().out
 
@@ -381,7 +381,7 @@ def test_roundtrip_detects_a_material_move(experiment_only_project, capsys):
     df.to_csv(indicator, index=False)
 
     rc = cb.cmd_check(
-        _check_ns(project_dir, manifest_path, workflow=["climate_experiment"])
+        _check_ns(project_dir, manifest_path, workflow=["run_stress_test"])
     )
     out = capsys.readouterr().out
     assert rc == 1 and indicator in out and "exceed tolerance" in out
@@ -389,11 +389,11 @@ def test_roundtrip_detects_a_material_move(experiment_only_project, capsys):
 
 def test_record_refuses_when_the_table_is_missing(tmp_path, capsys):
     project_dir = str(tmp_path)
-    indicator = _write_climate_experiment_targets(project_dir)
+    indicator = _write_run_stress_test_targets(project_dir)
     Path(indicator).unlink()
     manifest_path = tmp_path / "manifest.json"
     rc = cb.cmd_record(
-        _record_ns(project_dir, manifest_path, workflow=["climate_experiment"])
+        _record_ns(project_dir, manifest_path, workflow=["run_stress_test"])
     )
     assert rc == 1
     assert "Missing targets" in capsys.readouterr().err
@@ -407,10 +407,8 @@ def test_indicator_is_not_fingerprinted_as_a_hash(tmp_path):
     would raise KeyError rather than silently hashing -- but pin the intent.
     """
     project_dir = str(tmp_path)
-    indicator = _write_climate_experiment_targets(project_dir)
-    manifest, _missing = cb.compute_manifest(
-        project_dir, workflows={"climate_experiment"}
-    )
+    indicator = _write_run_stress_test_targets(project_dir)
+    manifest, _missing = cb.compute_manifest(project_dir, workflows={"run_stress_test"})
     assert indicator not in manifest
     assert "indicator" in cb.REFERENCE_KINDS
     assert "indicator" not in cb.FINGERPRINTERS

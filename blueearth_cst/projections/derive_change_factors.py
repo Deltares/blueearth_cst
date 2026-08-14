@@ -27,7 +27,7 @@ exactly the expanded `{series_key}` list built from the resolved combination set
 and this job **asserts that the set it opened equals that list**. A model removed
 from the config cannot rejoin the run through a leftover file in `scalar/`.
 
-Invoked from ``Snakefile_climate_projections`` via ``script:``; reads
+Invoked from ``analyze_projections.smk`` via ``script:``; reads
 ``snakemake.input/output/params``, never ``sys.argv``.
 """
 # NOTE: no `from __future__ import annotations` here — Snakemake's `script:`

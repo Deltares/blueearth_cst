@@ -37,7 +37,7 @@ def _dry_run(config_path):
             "all",
             "-n",
             "-s",
-            str(REPO / "Snakefile_climate_projections"),
+            str(REPO / "analyze_projections.smk"),
             "--configfile",
             str(config_path),
         ],
@@ -73,7 +73,7 @@ def test_a_false_gridded_key_returns_a_warning(key):
     warnings = validate_removed_gridded_options({key: False})
 
     assert warnings == [
-        f"WARNING climate_projections: `{key}` is obsolete and ignored "
+        f"WARNING analyze_projections: `{key}` is obsolete and ignored "
         "(S8-08c); the gridded outputs were removed. Delete the key."
     ]
 
@@ -83,10 +83,10 @@ def test_a_false_gridded_key_returns_a_warning(key):
 def test_snakefile_rejects_a_removed_gridded_key(tmp_path, seed_config):
     """The WF2 Snakefile applies the directly tested removal policy."""
     cfg = dict(seed_config)
-    projection_cfg = dict(cfg["workflows"]["climate_projections"])
+    projection_cfg = dict(cfg["workflows"]["analyze_projections"])
     projection_cfg.pop("save_grids", None)
     projection_cfg["save_gridded"] = True
-    cfg["workflows"] = dict(cfg["workflows"], climate_projections=projection_cfg)
+    cfg["workflows"] = dict(cfg["workflows"], analyze_projections=projection_cfg)
 
     result = _dry_run(_write(tmp_path, cfg))
     combined = result.stdout + result.stderr
@@ -117,5 +117,5 @@ def test_no_shipped_config_carries_a_gridded_key():
 
 
 def test_no_rule_declares_a_grids_path():
-    text = (REPO / "Snakefile_climate_projections").read_text(encoding="utf-8")
+    text = (REPO / "analyze_projections.smk").read_text(encoding="utf-8")
     assert '"/grids/' not in text and "'/grids/" not in text

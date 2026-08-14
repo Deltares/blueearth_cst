@@ -33,6 +33,20 @@ from blueearth_cst.shared.snake_utils import (
 REPO = Path(__file__).resolve().parents[1]
 
 
+def _entry_points(repo: Path) -> list[Path]:
+    """The workflow entry points at the repo root, proven non-empty.
+
+    The assertion is the point. This globbed ``Snakefile_*`` until the
+    2026-08-14 rename to ``*.smk``, at which moment it matched NOTHING and
+    every test built on it passed over an empty set -- green, and checking
+    nothing. A glob that feeds a coverage set has to fail when it finds
+    nothing, or it reports the absence of files as the absence of defects.
+    """
+    found = sorted(repo.glob("*.smk"))
+    assert found, f"no workflow entry points (*.smk) under {repo}"
+    return found
+
+
 def test_the_settings_file_is_where_the_constant_comes_from():
     """Read independently of the module-level load, so a value left hardcoded
     in snake_utils would show up here rather than pass silently."""
@@ -92,10 +106,10 @@ def test_no_snakefile_hardcodes_a_julia_version():
     shell body, where it is invisible to the checks above."""
     offenders = {
         path.name
-        for path in REPO.glob("Snakefile_*")
+        for path in _entry_points(REPO)
         if re.search(r"julia \+\d+\.\d+\.\d+", path.read_text(encoding="utf-8"))
     }
-    # Empty since 2026-08-13. Snakefile_climate_experiment was the one tolerated
+    # Empty since 2026-08-13. run_stress_test.smk was the one tolerated
     # offender -- the same hardcode WF1 had, deferred to the WF3 pass -- and it
     # now uses julia_prefix like every other Julia call. The allowance is
     # REMOVED rather than left permissive: it was listed so that adopting

@@ -14,9 +14,9 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 
 SNAKEFILES = [
-    "Snakefile_model_creation",
-    "Snakefile_climate_projections",
-    "Snakefile_climate_experiment",
+    "build_model.smk",
+    "analyze_projections.smk",
+    "run_stress_test.smk",
 ]
 
 
@@ -32,20 +32,20 @@ def _rule_block(snakefile: Path, name: str) -> str:
     ("snakefile_name", "stable_output", "record_path"),
     [
         (
-            "Snakefile_model_creation",
-            "config/runs/snake_config_model_creation.yml",
-            "config/runs/model_creation/run_record.yml",
+            "build_model.smk",
+            "config/runs/snake_config_build_model.yml",
+            "config/runs/build_model/run_record.yml",
         ),
         (
-            "Snakefile_climate_projections",
-            "config/runs/snake_config_climate_projections.yml",
-            "config/runs/climate_projections/run_record.yml",
+            "analyze_projections.smk",
+            "config/runs/snake_config_analyze_projections.yml",
+            "config/runs/analyze_projections/run_record.yml",
         ),
         (
             # WF3's record sits directly in the experiment's config bin, not
             # under a runs/ sub-bin: the experiment IS the partition (R2).
-            "Snakefile_climate_experiment",
-            "config/snake_config_climate_experiment.yml",
+            "run_stress_test.smk",
+            "config/snake_config_run_stress_test.yml",
             "config/run_record.yml",
         ),
     ],
@@ -110,12 +110,12 @@ def test_the_run_record_is_one_file_per_workflow(snakefile_name):
     ("snakefile_name", "expected"),
     [
         (
-            "Snakefile_model_creation",
-            '("project", "shared", "workflows.model_creation")',
+            "build_model.smk",
+            '("project", "shared", "workflows.build_model")',
         ),
         (
-            "Snakefile_climate_projections",
-            '("project", "shared", "workflows.climate_projections")',
+            "analyze_projections.smk",
+            '("project", "shared", "workflows.analyze_projections")',
         ),
     ],
 )
@@ -134,11 +134,11 @@ def test_wf3_derives_its_projection_from_the_guard_tuple():
     written out beside it would drift the first time that tuple gained an
     entry, and nothing would report it.
     """
-    text = (REPO / "Snakefile_climate_experiment").read_text(encoding="utf-8")
+    text = (REPO / "run_stress_test.smk").read_text(encoding="utf-8")
 
     assert "CONFIG_PROJECTION = tuple(sorted(" in text
     assert "for section in guarded_sections" in text
-    assert '{"workflows.climate_experiment"}' in text
+    assert '{"workflows.run_stress_test"}' in text
 
 
 def test_wf3_projection_equals_the_derived_union():
@@ -151,23 +151,26 @@ def test_wf3_projection_equals_the_derived_union():
     guarded = (
         "project",
         "shared.basin",
-        "workflows.model_creation",
-        "workflows.climate_projections",
+        "workflows.build_model",
+        "workflows.analyze_projections",
     )
 
     derived = tuple(
         sorted(
             {s.split(".")[0] if s == "shared.basin" else s for s in guarded}
-            | {"workflows.climate_experiment"}
+            | {"workflows.run_stress_test"}
         )
     )
 
+    # Alphabetical, because `derived` is `sorted(...)`. The 2026-08-14 workflow
+    # rename reordered this: under the old names the union sorted as
+    # experiment, projections, creation.
     assert derived == (
         "project",
         "shared",
-        "workflows.climate_experiment",
-        "workflows.climate_projections",
-        "workflows.model_creation",
+        "workflows.analyze_projections",
+        "workflows.build_model",
+        "workflows.run_stress_test",
     )
 
 
@@ -226,8 +229,8 @@ def test_the_sidecar_rules_take_letter_suffixes():
     taken numbers, so this pins the correction rather than leaving it to a
     reader to rediscover that gather_benchmarks owns them.
     """
-    wf1 = (REPO / "Snakefile_model_creation").read_text(encoding="utf-8")
-    wf3 = (REPO / "Snakefile_climate_experiment").read_text(encoding="utf-8")
+    wf1 = (REPO / "build_model.smk").read_text(encoding="utf-8")
+    wf3 = (REPO / "run_stress_test.smk").read_text(encoding="utf-8")
 
     assert 'rule_banner("1.15b", "write_run_metadata")' in wf1
     assert 'rule_banner("1.16", "gather_benchmarks")' in wf1

@@ -65,7 +65,7 @@ def parse(variables) -> dict[str, VariableSpec]:
             for v in list(variables)[:2]
         )
         raise ValueError(
-            "climate_projections.variables is a list, which is the pre-5e shape. "
+            "analyze_projections.variables is a list, which is the pre-5e shape. "
             "It is now a mapping declaring each variable's canonical quantity and "
             f"change semantics (design §5.5), e.g.\n  variables:\n    {example}\n"
             "Refusing rather than assuming: under the list form stage B inferred "
@@ -74,7 +74,7 @@ def parse(variables) -> dict[str, VariableSpec]:
         )
     if not isinstance(variables, dict) or not variables:
         raise ValueError(
-            f"climate_projections.variables must be a non-empty mapping; got {variables!r}"
+            f"analyze_projections.variables must be a non-empty mapping; got {variables!r}"
         )
 
     spec: dict[str, VariableSpec] = {}

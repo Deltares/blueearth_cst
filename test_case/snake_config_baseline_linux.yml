@@ -23,12 +23,12 @@ shared:
   clim_historical: era5
 
 workflows:
-  model_creation:
+  build_model:
     enabled: true
     # Optional observed-discharge series. Gauge/control points live at
     # shared.basin.gauge_points; schemas: config/templates/.
     observations_timeseries: null
-  climate_projections:
+  analyze_projections:
     enabled: true
     clim_project: cmip6
     models:
@@ -45,7 +45,7 @@ workflows:
       near: [2030, 2060]
       far: [2070, 2100]
 
-  climate_experiment:
+  run_stress_test:
     enabled: true
     experiment_name: experiment
     realizations_num: 2

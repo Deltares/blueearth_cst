@@ -1,12 +1,12 @@
-# Workflow: model_creation
+# Workflow: build_model
 
-Contract for `Snakefile_model_creation` (workflow 1). Format per
+Contract for `build_model.smk` (workflow 1). Format per
 `dev/milestones/r01/modularity-contracts-design.md` §4. Records current behavior
-and is grounded in `Snakefile_model_creation`, the templates under
+and is grounded in `build_model.smk`, the templates under
 `config/templates/`, and the rule-called modules under `blueearth_cst/model/`
 and `blueearth_cst/spatial/`.
 
-## Owned config keys (`workflows.model_creation.*`)
+## Owned config keys (`workflows.build_model.*`)
 
 - `wflow_outvars` — Wflow output variables to emit (default `['river discharge']`).
 - `model_build_config` — path to the hydromt build config (default `{static_dir}/wflow_build_model.yml`).
@@ -17,7 +17,7 @@ and `blueearth_cst/spatial/`.
 
 - `shared.basin.region`, `shared.basin.resolution` — basin delineation + model resolution.
 - `shared.basin.gauge_points` — optional canonical gauge/control-point file.
-  The former `workflows.model_creation.output_locations` key is accepted for
+  The former `workflows.build_model.output_locations` key is accepted for
   one compatibility release; conflicting populated values fail at parse time.
 - `shared.basin.automatic_subbasins.max_count` — global automatic-fallback
   ceiling (default 20; valid range 1–99).
@@ -29,7 +29,7 @@ and `blueearth_cst/spatial/`.
 - `shared.historical_window.starttime`, `shared.historical_window.endtime` — how
   much climate record to EXTRACT (rule 1.04, the climate store, the climate
   figures). Subject to `MIN_HISTORICAL_YEARS`, which is weathergenr's floor.
-- `workflows.model_creation.simulation_window` — the period the model is RUN
+- `workflows.build_model.simulation_window` — the period the model is RUN
   over (rule 1.10): the forcing prepared for it and the wflow TOML's `[time]`
   window, which are necessarily the same span. **Optional**; absent means exact
   passthrough of `historical_window`, so a config predating the key is
@@ -53,7 +53,7 @@ and `blueearth_cst/spatial/`.
 `prepare_spatial_maps` is a no-wildcard target and can be requested directly:
 
 ```powershell
-snakemake prepare_spatial_maps -c 1 -s Snakefile_model_creation --configfile <config.yml>
+snakemake prepare_spatial_maps -c 1 -s build_model.smk --configfile <config.yml>
 ```
 
 It resolves every parent feature independently, snaps configured gauge/control
@@ -134,7 +134,7 @@ waterbodies, outputs, runtime, and forcing.
 - `{basin_dir}/forcing/plots/forcing_precip_map.png` (model inputs)
 - `{project_dir}/data/climate/historical/<key>/plots/source_{precip,temp,pet}.png`
   (R07 B4 — source-grid figures from the shared store; produced with no model)
-- `{project_dir}/config/runs/snake_config_model_creation.yml` (verbatim snake-config snapshot)
+- `{project_dir}/config/runs/snake_config_build_model.yml` (verbatim snake-config snapshot)
 - `{project_dir}/data/spatial/spatial_catalog.yml` (representative target for the
   complete rule-1.02 spatial product)
 
@@ -179,7 +179,7 @@ exposes every artifact through HydroMT without containing Wflow configuration.
   basin, subbasin, location, station, and Wflow-ID crosswalk.
 - `{project_dir}/logs/_parts/1.NN_{rule}.log`, `{project_dir}/benchmarks/_parts/1.NN_{rule}.tsv`
   (per-rule logs AND benchmarks live under `_parts/`; `gather_logs` (1.16) merges
-  the logs into one `logs/wf1_model_creation.log` via
+  the logs into one `logs/wf1_build_model.log` via
   `blueearth_cst/shared/merge_logs.py` and then **deletes** the parts, and
   `gather_benchmarks` (1.14) merges the benchmarks into one
   `benchmarks/wf1_benchmarks.md` (Markdown table, `rule` column + `TOTAL` row)
@@ -192,10 +192,10 @@ exposes every artifact through HydroMT without containing Wflow configuration.
 
 ## Downstream consumers
 
-- **Workflow 2** (`Snakefile_climate_projections`) reads
+- **Workflow 2** (`analyze_projections.smk`) reads
   `staticgeoms/region.geojson` (as an `ancient(...)` input to
   `monthly_stats_hist`/`_fut`).
-- **Workflow 3** (`Snakefile_climate_experiment`) reads the built model,
+- **Workflow 3** (`run_stress_test.smk`) reads the built model,
   its `wflow_sbm.toml`, and the forcing layout.
 
 ## Outlet-naming convention (R3 §4 decision)

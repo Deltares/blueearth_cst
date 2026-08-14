@@ -74,7 +74,7 @@ wildcard requires updating this file in the same commit.
 | `st_num`   | active                   | stress-test combination: `1..stress_test_count` perturbed; `0` = reserved unperturbed baseline (`st_0`), run through Wflow only when `run_historical` sets `ST_START = 0` |
 | `member`   | reserved (CMIP ensemble) | ensemble member id (`r1i1p1f1`, …). Config-only today; becomes a wildcard if per-member rules are added |
 
-The `st_num2` variant formerly used in `Snakefile_climate_experiment`'s
+The `st_num2` variant formerly used in `run_stress_test.smk`'s
 downstream rules (it admitted `0` under `run_historical`, where `st_num`
 starts at `1`) was **folded into `st_num` in R5**. The downstream rules
 (`downscale_climate_realization`, `run_wflow`, `derive_wflow_indicators`) now use
@@ -90,7 +90,7 @@ wildcard.** R11 P2 renamed it from `cst_` (C22): `cst` is the toolbox's own
 name, so it said nothing as a member token, while every layer that mattered
 already said `st` — the `st_num` wildcard above, `ST_NUM`, `stress_test_grid()`,
 the `stress_test:` config section. Only the filenames and the WG-5 catalog keys
-disagreed, and `Snakefile_climate_experiment` built a `cst_` filename out of an
+disagreed, and `run_stress_test.smk` built a `cst_` filename out of an
 `st_num` wildcard on one line. So a member is `st_<m>.csv` and
 `rlz_<n>_st_<m>.{nc,csv,toml,log}`, with `st_0` the reserved unperturbed
 baseline. `rlz_` deliberately stays: it abbreviates a *correct* term and
@@ -101,7 +101,7 @@ so lexical order matches run order: `st_01 … st_12` for a twelve-point grid,
 `st_001` past ninety-nine, and no padding at all below ten, where `st_1 … st_6`
 already sort correctly. `rlz_` and `st_` pad independently, each from its own
 count. The width is a pure function of `ST_NUM` / `RLZ_NUM`, both of which live
-in the `climate_experiment` section `experiment.yml` freezes, so a grid change
+in the `run_stress_test` section `experiment.yml` freezes, so a grid change
 that would move the width already forces a new experiment — no tree is ever
 renamed underneath itself. One helper owns it (`snake_utils.index_width`), and
 `member_index_regex` builds the matching `wildcard_constraints` so an *unpadded*
@@ -285,7 +285,7 @@ unify them.
 | File class                             | Convention                        | Examples                                             |
 | -------------------------------------- | --------------------------------- | ---------------------------------------------------- |
 | Python modules / R scripts             | snake_case                        | `prepare_climate_data_catalog.py`, `generate_weather.R` |
-| Snakemake entry points                 | `Snakefile_<workflow>` (existing) | `Snakefile_model_creation`                           |
+| Snakemake entry points                 | `Snakefile_<workflow>` (existing) | `build_model.smk`                           |
 | Markdown planning docs under `dev/`    | kebab-case                        | `naming-conventions-design.md`                       |
 | Standard root-level files              | upstream                          | `CLAUDE.md`, `README.rst`, `Dockerfile`, `LICENSE`   |
 | Config / data / catalog YAML           | tool contract                     | `snake_config_model_test.yml`, `deltares_data.yml`   |
@@ -389,8 +389,8 @@ Full rationale and the twelve-rename audit:
 ## 9. Rule numbering (`W.NN` reference scheme)
 
 Each rule in the three `Snakefile_*` entry points carries a `W.NN`
-reference number — `W` = workflow (`1` model_creation, `2`
-climate_projections, `3` climate_experiment), `NN` = a zero-padded
+reference number — `W` = workflow (`1` build_model, `2`
+analyze_projections, `3` run_stress_test), `NN` = a zero-padded
 **position in that workflow's logical order**: data first, then model
 build, then run, then records. It exists in exactly two places, both
 cheap:

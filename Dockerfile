@@ -18,9 +18,9 @@ FROM julia:${julia_version} AS jul
 FROM alpine:latest AS local_files
 WORKDIR /root/code
 ADD src src
-ADD Snakefile_model_creation Snakefile_model_creation
-ADD Snakefile_climate_experiment Snakefile_climate_experiment
-ADD Snakefile_climate_projections Snakefile_climate_projections
+ADD build_model.smk build_model.smk
+ADD run_stress_test.smk run_stress_test.smk
+ADD analyze_projections.smk analyze_projections.smk
 
 # --- pixi-managed Python + R env --------------------------------------------
 FROM ghcr.io/prefix-dev/pixi:latest

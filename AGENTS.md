@@ -7,7 +7,7 @@
 ## Overview
 
 BlueEarth Climate Stress Test — a multi-language (Python + R + Julia) scientific
-workflow toolbox stitched together by Snakemake. The three `Snakefile_*` files at
+workflow toolbox stitched together by Snakemake. The three `*.smk` files at
 the repo root are the only entry points; there is no package CLI. Full narrative
 in `README.md`.
 
@@ -180,12 +180,12 @@ Run everything inside `pixi shell`, or prefix each command with `pixi run`, so
 pixi install          # conda-forge + PyPI deps (Python stack, R toolchain, snakemake)
 pixi run install      # + weathergenr (R, via remotes) and Julia env (Pkg.instantiate)
 
-# Run the three workflows IN ORDER (climate_experiment needs model_creation
+# Run the three workflows IN ORDER (run_stress_test needs build_model
 # artifacts). snake_config_rapid.yml is the DEFAULT config; swap in
 # snake_config_baseline.yml only for the runs listed under Workflow:
-snakemake all -c 3 -s Snakefile_model_creation      --configfile test_case/snake_config_rapid.yml
-snakemake all -c 3 -s Snakefile_climate_projections --configfile test_case/snake_config_rapid.yml --keep-going
-snakemake all -c 3 -s Snakefile_climate_experiment  --configfile test_case/snake_config_rapid.yml
+snakemake all -c 3 -s build_model.smk         --configfile test_case/snake_config_rapid.yml
+snakemake all -c 3 -s analyze_projections.smk --configfile test_case/snake_config_rapid.yml --keep-going
+snakemake all -c 3 -s run_stress_test.smk     --configfile test_case/snake_config_rapid.yml
 
 # Or drive all enabled workflows through the wrapper:
 pixi run python scripts/run_workflows.py --config test_case/snake_config_rapid.yml
@@ -193,7 +193,7 @@ pixi run python scripts/run_workflows.py --config test_case/snake_config_rapid.y
 # Render a workflow's DAG into the config's own project_dir (never into the repo
 # root): logs/dag/<project_name>_wf<N>_dag.png, with wf3 carrying its experiment
 # id in the name — logs/dag/<project_name>_wf3_<experiment>_dag.png:
-pixi run python scripts/plot_workflow_dag.py -s Snakefile_model_creation --configfile <cfg>
+pixi run python scripts/plot_workflow_dag.py -s build_model.smk --configfile <cfg>
 
 # Snapshot a project tree as a path list and check that it holds nothing
 # undeclared (add --out to record it; nothing is written otherwise). It checks
@@ -208,7 +208,7 @@ snakemake ... --dry-run           # inspect the DAG before running or after edit
 snakemake --unlock -s <Snakefile> --configfile <cfg>   # Snakemake locks the workdir on crash
 
 pytest tests/test_cli.py          # cheapest sanity check: dry-runs all three Snakefiles
-pytest tests/                     # full suite (test_model_creation.py is slow)
+pytest tests/                     # full suite (test_build_model.py is slow)
 ```
 
 **Run the workflows from the PRIMARY checkout, not from a task worktree.**
@@ -343,7 +343,7 @@ pinned by `tests/test_run_workflows.py`.
 - Each Snakefile takes the `--configfile` path from `workflow.configfiles[0]` and
   forwards it as `config_path` to downstream R scripts — keep that forwarding even
   though the Snakefile itself reads the parsed `config`.
-- `Snakefile_climate_projections` no longer carries a `ruleorder:`. It was retained
+- `analyze_projections.smk` no longer carries a `ruleorder:`. It was retained
   as stale insurance — a 2026-07 dry-run on the pinned Snakemake showed it
   constrained nothing on the tests fixture or a reduced config — with removal
   deferred to a task that first encoded ambiguity-sensitive config shapes as
@@ -395,7 +395,7 @@ the split, and neither name is a lane any more.
 | Lane | Worktree | Claims |
 |---|---|---|
 | `lane/devmeta` | `.worktrees/blueearth_cst/devmeta` | `dev/**`, `docs/**`, `AGENTS.md`, `CLAUDE.md`, `README*`, `CHANGELOG.md`, `DEVLOG.md`, `LICENSE`, `.git-workflow.yml`, `.githooks/`, `.gitignore`, `.gitattributes`, `.editorconfig`, `.zed/`, `.testing-policy.yml` |
-| `lane/pipeline` | `.worktrees/blueearth_cst/pipeline` | `blueearth_cst/**`, `tests/**`, `config/**`, `Snakefile_*`, `scripts/**`, `profiles/**`, `test_case/snake_config_*.yml`, `pyproject.toml`, `pixi.toml`, `pixi.lock`, `Project.toml`, `Manifest.toml`, `Dockerfile`, `.github/` |
+| `lane/pipeline` | `.worktrees/blueearth_cst/pipeline` | `blueearth_cst/**`, `tests/**`, `config/**`, `*.smk`, `scripts/**`, `profiles/**`, `test_case/snake_config_*.yml`, `pyproject.toml`, `pixi.toml`, `pixi.lock`, `Project.toml`, `Manifest.toml`, `Dockerfile`, `.github/` |
 
 The two claims cover **every tracked file** — a path in neither is routed by an
 owner ruling, never by nearest-fit. Measured over the last 200 commits on `main`

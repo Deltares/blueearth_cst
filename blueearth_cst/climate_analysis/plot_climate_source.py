@@ -1,6 +1,6 @@
 """Source-grid climate figures from the shared climate store (R07 B4 / P4).
 
-Rule ``plot_climate_source``'s script (``Snakefile_model_creation`` 1.15 — a
+Rule ``plot_climate_source``'s script (``build_model.smk`` 1.15 — a
 single declaration; none of B1's two-DAG machinery applies). It answers *"what
 does the source climate look like?"* from the store alone, so its whole
 subgraph is the B1 producer (whose sole input is the tracked data catalog) plus

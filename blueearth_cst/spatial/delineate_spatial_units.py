@@ -63,8 +63,8 @@ def run_delineate_spatial_units(
     ``parse_spatial_config`` in the declaring Snakefile — spelled out one by
     one because ADR 0003 §8b requires the rule's params to be a pure function
     of ``project`` + ``shared.basin``. In particular the deprecated
-    ``workflows.model_creation.output_locations`` fallback CANNOT feed this
-    rule: the five projections-only configs carry no ``workflows.model_creation``
+    ``workflows.build_model.output_locations`` fallback CANNOT feed this
+    rule: the five projections-only configs carry no ``workflows.build_model``
     section at all, so a params payload that depended on one would differ per
     invoking workflow — the input/params asymmetry ``ext1-02`` forbade for the
     climate store. ``shared.basin.gauge_points`` is the only source here.

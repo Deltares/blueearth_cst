@@ -231,8 +231,11 @@ def build_p31_path_map(
     """
     rules: list[tuple[str, str]] = [
         (
+            # LEFT is the pre-P3-1 tree and keeps its historical spelling; only
+            # RIGHT describes the tree as it is today, so only RIGHT follows the
+            # 2026-08-14 workflow rename.
             "config/snake_config_climate_experiment.yml",
-            f"experiments/{experiment_name}/config/snake_config_climate_experiment.yml",
+            f"experiments/{experiment_name}/config/snake_config_run_stress_test.yml",
         ),
         (
             f"hydrology_model/run_climate_{experiment_name}/",
@@ -325,7 +328,7 @@ def build_project_tree_rules(
     # `wf3_anything.log`. `[a-z0-9_]+` is validate_experiment_name's grammar.
     # The two `_parts/` prefixes already cover WF3's `<experiment>/` level.
     same_rx(r"logs/wf[12]_[^/]+\.log")
-    same_rx(r"logs/wf3_climate_experiment_[a-z0-9_]+\.log")
+    same_rx(r"logs/wf3_run_stress_test_[a-z0-9_]+\.log")
     same("logs/_parts/")
     same("logs/dag/")
     same_rx(r"benchmarks/wf[12]_benchmarks\.md")
@@ -336,8 +339,8 @@ def build_project_tree_rules(
     # The two snapshot CONTRACT PATHS are enumerated; the digest bundles are a
     # regex because the digest is content-derived. `files/` inside a bundle is a
     # prefix: its members are named `<hash>-<original>` per referenced input.
-    same("config/runs/snake_config_model_creation.yml")
-    same("config/runs/snake_config_climate_projections.yml")
+    same("config/runs/snake_config_build_model.yml")
+    same("config/runs/snake_config_analyze_projections.yml")
     # `scripts/run_workflows.py`'s invocation manifest, one immutable file per
     # wrapper run. A PREFIX, because the set is genuinely open — the filename is
     # `<utc stamp>-<uuid12>.json`, so a new one appears every run.
@@ -366,8 +369,8 @@ def build_project_tree_rules(
     #
     # What replaces them is ONE record per workflow, at an enumerated path --
     # no digest level, so nothing needs a regex.
-    same("config/runs/model_creation/run_record.yml")
-    same("config/runs/climate_projections/run_record.yml")
+    same("config/runs/build_model/run_record.yml")
+    same("config/runs/analyze_projections/run_record.yml")
     # The run journal. An UNDECLARED SIDE EFFECT and the only one in this tree:
     # it is written by the workflow's lifecycle handlers, not by a rule, so the
     # declared tier cannot see it and it has to be whitelisted here by hand. It
@@ -420,7 +423,7 @@ def build_project_tree_rules(
         "config/build_historical_forcing.yml",
         # The one-entry catalog pointing hydromt at the climate store — a
         # DECLARED, non-temp() output of rule 1.10 beside the build YAML from
-        # the same rule (`Snakefile_model_creation`, `store_catalog`). Added
+        # the same rule (`build_model.smk`, `store_catalog`). Added
         # 2026-08-11: `test_local`'s WF1 predates the output, so no tree the
         # gate was pointed at held one until `test_rapid` was rebuilt.
         #
@@ -456,7 +459,7 @@ def build_project_tree_rules(
     # -- experiments/<id>/ ----------------------------------------------------
     for leaf in (
         ".project_consistency_ok",
-        "config/snake_config_climate_experiment.yml",
+        "config/snake_config_run_stress_test.yml",
         "config/model_reference.yml",
         "config/experiment.yml",
         # R11 P2 C23: the stress-test design table, beside the config snapshot

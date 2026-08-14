@@ -27,11 +27,11 @@ _CONFIG = {
     "project": {"project_dir": "out"},
     "shared": {"basin": "test", "julia_threads": 4},
     "workflows": {
-        "model_creation": {"resolution": 0.008},
-        "climate_experiment": {"rlz_num": 10},
+        "build_model": {"resolution": 0.008},
+        "run_stress_test": {"rlz_num": 10},
     },
 }
-_WF1_PROJECTION = ("project", "shared", "workflows.model_creation")
+_WF1_PROJECTION = ("project", "shared", "workflows.build_model")
 
 
 def test_short_digest_is_a_prefix_of_the_full_digest() -> None:
@@ -139,9 +139,9 @@ def test_project_config_selects_only_the_declared_paths() -> None:
     assert projected == {
         "project": {"project_dir": "out"},
         "shared": {"basin": "test", "julia_threads": 4},
-        "workflows": {"model_creation": {"resolution": 0.008}},
+        "workflows": {"build_model": {"resolution": 0.008}},
     }
-    assert "climate_experiment" not in projected["workflows"]
+    assert "run_stress_test" not in projected["workflows"]
 
 
 def test_project_config_raises_on_a_path_the_config_lacks() -> None:
@@ -151,8 +151,8 @@ def test_project_config_raises_on_a_path_the_config_lacks() -> None:
     that section changes -- the failure mode is an absence, so it has to be
     loud at the point of declaration.
     """
-    with pytest.raises(KeyError, match="climate_projections"):
-        project_config(_CONFIG, ("project", "workflows.climate_projections"))
+    with pytest.raises(KeyError, match="analyze_projections"):
+        project_config(_CONFIG, ("project", "workflows.analyze_projections"))
 
 
 def test_project_config_rejects_overlapping_paths() -> None:
@@ -169,7 +169,7 @@ def test_effective_config_digest_ignores_sections_outside_the_projection() -> No
     """
     other = {
         **_CONFIG,
-        "workflows": {**_CONFIG["workflows"], "climate_experiment": {"rlz_num": 99}},
+        "workflows": {**_CONFIG["workflows"], "run_stress_test": {"rlz_num": 99}},
     }
 
     assert effective_config_digest(_CONFIG, {}, _WF1_PROJECTION) == (
@@ -181,7 +181,7 @@ def test_effective_config_digest_follows_keys_inside_the_projection() -> None:
     """The complement of the test above: in-scope edits must move the digest."""
     other = {
         **_CONFIG,
-        "workflows": {**_CONFIG["workflows"], "model_creation": {"resolution": 0.01}},
+        "workflows": {**_CONFIG["workflows"], "build_model": {"resolution": 0.01}},
     }
 
     assert effective_config_digest(_CONFIG, {}, _WF1_PROJECTION) != (

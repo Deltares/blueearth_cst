@@ -68,7 +68,7 @@ def prep_cst_parameters(
     with open(config_fn, "r") as stream:
         yml = yaml.load(stream, Loader=yaml.FullLoader)
 
-    stress_test_cfg = yml["workflows"]["climate_experiment"]["stress_test"]
+    stress_test_cfg = yml["workflows"]["run_stress_test"]["stress_test"]
 
     # A third stress dimension must REFUSE, not silently vanish from the design
     # table (C28). The grid arithmetic, the CSV loop and DESIGN_COLUMNS below all

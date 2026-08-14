@@ -18,7 +18,7 @@ from blueearth_cst.experiment.prepare_weagen_config import (
 )
 
 REPO_ROOT = os.path.join(os.path.dirname(__file__), "..")
-# The path rule 3.04 (Snakefile_climate_experiment:131) hands to
+# The path rule 3.04 (run_stress_test.smk:131) hands to
 # prepare_weagen_config as ``default_config``. It lives under config/defaults/:
 # the 2026-08-11 split moved the three rule-read configs out of
 # config/templates/, which now holds only files you copy. This literal must
@@ -48,13 +48,13 @@ def test_seed_year_math_value():
 
 def test_default_weagen_config_resolves_at_defaults_path():
     """Config-split smoke (--dry-run-blind): weathergen_config.yml must resolve
-    at config/defaults/. Snakefile_climate_experiment:131 passes this path as
+    at config/defaults/. run_stress_test.smk:131 passes this path as
     the ``default_config`` param; rule 3.04 reads it via read_yml. A green
     --dry-run / test_cli would NOT catch a broken move here because the param is
     not a declared input:."""
     assert os.path.isfile(DEFAULT_WEAGEN_CONFIG), (
         "config/defaults/weathergen_config.yml missing — the 2026-08-11 split "
-        "or the Snakefile_climate_experiment:131 default_config param is broken"
+        "or the run_stress_test.smk:131 default_config param is broken"
     )
     cfg = read_yml(DEFAULT_WEAGEN_CONFIG)
     assert "generate_weather" in cfg
@@ -84,7 +84,7 @@ def _generate_kwargs(tmp_path, stress_test=None):
         }
     snake_cfg = {
         "workflows": {
-            "climate_experiment": {
+            "run_stress_test": {
                 "realizations_num": 2,
                 "stress_test": stress_test,
             }
@@ -179,9 +179,9 @@ def test_f7_the_template_is_a_declared_input_of_rule_3_10():
     import re
     from pathlib import Path
 
-    snakefile = (
-        Path(__file__).resolve().parents[1] / "Snakefile_climate_experiment"
-    ).read_text(encoding="utf-8")
+    snakefile = (Path(__file__).resolve().parents[1] / "run_stress_test.smk").read_text(
+        encoding="utf-8"
+    )
     rule = re.search(
         r"rule prepare_weathergen_config:.*?\n    output:", snakefile, re.S
     )

@@ -336,11 +336,11 @@ def test_target_banner_relativizes_against_project_dir(monkeypatch):
     out = target_banner(
         "2.00",
         "all",
-        ["C:/TESTS/CST/gabonx/climate_projections/cmip6/summary/x.csv"],
+        ["C:/TESTS/CST/gabonx/analyze_projections/cmip6/summary/x.csv"],
         "C:/TESTS/CST/gabonx",
     )
     assert out == (
-        "Rule 2.00: all  [C:/TESTS/CST/gabonx]\n    climate_projections/cmip6/summary/x.csv"
+        "Rule 2.00: all  [C:/TESTS/CST/gabonx]\n    analyze_projections/cmip6/summary/x.csv"
     )
 
 
@@ -518,7 +518,7 @@ def test_the_header_defines_a_token_under_a_relative_project_dir(declare_folders
     of `<model>` -- pointing outside the project it belongs to.
     """
     declare_folders(model="test_case/test_rapid/models/hydrology/wflow")
-    rows = su.run_header("wf1 model_creation", "test_case/test_rapid").splitlines()
+    rows = su.run_header("wf1 build_model", "test_case/test_rapid").splitlines()
     assert rows[-1].split() == ["<model>", "models/hydrology/wflow"]
 
 
@@ -1861,13 +1861,13 @@ def test_install_console_style_fails_open(monkeypatch):
 def test_run_header_shape_matches_run_summary():
     """Same head-then-indented-rows block, so a run opens and closes alike."""
     out = su.run_header(
-        "wf3 climate_experiment",
+        "wf3 run_stress_test",
         "test_case/test_rapid2",
         "test_case/snake_config_rapid.yml",
         experiment="experiment_rapid",
     )
     assert out.splitlines() == [
-        "wf3 climate_experiment",
+        "wf3 run_stress_test",
         "  project     test_case/test_rapid2",
         "  config      test_case/snake_config_rapid.yml",
         "  experiment  experiment_rapid",
@@ -1887,7 +1887,7 @@ def test_run_header_states_the_declared_folders(declare_folders):
         data=os.path.normpath("C:/data/wflow_global/hydromt"),
         model=os.path.join(project, "models", "hydrology", "wflow"),
     )
-    rows = su.run_header("wf1 model_creation", project).splitlines()[1:]
+    rows = su.run_header("wf1 build_model", project).splitlines()[1:]
     assert [row.split()[0] for row in rows] == ["project", "<data>", "<model>"]
     assert rows[1].endswith("C:/data/wflow_global/hydromt")
     assert rows[2].endswith("models/hydrology/wflow")
@@ -1905,9 +1905,9 @@ def test_a_rule_log_header_defines_every_token_its_rows_use(declare_folders, tmp
 
 def test_run_header_omits_rows_a_workflow_does_not_have():
     """WF1 and WF2 pass no experiment; the block shrinks rather than showing a blank."""
-    out = su.run_header("wf1 model_creation", "test_case/test_rapid")
+    out = su.run_header("wf1 build_model", "test_case/test_rapid")
     assert out.splitlines() == [
-        "wf1 model_creation",
+        "wf1 build_model",
         "  project  test_case/test_rapid",
     ]
 

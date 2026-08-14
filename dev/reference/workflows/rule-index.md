@@ -1,7 +1,7 @@
 # Rule index — every Snakemake rule, all three workflows
 
-One page listing every rule in `Snakefile_model_creation`,
-`Snakefile_climate_projections` and `Snakefile_climate_experiment`, what each
+One page listing every rule in `build_model.smk`,
+`analyze_projections.smk` and `run_stress_test.smk`, what each
 one does, what it writes, and how they connect.
 
 > **This page describes what is on disk.** The R10 step-6 sweep landed
@@ -64,7 +64,7 @@ declared in more than one workflow — `all`, `snapshot_config`,
 `gather_benchmarks` three times each, `extract_historical_climate` twice — which
 is 13 declarations beyond their first. 47 − 13 = 34.)
 
-**WF1** — `Snakefile_model_creation`
+**WF1** — `build_model.smk`
 
 | new | rule | was |
 |---|---|---|
@@ -97,7 +97,7 @@ is 13 declarations beyond their first. 47 − 13 = 34.)
 > `ancient()` is why it was easy to miss: it hides the rerun-trigger, not the
 > edge.
 
-**WF2** — `Snakefile_climate_projections`
+**WF2** — `analyze_projections.smk`
 
 | new | rule | was |
 |---|---|---|
@@ -120,7 +120,7 @@ is 13 declarations beyond their first. 47 − 13 = 34.)
 > workflows, so the three read alike and `gather_logs` is the last-numbered rule
 > everywhere.
 
-**WF3** — `Snakefile_climate_experiment`
+**WF3** — `run_stress_test.smk`
 
 | new | rule | was |
 |---|---|---|
@@ -243,7 +243,7 @@ Paths are relative to `project_dir`, with these shorthands:
 
 ---
 
-# WF1 — model creation (`Snakefile_model_creation`)
+# WF1 — model creation (`build_model.smk`)
 
 Builds a distributed Wflow-SBM model from global datasets via hydromt and runs it
 once on historical forcing. No calibration — rapid deployment.
@@ -372,8 +372,8 @@ routed by kind, and writes an immutable content-addressed bundle of the
 effective settings (merged config + advanced settings + manifest) so a finished
 project can say what it was run with.
 
-**Writes.** `config/runs/snake_config_model_creation.yml` ·
-`config/runs/model_creation/<digest>/` (bundle dir).
+**Writes.** `config/runs/snake_config_build_model.yml` ·
+`config/runs/build_model/<digest>/` (bundle dir).
 
 **Writes (undeclared).** Copies into `config/templates/` (build + waterbodies),
 `config/catalogs/` (data catalogs) and `config/basin_data/` (the two optional
@@ -403,7 +403,7 @@ exist, automatic otherwise, chosen per basin — creating the `basin_id` →
 
 Its params are a pure function of `project` + `shared.basin` (ADR 0003 §8b), and
 that is a requirement: the projections-only configs carry no
-`workflows.model_creation` section at all, so a payload drawn from one would
+`workflows.build_model` section at all, so a payload drawn from one would
 differ per invoking workflow.
 
 **Writes.** `<spatial>/geoms/{basins,subbasins,catchments,rivers,locations}.geojson` ·
@@ -516,7 +516,7 @@ which builds the forcing for the model grid and — through the recipe's
 `setup_config` step — writes the run window and forcing pointer into the model
 TOML.
 
-The window is `workflows.model_creation.simulation_window`, falling back to
+The window is `workflows.build_model.simulation_window`, falling back to
 `shared.historical_window` when unset (2026-08-10). That is the SIMULATION
 period, not the extraction period, and it must sit inside the record.
 
@@ -693,7 +693,7 @@ deletes the parts it consumed and prunes the emptied directories. After a
 **partial** re-run the untouched sections are marked "no part from this run" —
 the artifact describes the run that produced it, not an accumulated history.
 
-**Writes.** `logs/wf1_model_creation.log`.
+**Writes.** `logs/wf1_build_model.log`.
 
 ## Two meanings of "subbasin"
 
@@ -717,7 +717,7 @@ consumed once, by 1.03, and everything after that reads its derived identities:
 
 ---
 
-# WF2 — climate projections (`Snakefile_climate_projections`)
+# WF2 — climate projections (`analyze_projections.smk`)
 
 A plausibility overlay, not a driver. Computes monthly CMIP6 change factors that
 situate the stress-test grid in projection space. **Nothing here feeds a
@@ -802,8 +802,8 @@ plots, the merged log and the benchmark table.
 
 **Does.** As WF1 1.01, with the WF2 bins.
 
-**Writes.** `config/runs/snake_config_climate_projections.yml` ·
-`config/runs/climate_projections/<digest>/` (bundle dir).
+**Writes.** `config/runs/snake_config_analyze_projections.yml` ·
+`config/runs/analyze_projections/<digest>/` (bundle dir).
 
 **Writes (undeclared).** Catalog copies into `config/catalogs/`.
 
@@ -891,11 +891,11 @@ Snakemake.
 the fan-out rules, so following one run meant opening five files and knowing
 their order.
 
-**Writes.** `logs/wf2_climate_projections.log`.
+**Writes.** `logs/wf2_analyze_projections.log`.
 
 ---
 
-# WF3 — climate experiment (`Snakefile_climate_experiment`)
+# WF3 — climate experiment (`run_stress_test.smk`)
 
 The stress test itself. Generates stochastic weather realizations, perturbs each
 across a temperature × precipitation grid, runs every member through Wflow, and
@@ -1036,8 +1036,8 @@ window, so the shared rule's input set never varies across experiments).
 **Does.** As WF1 1.01, but the snapshot stays **inside the experiment** rather
 than joining `config/runs/`.
 
-**Writes.** `<exp>/config/snake_config_climate_experiment.yml` ·
-`<exp>/config/runs/climate_experiment/<digest>/` (bundle dir).
+**Writes.** `<exp>/config/snake_config_run_stress_test.yml` ·
+`<exp>/config/runs/run_stress_test/<digest>/` (bundle dir).
 
 **Writes (undeclared).** Catalog copies into `<exp>/config/catalogs/`.
 
@@ -1167,7 +1167,7 @@ into a hydromt data catalog the downscaling step reads, with the orography
 sidecar path passed in explicitly rather than reconstructed by walking up from a
 realization file.
 
-**Writes.** `<exp>/config/catalogs/data_catalog_climate_experiment.yml`.
+**Writes.** `<exp>/config/catalogs/data_catalog_run_stress_test.yml`.
 
 #### 3.14 · `downscale_climate_realization`
 
@@ -1216,7 +1216,7 @@ to `--dry-run`.
 one part per (rlz, cst) and 3.15 one per batch, so the part dir held hundreds of
 files across several subdirectories. A clean full run leaves one.
 
-**Writes.** `logs/wf3_climate_experiment_<experiment>.log`, merging
+**Writes.** `logs/wf3_run_stress_test_<experiment>.log`, merging
 `logs/_parts/<experiment>/3.*`.
 
 > Both are **project-scoped** since 2026-08-11, keyed by experiment in the
@@ -1264,7 +1264,7 @@ and then dropped the same day on implementation evidence.
 
 For what each rule reads and writes, rather than what it does:
 
-- `dev/reference/workflows/model_creation.md`, `climate_experiment.md` — per-workflow detail.
+- `dev/reference/workflows/build_model.md`, `run_stress_test.md` — per-workflow detail.
 - `dev/reference/contracts/weather-generator-seam.md`, `hydrological-model-seam.md` — the pinned interchange surfaces.
 - `dev/milestones/r09/wf3-changes-proposal.md` appendix — the WF3 chain step by step, with the declared inputs of each stage.
 - `dev/milestones/r10/rule-naming-design.md` — the verb vocabulary and the rename rationale.

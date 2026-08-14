@@ -191,12 +191,12 @@ def _check_ns(project_dir, manifest_path, workflow=None, tolerance=0.0):
     )
 
 
-def _write_model_creation_targets(project_dir: str) -> str:
+def _write_build_model_targets(project_dir: str) -> str:
     """Materialize every workflow-1 target (3 PNGs, 1 yaml, the discharge csv).
     Returns the resolved discharge path."""
     disch = ""
     for workflow, kind, template in cb.TARGETS:
-        if workflow != "model_creation":
+        if workflow != "build_model":
             continue
         path = cb.resolve(template, project_dir)
         p = Path(path)
@@ -214,10 +214,10 @@ def _write_model_creation_targets(project_dir: str) -> str:
 @pytest.fixture
 def discharge_only_project(tmp_path):
     """A project dir with the workflow-1 targets present, recorded via
-    `record --workflow model_creation` — which merges into a manifest seeded with
+    `record --workflow build_model` — which merges into a manifest seeded with
     an unrelated wf2 row, exercising the merge path and the discharge sidecar."""
     project_dir = str(tmp_path)
-    disch = _write_model_creation_targets(project_dir)
+    disch = _write_build_model_targets(project_dir)
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text(
         json.dumps(
@@ -228,9 +228,7 @@ def discharge_only_project(tmp_path):
             }
         )
     )
-    rc = cb.cmd_record(
-        _record_ns(project_dir, manifest_path, workflow=["model_creation"])
-    )
+    rc = cb.cmd_record(_record_ns(project_dir, manifest_path, workflow=["build_model"]))
     assert rc == 0
     return project_dir, manifest_path, disch
 
@@ -245,9 +243,7 @@ def test_roundtrip_records_sidecar_and_checks_clean(discharge_only_project, caps
     sidecar = Path(manifest_path).parent / disch_rows[0]["ref_series"]
     assert sidecar.exists()
 
-    rc = cb.cmd_check(
-        _check_ns(project_dir, manifest_path, workflow=["model_creation"])
-    )
+    rc = cb.cmd_check(_check_ns(project_dir, manifest_path, workflow=["build_model"]))
     out = capsys.readouterr().out
     assert rc == 0 and "OK - 2 target(s)" in out
 
@@ -260,9 +256,7 @@ def test_roundtrip_detects_material_move(discharge_only_project, capsys):
     q[10] += 5.0
     _write_output_csv(Path(disch), times, list(q), col=col)
 
-    rc = cb.cmd_check(
-        _check_ns(project_dir, manifest_path, workflow=["model_creation"])
-    )
+    rc = cb.cmd_check(_check_ns(project_dir, manifest_path, workflow=["build_model"]))
     out = capsys.readouterr().out
     assert rc == 1
     assert disch in out

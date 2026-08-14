@@ -80,7 +80,7 @@ def test_resume_allocates_nothing(tmp_path):
         yaml.safe_dump(
             {
                 "project": {"project_dir": str(tmp_path).replace("\\", "/")},
-                "workflows": {"climate_experiment": {"experiment_name": "gabon_dry"}},
+                "workflows": {"run_stress_test": {"experiment_name": "gabon_dry"}},
             }
         ),
         encoding="utf-8",
@@ -182,7 +182,7 @@ def test_the_runner_reserves_and_writes_the_name(tmp_path, capsys):
     cfg = _cfg(tmp_path)
     assert runner.main([str(cfg), "--date", "20260804"]) == 0
     doc = yaml.safe_load(cfg.read_text(encoding="utf-8"))
-    name = doc["workflows"]["climate_experiment"]["experiment_name"]
+    name = doc["workflows"]["run_stress_test"]["experiment_name"]
     assert name.endswith("_20260804")
     assert experiment_exists(tmp_path, name), "the name was written but not reserved"
 
@@ -191,7 +191,7 @@ def test_the_runner_versions_a_generated_collision(tmp_path):
     cfg = _cfg(tmp_path)
     runner.main([str(cfg), "--date", "20260804"])
     first = yaml.safe_load(cfg.read_text(encoding="utf-8"))["workflows"][
-        "climate_experiment"
+        "run_stress_test"
     ]["experiment_name"]
 
     cfg2 = tmp_path / "cfg2.yml"
@@ -201,7 +201,7 @@ def test_the_runner_versions_a_generated_collision(tmp_path):
     )
     runner.main([str(cfg2), "--date", "20260804"])
     second = yaml.safe_load(cfg2.read_text(encoding="utf-8"))["workflows"][
-        "climate_experiment"
+        "run_stress_test"
     ]["experiment_name"]
 
     assert second == f"{first}_v2"

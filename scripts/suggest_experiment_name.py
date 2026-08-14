@@ -6,7 +6,7 @@ R07 B8. Run once, deliberately, before the first climate-experiment run::
 
 Reads ``project.project_dir``, slugifies its basename, appends today's date,
 validates the result through the same grammar the workflow enforces, and writes
-it to ``workflows.climate_experiment.experiment_name``.
+it to ``workflows.run_stress_test.experiment_name``.
 
 **An existing value is never overwritten** — the command exits nonzero naming
 the value already present. The experiment name is the directory every wf3
@@ -69,11 +69,11 @@ def _plan_edit(text: str) -> tuple[int, int, Callable[[str], list[str]]]:
     callable lets the plan be computed BEFORE the name is reserved, so a config
     this cannot edit leaves no orphaned ``experiments/<id>/`` behind.
 
-    Raises ``ValueError`` only for flow style (``climate_experiment: {…}``),
+    Raises ``ValueError`` only for flow style (``run_stress_test: {…}``),
     which cannot be edited a line at a time. A *missing* block is not an error:
     the ``yaml.safe_dump`` this replaced created one via ``setdefault``, and
     ``tests/test_experiment_allocation.py`` pins that, so an absent
-    ``workflows:`` or ``climate_experiment:`` is appended instead.
+    ``workflows:`` or ``run_stress_test:`` is appended instead.
     """
     lines = text.splitlines(keepends=True)
     nl = "\r\n" if "\r\n" in text else "\n"
@@ -121,21 +121,21 @@ def _plan_edit(text: str) -> tuple[int, int, Callable[[str], list[str]]]:
                 pad
                 + [
                     f"workflows:{nl}",
-                    f"  climate_experiment:{nl}",
+                    f"  run_stress_test:{nl}",
                     f"    experiment_name: {name}{nl}",
                 ]
             ),
         )
     wf_idx, wf_indent = found_wf
 
-    found_ce = _find(wf_idx + 1, wf_indent, "climate_experiment")
+    found_ce = _find(wf_idx + 1, wf_indent, "run_stress_test")
     if found_ce is None:
         ci = " " * (wf_indent + 2)
         return (
             _block_end(wf_idx + 1, wf_indent),
             0,
             lambda name: [
-                f"{ci}climate_experiment:{nl}",
+                f"{ci}run_stress_test:{nl}",
                 f"{ci}  experiment_name: {name}{nl}",
             ],
         )
@@ -212,14 +212,14 @@ def _write_experiment_name(path: Path, name: str) -> None:
     new_text = "".join(lines)
 
     expected = yaml.safe_load(text) or {}
-    expected.setdefault("workflows", {}).setdefault("climate_experiment", {})[
+    expected.setdefault("workflows", {}).setdefault("run_stress_test", {})[
         "experiment_name"
     ] = name
     if yaml.safe_load(new_text) != expected:
         raise ValueError(
             f"the edit to {path} did not reload to the expected config; "
             "nothing was written. Set "
-            f"workflows.climate_experiment.experiment_name: {name} by hand"
+            f"workflows.run_stress_test.experiment_name: {name} by hand"
         )
     path.write_text(new_text, encoding="utf-8")
 
@@ -281,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
         print(name)
         return 0
 
-    existing = ((doc.get("workflows") or {}).get("climate_experiment") or {}).get(
+    existing = ((doc.get("workflows") or {}).get("run_stress_test") or {}).get(
         "experiment_name"
     )
     if existing is not None:
@@ -301,7 +301,7 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         print(
             f"error: cannot edit {cfg_path}: {exc}. Nothing was reserved or "
-            "written; add workflows.climate_experiment.experiment_name by hand",
+            "written; add workflows.run_stress_test.experiment_name by hand",
             file=sys.stderr,
         )
         return 2
@@ -323,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    print(f"wrote workflows.climate_experiment.experiment_name: {name}")
+    print(f"wrote workflows.run_stress_test.experiment_name: {name}")
     return 0
 
 

@@ -126,7 +126,7 @@ def test_params_carry_only_shared_basin_fields():
     assert rule.params["rivers_source"] == "rivers_lin2019_v1"
 
 
-def test_the_deprecated_model_creation_fallback_cannot_reach_the_rule():
+def test_the_deprecated_build_model_fallback_cannot_reach_the_rule():
     """§8b's stated consequence, and why the legacy key now has to raise.
 
     The shared rule is resolved WITHOUT a model section -- the five
@@ -214,9 +214,9 @@ def test_shared_does_not_import_spatial():
 # ---------------------------------------------------------------------------
 
 _SNAKEFILES = (
-    ("wf1", "Snakefile_model_creation"),
-    ("wf2", "Snakefile_climate_projections"),
-    ("wf3", "Snakefile_climate_experiment"),
+    ("wf1", "build_model.smk"),
+    ("wf2", "analyze_projections.smk"),
+    ("wf3", "run_stress_test.smk"),
 )
 
 
