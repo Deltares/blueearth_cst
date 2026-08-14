@@ -154,3 +154,11 @@ dag-wf3 = { cmd = "snakemake all -c 3 -s Snakefile_climate_experiment --configfi
 # pass `--project-dir` with an absolute path. See
 # dev/milestones/r09/observed-tier-runbook.md.
 tree-check = { cmd = "python dev/scripts/snapshot_project_tree.py --config test_case/snake_config_baseline.yml", description = "Snapshot a project_dir as a path list and check every path against the R09 path map (add --out to record it; nothing is written otherwise)" }
+
+# `pixi install` does not install everything a run needs -- weathergenr comes
+# from `pixi run install` (remotes), as does the Julia env, and a console script
+# can be missing while pixi reports success. Every WORKTREE builds its own
+# `.pixi/`, so each lane needs that second layer separately; `--all` walks
+# `git worktree list` and answers for all of them at once. Read-only, exits
+# non-zero when incomplete.
+env-check = { cmd = "python dev/scripts/check_env.py", description = "Report whether this checkout's env can run the workflows (--all: every worktree)" }
