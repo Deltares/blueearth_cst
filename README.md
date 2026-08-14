@@ -37,7 +37,7 @@ analysis principles. It enables end-users to:
 - Visualize results for non-specialist audiences.
 
 The toolbox is part of the [BlueEarth](https://blueearth.deltares.org/)
-initiative and uses [weathergenr](https://github.com/tanerumit/weathergenr) as
+initiative and uses [weathergenr](https://github.com/Deltares-research/weathergenr) as
 its weather generator and [Wflow](https://github.com/Deltares/Wflow.jl) for
 hydrological modelling.
 
@@ -96,7 +96,7 @@ pixi run install     # weathergenr (R) + Wflow.jl (Julia)
 
 The first command installs everything declared in `pixi.toml` into a local
 `.pixi/` env. The second runs `dev/scripts/install_weathergenr.R` (installs
-`tanerumit/weathergenr@v1.2.0`) and
+`Deltares-research/weathergenr@v1.2.0`) and
 `julia +1.11.7 --project=. -e 'using Pkg; Pkg.instantiate()'` (locks Wflow.jl
 and ~130 transitive Julia deps from `Manifest.toml`).
 

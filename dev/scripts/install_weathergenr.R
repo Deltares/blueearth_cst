@@ -49,7 +49,7 @@ if (!requireNamespace("remotes", quietly = TRUE)) {
 }
 
 remotes::install_github(
-  "tanerumit/weathergenr@v1.2.0",
+  "Deltares-research/weathergenr@v1.2.0",
   dependencies = FALSE,   # all Imports are already conda-managed in the env
   upgrade = "never",      # never shadow a conda binary with a CRAN source build
   build_vignettes = FALSE,
