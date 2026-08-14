@@ -50,7 +50,7 @@ Not a general-purpose pruner. Not a replacement for `prune_series_cache.py` or
 4. **`<exp_dir>/config/catalogs/` is never touched** — it holds the generated
    experiment catalog the design keeps. A pattern match on `config/catalogs/`
    across the whole tree would delete it.
-5. `config/observations/` copies are kept — outside-repo files the predicate
+5. `config/basin_data/` copies are kept — outside-repo files the predicate
    copies by design.
 6. Clean the fixture, **then** rewrite the inventory tests.
 
@@ -58,7 +58,7 @@ Not a general-purpose pruner. Not a replacement for `prune_series_cache.py` or
 
 - Rung 1: `pytest tests/test_project_tree_inventory.py`.
 - Rung 2: a test that the tool's `--delete` scope excludes
-  `<exp_dir>/config/catalogs/` and `config/observations/`.
+  `<exp_dir>/config/catalogs/` and `config/basin_data/`.
 - Rung 3: `pixi run tree-check --config test_case/snake_config_baseline.yml` —
   **red before this phase, green after**. That transition is the migration's own
   proof; record both results.
@@ -71,7 +71,7 @@ from `check_baseline.py check`. If it fires, a fingerprinted target was modified
 
 **Falsifier for "the cleanup deletes nothing it should keep":** run `--delete`
 against a **copy** of the fixture and diff against the original; any missing
-`<exp_dir>/config/catalogs/` or `config/observations/` file disproves it. Do
+`<exp_dir>/config/catalogs/` or `config/basin_data/` file disproves it. Do
 this before Gate 2, on a copy, never on the live fixture.
 
 ### Acceptance criteria

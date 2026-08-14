@@ -381,7 +381,7 @@ def build_project_tree_rules(
     # by git blob id instead. In a normal checkout these are usually EMPTY.
     same("config/catalogs/")
     same("config/templates/")
-    same("config/observations/")
+    same("config/basin_data/")
     # Generated build config lives in the model's own config/ (R9 design v10).
 
     # -- data/ ----------------------------------------------------------------

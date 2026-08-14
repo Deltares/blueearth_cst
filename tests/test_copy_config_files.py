@@ -120,13 +120,13 @@ def test_observations_land_in_their_own_bin(tmp_path, sources):
         config=snake,
         config_out_path=cfg / "runs" / "snake_config_model_creation.yml",
         other_config_files={
-            str(locations): str(cfg / "observations"),
-            str(series): str(cfg / "observations"),
+            str(locations): str(cfg / "basin_data"),
+            str(series): str(cfg / "basin_data"),
         },
     )
 
-    assert (cfg / "observations" / "output_locations.csv").is_file()
-    assert (cfg / "observations" / "observations_timeseries.csv").is_file()
+    assert (cfg / "basin_data" / "output_locations.csv").is_file()
+    assert (cfg / "basin_data" / "observations_timeseries.csv").is_file()
     # Routed, not duplicated into the other bins.
     assert not (cfg / "catalogs").exists()
     assert not (cfg / "templates").exists()
@@ -143,9 +143,9 @@ def test_the_snapshot_is_a_faithful_copy(tmp_path, sources):
     copy_config_files(
         config=snake,
         config_out_path=cfg / "runs" / "snake.yml",
-        other_config_files={str(series): str(cfg / "observations")},
+        other_config_files={str(series): str(cfg / "basin_data")},
     )
-    copied = (cfg / "observations" / "observations_timeseries.csv").read_text(
+    copied = (cfg / "basin_data" / "observations_timeseries.csv").read_text(
         encoding="utf-8"
     )
     assert copied == body
@@ -333,7 +333,7 @@ def test_observation_inputs_are_archived_even_when_recoverable(
     evaluated against, so it is archived whether or not the toolbox could hand
     it back. Before this, a project whose `gauge_points` pointed at a tracked
     CSV inside the checkout — the test fixture case — got no
-    `config/observations/` bin at all, and nothing said so.
+    `config/basin_data/` bin at all, and nothing said so.
     """
     _inside_the_checkout(monkeypatch, tmp_path)
     cfg = tmp_path / "project" / "config"
@@ -344,15 +344,15 @@ def test_observation_inputs_are_archived_even_when_recoverable(
     record = _record(
         tmp_path,
         sources,
-        other_config_files={str(locations): str(cfg / "observations")},
+        other_config_files={str(locations): str(cfg / "basin_data")},
         # The ROLE decides, not the filename -- which is why the source here is
         # called something else entirely.
         reference_roles={str(locations): "output_locations"},
     )
     entry = record["referenced_inputs"][0]
 
-    assert (cfg / "observations" / "output_locations.csv").is_file()
-    assert entry["archived_path"].endswith("config/observations/output_locations.csv")
+    assert (cfg / "basin_data" / "output_locations.csv").is_file()
+    assert entry["archived_path"].endswith("config/basin_data/output_locations.csv")
     # `recoverable` and `archived_path` are now INDEPENDENT: this file is both.
     assert entry["recoverable"] is True
     assert entry["git_blob"] == "b" * 40
@@ -407,8 +407,8 @@ def test_a_case_only_destination_collision_still_raises(tmp_path, sources):
             config=snake,
             config_out_path=cfg / "runs" / "snake.yml",
             other_config_files={
-                str(first_dir / "one.csv"): str(cfg / "observations"),
-                str(second_dir / "two.csv"): str(cfg / "observations"),
+                str(first_dir / "one.csv"): str(cfg / "basin_data"),
+                str(second_dir / "two.csv"): str(cfg / "basin_data"),
             },
             reference_roles={
                 str(first_dir / "one.csv"): "observations",
@@ -482,8 +482,8 @@ def test_two_references_sharing_a_destination_raise(tmp_path, sources):
             config=snake,
             config_out_path=cfg / "runs" / "snake.yml",
             other_config_files={
-                str(first_dir / "data.csv"): str(cfg / "observations"),
-                str(second_dir / "data.csv"): str(cfg / "observations"),
+                str(first_dir / "data.csv"): str(cfg / "basin_data"),
+                str(second_dir / "data.csv"): str(cfg / "basin_data"),
             },
         )
 
@@ -503,8 +503,8 @@ def test_declared_roles_keep_same_named_files_apart(tmp_path, sources):
         config=snake,
         config_out_path=cfg / "runs" / "snake.yml",
         other_config_files={
-            str(first_dir / "data.csv"): str(cfg / "observations"),
-            str(second_dir / "data.csv"): str(cfg / "observations"),
+            str(first_dir / "data.csv"): str(cfg / "basin_data"),
+            str(second_dir / "data.csv"): str(cfg / "basin_data"),
         },
         reference_roles={
             str(first_dir / "data.csv"): "output_locations",
@@ -512,11 +512,11 @@ def test_declared_roles_keep_same_named_files_apart(tmp_path, sources):
         },
     )
 
-    observations = cfg / "observations"
-    assert (observations / "output_locations.csv").read_text(
+    basin_data = cfg / "basin_data"
+    assert (basin_data / "output_locations.csv").read_text(
         encoding="utf-8"
     ) == "locations\n"
-    assert (observations / "observations_timeseries.csv").read_text(
+    assert (basin_data / "observations_timeseries.csv").read_text(
         encoding="utf-8"
     ) == "series\n"
 

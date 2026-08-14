@@ -376,8 +376,9 @@ project can say what it was run with.
 `config/runs/model_creation/<digest>/` (bundle dir).
 
 **Writes (undeclared).** Copies into `config/templates/` (build + waterbodies),
-`config/catalogs/` (data catalogs) and `config/observations/` (the two optional
-observation inputs, which live outside the repo *and* outside `project_dir`).
+`config/catalogs/` (data catalogs) and `config/basin_data/` (the two optional
+basin data inputs — gauge/output locations and the observed series — which live
+outside the repo *and* outside `project_dir`).
 
 #### 1.02 · `delineate_region`
 

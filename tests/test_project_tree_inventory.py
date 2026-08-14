@@ -87,7 +87,7 @@ COVERED: dict[str, list[str]] = {
         "config/runs/README.md",
         "config/catalogs/deltares_data.yml",
         "config/templates/wflow_build_model.yml",
-        "config/observations/output_locations.csv",
+        "config/basin_data/output_locations.csv",
     ],
     "data": [
         "data/spatial/spatial_maps.nc",

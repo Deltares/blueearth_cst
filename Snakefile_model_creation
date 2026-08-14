@@ -453,7 +453,7 @@ rule snapshot_config:
         config_build = model_build_config,
         config_snake = config_path,
         config_waterbodies = waterbodies_config,
-        # Snapshotted into config/observations/ so the finished project can say
+        # Snapshotted into config/basin_data/ so the finished project can say
         # what it was evaluated against: both live outside the repo AND outside
         # project_dir, referenced by absolute path (R07 O-01). Declared inputs
         # since 2026-08-02, so the snapshot refreshes when the file changes.

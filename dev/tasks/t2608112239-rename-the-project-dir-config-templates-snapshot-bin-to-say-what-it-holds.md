@@ -11,7 +11,7 @@ updated: 2026-08-11
 
 > [!note] Overview
 > **What** — A finished project keeps copies of the inputs its run used, sorted
-> into bins under `<project_dir>/config/`: `catalogs/`, `observations/`, `runs/`
+> into bins under `<project_dir>/config/`: `catalogs/`, `basin_data/`, `runs/`
 > and `templates/`. The last one holds the two hydromt build files WF1 actually
 > used (`wflow_build_model.yml`, `wflow_update_waterbodies.yml`); rename it to a
 > word that describes those files, since nothing about them is a template.
@@ -33,7 +33,11 @@ updated: 2026-08-11
 ## Progress
 
 - [ ] Decide the new name (`build_config/`? `model_config/`?) — it must not read
-      as a fourth thing next to `catalogs/`, `observations/`, `runs/`
+      as a fourth thing next to `catalogs/`, `basin_data/`, `runs/`. The sibling
+      bin was renamed `observations/` → `basin_data/` on 2026-08-14 on the
+      content-kind criterion (name the bin for what it holds, not for who
+      supplied it or for the repo directory the files came from); apply the same
+      test here
 - [ ] Decide whether the snapshot `kind` string changes with the directory or
       stays `"templates"` for digest stability; if it changes, say what happens
       to existing `config/runs/` digests

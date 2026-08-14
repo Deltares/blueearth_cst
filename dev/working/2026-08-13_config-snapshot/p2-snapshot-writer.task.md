@@ -57,7 +57,7 @@ No journal code here — lifecycle hooks own it (P4). No Snakefile edits.
 
 **Falsifier for "no input is silently lost":** configure two same-basename
 observation files and assert the run raises. A green run that leaves one file in
-`config/observations/` disproves the property.
+`config/basin_data/` disproves the property.
 
 ### Acceptance criteria
 

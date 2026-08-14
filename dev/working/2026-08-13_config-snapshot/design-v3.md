@@ -228,7 +228,7 @@ referenced_inputs:                  # one entry per consumed external file, §5.
   - role: observations_timeseries
     origin: <path as configured>
     recoverable: false              # the §5.5 predicate's verdict
-    archived_path: config/observations/observations_timeseries.csv  # or null
+    archived_path: config/basin_data/observations_timeseries.csv  # or null
     git_blob: null                  # blob id when recoverable, else null
     sha256: ...
     size_bytes: ...
@@ -821,7 +821,7 @@ otherwise have shipped as an untested assumption inside P4.
   retroactively — anything else is reported, never deleted).
   **`<exp_dir>/config/catalogs/` is never touched**: it holds the generated
   experiment catalog §5.5 keeps, and a pattern-match on `config/catalogs/`
-  across the whole tree would delete a kept artifact. `config/observations/`
+  across the whole tree would delete a kept artifact. `config/basin_data/`
   copies are kept (outside-repo files — the predicate copies them by design).
 - No baseline re-record (§5.9): all three fingerprinted flat copies unchanged;
   the fingerprinted `q_indicators.csv` untouched; WF2's `provenance.json` is

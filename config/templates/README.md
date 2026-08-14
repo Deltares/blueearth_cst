@@ -240,9 +240,11 @@ fails as a missing input instead of silently dropping observation outputs.
 
 ## Where they end up
 
-Both files are snapshotted into `<project_dir>/config/observations/` by rule
+Both files are snapshotted into `<project_dir>/config/basin_data/` by rule
 1.01, alongside the run's config (`config/runs/`), catalogs (`config/catalogs/`)
-and build templates (`config/templates/`). They are referenced by **absolute
+and build templates (`config/templates/`). The bin is named for what it holds —
+local, basin-scoped tabular inputs — not for observations alone: only one of the
+two files is an observation, the other declares where the model reports. They are referenced by **absolute
 path** from wherever you keep them, so without that copy a finished project
 could not say what it was evaluated against — the metrics table would cite
 gauges and observations that exist only on the machine that ran it.

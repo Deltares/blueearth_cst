@@ -4,7 +4,7 @@ type: watch-item
 area: config snapshot / wf3 guard
 origin: owner question on the runs bin (2026-08-13)
 created: 2026-08-13
-updated: 2026-08-13
+updated: 2026-08-14
 ---
 
 > [!note] Overview
@@ -27,6 +27,22 @@ now names the trap explicitly and `tests/test_copy_config_files.py` pins the
 wording. This item exists so the *structural* fix is not re-proposed from the
 same surface reading — which both the owner and the assistant made — without
 the three costs below in view.
+
+**Re-asked 2026-08-14, and the strengthened README did not prevent it either.**
+The owner proposed two variants in one sitting: flatten `config/runs/` into
+`config/`, and nest the flat copies under `config/runs/<workflow>/`. Both trip
+the SAME wire as cost 1 — the first moves
+`config/runs/snake_config_model_creation.yml` out of `runs/`, the second moves
+it down into `<workflow>/` — so the item now covers three proposals, not one.
+That is twice in two days from two different readings of the same directory,
+which is the evidence that **prose mitigation has been tried and does not
+work**; the next attempt should not be a third README revision. Answered on
+screen from this note; nothing structural changed. The positive reason to keep
+`runs/` was also recorded that day and belongs with the costs: the bin is the
+only boundary in `config/` between *archived copies of what came in*
+(`catalogs/`, `templates/`, `basin_data/`) and *records of what the run did*,
+and it is what makes "everything here is written by the run" true of a whole
+directory rather than of scattered files.
 
 ## What was measured (2026-08-13)
 

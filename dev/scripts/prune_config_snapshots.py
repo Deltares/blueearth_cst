@@ -23,10 +23,11 @@ bin-level copying with a per-file predicate:
   written over generated forcing at run time. The design keeps it. A pattern
   match on ``config/catalogs/`` across the whole tree would delete it, which is
   why the experiment tree is excluded outright rather than filtered.
-- ``config/observations/`` — copies of files that live outside the repository
+- ``config/basin_data/`` — copies of files that live outside the repository
   and outside ``project_dir``. The predicate copies them BY DESIGN: the toolbox
   cannot give them back, and losing them costs the project its record of what
-  it was evaluated against.
+  it was built and evaluated against. Named ``observations/`` until 2026-08-14;
+  a pre-rename project tree keeps the old bin, which nothing here deletes.
 - Anything in ``templates/`` or ``catalogs/`` that is NOT byte-identical to a
   tracked toolbox file. That is precisely the site-specific catalog R4 exists
   to protect, so it is reported and never deleted.

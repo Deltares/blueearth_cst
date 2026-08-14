@@ -40,7 +40,7 @@ def project(tmp_path):
         root / "experiments/exp1/config/catalogs/data_catalog_climate_experiment.yml",
         # Outside-repo files the predicate copies BY DESIGN. Losing these costs
         # the project its record of what it was evaluated against.
-        root / "config/observations/output_locations.csv",
+        root / "config/basin_data/output_locations.csv",
         # The wrapper's per-invocation manifests: a sibling of the bundles, not
         # one of them.
         root / "config/runs/invocations/20260811T142556.501Z-83c05db9c855.json",
@@ -108,14 +108,20 @@ def test_the_generated_experiment_catalog_is_out_of_scope(project):
     )
 
 
-def test_observations_are_never_deletable(project):
+def test_basin_data_is_never_deletable(project):
     """The predicate copies them because the toolbox cannot give them back."""
     root, _config, _keep = project
     everything = {p.name: {pcs._sha256(p)} for p in root.rglob("*") if p.is_file()}
 
     deletable, _reported = pcs.find_recoverable_copies(root, everything)
 
-    assert not any("observations" in p.relative_to(root).as_posix() for p in deletable)
+    # Named explicitly, not by substring: a `basin_data` bin that no longer
+    # exists under that spelling would make a substring test pass vacuously,
+    # which is exactly how the 2026-08-14 rename could have gone unnoticed.
+    kept = root / "config/basin_data/output_locations.csv"
+    assert kept.is_file()
+    assert kept not in deletable
+    assert not any("basin_data" in p.relative_to(root).as_posix() for p in deletable)
 
 
 def test_a_file_the_repo_cannot_give_back_is_reported_never_deleted(project):

@@ -122,11 +122,11 @@ repository cannot give it back; one that is tracked and unmodified in the
 checkout is recorded by its git blob id instead. `run_record.yml` lists every
 reference either way, so nothing goes unrecorded.
 
-The **observation inputs are an exception and are always copied**, into
-`config/observations/`. They are this project's record of what the model was
-evaluated against, and a finished project should be able to state that without
-the toolbox checkout beside it -- so for them "can the toolbox give it back?"
-is the wrong question. Their entries carry `archived_path` AND, when the file
+The **basin data inputs are an exception and are always copied**, into
+`config/basin_data/`. They are this project's record of what the model was
+built and evaluated against, and a finished project should be able to state
+that without the toolbox checkout beside it -- so for them "can the toolbox
+give it back?" is the wrong question. Their entries carry `archived_path` AND, when the file
 was also tracked, `recoverable: true` and a `git_blob`.
 """
 
@@ -524,13 +524,17 @@ if __name__ == "__main__":
         config_dir = sm.params.config_dir
         catalogs_dir = join(config_dir, "catalogs")
         templates_dir = join(config_dir, "templates")
-        # Fifth bin (2026-08-01). The two OPTIONAL observation inputs live
-        # outside the repository AND outside project_dir, referenced by
-        # absolute path (R07 O-01), so without this the finished project cannot
-        # say what it was evaluated against -- the metrics table would cite
-        # gauges and observations that exist only on the machine that ran it.
-        # Same provenance role as config/catalogs/, hence the same home.
-        observations_dir = join(config_dir, "observations")
+        # Fifth bin (2026-08-01), named `observations/` until 2026-08-14. The
+        # OPTIONAL basin data inputs live outside the repository AND outside
+        # project_dir, referenced by absolute path (R07 O-01), so without this
+        # the finished project cannot say what it was evaluated against -- the
+        # metrics table would cite gauges and observations that exist only on
+        # the machine that ran it. Same provenance role as config/catalogs/,
+        # hence the same home. The name is BASIN DATA, not `observations`,
+        # because only one of the two files is an observation: the other
+        # declares where the model reports. Local basin-scoped tabular inputs
+        # is the property they share, and the one future files will share too.
+        basin_data_dir = join(config_dir, "basin_data")
 
         # Get other config files to copy based on workflow name, each routed
         # to the bin its KIND belongs in.
@@ -569,7 +573,7 @@ if __name__ == "__main__":
                 path = getattr(sm.input, key, None)
                 if is_unset(path):
                     continue
-                other_config_files[str(path)] = observations_dir
+                other_config_files[str(path)] = basin_data_dir
                 # The two keys that made collision safety necessary: both are
                 # arbitrary absolute paths, so nothing stops a project pointing
                 # them at two files called `data.csv` in different directories.
