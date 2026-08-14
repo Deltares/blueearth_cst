@@ -66,6 +66,24 @@ def test_one_header_then_a_banner_per_rule(tmp_path):
     assert "-- 2.04_derive_change_factors" not in text
 
 
+def test_the_merged_log_defines_the_folder_tokens_its_rows_use(tmp_path, monkeypatch):
+    """The merge DELETES the parts, so their headers go with them.
+
+    A part defines `<model>` for its own rows; once merged and deleted, the only
+    file left is this one, and the bodies it now holds are full of
+    `<model>/staticmaps.nc`. An undefined token in the one durable artifact is
+    exactly what the per-part definition exists to prevent, one level up.
+    """
+    import blueearth_cst.shared.snake_utils as su
+
+    monkeypatch.setenv(su._PATH_TOKENS_ENV, "")
+    su.declare_path_tokens(model=tmp_path / "models" / "hydrology" / "wflow")
+    parts_dir = _parts(tmp_path, {"1.07_build_wflow_model": None})
+    out = tmp_path / "logs" / "wf1_model_creation.log"
+    merge_logs(["1.07_build_wflow_model"], str(out), parts_dir)
+    assert "# <model>: models/hydrology/wflow" in out.read_text(encoding="utf-8")
+
+
 def test_wf3_lettered_rule_number_is_tagged(tmp_path):
     """WF3's first rule is `3.00b`, which a plain isdigit() check rejects."""
     parts_dir = _parts(tmp_path, {"3.00b_check_project_consistency": None})

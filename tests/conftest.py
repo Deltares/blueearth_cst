@@ -20,6 +20,26 @@ SNAKEDIR = join(TESTDIR, "..")
 config_fn = join(TESTDIR, "snake_config_fixture.yml")
 
 
+@pytest.fixture(autouse=True)
+def _no_ambient_path_tokens(monkeypatch):
+    """Start every test with NO declared key folders.
+
+    ``declare_path_tokens`` writes a process-wide env var, which is correct at
+    runtime — a rule's output is written by a child of the process that parsed
+    the Snakefile. In the suite it is leakage: four tests build rules through
+    ``snakemake.api``, which parses a real Snakefile IN-PROCESS and therefore
+    declares that project's folders for every test that runs afterwards. Three
+    header tests then failed in the full suite while passing in isolation
+    (measured 2026-08-14), which is the failure mode that costs the most to
+    diagnose.
+
+    Autouse and unconditional: no test should be reading a declaration it did
+    not make, and a test that wants one makes it (see ``declare_folders`` in
+    tests/test_snake_utils.py).
+    """
+    monkeypatch.setenv("CST_PATH_TOKENS", "")
+
+
 #: Screen resolution, for tests that SAVE a figure to assert something about it.
 #: Low enough to be cheap, high enough that a render still exercises the same
 #: draw path; nothing here asserts on pixel counts.
