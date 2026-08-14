@@ -7,7 +7,7 @@
 ## Overview
 
 BlueEarth Climate Stress Test — a multi-language (Python + R + Julia) scientific
-workflow toolbox stitched together by Snakemake. The three `Snakefile_*` files at
+workflow toolbox stitched together by Snakemake. The three `*.smk` files at
 the repo root are the only entry points; there is no package CLI. Full narrative
 in `README.md`.
 
@@ -183,9 +183,9 @@ pixi run install      # + weathergenr (R, via remotes) and Julia env (Pkg.instan
 # Run the three workflows IN ORDER (run_stress_test needs build_model
 # artifacts). snake_config_rapid.yml is the DEFAULT config; swap in
 # snake_config_baseline.yml only for the runs listed under Workflow:
-snakemake all -c 3 -s build_model.smk      --configfile test_case/snake_config_rapid.yml
+snakemake all -c 3 -s build_model.smk         --configfile test_case/snake_config_rapid.yml
 snakemake all -c 3 -s analyze_projections.smk --configfile test_case/snake_config_rapid.yml --keep-going
-snakemake all -c 3 -s run_stress_test.smk  --configfile test_case/snake_config_rapid.yml
+snakemake all -c 3 -s run_stress_test.smk     --configfile test_case/snake_config_rapid.yml
 
 # Or drive all enabled workflows through the wrapper:
 pixi run python scripts/run_workflows.py --config test_case/snake_config_rapid.yml
@@ -395,7 +395,7 @@ the split, and neither name is a lane any more.
 | Lane | Worktree | Claims |
 |---|---|---|
 | `lane/devmeta` | `.worktrees/blueearth_cst/devmeta` | `dev/**`, `docs/**`, `AGENTS.md`, `CLAUDE.md`, `README*`, `CHANGELOG.md`, `DEVLOG.md`, `LICENSE`, `.git-workflow.yml`, `.githooks/`, `.gitignore`, `.gitattributes`, `.editorconfig`, `.zed/`, `.testing-policy.yml` |
-| `lane/pipeline` | `.worktrees/blueearth_cst/pipeline` | `blueearth_cst/**`, `tests/**`, `config/**`, `Snakefile_*`, `scripts/**`, `profiles/**`, `test_case/snake_config_*.yml`, `pyproject.toml`, `pixi.toml`, `pixi.lock`, `Project.toml`, `Manifest.toml`, `Dockerfile`, `.github/` |
+| `lane/pipeline` | `.worktrees/blueearth_cst/pipeline` | `blueearth_cst/**`, `tests/**`, `config/**`, `*.smk`, `scripts/**`, `profiles/**`, `test_case/snake_config_*.yml`, `pyproject.toml`, `pixi.toml`, `pixi.lock`, `Project.toml`, `Manifest.toml`, `Dockerfile`, `.github/` |
 
 The two claims cover **every tracked file** — a path in neither is routed by an
 owner ruling, never by nearest-fit. Measured over the last 200 commits on `main`
