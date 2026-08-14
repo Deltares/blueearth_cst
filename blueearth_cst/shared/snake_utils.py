@@ -2642,6 +2642,18 @@ def _grey_for_console(text, colour):
 _RULE_NUMBERS = {}
 
 
+def rule_id(number):
+    """Return a rule number in the console's spelling: ``Rule 1.08:``.
+
+    One definition, because three places have to agree on it: the ``message:``
+    banner a rule declares, the START line the console handler renders from
+    that banner, and the FINISH line it builds from a record that carries only
+    a rule name. Two spellings of one identity on adjacent lines is how a pair
+    stops reading as one job.
+    """
+    return f"Rule {number}:"
+
+
 def rule_banner(number, name, context=None, summary=None):
     """Return a rule's ``message:`` string: a numbered console banner.
 
@@ -2687,16 +2699,22 @@ def rule_banner(number, name, context=None, summary=None):
     you are waiting and wondering. It is constant, so unlike ``context`` it must
     not contain a wildcard.
 
-    Order is ``<number>  <name> - <summary>  <context>``: identifier first
+    Order is ``Rule <number>: <name> - <summary>  <context>``: identifier first
     because it is what the log filenames, the benchmark table and this file's
     own rule comments all key on.
+
+    The identifier is SPELLED OUT (``Rule 1.08: build_wflow_model``) rather than
+    left as a bare ``1.08  build_wflow_model``. Two digits and a dot are a rule
+    number to someone who already knows this console; to everyone else they are
+    an unexplained figure sitting where a version or a count could equally well
+    be, and the word costs five characters once per line.
 
     Side effect: records ``name -> number`` in ``_RULE_NUMBERS`` so
     :func:`install_console_style` can put the number on a job's FINISH line,
     which Snakemake reports by rule name only. See that registry's comment.
     """
     _RULE_NUMBERS[name] = str(number)
-    tag = f"{number}  {name}"
+    tag = f"{rule_id(number)} {name}"
     if summary:
         tag = f"{tag} - {summary}"
     if not context:
@@ -2834,6 +2852,13 @@ def target_banner(number, name, targets, project_dir=None):
 # is a handful of lines once per run; the volume was never there.
 _CONSOLE_MAX_TRACKED_JOBS = 4096
 
+#: The two words that open a job line, PADDED TO ONE WIDTH so the identity that
+#: follows starts at the same column on a start and a finish -- the pair reads
+#: as a column, not as two sentences. Upper case because they are the only
+#: markers on the console and nothing else competes for that weight.
+_MARKER_RUN = "RUN "
+_MARKER_DONE = "DONE"
+
 _CONSOLE_MUTED_PREFIXES = (
     "Select jobs to execute...",
     "Removing temporary output ",
@@ -2869,8 +2894,15 @@ class _ConsoleHandler(logging.StreamHandler):
     ``Execute N jobs...`` per scheduling wave. On a WF3 run that is thousands
     of lines in which one line per job is ours. This renders two::
 
-        23:26:44  run   3.11  generate_weather_realizations - generate ...
-        23:27:14  done  3.11  generate_weather_realizations  0:00:30  [8/37]
+        23:26:44 - RUN  Rule 3.11: generate_weather_realizations - generate ...
+        23:27:14 - DONE Rule 3.11: generate_weather_realizations  0:00:30  [8/37]
+
+    The stamp is followed by ``- `` and a padded marker, so these lines open in
+    the same grammar as every row :func:`log_row` and the tee emit between them
+    (``23:26:51 - geoms - Writing geoms to ...``) and the identity lands in one
+    column on both. Note the two ``-`` on a start line separate different
+    things: the first ends the stamp, the second introduces the rule's
+    plain-language summary.
 
     Start lines are painted white and finish lines orange, WHOLE-LINE, with
     everything else on the console grey (``_ANSI_RUN`` / ``_ANSI_DONE`` /
@@ -3028,7 +3060,7 @@ class _ConsoleHandler(logging.StreamHandler):
             # input/output/jobid, which is the whole of what a reader gets for
             # that rule -- reshaping it into one line would delete it.
             return self.format(record)
-        return self._paint(f"{self._now()}  run   {message}", _ANSI_RUN)
+        return self._paint(f"{self._now()} - {_MARKER_RUN} {message}", _ANSI_RUN)
 
     def _drain(self, done, total):
         if not self._finished:
@@ -3053,10 +3085,12 @@ class _ConsoleHandler(logging.StreamHandler):
             # the rule, which is the whole point of the line; it gets our stamp
             # and the counter and nothing else.
             tail = f"  [{counter}/{total}]" if counter is not None and total else ""
-            return self._paint(f"{self._now()}  {fallback}{tail}", _ANSI_DONE)
+            return self._paint(
+                f"{self._now()} - {_MARKER_DONE} {fallback}{tail}", _ANSI_DONE
+            )
         number = _RULE_NUMBERS.get(rule_name)
         if rule_name:
-            identity = f"{number}  {rule_name}" if number else rule_name
+            identity = f"{rule_id(number)} {rule_name}" if number else rule_name
         else:
             identity = f"job {jobid}"
         # The identity is coloured HERE, not inherited from the start line's
@@ -3078,7 +3112,7 @@ class _ConsoleHandler(logging.StreamHandler):
             tail.append(format_elapsed(time.monotonic() - started))
         if counter is not None and total:
             tail.append(f"[{counter}/{total}]")
-        line = f"{self._now()}  done  " + "  ".join(parts)
+        line = f"{self._now()} - {_MARKER_DONE} " + "  ".join(parts)
         if tail:
             line = f"{line}  " + "  ".join(tail)
         return self._paint(line, _ANSI_DONE)

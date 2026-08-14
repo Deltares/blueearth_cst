@@ -302,7 +302,7 @@ def test_target_banner_puts_one_target_per_line(monkeypatch):
     monkeypatch.setattr(sys, "stderr", io.StringIO())  # isatty() -> False
     monkeypatch.delenv("NO_COLOR", raising=False)
     out = target_banner("2.00", "all", ["a/x.csv", "b/y.png"])
-    assert out == "2.00  all\n    a/x.csv\n    b/y.png"
+    assert out == "Rule 2.00: all\n    a/x.csv\n    b/y.png"
     assert ", " not in out
 
 
@@ -314,7 +314,7 @@ def test_target_banner_accepts_a_dict_values_view(monkeypatch):
     monkeypatch.delenv("NO_COLOR", raising=False)
     targets = {"a": "one.csv", "b": "two.csv"}
     assert target_banner("3.00", "all", targets.values()) == (
-        "3.00  all\n    one.csv\n    two.csv"
+        "Rule 3.00: all\n    one.csv\n    two.csv"
     )
 
 
@@ -324,7 +324,7 @@ def test_target_banner_with_no_targets_is_just_the_banner(monkeypatch):
 
     monkeypatch.setattr(sys, "stderr", io.StringIO())
     monkeypatch.delenv("NO_COLOR", raising=False)
-    assert target_banner("1.00", "all", []) == "1.00  all"
+    assert target_banner("1.00", "all", []) == "Rule 1.00: all"
 
 
 def test_target_banner_relativizes_against_project_dir(monkeypatch):
@@ -340,7 +340,7 @@ def test_target_banner_relativizes_against_project_dir(monkeypatch):
         "C:/TESTS/CST/gabonx",
     )
     assert out == (
-        "2.00  all  [C:/TESTS/CST/gabonx]\n    climate_projections/cmip6/summary/x.csv"
+        "Rule 2.00: all  [C:/TESTS/CST/gabonx]\n    climate_projections/cmip6/summary/x.csv"
     )
 
 
@@ -371,7 +371,7 @@ def test_target_banner_without_project_dir_keeps_paths_verbatim(monkeypatch):
     monkeypatch.setattr(sys, "stderr", io.StringIO())
     monkeypatch.delenv("NO_COLOR", raising=False)
     out = target_banner("3.00", "all", ["C:/p/q.csv"])
-    assert out == "3.00  all\n    C:/p/q.csv"
+    assert out == "Rule 3.00: all\n    C:/p/q.csv"
     assert "[" not in out
 
 
@@ -1393,10 +1393,30 @@ def _emit(handler, *records):
 def test_console_start_line_is_one_line_with_a_short_stamp():
     """Snakemake spends three lines here: blank, `[Thu Aug 13 ...]`, `Job 8: ...`."""
     handler = _console_handler()
-    out = _emit(handler, _job_info(8, "run_wflow", "1.14  run_wflow - run the model"))
+    out = _emit(
+        handler, _job_info(8, "run_wflow", "Rule 1.14: run_wflow - run the model")
+    )
     assert re.fullmatch(
-        r"\d\d:\d\d:\d\d  run   1\.14  run_wflow - run the model\n", out
+        r"\d\d:\d\d:\d\d - RUN  Rule 1\.14: run_wflow - run the model\n", out
     ), out
+
+
+def test_console_marker_column_is_the_same_on_a_start_and_a_finish():
+    """`RUN ` is padded to `DONE`'s width, so both identities start at one column.
+
+    Asserted on rendered lines rather than on the constants, because the padding
+    only pays off if nothing between the stamp and the marker differs either.
+    """
+    su._RULE_NUMBERS["seed"] = "9.01"
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _job_info(1, "seed", "Rule 9.01: seed"),
+        _console_record(event="job_finished", job_id=1),
+        _console_record(event="progress", done=1, total=2),
+    )
+    start, finish = out.splitlines()
+    assert start.index("Rule 9.01:") == finish.index("Rule 9.01:"), out
 
 
 def test_console_finish_line_carries_number_wildcards_elapsed_and_counter():
@@ -1408,7 +1428,7 @@ def test_console_finish_line_carries_number_wildcards_elapsed_and_counter():
         _job_info(
             3,
             "downscale_climate_realization",
-            "3.14  downscale_climate_realization  rlz 1 | st 0",
+            "Rule 3.14: downscale_climate_realization  rlz 1 | st 0",
             {"rlz": "1", "st": "0"},
         ),
     )
@@ -1423,7 +1443,7 @@ def test_console_finish_line_carries_number_wildcards_elapsed_and_counter():
     )
     done = out.splitlines()[1]
     assert re.fullmatch(
-        r"\d\d:\d\d:\d\d  done  3\.14  downscale_climate_realization  "
+        r"\d\d:\d\d:\d\d - DONE Rule 3\.14: downscale_climate_realization  "
         r"rlz 1 \| st 0  0:01:11  \[27/37\]",
         done,
     ), done
@@ -1446,18 +1466,20 @@ def test_console_a_wave_of_finishes_counts_up_to_the_progress_total():
     handler = _console_handler()
     records = []
     for jobid in (10, 11, 12):
-        records.append(_job_info(jobid, f"rule_{jobid}", f"9.0{jobid}  rule_{jobid}"))
+        records.append(
+            _job_info(jobid, f"rule_{jobid}", f"Rule 9.0{jobid}: rule_{jobid}")
+        )
     for jobid in (10, 11, 12):
         records.append(_console_record(event="job_finished", job_id=jobid))
     records.append(_console_record(event="progress", done=15, total=37))
     out = _emit(handler, *records)
-    finished = [line for line in out.splitlines() if "  done  " in line]
+    finished = [line for line in out.splitlines() if " - DONE " in line]
     assert [line.split("  ")[-1] for line in finished] == [
         "[13/37]",
         "[14/37]",
         "[15/37]",
     ], finished
-    assert [line.split("  done  ")[1].split("  ")[0] for line in finished] == [
+    assert [line.split(" - DONE ")[1].split("  ")[0] for line in finished] == [
         "rule_10",
         "rule_11",
         "rule_12",
@@ -1469,13 +1491,13 @@ def test_console_a_held_finish_is_flushed_uncounted_if_progress_never_comes():
     handler = _console_handler()
     out = _emit(
         handler,
-        _job_info(4, "generate_weather_realizations", "3.11  generate"),
+        _job_info(4, "generate_weather_realizations", "Rule 3.11: generate"),
         _console_record(event="job_finished", job_id=4),
-        _job_info(5, "next_rule", "3.12  next"),
+        _job_info(5, "next_rule", "Rule 3.12: next"),
     )
     lines = out.splitlines()
-    assert "  done  " in lines[1] and "[" not in lines[1], lines
-    assert "  run   3.12  next" in lines[2]
+    assert " - DONE " in lines[1] and "[" not in lines[1], lines
+    assert " - RUN  Rule 3.12: next" in lines[2]
 
 
 def test_console_progress_alone_prints_nothing():
@@ -1548,7 +1570,7 @@ def test_console_a_rule_without_a_message_still_gets_a_named_finish_line():
         _console_record(event="job_finished", job_id=2),
         _console_record(event="progress", done=9, total=10),
     )
-    assert out.splitlines()[-1].endswith("done  some_rule  [9/10]"), out
+    assert out.splitlines()[-1].endswith("- DONE some_rule  [9/10]"), out
 
 
 def test_console_a_sub_second_job_shows_no_duration():
@@ -1557,19 +1579,19 @@ def test_console_a_sub_second_job_shows_no_duration():
     handler = _console_handler()
     out = _emit(
         handler,
-        _job_info(1, "write_experiment_config", "3.07  write_experiment_config"),
+        _job_info(1, "write_experiment_config", "Rule 3.07: write_experiment_config"),
         _console_record(event="job_finished", job_id=1),
         _console_record(event="progress", done=3, total=37),
     )
     done = out.splitlines()[1]
-    assert done.endswith("3.07  write_experiment_config  [3/37]"), done
+    assert done.endswith("Rule 3.07: write_experiment_config  [3/37]"), done
 
 
 def test_console_no_escape_codes_when_the_stream_is_not_a_tty():
     handler = _console_handler()
     out = _emit(
         handler,
-        _job_info(1, "r", "1.01  r"),
+        _job_info(1, "r", "Rule 1.01: r"),
         _console_record(event="job_finished", job_id=1),
         _console_record(event="progress", done=1, total=1),
     )
@@ -1591,7 +1613,7 @@ def test_console_a_finish_with_no_start_falls_back_to_snakemakes_own_text():
         _console_record(event="progress", done=4, total=10),
     )
     assert re.fullmatch(
-        r"\d\d:\d\d:\d\d  Finished jobid: 5 \(Rule: seed\)  \[4/10\]\n", out
+        r"\d\d:\d\d:\d\d - DONE Finished jobid: 5 \(Rule: seed\)  \[4/10\]\n", out
     ), out
 
 
@@ -1599,7 +1621,7 @@ def test_console_the_start_memo_is_bounded():
     """`--quiet progress` drops every finish, so nothing would ever pop an entry."""
     handler = _console_handler()
     for jobid in range(su._CONSOLE_MAX_TRACKED_JOBS + 50):
-        handler.emit(_job_info(jobid, "member", f"9.02  member  n {jobid}"))
+        handler.emit(_job_info(jobid, "member", f"Rule 9.02: member  n {jobid}"))
     assert len(handler._started) == su._CONSOLE_MAX_TRACKED_JOBS
     # The oldest go first: the most recent job is always still tracked.
     assert su._CONSOLE_MAX_TRACKED_JOBS + 49 in handler._started
@@ -1631,7 +1653,7 @@ def test_rule_banner_never_colours_even_on_a_tty():
         out = _su.rule_banner("1.09", "run_wflow", summary="run it", context="rlz 1")
     finally:
         sys.stderr = real
-    assert out == "1.09  run_wflow - run it  rlz 1"
+    assert out == "Rule 1.09: run_wflow - run it  rlz 1"
     assert "\033" not in out
 
 
@@ -1641,7 +1663,7 @@ def test_console_paints_a_start_line_white_and_a_finish_line_orange():
     su._RULE_NUMBERS["seed"] = "9.01"
     out = _emit(
         handler,
-        _job_info(1, "seed", "9.01  seed - prepare one realization"),
+        _job_info(1, "seed", "Rule 9.01: seed - prepare one realization"),
         _console_record(event="job_finished", job_id=1),
         _console_record(event="progress", done=1, total=4),
     )
