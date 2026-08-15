@@ -48,12 +48,20 @@ changes, which this does.
 The run's full argument — 35 findings, five reviewer verdicts, the ledger, the
 process log — is `dev/milestones/r12/stress-test-lookup-review-record.md`.
 
+**The implementation brief is `dev/working/wf3-stress-test-lookup-task-brief.md`** —
+scope partition, the nine-step commit plan derived from the design's §8, the
+validation ladder with per-rung frequencies, and three human gates. Gate 1 is the
+one that cannot be recovered from: the baseline "before" must be recorded before
+the first implementation commit.
+
 ## The design conversation that preceded it (provenance)
 
 `dev/working/2026-08-15_wf3-scenario-generation-trace/` holds three documents:
 
-- `stress-test-design-and-surface-axes.md` — **the design**, with six questions
-  ruled (§6 indexes them). Read this first.
+- `stress-test-design-and-surface-axes.md` — the design *conversation*, with six
+  questions ruled (§6 indexes them) and two same-day revisions. It said "read
+  this first" while it was the only design there was; the accepted design has
+  superseded it.
 - `trace.md` — the run, config to scenario, with the measured cost profile.
 - `wf3-rule-reference.md` — every WF3 rule, its scripts and file shapes.
 
@@ -111,8 +119,8 @@ Rulings, all owner, 2026-08-15:
 - **t2608151154** — `st_0` is not method-comparable with the surface. Split out of
   this item on 2026-08-15 because it is a live pipeline property rather than part
   of the redesign. Not a blocker here; it is what the §5 caveat points at.
-- Related, same territory: t2608082036 (R12's execution design, queue 1) and
-  t2608071216 (batch size). `trace.md` § 3 is the cost baseline for both.
+- Related, same territory: t2608071216 (batch size). `trace.md` § 3 is the cost
+  baseline for it and for t2608082036.
 - Noted in the design (§5d) and belonging to R12 rather than here: rule 3.09 takes
   `ancient(config_path)` with **no params**, so a `stress_test` edit does not
   re-fire the grid rule. `experiment.yml`'s freeze guard exists to compensate.
