@@ -5,14 +5,14 @@ genre: workflow-spec
 author-binding: cst-architect
 started: 2026-08-15
 variant: full
-stage: 3-revision-r1
+stage: 4-external-r1 (awaiting authorization)
 external-rounds-completed: 0
 dispatches:
   opus: 5
   fable: 0
 cost:
-  expensive-checks: 3      # P1, P2, P3 — all executed, not argued
-  doc-lines: "1231 -> 1231"
+  expensive-checks: 4      # P1, P2, P3 executed; P2-b is a code read, flagged
+  doc-lines: "1231 -> 2133"
 findings:
   unique: 26          # 2 blocking, 13 major, 11 minor
   re-raised: 0
@@ -170,7 +170,48 @@ flags: [seeded-from-existing-draft, stage-1-authorized-alone]
   `dev/milestones/r12/` already exists, so the migration note files there and the
   open question closes on a fact rather than a decision.
 
-- [open] 3-revision-r1 — author dispatched 2026-08-15 (`cst-architect`, opus, 1 spawn)
+- [done] 3-revision-r1 — outputs: design-v2.md (2133 lines, was 1231),
+  ledger.md (26 rows), new decisions D25–D30
+
+  **Ledger closure verified mechanically, not by reading.** Parsed the three
+  per-lens files for filed IDs and severities and the ledger for its rows:
+  26 filed / 26 rows, **no missing, no extra, and zero severity mismatches** —
+  every row carries the severity its own lens filed, including all three
+  divergences. No `blocking` deferred or rejected, so nothing gates on
+  arbitration. `architecture-1` is dispositioned **per limb** as a multi-part
+  finding requires. `design-v1.md` is untouched; the version series is
+  append-only.
+
+  **Nothing rejected outright.** Two rows accept the claim and reject part of the
+  *suggested fix* on measurement, recorded in the Disposition column rather than
+  smoothed: the reviewers' proposed exact percent round trip is **unattainable**
+  (1,155 of 50,000 float32 multipliers admit no float64 percent that reconstructs
+  them under any spelling), and `risk-1`'s pinned inverse `(100 + p)/100`
+  measures *worse* than `1 + p/100` (32.9% vs 19.9% failures). So D25 pins the
+  latter and replaces the exactness claim with a measured bound. Accepting a
+  claim while refuting its remedy on evidence is the loop working.
+
+  **Mechanism changes** (this list decides the round-2 trigger later): D25 percent
+  text at float64 shortest repr with the inverse pinned; D26 the flat-vector
+  short-circuit made normative; D27 D16/D19 precedence; D28 `join_axes` raises
+  `BaselinePartitionError` and owns the indicator read; D29 R-side post-filter
+  assertion and arity 4→5; D30 WG-2 re-pointed with `validate_wg2` rewritten;
+  and **D3**, which is a mechanism fix rather than an editorial one — as v1 was
+  written the generator receives a variance factor of **zero** on every shipped
+  config.
+
+  **A residual to carry into the external round.** P2-b establishes the
+  rerun-trigger layer by *reading* the rules and the fingerprinter rather than by
+  execution: a Snakemake probe from this worktree would risk the `.snakemake`
+  divergence `AGENTS.md` warns about. Those are structural facts and the argument
+  is sound, but the stage-0 register asked for an execution, so this is a code
+  read standing where a probe was specified. Flag it to the external reviewer
+  rather than let it pass silently.
+
+  **Size budget raised 1250 → 2150 by the author**, with a line-accounted
+  breakdown in the header, rather than exceeded silently.
+
+- [done] 3-revision-r1 (dispatch) — 2026-08-15 (`cst-architect`, opus, 1 spawn)
 
   Answers all **26** original finding IDs with a ledger row each; creates
   `ledger.md`. Input set: `intake.md`, `design-v1.md`, the three per-lens files,
@@ -181,7 +222,7 @@ flags: [seeded-from-existing-draft, stage-1-authorized-alone]
   Authorized as a single increment. **Stage 4 (external round 1) is not
   authorized.**
 
-  Marked `[open]` until `design-v2.md` and `ledger.md` are on disk.
+  Both artifacts landed; see the outcome entry above.
 
 ## Variant
 
