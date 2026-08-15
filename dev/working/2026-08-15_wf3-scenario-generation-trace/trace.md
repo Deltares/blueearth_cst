@@ -185,42 +185,68 @@ run TOMLs, the per-member run CSVs, and the indicator tables.
 
 ## 3. Where the time actually goes
 
-From `test_case/test_rapid` — `RLZ_NUM` = 2, `ST_NUM` = 4 (+ `st_0`), so 10
-members. Job wall-clock, summed per rule:
+From a real `snake_config_rapid.yml` run — `RLZ_NUM` = 2, `ST_NUM` = 4 (+ `st_0`),
+so 10 members. Source: `test_case/test_rapid/benchmarks/wf3_benchmarks_experiment_rapid.md`.
 
-| rule | jobs | s/job | total s | share |
-|---|---:|---:|---:|---:|
-| 3.15 `run_wflow` | 5 batches | ~163 | **813** | **61%** |
-| 3.14 `downscale_climate_realization` | 10 | ~30.5 | **305** | **23%** |
-| 3.12 `perturb_climate_realization` | 8 | ~19.0 | **152** | **11%** |
-| 3.11 `generate_weather_realizations` | 1 | 34.7 | 35 | 2.6% |
-| 3.13 `write_climate_data_catalog` | 1 | 9.2 | 9 | 0.7% |
-| 3.16 `derive_wflow_indicators` | 1 | 9.1 | 9 | 0.7% |
-| 3.09 / 3.10 / guards | 6 | <3 | ~5 | 0.4% |
-| | | | **~1 328** | |
+**Every rule, in execution order.** Rule numbers are also dependency order since
+[R10-5], so reading down the table is reading the run. `jobs` is how many times
+the rule executed; `peak RSS` is the largest single job's resident memory.
+
+| rule | jobs | s/job | total s | share | peak RSS | load |
+|---|---:|---:|---:|---:|---:|---:|
+| 3.01 `check_project_consistency` | 1 | 0.44 | 0.4 | — | 6 MB | — |
+| 3.02 `snapshot_config` | 1 | — | — | — | — | *no benchmark declared* |
+| 3.03 `delineate_region` | 0 | — | — | — | — | *up to date from WF1* |
+| 3.04 `delineate_spatial_units` | 0 | — | — | — | — | *up to date from WF1* |
+| 3.05 `write_model_reference` | 1 | 0.44 | 0.4 | — | 3 MB | — |
+| 3.06 `check_model_reference` | 1 | 0.57 | 0.6 | — | 43 MB | — |
+| 3.07 `write_experiment_config` | 1 | 0.56 | 0.6 | — | 40 MB | — |
+| 3.08 `extract_historical_climate` | 0 | — | — | — | — | *up to date from WF1* |
+| 3.09 `prepare_stress_test_grid` | 1 | 2.62 | 2.6 | 0.2% | 96 MB | 26% |
+| 3.10 `prepare_weathergen_config` | 1 | 0.51 | 0.5 | — | 5 MB | — |
+| 3.11 `generate_weather_realizations` | 1 | 34.65 | **34.7** | 2.6% | 457 MB | 41% |
+| 3.12 `perturb_climate_realization` | 8 | 18.9–19.2 | **152.2** | **11.5%** | 407 MB | ~92% |
+| 3.13 `write_climate_data_catalog` | 1 | 9.23 | 9.2 | 0.7% | 319 MB | 57% |
+| 3.14 `downscale_climate_realization` | 10 | 27.6–31.2 | **304.9** | **23.0%** | 303 MB | ~45% |
+| 3.15 `run_wflow` | 5 batches | 148.6–166.8 | **813.3** | **61.2%** | 912 MB | ~82% |
+| 3.16 `derive_wflow_indicators` | 1 | 9.11 | 9.1 | 0.7% | 257 MB | 55% |
+| 3.16b `write_run_metadata` | 1 | — | — | — | — | *no benchmark declared* |
+| 3.17 `gather_benchmarks` | 1 | — | — | — | — | *no benchmark declared* |
+| 3.18 `gather_logs` | 1 | — | — | — | — | *no benchmark declared* |
+| | | | **~1 329** | | | |
 
 Wall-clock is lower than the sum because `-c 3` runs jobs concurrently; the sum
 is the work, not the elapsed time.
 
-**Three observations, stated as facts rather than proposals:**
+**Three rules did not execute at all** — 3.03, 3.04 and 3.08 are the shared
+producers, already built by WF1 and found up to date. In a WF3-only run against a
+fresh project they would execute, and 3.08 in particular is a multi-decade
+extraction. The gathers and `snapshot_config` declare no `benchmark:`, so their
+absence from the table is a declaration gap, not a zero.
+
+**Four observations, stated as facts rather than proposals:**
 
 1. **The model run dominates, but not overwhelmingly.** 3.15 is 61%. The
-   remaining 39% is scenario *preparation*, and 34% of the total (3.12 + 3.14)
+   remaining 39% is scenario *preparation*, and 34.5% of the total (3.12 + 3.14)
    is spent producing files that are then deleted by `temp()`.
 
 2. **3.12 and 3.14 are two full passes over the same per-member data.** Each
    opens a scenario netCDF, transforms it and writes another netCDF: ~19 s then
    ~30 s per member, plus the intermediate file in between. They are separate
-   rules for good reasons (different languages — R then Python/hydromt — and
-   different invalidation causes), but the cost is a second serialization
+   rules for good reasons — different languages (R, then Python/hydromt) and
+   different invalidation causes — but the cost is a second serialization
    round-trip per member that nothing downstream reads.
 
-3. **Everything scales linearly with `RLZ_NUM × ST_NUM`** except 3.11, 3.13 and
-   3.16. Raising both axes to `step_num: 3` gives 16 + 1 = 17 members ⇒ 34
-   members at `RLZ_NUM` 2, i.e. 3.4× the members and ~3.4× the 95% of cost that
-   is per-member.
+3. **Memory, not time, is what bounds batching.** A `run_wflow` batch peaks near
+   **912 MB** while holding its members' forcing and warm states, which is
+   exactly why `batch_size` is clamped rather than set to `ceil(K/N)` — and it is
+   the constraint `t2608071216` is about. The forcing files an on-the-fly
+   approach would eliminate are a large part of that residency.
 
----
+4. **Everything scales linearly with `RLZ_NUM × ST_NUM`** except 3.11, 3.13 and
+   3.16. Raising both axes to `step_num: 3` gives 16 + 1 = 17 members ⇒ 34 members
+   at `RLZ_NUM` 2, i.e. 3.4× the members and ~3.4× the 96% of cost that is
+   per-member.
 
 ## 4. The prior art an efficiency rework should not rediscover
 
