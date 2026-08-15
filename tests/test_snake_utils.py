@@ -1978,16 +1978,28 @@ def test_rule_banner_brackets_its_context():
 
 
 def test_console_prints_a_rule_summary_once_and_trims_it_from_the_fan_out():
-    """A constant clause on 400 fan-out lines is the widest column saying least."""
-    su._RULE_NUMBERS["downscale_climate_realization"] = "3.14"
-    su._RULE_SUMMARIES["downscale_climate_realization"] = "downscale the climate"
+    """A constant clause on 400 fan-out lines is the widest column saying least.
+
+    The messages come from `rule_banner` itself, and the registry it fills is
+    not written by hand here. The mechanism IS the agreement between the two --
+    the handler removes the exact substring the banner inserted -- so a test
+    that typed both sides would keep passing after they drifted apart.
+    """
     handler = _console_handler()
-    banner = "Rule 3.14: downscale_climate_realization - downscale the climate"
+
+    def banner(context):
+        return rule_banner(
+            "3.14",
+            "downscale_climate_realization",
+            context,
+            summary="downscale the climate",
+        )
+
     out = _emit(
         handler,
-        _job_info(1, "downscale_climate_realization", f"{banner}  [rlz 2 | st 0]"),
-        _job_info(2, "downscale_climate_realization", f"{banner}  [rlz 2 | st 2]"),
-        _job_info(3, "downscale_climate_realization", f"{banner}  [rlz 2 | st 3]"),
+        _job_info(1, "downscale_climate_realization", banner("rlz 2 | st 0")),
+        _job_info(2, "downscale_climate_realization", banner("rlz 2 | st 2")),
+        _job_info(3, "downscale_climate_realization", banner("rlz 2 | st 3")),
     )
     first, second, third = out.splitlines()
     assert first.endswith(
