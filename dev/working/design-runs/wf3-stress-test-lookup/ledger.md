@@ -12,6 +12,10 @@ rather than in the design body.
 
 Round: `internal-panel` for all 26 (stage 2, `design-v1.md`).
 
+Appended at v3: round `ext1` — the six external-review findings (stage 4, filed
+against `design-v2.md`). Sections below the horizontal rule cover that round; the
+26 rows above it are unchanged.
+
 ## Dispositions
 
 | ID | Round | Severity | Disposition | Resolution or rationale | Doc version |
@@ -42,6 +46,12 @@ Round: `internal-panel` for all 26 (stage 2, `design-v1.md`).
 | repo-fit-4 | internal-panel | minor | **accepted** | Signatures renamed exactly as suggested: `read_lookup(lookup_path)`, `month_classes(lookup_df, variable)`, `axis_values(lookup_df, axis)`, `axis_caption(lookup_df, axis)`, `join_axes(indicators_df, lookup_df, surface)`, and the return is `(surface_df, baseline_df)`. `risk-3`'s new reader inherits the convention as `read_indicators(indicators_path)`. The finding's two reasons are recorded in D14: the block is normative API text an implementer transcribes verbatim, and `surface_axes.py` becomes the reference implementation HM-7 cites — a contract surface under `naming.md` §5's own framing. The `_csv` suffixes on the Snakemake labels (`lookup_csv`, D20/D23) are kept, as the finding correctly notes §5 reserves that position for them. | design-v2.md |
 | repo-fit-5 | internal-panel | minor | **accepted** | D13 now states the read, in the suggested spelling and for the suggested reason: `get_config(config, "reporting", {}, optional=True) or {}`, and `surfaces` from it the same way. The trailing `or {}` / `or []` is called out as load-bearing rather than incidental — `get_config` returns a present key's value as-is, so `reporting:` with no body yields `None` and would `TypeError` on subscript — with the in-file precedent (`run_stress_test.smk:526-529`) cited. This closes the `reporting: null` ambiguity in favour of `DEFAULT_SURFACE`, which is what D10 already promised for "absent or empty". | design-v2.md |
 | repo-fit-6 | internal-panel | minor | **accepted** | `dev/scripts/preview_wf2_projection_plots.py:299-302,319-322,364-367` is named in **OQ-2** as the existing in-repo implementation of the collapse S10 pins, and in **§7 R12** as the place a second, divergent implementation currently lives. The finding's own scoping is preserved verbatim in both places: it is a **dev script, not a WF3 rule**, so it is *not* a counter-example to D14's argument and changes no decision here — the point is that Q6 defers a **known** site rather than an unknown one. | design-v2.md |
+| ext1-1 | ext1 | blocking | **accepted** | Confirmed by arithmetic before it was fixed (**E15**): twelve varying months, JFM at 0.7–1.3 and Apr–Dec at 0.9–1.1, `step_num: 2`, `months: [1,2,3]` — the axis is **−30 / 0 / +30**, the annual collapse is **−14.931507 / 0 / +14.931507**, and v2's case 1 (fires when `H` is empty) captions the first `mean change over the year`. A factor of two, on a declaration D16 explicitly admits — and which D16's *own refusal message* instructs the user to write, so the defect sits on the design's recommended repair path rather than in a corner. **D31** takes the suggested fix in full: the leading phrase is `mean change over <label(M)>` in every non-degenerate case, derived from `M` alone and never from the global varying/held classification. The finding's second requirement — "define how varying months outside `M` are described or omitted" — is met by **describing** them: `E = V \ M` gets its own clause group (`Apr–Dec also vary, -10% to +10%`), which adds cases **1b** (H empty, E non-empty) and **1c** (both non-empty). Rather than write a second grouping rule, the held-months rule is generalised into **one clause builder** used twice, so the three-group legibility cap (v2's 3b/3c) is stated once and inherited. Degenerate captions become `M`-scoped for the same reason (` in JFM` appended when `M` is not all twelve). Mirrored into **§5.8**, which is the half a re-implementer executes, and the finding's own test case is named: `test_surface_axes.py::test_caption_explicit_subset_of_all_varying`, in §8 step 4 and in V11. §5.5 marks 1b/1c **argued, not rendered** — v1's rendering harness is not this run's — rather than quietly extending §9's "executed captions" table with rows nobody executed. | design-v3.md |
+| ext1-2 | ext1 | blocking | **accepted** | **Not a judgement call, and not argued.** The G1-return's Fork B is settled framing: accept no in-repo caller, do not restore the lookup as a 3.16 input, do not reopen D22 — and do not make the notebook the caller. v2's §8 step 6 did exactly the last, specifying the rewrite as `surface_axes.read_lookup` + `read_indicators` + `join_axes` + `axis_caption` while D15, alternative 6.9 and R9 each assert the library executes on no repo path. The finding is right that an implementer could not satisfy both. **Resolution as the run's framing determines it:** the notebook becomes a **contract-based external-consumer example that imports nothing from `surface_axes`**, re-implementing from HM-7's text as the R and JavaScript consumers must (§8 step 6, three numbered steps). It is a coherence win rather than a concession — Fork B's compensating requirement is that the contract text be complete enough to re-implement from, and the notebook is now the only in-repo place that is *exercised* instead of asserted; **V21** compares it against the reference implementation once at step 6, scoped so it cannot read as reopening the ruling (the comparison is a migration-time one-off in a scratch session; the notebook imports nothing). Closing it required touching **six** sites, because the contradiction reached six: §5.3 D14 reason 1 (the "can import the library" argument, replaced), D15's completeness note, alternative **6.9**, risk **R6**, risk **R9** (which *gains* the notebook as evidence for its stated mitigation), and §8 step 6. **This row also supersedes the last clause of `risk-2`'s v2 resolution** — "the notebook becomes the design's worked example of `join_axes` + `axis_caption`". That row is not rewritten (the ledger is append-only) and its substantive half stands: the notebook is a real consumer, R6 is a rewrite in the migration commit, not a deferred re-render. Only the *form* of the rewrite changes. | design-v3.md |
+| ext1-3 | ext1 | major | **accepted** (three parts, one disposition each: degenerate scalar — accepted; result object — accepted; key-width inference — accepted) | All three parts hold on reading v2. **(a) The degenerate scalar was undefined.** D27 step 2 said "return the constant for those months" and routed around step 3, where the collapse lives, so a degenerate axis whose `M` spans several held offsets had no specified value — the finding is right that conforming implementations could return the first month's level, an unweighted mean, a weighted mean or a refusal. **D32** takes the suggested fix verbatim: the same weighted collapse over `M`, with D26's exact-equality short-circuit, and the design now states the distinction the finding drew — constant across **members** (what degenerate means) is not the same as equal across **months**. Caption case 4c reports the value rather than hiding it. **(b) The API had no channel for `degenerate`.** **D33** adds `AxisResult` (values, caption, `degenerate`, effective `M`, variable) behind `derive_axis`, with `axis_values`/`axis_caption` surviving as accessors so `repo-fit-4`'s pinned names are kept, and `SurfaceJoin` for the join. **This narrows `repo-fit-4`'s pinned `(surface_df, baseline_df)` return, deliberately**: both names survive as field names, and the change is recorded here rather than left to read as an untracked regression against a closed disposition. §5.8 states the same four facts as *semantics* — a derivation returns values plus caption plus flag plus effective `M` — so an R consumer gets the requirement without the Python object. **(c) Key-width inference was the sharpest point and repairs a latent defect.** D28 required normalisation "at `index_width(ST_NUM)`" inside a module D14 declares pure and free of `snake_utils` — so v2's own text needed either an import it forbids or an argument no signature carries. `key_width(lookup_df)` infers the width from the lookup's `st_id` strings and raises when they disagree; WG-2 gains the pinning sentence that makes the inference sound ("every `st_id` in one table has the same width"), and `validate_wg2` gains the check, so a documented property becomes a validated one. `ST_NUM` is no longer needed for a join at all. | design-v3.md |
+| ext1-4 | ext1 | major | **accepted** (the "limit the claim" branch of an either/or fix; the end-to-end-experiment branch is **not taken**, with the reason recorded) | The conflation is real and v2's wording made it: §7-2 read "indicator values move by at most one `float64` ulp of the perturbation level, and are expected identical within the baseline comparator's tolerance" — a bound measured on the **reconstructed multiplier**, spent as a bound on **simulated indicators**. The finding's mechanism list is right, and this run's own origin is the standing precedent: it opened because two code paths were assumed equivalent on exact parameters, and E6 measured the transform at *unit* factors — zero parameter difference — moving the single-day precipitation maximum by **−32.9%** and E7 five of eleven `q` indicators by a factor. §7-2 is split accordingly: the ulp bound is stated for the multiplier (falsifiers V16, V20), indicator equality is claimed **only** where the forcing is bit-identical, which is every level of every shipped config including `snake_config_baseline.yml`, and for a non-exact grid **no output bound is claimed at all**. D25's closing paragraph is rewritten to the same scope. **The suggested fix's other branch — an end-to-end non-round-grid experiment with an empirically justified tolerance — is not taken**, and **R13** states why rather than leaving it implied: it requires a full WF3 run on a config no fixture carries, `check_baseline` cannot gate a tree it holds no reference for (R1/R2), and a tolerance derived from one run is an assertion wearing a number. The exposure is stated instead, scoped as **migration-once** rather than standing, with a G2 escalation condition. One by-product is a **stronger** V4 rule than v2's: because V4 runs on the baseline config alone, where the multiplier is bit-identical, D25's arithmetic cannot explain a failing group *at all* — v2's general "moved by more than one ulp" diagnosis embedded the same conflation in the opposite direction. No measurement is deleted; only the claim narrows. | design-v3.md |
+| ext1-5 | ext1 | major | **accepted** | The finding is right that V17 validated nothing: its claim is about the guard's behaviour on a malformed slice and its check was a WF3 run on the **valid** rapid config, which is green whether D29's `stop()` exists, is misspelled, or is absent. Worse, the negative executions it asks for **could not be written against v2's design** — the malformed-input path in `impose_climate_change.R` is reached only after the script reads the weathergen YAML and loads a realization netCDF through `weathergenr`, so every negative fixture would have needed the heaviest fixture in the repo. **D34** removes that: the read-filter-assert block becomes `blueearth_cst/weathergen/read_member_grid.R`, sourcing nothing (verified — `global.R` is options-only, so it is not even needed), which makes each fixture one `Rscript --vanilla -e 'source(...)'` with no netCDF and no package load. D29's semantics are untouched; only its location moves. V17 is rewritten to enumerate the fixtures rather than gesture at them, asserting **nonzero exit and the member-token diagnostic**. **One of the four suggested fixtures is re-classified rather than adopted as filed:** "unordered months" is not a failure case under D21, which orders by `month` before asserting — so it is specified as a **positive** twin (a shuffled valid slice returns the same frame in month order), leaving three negatives. Recorded here rather than silently dropped. The tests land in a **new** `tests/test_read_member_grid.py`, not in `tests/test_r_scripts.py`, whose module docstring declares itself syntax-only ("no evaluation, no side effects") — quietly violating a file's stated contract is the class of defect this run keeps catching. §8 step 2, §9's narrow-tier gate row and the migration note's machinery list all carry the new file, mirroring what `repo-fit-3` earned for `test_surface_axes.py`, and the gate row notes it **skips without `Rscript`**. | design-v3.md |
+| ext1-6 | ext1 | minor | **accepted** | Taken exactly as suggested and no further: the first clause becomes "`validate_wg2` **not** green on a valid `12 × ST_NUM` lookup". The other two clauses were correct falsifiers as filed and are kept verbatim. One clause is added while the row is open — green on a table mixing `st_id` widths — because D33 makes uniform width a pinned schema property that `validate_wg2` now checks, and a pinned property with no falsifier is what V15 exists to prevent. | design-v3.md |
 
 ## Tally
 
@@ -84,3 +94,68 @@ and dispositioned under `repo-fit-2` / `risk-10`, which own that concern.
 
 `architecture-6` and `architecture-4` each carry two limbs resolved by a single
 disposition, noted inline.
+
+---
+
+# Round `ext1` — external review 1 (stage 4, `design-v2.md`)
+
+**Appended at v3.** Reviewer `gpt-5.6-sol`, clean-room. Six findings: 2 blocking,
+3 major, 1 minor, at the severities `external-review-r1.md` filed — not re-graded.
+The sections above are the `internal-panel` round and are unchanged; the rows for
+this round sit in the same table, keyed by `ext1`.
+
+## Tally — `ext1`
+
+| Disposition | blocking | major | minor | total |
+|---|---|---|---|---|
+| accepted | 2 | 3 | 1 | **6** |
+| rejected | 0 | 0 | 0 | 0 |
+| deferred | 0 | 0 | 0 | 0 |
+| withdrawn | 0 | 0 | 0 | 0 |
+
+**No `blocking` finding is deferred or rejected**, so this round triggers no owner
+arbitration. Both blocking findings are closed in `design-v3.md`: `ext1-1` by D31
+(§5.5, §5.8), `ext1-2` by §8 step 6 and the five other sites the contradiction
+had reached.
+
+Three rows accept the finding while **declining one branch or one clause of its
+suggested fix**, recorded in the Disposition or Resolution column rather than
+smoothed away, and none of the three is blocking:
+
+- `ext1-4` — the suggested fix is an *either/or*; the "limit the claim" branch is
+  taken in full and the end-to-end-experiment branch is not, with **R13** stating
+  the cost that makes it unaffordable rather than leaving it implied.
+- `ext1-5` — three of the four proposed negative fixtures are negatives; the
+  fourth (unordered months) is **not a failure case** under D21, which sorts
+  before asserting, so it is specified as a positive twin instead.
+- `ext1-3` — accepted in all three parts, but the fix **narrows `repo-fit-4`'s
+  closed disposition** (the `(surface_df, baseline_df)` return becomes a
+  `SurfaceJoin` carrying those two under the same names). Flagged so a later round
+  does not read it as drift.
+
+## Cumulative — both rounds
+
+| Disposition | blocking | major | minor | total |
+|---|---|---|---|---|
+| accepted | 4 | 16 | 12 | **32** |
+| rejected | 0 | 0 | 0 | 0 |
+| deferred | 0 | 0 | 0 | 0 |
+| withdrawn | 0 | 0 | 0 | 0 |
+
+32 unique finding ids, 32 rows, no id answered twice and none unanswered.
+
+## What `ext1` says about how v2 was written
+
+Recorded because it is the run's own lesson rather than a finding's content.
+`ext1-2` is not a design disagreement: v2 was handed Fork B as **settled framing**
+and wrote a step that violates it, having noticed the tension and argued through
+it (`design-v2.md:750-757`) instead of stopping. The framing gate is the stop
+condition for exactly that case, and returning to it costs a driver decision;
+not returning to it cost a full external round. `ext1-1` is the same shape one
+level down — v2 introduced case 3b/3c for held months and did not re-derive the
+*leading phrase* the new cases sit under.
+
+v3 changes nothing in `intake.md` § Constraints or § Non-goals and contradicts no
+gate record in `status.md`; where a fix would have, it is not made (see `ext1-4`'s
+untaken branch and `ext1-2`'s resolution, which implements Fork B rather than
+re-arguing it).

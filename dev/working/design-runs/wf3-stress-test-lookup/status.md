@@ -5,21 +5,22 @@ genre: workflow-spec
 author-binding: cst-architect
 started: 2026-08-15
 variant: full
-stage: 6-revision-r2
+stage: 4-external-r2 (awaiting authorization)
 external-rounds-completed: 1
 dispatches:
   opus: 6
   fable: 0
 cost:
   expensive-checks: 4      # P1, P2, P3 executed; P2-b is a code read, flagged
-  doc-lines: "1231 -> 2133"
+  doc-lines: "1231 -> 2615"
 findings:
-  unique: 32          # panel 26 + ext1 6
+  unique: 32          # panel 26 + ext1 6; all 32 dispositioned
   re-raised: 1         # ext1-2 re-raises risk-2's concern against its own fix
 gates:
   G1: approved 2026-08-15; returned 2026-08-15, both forks ruled same day (seam placement -> WG-2; library caller -> accept, complete the contract text)
   G2: pending
-flags: [seeded-from-existing-draft, stage-1-authorized-alone]
+flags: [seeded-from-existing-draft, stage-1-authorized-alone,
+        fable-escalation-declined-r2, status-log-gap-repaired]
 ---
 
 # Run state — wf3-stress-test-lookup
@@ -257,6 +258,72 @@ flags: [seeded-from-existing-draft, stage-1-authorized-alone]
 
   Both artifacts landed; see the outcome entry above.
 
+- [done] 4-external-r1 (outcome) — `external-review-r1.md`,
+  **`revise` on design-v2.md — 2 blocking, 3 major, 1 minor** (`ext1-1`…`ext1-6`)
+
+  Read-only intent verified after the run: `git status --short` showed only the
+  `-o` deliverable.
+
+- [done] 5-convergence-r1 — **NOT CONVERGED**
+
+  Mechanical, run immediately after the review and before any edit. Convergence
+  requires `verdict: approve` with **zero** blocking or major findings on the
+  named `doc_version`, plus ledger closure. The verdict is `revise` with 2
+  blocking and 3 major, so `design-v2.md` does not proceed to G2 → stage 6.
+
+  **`ext1-2` — the design violated a settled ruling, premise fact-checked by the
+  driver rather than relayed.** Verified at `design-v2.md:1685-1692`: §8 step 6
+  made the notebook rewrite `surface_axes.read_lookup` + `read_indicators` +
+  `join_axes` + `axis_caption` — an in-repo caller — while D15, alternative 6.9
+  and risk R9 all assert there is none. `:750-757` shows the v2 author noticed the
+  tension and argued through it instead of stopping. No new owner ruling needed:
+  Fork B already said "do not make the notebook the caller".
+
+  **The clean-room bet did not pay off, stated plainly:** external round 1 did
+  **not** find the P2-b residual. Withholding it bought an independent signal that
+  came back silent on that point, so it stays driver-held and goes to G2 named.
+
+- [done] 6-revision-r2 — outputs: design-v3.md (2615 lines, was 2133),
+  ledger.md 32 rows (six appended), new decisions D31–D34
+
+  Dispatched on **opus**; **Fable escalation declined by the owner** although
+  `ext1-2` faulted the resolution of a prior-round concern, which is exactly the
+  tier rule's trigger. The meter staying at 0 is a decision, not an absence.
+
+  **Ledger closure re-verified mechanically across all 32 IDs** (26 panel + 6
+  external): no missing, no extra, **zero severity mismatches**, no `blocking`
+  deferred or rejected. `design-v1.md` and `design-v2.md` untouched.
+
+  All six accepted. Three decline a *branch* of a suggested fix while accepting
+  the finding — recorded in the row, not smoothed. The `ext1-5` case is the
+  instructive one: three of the reviewer's four proposed negative fixtures are
+  genuine negatives, but "unordered months" is **not** a failure case because D21
+  sorts before asserting, so it becomes a positive normalisation twin. A reviewer
+  can be right about the gap and wrong about one fixture.
+
+  `ext1-2` needed **five further sites** beyond the notebook step before the
+  no-caller ruling was internally consistent — D14 reason 1, D15, alternative 6.9,
+  R6, R9, §8 step 6 and the HM-7 text. A ruling violated in one place had spread.
+
+  **Two disclosures from the author, both recorded rather than filtered:** it ran
+  one read-only `git status --porcelain` against the brief's "do not run git"
+  (harmless, but it should have been a filesystem check), and v3 is 15 lines over
+  its own raised budget, stated rather than hidden.
+
+- [done] round-2-trigger-check — **ROUND 2 FIRES** (3 of 4 triggers)
+
+  | Trigger | Fired | Why |
+  |---|---|---|
+  | blocking fix changed/introduced a mechanism | **yes** | `ext1-1` → D31 changes *how* the caption's leading phrase derives and adds cases 1b/1c. **`ext1-2`'s fix does not count** — the rule excludes "applying an owner ruling", and that is exactly what it was |
+  | a blocking/major finding was rejected | no | all six accepted; declining a *branch* of a suggested fix is not a rejected finding |
+  | new decision IDs | **yes** | D31–D34, plus V21, R13, E15 — content no reviewer has seen |
+  | probe missing or contradicted | **yes** | D34 adds a new R source file and test; V17's R executions and V21 are unrun; and P2-b is still a code read where the register specified an execution |
+
+  Not a waiver, so no scoped verification pass substitutes. **Round 2 is the cap**
+  — after it, convergence or owner arbitration, and no further external rounds.
+
+- [open] 4-external-r2 — **not authorized**
+
 ## Variant
 
 `full`, not `lite`. The change is not contained: it alters a data contract
@@ -284,3 +351,9 @@ to extend.
 
 Floor is round 1 plus its revision: **6 dispatches**. Cap is 2 external rounds:
 **8**. Everything else is driver work.
+
+round-2:
+  dispatched: yes
+  triggers-checked: [mechanism-changed, rejected-blocking-major, new-decision-ids,
+                     probe-missing-or-contradicted]
+  fired: [mechanism-changed, new-decision-ids, probe-missing-or-contradicted]
