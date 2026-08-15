@@ -5,6 +5,11 @@ It records a design conversation and the owner rulings taken during it, so they
 survive as something reviewable. Six questions were opened and closed across that
 conversation; §6 indexes the outcomes. Nothing here is implemented.
 
+**Revised 2026-08-15**, same day, after the precondition test in §5 was run: one
+ruling withdrawn, one qualified, one Q2 qualifier added. The revisions are marked
+in place and indexed at the foot of §6 — this note is a record of a design
+conversation, so nothing is rewritten to look as though it was always right.
+
 Companions in this folder: `trace.md` (the run, and its measured cost profile) and
 `wf3-rule-reference.md` (every rule, its scripts and file shapes).
 
@@ -175,6 +180,31 @@ Three consequences, and the third corrects an earlier draft of this note:
 The general principle, which is the same one that killed the design-table cache:
 **store the finest grain that was actually imposed; derive every summary.**
 
+#### The qualifier: the lookup determines the AXIS, not the SCENARIO
+
+Added 2026-08-15, from the §5 precondition test. "Sufficient statistic" holds for
+**axis derivation** — every collapse is a projection of the twelve monthly rows,
+which is what Q2 and Q5 rest on. It does **not** hold for **scenario identity**.
+
+`st_0` and the grid's identity member carry *identical* all-zero lookup rows —
+`stress_test_design.csv` already shows `2,0.0,0.0,0.0` on the baseline config —
+and they are demonstrably different climates: 70% apart on `q_mean_annual_min`,
+measured. Two rows the lookup cannot distinguish, two scenarios that are not the
+same. The cause is in §5: `st_0` is the raw generated series, every member is
+that series round-tripped through the perturbation, and the round-trip is not the
+identity even at unit factors.
+
+Nothing in Q2 breaks — `st_0` is off the surface by ruling 5, and the members
+remain distinguishable from each other, which is all an axis needs. The bite is
+on the one artifact that puts `st_0` beside the surface: ruling 5's annotated
+reference value.
+
+Worth recording as an inversion: consequence 3 above withdrew a materialized
+`axes.csv` because it cached a derivation. The `alias_of` column §5 proposed is
+withdrawn with the alias — but the *need* it pointed at survives inverted. What
+wants marking is no longer "these two rows are the same scenario, one was copied"
+but "these two rows are identical and are **not** the same scenario."
+
 The one case for materializing, recorded so it stays a decision rather than an
 oversight: archiving a *published* figure, where the exact plotted numbers should
 sit beside it rather than be recomputed years later from code that has moved. That
@@ -239,6 +269,20 @@ Two things follow.
 it. Excluding it from the surface is a presentation filter (`st_id != 0`) and costs
 nothing structurally — the indicator tables already carry `st_id`.
 
+> **Caveat added 2026-08-15 — the ruling stands, the annotation needs a health
+> warning.** `st_0` is the raw generated series; every grid member is `st_0`
+> round-tripped through the perturbation of rule 3.12, which is *not* the
+> identity at unit factors (see the withdrawal below). Baseline and surface
+> therefore differ by a **processing step**, not only by a perturbation, and
+> "reported as an annotated reference value beside the surface" compares two
+> differently-processed climates for most indicators. Measured `st_0` → identity
+> member: one of eleven `q` metrics preserved (`q_annual_mean`, +0.2%), five
+> within 20%, and five moved by a *factor* — all five low-flow
+> (`q_mean_annual_min` −69.7%, `q_baseflow_index` −57.0%,
+> `q_return_level_2yr_7day_min` +127.9%). Admitted to the board as its own item
+> (`origin: R12`); it is a live property of the shipped pipeline, not of this
+> design.
+
 **It amends a recorded rationale.** `prepare_cst_parameters.py:117` justifies the
 `st_0` design row the other way round — *"a response surface missing its own origin
 forces every downstream consumer to reconstruct it"* — i.e. C23 assumed `st_0` **is**
@@ -261,8 +305,15 @@ This is a design-cleanliness argument more than an efficiency one.
 > Do not simulate the identity member; reuse `st_0`'s result for it. The rejected
 > alternative was letting `st_0` occupy that grid slot, which removes the duplicate
 > entirely but leaves a hole in the `st_id` enumeration.
+>
+> **WITHDRAWN 2026-08-15 — the premise is false.** Obligation 1 below demanded the
+> check before implementing; it was run, and it failed. **There is no duplication
+> to remove.** The identity member is simulated like every other member; `st_id`
+> stays dense because nothing is skipped. The rejected alternative is not revived
+> — it is now worse, since it would place a non-round-tripped point on a surface
+> of round-tripped ones.
 
-Two obligations this creates:
+The two obligations this created, and what became of them:
 
 1. **Verify the premise first — it is a precondition, not a nice-to-have.** Option A
    *copies* `st_0`'s result into another member's slot, so if the two are not truly
@@ -272,10 +323,57 @@ Two obligations this creates:
    netCDF through R's writer, so this is a claim to test, not assume. Cheap test:
    an even-`step_num` config, `--notemp`, compare the identity member's forcing and
    output CSV against `st_0`'s. A mismatch is itself a finding.
+
+   **Done 2026-08-15. Mismatch. The reasoning was right about the FACTORS and
+   wrong about the TRANSFORM.** No run was needed: `snake_config_baseline.yml`
+   already has an identity member — temp `step_num: 1` (levels 0.0, 3.0), precip
+   `step_num: 2` (levels 0.7, **1.0**, 1.3), variance flat — and with the grid's
+   temp-outer/precip-inner order that is `st_2`, which `stress_test_design.csv`
+   confirms as `2,0.0,0.0,0.0`. The run TOMLs are identical apart from paths.
+
+   - **The factors are exact; `apply_climate_perturbations` is not a scaling.**
+     `deparse(body(...))` line 263 sends every grid cell through
+     `adjust_precipitation_qm(...)` **unconditionally** — there is no
+     `mean_factor == 1` short-circuit. It is empirical → fitted-Gamma quantile
+     mapping, so the daily series is replaced by its fitted-distribution image
+     whatever the factor.
+   - **Probed on weathergenr 1.2.0 directly** (so the finding does not depend on
+     the pre-1.2.0 fixture): temperature *is* exactly the identity at
+     `temp_delta = 0`; precipitation is not, and every wet day changes. **All
+     twelve monthly means are preserved to +0.0000%** — `enforce_target_mean` is
+     per-month, which also settles that the class-C month selection is stable
+     (wettest 12→12, driest 8→8). The tail is compressed: single max day −32.9%,
+     max 7-day sum −19.9%, sd −4.9%.
+   - **`st_0` → `st_2` in the fixture's `q_indicators.csv`**, mean over locations
+     × realizations: `q_annual_mean` +0.2%; `q_mean_annual_p95` −1.2%;
+     `q_wettest_month_mean` −3.7%; `q_mean_annual_7day_max` −10.0%;
+     `q_mean_annual_max` −14.9%; `q_return_level_10yr_max` −18.4%;
+     `q_driest_month_mean` −52.6%; `q_baseflow_index` −57.0%;
+     `q_mean_annual_7day_min` −59.9%; `q_mean_annual_min` −69.7%;
+     `q_return_level_2yr_7day_min` +127.9%. A gradient with a cliff: one
+     preserved, five within 20%, five moved by a factor — every one of the last
+     five a low-flow indicator, because the model amplifies the tail compression.
+     Aliasing would have fabricated those.
+   - **Why it hid, and why the mean looked fine.** `st_0` sits *inside* the member
+     envelope for every metric — the grid spans ±30% precip and +3 °C, far wider
+     than the artifact — so it never reads as an outlier; it is at the wrong place
+     on the axis. And the discharge means differ by −1.5% (`rlz_1`) and +2.0%
+     (`rlz_2`), opposite signs: sampling noise, exactly as monthly-mean
+     preservation predicts.
+   - **Magnitudes carry a caveat.** `test_case/test_local` predates the
+     2026-08-12 weathergenr 1.2.0 rename, so the per-metric table comes from the
+     older `imposeClimateChanges`. The 1.2.0 probe agrees in direction and
+     forcing-side magnitude, so the qualitative result is version-independent —
+     re-measure before quoting the numbers. Links `t2608121258`.
+
 2. **Mark the alias.** A duplicated result that looks simulated is the kind of thing
    that reads as a defect months later. It needs to be visible — an `alias_of`
    column in the lookup, or a line in the run metadata — rather than two identical
    CSVs with nothing explaining why.
+
+   **Withdrawn with the alias — but see the §3 qualifier**, where the need it
+   pointed at survives inverted: what wants marking is not "these rows are the
+   same scenario" but "these identical rows are *not* the same scenario."
 
 ## 5b. External consumers — CHECKED, and not a constraint
 
@@ -373,6 +471,18 @@ Rulings are recorded in place above; this is the index.
 | 4 | naming | **RULED** — `stress_test_lookup.csv` (§5c) |
 | 5 | multiple surfaces per experiment | **CLOSED as a consequence of Q2** — see below |
 | 6 | the projection overlay | **DEFERRED**, deliberately — see below |
+
+Two §5 rulings moved after that index was written, both on 2026-08-15, both from
+the precondition test the note itself demanded:
+
+| ruling | outcome |
+|---|---|
+| §5 — `st_0` is not a surface member, reported as an annotated reference | **STANDS, with a caveat.** The annotation compares two differently-processed climates for ten of eleven `q` metrics; admitted to the board on its own terms (`origin: R12`) |
+| §5 — option A, alias the identity member onto `st_0` | **WITHDRAWN.** The premise is false: the perturbation is not the identity at unit factors, so there was never a duplicate to remove |
+
+Q2 gains a qualifier rather than a change (§3): the lookup determines the **axis**,
+not the **scenario** — `st_0` and the identity member carry identical all-zero rows
+and are different climates.
 
 ### Q5 — closed by Q2, with a fact recorded rather than a defect
 
