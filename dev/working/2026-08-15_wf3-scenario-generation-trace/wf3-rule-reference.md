@@ -1,29 +1,17 @@
-# WF3 `run_stress_test.smk` — every rule, its scripts, and its file shapes
+# WF3 `run_stress_test.smk` — how a stress test actually runs
 
 Status: WORKING REFERENCE, 2026-08-15. Describes the tree at `e197502`. Companion
-to `trace.md` in this folder, which follows the single path from the config to one
-scenario and measures where the time goes; this file covers **all** the rules.
+to `trace.md` in this folder, which measures where the time goes.
 
-Every path below is real and resolves in the shipped test project
-`test_case/test_rapid`, whose experiment is `experiment_rapid`. Shapes were read
-off those files, not inferred.
-
-**Path shorthand used throughout**
-
-| token | resolves to |
-|---|---|
-| `<proj>` | `project_dir` — `test_case/test_rapid` in the examples |
-| `<exp>` | `<proj>/experiments/experiment_rapid` |
-| `<wg>` | `<exp>/climate/weathergenr` |
-| `<runs>` | `<exp>/hydrology/wflow` |
-| `<store>` | `<proj>/data/climate/historical/era5_20000101_20161231` |
-| `<model>` | `<proj>/models/hydrology/wflow` — built by WF1, read-only here |
+Every path is real and resolves in the shipped test project `test_case/test_rapid`
+(experiment `experiment_rapid`). Shapes in the appendix were read off those files,
+not inferred.
 
 ---
 
 ## The graph
 
-Solid arrows are declared file dependencies. `⟨rlz × st⟩` marks the rules that
+Solid arrows are declared file dependencies. `⟨rlz × st⟩` marks the two rules that
 fan out — one job per realization × stress-test member.
 
 ```mermaid
@@ -94,102 +82,214 @@ flowchart TD
     R04 --> R18
 ```
 
-**Reading the shape.** Three independent chains start at once — the guards, the
-shared spatial/climate producers, and the config records. They converge at 3.12,
-which is where the fan-out begins. From 3.12 to 3.15 every rule is per-member;
-3.16 collapses them back to one table per variable.
+---
+
+## How a run unfolds
+
+### First, it checks that the experiment still belongs to this project
+
+Before any science happens, WF3 asks whether it is still looking at the project it
+thinks it is. An experiment is defined against a model that WF1 built, and if the
+basin, the resolution or the model settings moved since that build, the stress test
+would quietly simulate a *different catchment* and produce numbers that look fine.
+
+**`check_project_consistency`** (3.01) reads the config snapshot WF1 left at
+`config/runs/snake_config_build_model.yml` and compares the `project`,
+`shared.basin` and `workflows.build_model` sections against this run's. Agreement
+produces two empty sentinel files — `.project_consistency_ok` in the experiment and
+`.guard_ok` beside the climate store — and disagreement stops the run.
+
+A second guard covers the model itself. **`write_model_reference`** (3.05) records
+*which* built model this experiment is using, as a fingerprint derived from the
+model's pointers rather than its bytes, into `config/model_reference.yml`.
+**`check_model_reference`** (3.06) then refuses to proceed if that model has since
+changed. Both read the model as `ancient`, which matters: a model rebuild does not
+by itself re-fire the whole experiment, only a genuine change to what the model *is*.
+
+Alongside the guards, two rules write down what this run was.
+**`snapshot_config`** (3.02) copies the config as run, and
+**`write_experiment_config`** (3.07) records the resolved `run_stress_test` section
+with the experiment id — so months later you can answer what settings produced a
+given set of results.
+
+### Meanwhile, the shared geometry and climate are prepared
+
+Three rules here are not WF3's own. **`delineate_region`** (3.03),
+**`delineate_spatial_units`** (3.04) and **`extract_historical_climate`** (3.08)
+are declared *byte-identically* in all four workflows from one shared factory.
+Whichever workflow runs first builds them; the others find them up to date and skip.
+That is why, in a normal pipeline run where WF1 has already run, these three do no
+work at all — and why a WF3-only run against a fresh project pays for a multi-decade
+climate extraction that a full-pipeline run does not.
+
+What they produce is the basin polygon, the vector layers (basins, subbasins,
+rivers, gauge locations), and the clipped climate store: `extract_historical.nc`,
+which on the test project is a small daily cube of `precip`, `temp` and the
+radiation and pressure fields the PET transform needs, plus `basin_cells.csv`
+naming which store cells the basin actually touches.
+
+### Then the config becomes a grid of scenarios
+
+This is where the stress test is defined. **`prepare_stress_test_grid`** (3.09),
+running `prepare_cst_parameters.py`, reads the `stress_test` block — the monthly
+temperature and precipitation envelopes and their `step_num` values — and takes the
+cross product of the per-axis levels. Each axis contributes `step_num + 1` levels,
+so `step_num: 1` on both gives four members.
+
+It writes each member as a small CSV of **twelve monthly rows** under
+`climate/weathergenr/_work/`, and separately writes `config/stress_test_design.csv`,
+the table that says which member is which. Two artifacts rather than one, because a
+per-member file carries no id and cannot answer *"what is run 4?"*; both come out of
+the same loop, so the enumeration that names members and the one that describes them
+cannot drift apart.
+
+Two details here cost real debugging time. Precipitation is a **multiplier** in the
+member file (`1.3`) and a **percent** in the design table (`+30.0`). And there is no
+member file for `st_0` — that is the reserved unperturbed baseline, and it comes
+from the generator, not from perturbation.
+
+**`prepare_weathergen_config`** (3.10) sits beside it, turning the shipped default
+at `config/defaults/weathergen_config.yml` into this experiment's generator config:
+the series length (anchored at 2010 and running to the horizon plus half the run
+length), the water year, the dry/wet spell factors, and the `transient_change` flags.
+
+### The weather generator makes the baselines
+
+**`generate_weather_realizations`** (3.11) hands the climate store to weathergenr,
+via the R script `generate_weather.R`. weathergenr resamples the historical record
+into `RLZ_NUM` synthetic daily series that are statistically like the observed
+climate without repeating it — this is the "stochastic" half of the stress test, the
+part that says *this basin's weather could plausibly have gone differently*.
+
+One job produces **all** realizations, not one job per realization. Its outputs are
+`rlz_1_st_0.nc`, `rlz_2_st_0.nc`, … — `st_0` because they are unperturbed.
+
+### Each baseline is then perturbed, once per grid point
+
+**`perturb_climate_realization`** (3.12), running `impose_climate_change.R`, is
+where the climate change actually gets imposed and where `rlz_1_st_4.nc` is born. It
+reads one baseline and one member's twelve monthly rows and applies them:
+temperature **additively**, precipitation **multiplicatively**, variance scaled
+separately. With `transient_change: true` the perturbation ramps across the series
+rather than arriving as a step on day one.
+
+This is the fan-out point — one job per realization × member. It also carries a
+`wildcard_constraints` restricting `st_num` to ≥ 1, which is load-bearing rather
+than tidy: unconstrained, this rule would be a second eligible producer of
+`st_0.nc`, which is also its own input, and the DAG would self-loop with
+`CyclicGraphException`.
+
+### The scenarios are catalogued, then moved onto the model grid
+
+**`write_climate_data_catalog`** (3.13) writes a hydromt catalog with one entry per
+scenario, so the next rule can address them by name rather than by path.
+
+**`downscale_climate_realization`** (3.14) then regrids each scenario from the
+climate grid onto the *wflow* grid and writes that member's run TOML. Note it runs
+for every member **including `st_0`** — the unperturbed baseline is simulated too,
+because it is what the two class-C month indicators are derived from.
+
+### Wflow runs, in batches
+
+**`run_wflow`** (3.15) runs the hydrological model over every member. Members are
+grouped into batches and one Julia process runs each batch, which is why the rule
+identifiers are `run_wflow_batch_<b>` and the logs are keyed by **batch id rather
+than by member**. `batch_size` defaults to `ceil(members / cores)` clamped to
+`batch_size_max` (8); setting `batch_size: 1` restores one job per member.
+
+Each member produces a discharge CSV with a `time` column plus one column per
+declared output — the gauge columns `Q_<id>`, and per-subcatchment columns for the
+other variables.
+
+### Finally the runs collapse into a response surface
+
+**`derive_wflow_indicators`** (3.16) reduces every per-member run into indicator
+tables, one per variable in `wflow_outvars`. Each table has the same seven columns,
+and the two that matter conceptually are `temp_change` and `precip_change`: the
+perturbation each member imposed, carried through as **data**. That is what closes
+the loop — every point on the response surface traces back to one row of
+`stress_test_design.csv`, which traces back to the `stress_test` block in the config.
+
+Then the housekeeping: **`write_run_metadata`** (3.16b) writes a staleness sidecar,
+and **`gather_benchmarks`** (3.17) and **`gather_logs`** (3.18) merge the per-rule
+parts into one benchmark table and one workflow log, deleting the parts they consumed.
+
+### What is left on disk afterwards
+
+Almost none of the scenario chain. `temp()` covers the baselines, the perturbed
+scenarios, the downscaled forcing and the warm states — so a completed run leaves
+`climate/weathergenr/output/` and `hydrology/wflow/forcing/` **empty**. That is
+expected, not a broken fixture; `--notemp` keeps them.
+
+What persists is the design table, the per-member parameter CSVs, the run TOMLs, the
+per-member discharge CSVs, the indicator tables, and the records.
 
 ---
 
-## The rules
+# Appendix A — rule contracts and file shapes
 
-### 3.01 `check_project_consistency` — refuse to simulate against a different project
+Shapes were measured off `test_case/test_rapid`, not inferred.
 
-**Does:** compares this run's `project`, `shared.basin` and `workflows.build_model`
-sections against the snapshot WF1 recorded. If the basin, resolution or model
-settings moved since the model was built, the experiment would silently simulate
-a different catchment, so this fails loudly instead.
+| token | resolves to |
+|---|---|
+| `<proj>` | `project_dir` — `test_case/test_rapid` in the examples |
+| `<exp>` | `<proj>/experiments/experiment_rapid` |
+| `<wg>` | `<exp>/climate/weathergenr` |
+| `<runs>` | `<exp>/hydrology/wflow` |
+| `<store>` | `<proj>/data/climate/historical/era5_20000101_20161231` |
+| `<model>` | `<proj>/models/hydrology/wflow` — built by WF1, read-only here |
 
-**Script:** [`blueearth_cst/experiment/check_project_consistency.py`](../../../blueearth_cst/experiment/check_project_consistency.py)
-
-| | path | shape |
-|---|---|---|
-| in | `<proj>/config/runs/snake_config_build_model.yml` (`ancient`) | YAML, the WF1 config snapshot |
-| out | `<exp>/.project_consistency_ok` | empty sentinel |
-| out | `<store>/.guard_ok` | empty sentinel, store-level receipt |
-
-### 3.02 `snapshot_config` — record the config this experiment ran under
-
-**Script:** [`blueearth_cst/model/copy_config_files.py`](../../../blueearth_cst/model/copy_config_files.py)
-(shared with WF0/WF1/WF2)
+### 3.01 `check_project_consistency`
+Script: [`experiment/check_project_consistency.py`](../../../blueearth_cst/experiment/check_project_consistency.py)
 
 | | path | shape |
 |---|---|---|
-| in | the `--configfile` YAML | |
-| out | [`<exp>/config/snake_config_run_stress_test.yml`](../../../test_case/test_rapid/experiments/experiment_rapid/config/snake_config_run_stress_test.yml) | a copy of the config as run |
-| out | `<exp>/config/runs/run_record.yml` | provenance: commit, digests, env hashes |
+| in | `<proj>/config/runs/snake_config_build_model.yml` (`ancient`) | YAML, WF1's config snapshot |
+| out | `<exp>/.project_consistency_ok` · `<store>/.guard_ok` | empty sentinels |
 
-### 3.03 `delineate_region` / 3.04 `delineate_spatial_units` — shared geometry
-
-**Does:** delineates the basin polygon and the vector layers. Declared
-**byte-identically** in all four workflows from one factory, so whichever runs
-first builds them; `tests/test_region_rule.py` and `tests/test_spatial_units_rule.py`
-fail on any divergence.
-
-**Scripts:** `blueearth_cst/spatial/delineate_region.py`, `delineate_spatial_units.py`
+### 3.02 `snapshot_config`
+Script: [`model/copy_config_files.py`](../../../blueearth_cst/model/copy_config_files.py) — shared with WF0/WF1/WF2
 
 | | path | shape |
 |---|---|---|
-| out (3.03) | `<proj>/data/spatial/geoms/region.geojson` | Polygon, EPSG:4326 |
-| out (3.04) | `<proj>/data/spatial/geoms/{basins,subbasins,rivers,locations}.geojson` | vector layers |
-| out (3.04) | `<proj>/data/spatial/location_registry.csv` | the gauge/outlet id registry |
+| out | [`<exp>/config/snake_config_run_stress_test.yml`](../../../test_case/test_rapid/experiments/experiment_rapid/config/snake_config_run_stress_test.yml) | the config as run |
+| out | `<exp>/config/runs/run_record.yml` | commit, digests, env hashes |
 
-### 3.05 `write_model_reference` / 3.06 `check_model_reference` — pin the model state
+### 3.03 `delineate_region` · 3.04 `delineate_spatial_units`
+Scripts: `spatial/delineate_region.py`, `spatial/delineate_spatial_units.py`
 
-**Does:** 3.05 records *which* built model this experiment used — a fingerprint
-derived from the model's pointers, not its bytes. 3.06 refuses to run if the model
-has since changed. Both take the model as `ancient`, so a model rebuild does not by
-itself re-fire the experiment; only a genuine change does.
+| | path | shape |
+|---|---|---|
+| out | `<proj>/data/spatial/geoms/region.geojson` | Polygon, EPSG:4326 |
+| out | `<proj>/data/spatial/geoms/{basins,subbasins,rivers,locations}.geojson` | vector layers |
+| out | `<proj>/data/spatial/location_registry.csv` | gauge/outlet id registry |
 
-**Scripts:** [`write_model_reference.py`](../../../blueearth_cst/experiment/write_model_reference.py),
-[`check_model_reference.py`](../../../blueearth_cst/experiment/check_model_reference.py)
+### 3.05 `write_model_reference` · 3.06 `check_model_reference`
+Scripts: [`write_model_reference.py`](../../../blueearth_cst/experiment/write_model_reference.py) · [`check_model_reference.py`](../../../blueearth_cst/experiment/check_model_reference.py)
 
 | | path | shape |
 |---|---|---|
 | in | `<model>/wflow_sbm.toml`, `<model>/.outputs_configured` (both `ancient`) | |
-| out (3.05) | [`<exp>/config/model_reference.yml`](../../../test_case/test_rapid/experiments/experiment_rapid/config/model_reference.yml) | YAML fingerprint |
-| out (3.06) | `<exp>/.model_reference_ok` | `temp()` sentinel — deliberately re-evaluated every invocation |
+| out | [`<exp>/config/model_reference.yml`](../../../test_case/test_rapid/experiments/experiment_rapid/config/model_reference.yml) | YAML fingerprint |
+| out | `<exp>/.model_reference_ok` | `temp()` sentinel, re-evaluated every invocation |
 
-### 3.07 `write_experiment_config` — the experiment's own parameters
-
-**Script:** [`write_experiment_config.py`](../../../blueearth_cst/experiment/write_experiment_config.py)
+### 3.07 `write_experiment_config`
+Script: [`experiment/write_experiment_config.py`](../../../blueearth_cst/experiment/write_experiment_config.py)
 
 | | path | shape |
 |---|---|---|
-| out | [`<exp>/config/experiment.yml`](../../../test_case/test_rapid/experiments/experiment_rapid/config/experiment.yml) | the resolved `run_stress_test` section + experiment id |
+| out | [`<exp>/config/experiment.yml`](../../../test_case/test_rapid/experiments/experiment_rapid/config/experiment.yml) | resolved section + experiment id |
 
-### 3.08 `extract_historical_climate` — the shared climate store
-
-**Does:** clips the global climate dataset to the basin. **The same rule as WF1's
-1.04 and WF0's 0.04** — whichever workflow runs first writes the store, and the
-others find it up to date.
-
-**Script:** [`blueearth_cst/climate_analysis/extract_historical_climate.py`](../../../blueearth_cst/climate_analysis/extract_historical_climate.py)
+### 3.08 `extract_historical_climate`
+Script: [`climate_analysis/extract_historical_climate.py`](../../../blueearth_cst/climate_analysis/extract_historical_climate.py)
 
 | | path | shape (measured) |
 |---|---|---|
-| in | the hydromt data catalog, `region.geojson` | |
 | out | `<store>/extract_historical.nc` | dims `time 6210 × latitude 4 × longitude 5`; vars `precip, temp, temp_min, temp_max, kin, kout, press_msl` |
-| out | `<store>/basin_cells.csv` | 2 cols: `latitude, longitude` — which store cells the basin touches |
+| out | `<store>/basin_cells.csv` | 2 cols: `latitude, longitude` |
 
-### 3.09 `prepare_stress_test_grid` — expand the config envelopes into a grid
-
-**Does:** takes the cross product of the per-axis levels (`step_num + 1` each) and
-writes one file per member, each **twelve monthly rows**, plus the table that says
-which member is which. Both come from the same loop, so the enumeration that names
-members and the one that describes them cannot disagree.
-
-**Script:** [`blueearth_cst/experiment/prepare_cst_parameters.py`](../../../blueearth_cst/experiment/prepare_cst_parameters.py)
+### 3.09 `prepare_stress_test_grid`
+Script: [`experiment/prepare_cst_parameters.py`](../../../blueearth_cst/experiment/prepare_cst_parameters.py)
 
 | | path | shape (measured) |
 |---|---|---|
@@ -197,95 +297,56 @@ members and the one that describes them cannot disagree.
 | out | [`<wg>/_work/st_1.csv` … `st_4.csv`](../../../test_case/test_rapid/experiments/experiment_rapid/climate/weathergenr/_work/) | 4 cols × 12 rows: `month, temp_mean, precip_mean, precip_variance` |
 | out | [`<exp>/config/stress_test_design.csv`](../../../test_case/test_rapid/experiments/experiment_rapid/config/stress_test_design.csv) | 4 cols × `ST_NUM+1` rows: `st_id, temp_change, precip_change, precip_variance_change` |
 
-> **Two unit traps.** Precipitation is a **multiplier** in the member file (`1.3`)
-> and a **percent** in the design table (`+30.0`). And `st_0` has no member file —
-> it is the reserved unperturbed baseline, produced by 3.11.
-
-### 3.10 `prepare_weathergen_config` — one config for the generator
-
-**Script:** [`blueearth_cst/experiment/prepare_weagen_config.py`](../../../blueearth_cst/experiment/prepare_weagen_config.py)
+### 3.10 `prepare_weathergen_config`
+Script: [`experiment/prepare_weagen_config.py`](../../../blueearth_cst/experiment/prepare_weagen_config.py)
 
 | | path | shape |
 |---|---|---|
-| in | [`config/defaults/weathergen_config.yml`](../../../config/defaults/weathergen_config.yml) | the shipped default |
-| out | [`<wg>/config/weathergen_config.yml`](../../../test_case/test_rapid/experiments/experiment_rapid/climate/weathergenr/config/weathergen_config.yml) | series length, water year, spell factors, `transient_change` flags |
+| in | [`config/defaults/weathergen_config.yml`](../../../config/defaults/weathergen_config.yml) | shipped default |
+| out | [`<wg>/config/weathergen_config.yml`](../../../test_case/test_rapid/experiments/experiment_rapid/climate/weathergenr/config/weathergen_config.yml) | series length, water year, spell factors, flags |
 
-### 3.11 `generate_weather_realizations` — the stochastic baselines
-
-**Does:** weathergenr resamples the historical record into `RLZ_NUM` synthetic
-series that are statistically like the observed climate without repeating it.
-**One job produces all realizations.**
-
-**Script:** [`blueearth_cst/weathergen/generate_weather.R`](../../../blueearth_cst/weathergen/generate_weather.R) (R, via `Rscript --vanilla`)
+### 3.11 `generate_weather_realizations`
+Script: [`weathergen/generate_weather.R`](../../../blueearth_cst/weathergen/generate_weather.R) — R, via `Rscript --vanilla`
 
 | | path | shape |
 |---|---|---|
 | in | `<store>/extract_historical.nc`, `<store>/basin_cells.csv` (both `ancient`), the weathergen config | |
-| out | `<wg>/output/rlz_1_st_0.nc` … `rlz_<RLZ_NUM>_st_0.nc` | **`temp()`** — gridded daily climate, generated span |
+| out | `<wg>/output/rlz_<n>_st_0.nc` | **`temp()`** — gridded daily climate over the generated span |
 
-### 3.12 `perturb_climate_realization` — apply one member to one realization ⟨fan-out⟩
-
-**Does:** reads the twelve monthly rows and applies them to a baseline series —
-temperature **additively**, precipitation **multiplicatively**, variance scaled
-separately. With `transient_change: true` the perturbation ramps across the series
-rather than arriving as a step.
-
-**Script:** [`blueearth_cst/weathergen/impose_climate_change.R`](../../../blueearth_cst/weathergen/impose_climate_change.R) (R)
+### 3.12 `perturb_climate_realization` ⟨fan-out⟩
+Script: [`weathergen/impose_climate_change.R`](../../../blueearth_cst/weathergen/impose_climate_change.R) — R
 
 | | path | shape |
 |---|---|---|
 | in | `<wg>/output/rlz_{rlz}_st_0.nc`, `<wg>/_work/st_{st}.csv`, the weathergen config | |
 | out | `<wg>/output/rlz_{rlz}_st_{st}.nc` | **`temp()`** — same grid as its baseline |
 
-> `wildcard_constraints: st_num` is restricted to ≥ 1 here. Unconstrained, this
-> rule becomes a second eligible producer of `st_0.nc` — which is also its own
-> input — and the DAG self-loops with `CyclicGraphException`.
-
-### 3.13 `write_climate_data_catalog` — make the scenarios addressable
-
-**Script:** [`blueearth_cst/climate_analysis/prepare_climate_data_catalog.py`](../../../blueearth_cst/climate_analysis/prepare_climate_data_catalog.py)
+### 3.13 `write_climate_data_catalog`
+Script: [`climate_analysis/prepare_climate_data_catalog.py`](../../../blueearth_cst/climate_analysis/prepare_climate_data_catalog.py)
 
 | | path | shape |
 |---|---|---|
-| in | every scenario `.nc` (baselines + perturbed) | |
 | out | [`<exp>/config/catalogs/data_catalog_run_stress_test.yml`](../../../test_case/test_rapid/experiments/experiment_rapid/config/catalogs/data_catalog_run_stress_test.yml) | hydromt catalog, one entry per member |
 
-### 3.14 `downscale_climate_realization` — onto the model grid ⟨fan-out⟩
-
-**Does:** regrids one scenario from the climate grid to the wflow grid and writes
-that member's run TOML.
-
-**Script:** [`blueearth_cst/experiment/downscale_climate_forcing.py`](../../../blueearth_cst/experiment/downscale_climate_forcing.py)
+### 3.14 `downscale_climate_realization` ⟨fan-out⟩
+Script: [`experiment/downscale_climate_forcing.py`](../../../blueearth_cst/experiment/downscale_climate_forcing.py)
 
 | | path | shape |
 |---|---|---|
-| in | `<wg>/output/rlz_{rlz}_st_{st}.nc`, the experiment catalog + project catalog, `.model_reference_ok` | |
+| in | the scenario NC, the experiment + project catalogs, `.model_reference_ok` | |
 | out | `<runs>/forcing/inmaps_rlz_{rlz}_st_{st}.nc` | **`temp()`** — `(time, lat, lon)` on the model grid; vars `precip, pet, temp` |
-| out | [`<runs>/config/rlz_{rlz}_st_{st}.toml`](../../../test_case/test_rapid/experiments/experiment_rapid/hydrology/wflow/config/) | wflow run config; calendar rewritten to `standard` |
+| out | [`<runs>/config/rlz_{rlz}_st_{st}.toml`](../../../test_case/test_rapid/experiments/experiment_rapid/hydrology/wflow/config/) | run config; calendar rewritten to `standard` |
 
-### 3.15 `run_wflow` — the model runs ⟨batched⟩
-
-**Does:** runs Wflow.jl over each member. Members are grouped into batches and one
-Julia process runs each batch, so rule identifiers are `run_wflow_batch_<b>` and
-the log/benchmark files are keyed by **batch id, not member**. `batch_size`
-defaults to `ceil(members / cores)` clamped to `batch_size_max` (8); `batch_size: 1`
-restores one job per member.
-
-**Driver:** Julia, `Wflow.run()` via `run_logged.py`
+### 3.15 `run_wflow` ⟨batched⟩
+Driver: Julia, `Wflow.run()` via `run_logged.py`
 
 | | path | shape (measured) |
 |---|---|---|
-| in | the forcing NC + TOML per member | |
 | out | [`<runs>/output/rlz_1_st_4.csv`](../../../test_case/test_rapid/experiments/experiment_rapid/hydrology/wflow/output/rlz_1_st_4.csv) | 14 cols: `time`, `Q_<gauge>` ×5, `aet_<subcatch>`, `gwr_<subcatch>` … |
 | out | `<runs>/output/outstates_rlz_{rlz}_st_{st}.nc` | **`temp()`** — warm state, unconsumed |
 
-### 3.16 `derive_wflow_indicators` — collapse the runs into the response surface
-
-**Does:** reduces every per-member run to indicator tables, **one per variable** in
-`wflow_outvars`. The perturbation axes become columns, which is how each point on
-the surface traces back to a row of `stress_test_design.csv`.
-
-**Script:** [`blueearth_cst/experiment/export_wflow_results.py`](../../../blueearth_cst/experiment/export_wflow_results.py)
+### 3.16 `derive_wflow_indicators`
+Script: [`experiment/export_wflow_results.py`](../../../blueearth_cst/experiment/export_wflow_results.py)
 
 | | path | shape (measured) |
 |---|---|---|
@@ -296,46 +357,29 @@ the surface traces back to a row of `stress_test_design.csv`.
 > `st_id` as a **string** — it is zero-padded on disk, and `pd.read_csv` without
 > `dtype` turns `01` into `1` and silently breaks the join to the design table.
 
-### 3.16b `write_run_metadata` · 3.17 `gather_benchmarks` · 3.18 `gather_logs`
+### 3.16b · 3.17 · 3.18 — closing records
 
 | rule | script | out |
 |---|---|---|
-| 3.16b | [`write_run_metadata.py`](../../../blueearth_cst/shared/write_run_metadata.py) | [`<exp>/results/run_metadata.json`](../../../test_case/test_rapid/experiments/experiment_rapid/results/run_metadata.json) |
-| 3.17 | [`merge_benchmarks.py`](../../../blueearth_cst/shared/merge_benchmarks.py) | [`<proj>/benchmarks/wf3_benchmarks_experiment_rapid.md`](../../../test_case/test_rapid/benchmarks/wf3_benchmarks_experiment_rapid.md) |
-| 3.18 | [`merge_logs.py`](../../../blueearth_cst/shared/merge_logs.py) | [`<proj>/logs/wf3_run_stress_test_experiment_rapid.log`](../../../test_case/test_rapid/logs/wf3_run_stress_test_experiment_rapid.log) |
+| 3.16b `write_run_metadata` | [`shared/write_run_metadata.py`](../../../blueearth_cst/shared/write_run_metadata.py) | [`<exp>/results/run_metadata.json`](../../../test_case/test_rapid/experiments/experiment_rapid/results/run_metadata.json) |
+| 3.17 `gather_benchmarks` | [`shared/merge_benchmarks.py`](../../../blueearth_cst/shared/merge_benchmarks.py) | [`<proj>/benchmarks/wf3_benchmarks_experiment_rapid.md`](../../../test_case/test_rapid/benchmarks/wf3_benchmarks_experiment_rapid.md) |
+| 3.18 `gather_logs` | [`shared/merge_logs.py`](../../../blueearth_cst/shared/merge_logs.py) | [`<proj>/logs/wf3_run_stress_test_experiment_rapid.log`](../../../test_case/test_rapid/logs/wf3_run_stress_test_experiment_rapid.log) |
 
-Both gathers take the indicator tables as inputs, which is what schedules them
-last, and both merge per-rule parts from `_parts/` then delete them.
-
----
-
-## What a finished run leaves behind
-
-`temp()` covers the entire scenario chain — baselines (3.11), perturbed scenarios
-(3.12), downscaled forcing (3.14) and warm states (3.15). So in `test_case/test_rapid`:
-
-- `<wg>/output/` is **empty**, and
-- `<runs>/forcing/` is **empty**.
-
-That is expected, not a broken fixture. Use `--notemp` to keep them.
-
-**Persisting:** the design table, the per-member `_work/st_*.csv`, the run TOMLs,
-the per-member run CSVs, the indicator tables, and the records.
+Both gathers take the indicator tables as inputs, which is what schedules them last.
 
 ---
 
-## Fan-out arithmetic
+# Appendix B — fan-out arithmetic
 
-With `RLZ_NUM = 2` and `ST_NUM = 4` (+ `st_0` because `run_historical: true`):
+With `RLZ_NUM = 2` and `ST_NUM = 4` (+ `st_0`, because `run_historical: true`):
 
 | rule | jobs | scaling |
 |---|---|---|
-| 3.11 | 1 | constant |
-| 3.12 | `RLZ_NUM × ST_NUM` = 8 | linear in both |
-| 3.14 | `RLZ_NUM × (ST_NUM+1)` = 10 | linear in both |
-| 3.15 | `ceil(10 / batch_size)` = 5 | linear, divided by batching |
-| 3.16 | 1 | constant |
+| 3.11 `generate_weather_realizations` | 1 | constant |
+| 3.12 `perturb_climate_realization` | `RLZ_NUM × ST_NUM` = 8 | linear in both |
+| 3.14 `downscale_climate_realization` | `RLZ_NUM × (ST_NUM+1)` = 10 | linear in both |
+| 3.15 `run_wflow` | `ceil(10 / batch_size)` = 5 | linear, divided by batching |
+| 3.16 `derive_wflow_indicators` | 1 | constant |
 
-Raising both axes to `step_num: 3` gives 16 + 1 = 17 design points ⇒ 34 members,
-a 3.4× increase in every per-member rule. Cost profile and where the time actually
-goes: see `trace.md` in this folder.
+Raising both axes to `step_num: 3` gives 16 + 1 = 17 design points ⇒ 34 members: a
+3.4× increase in every per-member rule. Measured cost profile: `trace.md` § 3.
