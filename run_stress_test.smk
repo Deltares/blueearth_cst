@@ -1054,6 +1054,13 @@ def _member_span(members):
     than an enumeration: a batch is up to `batch_size_max` members, and the
     console needs to say WHERE the run is, not to reproduce the member list the
     log part already carries.
+
+    Two RANGES state a rectangle, and a batch is a slice of a flat member list
+    rather than a rectangle -- so `5 members | rlz 1-2 | st 0-6` describes a
+    2x7 grid beside a count of 5 and invites the reader to conclude the count
+    is wrong. `(partial)` marks exactly that: the members do not fill the
+    product of the two ranges. It is the ranges' own claim that is checked, not
+    the distinct values', because the ranges are what a reader sees.
     """
     rlz = sorted({r for (r, _) in members})
     st = sorted({c for (_, c) in members})
@@ -1062,7 +1069,13 @@ def _member_span(members):
         lo, hi = values[0], values[-1]
         return str(lo) if lo == hi else f"{lo}-{hi}"
 
-    return f"rlz {span(rlz)} | st {span(st)}"
+    def extent(values):
+        return int(values[-1]) - int(values[0]) + 1
+
+    text = f"rlz {span(rlz)} | st {span(st)}"
+    if len(members) != extent(rlz) * extent(st):
+        text = f"{text} (partial)"
+    return text
 
 for _b, _members in _batches.items():
     rule:

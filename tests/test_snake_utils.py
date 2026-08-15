@@ -2195,6 +2195,51 @@ def test_run_summary_closes_the_run_in_the_shape_it_opened_in():
     ]
 
 
+def test_run_summary_paints_only_the_failed_verdict(monkeypatch):
+    """Red marks the exceptional run; a success verdict stays unpainted.
+
+    Written against the CONSTANT, like the three-tier test: the hue is a knob,
+    what must hold is that one verdict is marked and the other is not.
+    """
+    monkeypatch.setattr(sys, "stderr", _FakeTTY())
+    failed = su.run_summary("wf3", "p", "l.log", "b.md", failed=True)
+    ok = su.run_summary("wf3", "p", "l.log", "b.md")
+    assert failed.splitlines()[0] == su._ansi("wf3 FAILED", su._ANSI_FAIL)
+    assert "\033" not in ok
+
+
+def test_run_summary_verdict_is_plain_when_stderr_is_not_a_console(monkeypatch):
+    """Piped or redirected, the block must carry no escape codes at all."""
+    monkeypatch.setattr(sys, "stderr", io.StringIO())
+    out = su.run_summary("wf3", "p", "l.log", "b.md", failed=True)
+    assert "\033" not in out, repr(out)
+
+
+def test_heartbeat_paints_the_alarm_and_not_the_all_clear():
+    """A stall notice says the console does not KNOW that anything is wrong.
+
+    Yellow is what that means everywhere else. The `done in` that closes it is
+    the resolution, and painting it too would make it as loud as the alarm.
+    """
+    stream = _TTYStringIO()
+    hb = su._Heartbeat("2.05_merge", stream, interval=0.05).start()
+    time.sleep(0.16)
+    hb.stop()
+    out = stream.getvalue()
+    stall = next(line for line in out.splitlines() if "still running" in line)
+    done = next(line for line in out.splitlines() if "done in" in line)
+    assert stall.startswith(f"\033[{su._ANSI_WARN}m"), stall
+    assert done.startswith(f"\033[{su._ANSI_BODY}m"), done
+
+
+def test_heartbeat_paints_the_failure_verdict(monkeypatch):
+    """There is no DONE line for a job that raised -- this is the only report."""
+    stream = _TTYStringIO()
+    hb = su._Heartbeat("3.15_run_wflow", stream, interval=10.0).start()
+    hb.stop(failed=True)
+    assert stream.getvalue().startswith(f"\033[{su._ANSI_WARN}m")
+
+
 def test_run_summary_failure_keeps_its_note_out_of_the_key_column():
     """The note names no artifact, so it is not a row under `wrote`."""
     out = su.run_summary(

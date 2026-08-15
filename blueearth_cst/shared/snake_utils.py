@@ -2031,11 +2031,17 @@ class _Heartbeat:
     def touch(self):
         self._last = time.monotonic()
 
-    def _emit(self, text):
+    def _emit(self, text, code=None):
+        # `None` rather than `_ANSI_BODY` as the default: a default argument is
+        # evaluated when this class is DEFINED, and the colour constants are
+        # declared further down the module (beside the console handler that owns
+        # the scheme). Naming one here would be a NameError at import.
         try:
             # Console-only by design (`quiet_rows` is the durable copy), so the
             # colour here can never reach a file.
-            self._stream.write(_paint_body(text, _console_colour(self._stream)))
+            self._stream.write(
+                _paint_body(text, _console_colour(self._stream), code or _ANSI_BODY)
+            )
             self._stream.flush()
         except Exception:
             pass  # console I/O must never break the job
@@ -2054,7 +2060,10 @@ class _Heartbeat:
                     quiet_since = last
                 elapsed = _fmt_elapsed(now - self._start)
                 self._noticed = True
-                self._emit(f"   ... {self._label}: still running, {elapsed} elapsed\n")
+                self._emit(
+                    f"   ... {self._label}: still running, {elapsed} elapsed\n",
+                    _ANSI_WARN,
+                )
             elif quiet_since is not None:
                 # Output resumed: `last` is when, so the gap closes there.
                 self._quiet.append((quiet_since, last))
@@ -2104,7 +2113,12 @@ class _Heartbeat:
             return
         elapsed = _fmt_elapsed(time.monotonic() - self._start)
         verb = "failed after" if failed else "done in"
-        self._emit(f"   ... {self._label}: {verb} {elapsed}\n")
+        # Yellow on the failure verdict only. `done in` is the all-clear that
+        # closes a yellow `still running`, and painting it too would make the
+        # resolution as loud as the alarm.
+        self._emit(
+            f"   ... {self._label}: {verb} {elapsed}\n", _ANSI_WARN if failed else None
+        )
 
 
 def _cr_overwrite(line):
@@ -2891,9 +2905,28 @@ def patch_psutil_windows_benchmark():
 # The other two are the bright 8-colour codes, which follow the terminal's own
 # palette rather than pinning an exact hue -- so they stay in whatever key the
 # theme is written in. All three are swappable here and nowhere else.
+#
+# Two more sit OUTSIDE the routine three, for the two lines that report that
+# something went wrong or might have. They are deliberately not a fourth and
+# fifth tier: the three above classify every routine line, while these mark the
+# exceptional one, so they appear at most twice in a run.
+#
+# * ``_ANSI_FAIL`` (red) -- ``run_summary``'s FAILED verdict, and nothing else.
+#   Snakemake's own error block is already red, and the verdict is the line a
+#   reader scrolls to the bottom to find; in the routine three it was grey.
+#   The SUCCESS verdict stays uncoloured on purpose. Colouring both would make
+#   the pair a status field to be read, when the whole value here is that a
+#   failed run looks different from every other run without being read.
+# * ``_ANSI_WARN`` (yellow) -- the heartbeat's ``still running`` notice and its
+#   ``failed after`` verdict. A stall notice is the console saying it does not
+#   know whether anything is wrong, which is neither routine nor an error, and
+#   is exactly what yellow means everywhere else. Its ``done in`` all-clear
+#   stays body-tier: the alarm is the news, the resolution is not.
 _ANSI_RUN = "94"  # bright blue
 _ANSI_DONE = "92"  # bright green
 _ANSI_BODY = "38;5;250"  # light grey
+_ANSI_FAIL = "91"  # bright red
+_ANSI_WARN = "93"  # bright yellow
 _ANSI_RESET = "\033[0m"
 
 
@@ -2913,13 +2946,20 @@ def _console_colour(stream):
     return bool(isatty and isatty()) and not os.environ.get("NO_COLOR")
 
 
-def _paint_body(text, colour):
-    """Paint a console-bound chunk in the body tier (``_ANSI_BODY``).
+def _paint_body(text, colour, code=_ANSI_BODY):
+    """Paint a console-bound chunk, in the body tier by default.
 
     Returns ``text`` unchanged when not colouring. Named for the TIER and
     not for the hue: the colour is one constant away from being something
     else, and the name this replaced said "grey" while ``_ANSI_BODY`` was
     what actually decided.
+
+    ``code`` overrides the tier for the heartbeat's stall notices, which are
+    the same shape of chunk -- one console-bound line, never a log line -- but
+    are not routine. Passing the code rather than adding a second function is
+    what keeps the carriage-return and whitespace rules below applying to
+    every painted chunk, since those are properties of the CHUNK, not of the
+    colour.
 
     **Chunks containing a carriage return pass through untouched.** Those are
     in-place progress bars (dask's ``[####] | 100% Completed``), which redraw
@@ -2940,7 +2980,7 @@ def _paint_body(text, colour):
     if not colour or "\r" in text or not text.strip():
         return text
     return "\n".join(
-        _ansi(line, _ANSI_BODY) if line.strip() else line for line in text.split("\n")
+        _ansi(line, code) if line.strip() else line for line in text.split("\n")
     )
 
 
@@ -3118,6 +3158,11 @@ def run_summary(
     one step further. The label is a VERB (``wrote``) because that is what these
     rows are -- artifacts this run produced -- as against the header's ``run``
     (what this run is) and ``path tokens`` (how to read the lines between).
+
+    A FAILED verdict is painted red (``_ANSI_FAIL``), gated on stderr being a
+    colour console. The success verdict is not painted at all: what matters is
+    that a failed run looks different from every other run WITHOUT being read,
+    and colouring both would turn the pair into a field to be read instead.
     """
     project_dir = os.fspath(project_dir)
     lines = []
@@ -3125,6 +3170,13 @@ def run_summary(
     head = f"{workflow} {verdict}"
     if elapsed_seconds is not None:
         head = f"{head} in {format_elapsed(elapsed_seconds)}"
+    if failed:
+        # Coloured HERE, unlike `rule_banner`, and the difference is where the
+        # string goes: a banner reaches a log file and an error block, where an
+        # escape code is corruption. This block reaches the console and nothing
+        # else -- every Snakefile writes it to stderr and no log receives it --
+        # so painting it here cannot leak. Asked of stderr for the same reason.
+        head = _paint_body(head, _console_colour(sys.stderr), _ANSI_FAIL)
     lines.extend([head, "", "  wrote"])
     if failed:
         parts = os.fspath(log_parts_dir or f"{project_dir}/logs/_parts")
