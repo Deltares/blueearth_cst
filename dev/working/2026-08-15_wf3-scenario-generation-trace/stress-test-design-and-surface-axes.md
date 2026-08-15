@@ -2,7 +2,8 @@
 
 Status: DESIGN NOTE, 2026-08-15. **Not an accepted design and not a task brief.**
 It records a design conversation and the owner rulings taken during it, so they
-survive as something reviewable. Everything under *Open questions* is undecided.
+survive as something reviewable. Six questions were opened and closed across that
+conversation; §6 indexes the outcomes. Nothing here is implemented.
 
 Companions in this folder: `trace.md` (the run, and its measured cost profile) and
 `wf3-rule-reference.md` (every rule, its scripts and file shapes).
@@ -359,17 +360,57 @@ change would propagate correctly and "should we allow an in-place parameter chan
 would become a design choice rather than a defect to block. Not proposed here;
 noted because it is squarely R12's territory (*how WF3 executes*).
 
-## 6. Open questions
+## 6. What is settled, and what is left
 
-- **Multiple surfaces per experiment.** Within one experiment all members lie on the
-  line from `min` to `max`, so every linear axis is an affine image of every other:
-  two surfaces from one experiment differ in magnitude and label, not in shape or
-  member ordering. Genuinely different response shapes would need members that vary
-  seasonal *pattern* independently — a second design dimension, which collides with
-  C28's deliberate two-axis refusal. Not proposed here.
-- **The projection overlay.** Deliberately deferred by the owner until the above is
-  settled. The constraint is already recorded (HM-7): whatever collapse the surface
-  uses must be applied to the CMIP6 change factors too.
+All six questions this note opened with are now closed or deliberately deferred.
+Rulings are recorded in place above; this is the index.
+
+| # | question | outcome |
+|---|---|---|
+| 1 | units | **RULED** — percent everywhere; column names `temp_change` / `precip_change` (§2) |
+| 2 | where the annual value lives | **RULED** — the lookup is the source of truth; results carry `st_id` + `value`; axes derived, never stored (§3) |
+| 3 | external consumers | **RULED** — none constrains this; `csthelpers` is parameterized and its owner will update it (§5b) |
+| 4 | naming | **RULED** — `stress_test_lookup.csv` (§5c) |
+| 5 | multiple surfaces per experiment | **CLOSED as a consequence of Q2** — see below |
+| 6 | the projection overlay | **DEFERRED**, deliberately — see below |
+
+### Q5 — closed by Q2, with a fact recorded rather than a defect
+
+Q2 settles the mechanism: the lookup is a sufficient statistic, so any collapse is
+derivable and multiple surfaces need nothing further.
+
+What remains is a limit worth stating plainly so nobody rediscovers it as a bug.
+Within one experiment every member lies on the line from `min` to `max`, so every
+linear axis is an affine image of every other: **two surfaces from one experiment
+differ in magnitude and label, not in shape or member ordering.**
+
+That is not a limitation to fix — it is what makes case 2 worth having. Reporting
+"+30% over JFM" instead of "+7.6% annual" is the *same* surface, correctly labelled
+rather than misleadingly. The response is fixed by the runs; the honest description
+of it is not.
+
+Genuinely different response *shapes* would require members varying seasonal
+pattern independently — a second design dimension, colliding with C28's deliberate
+two-axis refusal. Not proposed, and a much larger change than anything here.
+
+### Q6 — deferred, with the constraint pinned so it cannot drift
+
+> **Owner, 2026-08-15: the overlay is deferred until the above settles.** The
+> framing below is agreed; the treatment is not designed.
+
+The constraint is inherited, not new. HM-7 records that the CMIP6 dots are placed
+on the stress-test axes, so *"two different collapses would compare two different
+quantities."* Under this design that becomes concrete and mechanical: **whatever
+collapse a surface declares must be applied to the GCM change factors too.**
+
+The Q1 ruling makes that cheap. WF2 already emits **monthly** change factors in
+**percent** — `cmip6_change_factors_monthly.csv` carries a `month` column and
+`relative_value` in `%` — so the same month-set collapse runs over the GCM table
+and over the lookup with no unit conversion between them. The overlay and the
+design speak one language by construction.
+
+So the deferral costs nothing structurally: the monthly source already exists in
+matching units, and nothing in the rulings above forecloses a treatment.
 
 ## 7. Where this would land
 
