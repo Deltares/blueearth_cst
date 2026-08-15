@@ -5,10 +5,10 @@ genre: workflow-spec
 author-binding: cst-architect
 started: 2026-08-15
 variant: full
-stage: G1
+stage: 2-internal-panel
 external-rounds-completed: 0
 dispatches:
-  opus: 1
+  opus: 4
   fable: 0
 cost:
   expensive-checks: 3      # P1, P2, P3 — all executed, not argued
@@ -17,7 +17,7 @@ findings:
   unique: 0
   re-raised: 0
 gates:
-  G1: pending
+  G1: approved 2026-08-15
   G2: pending
 flags: [seeded-from-existing-draft, stage-1-authorized-alone]
 ---
@@ -94,7 +94,36 @@ flags: [seeded-from-existing-draft, stage-1-authorized-alone]
   `dev/<milestone>/migration_<topic>.md` and this work lands before R12 with no
   milestone directory.
 
-- [open] G1 — framing gate, awaiting the owner
+- [done] G1 — **approved 2026-08-15** (owner)
+
+  ### The G1 record — settled framing for every downstream spawn
+
+  Approved as written in `design-v1.md`: the problem statement (§1), the eleven
+  settled constraints (§3, S1–S11), the decision criteria (§4), and the
+  **provisional** selected approach (§5, D1–D24). Downstream reviewers receive
+  this as settled: a reviewer may argue a *consequence* of any item below, and
+  may not re-litigate the item itself.
+
+  | | Approved |
+  |---|---|
+  | Problem | The experiment and the response surface are fused; the fixed annual collapse misreports a seasonal design (+30% in JJA reads as +7.6%), and `stress_test_design.csv` is a materialized cache of the member files |
+  | Constraints | S1–S11 — percent everywhere; the lookup is the source of truth; the lookup determines the axis, not the scenario; no external consumer constrains this; `stress_test_lookup.csv` in `<exp>/config/`; `st_0` is not a surface member; the identity member is simulated like any other; the lookup lands before R12's identity re-derivation; linear statistics only; the overlay inherits the collapse; workflow-engine scope only |
+  | Decision criteria | §4 C1–C6 — correctness first; store the finest grain imposed and derive every summary; no new cache of a derivation; a new parameter is a column not a file shape; the migration is executable in one commit; every claimed runtime property has a falsifier |
+  | Provisional approach | The `reporting:` top-level section (D8/D9), `months` defaulting to the member-varying set (D11), a library rather than a rule (D14), two-tier enforcement (D16/D17) |
+
+  **Carried forward as still-open, not approved:** OQ-1 (where the migration
+  note lands) was put to the owner at this gate and not ruled. It stays an open
+  question in §10 and is available to settle at G2, when the note's final content
+  is fixed. It blocks nothing in stage 2 — it is a path, not a decision.
+
+- [open] 2-internal-panel — three lenses dispatched 2026-08-15 (opus ×3)
+
+  risk (`critical-thinker`), architecture (`cst-architect`), repo fit
+  (`python-engineer`). Fresh spawns, no conversational memory, each given
+  `design-v1.md`, `intake.md` and the G1 record above. Marked `[open]` until all
+  three verdict files plus `internal-review-index.md` are on disk.
+
+  Authorized as a single increment; nothing beyond stage 2 is authorized.
 
 ## Variant
 
