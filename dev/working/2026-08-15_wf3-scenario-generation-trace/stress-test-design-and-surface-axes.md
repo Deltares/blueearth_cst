@@ -147,6 +147,39 @@ statistic: mean}`.
   collapses would compare two different quantities." (Overlay treatment is
   explicitly deferred — see Open questions.)
 
+### The lookup is the source of truth — RULED
+
+> **Ruling (owner, 2026-08-15).** The lookup table is the **source of truth**. From
+> the lookup plus the results, any response surface can be generated — within the
+> logical bounds of §4. Nothing derived from it is stored.
+
+The lookup holds all twelve months for every member, which makes it a **sufficient
+statistic** for any collapse: annual, a season, a single month, even a non-linear
+one. Every axis is a projection of it.
+
+Three consequences, and the third corrects an earlier draft of this note:
+
+1. **Indicator tables carry `st_id` and `value`, not a baked axis.** Keeping
+   `temp_change` / `precip_change` there would privilege one collapse and
+   re-create the drift `validate_hm7` polices. It also spares no one a join —
+   consumers need the lookup regardless, so it *is* the second file.
+2. **A surface is a declaration plus a figure**, not a directory of data: the
+   collapse, the caption and the exclusions (`st_0`) are a *choice* and must be
+   recorded; the axis values are a derivation and must not.
+3. **An earlier proposal to materialize a per-surface `axes.csv` is withdrawn.**
+   It reintroduced, one layer up, exactly the cache-of-a-derivation this design
+   removes. Caught by the owner: given the lookup, an axis table stores something
+   already fully determined.
+
+The general principle, which is the same one that killed the design-table cache:
+**store the finest grain that was actually imposed; derive every summary.**
+
+The one case for materializing, recorded so it stays a decision rather than an
+oversight: archiving a *published* figure, where the exact plotted numbers should
+sit beside it rather than be recomputed years later from code that has moved. That
+is a publication-provenance concern, better served by an export-on-demand than by
+writing a file every run.
+
 ## 4. The three interpretable designs
 
 Owner's taxonomy, 2026-08-15. All three are **already expressible** in the current
@@ -245,11 +278,6 @@ Two obligations this creates:
 
 ## 6. Open questions
 
-- **Where the annual value lives.** If the axis is computed at post-processing, do
-  the indicator tables still carry a default annual `temp_change` / `precip_change`
-  for convenience, or only `st_id` as the join key? Carrying it re-creates a
-  cache — the thing §2 removes — but dropping it changes HM-7's pinned seven-column
-  contract and whatever consumes it.
 - **Does anything outside this repo read `stress_test_design.csv` in its current
   wide shape?** HM-7 names the CST-API/GUI as the consumer of the *indicator*
   tables; if the GUI also reads the design table to label a surface, wide→long is a
