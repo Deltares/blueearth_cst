@@ -67,9 +67,42 @@ What it buys, in order of importance:
 4. `_work/` disappears entirely. The merged table belongs in `<exp>/config/`
    beside the config snapshot: it is a record of what ran, not scratch.
 
-**Units must be reconciled.** The two files disagree today (multiplier vs percent);
-one table means one convention, and the choice is real — the R generator consumes
-factors, the surface axes are read as percent.
+### Units — RULED
+
+> **Ruling (owner, 2026-08-15): percent, everywhere.** `temp_change` in °C,
+> `precip_change` and `precip_variance_change` in **percent**. Column names stay
+> `temp_change` / `precip_change` rather than unit-suffixed variants
+> (`precip_change_pct`), by owner preference.
+
+The criterion was consistency across artifacts, not internal convenience, and the
+tally settles it — WF2 **already emits percent**, with an explicit `relative_units`
+column carrying `%` for precip and `degC` for temp:
+
+| artifact | precip convention |
+|---|---|
+| WF2 change factors | percent |
+| WF3 `stress_test_design.csv` | percent |
+| WF3 indicator tables (`precip_change`) | percent |
+| WF3 member files `st_*.csv` | **multiplier** — the sole outlier |
+
+Three of four already agree, and the two that matter most cannot diverge: HM-7
+requires the stress-test axes to match WF2's definition *because the GCM dots are
+overlaid on them*. Percent makes the imposed change, the reported axis and the
+projection factor one quantity in one unit.
+
+The multiplier survives only as the generator's operation form —
+`impose_climate_change.R` converts `1 + p/100` once, at the point of application.
+
+**An argument considered and withdrawn.** "Store what is applied (factors), because
+a rounding error there changes the science" does not survive scrutiny. The incident
+that seemed to support it — `float32(0.7)` → `−30.000001%`, which is why
+`prepare_cst_parameters.py:174` computes the design row from the persisted CSV —
+was a **float32-vs-float64 CSV round-trip** problem, not a unit-choice one. Percent
+stored at adequate precision has the same property: every reader converts
+deterministically to the same factor.
+
+Consequence worth knowing: no-change becomes `0.0` rather than `1.0`, so a row of
+zeros now visibly means "no perturbation" and `st_0`'s row reads as the origin.
 
 **Invalidation is not a reason against it.** Rule 3.12 declares one member file per
 job today, but rule 3.09 writes *all* member files in a single job, so any config
@@ -212,8 +245,6 @@ Two obligations this creates:
 
 ## 6. Open questions
 
-- **Units** for the merged table: multiplier (what the generator consumes) or
-  percent (what the axes report)? One table, one convention.
 - **Where the annual value lives.** If the axis is computed at post-processing, do
   the indicator tables still carry a default annual `temp_change` / `precip_change`
   for convenience, or only `st_id` as the join key? Carrying it re-creates a
