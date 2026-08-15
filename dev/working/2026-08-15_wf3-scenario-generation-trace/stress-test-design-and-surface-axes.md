@@ -276,12 +276,35 @@ Two obligations this creates:
    column in the lookup, or a line in the run metadata — rather than two identical
    CSVs with nothing explaining why.
 
+## 5b. External consumers — CHECKED, and not a constraint
+
+> **Ruling (owner, 2026-08-15).** CST-API and CST-frontend are out of scope for
+> this decision. `csthelpers` is in progress and will be updated once the toolbox
+> settles.
+
+What the check found, recorded because it is reusable:
+
+`~/workspace/csthelpers` (R package) reads `q_indicators.csv`, groups by
+`temp_change, precip_change` and plots them as the surface axes. So an external
+consumer of the seven-column shape does exist — but the coupling is weaker than it
+looks, in two ways:
+
+- **`plot_climate_surface()` is parameterized, not hardcoded.** It takes
+  `x_var` / `y_var` as arguments and validates them against whatever columns are
+  passed (`if (!x_var %in% names(data)) stop(...)`). Only the *example* names
+  `precip_change`. A caller that joins the lookup and derives a seasonal axis
+  simply passes a different column name — so the package already supports the
+  flexibility this design is trying to create.
+- **Its examples already reference artifacts the pipeline no longer emits** —
+  `annual_change_scalar_stats_summary_mean.csv` (replaced at S8-04/05) and
+  `Qstats.csv` (pre-R11). It reads vendored snapshots under `csthelpers/data/`,
+  not live pipeline output.
+
+So dropping the axis columns is not a live-integration break. It widens a gap that
+is already open, in a package whose owner has scheduled the update.
+
 ## 6. Open questions
 
-- **Does anything outside this repo read `stress_test_design.csv` in its current
-  wide shape?** HM-7 names the CST-API/GUI as the consumer of the *indicator*
-  tables; if the GUI also reads the design table to label a surface, wide→long is a
-  breaking API change rather than an internal simplification. **Unchecked.**
 - **Naming.** `stress_test_design.csv` is a contract-named artifact. Does the merged
   long table keep that name (same identity, different shape) or take a new one with
   a migration note?
