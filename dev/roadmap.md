@@ -1496,7 +1496,20 @@ member-level freshness boundary is currently defined over an artifact that is
 about to be deleted. The lookup lands first; `member_hash` then keys on the
 member's twelve monthly rows, which is strictly more faithful than the collapse
 it replaces. Board order follows: `t2608152230` is queue 1, `t2608082036` queue 2.
-Reasoning in that design note's §7b.
+
+**That gating design is now ACCEPTED (2026-08-15):**
+`dev/milestones/r12/stress-test-lookup-design.md`, through a full
+`design-review-loop` run — an internal three-lens panel, two external
+cross-vendor rounds to the cap, and owner arbitration. 35 findings, all
+dispositioned, none rejected or deferred. The consolidated audit trail is
+`dev/milestones/r12/stress-test-lookup-review-record.md`; the run's stage-0 scope
+authority is `stress-test-lookup-intake.md` beside it.
+
+Three of its outcomes bear directly on R12 and are worth reading before scoping:
+the lookup's schema is normatively defined on the **weather-generator** seam
+(WG-2) rather than HM-7; the lookup carries **no `st_0` row**; and a **pre-change
+baseline re-record is a prerequisite of the first implementation commit**, since
+a comparison gate cannot be applied retrospectively.
 
 The `cst-run-control` skill governs — its scope is exactly this territory (run
 manifests, resume, checkpoints, quarantine, conformance vectors) and may already

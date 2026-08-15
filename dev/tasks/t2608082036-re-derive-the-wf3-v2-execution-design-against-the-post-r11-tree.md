@@ -20,6 +20,15 @@ updated: 2026-08-15
 > **Ruling (owner).** `t2608152230` lands first; this re-derivation follows and
 > defines `member_hash` over the **monthly lookup rows** rather than the annual
 > scalars.
+>
+> **Updated 2026-08-15:** the lookup's design is now **ACCEPTED** —
+> `dev/milestones/r12/stress-test-lookup-design.md`. Read **D1–D2** for the
+> schema this re-derivation must key on, and **§5.7 (WG-2)** for its normative
+> definition — the schema lives on the *weather-generator* seam, not HM-7, by
+> owner ruling. Two things there change what this item inherits: **D35** imposes
+> a parse-time admissible multiplier domain (`≥ 0.5`), and the lookup carries
+> **no `st_0` row** (D4), so a member-identity scheme cannot derive the baseline's
+> identity from it.
 
 `design-v4.md` § 5.1 defines
 

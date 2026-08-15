@@ -56,3 +56,49 @@ So the driver must **enter the lane worktree before dispatching**, not merely
 before editing. Recorded because it is invisible until a spawn fails on its first
 write, which under the skeleton-first rule is its first action — the failure would
 look like a transport fault and earn the retry ladder, which would repeat it.
+
+## O4 — a driver bookkeeping defect the AUTHOR caught, not the driver (stage 6, 2026-08-15)
+
+The stage-4 outcome, the stage-5 convergence entry and the stage-6 dispatch entry
+never reached `status.md`. The driver had written them with a Python
+`str.replace()` against a multi-line anchor; the anchor did not match, and
+`str.replace()` **returns the string unchanged rather than raising**, so the write
+succeeded, the commit succeeded, and the log silently lost three stages.
+
+Nothing in the loop caught it. It surfaced because the stage-6 author reported
+"`status.md` has no stage-5 convergence entry" under *what the input set failed to
+give me* — i.e. the spawn discipline's self-containment check did the work the
+driver's own bookkeeping should have.
+
+Three things follow, in increasing generality:
+
+1. **Repaired**, and the manifest carries `status-log-gap-repaired` so a later
+   reader does not read the reconstructed entries as contemporaneous.
+2. **The resume rule assumed a completeness this defect breaks.**
+   `run-artifacts.md` says a resuming driver "compares artifacts on disk against
+   the stage log and re-runs any stage whose outputs are missing **or
+   unrecorded**". Here the artifacts existed and the *log* was missing, so a
+   resume would have re-run external round 1 — spending a **capped** round to
+   regenerate a file already on disk. Write-then-mark protects against a crash
+   between artifact and mark; it does not protect against a mark that silently
+   no-ops.
+3. **The general rule, which is this run's own recurring theme:** prefer an edit
+   mechanism that fails loudly. The repair used a Python block that `sys.exit`s on
+   any unmatched anchor, and the `Edit` tool errors on a non-matching
+   `old_string` — either is safe. A bare `str.replace()` on generated prose is the
+   same defect class as the run's own findings: a check that passes for a reason
+   unrelated to what it claims to verify.
+
+## O5 — an author disclosure worth keeping (stage 6, 2026-08-15)
+
+The stage-6 author volunteered that it ran one read-only `git status --porcelain`
+against the brief's "do not run git", and said it should have been a filesystem
+check. Harmless in substance — it is how it verified v1/v2 were untouched.
+
+Recorded because the disclosure is the valuable behaviour: an author that reports
+a boundary it brushed is worth more than one that quietly stays inside. The brief
+wording is the thing to fix — "do not run git" is aimed at *state changes*, and a
+blanket ban pushes a spawn into either violating it or skipping a verification it
+should do. Candidate for the retrospective: phrase author authority boundaries as
+"no git operation that changes state (add/commit/checkout/stash)" rather than a
+blanket prohibition.
