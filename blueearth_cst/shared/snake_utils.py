@@ -1954,7 +1954,9 @@ class _Heartbeat:
     Snakemake prints only a start and a finish timestamp, so a hung job looks
     identical to a slow one until it (never) finishes. This daemon prints an
     elapsed-time notice when the rule has produced no output for ``interval``
-    seconds, and a one-line ``done in <elapsed>`` summary when it stops.
+    seconds, and closes with a one-line ``done in <elapsed>`` summary — but
+    only where that summary is not already on the console under another name
+    (see :meth:`stop`).
 
     Silence-triggered, not periodic: callers stamp ``touch()`` on every real
     write, so a rule that is actively logging or drawing a progress bar keeps
@@ -1985,6 +1987,10 @@ class _Heartbeat:
         #: only by the watchdog thread and read only after ``stop()`` has joined
         #: it, so the list needs no lock.
         self._quiet = []
+        #: Whether a stall notice was ever printed. Written by the watchdog
+        #: thread and read in ``stop()`` only after it has been joined, so it
+        #: needs no lock -- the same argument ``_quiet`` above makes.
+        self._noticed = False
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
 
@@ -2047,6 +2053,7 @@ class _Heartbeat:
                 if quiet_since is None:
                     quiet_since = last
                 elapsed = _fmt_elapsed(now - self._start)
+                self._noticed = True
                 self._emit(f"   ... {self._label}: still running, {elapsed} elapsed\n")
             elif quiet_since is not None:
                 # Output resumed: `last` is when, so the gap closes there.
@@ -2064,10 +2071,37 @@ class _Heartbeat:
         return self
 
     def stop(self, failed=False):
+        """Close the watchdog, printing a verdict only where one is NEWS.
+
+        The success verdict is emitted only when this watchdog actually beeped
+        (or when the job failed), because Snakemake's own finish line already
+        carries both facts it states: ``DONE Rule 3.12: perturb_climate_
+        realization  [rlz 1 | st 2]  0:00:19`` names the job and its duration,
+        and ``   ... <label>: done in 19s`` follows it saying the same thing in
+        a second duration grammar. On a fanned-out rule that is one redundant
+        line per member, and because the two come from different writers -- the
+        job's own process, versus Snakemake's log handler in the parent -- they
+        interleave out of order under ``-c 3``, so the duplicate does not even
+        land next to what it duplicates.
+
+        The two cases kept are the ones the finish line cannot cover:
+
+        * ``failed`` -- there IS no DONE line for a job that raised, so this is
+          the only place the console says what happened to it.
+        * a watchdog that beeped -- ``still running, 4m00s elapsed`` is an open
+          bracket, and leaving it unclosed is worse than the duplicate. This
+          also keeps the line on exactly the long, silent rules a person is
+          sitting and watching.
+
+        The log file is unaffected in every case: the heartbeat has always been
+        console-only, and ``quiet_rows`` is the durable record of a stall.
+        """
         if not self._enabled:
             return
         self._stop.set()
         self._thread.join(timeout=1.0)
+        if not (failed or self._noticed):
+            return
         elapsed = _fmt_elapsed(time.monotonic() - self._start)
         verb = "failed after" if failed else "done in"
         self._emit(f"   ... {self._label}: {verb} {elapsed}\n")
@@ -2090,6 +2124,58 @@ def _cr_overwrite(line):
     return segments[-1] if segments else ""
 
 
+#: Body lines muted on the CONSOLE only -- matched on the message, after
+#: :func:`_compact_log_line` has normalized the row.
+#:
+#: ``Parsing data catalog from <path>`` is hydromt announcing a catalog read.
+#: It is one line per catalog PER JOB, and a fanned-out rule reads the same two
+#: catalogs in every member: nine parallel jobs of rule 3.14 put eighteen
+#: identical lines on the console in the same second. Nothing distinguishes
+#: them, and nothing can -- the line names the catalog, which is a property of
+#: the run, not of the member.
+#:
+#: Muting is the only lever available, because collapsing is not: each job is a
+#: SEPARATE PROCESS with its own tee, so no in-process buffer can see that the
+#: line it is about to print was just printed by a sibling. That is also why
+#: this differs from ``_CONSOLE_MUTED_PREFIXES``, which mutes Snakemake's own
+#: records in the parent.
+#:
+#: The line SURVIVES IN EVERY LOG PART, which is where a question about what a
+#: job read is actually answered, and the run header names the catalogs up
+#: front. What the console loses is a fact it was stating up to eighteen times
+#: and that nobody reads on the eighteenth.
+_TEE_CONSOLE_MUTED = (("data_catalog", "Parsing data catalog from "),)
+
+
+def _muted_on_console(text):
+    """Whether a tee chunk is a muted-on-console body line.
+
+    Three restrictions, all failing in the direction of PRINTING:
+
+    * the chunk must be exactly one newline-terminated line. A tee is handed
+      arbitrary chunks, not lines, so a partial write or a multi-line block is
+      never matched — it prints, which is the behaviour we started from.
+    * the row must carry the muted module in its own column and the message
+      must open with the muted prefix, rather than the phrase appearing
+      anywhere in the text.
+    * the row must be at INFO, which :func:`_log_row_text` renders by OMITTING
+      the level field. A ``data_catalog - WARNING - ...`` row therefore has a
+      third field before the message and cannot match — the same restriction
+      ``_ConsoleHandler._muted`` applies, and for the same reason: a prefix
+      muted for volume must never be able to silence a warning.
+    """
+    if not text.endswith("\n") or text.count("\n") != 1:
+        return False
+    fields = text[:-1].split(" - ", 2)
+    if len(fields) != 3:
+        return False
+    _stamp, module, message = fields
+    return any(
+        module == muted_module and message.startswith(muted_prefix)
+        for muted_module, muted_prefix in _TEE_CONSOLE_MUTED
+    )
+
+
 class _Tee:
     """Text stream mirroring in-process output to a live console and a log file.
 
@@ -2100,7 +2186,9 @@ class _Tee:
     file descriptors) is not captured — only in-process Python output is.
 
     The ``live`` sink (console) gets output verbatim, so a carriage-return
-    progress bar still animates in place during a long ``to_netcdf``. The
+    progress bar still animates in place during a long ``to_netcdf`` — verbatim
+    in SHAPE, that is, less the handful of high-volume boilerplate rows
+    ``_TEE_CONSOLE_MUTED`` drops from the console and keeps in the file. The
     ``logfile`` sink instead receives each line *after* carriage-return overwrite
     (see ``_cr_overwrite``), so the persisted log keeps only the final rendered
     state of an in-place-updated line rather than every redraw. Partial (not yet
@@ -2143,8 +2231,12 @@ class _Tee:
         )
         # Painted, but still verbatim in shape -- `_paint_body` passes a
         # carriage-return chunk straight through, so the live console animation
-        # this sink exists to preserve is untouched.
-        self._live.write(_paint_body(out, self._colour))
+        # this sink exists to preserve is untouched. A muted line skips the
+        # console and takes the log-file path below unchanged: this is the one
+        # place the two sinks are allowed to differ in CONTENT rather than in
+        # formatting, and the durable record is the one that keeps everything.
+        if not _muted_on_console(out):
+            self._live.write(_paint_body(out, self._colour))
         # After close the console is still open and still the right place for
         # this text; only the log file is gone. Writing to a closed file raises
         # ValueError, and a raise HERE is the expensive kind: these late writes
@@ -2862,6 +2954,14 @@ def _paint_body(text, colour):
 # is parsed per process, so a name maps to one number.
 _RULE_NUMBERS = {}
 
+# Rule name -> its constant ``summary`` clause, filled by the same call. The
+# console handler prints that clause on a rule's FIRST start line only and trims
+# it from the rest (see ``_ConsoleHandler._start_line``), which needs the exact
+# substring ``rule_banner`` inserted -- so it is recorded here rather than
+# recovered by splitting the assembled banner on its separators. A rule with no
+# summary is absent, and trimming then does nothing.
+_RULE_SUMMARIES = {}
+
 
 def rule_id(number):
     """Return a rule number in the console's spelling: ``Rule 1.08:``.
@@ -2911,6 +3011,13 @@ def rule_banner(number, name, context=None, summary=None):
     A rule with no wildcards may still pass a constant context; only the
     *interpolation* needs a wildcard, not the suffix itself.
 
+    The context is BRACKETED (``[rlz 1 | st 2]``). Without ANSI -- a pipe, a
+    redirect, CI -- the banner's fields rest on nothing but ``-`` and a double
+    space, and the trimming described below removes the ``-`` from most start
+    lines, leaving two adjacent runs of text separated by whitespace alone.
+    Brackets keep the qualifier separable in every one of the three
+    destinations, at the cost of two characters.
+
     ``summary`` is a plain-language clause saying what the rule DOES, for the
     rules a person waits on: ``1.14  run_wflow`` is an identifier, and someone
     watching a multi-hour run should not have to know the codebase to read the
@@ -2919,6 +3026,16 @@ def rule_banner(number, name, context=None, summary=None):
     fast ones already say by name, and the value is precisely in the rules where
     you are waiting and wondering. It is constant, so unlike ``context`` it must
     not contain a wildcard.
+
+    Being constant is exactly why the CONSOLE prints it once per rule and not
+    once per job: the long-running rules are also the FANNED-OUT ones, so a
+    summary reprinted per member is the same sentence on every line of the
+    longest stretch of a WF3 run — 400 identical clauses on a 10 x 20 grid,
+    since rules 3.12 and 3.14 are one job per member. The string returned here
+    is unchanged and always carries it; ``_ConsoleHandler._start_line`` does the
+    trimming, because the other two destinations want the whole sentence on
+    every line. The log file is grepped a line at a time, and a ``JOB_ERROR``
+    block is read in isolation from whatever scrolled past hours earlier.
 
     Order is ``Rule <number>: <name> - <summary>  <context>``: identifier first
     because it is what the log filenames, the benchmark table and this file's
@@ -2932,15 +3049,19 @@ def rule_banner(number, name, context=None, summary=None):
 
     Side effect: records ``name -> number`` in ``_RULE_NUMBERS`` so
     :func:`install_console_style` can put the number on a job's FINISH line,
-    which Snakemake reports by rule name only. See that registry's comment.
+    which Snakemake reports by rule name only, and ``name -> summary`` in
+    ``_RULE_SUMMARIES`` for the once-per-rule trimming above. See those
+    registries' comments.
     """
     _RULE_NUMBERS[name] = str(number)
+    if summary:
+        _RULE_SUMMARIES[name] = summary
     tag = f"{rule_id(number)} {name}"
     if summary:
         tag = f"{tag} - {summary}"
     if not context:
         return tag
-    return f"{tag}  {context}"
+    return f"{tag}  [{context}]"
 
 
 def format_elapsed(seconds):
@@ -3090,20 +3211,46 @@ _CONSOLE_MUTED_PREFIXES = (
 
 
 def _console_wildcards(wildcards):
-    """Render a job's wildcards in the banner's own grammar (``rlz 1 | st 0``).
+    """Render a job's wildcards in the banner's own grammar (``[rlz 1 | st 0]``).
 
     Snakemake's ``format_wildcards`` spells these ``rlz=1, st=0``; the finish
     line sits directly under a start line whose context clause reads
-    ``rlz 1 | st 0``, and two spellings of one fact on adjacent lines is exactly
-    the inconsistency the console work has been removing. Derived from the
+    ``[rlz 1 | st 0]``, and two spellings of one fact on adjacent lines is
+    exactly the inconsistency the console work has been removing. That includes
+    the brackets :func:`rule_banner` puts around its context. Derived from the
     job's wildcards rather than parsed back out of the banner, so no prose is
     ever parsed.
+
+    A trailing ``_num`` is DROPPED from the key, and that is what makes the
+    claim above true rather than merely intended. The wildcard is ``rlz_num``
+    because `dev/reference/naming.md` says a count-or-index field carries the
+    suffix; every banner context in WF3 writes ``rlz {wildcards.rlz_num}``,
+    dropping it because on a console the column header and the value are
+    adjacent and the suffix says nothing the value does not. Until this, the
+    start line said ``[rlz 1 | st 2]`` and the finish line under it said
+    ``[rlz_num 1 | st_num 2]`` — one fact, two spellings, which is the exact
+    defect this function's own docstring claimed to have fixed. The convention
+    is now stated in one place instead of being restated per banner.
     """
     try:
         items = list(wildcards.items())
     except AttributeError:
         return ""
-    return " | ".join(f"{key} {value}" for key, value in items)
+    if not items:
+        return ""
+    fields = " | ".join(f"{_console_wildcard_key(key)} {value}" for key, value in items)
+    return f"[{fields}]"
+
+
+def _console_wildcard_key(key):
+    """``rlz_num`` -> ``rlz``: the console's spelling of an index wildcard.
+
+    Only a TRAILING ``_num``, and only when something is left of it, so a
+    wildcard actually named ``num`` keeps its name.
+    """
+    return (
+        key[: -len("_num")] if key.endswith("_num") and len(key) > len("_num") else key
+    )
 
 
 class _ConsoleHandler(logging.StreamHandler):
@@ -3118,6 +3265,15 @@ class _ConsoleHandler(logging.StreamHandler):
 
         23:26:44 - RUN  Rule 3.11: generate_weather_realizations - generate ...
         23:27:14 - DONE Rule 3.11: generate_weather_realizations  0:00:30  [8/37]
+
+    On a FANNED-OUT rule the summary clause is printed on the first member only
+    and trimmed from the rest (:meth:`_trim_summary`), so the run's longest
+    stretch reads as a list of members rather than one sentence restated a few
+    hundred times::
+
+        16:16:57 - RUN  Rule 3.14: downscale_climate_realization - downscale ...  [rlz 2 | st 0]
+        16:16:57 - RUN  Rule 3.14: downscale_climate_realization  [rlz 2 | st 2]
+        16:16:58 - RUN  Rule 3.14: downscale_climate_realization  [rlz 2 | st 3]
 
     The stamp is followed by ``- `` and a padded marker, so these lines open in
     the same grammar as every row :func:`log_row` and the tee emit between them
@@ -3175,6 +3331,12 @@ class _ConsoleHandler(logging.StreamHandler):
             self.addFilter(inherited)
         self._started = {}  # jobid -> (rule name, wildcards, monotonic start)
         self._finished = []  # jobids awaiting the progress record's counter
+        # Rule names whose summary clause has already been printed once. Held on
+        # the INSTANCE, unlike `_RULE_NUMBERS`/`_RULE_SUMMARIES`, which are
+        # module-level and outlive one workflow: `run_workflows.py` drives four
+        # Snakefiles, and a shared set would give the second and later ones a
+        # console on which no summary was ever printed at all.
+        self._summarized = set()
         self._emit_lock = threading.Lock()
         isatty = getattr(self.stream, "isatty", None)
         self._color = bool(isatty and isatty()) and not os.environ.get("NO_COLOR")
@@ -3282,7 +3444,41 @@ class _ConsoleHandler(logging.StreamHandler):
             # input/output/jobid, which is the whole of what a reader gets for
             # that rule -- reshaping it into one line would delete it.
             return self.format(record)
+        message = self._trim_summary(fields.get("rule_name"), message)
         return self._paint(f"{self._now()} - {_MARKER_RUN} {message}", _ANSI_RUN)
+
+    def _trim_summary(self, rule_name, message):
+        """Drop the rule's constant summary clause after its FIRST start line.
+
+        The clause says what the rule DOES, which is a fact about the RULE and
+        not about the job -- so on a fanned-out rule it is the same sentence on
+        every line for the length of the fan-out. Printed once, the reader has
+        it; repeated, it is the widest column on screen carrying no per-job
+        information. What remains is ``Rule 3.14: downscale_climate_realization
+        [rlz 2 | st 2]``, which is the grammar :meth:`_done_line` already builds
+        -- it has never carried a summary -- so the pair converges rather than
+        the start line acquiring a format of its own.
+
+        Removal is by the EXACT substring ``rule_banner`` inserted, looked up by
+        rule name in ``_RULE_SUMMARIES``. Nothing is parsed out of the assembled
+        message: a rule whose banner was built some other way is simply absent
+        from the registry and prints unchanged, which is also what happens if
+        the two ever fall out of step.
+
+        Keyed on the rule NAME, so WF3's per-batch rules (``run_wflow_batch_1``,
+        ``_2``, ...) are distinct rules and each prints its summary once. That
+        is a handful of lines on a run, and it is deliberate: they are separate
+        rules with separate numbers everywhere else on this console.
+        """
+        if not rule_name:
+            return message
+        if rule_name not in self._summarized:
+            self._summarized.add(rule_name)
+            return message
+        summary = _RULE_SUMMARIES.get(rule_name)
+        if not summary:
+            return message
+        return message.replace(f" - {summary}", "", 1)
 
     def _drain(self, done, total):
         if not self._finished:

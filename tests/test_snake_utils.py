@@ -848,12 +848,81 @@ def test_heartbeat_reports_systemexit_zero_as_done(tmp_path, capsys):
     # A `script:` module ends its cache-hit path with `raise SystemExit(0)`, which
     # IS a success -- Snakemake reports the job Finished. The console summary must
     # agree; it used to print "failed after" on every cached WF2 fetch.
+    #
+    # The sleep is REQUIRED, not padding: the success verdict is printed only
+    # once the watchdog has beeped (`_Heartbeat.stop`), so a job that returns
+    # before the first interval prints nothing at all and this test would assert
+    # on whether the machine happened to be slow.
     log = tmp_path / "rule.log"
     with pytest.raises(SystemExit):
         with tee_to_log(log, heartbeat_interval=0.05):
+            time.sleep(0.16)
             raise SystemExit(0)
     err = capsys.readouterr().err
     assert "done in" in err and "failed after" not in err
+
+
+def test_tee_mutes_the_catalog_line_on_the_console_but_keeps_it_in_the_log(
+    tmp_path, capsys
+):
+    """Nine parallel jobs read the same two catalogs and say so eighteen times.
+
+    Each job is its own process, so no in-process buffer can collapse them --
+    muting the console copy is the only lever, and the log part is where the
+    question "what did this job read?" is actually answered.
+    """
+    # Written as `logging.StreamHandler.emit` writes -- `msg + terminator` in ONE
+    # call -- because that is the emitter this mute exists for, and it is the
+    # only shape the predicate accepts. `print` splits the text and the newline
+    # into two writes, which is a partial chunk and therefore prints, by design.
+    log = tmp_path / "rule.log"
+    with tee_to_log(log, heartbeat_interval=0):
+        sys.stdout.write(
+            "14:02:03 - data_catalog - Parsing data catalog from a/b.yml\n"
+        )
+        sys.stdout.write("14:02:03 - data_catalog - Resolved 12 sources\n")
+    out = capsys.readouterr().out
+    logged = log.read_text(encoding="utf-8")
+    assert "Parsing data catalog from" not in out
+    assert "Parsing data catalog from a/b.yml" in logged
+    # Only the muted row goes; its neighbours from the same module stay.
+    assert "Resolved 12 sources" in out and "Resolved 12 sources" in logged
+
+
+def test_tee_mute_never_silences_a_warning_or_a_partial_write(tmp_path, capsys):
+    """A prefix muted for VOLUME must not be able to hide a raised level.
+
+    `_log_row_text` renders INFO by omitting the level, so a WARNING row carries
+    a third field and cannot match. A chunk that is not exactly one terminated
+    line cannot match either -- a tee is handed chunks, not lines.
+    """
+    log = tmp_path / "rule.log"
+    with tee_to_log(log, heartbeat_interval=0):
+        sys.stdout.write(
+            "14:02:03 - data_catalog - WARNING - "
+            "Parsing data catalog from a/b.yml failed\n"
+        )
+        sys.stdout.write("14:02:03 - data_catalog - Parsing data catalog from c.yml")
+        sys.stdout.write("\n")
+    out = capsys.readouterr().out
+    assert "WARNING" in out and "failed" in out
+    assert "Parsing data catalog from c.yml" in out  # split write, so not matched
+
+
+def test_heartbeat_says_nothing_when_a_quiet_job_simply_finishes(tmp_path, capsys):
+    """The DONE line already carries this job's identity and its duration.
+
+    A watchdog that never beeped has nothing to close, so its `done in` was a
+    second duration in a second grammar for every member of a fan-out -- and
+    printed from the job's own process, so it did not even land beside the
+    Snakemake line it repeated.
+    """
+    log = tmp_path / "rule.log"
+    with tee_to_log(log, heartbeat_interval=10.0):  # never fires
+        print("real output the console still wants")
+    err = capsys.readouterr()
+    assert "done in" not in err.err and "done in" not in err.out
+    assert "real output the console still wants" in err.out
 
 
 def test_heartbeat_still_reports_real_failures(tmp_path, capsys):
@@ -1583,7 +1652,7 @@ def test_console_finish_line_carries_number_wildcards_elapsed_and_counter():
         _job_info(
             3,
             "downscale_climate_realization",
-            "Rule 3.14: downscale_climate_realization  rlz 1 | st 0",
+            "Rule 3.14: downscale_climate_realization  [rlz 1 | st 0]",
             {"rlz": "1", "st": "0"},
         ),
     )
@@ -1599,13 +1668,13 @@ def test_console_finish_line_carries_number_wildcards_elapsed_and_counter():
     done = out.splitlines()[1]
     assert re.fullmatch(
         r"\d\d:\d\d:\d\d - DONE Rule 3\.14: downscale_climate_realization  "
-        r"rlz 1 \| st 0  0:01:11  \[27/37\]",
+        r"\[rlz 1 \| st 0\]  0:01:11  \[27/37\]",
         done,
     ), done
 
 
 def test_console_finish_line_uses_the_banner_wildcard_grammar():
-    """`rlz 1 | st 0`, not Snakemake's `rlz=1, st=0` -- one grammar, two lines."""
+    """`[rlz 1 | st 0]`, not Snakemake's `rlz=1, st=0` -- one grammar, two lines."""
     handler = _console_handler()
     out = _emit(
         handler,
@@ -1613,7 +1682,36 @@ def test_console_finish_line_uses_the_banner_wildcard_grammar():
         _console_record(event="job_finished", job_id=1),
         _console_record(event="progress", done=1, total=1),
     )
-    assert "rlz 1 | st 0" in out and "rlz=1" not in out
+    assert "[rlz 1 | st 0]" in out and "rlz=1" not in out
+
+
+def test_console_finish_line_drops_the_num_suffix_the_banner_drops():
+    """`rlz_num` is the WILDCARD's name; `rlz` is the console's, on both lines.
+
+    WF3's banners write `rlz {wildcards.rlz_num}`, so a finish line rendering
+    the raw key put `[rlz_num 1 | st_num 2]` directly under `[rlz 1 | st 2]` --
+    one fact in two spellings, which is what this grammar exists to prevent.
+    """
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _job_info(1, "r", "x", {"rlz_num": "1", "st_num": "2"}),
+        _console_record(event="job_finished", job_id=1),
+        _console_record(event="progress", done=1, total=1),
+    )
+    assert "[rlz 1 | st 2]" in out and "rlz_num" not in out
+
+
+def test_console_finish_line_keeps_a_wildcard_actually_named_num():
+    """Only a TRAILING `_num` with something in front of it is a suffix."""
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _job_info(1, "r", "x", {"num": "7", "num_bands": "3"}),
+        _console_record(event="job_finished", job_id=1),
+        _console_record(event="progress", done=1, total=1),
+    )
+    assert "[num 7 | num_bands 3]" in out
 
 
 def test_console_a_wave_of_finishes_counts_up_to_the_progress_total():
@@ -1808,7 +1906,7 @@ def test_rule_banner_never_colours_even_on_a_tty():
         out = _su.rule_banner("1.09", "run_wflow", summary="run it", context="rlz 1")
     finally:
         sys.stderr = real
-    assert out == "Rule 1.09: run_wflow - run it  rlz 1"
+    assert out == "Rule 1.09: run_wflow - run it  [rlz 1]"
     assert "\033" not in out
 
 
@@ -1860,6 +1958,95 @@ def test_rule_banner_registers_its_number_for_the_finish_line(monkeypatch):
     monkeypatch.setattr(sys, "stderr", io.StringIO())
     rule_banner("2.07", "a_freshly_named_rule")
     assert su._RULE_NUMBERS["a_freshly_named_rule"] == "2.07"
+
+
+def test_rule_banner_registers_its_summary_for_the_once_per_rule_trim(monkeypatch):
+    """The console trims by the EXACT clause inserted here, never by parsing."""
+    monkeypatch.setattr(sys, "stderr", io.StringIO())
+    rule_banner("2.08", "a_summarized_rule", summary="do the slow thing")
+    assert su._RULE_SUMMARIES["a_summarized_rule"] == "do the slow thing"
+    # A rule without one stays absent, so the trim has nothing to remove.
+    rule_banner("2.09", "a_bare_rule")
+    assert "a_bare_rule" not in su._RULE_SUMMARIES
+
+
+def test_rule_banner_brackets_its_context():
+    """Without ANSI the fields rest on whitespace alone once the summary goes."""
+    assert rule_banner("3.14", "downscale", context="rlz 1 | st 0").endswith(
+        "  [rlz 1 | st 0]"
+    )
+
+
+def test_console_prints_a_rule_summary_once_and_trims_it_from_the_fan_out():
+    """A constant clause on 400 fan-out lines is the widest column saying least."""
+    su._RULE_NUMBERS["downscale_climate_realization"] = "3.14"
+    su._RULE_SUMMARIES["downscale_climate_realization"] = "downscale the climate"
+    handler = _console_handler()
+    banner = "Rule 3.14: downscale_climate_realization - downscale the climate"
+    out = _emit(
+        handler,
+        _job_info(1, "downscale_climate_realization", f"{banner}  [rlz 2 | st 0]"),
+        _job_info(2, "downscale_climate_realization", f"{banner}  [rlz 2 | st 2]"),
+        _job_info(3, "downscale_climate_realization", f"{banner}  [rlz 2 | st 3]"),
+    )
+    first, second, third = out.splitlines()
+    assert first.endswith(
+        "RUN  Rule 3.14: downscale_climate_realization "
+        "- downscale the climate  [rlz 2 | st 0]"
+    ), first
+    for line, context in ((second, "[rlz 2 | st 2]"), (third, "[rlz 2 | st 3]")):
+        assert line.endswith(
+            f"RUN  Rule 3.14: downscale_climate_realization  {context}"
+        ), line
+        # The identity survives: one grep on `3.14` still finds every member.
+        assert "downscale the climate" not in line, line
+
+
+def test_console_summary_trim_is_per_rule_not_global():
+    """Each rule gets its own first line; one rule's does not consume another's."""
+    su._RULE_SUMMARIES["rule_a"] = "do a"
+    su._RULE_SUMMARIES["rule_b"] = "do b"
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _job_info(1, "rule_a", "Rule 9.01: rule_a - do a"),
+        _job_info(2, "rule_b", "Rule 9.02: rule_b - do b"),
+        _job_info(3, "rule_a", "Rule 9.01: rule_a - do a"),
+    )
+    first, second, third = out.splitlines()
+    assert first.endswith("Rule 9.01: rule_a - do a"), first
+    assert second.endswith("Rule 9.02: rule_b - do b"), second
+    assert third.endswith("Rule 9.01: rule_a"), third
+
+
+def test_console_summary_seen_set_is_per_handler_not_module_level():
+    """`run_workflows.py` drives four Snakefiles; the registries outlive one run.
+
+    A module-level seen-set would leave the second and later workflows with a
+    console on which no summary was ever printed -- so the state that says
+    "already shown" belongs to the handler, like `_started`.
+    """
+    su._RULE_SUMMARIES["shared_rule"] = "do the thing"
+    banner = "Rule 9.03: shared_rule - do the thing"
+    first_run = _emit(_console_handler(), _job_info(1, "shared_rule", banner))
+    second_run = _emit(_console_handler(), _job_info(1, "shared_rule", banner))
+    assert first_run.rstrip().endswith(banner), first_run
+    assert second_run.rstrip().endswith(banner), second_run
+
+
+def test_console_leaves_a_summaryless_rule_alone_on_every_line():
+    """An unregistered rule is the fail-open case: print exactly what came in."""
+    handler = _console_handler()
+    su._RULE_SUMMARIES.pop("unregistered_rule", None)
+    out = _emit(
+        handler,
+        _job_info(1, "unregistered_rule", "Rule 9.04: unregistered_rule - do it"),
+        _job_info(2, "unregistered_rule", "Rule 9.04: unregistered_rule - do it"),
+    )
+    assert all(
+        line.endswith("Rule 9.04: unregistered_rule - do it")
+        for line in out.splitlines()
+    ), out
 
 
 def test_install_console_style_replaces_only_the_stream_handler(monkeypatch):

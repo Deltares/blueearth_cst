@@ -1067,7 +1067,10 @@ def _member_span(members):
 for _b, _members in _batches.items():
     rule:
         name: f"run_wflow_batch_{_b}"
-        message: rule_banner("3.15", f"run_wflow_batch_{_b}", f"{len(_members)} members | {_member_span(_members)}", summary="run Wflow for this batch of members")
+        # "one batch", not "this batch of members": the context clause beside it
+        # already says how many members and which, so the longer wording spent
+        # the widest column on the console restating its own neighbour.
+        message: rule_banner("3.15", f"run_wflow_batch_{_b}", f"{len(_members)} members | {_member_span(_members)}", summary="run Wflow for one batch")
         input:
             forcing = [f"{runs_dir}/forcing/inmaps_rlz_{rlz_ix(r)}_st_{st_ix(c)}.nc"
                        for (r, c) in _members],
