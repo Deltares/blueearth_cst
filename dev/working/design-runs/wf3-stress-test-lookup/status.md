@@ -5,7 +5,7 @@ genre: workflow-spec
 author-binding: cst-architect
 started: 2026-08-15
 variant: full
-stage: G2
+stage: 7-finalize (landed; derived artifacts pending)
 external-rounds-completed: 2
 dispatches:
   opus: 7
@@ -18,7 +18,7 @@ findings:
   re-raised: 2         # ext1-2 vs risk-2; ext2-3 faults the accepted fix for ext1-4/risk-1
 gates:
   G1: approved 2026-08-15; returned 2026-08-15, both forks ruled same day (seam placement -> WG-2; library caller -> accept, complete the contract text)
-  G2: pending
+  G2: approved 2026-08-15
 flags: [seeded-from-existing-draft, stage-1-authorized-alone,
         fable-escalation-declined-r2, status-log-gap-repaired]
 ---
@@ -450,7 +450,62 @@ flags: [seeded-from-existing-draft, stage-1-authorized-alone,
   for a fixture that builds its config programmatically. It stays a §8 step-5b
   sweep item, stated as unproven rather than waved through.
 
-- [open] G2 — approval gate, awaiting the owner
+- [done] G2 — **approved 2026-08-15** (owner), on `design-v4.md`
+
+  Approved as written: §5's selected approach (**D1–D35**), both drop-in contract
+  replacements (**§5.7 WG-2**, **§5.8 HM-7**), the migration plan (**§8**) and the
+  validation plan (**§9**, V1–V23). No editorial change requests.
+
+  **The approval was put AFTER the scope check and the scoped verification pass,
+  not before.** Both ran clean at the stage-6a entry above and are committed at
+  `d3b4730`. This matters for the record: round 2 was the cap, so `design-v4.md`
+  carries no reviewer verdict, and that pass is the only thing standing where one
+  would be. The approval is therefore unconditional and **not** a waiver — the
+  invariant that no content reaches G2 unreviewed was satisfied, not deferred.
+
+  **Four residual rulings, all taken at this gate:**
+
+  | Item | Ruling |
+  |---|---|
+  | **P2-b** — a code read where the stage-0 register specified an execution | **Accepted as sufficient.** The claims are structural (which rules declare which inputs; what `fingerprint_yaml` hashes), not timing observations. Driver-held since round 1 and deliberately withheld from both external briefs, so it reached the gate unprompted by either reviewer |
+  | **R13**'s escalation condition | **Closed as a migration-once exposure** — no known project runs a `step_num: 5`-class grid |
+  | **D35**'s config-surface narrowing | **Confirmed.** The only v4 change that narrows what a project may declare; costs nothing today, all five shipped configs sit at 0.7 |
+  | **OQ-2 / OQ-3 / OQ-4** | **Confirmed deferred** — the projection overlay, `st_0`'s health warning (`t2608151154`'s territory), and a third perturbation parameter (C28 refuses it) |
+
+  **Carried to implementation, not closed by approval:** **R1**, the pre-change
+  baseline re-record, which is a *prerequisite* rather than a commit — every step
+  landing before it is permanently ungateable; and **R2**, the replaced artifact
+  never having been a manifest target, so coverage is unit tests plus
+  `validate_hm7` rather than `check_baseline`.
+
+- [done] 7-finalize — **lean path, no author spawn** (no editorial edits pending)
+
+  Landed under `dev/milestones/r12/`, the directory `architecture-10` found
+  already exists and where the design's own migration note is specified to file:
+
+  | Artifact | Landed as |
+  |---|---|
+  | The accepted design | `stress-test-lookup-design.md` (2945 lines) |
+  | The stage-0 intake | `stress-test-lookup-intake.md`, unedited |
+  | The consolidated review record | `stress-test-lookup-review-record.md` (1741 lines) |
+
+  The **ACCEPTED header swap is a logged editorial edit** — the 91-line draft
+  status block became a 38-line accepted one carrying the gate history, the two
+  G1-return forks, the four G2 residual rulings, and R1/R2 as named
+  implementation obligations.
+
+  **The review record is what makes the run dir prunable.** It carries the verdict
+  table, all five reviewer outputs verbatim, the aggregation index with its
+  conflicts section, the closed 35-row ledger, the immutable review brief, and the
+  process log — plus a "what the loop caught that the author and driver did not"
+  section, because a run's cost is only justifiable against what it found.
+
+  **Citation repoint verified, not assumed.** The landed design initially carried
+  **seven** references to run-dir artifacts (`design-v1.md`, `ledger.md`,
+  `external-review-r*.md`, `status.md`); all seven were repointed to the review
+  record and a re-grep returns **0**. That check is in the skill's verification
+  list precisely because a landed design quietly citing a pruned scratch file is
+  the failure mode.
 
   Confined to `ext2-1`, `ext2-2`, `ext2-3`. The driver scope-checks the diff
   against exactly those IDs, then runs the **scoped verification pass** over any
