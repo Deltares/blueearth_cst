@@ -151,10 +151,18 @@ model runs deferred to a follow-on), and the existing rule digits 1/2/3 stay put
 - [ ] Station/subregion sampling + observation comparison (rules 0.06–0.08).
       Needs two new WF0-owned config keys, `climate_locations` and
       `climate_locations_timeseries`, plus their csv templates.
-- [ ] Budyko screening (rule 0.09). **BLOCKED on design O-2**: it needs the
-      observed discharge series, currently `workflows.build_model.
-      observations_timeseries`. Two workflows reading it argues for `shared:`,
-      but that is a second breaking config change within a day of the rename.
+- [ ] Budyko screening (rule 0.09). **O-2 RULED 2026-08-15: option A** —
+      `observations_timeseries` moves from `workflows.build_model` to `shared:`,
+      beside `shared.basin.gauge_points`. Rejected: having WF0 read WF1's section
+      (breaks the `CONFIG_PROJECTION` model, so a WF1-only edit would re-fire
+      WF0's run record) and duplicating the key (the `output_locations` /
+      `gauge_points` scar). Fold the move into the rename migration note —
+      one breaking config change, not two.
+- [x] `workflows.run_stress_test.stress_test` naming — **keep as is.**
+      *Recommendation, not an owner ruling.* The doubled word reads oddly, but
+      `stress_test` is the name of a real artifact (`stress_test_design.csv`),
+      helper (`stress_test_grid()`) and count (`ST_NUM`); renaming the key would
+      leave it spelled differently from everything it produces.
 - [ ] Multi-forcing model runs — **deferred out of this item** by the 2026-08-14
       ruling. Raise as its own note at Landing B's closure.
 - [ ] Follow-ons: SPI/dry-day/heat-day indices; MODIS snow cover.
