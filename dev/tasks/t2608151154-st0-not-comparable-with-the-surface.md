@@ -51,6 +51,21 @@ to +0.0000%** (`enforce_target_mean` is per-month), while the tail compresses �
 single max day −32.9%, max 7-day sum −19.9%. The rainfall–runoff model then
 amplifies that into the low-flow column above.
 
+## Independent corroboration: the v2 design already encoded it
+
+Found 2026-08-15 while drawing the R12 boundary. `design-v4.md` §6.6 (on
+`docs/wf3-redesign`, cited by path) gives `baseline: true` members their **own
+branch of the member lifecycle**: `st_csv: null`, `precip_variance: null`, *no
+spec write, no perturb step*, downscale directly from the persistent
+`realizations[].baseline_nc`.
+
+So the separate production path this item reports is not an accident of the
+current rules — an independent design run formalized it as a first-class
+lifecycle branch. What that run did **not** do is recognise it as a comparability
+problem: a member that skips the perturbation is not on the same footing as one
+that does not, and the design treats the branch purely as an execution shortcut.
+That makes this item a live input to `t2608082036` rather than a bystander.
+
 ## Three things to carry
 
 - **Why it has gone unnoticed.** `st_0` sits *inside* the member envelope for

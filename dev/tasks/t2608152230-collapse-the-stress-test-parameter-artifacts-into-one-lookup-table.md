@@ -5,7 +5,7 @@ status: backlog
 effort: 2
 area: wf3 / stress-test design + reduction
 origin: R12
-queue:
+queue: 1
 created: 2026-08-15
 updated: 2026-08-15
 ---
@@ -78,6 +78,12 @@ Rulings, all owner, 2026-08-15:
 ## Refs
 
 - `dev/reference/contracts/hydrological-model-seam.md` — HM-7.
+- **t2608082036 depends on this item, and the order is ruled** (owner,
+  2026-08-15): this lands first. R12's `member_hash` currently indexes members by
+  `tavg`/`prcp`/`precip_variance` — *the annual collapse this item abolishes* —
+  so its member-identity re-derivation must follow and key on the monthly lookup
+  rows instead. That is why this item is queue 1 and `t2608082036` moved to 2.
+  Full reasoning in the design note §7b.
 - **t2608151154** — `st_0` is not method-comparable with the surface. Split out of
   this item on 2026-08-15 because it is a live pipeline property rather than part
   of the redesign. Not a blocker here; it is what the §5 caveat points at.
