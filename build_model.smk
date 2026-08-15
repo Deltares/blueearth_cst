@@ -1262,8 +1262,10 @@ def _summary(failed):
     the worst possible trade for a convenience.
     """
     try:
-        print(
-            run_summary(
+        # One write, blank line before it -- see the note on WF3's `_summary`.
+        sys.stderr.write(
+            "\n"
+            + run_summary(
                 "wf1 build_model",
                 project_dir,
                 WORKFLOW_LOG_NAME,
@@ -1271,8 +1273,8 @@ def _summary(failed):
                 elapsed_seconds=time.monotonic() - _RUN_STARTED,
                 failed=failed,
                 log_parts_dir=LOG_PARTS_DIR,
-            ),
-            file=sys.stderr,
+            )
+            + "\n"
         )
     except Exception as exc:  # noqa: BLE001 -- never break a run over a banner
         print(f"(run summary unavailable: {exc})", file=sys.stderr)
@@ -1291,10 +1293,10 @@ def _header():
     at the call site would not.
     """
     try:
-        # One write, carrying its own trailing blank line -- see the note on
+        # One write, carrying a blank line on both sides -- see the note on
         # WF3's `_header`, which this mirrors.
         sys.stderr.write(
-            run_header("wf1 build_model", project_dir, config_path) + "\n\n"
+            "\n" + run_header("wf1 build_model", project_dir, config_path) + "\n\n"
         )
     except Exception as exc:  # noqa: BLE001 -- never break a run over a banner
         print(f"(run header unavailable: {exc})", file=sys.stderr)

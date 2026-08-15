@@ -1256,8 +1256,12 @@ def _summary(failed):
     the worst possible trade for a convenience.
     """
     try:
-        print(
-            run_summary(
+        # Leading blank line for the same reason `_header` has one: this is the
+        # LAST thing on the console and it must not open flush against
+        # Snakemake's own `Complete log(s):`. One write, as there.
+        sys.stderr.write(
+            "\n"
+            + run_summary(
                 "wf3 run_stress_test",
                 project_dir,
                 WORKFLOW_LOG_NAME,
@@ -1265,8 +1269,8 @@ def _summary(failed):
                 elapsed_seconds=time.monotonic() - _RUN_STARTED,
                 failed=failed,
                 log_parts_dir=LOG_PARTS_DIR,
-            ),
-            file=sys.stderr,
+            )
+            + "\n"
         )
     except Exception as exc:  # noqa: BLE001 -- never break a run over a banner
         print(f"(run summary unavailable: {exc})", file=sys.stderr)
@@ -1285,14 +1289,19 @@ def _header():
     at the call site would not.
     """
     try:
-        # ONE write, and it carries its own trailing blank line. `print` issues
-        # the text and the newline as two separate writes, and Snakemake's next
-        # line goes to the OTHER stream -- so its `Job stats:` could land
-        # between them and the block ran on mid-row (`experiment_rapidJob
-        # stats:`, seen 2026-08-15). One write closes that window; the blank
-        # line separates the block from whatever follows it either way.
+        # ONE write, carrying its own blank line on BOTH sides: the block is
+        # the first thing this toolbox puts on the console and it must not open
+        # flush against Snakemake's preamble, nor close flush against its
+        # `Job stats:`. Spacing AROUND a block is the caller's business --
+        # `run_header` returns the block itself, which is what the tests pin.
+        #
+        # One write rather than `print`, which issues the text and the newline
+        # separately. Snakemake's next line goes to the OTHER stream, so it
+        # could land between the two and the block ran on mid-row
+        # (`experiment_rapidJob stats:`, seen 2026-08-15).
         sys.stderr.write(
-            run_header(
+            "\n"
+            + run_header(
                 "wf3 run_stress_test",
                 project_dir,
                 config_path,
