@@ -5,7 +5,7 @@ genre: workflow-spec
 author-binding: cst-architect
 started: 2026-08-15
 variant: full
-stage: 2-internal-panel
+stage: G1-return
 external-rounds-completed: 0
 dispatches:
   opus: 4
@@ -14,10 +14,10 @@ cost:
   expensive-checks: 3      # P1, P2, P3 — all executed, not argued
   doc-lines: "1231 -> 1231"
 findings:
-  unique: 0
+  unique: 26          # 2 blocking, 13 major, 11 minor
   re-raised: 0
 gates:
-  G1: approved 2026-08-15
+  G1: approved 2026-08-15; returned 2026-08-15 (two panel forks: seam placement, library caller)
   G2: pending
 flags: [seeded-from-existing-draft, stage-1-authorized-alone]
 ---
@@ -49,7 +49,7 @@ flags: [seeded-from-existing-draft, stage-1-authorized-alone]
      baseline manifest by an R11 ruling, so `check_baseline` says nothing about
      the correctness of the replacement. Carry to G2 as a named gap.
 
-- [open] 1-draft — author dispatched 2026-08-15 (`cst-architect`, opus, 1 spawn)
+- [done] 1-draft — author dispatched 2026-08-15 (`cst-architect`, opus, 1 spawn)
 
   Structural checks on the seed source FAIL (no `## Alternatives considered`, no
   genre sections), so stage 1 takes the restructure path rather than the
@@ -64,7 +64,7 @@ flags: [seeded-from-existing-draft, stage-1-authorized-alone]
   declared scope gaps as new normative content. It also carries P1–P3 (specify
   or run), and the instruction not to promote E9/E10 from hypothesis to fact.
 
-- [done] 1-draft — outputs: design-v1.md (1231 lines, D1–D24, S1–S11 carried)
+- [done] 1-draft (outcome) — outputs: design-v1.md (1231 lines, D1–D24, S1–S11 carried)
 
   **Driver structural checks pass.** Alternatives section non-empty (5 entries,
   each naming the condition under which it would become preferable); all eleven
@@ -116,14 +116,42 @@ flags: [seeded-from-existing-draft, stage-1-authorized-alone]
   question in §10 and is available to settle at G2, when the note's final content
   is fixed. It blocks nothing in stage 2 — it is a path, not a decision.
 
-- [open] 2-internal-panel — three lenses dispatched 2026-08-15 (opus ×3)
+- [done] 2-internal-panel — outputs: internal-review-risk.md,
+  internal-review-architecture.md, internal-review-repo-fit.md,
+  internal-review-index.md
 
-  risk (`critical-thinker`), architecture (`cst-architect`), repo fit
-  (`python-engineer`). Fresh spawns, no conversational memory, each given
-  `design-v1.md`, `intake.md` and the G1 record above. Marked `[open]` until all
-  three verdict files plus `internal-review-index.md` are on disk.
+  All three `revise` on `design-v1.md`. **26 findings: 2 blocking, 13 major,
+  11 minor.** No `IN_PROGRESS` placeholder survived; every verdict is inside the
+  enum and names a `doc_version` that exists.
 
-  Authorized as a single increment; nothing beyond stage 2 is authorized.
+  Both blocking findings are the same concern, reached independently: the design
+  deletes the artifact WG-2 pins and writes replacement text for HM-7 only.
+
+  Index carries three **severity divergences** (G4, G6, G7), one **factual
+  conflict** (G5 — does D14's "no in-repo consumer" hold?), and one adjacency
+  recorded so a clearance is not read as broader than it was (repo-fit cleared the
+  baseline `indicator` target; risk-9 then found a failure through the `yaml`
+  config-snapshot target).
+
+  **Two driver fact-checks**, both premises verified in the repo rather than
+  inferred: `risk-2`'s notebook consumer holds and is broader than filed (four
+  sites, not two), which resolves G5 as *compatible* — the notebook consumes the
+  artifact, the library still has no caller, both fixes are owed. And
+  `architecture-10` holds: `dev/milestones/r12/` already exists, so OQ-1 needs no
+  ruling to create anything.
+
+- [open] G1-return — **two forks returned to the owner before the revision is
+  dispatched**, per `stage-contracts.md` § Gate return from the panel
+
+  Fork A — where the lookup's schema is normatively defined (HM-7 vs WG-2): a
+  **scope** difference in the deliverable.
+  Fork B — whether the library gets a real in-repo caller: a **selected
+  alternative** difference, and it reopens D22 in one branch.
+
+  Returning is strictly cheaper than letting the author pick and discovering at G2
+  that the pick changed scope, with a revision already spent.
+
+  Stage 3 (revision r1) is **not** authorized.
 
 ## Variant
 
