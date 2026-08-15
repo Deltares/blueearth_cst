@@ -5,14 +5,14 @@ genre: workflow-spec
 author-binding: cst-architect
 started: 2026-08-15
 variant: full
-stage: 6a-arbitration-revision
+stage: G2
 external-rounds-completed: 2
 dispatches:
   opus: 7
   fable: 0
 cost:
-  expensive-checks: 4      # P1, P2, P3 executed; P2-b is a code read, flagged
-  doc-lines: "1231 -> 2615"
+  expensive-checks: 6      # P1, P2, P3, P2-b(code read), D35 probe, config-side check
+  doc-lines: "1231 -> 2998"
 findings:
   unique: 35          # panel 26 + ext1 6 + ext2 3
   re-raised: 2         # ext1-2 vs risk-2; ext2-3 faults the accepted fix for ext1-4/risk-1
@@ -403,7 +403,54 @@ flags: [seeded-from-existing-draft, stage-1-authorized-alone,
   Nothing was rejected, so no finding proceeds unfixed. Owner rulings now stand
   in for the reviewer verdict the cap forecloses.
 
-- [open] 6a-arbitration-revision — dispatched 2026-08-15 (`cst-architect`, opus)
+- [done] 6a-arbitration-revision — outputs: design-v4.md (2998 lines, was 2615),
+  ledger.md 35 rows (three appended). New IDs: **D35, E16, V22, V23**
+
+  The spawn hit a session limit mid-run and resumed to completion; the deliverable
+  is intact.
+
+  **Scope check — PASSES.** Compared v3→v4 section by section against the
+  author's declared list: 11 sections changed, 10 declared. The eleventh was an
+  **undeclared but benign relocation** — an 8-line "evidence still carried as
+  verified-elsewhere (E1–E8)" paragraph moved from the *Measured at v3* block into
+  the new *Measured at v4* block, byte-identical. Verified it survives rather than
+  assuming it: the string appears exactly once in each version. No headings
+  removed, no section outside the arbitrated IDs altered in substance.
+
+  **Scoped verification pass — PASSES, by measurement rather than by a reviewer
+  spawn.** D35 is the only new *mechanism*, and its claim is numerical, so a probe
+  is both cheaper and more decisive than another opinion. Reproduced independently
+  with D25's own conversion:
+
+  | domain | worst error |
+  |---|---|
+  | random `[0.5, 1.6]`, `[0.5, 10]`, `[0.5, 1e3]`, `[0.5, 1e6]` | **1 ulp** each |
+  | dense at all twelve percent-binade crossings ≥ 0.5 | **1 ulp** each |
+  | `[0.36, 0.5)` | 1 ulp — a full binade of headroom below the floor |
+  | `[0.25, 0.36)` | **2 ulp** — the first break, where D35 says it is |
+  | `[0.05, 0.25)` / `[0.01, 0.05)` / `[0.001, 0.01)` | 18 / 72 / 574 ulp |
+
+  Every figure matches the author's report. **The absence of a ceiling is
+  confirmed too** — the bound still measures 1 ulp at `1e6`, so a cap would refuse
+  configurations the arithmetic serves.
+
+  **Config-side check — no shipped config is refused.** All five (four seeds plus
+  `config/templates/snake_config.template.yml`) carry a minimum precip multiplier
+  of **0.7**, so D35's parse-time refusal cannot turn `test_cli.py` — a *required*
+  gate — red. Verified by parsing them, not by reading the author's claim.
+
+  **Ledger closure — 35 filed / 35 rows**, no missing, no extra, zero severity
+  mismatches, no `blocking` deferred. v1/v2/v3 untouched.
+
+  **One residual carried to G2, deliberately not closed.** The author flagged that
+  test fixtures constructing `stress_test:` blocks inline could trip D35 at
+  implementation time, and named it rather than editing for a hypothetical. A grep
+  of the three named fixtures found only `0.0` literals, all in temp-delta or
+  expected-value positions — suggestive that none is affected, but **not a proof**
+  for a fixture that builds its config programmatically. It stays a §8 step-5b
+  sweep item, stated as unproven rather than waved through.
+
+- [open] G2 — approval gate, awaiting the owner
 
   Confined to `ext2-1`, `ext2-2`, `ext2-3`. The driver scope-checks the diff
   against exactly those IDs, then runs the **scoped verification pass** over any

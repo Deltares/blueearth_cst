@@ -16,6 +16,11 @@ Appended at v3: round `ext1` — the six external-review findings (stage 4, file
 against `design-v2.md`). Sections below the horizontal rule cover that round; the
 26 rows above it are unchanged.
 
+Appended at v4: round `ext2` — the three external-review findings from the capped
+second round (stage 4, filed against `design-v3.md`), dispositioned under the
+**owner's arbitration** rather than under a reviewer verdict. Its section is the
+last one in this file; the 32 rows above it are unchanged.
+
 ## Dispositions
 
 | ID | Round | Severity | Disposition | Resolution or rationale | Doc version |
@@ -52,6 +57,9 @@ against `design-v2.md`). Sections below the horizontal rule cover that round; th
 | ext1-4 | ext1 | major | **accepted** (the "limit the claim" branch of an either/or fix; the end-to-end-experiment branch is **not taken**, with the reason recorded) | The conflation is real and v2's wording made it: §7-2 read "indicator values move by at most one `float64` ulp of the perturbation level, and are expected identical within the baseline comparator's tolerance" — a bound measured on the **reconstructed multiplier**, spent as a bound on **simulated indicators**. The finding's mechanism list is right, and this run's own origin is the standing precedent: it opened because two code paths were assumed equivalent on exact parameters, and E6 measured the transform at *unit* factors — zero parameter difference — moving the single-day precipitation maximum by **−32.9%** and E7 five of eleven `q` indicators by a factor. §7-2 is split accordingly: the ulp bound is stated for the multiplier (falsifiers V16, V20), indicator equality is claimed **only** where the forcing is bit-identical, which is every level of every shipped config including `snake_config_baseline.yml`, and for a non-exact grid **no output bound is claimed at all**. D25's closing paragraph is rewritten to the same scope. **The suggested fix's other branch — an end-to-end non-round-grid experiment with an empirically justified tolerance — is not taken**, and **R13** states why rather than leaving it implied: it requires a full WF3 run on a config no fixture carries, `check_baseline` cannot gate a tree it holds no reference for (R1/R2), and a tolerance derived from one run is an assertion wearing a number. The exposure is stated instead, scoped as **migration-once** rather than standing, with a G2 escalation condition. One by-product is a **stronger** V4 rule than v2's: because V4 runs on the baseline config alone, where the multiplier is bit-identical, D25's arithmetic cannot explain a failing group *at all* — v2's general "moved by more than one ulp" diagnosis embedded the same conflation in the opposite direction. No measurement is deleted; only the claim narrows. | design-v3.md |
 | ext1-5 | ext1 | major | **accepted** | The finding is right that V17 validated nothing: its claim is about the guard's behaviour on a malformed slice and its check was a WF3 run on the **valid** rapid config, which is green whether D29's `stop()` exists, is misspelled, or is absent. Worse, the negative executions it asks for **could not be written against v2's design** — the malformed-input path in `impose_climate_change.R` is reached only after the script reads the weathergen YAML and loads a realization netCDF through `weathergenr`, so every negative fixture would have needed the heaviest fixture in the repo. **D34** removes that: the read-filter-assert block becomes `blueearth_cst/weathergen/read_member_grid.R`, sourcing nothing (verified — `global.R` is options-only, so it is not even needed), which makes each fixture one `Rscript --vanilla -e 'source(...)'` with no netCDF and no package load. D29's semantics are untouched; only its location moves. V17 is rewritten to enumerate the fixtures rather than gesture at them, asserting **nonzero exit and the member-token diagnostic**. **One of the four suggested fixtures is re-classified rather than adopted as filed:** "unordered months" is not a failure case under D21, which orders by `month` before asserting — so it is specified as a **positive** twin (a shuffled valid slice returns the same frame in month order), leaving three negatives. Recorded here rather than silently dropped. The tests land in a **new** `tests/test_read_member_grid.py`, not in `tests/test_r_scripts.py`, whose module docstring declares itself syntax-only ("no evaluation, no side effects") — quietly violating a file's stated contract is the class of defect this run keeps catching. §8 step 2, §9's narrow-tier gate row and the migration note's machinery list all carry the new file, mirroring what `repo-fit-3` earned for `test_surface_axes.py`, and the gate row notes it **skips without `Rscript`**. | design-v3.md |
 | ext1-6 | ext1 | minor | **accepted** | Taken exactly as suggested and no further: the first clause becomes "`validate_wg2` **not** green on a valid `12 × ST_NUM` lookup". The other two clauses were correct falsifiers as filed and are kept verbatim. One clause is added while the row is open — green on a table mixing `st_id` widths — because D33 makes uniform width a pinned schema property that `validate_wg2` now checks, and a pinned property with no falsifier is what V15 exists to prevent. | design-v3.md |
+| ext2-1 | ext2 | blocking | **accepted per owner ruling** (arbitration 2026-08-15: *accepted, fix required*) | Premise confirmed by the driver before arbitration and re-read here at `design-v3.md:838-842`: D28 stated exactly two conditions — the `st_id` set **absent** from the lookup equals the baseline token, and `surface_df` non-empty — and neither constrains the *missing* direction. A stale or partial indicator table whose members are a strict **subset** of the lookup's satisfies both, so `join_axes` returned a **silently incomplete** response surface. That is worse than the failure D28 was introduced to catch: a mis-keyed join produces a visibly wrong shape, an incomplete one produces a plausible surface with holes — or a biased surface, if the missing members sit at one end of the grid. **Fix:** D28 rule 2 becomes **three ordered checks** — (a) `I \ L == {b}` → `BaselinePartitionError`; (b) **`I \ {b} == L`, set equality** → `SurfaceMemberMismatchError`; (c) `surface_df` non-empty → `BaselinePartitionError`, which now catches only the empty-lookup residue b cannot see. Given (a), the only way (b) fails is a lookup member missing from the indicators, so the message names the missing ids. **A second error class rather than widening the first**, because a missing member is not a baseline problem and a misnamed diagnostic is the mis-citation class this run has caught twice (D11 → D17, `architecture-7`'s scope clause); error names are contract surface here. **Mirrored into §5.8's report-time join semantics** as the same three checks, per the reviewer's suggested fix — HM-7 owns report-time join semantics under Fork A, and §5.7 is untouched. **V18 widened** with the missing-member case and `::test_missing_lookup_member_refused`, which is the fixture the reviewer asked for. One coherence by-product, recorded because it converts an aspiration into a fact: §5.3's standing sentence "`validate_hm7` is test-time only … D28 is the report-time tier" is now **true** — check b is that validator's completeness check 1 evaluated at report time. The duplication across tiers is deliberate and said so, since the validator runs in this repo and never at a consumer, and the consumer is where the surface is drawn (R9). **No new decision id:** this is a mechanism correction to an existing rule, which this document amends in place (the D3/D9/D11 precedent at v2); splitting one rule across two ids is the mis-citation hazard itself. | design-v4.md |
+| ext2-2 | ext2 | blocking | **accepted per owner ruling** (arbitration 2026-08-15: *accepted, fix required; orientation reversal stays legal*) | Confirmed on three sites of `design-v3.md`: `:490` makes `variable` a closed enum **per axis** with no cross-axis rule, `:760` keys `SurfaceJoin.axes` by variable, and `:850` names derived columns through `AXIS_COLUMN[variable]`. So `x: {variable: temp}, y: {variable: temp}` passed the schema while one `AxisResult` overwrote the other and both targeted `temp_change` — an **admitted configuration no conforming implementation can serve**. The finding's framing is what makes it easy to miss and is carried into the design: a closed key set plus a closed value enum still admits it, because both values are individually legal and only the **pair** is not. **Fix taken exactly as suggested:** §5.2 requires `{x.variable, y.variable} == {"temp", "precip"}` at parse time; **orientation reversal (`x: precip, y: temp`) stays legal** and gets its own must-not-refuse test twin, so the fix cannot be over-applied. D13 names the refusal (`DuplicateAxisVariableError`) and states why no per-field validator can reach it; D33 records that keying `axes` by variable is total **only** because of the rule, so the schema constraint and the result representation are one decision written in two places. **V22** is the negative parser test the finding asks for. The design also records **what the refusal costs** rather than letting it read as free: two month windows of the same variable on two axes become inexpressible — which needs a shape change to D33 and to `AXIS_COLUMN`, and is in any case not a response surface over this experiment, since D10's affinity argument makes two temperature axes affine images of each other (a line embedded in a plane). **Not mirrored into §5.7 or §5.8**: this is a project-config schema rule, not a property of either contract artifact, and restating it there would breach Fork A's one-artifact-described-once split. **No new decision id** — D8's schema and D13's parser are amended in place. | design-v4.md |
+| ext2-3 | ext2 | major | **accepted per owner ruling**, with the **shape of the fix ruled by the owner** (arbitration 2026-08-15: *impose a validated multiplier domain*; the domain-qualified-bound branch **declined**) | The finding holds and the driver's pre-arbitration check found it **worse than filed**: reproducing D25's own conversion verbatim, worst error over `[0.001, 2.0]` is **564 ulps** against a normative bound of one, the reviewer's counter-example at level `0.013596006` is **68 ulps** (`-98.6403994` → `0.013596005999999883`), and the bound is true exactly over `[0.5, 1.6]`, the region D25 measured. This is the evidence register's own warning realised — an unqualified normative claim standing on a domain-restricted measurement — and it matters because WG-2 pins the bound as a cross-language contract and V16/V20 use it as an acceptance threshold. **The suggested fix is an either/or and the owner ruled which branch**: impose and parse-time validate a domain (**taken**), rather than replace the bound with a domain-qualified one (**declined** — it weakens the contract for the R and JavaScript re-implementers, who would each have to re-derive it). The two are not blended, and the bound inside the domain is left **unqualified** with the domain as a **precondition**. **D35** is the new decision: `multiplier ≥ 0.5`, applied to the `min`/`max` vectors of **both** percent-converted keys (`precip.mean` and `precip.variance` — a `mean`-only domain would re-create `architecture-2`/`risk-7`'s defect one layer up, since D3 states the conversion as a rule over the percent **columns**), with **no upper bound**, refused at Snakefile **parse** time so `--dry-run` fails and no partial experiment exists. Enforcement lives in `prepare_cst_parameters.py` beside `_KNOWN_AXES` and the forward conversion, called from `run_stress_test.smk` beside `refuse_retired_experiment_keys`; the module is import-clean by its own lines 11–17 and `:14` is the parse-time import precedent. Validating the endpoints suffices because the levels are `np.linspace` between them; `temp` carries no domain, being additive. **The bounds were established by this revision's own measurement, not adopted**: the floor is `0.5` because the error is `ulp(|percent|)/100` against `ulp(level)`, which stays bounded for every `level ≥ 0.5` and upward forever, and first breaks at the `|percent| = 64` crossing near **0.36** — so `0.5` is a `float64` binade boundary one full binade above the first 2-ulp level, a mechanism rather than a curve fit. **E16** confirms it with **dense `float32` sweeps at every percent-binade crossing in the domain** (worst 1 ulp at 0.5, 0.68, 1.32, 1.64, 2.0, 2.28 and the level binades) plus random confirmation to `1e6` — deliberately not another random sweep, since "a normative claim standing on a sweep" is the defect being answered — and records the degradation below the floor (2 ulps in `[0.25, 0.36)`, 18 at 0.05, 72 at 0.015, 574 at 0.0016). **No ceiling is imposed**, and that is a decision: the bound measures 1 ulp to `1e6`, so a cap would refuse configurations the arithmetic serves and would tell a WG-2 reader the bound fails above it, which is false. **V20 is widened across the admitted domain including its lower boundary**, as the finding asks, and **V23** covers the refusal itself plus its must-not-fire cases. The refusal was verified safe before being specified: all four shipped seeds and `config/templates/snake_config.template.yml` declare `precip.mean` `0.7 → 1.3` and `precip.variance` `1.0`, so `pytest tests/test_cli.py` — a **required** gate — cannot turn red on it. **R13 is untouched**: it bounds nothing about outputs, and D35 bounds the multiplier. | design-v4.md |
 
 ## Tally
 
@@ -159,3 +167,60 @@ v3 changes nothing in `intake.md` § Constraints or § Non-goals and contradicts
 gate record in `status.md`; where a fix would have, it is not made (see `ext1-4`'s
 untaken branch and `ext1-2`'s resolution, which implements Fork B rather than
 re-arguing it).
+
+---
+
+# Round `ext2` — external review 2 (stage 4, `design-v3.md`), closed by ARBITRATION
+
+**Appended at v4.** Reviewer `gpt-5.6-sol`, non-clean-room with a regression duty.
+Three findings: 2 blocking, 1 major, at the severities `external-review-r2.md`
+filed — not re-graded.
+
+**Round 2 was the cap, so there is no third external round and no reviewer verdict
+on `design-v4.md`.** Convergence failed (verdict `revise`, 2 blocking), which under
+the loop's own rule sends the surviving findings to the owner. All three premises
+were verified against the repo before arbitration, and **none is a pre-existing
+condition — each is a defect in new design content**. The **owner's arbitration of
+2026-08-15** accepted all three, required a fix for each, and additionally ruled the
+*shape* of `ext2-3`'s fix. Those rulings stand in for the reviewer verdict the cap
+forecloses, and each row's Disposition column records the ruling rather than an
+author judgement.
+
+## Tally — `ext2`
+
+| Disposition | blocking | major | minor | total |
+|---|---|---|---|---|
+| accepted (per owner ruling) | 2 | 1 | 0 | **3** |
+| rejected | 0 | 0 | 0 | 0 |
+| deferred | 0 | 0 | 0 | 0 |
+| withdrawn | 0 | 0 | 0 | 0 |
+
+**Nothing was rejected and no `blocking` finding is deferred**, so no finding
+proceeds unfixed. Both blocking findings are closed in `design-v4.md`: `ext2-1` by
+D28's three ordered checks (§5.3) and their mirror in §5.8; `ext2-2` by §5.2's
+cross-axis distinctness rule, with D13 and D33 carrying it.
+
+One row takes a **ruled branch of an either/or suggested fix** and the other branch
+is **declined by the owner, not by the author** — recorded here because a later
+reader must not mistake it for an author's choice:
+
+- `ext2-3` — the finding offers "impose and parse-time validate a domain" **or**
+  "replace the bound with a domain-qualified one". The owner ruled the first and
+  declined the second, on the ground that a domain-qualified bound weakens the
+  cross-language contract for the R and JavaScript re-implementers. The two are
+  not blended: **D35** imposes the domain and the bound stays **unqualified inside
+  it**, with the domain as a precondition.
+
+## Cumulative — all three rounds
+
+Appended rather than edited: the two-round table above is accurate as of `ext1` and
+this file is append-only.
+
+| Disposition | blocking | major | minor | total |
+|---|---|---|---|---|
+| accepted | 6 | 17 | 12 | **35** |
+| rejected | 0 | 0 | 0 | 0 |
+| deferred | 0 | 0 | 0 | 0 |
+| withdrawn | 0 | 0 | 0 | 0 |
+
+35 unique finding ids, 35 rows, no id answered twice and none unanswered.
