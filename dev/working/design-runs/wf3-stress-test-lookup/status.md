@@ -5,7 +5,7 @@ genre: workflow-spec
 author-binding: cst-architect
 started: 2026-08-15
 variant: full
-stage: 4-external-r1 (awaiting authorization)
+stage: 4-external-r1
 external-rounds-completed: 0
 dispatches:
   opus: 5
@@ -210,6 +210,39 @@ flags: [seeded-from-existing-draft, stage-1-authorized-alone]
 
   **Size budget raised 1250 → 2150 by the author**, with a line-accounted
   breakdown in the header, rather than exceeded silently.
+
+- [open] 4-external-r1 — dispatched 2026-08-15, headless `codex exec` on
+  `design-v2.md`, **clean-room** (no ledger, no index)
+
+  Reviewer: `gpt-5.6-sol` — a different model family from the author, which is
+  the whole value of this round. Vendor diversity, not tier.
+
+  **Fail-closed preflight ran and passed before dispatch**, per the codex
+  adapter: banner confirmed `approval: never` and `sandbox: read-only`. The
+  top-level `--ask-for-approval never` is silently ignored before `exec`, and
+  under the default `on-request` a write escalates *outside* the sandbox with no
+  prompt — so `-c approval_policy=never` is the effective control and the banner
+  is the evidence it bound.
+
+  Brief fed on **stdin** (`-` as the prompt) to keep a multi-page contract off the
+  command line; `-o` captures the deliverable, transcript to the gitignored
+  `.tmp/`. Run in the background: a review-sized dispatch streams past the calling
+  tool's default timeout, which is the documented failure mode.
+
+  **`review-brief.md` instantiated.** Its contract half — role, authority
+  boundary, lenses, evidence burden, output contract — is immutable for the run;
+  the settled-framing block is run state, refreshed at every dispatch from the
+  gate records above, so round-to-round differences come from the design rather
+  than a drifting prompt. It carries all eleven S-constraints plus both G1-return
+  rulings, phrased by content rather than by ID.
+
+  **A driver decision, recorded because it cuts against what the driver said
+  earlier:** the P2-b residual (a code read standing where the register specified
+  an execution) was **not** put in the brief. Round 1 is clean-room by contract;
+  naming the weak spot would seed the reviewer and forfeit the independent
+  signal. It stays a driver-held item for the convergence check and G2 — and if
+  the external round finds it unprompted, that is worth more than a confirmation
+  of a hint.
 
 - [done] 3-revision-r1 (dispatch) — 2026-08-15 (`cst-architect`, opus, 1 spawn)
 
