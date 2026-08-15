@@ -5,10 +5,10 @@ genre: workflow-spec
 author-binding: cst-architect
 started: 2026-08-15
 variant: full
-stage: 6-revision-r2 (awaiting authorization)
+stage: 6-revision-r2
 external-rounds-completed: 1
 dispatches:
-  opus: 5
+  opus: 6
   fable: 0
 cost:
   expensive-checks: 4      # P1, P2, P3 executed; P2-b is a code read, flagged
