@@ -18,13 +18,37 @@ updated: 2026-08-15
 > **Why** — For a seasonal design the fixed annual collapse **misreports what was
 > explored**: +30% in JJA reads as +7.6% on the axis. That is a correctness
 > problem, not a missing feature.
-> **Effort** — Large. The contested questions are ruled, but the note is
-> explicitly *"not an accepted design and not a task brief"* and the mechanism is
-> largely unwritten — the axis declaration has no config schema, the consumer-side
-> derivation is unassigned between here and R12, and HM-7's replacement text does
-> not exist. Treat "design is done" as *decisions are made*, not *spec is ready*.
+> **Effort** — Large, and now **specified**. All six gaps that made this
+> unimplementable are closed by an accepted design:
+> `dev/milestones/r12/stress-test-lookup-design.md` (**ACCEPTED 2026-08-15**,
+> D1–D35, both drop-in contract replacements, migration plan, validation plan
+> V1–V23). This is implementation against a spec, not design work.
 
-## The design is written and the questions are answered
+## The accepted design supersedes everything below
+
+**Read `dev/milestones/r12/stress-test-lookup-design.md` first.** It is the
+specification; the sections below are the design *conversation* that preceded it
+and are kept for provenance, not for instruction. Where they differ, the accepted
+design wins — and they do differ: ruling 6 was withdrawn on measurement, the
+schema moved to WG-2, and D35 added a config constraint none of them anticipated.
+
+**One prerequisite before the first implementation commit, and it is not a
+commit:** re-record the baseline (**R1**) from `snake_config_baseline.yml`, in the
+**primary checkout**, `--notemp` on WF1, no other session live. The gate fails by
+design across this migration, and a comparison gate cannot be applied
+retrospectively — every step landing before that re-record is permanently
+ungateable. Two board items bear on it: `t2608131718` and `t2608121258`.
+
+**Two facts the design pins that a reader will otherwise re-derive:** the
+replaced artifact was never a baseline-manifest target, so `check_baseline` says
+nothing about the replacement's correctness (coverage is unit tests plus
+`validate_hm7`); and `test_cli.py` must run whenever a rule's declared input
+changes, which this does.
+
+The run's full argument — 35 findings, five reviewer verdicts, the ledger, the
+process log — is `dev/milestones/r12/stress-test-lookup-review-record.md`.
+
+## The design conversation that preceded it (provenance)
 
 `dev/working/2026-08-15_wf3-scenario-generation-trace/` holds three documents:
 
