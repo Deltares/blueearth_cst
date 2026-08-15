@@ -5,14 +5,14 @@ genre: workflow-spec
 author-binding: cst-architect
 started: 2026-08-15
 variant: full
-stage: 1-draft
+stage: G1
 external-rounds-completed: 0
 dispatches:
   opus: 1
   fable: 0
 cost:
-  expensive-checks: 0
-  doc-lines: "-> -"
+  expensive-checks: 3      # P1, P2, P3 — all executed, not argued
+  doc-lines: "1231 -> 1231"
 findings:
   unique: 0
   re-raised: 0
@@ -64,7 +64,37 @@ flags: [seeded-from-existing-draft, stage-1-authorized-alone]
   declared scope gaps as new normative content. It also carries P1–P3 (specify
   or run), and the instruction not to promote E9/E10 from hypothesis to fact.
 
-  Marked `[open]` until `design-v1.md` is on disk — write-then-mark.
+- [done] 1-draft — outputs: design-v1.md (1231 lines, D1–D24, S1–S11 carried)
+
+  **Driver structural checks pass.** Alternatives section non-empty (5 entries,
+  each naming the condition under which it would become preferable); all eleven
+  settled constraints present as S1–S11; version series append-only; no findings
+  or verdicts yet, so the ledger checks are vacuous at this stage.
+
+  **Genre deviation, recorded not corrected.** `status.md` declared
+  `workflow-spec`; the author wrote the repo's own design house style (§ Problem
+  / Goals / Selected approach / Alternatives / Consequences / Migration /
+  Validation / Open questions), citing `design-document`'s software-system clause
+  and the p32b precedent, on the ground that `workflow-spec`'s `Owner role` and
+  `Roles, skills` headings have no honest content for a data-contract change.
+  The enum stays as declared per `run-artifacts.md` (note the mapping, do not
+  invent a value); the shape maps to `decision-record`. Driver accepts as a fact
+  check, not as authorship.
+
+  **All three feasibility probes executed** rather than argued — the point of the
+  stage-0 register. P1 required a second, faithful synthetic after the first
+  failed to reproduce the cycle it was testing for; the author rebuilt it rather
+  than bank the non-result.
+
+  **E9 and E10 both settled** with recorded observations, so no hypothesis was
+  promoted to a fact.
+
+  One item returns to the owner as **OQ-1** — the migration note's path. A
+  stage-0 self-containment gap, not a design choice: `naming.md` §7 mandates
+  `dev/<milestone>/migration_<topic>.md` and this work lands before R12 with no
+  milestone directory.
+
+- [open] G1 — framing gate, awaiting the owner
 
 ## Variant
 
