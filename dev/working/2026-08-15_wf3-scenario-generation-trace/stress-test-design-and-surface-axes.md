@@ -303,11 +303,64 @@ looks, in two ways:
 So dropping the axis columns is not a live-integration break. It widens a gap that
 is already open, in a package whose owner has scheduled the update.
 
+## 5c. Naming — RULED
+
+> **Ruling (owner, 2026-08-15): `stress_test_lookup.csv`**, in `<exp>/config/`.
+> The per-member `_work/st_*.csv` are absorbed into it and `_work/` disappears.
+
+`stress_test` rather than `experiment_` keeps the file in the same vocabulary as
+its own key column: the key is `st_id`, and the identifiers around it are uniformly
+stress-test (`stress_test:` config block, `stress_test_grid()`, `ST_NUM`,
+`rlz_1_st_4`). `experiment_design.csv` keyed by `st_id` reads off, and `st_id`
+cannot be renamed — HM-7 pins it and it is in every member filename. It would also
+restate the `experiments/<name>/config/` directory and sit one suffix away from the
+existing `experiment.yml`, which does something completely different (§5d).
+
+`lookup` rather than `design` because the rename's job is to **signal that the
+shape moved** to long form. "Design" describes the old artifact just as well as the
+new one, so keeping it would pay a migration and buy nothing. A migration note is
+required either way (`naming.md` §7).
+
+## 5d. Aside: `experiment.yml` is a latch, not a duplicate
+
+Raised during the Q4 discussion and worth recording, because it looks like
+duplication and is not.
+
+`<exp>/config/experiment.yml` (rule 3.07) holds the experiment id plus the resolved
+`run_stress_test` section — a subset of what `snake_config_run_stress_test.yml`
+(rule 3.02) already snapshots. The difference is semantic: the snapshot **records**
+and is rewritten every invocation; `experiment.yml` **refuses**, and is immutable
+once the experiment has successfully run (`ExperimentConfigFrozenError`, marker =
+the merged workflow log, which only exists after a complete run). The snapshot
+cannot serve that purpose precisely because it is refreshed — by comparison time it
+already says whatever you just changed.
+
+**What the freeze actually prevents, which is not accidental edits.** The rules
+have asymmetric rerun triggers:
+
+- **3.07** carries `experiment_cfg = my_cfg` in `params:`, so a `stress_test` edit
+  **re-fires** it — which is how the guard sees the change.
+- **3.09**, which builds the grid, declares `config = ancient(config_path)` and
+  **no params**. `ancient()` suppresses the timestamp trigger and there is no value
+  to compare, so a `stress_test` edit **does not re-fire the grid rule**.
+
+So on a same-name re-run with changed parameters: the member files keep the OLD
+grid, most of the pipeline stays up to date against them, but 3.02 re-fires and
+rewrites the snapshot to the NEW parameters. The result is old numbers beside a
+record claiming new settings — silently, with every rule green. The freeze refuses
+that rather than half-propagating it, and directs the user to a new experiment name.
+The model it enforces: **an experiment is an identity, not a workspace.**
+
+**The critique that follows, for R12.** The freeze compensates for a missing rerun
+trigger. `ancient()` on 3.09 exists so that touching the config does not re-run a
+multi-hour experiment, but the cost is that the grid rule is deaf to the parameters
+it exists to expand. If it carried the stress-test block in `params:` instead, a
+change would propagate correctly and "should we allow an in-place parameter change?"
+would become a design choice rather than a defect to block. Not proposed here;
+noted because it is squarely R12's territory (*how WF3 executes*).
+
 ## 6. Open questions
 
-- **Naming.** `stress_test_design.csv` is a contract-named artifact. Does the merged
-  long table keep that name (same identity, different shape) or take a new one with
-  a migration note?
 - **Multiple surfaces per experiment.** Within one experiment all members lie on the
   line from `min` to `max`, so every linear axis is an affine image of every other:
   two surfaces from one experiment differ in magnitude and label, not in shape or
