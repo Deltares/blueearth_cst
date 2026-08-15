@@ -1,4 +1,4 @@
-# External review brief — WF3 stress-test lookup and derived response-surface axes, round 1
+# External review brief — WF3 stress-test lookup and derived response-surface axes, round 2
 
 > Instantiated from `design-review-loop/references/external-review-brief.md`.
 > **The review contract below (Role, Authority boundary, Lenses, Evidence burden,
@@ -18,7 +18,7 @@ copyedit prose.
 
 Review exactly one document:
 
-- `C:\Users\taner\workspace\.worktrees\blueearth_cst\devmeta\dev\working\design-runs\wf3-stress-test-lookup\design-v2.md`
+- `C:\Users\taner\workspace\.worktrees\blueearth_cst\devmeta\dev\working\design-runs\wf3-stress-test-lookup\design-v3.md`
 
 The design covers workflow 3 of a climate stress-testing toolbox (Snakemake, with
 Python and R stages). WF3 perturbs a basin's climate across a temperature ×
@@ -68,6 +68,25 @@ Do not spend findings arguing these should have been decided differently. **Do**
 raise a finding if a ruling creates a downstream inconsistency in the document, or
 if the document's implementation of a ruling does not actually satisfy it.
 
+Also read, **after forming your own view of the design**:
+
+- `C:\Users\taner\workspace\.worktrees\blueearth_cst\devmeta\dev\working\design-runs\wf3-stress-test-lookup\ledger.md`
+  — dispositions of every prior finding (32 rows: 26 from an internal panel, 6
+  from external round 1)
+- `C:\Users\taner\workspace\.worktrees\blueearth_cst\devmeta\dev\working\design-runs\wf3-stress-test-lookup\internal-review-index.md`
+  — the internal panel's findings, grouped by concern
+
+**Regression duty.** Verify that findings marked resolved are **actually**
+resolved in this version, that no accepted fix introduced a new defect, and that
+the rationales given for declining part of a suggested fix hold. Re-raise anything
+that fails. Your own round-1 findings may be withdrawn only by you, here.
+
+Three specifics worth your attention, stated as facts rather than as conclusions:
+round 1 filed six findings and all six are dispositioned `accepted`; three of
+those rows accept the finding while declining one branch or clause of the
+suggested fix; and the previous version was found to contradict an owner ruling in
+a place the author had reasoned about explicitly rather than overlooked.
+
 ## Authority boundary
 
 Read-only. Read the document listed above; you may skim files it directly cites
@@ -98,10 +117,10 @@ Return ONLY a markdown document with this structure — no preamble:
 
     ## Verdict
     verdict: approve | revise | reject
-    doc_version: design-v2.md
+    doc_version: design-v3.md
 
     ## Findings
-    ### ext1-<seq>  [blocking | major | minor]
+    ### ext2-<seq>  [blocking | major | minor]
     - section: <design heading the finding targets>
     - finding: <one-paragraph claim>
     - rationale: <why it matters — observable consequence>

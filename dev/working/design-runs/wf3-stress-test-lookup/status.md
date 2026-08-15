@@ -5,8 +5,8 @@ genre: workflow-spec
 author-binding: cst-architect
 started: 2026-08-15
 variant: full
-stage: 4-external-r2 (awaiting authorization)
-external-rounds-completed: 1
+stage: arbitration
+external-rounds-completed: 2
 dispatches:
   opus: 6
   fable: 0
@@ -14,8 +14,8 @@ cost:
   expensive-checks: 4      # P1, P2, P3 executed; P2-b is a code read, flagged
   doc-lines: "1231 -> 2615"
 findings:
-  unique: 32          # panel 26 + ext1 6; all 32 dispositioned
-  re-raised: 1         # ext1-2 re-raises risk-2's concern against its own fix
+  unique: 35          # panel 26 + ext1 6 + ext2 3
+  re-raised: 2         # ext1-2 vs risk-2; ext2-3 faults the accepted fix for ext1-4/risk-1
 gates:
   G1: approved 2026-08-15; returned 2026-08-15, both forks ruled same day (seam placement -> WG-2; library caller -> accept, complete the contract text)
   G2: pending
@@ -322,7 +322,77 @@ flags: [seeded-from-existing-draft, stage-1-authorized-alone,
   Not a waiver, so no scoped verification pass substitutes. **Round 2 is the cap**
   — after it, convergence or owner arbitration, and no further external rounds.
 
-- [open] 4-external-r2 — **not authorized**
+- [open] 4-external-r2 — dispatched 2026-08-15 on `design-v3.md`. **The cap.**
+
+  Not clean-room: round ≥ 2 adds the ledger and the internal index, with a
+  **regression duty** — verify that findings marked resolved are actually
+  resolved, that no accepted fix introduced a new defect, and that the rationales
+  for declining part of a suggested fix hold.
+
+  `review-brief.md` refreshed at dispatch, as its own contract requires: the
+  round number, the reviewed document, the output contract's ID prefix
+  (`ext1-` → `ext2-`) and the round-conditional ledger/index block. **The contract
+  half — role, authority boundary, lenses, evidence burden, severity calibration —
+  is byte-unchanged**, so any round-to-round difference comes from the design
+  rather than a drifting prompt. The settled-framing block needed no substantive
+  refresh: no design ruling has been taken since round 1 (the Fable tier decision
+  is a run-cost choice, not a design ruling).
+
+  The brief states three facts about round 1 without drawing conclusions from
+  them — six findings all `accepted`, three of those declining a branch of the
+  suggested fix, and the previous version contradicting an owner ruling in a place
+  the author had reasoned about rather than overlooked. Facts, so the reviewer can
+  aim its regression duty; not a verdict, which would seed it.
+
+  **P2-b is still withheld.** Round 2 is not clean-room, so naming it would now be
+  permissible — but it is a *driver* concern about gate coverage, not a filed
+  finding, and the settled-framing block is for owner rulings. It goes to G2,
+  where the owner decides whether an unexecuted probe is acceptable. That is a
+  gate question, not a review question.
+
+  **Preflight handled by post-hoc banner verification this round** rather than a
+  separate probe: the transcript captures the dispatch's own
+  `approval:` / `sandbox:` banner, which is evidence about the run that happened
+  rather than about a probe that resembled it. Verified: `approval: never`,
+  `sandbox: read-only`, `gpt-5.6-sol`. Read-only intent held — the only new file
+  was the `-o` deliverable.
+
+- [done] 4-external-r2 (outcome) — `external-review-r2.md`, **`revise` on
+  design-v3.md — 2 blocking, 1 major, 0 minor** (`ext2-1`…`ext2-3`)
+
+- [done] 5-convergence-r2 — **NOT CONVERGED. Cap reached → owner arbitration.**
+
+  Two external rounds is the cap, so there is no round 3. The driver's
+  pre-arbitration duty is to verify each surviving finding's premise against the
+  repo and grade it. **All three verified; none is a pre-existing condition —
+  each is a defect in new design content.**
+
+  **`ext2-3` — confirmed, and WORSE than filed.** Reproduced D25's own conversion
+  verbatim (`level = float(str(np.float32(v)))`, `text = repr(level*100-100)`,
+  `back = 1 + float(text)/100`). The reviewer's counter-example is exact: level
+  `0.013596006` → text `-98.6403994` → `0.013596005999999883`, **68 ulps** against
+  a bound of one. Sweeping further: worst over `[0.001, 2.0]` is **564 ulps**;
+  worst over `[0.5, 1.6]` — the domain D25 actually measured — is **1 ulp**.
+  So the bound is true exactly where it was measured and false outside it, and the
+  design specifies no admissible domain. This is the evidence register's own
+  warning realised: an unqualified normative claim standing on a
+  domain-restricted measurement.
+
+  **`ext2-1` — confirmed.** D28 (`:838-842`) states exactly two conditions: the
+  `st_id` set *absent from the lookup* must be exactly the baseline token, and
+  `surface_df` must be non-empty. Neither requires every lookup member to appear
+  in the indicators, so a stale or partial indicator table satisfies both and
+  yields a silently incomplete surface. The design's own text at `:844-847` calls
+  D28 "the report-time tier" — the tier meant to close this gap.
+
+  **`ext2-2` — confirmed.** `:490` makes `variable` a closed enum `temp | precip`
+  **per axis** with no cross-axis distinctness rule; `:760` keys
+  `SurfaceJoin.axes` by variable; `:850` names derived columns
+  `AXIS_COLUMN[variable]`. So `x: {variable: temp}, y: {variable: temp}` passes
+  the schema while one `AxisResult` overwrites the other and both target
+  `temp_change` — an admitted configuration that cannot be implemented correctly.
+
+- [open] arbitration — awaiting owner rulings on `ext2-1`, `ext2-2`, `ext2-3`
 
 ## Variant
 
