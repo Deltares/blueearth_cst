@@ -528,3 +528,58 @@ Not here. R12 owns *how WF3 executes* (`dev/roadmap.md` § Phase 8) and
 `t2608082036` is its open design item; the reduction and reporting side sits
 adjacent to it. Anything from this note that becomes work should be admitted to the
 board on its own terms, with `trace.md` § 3 as the cost baseline.
+
+### 7b. "Adjacent" was too weak — R12 depends on this, and the order is ruled
+
+> **Ruling (owner, 2026-08-15): the lookup lands first; R12's member-identity
+> re-derivation follows and defines `member_hash` over the monthly lookup rows.**
+
+Established 2026-08-15 by reading the archived v2 design rather than reasoning
+from territory. `design-v4.md` § 5.1 (on `docs/wf3-redesign`, cited by path — the
+branch is never merged) defines
+
+```
+member_hash = sha256({member_id, rlz, cst, baseline, seed_r,
+                      weagen_template_digest, st_params_digest,
+                      tavg, prcp, precip_variance, run_config_digest})
+```
+
+and its own field note says `tavg` / `prcp` / `precip_variance` are *"the annual
+scalars the response surface is indexed by, derived exactly as the reduction
+derives them today."* **Those three terms are the annual collapse this note
+abolishes** — verified at current HEAD rather than trusting the doc's pre-R9 line
+citation, which has moved: `perturbation_axes` → `annual_perturbation`,
+month-length-weighted mean for temperature and `precip_mean * 100 - 100` for
+precipitation (`blueearth_cst/experiment/export_wflow_results.py:300-318`).
+
+So R12's **member-level freshness boundary is defined over an artifact this
+design deletes.** That is a dependency with a direction, not a boundary dispute,
+and it decides the order: R12's re-derivation is its declared first task, the
+review record lists "the member-identity scheme" among what does *not* survive,
+and re-deriving it against an artifact about to change spends the work twice.
+
+**The replacement is strictly more faithful, not merely different:** a digest over
+the member's twelve lookup rows, rather than a collapse that §3 shows misreports a
+seasonal design by construction.
+
+Three things the same reading settled, recorded so they are not re-derived:
+
+- **`st_params_digest` transfers verbatim.** It keys on the *config section*
+  rather than the member files because rule 3.01 runs before those files exist.
+  Collapsing twelve member files into one lookup does not change that ordering,
+  so the argument survives unedited.
+- **§5d's `ancient()` critique already has its repair in the design R12
+  inherits.** `design-v4.md` threads `file_digest_or_absent(...)` through
+  `params:` precisely so a content-only change re-triggers past `ancient()`. §5d
+  is therefore a *solved-elsewhere* item, not an open one.
+- **§ 6.6 of that design already formalizes what `t2608151154` reports.**
+  `baseline: true` members carry `st_csv: null`, skip the perturb step entirely,
+  and downscale straight from `baseline_nc` — st_0's separate production path,
+  encoded structurally, without its being recognised as a comparability problem.
+
+A hypothesis tested and **falsified**, recorded so nobody re-runs it: that `st_0`
+and the identity member would collide under `member_hash`. They cannot —
+`member_id` and `baseline` are both terms in the tuple.
+
+Out of scope here, touching the same terms: `precip_variance` sits in the hash
+under the G1 retention ruling, with `R9-F1` as its named followup.

@@ -1484,6 +1484,20 @@ makes two external review rounds portable instead of merely archived. Surviving:
 the manifest + ledger architecture, `member_hash`, resumable sweeps, epochs,
 quarantine, checked atomic publication, and the counterbalanced AB/BA timing gate.
 
+**The re-derivation is gated on the lookup-table redesign — ruled 2026-08-15.**
+`t2608152230` collapses WF3's two parameter artifacts into one monthly
+`stress_test_lookup.csv` and moves the response-surface axis from a baked
+reduction-time collapse to a declared post-processing parameter. `design-v4.md`
+§5.1 defines `member_hash` over, among other terms, `tavg` / `prcp` /
+`precip_variance` — which its own field note calls *"the annual scalars the
+response surface is indexed by, derived exactly as the reduction derives them
+today"*. **That is precisely the derivation `t2608152230` abolishes**, so R12's
+member-level freshness boundary is currently defined over an artifact that is
+about to be deleted. The lookup lands first; `member_hash` then keys on the
+member's twelve monthly rows, which is strictly more faithful than the collapse
+it replaces. Board order follows: `t2608152230` is queue 1, `t2608082036` queue 2.
+Reasoning in that design note's §7b.
+
 The `cst-run-control` skill governs — its scope is exactly this territory (run
 manifests, resume, checkpoints, quarantine, conformance vectors) and may already
 answer questions the design run spent rounds on.
