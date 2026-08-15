@@ -5,8 +5,8 @@ genre: workflow-spec
 author-binding: cst-architect
 started: 2026-08-15
 variant: full
-stage: 4-external-r1
-external-rounds-completed: 0
+stage: 6-revision-r2 (awaiting authorization)
+external-rounds-completed: 1
 dispatches:
   opus: 5
   fable: 0
@@ -14,8 +14,8 @@ cost:
   expensive-checks: 4      # P1, P2, P3 executed; P2-b is a code read, flagged
   doc-lines: "1231 -> 2133"
 findings:
-  unique: 26          # 2 blocking, 13 major, 11 minor
-  re-raised: 0
+  unique: 32          # panel 26 + ext1 6
+  re-raised: 1         # ext1-2 re-raises risk-2's concern against its own fix
 gates:
   G1: approved 2026-08-15; returned 2026-08-15, both forks ruled same day (seam placement -> WG-2; library caller -> accept, complete the contract text)
   G2: pending
@@ -211,7 +211,7 @@ flags: [seeded-from-existing-draft, stage-1-authorized-alone]
   **Size budget raised 1250 → 2150 by the author**, with a line-accounted
   breakdown in the header, rather than exceeded silently.
 
-- [open] 4-external-r1 — dispatched 2026-08-15, headless `codex exec` on
+- [done] 4-external-r1 — dispatched 2026-08-15, headless `codex exec` on
   `design-v2.md`, **clean-room** (no ledger, no index)
 
   Reviewer: `gpt-5.6-sol` — a different model family from the author, which is
