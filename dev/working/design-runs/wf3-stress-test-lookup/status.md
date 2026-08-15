@@ -5,10 +5,10 @@ genre: workflow-spec
 author-binding: cst-architect
 started: 2026-08-15
 variant: full
-stage: arbitration
+stage: 6a-arbitration-revision
 external-rounds-completed: 2
 dispatches:
-  opus: 6
+  opus: 7
   fable: 0
 cost:
   expensive-checks: 4      # P1, P2, P3 executed; P2-b is a code read, flagged
@@ -392,7 +392,24 @@ flags: [seeded-from-existing-draft, stage-1-authorized-alone,
   the schema while one `AxisResult` overwrites the other and both target
   `temp_change` — an admitted configuration that cannot be implemented correctly.
 
-- [open] arbitration — awaiting owner rulings on `ext2-1`, `ext2-2`, `ext2-3`
+- [done] arbitration — **2026-08-15 (owner): all three accepted, fix required**
+
+  | ID | Severity | Ruling |
+  |---|---|---|
+  | `ext2-1` | blocking | **Accepted, fix required** — `join_axes` must assert set equality between the lookup's members and the non-baseline indicator members, not only the absent-set condition |
+  | `ext2-2` | blocking | **Accepted, fix required** — refuse duplicate axis variables at parse time; orientation reversal stays legal |
+  | `ext2-3` | major | **Accepted, fix required**, and the *shape* of the fix is ruled: **impose a validated multiplier domain** — parse-time validation that the precipitation multiplier bounds lie inside a domain where the one-ulp bound is proved, keeping the bound unqualified inside it. The alternative (leave the config open and domain-qualify the contract) was declined: it weakens the cross-language contract for the R and JavaScript re-implementers, and a precipitation multiplier far outside the measured domain is not a stress-test design anyone runs |
+
+  Nothing was rejected, so no finding proceeds unfixed. Owner rulings now stand
+  in for the reviewer verdict the cap forecloses.
+
+- [open] 6a-arbitration-revision — dispatched 2026-08-15 (`cst-architect`, opus)
+
+  Confined to `ext2-1`, `ext2-2`, `ext2-3`. The driver scope-checks the diff
+  against exactly those IDs, then runs the **scoped verification pass** over any
+  newly-introduced decision IDs — because a 6a revision reaches G2 without a
+  reviewer verdict naming it, and the invariant is that no content reaches G2
+  unreviewed. The cap stands: no further external rounds.
 
 ## Variant
 
