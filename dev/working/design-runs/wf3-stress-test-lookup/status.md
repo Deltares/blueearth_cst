@@ -5,10 +5,10 @@ genre: workflow-spec
 author-binding: cst-architect
 started: 2026-08-15
 variant: full
-stage: G1-return
+stage: 3-revision-r1
 external-rounds-completed: 0
 dispatches:
-  opus: 4
+  opus: 5
   fable: 0
 cost:
   expensive-checks: 3      # P1, P2, P3 — all executed, not argued
@@ -17,7 +17,7 @@ findings:
   unique: 26          # 2 blocking, 13 major, 11 minor
   re-raised: 0
 gates:
-  G1: approved 2026-08-15; returned 2026-08-15 (two panel forks: seam placement, library caller)
+  G1: approved 2026-08-15; returned 2026-08-15, both forks ruled same day (seam placement -> WG-2; library caller -> accept, complete the contract text)
   G2: pending
 flags: [seeded-from-existing-draft, stage-1-authorized-alone]
 ---
@@ -140,18 +140,48 @@ flags: [seeded-from-existing-draft, stage-1-authorized-alone]
   `architecture-10` holds: `dev/milestones/r12/` already exists, so OQ-1 needs no
   ruling to create anything.
 
-- [open] G1-return — **two forks returned to the owner before the revision is
-  dispatched**, per `stage-contracts.md` § Gate return from the panel
+- [done] G1-return — **both forks ruled 2026-08-15** (owner), before any revision
+  dispatch, per `stage-contracts.md` § Gate return from the panel
 
-  Fork A — where the lookup's schema is normatively defined (HM-7 vs WG-2): a
-  **scope** difference in the deliverable.
-  Fork B — whether the library gets a real in-repo caller: a **selected
-  alternative** difference, and it reopens D22 in one branch.
+  ### The G1-return record — settled, not optional
 
-  Returning is strictly cheaper than letting the author pick and discovering at G2
-  that the pick changed scope, with a revision already spent.
+  Handed to the stage-3 brief as settled framing, in the same standing as the
+  original G1 record above.
 
-  Stage 3 (revision r1) is **not** authorized.
+  | Fork | Ruling | Scope effect |
+  |---|---|---|
+  | **A — where the lookup's schema is normatively defined** | **The schema moves to WG-2** (`dev/reference/contracts/weather-generator-seam.md`); HM-7 **references** it rather than restating it | The deliverable gains a WG-2 replacement and HM-7's replacement narrows. One edit on the seam the artifact actually crosses, instead of two documents describing one artifact |
+  | **B — whether the library gets a real in-repo caller** | **Accept no caller.** Add it to §7 as a named risk, and move the classification tolerance, the degenerate rule and the caption case table into the normative contract text so an R re-implementer's document is complete | D14 and D22 stand unchanged; no new rule, no lookup input restored to 3.16. The R12 boundary is untouched |
+
+  **Where the two rulings interact — resolved here so the author does not have to
+  choose.** Fork B says "complete the normative document"; Fork A moves part of
+  that document. The split follows the seam each concern crosses:
+
+  - the **lookup's schema** (columns, dtypes, padding, row count, ordering) → **WG-2**;
+  - the **axis derivation** — the collapse formula, the varying/held classification
+    and its tolerance, the degenerate-axis rule, the caption case table → **HM-7**,
+    which is where the response-surface contract and the GCM-overlay constraint
+    already live.
+
+  Fork B's obligation attaches to *both* documents: whichever one an external
+  re-implementer reads must be complete for what it owns.
+
+  **OQ-1 needs no ruling** — `architecture-10`'s premise check found
+  `dev/milestones/r12/` already exists, so the migration note files there and the
+  open question closes on a fact rather than a decision.
+
+- [open] 3-revision-r1 — author dispatched 2026-08-15 (`cst-architect`, opus, 1 spawn)
+
+  Answers all **26** original finding IDs with a ledger row each; creates
+  `ledger.md`. Input set: `intake.md`, `design-v1.md`, the three per-lens files,
+  `internal-review-index.md`, and both gate records above. The brief points at
+  findings and does not restate them — the index groups by *concern*, so a
+  paraphrase would silently reattribute a claim to the wrong lens.
+
+  Authorized as a single increment. **Stage 4 (external round 1) is not
+  authorized.**
+
+  Marked `[open]` until `design-v2.md` and `ledger.md` are on disk.
 
 ## Variant
 
