@@ -8,7 +8,7 @@ variant: full
 stage: 1-draft
 external-rounds-completed: 0
 dispatches:
-  opus: 0
+  opus: 1
   fable: 0
 cost:
   expensive-checks: 0
@@ -19,7 +19,7 @@ findings:
 gates:
   G1: pending
   G2: pending
-flags: [seeded-from-existing-draft, stage-1-awaiting-dispatch-authorization]
+flags: [seeded-from-existing-draft, stage-1-authorized-alone]
 ---
 
 # Run state — wf3-stress-test-lookup
@@ -49,14 +49,22 @@ flags: [seeded-from-existing-draft, stage-1-awaiting-dispatch-authorization]
      baseline manifest by an R11 ruling, so `check_baseline` says nothing about
      the correctness of the replacement. Carry to G2 as a named gap.
 
-- [open] 1-draft — **BLOCKED pending dispatch authorization**
+- [open] 1-draft — author dispatched 2026-08-15 (`cst-architect`, opus, 1 spawn)
 
   Structural checks on the seed source FAIL (no `## Alternatives considered`, no
-  genre sections), so stage 1 takes the restructure path: one author spawn scoped
-  to reshape to the genre contract preserving content verbatim. The session's
-  standing instruction bars agent dispatch without an explicit request, so the
-  spawn is not issued. Stage 0 was executed driver-only precisely because it
-  needs no dispatch.
+  genre sections), so stage 1 takes the restructure path rather than the
+  mechanical copy.
+
+  **Authorized alone**, not as part of the whole loop: the user approved stage 1
+  only, so G1 is seen before the panel spends three further dispatches. Nothing
+  beyond this spawn is authorized; stages 2+ need their own decision.
+
+  The brief holds two obligations together, per `observations.md` O1: preserve
+  the eleven settled constraints verbatim in substance, **and** write the six
+  declared scope gaps as new normative content. It also carries P1–P3 (specify
+  or run), and the instruction not to promote E9/E10 from hypothesis to fact.
+
+  Marked `[open]` until `design-v1.md` is on disk — write-then-mark.
 
 ## Variant
 
