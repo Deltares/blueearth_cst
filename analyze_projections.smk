@@ -1182,9 +1182,10 @@ def _header():
     at the call site would not.
     """
     try:
-        print(
-            run_header("wf2 analyze_projections", project_dir, config_path),
-            file=sys.stderr,
+        # One write, carrying its own trailing blank line -- see the note on
+        # WF3's `_header`, which this mirrors.
+        sys.stderr.write(
+            run_header("wf2 analyze_projections", project_dir, config_path) + "\n\n"
         )
     except Exception as exc:  # noqa: BLE001 -- never break a run over a banner
         print(f"(run header unavailable: {exc})", file=sys.stderr)

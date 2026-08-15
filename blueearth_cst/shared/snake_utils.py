@@ -3112,6 +3112,12 @@ def run_summary(
     ``log_parts_dir`` is passed rather than derived: WF3 keys its parts by
     experiment (``logs/_parts/<experiment>``), so a derived ``logs/_parts``
     would send the reader to the parent of the directory they want.
+
+    Grouped and labelled like :func:`run_header`, so a run closes in the shape
+    it opened in: a head line, a blank, then a labelled group whose rows indent
+    one step further. The label is a VERB (``wrote``) because that is what these
+    rows are -- artifacts this run produced -- as against the header's ``run``
+    (what this run is) and ``path tokens`` (how to read the lines between).
     """
     project_dir = os.fspath(project_dir)
     lines = []
@@ -3119,14 +3125,21 @@ def run_summary(
     head = f"{workflow} {verdict}"
     if elapsed_seconds is not None:
         head = f"{head} in {format_elapsed(elapsed_seconds)}"
-    lines.append(head)
+    lines.extend([head, "", "  wrote"])
     if failed:
         parts = os.fspath(log_parts_dir or f"{project_dir}/logs/_parts")
-        lines.append(f"  log parts   {parts}/")
-        lines.append("  the failing job's own log is printed above")
+        rows = [("log parts", f"{parts}/")]
     else:
-        lines.append(f"  log         {project_dir}/logs/{log_name}")
-        lines.append(f"  benchmarks  {project_dir}/benchmarks/{benchmarks_name}")
+        rows = [
+            ("log", f"{project_dir}/logs/{log_name}"),
+            ("benchmarks", f"{project_dir}/benchmarks/{benchmarks_name}"),
+        ]
+    width = max(len(key) for key, _ in rows)
+    lines.extend(f"    {key.ljust(width)}  {value}" for key, value in rows)
+    if failed:
+        # A NOTE, not a row: it names no artifact, so giving it a key column
+        # would file a sentence under a heading meaning "paths this run wrote".
+        lines.extend(["", "  the failing job's own log is printed above"])
     return "\n".join(lines)
 
 
@@ -3403,7 +3416,13 @@ class _ConsoleHandler(logging.StreamHandler):
                 # Body tier for what is informational only. A WARNING or an ERROR keeps
                 # Snakemake's own colouring, which is the one thing on this
                 # console that must stay louder than a start line.
-                shown = self.format(record)
+                #
+                # Shortened the same way a rule's own output is (the tee calls
+                # the same function): Snakemake's `Complete log(s):` line ends a
+                # run with a 100-character absolute path, in OS separators,
+                # directly above a summary block whose every path is short and
+                # forward-slashed. One console, one spelling of a path.
+                shown = _relativize_paths(self.format(record), "", _path_tokens())
                 if record.levelno <= logging.INFO:
                     shown = self._paint(shown, _ANSI_BODY)
                 lines.append(shown)
@@ -3599,9 +3618,10 @@ def install_console_style():
 def run_header(workflow, project_dir, config_path=None, **details):
     """Return the start-of-run console block: what run this is, in one place.
 
-    The mirror image of :func:`run_summary`, and the same shape (a head line,
-    then two-space-indented ``key   value`` rows) so a run opens and closes in
-    one grammar. Snakemake's own preamble names the host and the job counts but
+    The mirror image of :func:`run_summary`, and the same grammar (a head line,
+    then indented ``key   value`` rows) so a run opens and closes alike -- the
+    header groups and labels its rows, for the reason set out below, and is the
+    longer of the two. Snakemake's own preamble names the host and job counts but
     never the PROJECT -- so a console scrolled back to, or pasted into a
     message, could not be attributed to a project, a config or an experiment
     without asking. The merged log has carried this header for some time; the
@@ -3616,15 +3636,50 @@ def run_header(workflow, project_dir, config_path=None, **details):
     same names are what every path in every rule's output is rewritten to, so a
     header row and a body line that disagreed would be worse than no header at
     all. One declaration, two readers.
+
+    **Two GROUPS, blank-line separated, each under a label.** The rows are two
+    different kinds of thing and read as one wall of text without the split:
+    the first three answer "which run is this", while the ``<name>`` rows are a
+    LEGEND -- they define the tokens every path in every line below is printed
+    with. Nothing said so, which left a reader to infer from angle brackets
+    alone why ``<model>`` was written that way, and the block ran on into
+    Snakemake's own ``Job stats:`` with no air between them.
+
+    The labelled rows indent one step further than the label, which is what
+    makes the grouping visible without a rule or a box. :func:`run_summary`
+    closes the run in the same shape, under one group labelled ``wrote``.
+
+    Every value is FORWARD-SLASHED, including ``config`` -- which was the one
+    row that was not, so a block whose whole purpose is to state paths mixed
+    ``C:\\a\\b`` with ``a/b`` and read as two trees. ``config`` is also printed
+    through the repo strip that every rule log line already uses, so it reads
+    ``<repo>/test_case/snake_config_rapid.yml`` rather than the same fact
+    behind 60 characters of machine-specific prefix.
     """
     # Forward slashes, like every path the folder rows below and the log
     # headers print: one block mixing `C:\a\b` with `a/b` reads as two trees.
-    rows = [("project", os.fspath(project_dir).replace(os.sep, "/"))]
+    run_rows = [("project", os.fspath(project_dir).replace(os.sep, "/"))]
     if config_path:
-        rows.append(("config", os.fspath(config_path)))
-    rows.extend((key, str(value)) for key, value in details.items())
-    rows.extend(_folder_rows(project_dir))
-    width = max(len(key) for key, _ in rows)
-    lines = [workflow]
-    lines.extend(f"  {key.ljust(width)}  {value}" for key, value in rows)
+        # No project root passed: the config is not a project artifact, and
+        # stripping one would render a config that happens to live INSIDE the
+        # project as a bare relative path indistinguishable from an output.
+        # This still applies the `<repo>` and `<site-packages>` rewrites.
+        run_rows.append(("config", _relativize_paths(os.fspath(config_path), "")))
+    run_rows.extend((key, str(value)) for key, value in details.items())
+    token_rows = _folder_rows(project_dir)
+    # One width across BOTH groups, so the value column is a single column down
+    # the whole block rather than restarting at each label.
+    width = max(len(key) for key, _ in run_rows + token_rows)
+
+    def row(key, value):
+        return f"    {key.ljust(width)}  {value}"
+
+    lines = [workflow, "", "  run"]
+    lines.extend(row(key, value) for key, value in run_rows)
+    if token_rows:
+        lines.append("")
+        lines.append(
+            "  path tokens -- these folders print as <name> in every line below"
+        )
+        lines.extend(row(key, value) for key, value in token_rows)
     return "\n".join(lines)

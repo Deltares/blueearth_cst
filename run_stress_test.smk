@@ -1285,14 +1285,20 @@ def _header():
     at the call site would not.
     """
     try:
-        print(
+        # ONE write, and it carries its own trailing blank line. `print` issues
+        # the text and the newline as two separate writes, and Snakemake's next
+        # line goes to the OTHER stream -- so its `Job stats:` could land
+        # between them and the block ran on mid-row (`experiment_rapidJob
+        # stats:`, seen 2026-08-15). One write closes that window; the blank
+        # line separates the block from whatever follows it either way.
+        sys.stderr.write(
             run_header(
                 "wf3 run_stress_test",
                 project_dir,
                 config_path,
                 experiment=experiment,
-            ),
-            file=sys.stderr,
+            )
+            + "\n\n"
         )
     except Exception as exc:  # noqa: BLE001 -- never break a run over a banner
         print(f"(run header unavailable: {exc})", file=sys.stderr)

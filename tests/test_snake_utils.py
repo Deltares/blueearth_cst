@@ -2100,7 +2100,11 @@ def test_install_console_style_fails_open(monkeypatch):
 
 
 def test_run_header_shape_matches_run_summary():
-    """Same head-then-indented-rows block, so a run opens and closes alike."""
+    """Same head-then-indented-rows block, so a run opens and closes alike.
+
+    With no declared folders there is one group, so the block is the `run`
+    label and its rows -- the legend appears only when there is one to give.
+    """
     out = su.run_header(
         "wf3 run_stress_test",
         "test_case/test_rapid2",
@@ -2109,9 +2113,11 @@ def test_run_header_shape_matches_run_summary():
     )
     assert out.splitlines() == [
         "wf3 run_stress_test",
-        "  project     test_case/test_rapid2",
-        "  config      test_case/snake_config_rapid.yml",
-        "  experiment  experiment_rapid",
+        "",
+        "  run",
+        "    project     test_case/test_rapid2",
+        "    config      test_case/snake_config_rapid.yml",
+        "    experiment  experiment_rapid",
     ]
 
 
@@ -2128,10 +2134,37 @@ def test_run_header_states_the_declared_folders(declare_folders):
         data=_abs("data/wflow_global/hydromt"),
         model=os.path.join(project, "models", "hydrology", "wflow"),
     )
-    rows = su.run_header("wf1 build_model", project).splitlines()[1:]
+    lines = su.run_header("wf1 build_model", project).splitlines()
+    rows = [line for line in lines if line.startswith("    ")]
     assert [row.split()[0] for row in rows] == ["project", "<data>", "<model>"]
     assert rows[1].endswith("data/wflow_global/hydromt")
     assert rows[2].endswith("models/hydrology/wflow")
+    # The two kinds of row are separated and each group says what it is: the
+    # `<name>` rows are a legend for the body, not more facts about the run.
+    assert "  run" in lines
+    assert any(line.startswith("  path tokens") for line in lines), lines
+    assert "" in lines  # blank-line separation, not a wall
+
+
+def test_run_header_aligns_both_groups_on_one_value_column():
+    """One width across the block; a per-group width restarts the column."""
+    out = su.run_header(
+        "wf3 run_stress_test", "test_case/test_rapid", experiment="experiment_rapid"
+    )
+    rows = [line for line in out.splitlines() if line.startswith("    ")]
+    # Where the VALUE starts: past the indent, the key, and the gutter.
+    columns = {re.match(r" {4}\S+ +", row).end() for row in rows}
+    assert len(columns) == 1, rows
+
+
+def test_run_header_forward_slashes_and_shortens_the_config_path(monkeypatch):
+    """The one row that kept OS separators made the block read as two trees."""
+    monkeypatch.setattr(su, "_REPO_ROOT", os.path.normpath(_abs("repo")))
+    config = os.path.join(_abs("repo"), "test_case", "snake_config_rapid.yml")
+    out = su.run_header("wf1 build_model", "test_case/test_rapid", config)
+    row = next(line for line in out.splitlines() if line.strip().startswith("config"))
+    assert row.split() == ["config", "<repo>/test_case/snake_config_rapid.yml"]
+    assert "\\" not in out
 
 
 def test_a_rule_log_header_defines_every_token_its_rows_use(declare_folders, tmp_path):
@@ -2144,12 +2177,69 @@ def test_a_rule_log_header_defines_every_token_its_rows_use(declare_folders, tmp
     assert "# <model>: models/hydrology/wflow" in header.splitlines()
 
 
+def test_run_summary_closes_the_run_in_the_shape_it_opened_in():
+    """Head, blank, labelled group, rows indented one step further."""
+    out = su.run_summary(
+        "wf3 run_stress_test",
+        "test_case/test_rapid",
+        "wf3_run_stress_test.log",
+        "wf3_benchmarks.md",
+        elapsed_seconds=176,
+    )
+    assert out.splitlines() == [
+        "wf3 run_stress_test done in 0:02:56",
+        "",
+        "  wrote",
+        "    log         test_case/test_rapid/logs/wf3_run_stress_test.log",
+        "    benchmarks  test_case/test_rapid/benchmarks/wf3_benchmarks.md",
+    ]
+
+
+def test_run_summary_failure_keeps_its_note_out_of_the_key_column():
+    """The note names no artifact, so it is not a row under `wrote`."""
+    out = su.run_summary(
+        "wf3 run_stress_test",
+        "test_case/test_rapid",
+        "wf3.log",
+        "wf3.md",
+        failed=True,
+        log_parts_dir="test_case/test_rapid/logs/_parts/experiment_rapid",
+    )
+    assert out.splitlines() == [
+        "wf3 run_stress_test FAILED",
+        "",
+        "  wrote",
+        "    log parts  test_case/test_rapid/logs/_parts/experiment_rapid/",
+        "",
+        "  the failing job's own log is printed above",
+    ]
+
+
+def test_console_shortens_paths_in_snakemakes_own_lines(declare_folders):
+    """`Complete log(s): <100 chars>` sat above a block of short relative paths.
+
+    The tee already shortens a rule's own output this way; a run must not end
+    with the one line that spells a path differently from every other.
+    """
+    declare_folders(model=_abs("TESTS/gabon/models/hydrology/wflow"))
+    handler = _console_handler()
+    out = _emit(
+        handler,
+        _console_record(
+            f"Writing to {os.path.join(_abs('TESTS/gabon/models/hydrology/wflow'), 'staticmaps.nc')}"
+        ),
+    )
+    assert "<model>/staticmaps.nc" in out, out
+
+
 def test_run_header_omits_rows_a_workflow_does_not_have():
     """WF1 and WF2 pass no experiment; the block shrinks rather than showing a blank."""
     out = su.run_header("wf1 build_model", "test_case/test_rapid")
     assert out.splitlines() == [
         "wf1 build_model",
-        "  project  test_case/test_rapid",
+        "",
+        "  run",
+        "    project  test_case/test_rapid",
     ]
 
 
