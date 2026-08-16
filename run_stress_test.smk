@@ -1123,17 +1123,12 @@ rule derive_wflow_indicators:
     message: rule_banner("3.16", "derive_wflow_indicators", summary="reduce the runs to the response-surface indicators")
     input:
         rlz_csv_fns = expand((f"{runs_dir}/output/rlz_"+"{rlz_num}"+"_st_"+"{st_num}"+".csv"), rlz_num=[rlz_ix(n) for n in np.arange(1, RLZ_NUM+1)], st_num=[st_ix(m) for m in np.arange(ST_START, ST_NUM+1)]),
-        # R07 B6: the perturbation grid was an UNDECLARED runtime read
-        # (the script reconstructed the path from exp_dir), so it
-        # was invisible to --dry-run. It is enumerable from ST_NUM, so declare
-        # it -- the same correction rule 3.13's oro_path got.
-        st_csv_fns = [f"{wg_dir}/_work/st_{st_ix(m)}.csv" for m in np.arange(1, ST_NUM+1)],
-        # C28: the results tables carry `st_id`, so the writer needs the design
-        # table -- for the id WIDTH, and to refuse when a third stress axis
-        # appears. The axis VALUES are still derived from st_csv_fns above,
-        # independently, which is what leaves `validate_hm7`'s consistency check
-        # something real to verify.
-        design_csv = f"{exp_dir}/config/stress_test_design.csv",
+        # D22: this rule reads NO parameter artifact at all. It needed the
+        # per-member grid for the axis VALUES, which are now derived at reporting
+        # time from the lookup (HM-7), and the design table for the id WIDTH,
+        # which comes from `index_width(st_num)` -- the same shared helper rule
+        # 3.09 pads with, so the two spellings still cannot diverge. Both inputs
+        # are therefore gone rather than re-pointed.
     output:
         # One per configured output variable (CR-2). Keyed by token so the script
         # can address them by name; `**` splats the derived set in, because the
@@ -1147,6 +1142,11 @@ rule derive_wflow_indicators:
         # disagree about which tables exist.
         indicator_tokens = list(INDICATOR_TABLES),
         st_num = ST_NUM,
+        # D22's run-coverage check verifies what actually RAN against
+        # ST_START..ST_NUM. ST_START is 0 with run_historical and 1 without, so
+        # it must be passed rather than assumed -- a hardcoded 0 would make the
+        # check fail on every run_historical: false config.
+        st_start = ST_START,
         # The annual reductions below are the RESPONSE SURFACE, so the
         # basin's own water year has to reach them rather than a hardcoded
         # calendar year: a Jan-Dec year splits a flood season crossing New

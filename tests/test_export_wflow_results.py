@@ -1,5 +1,5 @@
 """Unit cases for the wf3 reduction's path derivations (R07 B5/B6) and its
-perturbation-axis collapse ([R9-3]).
+long-format output shape (R11 CR-2).
 
 B5 moved the realization index out of the wflow run CSV's file name and into
 its run directory (``hydrology_runs/rlz_<n>/output/cst_<m>.csv``). The older
@@ -12,12 +12,14 @@ pointer, so it gets direct coverage. Both of those names carry the pre-R11-P2
 from either one actually holds. Everything the current reduction reads or
 raises about says ``st_``.
 
-The [R9-3] cases carry a load the rest of the ladder cannot: every tracked
-config uses a FLAT monthly perturbation vector, so the baseline manifest and
-every fixture run are blind to the collapse by construction -- a seasonal
-vector is the only input that can distinguish reading January from taking the
-annual mean, and nothing on disk supplies one. Same lesson as R9-4: a check
-that cannot fail on the fixture has to be written against a synthetic case.
+The perturbation-axis collapse that used to be tested here moved to
+``tests/test_surface_axes.py`` with the derivation itself: the axis is no longer
+a column this writer computes, it is derived at reporting time from
+``stress_test_lookup.csv``. Its cases carry a load the rest of the ladder cannot
+and are worth finding under their new name -- every tracked config uses a FLAT
+monthly perturbation vector, so the baseline manifest and every fixture run are
+blind to the collapse by construction, and a seasonal vector is the only input
+that can tell reading January apart from taking the annual mean.
 """
 
 import numpy as np
@@ -29,22 +31,9 @@ from blueearth_cst.experiment.export_wflow_results import (  # noqa: E402
     MissingOutputColumnError,
     _format_value,
     analyze_wflow_results,
-    annual_perturbation,
     member_from_run_csv,
     subcatchment_columns,
 )
-
-
-def _cst_df(temp, precip):
-    """A ``st_<m>.csv`` as ``prepare_cst_parameters`` writes it: 12 rows, month 1..12."""
-    return pd.DataFrame(
-        {
-            "month": np.arange(1, 13),
-            "temp_mean": np.asarray(temp, dtype="float32"),
-            "precip_mean": np.asarray(precip, dtype="float32"),
-            "precip_variance": np.ones(12, dtype="float32"),
-        }
-    )
 
 
 @pytest.mark.parametrize("rlz", [1, 2, 11])
@@ -108,107 +97,22 @@ def test_realization_index_raises_naming_the_offending_path(tmp_path):
         member_from_run_csv(csv)
 
 
-def test_a_flat_vector_collapses_to_exactly_its_own_value():
-    """The no-op case, asserted on IDENTITY rather than closeness.
+def test_incomplete_run_coverage_fails_loudly(tmp_path):
+    """D22: the check verifies what actually RAN, not what was declared.
 
-    Every tracked config is flat, so this is the path the baseline manifest and
-    every fixture run take. A weighted mean of twelve identical float32 values
-    can land a ULP away from them, and the axis is written unrounded into a
-    str-dtype frame -- so an inexact answer here is a baseline byte diff that
-    means nothing. `is` on the float value, not `pytest.approx`.
+    Its predecessor compared the DECLARED parameter files against ``st_num``,
+    which this rule no longer takes as an input at all. The replacement is the
+    stronger statement and the one that survives those files going away — and it
+    matters more than a tidier error message: a partial member set produces a
+    response surface silently missing grid cells, or a biased one if the absent
+    members sit at one end of the grid, which is far harder to notice than a
+    KeyError.
     """
-    df = _cst_df([3.0] * 12, [1.3] * 12)
-    assert annual_perturbation(df, "temp_mean") == float(np.float32(3.0))
-    precip = annual_perturbation(df, "precip_mean")
-    assert precip == float(np.float32(1.3))
-    # And the axis value the reduction actually writes, through the same
-    # arithmetic as the caller.
-    assert precip * 100 - 100 == float(np.float32(1.3)) * 100 - 100
-
-
-def test_a_seasonal_vector_is_not_indexed_by_january():
-    """The defect itself: JJA-only warming read as 0.0 degC because January is 0.
-
-    Weights are the noleap month lengths, so a June-July-August delta covers
-    30+31+31 = 92 of 365 days.
-    """
-    jja = [0.0] * 5 + [3.0] * 3 + [0.0] * 4
-    df = _cst_df(jja, [1.0] * 12)
-    expected = 3.0 * (30 + 31 + 31) / 365
-    assert annual_perturbation(df, "temp_mean") == pytest.approx(expected, rel=1e-6)
-    # What the pre-2026-08-07 read returned, and what must never come back.
-    assert df["temp_mean"].iloc[0] == 0.0
-
-
-def test_the_collapse_weights_by_month_length_not_by_count():
-    """February and January must not carry the same weight.
-
-    A plain arithmetic mean would return 3.0 * 1/12 for either month; the
-    weighted mean separates them, which is what makes the temperature axis
-    identical to WF2's duration-weighted annual change factor.
-    """
-    january = _cst_df([3.0] + [0.0] * 11, [1.0] * 12)
-    february = _cst_df([0.0, 3.0] + [0.0] * 10, [1.0] * 12)
-    assert annual_perturbation(january, "temp_mean") == pytest.approx(3.0 * 31 / 365)
-    assert annual_perturbation(february, "temp_mean") == pytest.approx(3.0 * 28 / 365)
-    assert annual_perturbation(january, "temp_mean") != annual_perturbation(
-        february, "temp_mean"
-    )
-
-
-def test_the_axis_stays_evenly_spaced_across_the_grid():
-    """The property that keeps the response surface RECTILINEAR.
-
-    ``prepare_cst_parameters`` interpolates each member linearly between the
-    min and max vectors, so the axis value must stay affine in the step index
-    or the surface's rows stop being a regular grid. True for any weighted
-    mean; it would fail for a max or a wet-season-only reduction, which is why
-    it is pinned rather than assumed.
-    """
-    lo, hi = np.zeros(12), np.array([1.0, 2.0, 3.0] * 4)
-    axis = [
-        annual_perturbation(_cst_df(lo + (hi - lo) * f, [1.0] * 12), "temp_mean")
-        for f in (0.0, 0.25, 0.5, 0.75, 1.0)
-    ]
-    steps = np.diff(axis)
-    assert steps == pytest.approx(np.full(4, steps[0]))
-    assert steps[0] > 0
-
-
-def test_row_order_does_not_change_the_answer():
-    """Weights align to the 'month' column, not to file order."""
-    df = _cst_df([0.0] * 5 + [3.0] * 3 + [0.0] * 4, [1.0] * 12)
-    shuffled = df.iloc[::-1].reset_index(drop=True)
-    assert annual_perturbation(shuffled, "temp_mean") == pytest.approx(
-        annual_perturbation(df, "temp_mean")
-    )
-
-
-def test_a_partial_year_is_refused_by_name():
-    df = _cst_df([1.0] * 12, [1.0] * 12).iloc[:6]
-    with pytest.raises(ValueError, match="6 rows, expected one per month"):
-        annual_perturbation(df, "temp_mean", "st_4.csv")
-
-
-def test_a_broken_month_column_is_refused_by_name():
-    df = _cst_df([1.0] * 12, [1.0] * 12)
-    df.loc[3, "month"] = 3  # month 4 duplicated as a second March
-    with pytest.raises(ValueError, match="twelve calendar months"):
-        annual_perturbation(df, "temp_mean", "st_4.csv")
-
-
-def test_incomplete_stress_test_grid_fails_loudly(tmp_path):
-    """B6 declares st_1..st_ST_NUM as a real input. If the declared set and
-    ``st_num`` ever disagree, that must name the mismatch, not KeyError deep in
-    the reduction loop on whichever row happens to reach the missing index."""
-    run_csv = tmp_path / "rlz_1" / "output" / "st_1.csv"
-    run_csv.parent.mkdir(parents=True)
+    run_csv = tmp_path / "rlz_1_st_1.csv"
     run_csv.write_text("time,Q_1\n2000-01-01,1.0\n")
-    with pytest.raises(ValueError, match=r"do not cover 1\.\.3"):
+    with pytest.raises(ValueError, match=r"do not cover \[0, 1, 2, 3\]"):
         analyze_wflow_results(
             csv_fns=[str(run_csv)],
-            st_csv_fns=[str(tmp_path / "st_1.csv"), str(tmp_path / "st_2.csv")],
-            design_path=_write_design(tmp_path, 3),
             results_dir=str(tmp_path),
             st_num=3,
             indicator_tokens=["q"],
@@ -216,35 +120,33 @@ def test_incomplete_stress_test_grid_fails_loudly(tmp_path):
         )
 
 
-# --- the long shape (R11 CR-2) ------------------------------------------------
-
-
-def _write_design(tmp_path, st_num, extra_axis=False):
-    """A stress_test_design.csv matching what `_reduce` builds, as 3.09 writes it."""
-    width = len(str(st_num))
-    rows = [
-        {
-            "st_id": f"{0:0{width}d}",
-            "temp_change": 0.0,
-            "precip_change": 0.0,
-            "precip_variance_change": 0.0,
-        }
-    ]
-    for member in range(1, st_num + 1):
-        rows.append(
-            {
-                "st_id": f"{member:0{width}d}",
-                "temp_change": 0.5 * member,
-                "precip_change": (1.0 + 0.1 * member) * 100 - 100,
-                "precip_variance_change": 0.0,
-            }
+def test_run_coverage_honours_st_start(tmp_path):
+    """``ST_START`` is 1 without ``run_historical``, so a hardcoded 0 would make
+    the check fail on every config that drops the baseline — a guard that fires
+    on a legitimate configuration gets deleted rather than fixed."""
+    for member in (1, 2):
+        (tmp_path / f"rlz_1_st_{member}.csv").write_text("time,Q_1\n2000-01-01,1.0\n")
+    with pytest.raises(ValueError, match=r"do not cover \[0, 1, 2\]"):
+        analyze_wflow_results(
+            csv_fns=sorted(str(p) for p in tmp_path.glob("rlz_*.csv")),
+            results_dir=str(tmp_path),
+            st_num=2,
+            indicator_tokens=["q"],
+            table_paths={"q": str(tmp_path / "q_indicators.csv")},
+            st_start=0,
         )
-    if extra_axis:
-        for row in rows:
-            row["wind_change"] = 0.0
-    path = tmp_path / "stress_test_design.csv"
-    pd.DataFrame(rows).to_csv(path, index=False)
-    return str(path)
+    # The same runs are COMPLETE coverage once the baseline is not expected.
+    analyze_wflow_results(
+        csv_fns=sorted(str(p) for p in tmp_path.glob("rlz_*.csv")),
+        results_dir=str(tmp_path),
+        st_num=2,
+        indicator_tokens=["q"],
+        table_paths={"q": str(tmp_path / "q_indicators.csv")},
+        st_start=1,
+    )
+
+
+# --- the long shape (R11 CR-2) ------------------------------------------------
 
 
 def _run_csv(path, seed, offset, basavg=True):
@@ -274,22 +176,22 @@ def _run_csv(path, seed, offset, basavg=True):
     pd.DataFrame(data, index=idx).rename_axis("time").to_csv(path)
 
 
-def _reduce(tmp_path, tokens=("q",), rlz=2, st=2, basavg=True, extra_axis=False):
-    """Run the reduction over a small synthetic sweep and return the tables."""
+def _reduce(tmp_path, tokens=("q",), rlz=2, st=2, basavg=True):
+    """Run the reduction over a small synthetic sweep and return the tables.
+
+    No parameter artifact is staged: since D22 the reducer reads none. The id
+    width comes from ``index_width(st_num)`` and the axis is derived downstream
+    from the lookup, so a fixture that wrote member files would be staging inputs
+    nothing opens.
+    """
     seed = 0
     for member in range(0, st + 1):
         for r in range(1, rlz + 1):
             _run_csv(tmp_path / f"rlz_{r}_st_{member}.csv", seed, member, basavg)
             seed += 1
-    for member in range(1, st + 1):
-        _cst_df(0.5 * member, 1.0 + 0.1 * member).to_csv(
-            tmp_path / f"st_{member}.csv", index=False
-        )
     paths = {t: str(tmp_path / f"{t}_indicators.csv") for t in tokens}
     analyze_wflow_results(
         csv_fns=sorted(str(p) for p in tmp_path.glob("rlz_*.csv")),
-        st_csv_fns=sorted(str(p) for p in tmp_path.glob("st_*.csv")),
-        design_path=_write_design(tmp_path, st, extra_axis=extra_axis),
         results_dir=str(tmp_path),
         st_num=st,
         indicator_tokens=list(tokens),
@@ -298,13 +200,14 @@ def _reduce(tmp_path, tokens=("q",), rlz=2, st=2, basavg=True, extra_axis=False)
     return {t: pd.read_csv(p) for t, p in paths.items()}
 
 
-def test_the_header_is_seven_columns_and_does_not_grow_with_gauges(tmp_path):
+def test_the_header_is_five_columns_and_does_not_grow_with_gauges(tmp_path):
     """The point of the long shape: two gauges and twenty give the same header.
 
-    Seven since C28 added `st_id`. That column is the one thing in this header
-    which is coupled to the stress-dimension COUNT rather than being fixed --
-    ruled "at this stage" -- so the writer refuses a third axis rather than
-    letting the shape drift a column at a time.
+    FIVE since the axis columns were removed, and the header is now fixed
+    against the stress-dimension count as well as the gauge count. `st_id` was
+    ruled ALONGSIDE those columns "at this stage", with an explicit revisit when
+    a third dimension arrives; the revisit happened, and the answer was that the
+    axis is a derivation over the lookup rather than a column here.
     """
     q = _reduce(tmp_path)["q"]
     assert list(q.columns) == [
@@ -312,8 +215,6 @@ def test_the_header_is_seven_columns_and_does_not_grow_with_gauges(tmp_path):
         "location",
         "st_id",
         "rlz_id",
-        "temp_change",
-        "precip_change",
         "value",
     ]
     assert set(q.location.astype(str)) == {"101", "202"}
@@ -341,33 +242,38 @@ def test_st_id_is_the_padded_member_token(tmp_path):
 
 
 def test_st_id_survives_a_dtype_aware_round_trip(tmp_path):
-    """The join C28 exists to make possible, done the way a consumer must."""
+    """The join C28 exists to make possible, done the way a consumer must.
+
+    It matters more since the axis columns went: the join to the lookup is now
+    the ONLY way to place a row on the surface, and under the `st_0`-absent
+    encoding a mis-keyed join presents as "every row is the baseline" rather
+    than as an empty result.
+    """
     _reduce(tmp_path, st=12)
     q = pd.read_csv(tmp_path / "q_indicators.csv", dtype={"st_id": str})
-    design = pd.read_csv(tmp_path / "stress_test_design.csv", dtype={"st_id": str})
-    assert set(q["st_id"]) <= set(design["st_id"])
     assert set(q["st_id"]) == {f"{m:02d}" for m in range(0, 13)}
 
 
-def test_a_third_stress_axis_refuses_naming_c28(tmp_path):
-    """C28's second obligation, on the RESULTS side.
-
-    A design table carrying an axis this header cannot express must stop the
-    run and say so. Silently dropping it would leave results that describe a
-    different experiment than the one that ran, and CR-2's fixed-shape property
-    would degrade one column at a time with nothing noticing.
-    """
-    with pytest.raises(ValueError, match="C28"):
-        _reduce(tmp_path, extra_axis=True)
+# C28's SECOND obligation -- the reducer refusing a design table whose axis this
+# header cannot express -- retired with the axis columns: the header expresses no
+# axis, so a third perturbation parameter no longer needs a results column. The
+# contract barrier stands and is tested where it now lives alone,
+# `tests/test_prepare_cst_parameters.py::test_a_third_stress_axis_refuses_naming_c28`.
 
 
-def test_the_unperturbed_baseline_is_a_row_at_the_origin(tmp_path):
+def test_the_unperturbed_baseline_is_present_as_its_own_member(tmp_path):
     """[R9-5], ruled 2026-08-07. It is also what Q5 needs: the class-C month is
-    picked from the baseline, and it cannot be picked from a record not there."""
+    picked from the baseline, and it cannot be picked from a record not there.
+
+    Identified by `st_id` rather than by "the row whose axes are both zero" —
+    the axes are gone, and that identification was never sound anyway: an
+    identity member's row carried the same two zeros while denoting a
+    differently-processed climate.
+    """
     q = _reduce(tmp_path)["q"]
-    origin = q[(q.temp_change == 0) & (q.precip_change == 0)]
-    assert not origin.empty
-    assert origin.metric.nunique() == q.metric.nunique()
+    baseline = q[q.st_id == 0]
+    assert not baseline.empty
+    assert baseline.metric.nunique() == q.metric.nunique()
 
 
 def test_class_a_is_per_realization_while_b_and_c_are_pooled(tmp_path):
@@ -398,7 +304,7 @@ def test_the_class_c_month_is_the_same_for_every_member(tmp_path):
     # One value per member; if the month were re-picked per member the values
     # would come from different months, which this cannot detect directly --
     # what it CAN pin is that every member produced exactly one such row.
-    assert len(wet) == q.temp_change.nunique()
+    assert len(wet) == q.st_id.nunique()
 
 
 def test_a_non_discharge_variable_gets_its_own_table_per_subcatchment(tmp_path):
@@ -479,16 +385,25 @@ def test_values_are_written_without_scientific_notation(tmp_path):
 
 
 def test_the_value_column_is_the_only_column_reformatted(tmp_path):
-    """`to_csv(float_format=...)` would also rewrite temp_change/precip_change
-    (`0.0` -> `0`). Those are join keys for consumers and row-alignment keys for
-    the baseline comparator, so their bytes must survive untouched."""
-    _reduce(tmp_path, st=3)
+    """The key columns' bytes must survive the value formatter untouched.
+
+    Its original witnesses were `temp_change`/`precip_change`, which a
+    `to_csv(float_format=...)` would have rewritten `0.0` -> `0`. Those columns
+    are gone, and every remaining key column is non-numeric — so the claim is
+    re-witnessed rather than deleted: `st_id` is the join key to the lookup and
+    carries ZERO PADDING that a broadcast reformat would strip, which is the
+    same defect class in the column that now matters most.
+    """
+    _reduce(tmp_path, st=12)
     text = (tmp_path / "q_indicators.csv").read_text(encoding="utf-8")
     header, *body = text.splitlines()
     cols = header.split(",")
-    axes = [cols.index("temp_change"), cols.index("precip_change")]
-    written = {body_line.split(",")[i] for body_line in body for i in axes}
-    assert all("." in v for v in written), written
+    keys = [i for i, c in enumerate(cols) if c != "value"]
+    written = [line.split(",") for line in body]
+    assert {row[cols.index("st_id")] for row in written} == {
+        f"{m:02d}" for m in range(0, 13)
+    }
+    assert not [row[i] for row in written for i in keys if "." in row[i]]
 
 
 def test_missing_values_render_as_an_empty_field_not_the_string_nan():

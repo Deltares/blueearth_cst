@@ -5,9 +5,15 @@ R11 CR-2. The pre-R11 writer produced two WIDE tables — ``q_indicators.csv`` w
 one column per gauge, and ``basin_indicators.csv`` with one column per basin
 variable — so the header grew with the gauge count and a reader had to know which
 columns were locations. This emits **one table per output variable**, each with a
-**fixed seven-column header** that does not grow with anything:
+**fixed five-column header** that does not grow with anything:
 
-    metric, location, st_id, rlz_id, temp_change, precip_change, value
+    metric, location, st_id, rlz_id, value
+
+The header no longer grows with the STRESS-dimension count either. The axis
+columns were removed once the response-surface axis became a derivation over
+``stress_test_lookup.csv``: they held an annual collapse of twelve monthly
+perturbations, which misreports any seasonal design and made every other axis
+unrecoverable from the results. Specification: HM-7.
 
 ``metric`` is a composite ``<variable>_<statistic>`` (``q_mean_annual_7day_min``),
 so a result file is self-contained once it leaves the project tree —
@@ -51,7 +57,6 @@ import pandas as pd
 import blueearth_cst.shared.metrics_definition as md
 from blueearth_cst.shared.indicator_tables import (
     BASIN_METRIC_SUFFIXES,
-    DESIGN_AXES,
     INDICATOR_COLUMNS,
     POOLED_REALIZATION,
     RETURN_PERIOD_LOW_YR,
@@ -61,67 +66,17 @@ from blueearth_cst.shared.indicator_tables import (
     output_code,
     q_metric_name,
 )
-from blueearth_cst.shared.snake_utils import DEFAULT_WATER_YEAR_ANCHOR, log_row
+from blueearth_cst.shared.snake_utils import (
+    DEFAULT_WATER_YEAR_ANCHOR,
+    index_width,
+    log_row,
+)
 
 #: ``rlz_<n>_st_<m>`` in a wflow run CSV's stem. Anchored at the start so a
 #: directory component can never satisfy it, and both indices are captured --
 #: ``split("_")[-1]`` would silently return the member number as the realization,
 #: and a wrong-but-plausible integer mislabels every row it touches.
 _MEMBER_IN_STEM = re.compile(r"^rlz_(\d+)_st_(\d+)$")
-
-#: Month lengths in the weather generator's calendar. ``impose_climate_change.R``
-#: writes every perturbed realization with ``calendar = "noleap"``, so a year is
-#: 365 days and February is always 28 -- there is no leap branch to reach here.
-_MONTH_LENGTHS = np.array(
-    [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31], dtype="float64"
-)
-_MONTHS = tuple(range(1, 13))
-
-
-def annual_perturbation(
-    df_st: pd.DataFrame, column: str, source: Union[str, Path] = ""
-) -> float:
-    """Collapse a perturbation file's TWELVE monthly values to ONE axis value.
-
-    ``prepare_stress_test_grid`` builds each member from the config's 12-element
-    ``min``/``max`` vectors, so every perturbation is monthly. The response
-    surface is two-dimensional, so the reduction owes it a single annual figure
-    per axis.
-
-    **Month-length-weighted mean**, per the 2026-08-07 ruling on [R9-3]. That
-    makes the temperature axis identical to how WF2 defines its annual change
-    factor (a duration-weighted mean for an intensive variable), which matters
-    because the CMIP6 "GCM dots" are overlaid on THESE axes -- two different
-    collapses would compare two different quantities.
-
-    The precipitation axis APPROXIMATES that definition: WF2 integrates precip
-    over the year and takes the ratio, weighting each month by its baseline
-    precipitation, while month-length weighting assumes a uniform daily rate.
-    They agree exactly for a flat vector and diverge with the covariance between
-    the perturbation and the basin's seasonal cycle. The exact form was declined
-    because it costs a climatology input edge on the rule.
-
-    Flat vectors short-circuit on exact equality rather than falling through the
-    weighted mean, which would round twelve identical values to something a unit
-    in the last place away from them.
-    """
-    values = df_st[column].to_numpy(dtype="float64")
-    if values.size != len(_MONTHS):
-        raise ValueError(
-            f"{source or 'stress-test parameter file'}: column {column!r} has "
-            f"{values.size} rows, expected one per month ({len(_MONTHS)})"
-        )
-    if "month" in df_st.columns:
-        months = df_st["month"].to_numpy(dtype="int64")
-        if tuple(sorted(months)) != _MONTHS:
-            raise ValueError(
-                f"{source or 'stress-test parameter file'}: 'month' column is "
-                f"{months.tolist()}, expected the twelve calendar months"
-            )
-        values = values[np.argsort(months)]
-    if np.ptp(values) == 0:
-        return float(values[0])
-    return float(np.average(values, weights=_MONTH_LENGTHS))
 
 
 def member_from_run_csv(csv_fn: Union[str, Path]) -> tuple[int, int]:
@@ -297,35 +252,12 @@ def _return_level_from_blocks(
     return pd.Series(levels)
 
 
-def perturbation_axes(
-    df_st: pd.DataFrame, source: Union[str, Path] = ""
-) -> tuple[float, float]:
-    """The two response-surface axes for one member, in the RESULTS' own units.
-
-    ``temp_change`` is a delta in K; ``precip_change`` is a PERCENT change, not
-    the factor the parameter file carries -- a 1.3 mean factor is ``30.0``.
-
-    Named once, and used by BOTH the design table (rule 3.09) and the indicator
-    tables (rule 3.16), because C28 makes the results columns a cached copy of
-    the design table's row and `validate_hm7` asserts they agree. Two spellings
-    of "the precipitation axis" is exactly how that assertion starts failing on
-    a unit rather than on a defect -- which it did, between this milestone's
-    commit 2 and commit 3, when the design table wrote the raw factor.
-    """
-    return (
-        annual_perturbation(df_st, "temp_mean", source),
-        annual_perturbation(df_st, "precip_mean", source) * 100 - 100,
-    )
-
-
-def _rows(metric, st_id, temp, precip, realization, values, locations) -> list[tuple]:
+def _rows(metric, st_id, realization, values, locations) -> list[tuple]:
     """One long-format row per location, for one metric at one member.
 
     The tuple order is ``INDICATOR_COLUMNS`` and must stay that way: these tuples
     are handed to ``pd.DataFrame(rows, columns=INDICATOR_COLUMNS)``, which assigns
     names POSITIONALLY and would silently mislabel every column rather than raise.
-    The signature keeps its argument order for its callers' sake, so the two
-    orders differ deliberately — the reorder happens here, once.
     """
     return [
         (
@@ -333,8 +265,6 @@ def _rows(metric, st_id, temp, precip, realization, values, locations) -> list[t
             locations[column],
             st_id,
             realization,
-            temp,
-            precip,
             float(values[column]),
         )
         for column in values.index
@@ -343,12 +273,11 @@ def _rows(metric, st_id, temp, precip, realization, values, locations) -> list[t
 
 def analyze_wflow_results(
     csv_fns: List[Union[str, Path]],
-    st_csv_fns: List[Union[str, Path]],
-    design_path: Union[str, Path],
     results_dir: Union[str, Path],
     st_num: int,
     indicator_tokens: List[str],
     table_paths: dict,
+    st_start: int = 0,
     anchor: str = DEFAULT_WATER_YEAR_ANCHOR,
 ):
     """Reduce every stress-test run into one long table per configured variable.
@@ -364,47 +293,13 @@ def analyze_wflow_results(
     results_dir = Path(results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    # -- the perturbation axes, per member ------------------------------------
-    # st_0 is the reserved unperturbed baseline and has no parameter file, so
-    # the declared set is exactly 1..st_num. Checked here rather than letting a
-    # Snakefile/script disagreement surface as a KeyError deep in the loop.
-    st_csv_by_num = {int(Path(p).stem.split("_")[-1]): p for p in st_csv_fns}
-    if set(st_csv_by_num) != set(range(1, st_num + 1)):
-        raise ValueError(
-            f"stress-test parameter files do not cover 1..{st_num}: got "
-            f"{sorted(st_csv_by_num)}, expected {sorted(range(1, st_num + 1))}"
-        )
-    axes = {0: (0.0, 0.0)}  # the baseline sits at the origin by definition
-    for st, path in st_csv_by_num.items():
-        axes[st] = perturbation_axes(pd.read_csv(path), path)
-
-    # -- st_id, and C28's hard stop -------------------------------------------
-    # The design table is read for exactly two things: the id WIDTH (so a
-    # results st_id is the same token as the member filename) and the axis set.
-    # The axis VALUES are still derived above, independently, from the parameter
-    # files -- that independence is what gives `validate_hm7`'s consistency
-    # check something to actually verify. A copy checked against itself is not a
-    # check.
-    design = pd.read_csv(design_path, dtype={"st_id": str})
-    extra_axes = [
-        c
-        for c in design.columns
-        if c != "st_id"
-        and c.endswith("_change")
-        and c not in DESIGN_AXES
-        and c != "precip_variance_change"
-    ]
-    if extra_axes:
-        raise ValueError(
-            f"the stress-test design table carries axes {extra_axes}, which this "
-            f"writer cannot express: the indicator header is fixed at "
-            f"{list(INDICATOR_COLUMNS)} and C28 ruled `st_id` ALONGSIDE the "
-            f"perturbation columns only 'at this stage', with an explicit revisit "
-            f"when a third dimension arrives. Adding a column silently would "
-            f"degrade CR-2's fixed-shape property one column at a time. See "
-            f"dev/milestones/r09/wf3-change-requests.md C28."
-        )
-    st_width = max(len(str(i)) for i in design["st_id"])
+    # -- the id width ---------------------------------------------------------
+    # From the SAME shared helper rule 3.09 pads with, so the two spellings of a
+    # member token cannot diverge. It used to be read off the design table, which
+    # this rule no longer takes as an input at all: the axis is derived at
+    # reporting time from the lookup (HM-7), so the reduction needs no parameter
+    # artifact whatever.
+    st_width = index_width(st_num)
 
     # -- index the runs by member ---------------------------------------------
     runs: dict = {}
@@ -412,6 +307,23 @@ def analyze_wflow_results(
         rlz, st = member_from_run_csv(csv_fn)
         runs.setdefault(st, {})[rlz] = Path(csv_fn)
     members = sorted(runs)
+
+    # -- run coverage, checked before any reduction work ----------------------
+    # The predecessor of this check verified that the DECLARED parameter files
+    # covered 1..st_num. This one verifies what actually RAN, which is both the
+    # stronger statement and the one that survives the parameter files going
+    # away. It stays at the run-time tier deliberately: `validate_hm7` is a
+    # test-time validator, and the HM-7 record notes its "no rows" check is never
+    # invoked at run time.
+    expected_members = set(range(st_start, st_num + 1))
+    if set(members) != expected_members:
+        raise ValueError(
+            f"the stress-test runs do not cover {sorted(expected_members)}: got "
+            f"{sorted(members)}. Every member's wflow run must be present before "
+            f"the indicator tables are written -- a partial set would produce a "
+            f"response surface silently missing grid cells, or biased if the "
+            f"absent members sit at one end of the grid."
+        )
 
     def read(path):
         return pd.read_csv(path, index_col=0, parse_dates=True)
@@ -460,7 +372,6 @@ def analyze_wflow_results(
     )
 
     for st in members:
-        temp, precip = axes[st]
         st_id = f"{st:0{st_width}d}"
         by_rlz = runs[st]
 
@@ -486,8 +397,6 @@ def analyze_wflow_results(
                     rows["q"] += _rows(
                         q_metric_name(statistic),
                         st_id,
-                        temp,
-                        precip,
                         rlz,
                         values,
                         q_locations,
@@ -514,8 +423,6 @@ def analyze_wflow_results(
                 rows["q"] += _rows(
                     q_metric_name(statistic),
                     st_id,
-                    temp,
-                    precip,
                     POOLED_REALIZATION,
                     _return_level_from_blocks(blocks, period, mode),
                     q_locations,
@@ -531,8 +438,6 @@ def analyze_wflow_results(
                     rows["q"] += _rows(
                         q_metric_name(statistic),
                         st_id,
-                        temp,
-                        precip,
                         POOLED_REALIZATION,
                         _month_mean(pooled, month, anchor),
                         q_locations,
@@ -557,9 +462,7 @@ def analyze_wflow_results(
                 values = pd.Series(
                     {c: float(_annual(sim[c], how, anchor).mean()) for c in locations}
                 )
-                rows[token] += _rows(
-                    metric, st_id, temp, precip, rlz, values, locations
-                )
+                rows[token] += _rows(metric, st_id, rlz, values, locations)
 
     # -- write ----------------------------------------------------------------
     for token in indicator_tokens:
@@ -592,10 +495,9 @@ if __name__ == "__main__":
             tokens = list(sm.params.indicator_tokens)
             analyze_wflow_results(
                 csv_fns=sm.input.rlz_csv_fns,
-                st_csv_fns=sm.input.st_csv_fns,
-                design_path=sm.input.design_csv,
                 results_dir=sm.params.results_dir,
                 st_num=sm.params.st_num,
+                st_start=sm.params.st_start,
                 indicator_tokens=tokens,
                 table_paths={t: getattr(sm.output, f"{t}_indicators") for t in tokens},
                 anchor=water_year_end_anchor(sm.params.water_year_start),

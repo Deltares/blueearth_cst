@@ -99,43 +99,36 @@ OUTPUT_CODES = {VARIABLE_TOKENS[label]: code for label, code in _WFLOW_CODES.ite
 #: name it was given in R9, which is why the pattern is token-first.
 _TABLE_SUFFIX = "_indicators.csv"
 
-#: The seven columns of every indicator table, in order. Fixed regardless of gauge
-#: count — that fixity is the point of the long shape.
+#: The five columns of every indicator table, in order. Fixed regardless of gauge
+#: count — that fixity is the point of the long shape — and, since the axis
+#: columns were removed, fixed regardless of the STRESS-dimension count too.
 #:
 #: Lives here rather than in the writer because BOTH the writer and ``validate_hm7``
 #: need it, and ``shared/`` may not import from ``experiment/``. Stating it once is
 #: also what stops the producer and its validator disagreeing about the header,
 #: which is the specific failure this pairing exists to prevent.
 #:
-#: **Ordered identifier-first, owner ruling 2026-08-11.** The columns now read
-#: *what* (``metric``, ``location``), then *which member* (``st_id``, ``rlz_id``),
-#: then *where on the surface* (``temp_change``, ``precip_change``), then the
-#: number. That groups the two id columns adjacently instead of splitting them
-#: around the perturbation axes, which is how a reader scans a long table: pick the
-#: series, then the member, then read across. Same seven columns and the same
-#: fixity — this is a reorder and one rename, not a shape change.
+#: **Ordered identifier-first, owner ruling 2026-08-11.** The columns read *what*
+#: (``metric``, ``location``), then *which member* (``st_id``, ``rlz_id``), then
+#: the number. ``realization_id`` became ``rlz_id`` in the same ruling, matching
+#: the ``rlz_`` member token already carried by the run filenames
+#: (``rlz_1_st_0.csv``) and by ``RLZ_NUM``.
 #:
-#: ``realization_id`` became ``rlz_id`` in the same ruling, matching the ``rlz_``
-#: member token already carried by the run filenames (``rlz_1_st_0.csv``) and by
-#: ``RLZ_NUM``. It also sets the two id columns to the same ``<thing>_id`` width,
-#: which is what makes the adjacency above read as a pair.
+#: **``temp_change`` and ``precip_change`` were REMOVED**, and the removal is the
+#: point rather than a simplification. They held a month-length-weighted ANNUAL
+#: mean of the member's twelve monthly perturbations, taken at reduction time,
+#: which misreports any seasonal design: +30% imposed in JJA is
+#: ``(92*1.30 + 273*1.00)/365`` = +7.6% on the axis. Baking one collapse into the
+#: results also made every other axis unrecoverable from them. The axis is now
+#: DERIVED at reporting time from ``stress_test_lookup.csv``; the specification is
+#: HM-7 and the reference implementation is ``shared/surface_axes.py``.
 INDICATOR_COLUMNS = (
     "metric",
     "location",
     "st_id",
     "rlz_id",
-    "temp_change",
-    "precip_change",
     "value",
 )
-
-#: The stress dimensions this shape can express. C28 was ruled "at this stage" —
-#: `st_id` ALONGSIDE the perturbation columns rather than replacing them, chosen
-#: for plottable-without-a-join, with an explicit revisit when a third dimension
-#: arrives. That re-couples the header to the dimension count, which is what CR-2
-#: removed on the location axis, so the coupling is made refusable rather than
-#: silent: the writer raises when a design table carries an axis outside this set.
-DESIGN_AXES = ("temp_change", "precip_change")
 
 #: ``rlz_id`` for a pooled row. A numeric sentinel in a numeric key column is safe
 #: ONLY because no metric emits both grains; if that ever changes it must become a
