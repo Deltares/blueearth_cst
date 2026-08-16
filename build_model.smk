@@ -13,10 +13,7 @@ from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set (rules 1.13 and 1.15 both draw it). Imported
 # for figure_names() ONLY, so every figure is declared from the same list the
 # plotter writes from and the two cannot drift.
-from blueearth_cst.climate_analysis.climate_figures import (
-    LEVELS_FILENAME,
-    figure_names,
-)
+from blueearth_cst.climate_analysis.climate_figures import figure_names
 # The thematic map family rule 1.12 draws beside basin_area. Same reason as
 # above: the output list comes from the registry the plotter iterates, so a
 # figure cannot be added in one place and forgotten in the other.
@@ -1094,10 +1091,10 @@ rule plot_forcing:
         # by side. The model's own staticgeoms would reintroduce the divergence.
         **{name: SPATIAL_UNITS.outputs[name] for name in
            ("basins", "subbasins", "rivers", "locations")},
-        # The colourbar boundaries rule 1.05 recorded. Declared so the edge is
-        # in the DAG: these figures adopt that bar, so they are stale when it
-        # changes. One-way by design — 1.05 never waits on the model.
-        shared_levels = f"{store_dir}/plots/{LEVELS_FILENAME}",
+        # No `shared_levels` edge since 2026-08-16. These figures used to adopt
+        # the colourbar rule 1.05 recorded, which is why that file was declared
+        # here; the two families now classify their own footprints and this rule
+        # no longer waits on 1.05 at all. See climate_figures.MAP_EXTENT.
     # R07 B10 + O-24: the forcing/model-input QA figures sit beside the forcing
     # they describe, and ALL of them are declared — variable x kind is a fixed
     # cross-product, so the list comes from climate_figures.figure_names()
@@ -1109,7 +1106,6 @@ rule plot_forcing:
         # Rule-owned model root; see rule 1.15's note.
         model_dir = basin_dir,
         geoms_dir = SPATIAL_UNITS.spatial_dir + "/geoms",
-        source_plot_dir = f"{store_dir}/plots",
         water_year_start = WATER_YEAR_START,
     log:
         f"{LOG_PARTS_DIR}/1.13_plot_forcing.log",
@@ -1170,8 +1166,6 @@ rule plot_climate_source:
         **_source_plot_inputs,
     output:
         [f"{store_dir}/plots/{name}" for name in figure_names("source")],
-        # Read by rule 1.13; see its input note.
-        f"{store_dir}/plots/{LEVELS_FILENAME}",
     params:
         plot_dir = f"{store_dir}/plots",
         data_sources = DATA_SOURCES,

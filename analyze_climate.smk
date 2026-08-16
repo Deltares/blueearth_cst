@@ -13,10 +13,7 @@ from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set. Imported for figure_names() ONLY, so every
 # figure is declared from the same list the plotter writes from and the two
 # cannot drift -- the same contract rule 1.05 and rule 1.13 rely on.
-from blueearth_cst.climate_analysis.climate_figures import (
-    LEVELS_FILENAME,
-    figure_names,
-)
+from blueearth_cst.climate_analysis.climate_figures import figure_names
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -365,11 +362,6 @@ for _source in CANDIDATE_SOURCES:
             **_plot_inputs,
         output:
             [f"{source_plot_dir(_source)}/{name}" for name in figure_names("source")],
-            # The shared colourbar boundaries. WF1's rule 1.13 declares this as
-            # an input for the PROJECT'S source, so the forcing figures and the
-            # source figures can be read side by side and the difference
-            # attributed to downscaling rather than to two colour scales.
-            f"{source_plot_dir(_source)}/{LEVELS_FILENAME}",
         params:
             plot_dir = source_plot_dir(_source),
             data_sources = DATA_SOURCES,

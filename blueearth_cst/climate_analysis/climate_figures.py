@@ -41,7 +41,6 @@ grid.
 
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 from typing import Optional, Union
@@ -95,6 +94,31 @@ FIGURE_KINDS = ("map", "annual", "monthly")
 DATASETS = {
     "source": "source grid (raw extraction)",
     "forcing": "model grid (wflow forcing)",
+}
+
+#: How each family FRAMES its maps, and it is not the same answer for both.
+#:
+#: ``"basin"`` crops to the basin's bounding box; ``"raster"`` shows the field's
+#: own full footprint. The forcing is masked to the basin, so for it the two are
+#: nearly the same box and ``"basin"`` is simply the tidier one.
+#:
+#: The SOURCE side is where they differ, and it changed on 2026-08-16 (owner's
+#: ruling). A raw extraction is a handful of reanalysis cells reaching well past
+#: the catchment — at ERA5's 0.25 degrees a small basin sits inside one or two
+#: of them — so cropping to the basin showed a single flat class and called it a
+#: map of the climate. Framed on its own extraction the same figure shows the
+#: cells the data actually has, which is what a reader checking a forcing choice
+#: needs to see.
+#:
+#: This retires an earlier deliberate alignment: both families were framed on
+#: the basin so the pair could be read side by side and any difference
+#: attributed to downscaling. That comparison is now given up on the extent, and
+#: with it the shared colourbar (see :func:`plot_climate_figures`) — each family
+#: classifies what it actually draws, because a bar derived from one footprint
+#: is wrong for the other.
+MAP_EXTENT = {
+    "source": "raster",
+    "forcing": "basin",
 }
 
 #: A year is plotted as a TOTAL only if it is essentially complete; below this
@@ -260,9 +284,9 @@ def _render_map(
     title,
     caveat,
     overlays,
-    levels=None,
-    levels_out=None,
+    extent_policy="basin",
     anchor=DEFAULT_WATER_YEAR_ANCHOR,
+    **_,
 ):
     """Climatological field as a cartographic map.
 
@@ -291,8 +315,6 @@ def _render_map(
     style = base.replace(label=f"{label.capitalize()} ({axis_unit})")
     if spec["style"] == "temp":
         style = resolve_temperature_style(field, style)
-    if levels is not None:
-        style.levels = levels
 
     # Every overlay is optional, and the two datasets supply them from
     # different products: the FORCING maps take the wflow model's staticgeoms
@@ -323,12 +345,14 @@ def _render_map(
         # either product instead of silently flattening to one weight.
         river_order_column=_river_order_column(rivers),
         style=style,
-        # Framed on the BASIN, not on each raster's own footprint. The forcing
-        # is masked to the basin and the source extraction is a few reanalysis
-        # cells reaching far past it, so raster-framed the pair cannot be read
-        # side by side — which is the one thing these two families exist to
-        # support.
-        extent=extent_from_layer(basins) if has_basins else None,
+        # Per family — see MAP_EXTENT for why the two differ. ``None`` lets the
+        # template frame on the raster's own footprint, which is what the source
+        # side wants; the forcing side crops to the basin as before.
+        extent=(
+            extent_from_layer(basins)
+            if extent_policy == "basin" and has_basins
+            else None
+        ),
         # No figure title. A published figure carries its title in the caption,
         # and nothing is lost here: the colourbar names the quantity and the
         # footnote names the dataset. ``title`` stays available on the template
@@ -340,30 +364,7 @@ def _render_map(
         # than warn on every run about metadata nothing here reads.
         expected_units=(),
     )
-    if levels_out is not None:
-        # Report back what this bar ended up using, so a later figure of the
-        # same quantity can be pinned to it. Read from the style when it was
-        # handed in, and recomputed from the FRAMED raster otherwise — the same
-        # restriction plot_raster_map applies, so the two cannot disagree.
-        levels_out[:] = (
-            list(levels)
-            if levels is not None
-            else [float(v) for v in _levels_actually_used(field, style, basins)]
-        )
     return fig
-
-
-def _levels_actually_used(field, style, basins):
-    """The class boundaries ``plot_raster_map`` would derive for this figure."""
-    from blueearth_cst.shared.cartographic_map import (
-        _class_levels,
-        _raster_within,
-        extent_from_layer,
-    )
-
-    extent = extent_from_layer(basins) if basins is not None and len(basins) else None
-    framed = _raster_within(field, extent) if extent is not None else field
-    return _class_levels(framed, style)
 
 
 #: Month labels for the seasonal chart. Initials alone are ambiguous (J/J/J);
@@ -570,41 +571,19 @@ _RENDERERS = {
 }
 
 
-#: Sidecar written beside the SOURCE figures and read by the FORCING ones, so a
-#: variable's two maps carry the same colourbar and can be read against each
-#: other. Direction matters and is one-way: the source rule (1.05) is
-#: independent of the model build and writes; the forcing rule (1.13) is
-#: downstream of it anyway and reads. The reverse would make the source figures
-#: wait on a wflow model, which they exist to precede.
-LEVELS_FILENAME = "climate_levels.json"
-
-
-def read_shared_levels(levels_file: Optional[Union[str, Path]]) -> dict:
-    """Class boundaries recorded by an earlier figure set, keyed by variable.
-
-    Returns an empty dict when the file is absent or unreadable — a figure with
-    its own bar is still correct, and refusing to plot because a convenience
-    sidecar is missing would be the wrong trade.
-    """
-    if levels_file is None:
-        return {}
-    path = Path(levels_file)
-    if not path.is_file():
-        return {}
-    try:
-        loaded = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        log_row(f"shared levels unreadable, ignored: {path}", module="plot")
-        return {}
-    return {k: v for k, v in loaded.items() if isinstance(v, list) and len(v) > 1}
-
-
-def write_shared_levels(levels_file: Union[str, Path], levels: dict) -> None:
-    """Record the class boundaries this figure set used, for its pair to adopt."""
-    path = Path(levels_file)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(levels, indent=2, sort_keys=True), encoding="utf-8")
-    log_row(f"Wrote shared colourbar levels: {path}", module="plot")
+# A `climate_levels.json` sidecar lived here until 2026-08-16: the SOURCE
+# figures recorded their class boundaries and the FORCING figures adopted them,
+# so a variable's two maps carried one colourbar and could be read against each
+# other. It went with the extent ruling above (see MAP_EXTENT). Once the two
+# families frame different footprints a shared bar is not a convenience but a
+# defect — it would be classified on the source extraction and applied to a
+# basin-cropped forcing field, so the forcing map would spend most of its ramp
+# on values that occur only outside the catchment. Each family now classifies
+# what it actually draws.
+#
+# What this gave up, stated plainly: the two maps of a variable no longer share
+# a scale, so a source/forcing difference can no longer be read off the colours
+# alone. Rules 1.05 and 1.13 lost the DAG edge that carried the file.
 
 
 def plot_climate_figures(
@@ -614,8 +593,6 @@ def plot_climate_figures(
     *,
     caveat: Optional[str] = None,
     overlays: Optional[dict] = None,
-    levels_file: Optional[Union[str, Path]] = None,
-    write_levels: bool = False,
     anchor: str = DEFAULT_WATER_YEAR_ANCHOR,
 ) -> list[Path]:
     """Write the canonical figure set for one gridded climate dataset.
@@ -666,11 +643,10 @@ def plot_climate_figures(
     plot_dir = Path(plot_dir)
     os.makedirs(plot_dir, exist_ok=True)
     title = DATASETS[dataset]
-    shared = {} if write_levels else read_shared_levels(levels_file)
+    extent_policy = MAP_EXTENT[dataset]
     written = []
     for var, spec in CLIMATE_VARS.items():
         da = ds[var]
-        captured = []
         for kind in FIGURE_KINDS:
             out_path = plot_dir / f"{dataset}_{var}_{kind}.png"
             fig = _RENDERERS[kind](
@@ -679,17 +655,12 @@ def plot_climate_figures(
                 title,
                 caveat,
                 overlays,
-                levels=shared.get(var),
-                levels_out=captured if write_levels else None,
+                extent_policy=extent_policy,
                 anchor=anchor,
             )
             save_figure(out_path, dpi=RASTER_DPI)
             plt.close(fig)
             written.append(out_path)
-        if write_levels and captured:
-            shared[var] = list(captured)
-    if write_levels and levels_file is not None:
-        write_shared_levels(levels_file, shared)
     # The directory is deliberately NOT repeated here: every figure above came
     # through `save_figure`, whose first row of the group already states it.
     # What this row adds is the COUNT -- "did I get all nine" without counting

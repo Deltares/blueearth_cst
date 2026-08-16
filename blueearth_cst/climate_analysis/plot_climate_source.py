@@ -42,7 +42,6 @@ from typing import Optional, Union
 import xarray as xr
 
 from blueearth_cst.climate_analysis.climate_figures import (
-    LEVELS_FILENAME,
     load_spatial_overlays,
     plot_climate_figures,
 )
@@ -234,10 +233,6 @@ def plot_climate_source(
         "source",
         caveat=f"{_CAVEAT}\n{_PET_CAVEAT}",
         overlays=load_spatial_overlays(geoms_dir),
-        # This set is computed first and RECORDS its colourbar boundaries; the
-        # forcing maps adopt them so each variable's two figures share one bar.
-        levels_file=Path(plot_dir) / LEVELS_FILENAME,
-        write_levels=True,
     )
 
 
