@@ -2,8 +2,8 @@
   "project_dir": "test_case/test_local",
   "recorded_by": {
     "branch": "main",
-    "commit": "fd3ac63aafa7a50f0869b2a01fb02b720ce9278f",
-    "dirty": true
+    "commit": "82b76a026a9a686e0948a0004ab7b640790fdb84",
+    "dirty": false
   },
   "targets": {
     "test_case/test_local/config/runs/snake_config_analyze_projections.yml": {
