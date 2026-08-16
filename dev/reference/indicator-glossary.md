@@ -153,9 +153,23 @@ Every indicator table carries the same seven columns, in this order
 | `location` | the **bare** wflow id (`130000086`, not `Q_130000086`), so it joins `outlet_index.csv` with no crosswalk. Gauge/outlet ids in `q_indicators.csv`; **subcatchment** ids in every other table |
 | `st_id` | stress-test member; `st_0` is the unperturbed baseline |
 | `rlz_id` | realization `1..RLZ_NUM`, or **`0` meaning pooled over realizations** |
-| `temp_change` | temperature perturbation, °C |
-| `precip_change` | precipitation perturbation, multiplicative factor |
 | `value` | `float32`, unrounded |
+
+**There are no axis columns.** `temp_change` and `precip_change` were removed on
+2026-08-16: they held a month-length-weighted ANNUAL mean of the member's twelve
+monthly perturbations, which misreports any seasonal design and made every other
+axis unrecoverable from the results. Where a member sits on the response surface
+is now DERIVED at reporting time by joining `st_id` to
+`<exp>/config/stress_test_lookup.csv`; the specification is HM-7
+(`dev/reference/contracts/hydrological-model-seam.md`) and the reference
+implementation is `blueearth_cst/shared/surface_axes.py`. The derived columns
+keep those two names, so a consumer that already plotted them keeps working and
+simply receives values that are correct for a seasonal design.
+
+(The glossary described `precip_change` as a "multiplicative factor" until that
+removal, which was wrong for the whole time the column existed — it was written
+as a percent by `perturbation_axes`. The lookup's `precip_change` is a percent
+too, and now says so.)
 
 `basin` is a **reserved** `location` for a whole-basin scalar. Nothing emits it
 today: since 8bd51de the csv columns are per-subcatchment means, so no
@@ -171,7 +185,9 @@ mapping in a `dev/<milestone>/migration_<topic>.md` note. The CSDMS name is
 Records so far, all against `dev/milestones/r11/migration_indicator-tables.md`
 and its banners: the wide → long reshape (2026-08-08), the identifier-first
 column reorder with `realization_id` → `rlz_id` (2026-08-11), and
-`recharge` → `gwr` (2026-08-11). Two earlier ones are R9's:
+`recharge` → `gwr` (2026-08-11). Then
+`dev/milestones/r12/migration_stress-test-lookup.md` (2026-08-16), which removed
+the two axis columns. Two earlier ones are R9's:
 `migration_indicator-axis-columns.md` (`tavg` → `temp_change`, `prcp` →
 `precip_change`) and `migration_project-tree.md` (`Qstats.csv` →
 `q_indicators.csv`).

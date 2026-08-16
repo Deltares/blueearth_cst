@@ -64,7 +64,7 @@ beyond that, so no `docs/migration-*.md` guide is published.
 `check_baseline.py check` against a baseline re-recorded **before** the first
 implementation commit (`11dacdc`, 2026-08-16) and again after the shape change.
 
-## One correction to the accepted design, ruled during implementation
+## Two corrections to the accepted design, ruled during implementation
 
 The design's caption rule ("a contiguous circular run of length ≤ 3 → the
 initials") contradicted two of its own illustrative captions, which spelled
@@ -74,3 +74,16 @@ so those sets render `OND` and `AMJ`. The rule is stated normatively in both
 entries were prose that had drifted from the rule beside them — the same drift
 that motivated deriving captions instead of typing them. The HM-7 text below
 carries the corrected examples.
+
+**The rectilinearity tolerance was a hundred times below its own noise floor.**
+D17 specified `rtol = 1e-9` on the reasoning that it "sits between the two by
+seven decades in each direction" — true of `float64` noise at ~1e-16, and false
+here, because D7 deliberately quantizes the grid LEVELS to `float32`. Measured
+over eight realistic grids, three exceeded it, worst relative gap deviation
+**3.6e-07** (about 3x `float32` eps) — among them `0.6–1.4` at `step_num: 3`,
+the exact grid V20 is built on. So the design celebrated that grid in one
+decision and refused it in another. **Ruled 2026-08-16: `rtol = 1e-6`**, which
+keeps D17's reasoning and corrects only the number for the actual noise floor.
+
+Found by V21, not by review: every shipped config's grid has two or three levels
+and passes trivially or exactly, so the defect is unreachable from the seeds.
