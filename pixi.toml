@@ -112,8 +112,11 @@ GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT = "false"
 # TLS path WF2 actually depends on -- succeeds.
 #
 # One case this does NOT cover, deliberately: a shell that already exports
-# SSL_CERT_DIR (an activated conda env) wins over this, because pixi keeps an
-# inherited value. Fixing that belongs to whoever set it, not to this project.
+# SSL_CERT_DIR wins over this, because pixi keeps an inherited value. The usual
+# source is a SHELL PROFILE that re-exports it -- and when it does so from a
+# prompt hook, it re-applies after every command, so it outlives activation and
+# no repo-level setting can win. Check the parent shell before this file.
+# Fixing that belongs to whoever set it, not to this project.
 SSL_CERT_DIR = ""
 
 # Windows-only: recreate the ffi.dll / cairo.dll aliases graphviz needs.
