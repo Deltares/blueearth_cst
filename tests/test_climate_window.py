@@ -202,3 +202,59 @@ def test_below_the_floor_only_warns_when_the_caller_does_not(capsys):
 def test_nothing_to_report_is_not_an_error(capsys):
     assert report_coverage(None, enforce_min_years=True, where="unused") is None
     assert capsys.readouterr().out == ""
+
+
+# --- the consumer side: a store on disk ---------------------------------------
+
+
+def _store_nc(path, start, end):
+    """A minimal store: one cell, a daily time axis, nothing else asserted."""
+    import xarray as xr
+
+    time = pd.date_range(start, end, freq="D")
+    ds = xr.Dataset(
+        {"precip": (("time", "latitude", "longitude"), np.zeros((time.size, 1, 1)))},
+        coords={"time": time, "latitude": [0.0], "longitude": [0.0]},
+    )
+    ds.to_netcdf(path)
+    return path
+
+
+def test_store_bounds_are_read_off_the_file(tmp_path):
+    from blueearth_cst.shared.climate_window import store_time_bounds
+
+    nc = _store_nc(tmp_path / "era5.nc", "2000-01-01", "2016-12-31")
+    assert store_time_bounds(nc) == (
+        pd.Timestamp("2000-01-01"),
+        pd.Timestamp("2016-12-31"),
+    )
+
+
+def test_a_long_enough_store_passes_the_consumer_floor(tmp_path):
+    from blueearth_cst.shared.climate_window import require_min_years, store_time_bounds
+
+    nc = _store_nc(tmp_path / "era5.nc", "1990-01-01", "2016-12-31")
+    assert require_min_years(store_time_bounds(nc), "era5", nc, where="ctx") is None
+
+
+def test_a_short_store_is_refused_at_the_consumer(tmp_path):
+    """The one case the wf0 relaxation opens: a candidate store promoted to
+    primary without re-extraction, which the params rerun-trigger misses when the
+    reading checkout has no `.snakemake` record of the wf0 run."""
+    from blueearth_cst.shared.climate_window import require_min_years, store_time_bounds
+
+    nc = _store_nc(tmp_path / "chirps.nc", "2005-01-01", "2012-12-31")
+    with pytest.raises(ValueError) as excinfo:
+        require_min_years(
+            store_time_bounds(nc), "chirps", nc, where="SAYS WHO READS IT"
+        )
+    message = str(excinfo.value)
+    assert f"{MIN_HISTORICAL_YEARS}-year minimum" in message
+    assert "comparison candidate" in message
+    assert message.endswith("SAYS WHO READS IT")
+
+
+def test_an_unreadable_store_axis_does_not_raise():
+    from blueearth_cst.shared.climate_window import require_min_years
+
+    assert require_min_years(None, "era5", "nowhere.nc", where="ctx") is None

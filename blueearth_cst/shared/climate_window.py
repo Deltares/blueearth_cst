@@ -207,3 +207,65 @@ def report_coverage(
             raise ValueError(message)
         log_row(message, module=module, level="WARNING")
     return coverage
+
+
+# ---------------------------------------------------------------------------
+# The CONSUMER side: what a store on disk holds
+# ---------------------------------------------------------------------------
+#
+# Relaxing the floor for wf0's candidates opens exactly one hole, and it is the
+# reuse the design deliberately built: candidate stores land in the SAME
+# ``data/climate/historical/<source>_<window>/`` family WF1 and WF3 read from, so
+# a candidate that wins the comparison costs no re-extraction.
+#
+# Switching ``shared.clim_historical`` onto such a candidate changes the params
+# WF1/WF3 declare for the store rule (the relaxed store carries
+# ``enforce_min_years``, theirs does not), and params is a Snakemake rerun
+# trigger — so the ordinary case re-extracts under the floor and fails in the
+# producer. That trigger reads ``.snakemake/`` metadata under the WORKING
+# DIRECTORY, though, and AGENTS.md documents at length that one ``project_dir``
+# driven from two checkouts gets two independent stores of it. A checkout with no
+# record of the wf0 run decides by mtime alone, finds the store present and
+# newer than the catalog, and never re-extracts.
+#
+# So the consumers check the store they actually read. Cheap — one time axis off
+# an already-declared input — and it fails where the store is named.
+
+
+def store_time_bounds(climate_nc):
+    """``(first, last)`` timestamp of a store on disk, or ``None``.
+
+    Opens read-only and closes immediately: the caller wants the axis, not the
+    data, and a lingering handle on a store several rules share is its own
+    hazard (``HDF5_USE_FILE_LOCKING=FALSE`` in the pixi env makes a concurrent
+    read abort below Python with no traceback).
+    """
+    import xarray as xr
+
+    with xr.open_dataset(climate_nc) as ds:
+        return time_axis_bounds(ds)
+
+
+def require_min_years(bounds, source: str, climate_nc, *, where: str) -> None:
+    """Raise unless a store on disk reaches ``MIN_HISTORICAL_YEARS``.
+
+    Unreachable for a store the CALLING workflow extracted — the producer
+    applies the same arithmetic to the same bounds and would have failed first.
+    It fires on exactly one thing: a store written elsewhere with the floor
+    relaxed, being read by a workflow the floor does bind.
+    """
+    if bounds is None:
+        return
+    if meets_min_historical_years(*bounds):
+        return
+    raise ValueError(
+        f"The {source} store at {climate_nc} covers "
+        f"{bounds[0].date()}..{bounds[1].date()} "
+        f"(~{(bounds[1] - bounds[0]).days / 365.25:.1f} years), below the "
+        f"{MIN_HISTORICAL_YEARS}-year minimum this toolbox requires "
+        f"(weathergenr's wavelet decomposition needs at least "
+        f"{MIN_HISTORICAL_YEARS} annual observations). If wf0 wrote it as a "
+        f"comparison candidate, where the floor is relaxed, re-extract it under "
+        f"shared.clim_historical -- or move shared.historical_window onto years "
+        f"the source covers. {where}"
+    )

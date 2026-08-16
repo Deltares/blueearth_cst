@@ -13,6 +13,7 @@ import os
 
 import yaml
 
+from blueearth_cst.shared.climate_window import require_min_years, store_time_bounds
 from blueearth_cst.shared.snake_utils import water_year_start_number
 
 
@@ -145,6 +146,20 @@ if __name__ == "__main__":
         from blueearth_cst.shared.snake_utils import log_row, tee_to_log
 
         with tee_to_log(sm.log[0]):
+            # The store the generator reads, checked HERE because rule 3.11 is a
+            # `shell:` running R and cannot check it, and because weathergenr's
+            # own failure on a short record arrives twenty rules from anything
+            # that could explain it (the R3 defect). See the rule's comment for
+            # why the params rerun-trigger alone is not enough.
+            require_min_years(
+                store_time_bounds(sm.input.climate_nc),
+                sm.params.clim_source,
+                sm.input.climate_nc,
+                where=(
+                    "This is the store WF3's weather generator resamples; "
+                    "weathergenr would reject it at rule 3.11"
+                ),
+            )
             weagen_config = sm.output.weagen_config
             log_row(
                 f"Preparing and writing the weather generator config file {weagen_config}",

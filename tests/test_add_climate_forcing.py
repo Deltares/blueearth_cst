@@ -391,6 +391,18 @@ def test_a_store_below_the_floor_is_refused_here_not_inside_weathergenr(tmp_path
     assert "chirps" in message
 
 
+def test_a_sub_day_end_of_day_endtime_is_not_treated_as_overrun(tmp_path):
+    """`resolve_simulation_window` accepts any ISO datetime -- it does NOT reject
+    a sub-day component the way `slugify_window` does for the historical window.
+    The store's stamps are daily midnights, so a timestamp comparison would
+    refuse `...T23:59:59` on the very last day the store holds."""
+    nc = _store_nc(tmp_path / "era5.nc", "1990-01-01", "2016-12-31")
+    assert (
+        acf.check_store_window(nc, "2010-01-01T00:00:00", "2016-12-31T23:59:59", "era5")
+        is not None
+    )
+
+
 def test_a_simulation_window_outside_the_delivered_record_is_refused(tmp_path):
     """Parse time can only compare the run window against the CONFIGURED
     historical_window. If the source fell short of it, hydromt would slice what

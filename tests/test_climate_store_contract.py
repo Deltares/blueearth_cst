@@ -613,3 +613,26 @@ def test_wf0_relaxes_the_floor_for_candidates_only(tmp_path):
 
     assert "enforce_min_years" not in primary.params.keys()
     assert candidate.params["enforce_min_years"] is False
+
+
+@pytest.mark.workflow_contract
+def test_wf3_config_prep_declares_the_store_so_it_can_check_it(tmp_path):
+    """Rule 3.10 guards what rule 3.11 cannot.
+
+    3.11 is a `shell:` running R, so the floor check has to sit in the Python
+    rule ahead of it. The edge is `ancient()` for the same reason 3.11's is: a
+    re-extraction must not by itself re-run the config prep.
+    """
+    workflow = _parse_workflow("run_stress_test.smk", CONFIG_FN)
+    rule = workflow.get_rule("prepare_weathergen_config")
+
+    store_nc = str(workflow.get_rule(RULE_NAME).output.climate_nc)
+    assert str(rule.input.climate_nc) == store_nc
+    ancient_paths = {str(f) for f in rule.input if getattr(f, "is_ancient", False)}
+    assert store_nc in ancient_paths, (
+        f"the store input must be ancient(), got ancient inputs {ancient_paths}"
+    )
+    # The source name travels too, so the message can say WHICH source fell short.
+    assert str(rule.params.clim_source) == str(
+        workflow.get_rule(RULE_NAME).params.clim_source
+    )

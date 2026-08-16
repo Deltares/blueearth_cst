@@ -872,6 +872,20 @@ rule prepare_weathergen_config:
         # generate_weather.{vars,warm_pool_size,warm_var}, all of which change
         # what the generator produces.
         default_config = "config/defaults/weathergen_config.yml",
+        # The store the generator will read, declared here so THIS rule can
+        # check it -- rule 3.11 is a `shell:` running R and cannot. `ancient`
+        # for the same reason 3.11 uses it: a re-extraction must not by itself
+        # re-run the config prep.
+        #
+        # What it guards: wf0 relaxes the MIN_HISTORICAL_YEARS floor for its
+        # extra `candidate_sources` and writes them into the same store family
+        # WF3 reads from. Promoting one to `shared.clim_historical` normally
+        # re-extracts under the floor (the params differ, which is Snakemake's
+        # rerun trigger) -- but that trigger reads `.snakemake/` metadata under
+        # the WORKING DIRECTORY, so a checkout with no record of the wf0 run
+        # decides by mtime, finds the store present, and never re-extracts.
+        # Then weathergenr fails twenty rules later: the R3 defect, restored.
+        climate_nc = ancient(f"{store_dir}/extract_historical.nc"),
     output:
         weagen_config = f"{wg_dir}/config/weathergen_config.yml",
     params:
@@ -888,7 +902,9 @@ rule prepare_weathergen_config:
         water_year_start = WATER_YEAR_START,
         dry_spell_factor = DRY_SPELL_FACTOR,
         wet_spell_factor = WET_SPELL_FACTOR,
-        nc_file_prefix = "rlz"
+        nc_file_prefix = "rlz",
+        # Named only so the store check can say WHICH source fell short.
+        clim_source = clim_source
     log:
         f"{LOG_PARTS_DIR}/3.10_prepare_weathergen_config.log",
     benchmark:
