@@ -942,7 +942,7 @@ STAGE 2 — CLIMATE DATA   (the model is fingerprinted, never used)
               3.11 generate_weather_realizations
                                │  rlz_1..R_st_0.nc   (unperturbed)
    3.09 prepare_stress_test_grid        │
-              │  st_1..N.csv            │
+              │  stress_test_lookup.csv │
               └────────────────┬────────┘
                                ▼
                   3.12 perturb_climate_realization
@@ -998,14 +998,14 @@ the shared declaration safe.
 | 3.06 | `check_model_reference` | Refuses to simulate if that model has changed. |
 | 3.07 | `write_experiment_config` | Records the experiment's own parameters. |
 | 3.08 | `extract_historical_climate` | The shared climate store (= WF1 1.04). |
-| 3.09 | `prepare_stress_test_grid` | **Creates** the stress test: one CSV per grid point. |
+| 3.09 | `prepare_stress_test_grid` | **Creates** the stress test: one lookup table, twelve rows per grid point. |
 | 3.10 | `prepare_weathergen_config` | The one weather-generator config. |
 | 3.11 | `generate_weather_realizations` | All `RLZ_NUM` unperturbed realizations, in one call. |
 | 3.12 | `perturb_climate_realization` | **Applies** one grid point to one realization. |
 | 3.13 | `write_climate_data_catalog` | Catalogs every generated climate file. |
 | 3.14 | `downscale_climate_realization` | One member onto the Wflow grid: forcing + TOML. |
 | 3.15 | `run_wflow_batch_<b>` | Runs Wflow.jl, `B` members per Julia session. |
-| 3.16 | `derive_wflow_indicators` | The two indicator tables. WF3's terminal product. |
+| 3.16 | `derive_wflow_indicators` | The indicator tables, one per output variable. WF3's terminal product. |
 | 3.17 | `gather_benchmarks` | Merges the timing parts. |
 | 3.18 | `gather_logs` | Merges the log parts. |
 
@@ -1114,15 +1114,21 @@ chirps branches.
 #### 3.09 · `prepare_stress_test_grid`
 
 **Does.** Enumerates the configured temperature × precipitation grid and writes
-one file per stress-test point: twelve monthly rows of temperature delta,
-precipitation mean factor and precipitation variance factor. **This is what
-creates the stress test.**
+ONE lookup table at monthly grain: twelve rows per stress-test point, carrying
+the temperature change and the precipitation mean and variance changes.
+**This is what creates the stress test.**
 
-**Writes.** `<wg>/_work/st_1.csv` … `st_<ST_NUM>.csv` (zero-padded to a
-width derived from `ST_NUM`, so `st_01 … st_12` on a twelve-point grid) ·
-`<exp>/config/stress_test_design.csv` — one row per design point plus the
-`st_0` baseline, written from the SAME loop, so the members and the table
-describing them cannot disagree (C23/C26).
+**Writes.** `<exp>/config/stress_test_lookup.csv` — `12 × ST_NUM` rows keyed
+`(st_id, month)`, `st_id` zero-padded to a width derived from `ST_NUM` (so
+`01 … 12` on a twelve-point grid) and textually identical to the member token.
+**No `st_0` row**: the table is the parameter grid, and the reserved unperturbed
+baseline has no parameters. Values are PERCENT for both precipitation columns
+and additive °C for temperature. Still one loop, so the enumeration that names
+the members and the one that describes them cannot disagree (C26).
+
+Replaced `<wg>/_work/st_<m>.csv` plus `<exp>/config/stress_test_design.csv` on
+2026-08-16; `_work/` is gone. Migration record:
+`dev/milestones/r12/migration_stress-test-lookup.md`.
 
 #### 3.10 · `prepare_weathergen_config`
 
@@ -1157,6 +1163,14 @@ delta, transient flags, PET recompute. **It applies the stress test; 3.09 create
 it.** Its `st_num` wildcard is constrained to ≥ 1 so it can never become a second
 producer of the reserved `st_0` baseline, which would surface as a cyclic-graph
 error.
+
+Its parameter input is the **constant** lookup, not a per-member file: the member
+id arrives as a positional argument and `read_member_grid.R` filters on it,
+stopping unless the slice is twelve rows in month order. That guard exists
+because the migration turned a structural `MissingInputException` into a quiet
+data condition — a join matching nothing yields a zero-length vector, and R's
+recycling makes a silent wrong answer at least as likely as an error. It also
+converts both percent columns back to the generator's multiplier form.
 
 **Writes.** `<wg>/output/rlz_<n>_st_<m>.nc`, `temp()`.
 
@@ -1195,13 +1209,18 @@ break the merge.
 
 #### 3.16 · `derive_wflow_indicators`
 
-**Does.** Reduces every member's run to the two indicator tables that form the
-response surface. WF3's terminal product. Takes the stress-test grid as a
-declared input — it was an undeclared runtime read until R07 B6, and so invisible
-to `--dry-run`.
+**Does.** Reduces every member's run to the indicator tables that form the
+response surface — one per configured output variable. WF3's terminal product.
+Reads **no parameter artifact at all**: it needed the per-member grid for the
+axis values, which are now derived at reporting time from the lookup (HM-7), and
+the design table for the id width, which comes from `index_width(st_num)`.
+Verifies before any reduction work that the members which actually RAN cover
+`ST_START..ST_NUM` — what ran, rather than what was declared.
 
-**Writes.** `<exp>/results/q_indicators.csv` ·
-`<exp>/results/basin_indicators.csv`.
+**Writes.** `<exp>/results/<token>_indicators.csv`, five columns
+(`metric, location, st_id, rlz_id, value`). The axis columns were removed on
+2026-08-16: they held an annual collapse of twelve monthly perturbations, which
+misreports any seasonal design.
 
 #### 3.17 · `gather_benchmarks`
 

@@ -343,34 +343,249 @@ Rendered one subsection per artifact.
   not a *shape* choice, so the table always carries the finest grain available and
   downstream aggregates as it likes.
 
-- **axis-column rename (2026-08-05):** these two columns were `tavg` / `prcp`
-  until the R9 followup recorded in
-  `dev/milestones/r09/migration_indicator-axis-columns.md`. They were the repo's
-  only violation of the `precip` / `temp` vocabulary `naming.md` §6 tier 2
-  declares. The `_change` suffix is load-bearing: the columns hold the
-  **perturbation** each member imposes — absolute degC and relative % — not the
-  variable's value, so bare `temp` / `precip` would have been wrong in the other
-  direction. Both spellings are named once in code, as
-  `interchange_contracts._PERTURBATION_AXIS`.
-- **axis VALUE, not just its name (2026-08-07, [R9-3]):** each member's
-  perturbation is monthly — `st_<m>.csv` carries twelve rows — so the two axis
-  columns are a **month-length-weighted annual mean** of those twelve values,
-  taken by `export_wflow_results.annual_perturbation`. They held the JANUARY
-  value until this date, which was indistinguishable from the annual figure for
-  a flat perturbation vector and wrong for any seasonal one. The rule is fixed
-  by the CMIP6 overlay rather than chosen: the GCM dots share these axes, and
-  WF2 defines its annual change factor the same way
-  (`get_change_climate_proj._annual`). The precip axis is that definition with a
-  uniform-daily-rate weight standing in for the baseline climatology — exact for
-  a flat vector, approximate under seasonality; see the function's docstring.
-  A consumer may rely on the axis staying **evenly spaced** across the grid: the
-  collapse is affine in the member's step index, so the surface is rectilinear.
+- **The response-surface axis is now a DERIVATION, and this section defines it
+  COMPLETELY.** The reference implementation is
+  `blueearth_cst/shared/surface_axes.py`, but no rule in this repo calls it — the
+  consumers that draw a surface are out-of-repo (CST-API, the frontend,
+  `csthelpers`) and re-implement from this text, as does the repository's own
+  `docs/notebooks/Climate Stress Test.ipynb`. So everything an implementer needs
+  is here, including the tolerances and the edge cases.
+
+  **Source.** `<exp>/config/stress_test_lookup.csv`, whose schema is pinned by
+  **WG-2** (`dev/reference/contracts/weather-generator-seam.md`) and is not
+  restated here. The two facts this section leans on: `st_id` is zero-padded
+  **text**, and there is **no `st_0` row** — `st_0` is the reserved unperturbed
+  baseline, not a surface member, and is reported as an annotated reference value
+  beside the surface, never placed on it.
+
+  **A declared axis is a triple `{variable, months M, statistic}`.** Evaluate it
+  in this order; the order is normative, because steps 1 and 2 decide whether
+  step 3's refusals apply at all.
+
+  **What a derivation returns — four things, not one.** The values (member →
+  number), the **caption**, a **degenerate** flag, and the **effective `M`** after
+  defaulting. A consumer needs all four: the flag decides whether the axis is a
+  plot dimension or an annotation, and `M` is derived rather than declared in the
+  default case, so a caller cannot otherwise know which months were collapsed.
+  How a language packages them is its own business; that all four cross the
+  boundary is not.
+
+  **1. Classify months.** For each month `m`, over members `st_id` in
+  `1..ST_NUM`: the month is **varying** iff `max − min > 0` **exactly**, and
+  **held at level `L_m`** otherwise. The threshold is exact zero, with **no
+  tolerance**: a held month's values are bit-identical across members by
+  construction (one written text, read by every member), so a tolerance would buy
+  nothing and would create a band in which a month is neither varying nor held.
+
+  **2. If the varying set is empty, the axis is DEGENERATE.** Every member shares
+  one value, so the axis has a single level. This is a **legitimate** design, not
+  an error — a temperature-only stress test is exactly this on its precip axis.
+  Mark the axis `degenerate`. `M` defaults to all twelve months; an explicit `M`
+  is **admitted**. Neither the subset rule nor the homogeneity rule of step 3
+  applies — but **the collapse below does**: the value is the same weighted mean,
+  with the same exact-equality short-circuit, over exactly the same `M`. A
+  degenerate axis bypasses step 3's *constraints*, never its *formula*, and an
+  implementation that returns some other scalar (the first month's level, an
+  unweighted mean) is non-conforming. The result is constant across **members** —
+  that is what degenerate means — which is a different statement from being equal
+  across **months**: when `M`'s months are held at different offsets the axis is
+  their weighted mean, and the caption says so. A degenerate axis is an
+  **annotation**, not a plot dimension: a consumer renders it in the caption
+  rather than as an axis.
+
+  **3. Otherwise, constrain `M` and collapse.** `M` defaults to the **varying
+  months**, which is what makes the default axis report the range actually
+  explored rather than a diluted annual figure. Two constraints a consumer may
+  rely on and an implementation must enforce:
+
+  - **`M` must be a non-empty subset of the varying months, and those months must
+    share the same `(min, max)`.** A held month contributes a constant and
+    reproduces the annual misreport this contract removed — `months: [1..12]` on
+    a JFM-varying, Apr–Dec-held-at-−20% design returns −15% for a member that
+    imposed −30%. Heterogeneous varying months make the mean an average of unlike
+    perturbations that no caption can describe honestly. Refuse both.
+  - **Only affine statistics.** Members are `min + (j/n)(max − min)` month by
+    month, so an affine collapse is affine in the step index and **the axis is
+    evenly spaced across the grid**. A max or a quantile is not, and the surface
+    stops being a regular grid. The admitted vocabulary is `mean` alone. An
+    implementation additionally **asserts** the distinct axis levels are evenly
+    spaced — consecutive gaps agreeing to **`rtol = 1e-9`** relative to the mean
+    gap — the postcondition the evenly-spaced guarantee never had. Two or fewer
+    distinct levels pass trivially. The two thresholds in this section are
+    deliberately different: month classification is **exact zero** because a held
+    month's values are bit-identical by construction, while this one is a true
+    tolerance because it compares different values reached by different
+    arithmetic.
+
+    The two are **independent**, and one does not imply the other: a
+    heterogeneous design (Jan ±30%, Feb 0→+50%) yields axis levels −15, +12.5,
+    +40 — perfectly evenly spaced, and matching no month's imposed change.
+
+  **The collapse, with its flat-vector rule.** For `statistic: mean`:
+
+      axis(st) = v(st, m*)                     if all v(st, m), m in M, are EXACTLY equal
+               = sum(w_m * v(st, m)) / sum(w_m)  over m in M, otherwise
+      w_m      = the month's length in the noleap calendar (31, 28, 31, ...)
+      v(st, m) = the lookup's <variable>_change value for member st, month m
+      m*       = ANY m in M -- they are equal by the branch's own guard
+
+  **The exact-equality short-circuit is normative, not an optimization.** Under
+  the homogeneity constraint above, equal values are the **normal** path for every
+  admissible axis, and a weighted mean of twelve identical values does not
+  generally return that value: measured, the weighted mean over the noleap month
+  lengths differs from the input in **49%** of random percents and **48%** of
+  random °C values. Realistic grids hit it — two of the seven levels of a
+  0.5–1.6 grid at `step_num: 6` are not fixed points — and this repo treats that
+  ulp as load-bearing.
+
+  **The month-length weighting is fixed by the CMIP6 overlay rather than chosen**:
+  the GCM dots share these axes, and WF2 defines its annual change factor the
+  same way (`get_change_climate_proj._annual`). The precip axis is that
+  definition with a uniform-daily-rate weight standing in for the baseline
+  climatology — exact for a flat vector, approximate under seasonality.
+
+- **The caption is derived from the lookup, never typed.** A typed label drifts
+  from the design it describes; a derived one cannot.
+
+  **The leading phrase names `M`, always** — `mean change over <label(M)>` — and
+  is never selected from the global varying/held classification. A design whose
+  twelve months all vary but whose declared `M` is JFM is captioned *over JFM*,
+  because JFM is what was collapsed and what the plotted number is. Labelling it
+  `over the year` asserts a quantity that was not computed, and the same `M`
+  collapses the projection overlay below, so the error would propagate from the
+  label into the comparison.
+
+  Two trailing clause groups follow the phrase, in this order, over the months
+  **outside** `M`: `E`, the varying months the axis does not summarise; then `H`,
+  the held months. Both are built by **one rule**: partition the month set by its
+  per-month key — the held level for `H`, the `(min, max)` pair over members for
+  `E` — label each group's months, format its value, and **cap at three groups**,
+  beyond which emit the catch-all. The cap applies **per clause group and not to
+  their sum**, so a caption carrying both may show up to six; a combined cap would
+  let a busy `E` swallow the held-month clause, which is the more informative of
+  the two. The cap is a legibility rule, not a correctness one: beyond three, the
+  honest statement is that the pattern is not summarisable and the reader should
+  look at the lookup.
+
+  With `G` the distinct held levels over `H`:
+
+  | case | condition | caption |
+  |---|---|---|
+  | 1 — uniform, whole year | `H`, `E` both empty | `mean change over the year` |
+  | 1b — explicit subset of an all-varying design | `H` empty, `E` non-empty | `mean change over JFM; Apr–Dec also vary, -10% to +10%` |
+  | 2 — some vary, rest unchanged | `E` empty, `G` is `{0}` | `mean change over JFM; Apr–Dec unchanged` |
+  | 3 — rest held at one offset | `E` empty, one non-zero level | `mean change over JFM; Apr–Dec held at -20%` |
+  | 3b — rest held at several offsets | `E` empty, two or three levels | `mean change over JFM; Apr–Sep held at -20%; OND held at -10%` |
+  | 3c — more than three held levels | `E` empty, more than three levels | `mean change over JFM; remaining months held at declared monthly offsets` |
+  | 1c — both | `E`, `H` non-empty | `mean change over JFM; AMJ also vary, -10% to +10%; Jul–Dec held at -20%` |
+  | 4 — degenerate, all held at zero | varying set empty, `G` is `{0}` | `unchanged` |
+  | 4b — degenerate, one non-zero level | varying set empty, one level | `held at -20%` |
+  | 4c — degenerate, several levels | varying set empty, several levels | `held at declared monthly offsets (weighted mean -13.3%)` |
+
+  In case 1 the condition already implies `M` is all twelve, so `the year` is
+  derived rather than special-cased. In the degenerate cases the levels and the
+  reported mean are those **within `M`**, and ` in <label(M)>` is appended when
+  `M` is not all twelve (`unchanged in JFM`) — for the same reason as the leading
+  phrase: a caption may not describe months the axis did not collapse.
+
+  A month set is labelled deterministically, in this order: **all twelve** →
+  `the year`; a contiguous run in **circular** month order of length 3 or fewer →
+  the initials (`JFM`, `JJA`, `DJF`, `OND`, `AMJ` — which subsumes the
+  meteorological seasons with no season table); a contiguous circular run of 4 or
+  more → `<first>–<last>` (`Apr–Dec`, `Sep–May`); otherwise a comma list of
+  three-letter abbreviations (`Jan, Mar, Jul`). A level is formatted signed, to
+  three significant digits, with the unit of `variable` (`+3 °C`, `-20%`); a
+  `(min, max)` range is formatted as two such levels joined by ` to `.
+
+- **The same collapse must be applied to the projection overlay.** The CMIP6 dots
+  are placed on these axes, so two different collapses would compare two
+  different quantities. WF2 emits monthly change factors in percent
+  (`cmip6_change_factors_monthly.csv`), so the same month-set collapse runs over
+  the GCM table and over the lookup with no unit conversion between them.
+
+  **The transfer is arithmetic, not semantic, and an overlay implementation must
+  say so.** On the lookup side the constraints above make the mean a mean over
+  **equal** values, so the axis value *is* the change imposed in each declared
+  month. A GCM's monthly change factors are not homogeneous, so the same formula
+  over the same `M` computes a genuine average of unlike months — precisely the
+  quantity this contract refuses to put on the stress axis. It also moves
+  **non-affinely** as `M` changes: two GCMs at the same annual mean can sit at
+  opposite ends of a JFM axis. So the overlay dot is a **summary** placed against
+  an axis of **imposed** values, and narrowing `M` to the varying set (the
+  default) sharpens the asymmetry rather than reducing it. Overlay treatment is
+  deferred; the constraint and this caveat are not.
+
+- **`st_id` (C28, R11 P2).** Spelled here exactly as WG-2 spells it — zero-padded
+  TEXT at the member filename's width, so the two are ONE token — because it is
+  the join key between this table and the lookup. **Read it as a string** in
+  both: `pd.read_csv` with no `dtype` returns `01` as `1` and the join silently
+  misses, and under the `st_0`-absent encoding that miss presents as "every row
+  is the baseline" rather than as an empty result.
+
+  **The key's width is READ FROM THE LOOKUP, not passed in.** WG-2 pins every
+  `st_id` in one lookup to a single width, so an implementation takes that common
+  length as the join width — refusing a lookup whose widths differ — and
+  **re-pads the indicator tables' `st_id` to it** before joining. The baseline
+  token is that width's zero-padded `0`. No implementation needs `ST_NUM` to
+  perform the join, which is deliberate: a derivation that had to be told the
+  member count could be told the wrong one.
+
+  An implementation then **asserts its partition**, in three checks. Writing `I`
+  for the `st_id` set the indicator tables carry, `L` for the lookup's, and `b`
+  for the baseline token:
+
+  1. the ids in `I` and not in `L` are **exactly** `{b}` — what the tables carry
+     and the lookup does not is the baseline and nothing else.
+  2. `I` without `b` **equals** `L` — set equality, both directions. The surface
+     members present in the tables are exactly the members the lookup declares.
+  3. the surface partition is non-empty.
+
+  Any of the three violated is an **error, not a shape**. Check 2 is the one an
+  implementation is most likely to omit and the one that is least visible when it
+  is: checks 1 and 3 alone are all satisfied by a stale or partial indicator
+  table whose members are a strict **subset** of the lookup's, and a join under
+  those conditions returns a response surface that is silently missing grid cells
+  — or biased, if the missing members sit at one end of the grid — rather than
+  reporting a mismatch. Report a missing member by naming it; a surface drawn
+  from an incomplete join is indistinguishable from a smaller experiment.
+
+  This is the **same predicate** as completeness check 1 under *validator* below,
+  evaluated when the surface is drawn rather than when the tables are validated.
+  That is deliberate duplication across tiers, not redundancy: the validator runs
+  in the toolbox repository and never in a consumer, and the consumer is where
+  the surface is drawn.
+
+  C28's second obligation — the writer refusing a design table carrying an axis
+  the header cannot express — retires with the axis columns: the header expresses
+  no axis, so a third perturbation parameter no longer needs a results column.
+  The **contract** barrier stands: a new column in the lookup requires a C28
+  ruling, refused today by `prepare_cst_parameters._KNOWN_AXES`.
+
 - **temp() lifecycle:** not `temp()` (`rule all`, manifested).
 - **removed at R9 P3:** the `RT_*.csv` response tables. They were non-manifest
   side products with no in-repo consumer, written via `params` rather than
   declared and therefore invisible to `--dry-run`. Nothing replaces them.
 - **validator:** `validate_hm7`; the gauge-column tie to HM-4/HM-5 by the
-  relational `validate_hm_gauge_column_identity`.
+  relational `validate_hm_gauge_column_identity`. The **cache-drift check retires
+  with the cache** — with one artifact there is no second derivation to disagree
+  with, so the drift class is eliminated structurally rather than merely
+  unchecked. What replaces the guarantee it was providing:
+
+  1. **Completeness, both directions, kept and re-pointed at the lookup.** Every
+     `st_id` in the lookup appears in every indicator table, and every non-zero
+     `st_id` in a table appears in the lookup. This half was added because its
+     absence hid a defect (R11 P3): a seed config with `run_historical: false`
+     dropped the `st_0` baseline and with it two of eleven metrics — 180 rows —
+     with the validator green.
+  2. **The `st_0` partition.** `st_0` rows are expected in the tables and
+     expected **absent** from the lookup; either violated is a divergence. Two
+     identical all-zero rows would otherwise be indistinguishable from an
+     identity member's, and they are not the same scenario: `st_0` is the raw
+     generated series while every member is that series round-tripped through a
+     perturbation that is not the identity at unit factors.
+  3. **The axis postcondition, at the point of derivation.** The reference
+     implementation asserts the distinct axis levels are evenly spaced, which is
+     the check the evenly-spaced guarantee never had.
 
 ---
 
@@ -402,25 +617,10 @@ Exactly the failure no per-artifact validator can see.
    `<header>_<id>` pattern; entries without `map` → exact `header`), and every
    declared entry is represented;
 2. the map-typed gauge columns carry the `Q_` prefix rule 3.16 hard-codes;
-3. `qstats_df`'s gauge columns (header minus `statistic` and the
-- **`st_id` (C28, R11 P2).** The design point's id, zero-padded to the same
-  count-derived width as the member filename, so the two are ONE token. It is
-  emitted ALONGSIDE the perturbation columns rather than replacing them — ruled
-  "at this stage", for plottable-without-a-join, with an explicit revisit when a
-  third stress dimension arrives. Two obligations hold that in place:
-  `validate_hm7` asserts `temp_change`/`precip_change` equal the design table's
-  row for that `st_id` (they are a cached copy, derived independently by the
-  writer, so they really can drift), and the writer REFUSES a design table
-  carrying an axis this header cannot express.
-
-  **Read it as a string.** `pd.read_csv` with no `dtype` infers `st_id` as an
-  integer, so `01` returns as `1` and the join to `stress_test_design.csv`
-  silently misses. Both tables carry the padded text on disk; a consumer must
-  pass `dtype={"st_id": str}`.
-
-   `_PERTURBATION_AXIS` columns `temp_change,precip_change`, ordered per
-   `export_wflow_results.py:66-67`) are **list-equal** to the `output_rlz_df`
-   gauge set.
+3. `qstats_df`'s gauge set is **list-equal** to the `output_rlz_df` gauge set.
+   Post-CR-2 this compares the `location` column's VALUE set rather than
+   subtracting known columns from a wide header, which is why removing the axis
+   columns left this check's logic untouched — only this sentence named them.
 
 **C3 scope boundary.** The numeric `<id>` in `Q_130000086` is wflow's
 outlets-map cell value; the validator checks the `<header>_<id>` **pattern** and

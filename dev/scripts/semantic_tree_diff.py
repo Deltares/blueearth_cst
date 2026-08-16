@@ -464,9 +464,11 @@ def build_project_tree_rules(
         "config/snake_config_run_stress_test.yml",
         "config/model_reference.yml",
         "config/experiment.yml",
-        # R11 P2 C23: the stress-test design table, beside the config snapshot
-        # whose settings produced it.
-        "config/stress_test_design.csv",
+        # The stress-test parameter lookup, beside the config snapshot whose
+        # settings produced it. Replaced `config/stress_test_design.csv` and
+        # absorbed `climate/weathergenr/_work/st_<m>.csv` -- measured: without
+        # this row the new artifact classifies UNMAPPED on every run.
+        "config/stress_test_lookup.csv",
         # WF3's run record. It sits DIRECTLY in the experiment's config bin,
         # not under `config/runs/` like WF1's and WF2's: per arch-10 the WF3
         # snapshot stays inside the experiment, which IS the partition here.
@@ -487,10 +489,17 @@ def build_project_tree_rules(
         # unreported: the retired bundle under it stayed GREEN while its WF1 and
         # WF2 siblings correctly went red.
         "results/",
-        "climate/weathergenr/",
         "hydrology/wflow/",
     ):
         same(f"experiments/{e}/{directory}")
+    # `climate/weathergenr/` is NARROWED to its three live subdirectories rather
+    # than declared whole. The fixture holds exactly these plus the retired
+    # `_work/`, so the narrowing is exact — and it is what makes a leftover
+    # `_work/` report as undeclared instead of riding a whole-directory prefix.
+    # Declaring the parent would accept the very orphan the migration creates,
+    # which is the failure mode the `config/runs/` note above already records.
+    for directory in ("config/", "output/", "plots/"):
+        same(f"experiments/{e}/climate/weathergenr/{directory}")
     # `logs/` and `benchmarks/` are deliberately ABSENT since 2026-08-11: WF3's
     # run records moved to the project's own logs/ and benchmarks/, keyed by
     # experiment in the filename. A file under `experiments/<id>/logs/` is now
