@@ -181,7 +181,11 @@ COVERED: dict[str, list[str]] = {
         # above.
         f"experiments/{E}/climate/weathergenr/output/sim_dates.csv",
         f"experiments/{E}/climate/weathergenr/config/weathergen_config.yml",
-        f"experiments/{E}/climate/weathergenr/_work/st_4.csv",
+        # `climate/weathergenr/_work/st_4.csv` moved to UNDECLARED on
+        # 2026-08-16: the per-member grid is absorbed by
+        # `config/stress_test_lookup.csv` (below) and `_work/` is deleted, so a
+        # file there is stale output from a pre-migration run.
+        f"experiments/{E}/config/stress_test_lookup.csv",
         f"experiments/{E}/climate/weathergenr/plots/obs_power_spectra.png",
         f"experiments/{E}/hydrology/wflow/config/rlz_1_st_2.toml",
         f"experiments/{E}/hydrology/wflow/output/rlz_1_st_2.csv",
@@ -231,6 +235,12 @@ UNDECLARED = [
     "config/runs/invocations.json",  # a FILE named invocations, not the dir
     "models/hydrology/wflow/config/some_new_generated.yml",
     f"experiments/{E}/orphan_table.csv",
+    # The retired stress-test parameter artifacts. This pair is the guard on
+    # the `climate/weathergenr/` NARROWING: that prefix used to be declared
+    # whole, which would have accepted a leftover `_work/` silently -- the
+    # migration's own orphan riding the very rule meant to report it.
+    f"experiments/{E}/climate/weathergenr/_work/st_4.csv",
+    f"experiments/{E}/config/stress_test_design.csv",
     f"experiments/{E}/indicators/Qstats.csv",  # the pre-R9 name, now retired
     # The pre-2026-08-11 WF3 run records. Stale output from an earlier run, and
     # the guard on the new "root" rows: an inventory that kept the old
