@@ -109,28 +109,83 @@ consumer reads while keeping the divergence honestly on the record.
 
 ## WG-2 — stress-test perturbation grid
 
-- **path pattern:** `<exp>/climate/weathergenr/_work/st_<m>.csv` (`m ≥ 1`).
-  Demoted to `_work/` by R07 B6 but **retained**: it is the only record of the
-  `precip_variance` axis and of the monthly structure the reduction collapses.
-  Also a **declared `input:` on rule 3.16** (R07 B6) -- it used to be an
-  undeclared runtime read, invisible to `--dry-run`.
+- **path pattern:** `<exp>/config/stress_test_lookup.csv` — **one file for the
+  whole experiment**. Replaced the per-member
+  `<exp>/climate/weathergenr/_work/st_<m>.csv` on 2026-08-16, together with the
+  derived cache `<exp>/config/stress_test_design.csv`, which it absorbs.
+  `_work/` is deleted. The rename to `lookup` signals that **the shape moved**,
+  not merely the path. It sits beside the config snapshot whose settings
+  produced it: it is a record of what ran, not scratch.
 - **producer:** rule 3.09 `prepare_stress_test_grid`
   (`blueearth_cst/experiment/prepare_cst_parameters.py`).
 - **consumer:** rule 3.12 `perturb_climate_realization` (weathergenr
-  `impose_climate_change.R`), passed in as `st_csv`.
-- **shape:** a CSV with **header exactly** `month,temp_mean,precip_mean,precip_variance`
-  and **12 rows**, `month ∈ 1..12`.
-- **semantics:** `temp_mean` additive (°C); `precip_mean` / `precip_variance`
-  multiplicative factors (fixture example row values `0.0, 0.7, 1.0`).
-- **naming pattern:** one file per perturbation `m = 1..ST_NUM`, the index
-  ZERO-PADDED to a width derived from `ST_NUM` (C27: `st_01 … st_12` at
-  twelve points, unpadded below ten); `st_0` is
-  **reserved** (no file — the unperturbed baseline, naming.md §4).
-- **temp() lifecycle:** not `temp()`.
-- **pinned surface:** the exact header, the 12-row `month` domain, the additive-
-  vs-multiplicative column semantics, the one-file-per-`m` naming with `st_0`
-  reserved.
-- **deliberately unpinned:** —
+  `impose_climate_change.R`), passed in as `lookup_csv` — a **constant** input,
+  no longer carrying the member wildcard. The member id arrives as a positional
+  argument and the script filters on it. It is **no longer an `input:` on rule
+  3.16**: the reduction reads no parameter artifact at all, since the axis is
+  derived at reporting time (HM-7).
+- **shape:** a CSV with **header exactly**
+  `st_id,month,temp_change,precip_change,precip_variance_change`, and
+  **`12 × ST_NUM` rows** — twelve per member, `month ∈ 1..12`, members
+  `1..ST_NUM`. The `(st_id, month)` grid is **complete and duplicate-free**, and
+  rows are sorted by `(st_id, month)`.
+- **semantics:** `temp_change` additive (°C); `precip_change` and
+  `precip_variance_change` **percent**, not multipliers — `0.0` means no change,
+  `-30.0` means a 0.7 factor. The multiplier convention survives only inside the
+  generator: the R side reconstructs `1 + <col>/100` for **both** percent
+  columns. The project config keeps its 12-element multiplier vectors; this is
+  an artifact-unit rule, not a config-surface change.
+- **precision:** the member levels are `float32` shortest-repr quantized (the
+  grid the user asked for); the percent text is written at **`float64` shortest
+  repr of the exact conversion**, so the reconstructed multiplier is within one
+  `float64` ulp of the level. It is **not** bit-identical for every level, and
+  cannot be made so — measured, 1,155 of 50,000 `float32` multipliers admit no
+  `float64` percent that reconstructs them exactly under `1 + p/100`. A consumer
+  may rely on the bound, not on exactness.
+- **admissible multiplier domain: `multiplier ≥ 0.5`, with no upper bound.** This
+  is the **precondition of the bound above**, not a caveat on it: the producer
+  refuses a configuration declaring a precipitation mean or variance multiplier
+  below `0.5` before the DAG is built, so every lookup this contract describes
+  was written from admitted multipliers and the one-ulp bound holds over the
+  whole table, unconditionally. Outside the domain it does not: at level
+  `0.013596006` the specified conversion reconstructs `0.013596005999999883`,
+  68 ulps out, because the percent's rounding scale stops shrinking with the
+  level once `|percent|` crosses 64. There is deliberately **no ceiling** — the
+  bound was measured to hold out to `1e6`, so an upper cap would refuse
+  configurations the arithmetic serves correctly. A re-implementer needs the
+  floor to *validate its own producer*; a consumer reading a lookup needs only
+  the bound.
+- **`st_id`:** the member id, **zero-padded** to a width derived from `ST_NUM`
+  (C27: `01 … 12` at twelve points, unpadded below ten), **textually identical**
+  to the member filename token, so the two are ONE token. **Read it as a
+  string** — `pd.read_csv` with no `dtype` returns `01` as `1` and every join
+  silently misses. R readers pass `colClasses = c(st_id = "character")`.
+  **Every `st_id` in one table has the same width**, which is what lets a
+  consumer infer the join key's width from the table itself rather than needing
+  `ST_NUM` passed alongside it. A table mixing widths is malformed.
+- **`st_0` has NO row.** The table covers members `1..ST_NUM` only. `st_0` is
+  the reserved unperturbed baseline (naming.md §4): it has no parameters, is
+  produced by rule 3.11 rather than by perturbation, and rule 3.12 never runs
+  for it. Its **absence is load-bearing**, not incidental — it is what makes
+  "not on the surface" a structural fact rather than a convention, and an
+  all-zero `st_0` row would be indistinguishable from an identity member's row
+  while denoting a differently-processed climate (the raw generated series, not
+  that series round-tripped through a perturbation that is not the identity at
+  unit factors).
+- **column vocabulary:** **closed**. A new perturbation parameter is a new
+  COLUMN, and adding one requires a C28 ruling — the shape barrier is gone, the
+  contract barrier is not. Refused at write time by
+  `prepare_cst_parameters._KNOWN_AXES`.
+- **temp() lifecycle:** not `temp()`; a `rule all` target (`WF3_TARGETS` entry
+  `stress_test_lookup`), so it persists.
+- **pinned surface:** the exact header and column order; the `12 × ST_NUM` row
+  count with a complete, duplicate-free `(st_id, month)` grid; the
+  `(st_id, month)` sort order; `st_id` as zero-padded TEXT at the filename's
+  width, **one width for the whole table**; `st_0` ABSENT; the
+  additive-vs-percent column semantics.
+- **deliberately unpinned:** the numeric values themselves (they are the
+  experiment), and the percent text's digit count beyond the `float64`
+  shortest-repr rule.
 - **validator:** `validate_wg2`.
 
 ## WG-3 — weathergenr config surface
@@ -151,7 +206,7 @@ consumer reads while keeping the divergence honestly on the record.
   benchmark parts. The rest of what it carried — copies of the `stress_test`
   step counts and monthly min/max ranges — was never read (finding F6) and
   deliberately did **not** move: the values that perturb a run come from
-  `st_<m>.csv`.
+  `stress_test_lookup.csv`.
 - **shape (YAML):** the weathergenr config surface — top-level
   `general.variables` (list ⊆ `{precip, temp, temp_min, temp_max}`) and
   `generateWeatherSeries.{warm.*, knn.sample.num, month.start, warm.variable,
@@ -296,7 +351,8 @@ are correctly out.
 A drop-in generator (design §5.6) must:
 
 - **Consume** WG-1 (`extract_historical.nc`, the 7-var K grid) and WG-2 (the
-  `st_<m>.csv` perturbation grid) — or provide its own reader for them.
+  `stress_test_lookup.csv` perturbation grid) — or provide its own reader for
+  them.
 - **Produce** WG-4 netCDFs at the DAG-globbed paths
   `climate/weathergenr/output/rlz_<n>_st_<m>.nc` (incl. `st_0`), each a `(time, lat, lon)`
   EPSG:4326 raster with ≥ `precip`, `temp` and `crs=4326` / `category=meteo`, so
@@ -327,7 +383,7 @@ executes on **every** checkout, fixture or not.
 | validator | artifact(s) | fixture path (era5) | continuously verified? |
 |---|---|---|---|
 | `validate_wg1` | WG-1 | `data/climate/historical/<key>/extract_historical.nc` | **yes** (persists); chirps facts **not fixture-verified (no chirps fixture)** |
-| `validate_wg2` | WG-2 | `<exp>/climate/weathergenr/_work/st_<m>.csv` | **yes** (persists) |
+| `validate_wg2` | WG-2 | `<exp>/config/stress_test_lookup.csv` | **yes** (persists) |
 | `validate_wg3` | WG-3 | `<exp>/climate/weathergenr/config/weathergen_config.yml` (the per-member config is gone — C29) | **yes** (persists) |
 | `validate_wg4` | WG-4 | `<exp>/climate/weathergenr/output/rlz_<n>_st_<m>.nc` | **captured 2026-07-25** — `temp()` content, absent until a `--notemp` capture; green on the real artifact **after** the `crs`/`category` correction; synthetic-proven every suite |
 | `validate_wg5` | WG-5 | `<exp>/config/catalogs/data_catalog_run_stress_test.yml` | **yes** (catalog persists) |
