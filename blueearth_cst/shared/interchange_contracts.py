@@ -220,30 +220,91 @@ def validate_wg1(ds: Any) -> list[str]:
     return diffs
 
 
-#: WG-2 stress-test CSV header, exact and ordered.
-_WG2_HEADER = ("month", "temp_mean", "precip_mean", "precip_variance")
+#: WG-2 stress-test lookup header, exact and ordered.
+_WG2_HEADER = (
+    "st_id",
+    "month",
+    "temp_change",
+    "precip_change",
+    "precip_variance_change",
+)
 
 
-def validate_wg2(df: Any) -> list[str]:
-    """WG-2 — stress-test perturbation grid (``st_<m>.csv``, m>=1).
+def validate_wg2(df: Any, st_num: int | None = None) -> list[str]:
+    """WG-2 — the stress-test parameter lookup (``stress_test_lookup.csv``).
 
-    Pinned surface (design §5.2): header exactly ``month,temp_mean,precip_mean,
-    precip_variance``; 12 rows with ``month`` domain ``1..12``. Column
-    *semantics* (additive vs multiplicative) are documented, not machine-checked
-    — the values change per stress-test point.
+    ONE table for the whole experiment, replacing the per-member
+    ``_work/st_<m>.csv`` grid it used to pin and absorbing the derived design
+    table. The mechanism changes with it, not only the constants: a 12-row
+    assertion becomes ``12 x ST_NUM`` plus a ``(st_id, month)`` completeness
+    check, and ``st_0`` must be ABSENT.
+
+    ``st_num`` reaches this validator as an argument, the way the relational
+    validators already take their second input. Omitted, the member count is
+    inferred from the table itself and only its internal consistency is checked
+    — which is weaker, and deliberately so: a validator that guessed the count
+    could not tell a complete table from a truncated one.
+
+    Three things are checked that the old per-member shape could not express:
+
+    - **``st_0`` is absent.** Its absence is load-bearing rather than tidy: it is
+      what makes "not on the surface" structural, so a consumer joining results
+      to the lookup cannot place the baseline on the surface by accident.
+    - **The ``st_id`` width is UNIFORM.** The whole join-key inference rests on
+      one width per table, so this is where that becomes a checked property
+      rather than a documented one.
+    - **``st_id`` is TEXT.** Read with inferred dtypes, ``01`` comes back as
+      ``1``; a validator subject to the very hazard the contract names could not
+      detect it.
+
+    Column *semantics* (additive degC vs percent) are documented, not
+    machine-checked — the values change per stress-test point.
     """
     label = "WG-2"
     diffs: list[str] = []
     cols = _columns(df)
     if tuple(cols) != _WG2_HEADER:
         diffs.append(f"{label}: header {cols} != expected {list(_WG2_HEADER)}")
+        return diffs
+
+    ids = [str(v) for v in df["st_id"].tolist()]
+    widths = {len(i) for i in ids}
+    if len(widths) > 1:
+        diffs.append(
+            f"{label}: st_id mixes widths {sorted(widths)}; one width is pinned "
+            f"for the whole table, and the join key is inferred from it"
+        )
+    baseline_tokens = {i for i in ids if i.strip().lstrip("0") == ""}
+    if baseline_tokens:
+        diffs.append(
+            f"{label}: st_0 must have NO row, found {sorted(baseline_tokens)}. "
+            f"The table is the parameter grid and the reserved unperturbed "
+            f"baseline has no parameters"
+        )
+
+    members = sorted({i for i in ids if i not in baseline_tokens}, key=str)
+    expected_members = members
+    if st_num is not None:
+        width = max(widths) if widths else 1
+        expected_members = [f"{m:0{width}d}" for m in range(1, st_num + 1)]
+        if members != expected_members:
+            diffs.append(
+                f"{label}: members {members} != 1..{st_num} ({expected_members})"
+            )
+
     n = int(getattr(df, "shape", (0,))[0])
-    if n != 12:
-        diffs.append(f"{label}: expected 12 rows (month 1..12), got {n}")
-    if "month" in cols:
-        months = sorted(int(m) for m in df["month"].tolist())
+    if n != 12 * len(expected_members):
+        diffs.append(
+            f"{label}: expected 12 x {len(expected_members)} = "
+            f"{12 * len(expected_members)} rows, got {n}"
+        )
+
+    for member in members:
+        months = sorted(
+            int(m) for m in df[df["st_id"].astype(str) == member]["month"].tolist()
+        )
         if months != list(range(1, 13)):
-            diffs.append(f"{label}: month domain {months} != 1..12")
+            diffs.append(f"{label}: member {member!r} month domain {months} != 1..12")
     return diffs
 
 
@@ -738,32 +799,38 @@ from blueearth_cst.shared.indicator_tables import (  # noqa: E402
 #: module, so the direction is one-way and no cycle exists.
 from blueearth_cst.shared.snake_utils import index_width  # noqa: E402
 
-_PERTURBATION_AXIS = ("temp_change", "precip_change")
-
-#: The six HM-7 columns, in order. Imported from the writer's own module rather
+#: The five HM-7 columns, in order. Imported from the writer's own module rather
 #: than restated, so the producer and its validator cannot disagree about the
 #: header -- the failure mode this pairing exists to prevent.
 HM7_COLUMNS = INDICATOR_COLUMNS
 
 
-def validate_hm7(tables: dict, rlz_num: int | None = None, design=None) -> list[str]:
+def validate_hm7(tables: dict, rlz_num: int | None = None, lookup=None) -> list[str]:
     """HM-7 — response-surface reduction, ONE LONG TABLE PER OUTPUT VARIABLE.
 
     ``tables`` maps variable token to parsed table (``{"q": df, "aet": df}``).
     ``rlz_num`` is optional; supply it to check the ``rlz_id`` domain.
-    ``design`` is the parsed ``stress_test_design.csv``; supply it to check C28's
-    consistency obligation.
+    ``lookup`` is the parsed ``stress_test_lookup.csv``; supply it to check
+    completeness and the ``st_0`` partition.
 
     **The header this asserts, exactly and in order:**
 
-        metric, location, st_id, rlz_id, temp_change, precip_change, value
+        metric, location, st_id, rlz_id, value
 
     R11 CR-2 replaced the two wide tables with a fixed SIX-column long shape
     (``metric, temp_change, precip_change, realization_id, location, value``);
     C28 added ``st_id`` to make it seven, and the 2026-08-11 owner ruling reordered
     those seven identifier-first and renamed ``realization_id`` to ``rlz_id``. The
-    counts in that sentence are the historical ones and are not a typo — the shape
-    was genuinely six wide before C28.
+    axis columns were then REMOVED, taking it to five. The counts in that sentence
+    are the historical ones and are not a typo.
+
+    **Removing them is the point rather than a simplification.** They held a
+    month-length-weighted ANNUAL mean of the member's twelve monthly
+    perturbations, which misreports any seasonal design -- +30% imposed in JJA is
+    +7.6% on the axis -- and baking one collapse into the results made every other
+    axis unrecoverable from them. The axis is now derived at reporting time from
+    the lookup; the specification is the HM-7 record and the reference
+    implementation is ``shared/surface_axes.py``.
 
     What has held throughout is the property that matters: the header no longer
     grows with the gauge count, which is why this validator can assert it exactly
@@ -788,39 +855,26 @@ def validate_hm7(tables: dict, rlz_num: int | None = None, design=None) -> list[
 
     Superseded and worth not re-deriving: the axis columns were spelled
     ``tavg``/``prcp`` until 2026-08-05, the repo's only violation of the
-    ``precip``/``temp`` vocabulary; the ``_change`` suffix is not decoration, since
-    these columns are the perturbation each member imposes rather than the
-    variable's value. The ``RT_*.csv`` side tables are gone as of R9 P3 — no
-    in-repo consumer, written via ``params`` rather than declared, so invisible to
-    ``--dry-run``. Nothing replaces them.
+    ``precip``/``temp`` vocabulary. The ``RT_*.csv`` side tables are gone as of
+    R9 P3 — no in-repo consumer, written via ``params`` rather than declared, so
+    invisible to ``--dry-run``. Nothing replaces them.
 
-    **C28 (R11 P2) added ``st_id`` alongside the perturbation columns**, making
-    the header seven wide. That was ruled "at this stage" — plottable without a
-    join now, revisited when a third dimension arrives — and it re-couples the
-    header to the stress-dimension count, which is what CR-2 removed on the
-    location axis. Two obligations keep that interim decision from rotting:
+    **C28 (R11 P2) added ``st_id`` alongside the perturbation columns**, ruled
+    "at this stage" with an explicit revisit when a third dimension arrives. The
+    revisit happened: the answer was to remove the axis columns rather than add a
+    third, so ``st_id`` now stands alone as the member key and the header is
+    fixed against the stress-dimension count. C28's second obligation — the
+    writer refusing a design table carrying an axis this header cannot express —
+    retires with them, because the header expresses no axis. The CONTRACT barrier
+    stands: a new lookup column still needs a C28 ruling.
 
-    - **The consistency check here.** ``temp_change`` / ``precip_change`` are now
-      a CACHED COPY of the design table's row for that ``st_id``. The writer
-      derives them independently, from the parameter files, so the two really can
-      disagree — which is the point. A denormalised copy that nothing verifies is
-      a copy that eventually lies. Same class as the ``metric`` /
-      ``token`` agreement above.
-    - **A hard stop in the writer** when ``stress_test:`` gains a third axis,
-      naming C28 rather than silently adding a column.
-
-    The check is skipped, not failed, when ``design`` is None — a caller that
-    has only the tables can still assert everything else.
-
-    **Both directions are checked, and the second was added because its absence
-    hid a defect** (R11 P3, 2026-08-08). results → design catches a row whose
-    cached axes drifted from the design; design → results catches a declared
-    member that produced no rows at all. Only the first existed, so a seed config
-    with ``run_historical: false`` dropped the ``st_0`` baseline, and with it the
-    two class-C metrics that Q5 derives *from* that baseline — 180 rows and two
-    of eleven metrics gone, with this validator green. A per-row check is
-    stronger than a fingerprint for the rows that exist and says nothing at all
-    about the rows that do not.
+    **What the cache-drift check is replaced by.** With one artifact there is no
+    second derivation to disagree with, so that whole failure class is eliminated
+    structurally rather than left unchecked. Completeness survives, in BOTH
+    directions and re-pointed at the lookup, together with the ``st_0``
+    partition — expected in the tables, expected absent from the lookup. Those
+    checks are skipped, not failed, when ``lookup`` is None: a caller that has
+    only the tables can still assert everything else.
 
     Original pinned surface, for the record (design §5.3): ``q_indicators.csv``
     header ``statistic,temp_change,precip_change,<gauge-cols>``;
@@ -898,64 +952,66 @@ def validate_hm7(tables: dict, rlz_num: int | None = None, design=None) -> list[
                     f"{label}: {name} metric {metric!r} is per-realization but "
                     f"carries the pooled sentinel rlz_id 0"
                 )
-    # -- C28: the cached axis columns must agree with the design table --------
-    if design is not None:
-        by_id = {}
-        for _, row in design.iterrows():
-            by_id[str(row["st_id"])] = row
+    # -- completeness and the st_0 partition, against the LOOKUP ------------
+    #
+    # The cache-drift check retired with the cache. With one artifact there is no
+    # second derivation to disagree with, so that failure class is eliminated
+    # structurally rather than merely left unchecked -- which is a stronger
+    # outcome than the check it replaces.
+    #
+    # What must NOT retire with it is the guarantee the check was providing, so
+    # both directions of completeness survive and are re-pointed at the lookup.
+    # The design -> results direction was added at R11 P3 because its absence hid
+    # a defect: a seed config with `run_historical: false` dropped the st_0
+    # baseline, and because Q5 fixes the class-C month FROM that baseline,
+    # `q_wettest_month_mean` and `q_driest_month_mean` were skipped entirely --
+    # 180 rows and two of eleven metrics gone, with this validator green. A
+    # per-row check is stronger than a fingerprint for the rows that exist and
+    # says nothing at all about the rows that do not.
+    if lookup is not None:
+        lookup_ids = {str(v) for v in lookup["st_id"].tolist()}
+        width = max((len(i) for i in lookup_ids), default=1)
+        baseline_token = "0".zfill(width)
         for token, table in sorted(tables.items()):
             name = f"{token}_indicators.csv"
             if "st_id" not in table.columns:
                 continue  # the header check above already reported it
-            seen = {}
-            for st_id, temp, precip in zip(
-                table["st_id"], table["temp_change"], table["precip_change"]
-            ):
-                seen.setdefault(str(st_id), (temp, precip))
-            for st_id, (temp, precip) in sorted(seen.items()):
-                design_row = by_id.get(st_id)
-                if design_row is None:
-                    diffs.append(
-                        f"{label}: {name} carries st_id {st_id!r}, which the "
-                        f"stress-test design table does not define"
-                    )
-                    continue
-                for column, value in (
-                    ("temp_change", temp),
-                    ("precip_change", precip),
-                ):
-                    expected = float(design_row[column])
-                    if not _close(float(value), expected):
-                        diffs.append(
-                            f"{label}: {name} st_id {st_id!r} has {column}="
-                            f"{float(value)!r}, but the design table says "
-                            f"{expected!r} -- the cached copy has drifted (C28)"
-                        )
+            seen = {str(v).zfill(width) for v in table["st_id"].tolist()}
 
-            # -- and the OTHER direction: every declared member produced rows --
-            #
-            # Added R11 P3, 2026-08-08, because the run found what its absence
-            # hid. Everything above validates results -> design: for each row
-            # that EXISTS, its cached axes match its design row. Nothing
-            # validated design -> results, so a member that never ran was
-            # invisible: the seed config had `run_historical: false`, st_0 never
-            # ran, and because Q5 fixes the class-C month from the st_0 baseline,
-            # `q_wettest_month_mean` and `q_driest_month_mean` were skipped
-            # ENTIRELY. 180 rows and two of eleven metrics vanished with no
-            # warning and a green validator.
-            #
-            # This is also what makes the design table earn the trust P2 placed
-            # in it when it argued a byte fingerprint was unnecessary because
-            # "validate_hm7's per-row check is stronger". Per-row is stronger for
-            # rows that exist and says nothing about rows that do not.
-            missing = sorted(set(by_id) - set(seen), key=_st_sort_key)
+            # The st_0 partition. Expected IN the tables and expected ABSENT
+            # from the lookup; either violated is a divergence. Two identical
+            # all-zero rows would otherwise be indistinguishable from an
+            # identity member's, and they are not the same scenario -- st_0 is
+            # the raw generated series while every member is that series
+            # round-tripped through a perturbation that is NOT the identity at
+            # unit factors.
+            if baseline_token in lookup_ids:
+                diffs.append(
+                    f"{label}: the lookup carries {baseline_token!r}, which is "
+                    f"the reserved unperturbed baseline and has no parameters"
+                )
+            if baseline_token not in seen:
+                diffs.append(
+                    f"{label}: {name} carries no {baseline_token!r} rows. The "
+                    f"baseline is expected in the tables even though it is "
+                    f"absent from the lookup -- two of eleven q metrics are "
+                    f"derived FROM it. Check `run_historical` / ST_START"
+                )
+
+            missing = sorted(lookup_ids - seen, key=_st_sort_key)
             if missing:
                 diffs.append(
-                    f"{label}: the stress-test design table declares st_id "
-                    f"{missing} that produced NO rows in {name}. A member that "
-                    f"never ran is not a smaller table -- metrics derived from "
-                    f"it are skipped silently (Q5 fixes the class-C month from "
-                    f"the st_0 baseline). Check `run_historical` / ST_START."
+                    f"{label}: the lookup declares st_id {missing} that produced "
+                    f"NO rows in {name}. A member that never ran is not a "
+                    f"smaller table -- it is a response surface with holes in "
+                    f"it, or a biased one if the missing members sit at one end "
+                    f"of the grid"
+                )
+            unknown_ids = sorted(seen - lookup_ids - {baseline_token}, key=_st_sort_key)
+            if unknown_ids:
+                diffs.append(
+                    f"{label}: {name} carries st_id {unknown_ids}, which the "
+                    f"lookup does not define and which is not the baseline"
                 )
 
     return diffs
@@ -1137,9 +1193,10 @@ def validate_hm_gauge_column_identity(
          ``[output.csv].column`` entry (map-typed -> ``<header>_<id>`` pattern;
          non-map -> exact ``header``), and every declared entry is represented;
       2. the map-typed gauge columns carry the ``Q_`` prefix rule 3.11 hard-codes;
-      3. ``qstats_df``'s gauge columns (header minus ``statistic`` and the
-         ``_PERTURBATION_AXIS`` columns) are list-equal to the ``output_rlz_df``
-         gauge set.
+      3. ``qstats_df``'s gauge set is list-equal to the ``output_rlz_df`` gauge
+         set. Post-CR-2 this compares the ``location`` column's VALUE set rather
+         than subtracting known columns from a wide header, which is why the
+         axis columns' removal left this check's logic untouched.
 
     C3 boundary: the numeric ``<id>`` in ``Q_130000086`` is wflow's outlets-map
     cell value — the validator checks the ``<header>_<id>`` PATTERN and the

@@ -140,24 +140,82 @@ def test_wg1_synthetic_fail():
     assert ic.validate_wg1(ds) != []
 
 
-def _wg2_good():
-    return pd.DataFrame(
-        {
-            "month": list(range(1, 13)),
-            "temp_mean": [0.0] * 12,
-            "precip_mean": [0.7] * 12,
-            "precip_variance": [1.0] * 12,
-        }
-    )
+def _wg2_good(st_num=3, width=1):
+    """A stress_test_lookup.csv as rule 3.09 writes it: 12 x ST_NUM rows, no st_0."""
+    rows = []
+    for member in range(1, st_num + 1):
+        for month in range(1, 13):
+            rows.append(
+                {
+                    "st_id": f"{member:0{width}d}",
+                    "month": month,
+                    "temp_change": 1.5 * member,
+                    "precip_change": -30.0 + 10.0 * member,
+                    "precip_variance_change": 0.0,
+                }
+            )
+    return pd.DataFrame(rows)
 
 
 def test_wg2_synthetic_pass():
-    assert ic.validate_wg2(_wg2_good()) == []
+    assert ic.validate_wg2(_wg2_good(), st_num=3) == []
 
 
 def test_wg2_synthetic_fail():
-    df = _wg2_good().iloc[:6]  # only 6 rows, month domain broken
-    assert ic.validate_wg2(df) != []
+    df = _wg2_good().iloc[:6]  # a truncated member, month domain broken
+    assert ic.validate_wg2(df, st_num=3) != []
+
+
+def test_wg2_refuses_an_st_0_row():
+    """`st_0` has no row, and its absence is LOAD-BEARING rather than tidy.
+
+    It is what makes "not on the surface" structural instead of conventional: a
+    consumer joining results to the lookup finds no axis for the baseline and
+    cannot place it on the surface by accident. An all-zero row would be
+    indistinguishable from an identity member's while denoting a
+    differently-processed climate.
+    """
+    df = _wg2_good(st_num=2)
+    baseline = pd.DataFrame(
+        [
+            {
+                "st_id": "0",
+                "month": month,
+                "temp_change": 0.0,
+                "precip_change": 0.0,
+                "precip_variance_change": 0.0,
+            }
+            for month in range(1, 13)
+        ]
+    )
+    report = ic.validate_wg2(pd.concat([baseline, df], ignore_index=True), st_num=2)
+    assert any("st_0" in line for line in report), report
+
+
+def test_wg2_refuses_a_gap_in_the_month_grid():
+    """A member missing a month is a SHORT vector on the R side, which recycles
+    into a wrong answer rather than an error."""
+    df = _wg2_good(st_num=2)
+    gapped = df[~((df.st_id == "2") & (df.month == 7))]
+    report = ic.validate_wg2(gapped, st_num=2)
+    assert any("month domain" in line for line in report), report
+
+
+def test_wg2_refuses_a_table_mixing_st_id_widths():
+    """One width per table is what lets a consumer INFER the join key's width
+    from the table itself rather than being told ST_NUM."""
+    df = _wg2_good(st_num=2)
+    df.loc[df.st_id == "1", "st_id"] = "01"
+    report = ic.validate_wg2(df)
+    assert any("width" in line for line in report), report
+
+
+def test_wg2_refuses_a_truncated_member_set():
+    """Without ST_NUM a validator can only check internal consistency, and a
+    truncated table is internally consistent -- so the count is an argument."""
+    df = _wg2_good(st_num=2)
+    assert ic.validate_wg2(df) == []  # internally consistent
+    assert ic.validate_wg2(df, st_num=3) != []  # ... but short of the declared grid
 
 
 def _wg3_good():
@@ -421,24 +479,37 @@ def test_hm5_synthetic_fail():
     assert ic.validate_hm5(df) != []
 
 
-def _hm7_row(metric, rlz, location="101", temp=0.0, precip=0.0, value=1.0, st_id="0"):
+def _hm7_row(metric, rlz, location="101", value=1.0, st_id="0"):
     """One HM-7 row. Key order IS column order — `pd.DataFrame` takes it from the
-    first dict, and `validate_hm7` asserts the header exactly and in order."""
+    first dict, and `validate_hm7` asserts the header exactly and in order.
+
+    FIVE columns since the axis pair was removed. They held an annual collapse
+    of twelve monthly perturbations, which misreports any seasonal design; the
+    axis is derived at reporting time from the lookup instead.
+    """
     return {
         "metric": metric,
         "location": location,
         "st_id": st_id,
         "rlz_id": rlz,
-        "temp_change": temp,
-        "precip_change": precip,
         "value": value,
     }
 
 
-def _design(rows=((("0"), 0.0, 0.0),)):
-    """A stress_test_design.csv as rule 3.09 writes it."""
+def _lookup(members=("1",), width=1):
+    """A stress_test_lookup.csv as rule 3.09 writes it: 12 rows per member, no st_0."""
     return pd.DataFrame(
-        [{"st_id": s, "temp_change": t, "precip_change": p} for s, t, p in rows]
+        [
+            {
+                "st_id": str(m).zfill(width),
+                "month": month,
+                "temp_change": 1.5,
+                "precip_change": -30.0,
+                "precip_variance_change": 0.0,
+            }
+            for m in members
+            for month in range(1, 13)
+        ]
     )
 
 
@@ -583,86 +654,86 @@ def test_gauge_identity_synthetic_fail():
 # --- C28: st_id and the cached-copy consistency check ------------------------
 
 
-def test_hm7_accepts_a_table_that_agrees_with_the_design_table():
-    tables = _hm7_good()
-    assert ic.validate_hm7(tables, rlz_num=2, design=_design()) == []
-
-
-def test_hm7_reports_an_axis_column_that_drifted_from_the_design_table():
-    """C28's whole reason: the axis columns are a CACHED COPY of a design row.
-
-    The writer derives them independently, from the parameter files, so they
-    really can disagree -- perturb one and the check must say so, naming the
-    st_id and the column. A copy nothing verifies is a copy that eventually
-    lies.
-    """
-    tables = _hm7_good()
-    tables["q"].loc[0, "temp_change"] = 2.5  # design says 0.0
-    diffs = ic.validate_hm7(tables, rlz_num=2, design=_design())
-    assert diffs and "temp_change" in diffs[0] and "drifted" in diffs[0]
-
-
-def test_hm7_reports_an_st_id_the_design_table_does_not_define():
-    """A results row for a member that is not in the design is unjoinable."""
-    tables = _hm7_good()
-    tables["q"].loc[0, "st_id"] = "07"
-    diffs = ic.validate_hm7(tables, rlz_num=2, design=_design())
-    assert diffs and "does not define" in diffs[0]
+def test_hm7_accepts_a_table_whose_members_match_the_lookup():
+    rows = [_hm7_row("q_annual_mean", r, st_id=s) for s in ("0", "1") for r in (1, 2)]
+    rows += [_hm7_row("q_return_level_10yr_max", 0, st_id=s) for s in ("0", "1")]
+    tables = {"q": pd.DataFrame(rows)}
+    assert ic.validate_hm7(tables, rlz_num=2, lookup=_lookup(("1",))) == []
 
 
 def test_hm7_reports_a_declared_member_that_produced_no_rows():
-    """The R11 P3 regression, in miniature.
+    """The R11 P3 regression, in miniature, re-pointed at the lookup.
 
     The defect this exists for: the seed config had `run_historical: false`, so
     st_0 never ran; because Q5 fixes the class-C month FROM the st_0 baseline,
     two of eleven metrics were then skipped entirely -- 180 rows gone, no
-    warning, and this validator green. Every check above reads rows that exist,
+    warning, and this validator green. Every other check reads rows that exist,
     so nothing could see a member that produced none.
+
+    It survives the cache-drift check's retirement deliberately: with one
+    artifact there is no second derivation to disagree with, so THAT class is
+    eliminated structurally -- but a member that never ran is not a drift, and
+    nothing else would notice it.
     """
     tables = _hm7_good()  # every row carries st_id "0"
-    design = _design(rows=(("0", 0.0, 0.0), ("1", 0.0, -30.0)))
-    diffs = ic.validate_hm7(tables, rlz_num=2, design=design)
-    assert diffs and "produced NO rows" in diffs[0]
-    assert "'1'" in diffs[0] or '"1"' in diffs[0]
-    # The message must point at the cause, not just the symptom.
-    assert "run_historical" in diffs[0]
+    diffs = ic.validate_hm7(tables, rlz_num=2, lookup=_lookup(("1", "2")))
+    assert diffs and any("produced NO rows" in d for d in diffs)
+    assert any("'1', '2'" in d for d in diffs), diffs
 
 
-def test_hm7_accepts_a_design_table_every_member_of_which_produced_rows():
-    """The complement: full coverage is silent, so the check cannot be a
-    permanent red that everyone learns to ignore."""
-    rows = [_hm7_row("q_annual_mean", r, st_id=s) for s in ("0", "1") for r in (1, 2)]
-    rows += [_hm7_row("q_return_level_10yr_max", 0, st_id=s) for s in ("0", "1")]
-    tables = {"q": pd.DataFrame(rows)}
-    design = _design(rows=(("0", 0.0, 0.0), ("1", 0.0, 0.0)))
-    assert ic.validate_hm7(tables, rlz_num=2, design=design) == []
+def test_hm7_reports_a_missing_baseline():
+    """`st_0` is expected IN the tables and ABSENT from the lookup.
+
+    The asymmetry is the point: the baseline has no parameters, so it has no
+    lookup row -- but two of eleven q metrics are derived from it, so a table
+    without it is the R11 P3 defect from the other direction.
+    """
+    rows = [_hm7_row("q_annual_mean", r, st_id="1") for r in (1, 2)]
+    rows.append(_hm7_row("q_return_level_10yr_max", 0, st_id="1"))
+    diffs = ic.validate_hm7(
+        {"q": pd.DataFrame(rows)}, rlz_num=2, lookup=_lookup(("1",))
+    )
+    assert diffs and any("carries no '0' rows" in d for d in diffs), diffs
+
+
+def test_hm7_reports_an_st_0_row_in_the_lookup():
+    """The other half of the partition. Two identical all-zero rows would be
+    indistinguishable from an identity member's, and they are NOT the same
+    scenario: st_0 is the raw generated series while every member is that series
+    round-tripped through a perturbation that is not the identity at unit
+    factors."""
+    lookup = pd.concat([_lookup(("0",)), _lookup(("1",))], ignore_index=True)
+    diffs = ic.validate_hm7(_hm7_good(), rlz_num=2, lookup=lookup)
+    assert diffs and any("reserved unperturbed baseline" in d for d in diffs), diffs
+
+
+def test_hm7_reports_an_st_id_the_lookup_does_not_define():
+    """A results row for a member that is not in the lookup is unjoinable, and
+    under the st_0-absent encoding it would otherwise read as another baseline."""
+    tables = _hm7_good()
+    tables["q"].loc[0, "st_id"] = "7"
+    diffs = ic.validate_hm7(tables, rlz_num=2, lookup=_lookup(("1",)))
+    assert diffs and any("does not define" in d for d in diffs), diffs
 
 
 def test_hm7_sorts_missing_st_ids_numerically_and_survives_non_numeric():
     """st_id is zero-padded in filenames and bare in the table, and a project
     may yet carry a non-numeric one. Neither may make the report raise."""
-    tables = _hm7_good()
-    design = _design(
-        rows=(
-            ("0", 0.0, 0.0),
-            ("2", 0.0, 0.0),
-            ("10", 0.0, 0.0),
-            ("baseline", 0.0, 0.0),
-        )
+    lookup = pd.concat(
+        [_lookup((m,)) for m in ("2", "10", "baseline")], ignore_index=True
     )
-    diffs = ic.validate_hm7(tables, rlz_num=2, design=design)
+    diffs = ic.validate_hm7(_hm7_good(), rlz_num=2, lookup=lookup)
     assert diffs
     # numeric before lexical, and 2 before 10 -- not string order
-    assert "['2', '10', 'baseline']" in diffs[0]
+    assert any("['2', '10', 'baseline']" in d for d in diffs), diffs
 
 
-def test_hm7_skips_the_c28_check_when_no_design_table_is_supplied():
+def test_hm7_skips_the_lookup_checks_when_no_lookup_is_supplied():
     """Skipped, never silently passed: a caller with only the tables can still
     assert the header, the vocabulary and the grain."""
     assert ic.validate_hm7(_hm7_good(), rlz_num=2) == []
-    broken = _hm7_good()
-    broken["q"].loc[0, "temp_change"] = 2.5
-    assert ic.validate_hm7(broken, rlz_num=2) == []  # unchecked without a design
+    # ... and the same tables against a lookup they do not satisfy DO report.
+    assert ic.validate_hm7(_hm7_good(), rlz_num=2, lookup=_lookup(("1",))) != []
 
 
 def _catalog_grid_good():
@@ -823,15 +894,30 @@ def test_wg1_integration():
         assert ic.validate_wg1(ds) == []
 
 
+_PRE_LOOKUP_GRID = (
+    "fixture predates the stress-test lookup (per-member _work/st_<m>.csv); "
+    "regenerated by the migration's WF3 re-run"
+)
+
+
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_wg2_integration():
-    df = pd.read_csv(
-        _member_artifact(
-            join(_WG_DIR, "_work", "st_1.csv"),
-            join(_WG_DIR, "_work", "cst_1.csv"),
-        )
-    )
-    assert ic.validate_wg2(df) == []
+    """The lookup, read the way WG-2 requires: `st_id` as TEXT.
+
+    Skips on the PRE-MIGRATION shape specifically -- the retired `_work/`
+    directory still being there -- and never on the lookup's absence. A bare
+    existence guard is how R9-4 turned a wrong path into a silent pass, and a
+    lookup that exists but is malformed must still fail here.
+
+    The `_member_artifact` legacy `cst_1.csv` fallback retires with this call
+    site: the artifact it guarded no longer exists under either token. The
+    helper stays for the run CSVs and TOMLs, which still carry both spellings.
+    """
+    lookup_path = join(_EXP, "config", "stress_test_lookup.csv")
+    if not os.path.exists(lookup_path) and os.path.isdir(join(_WG_DIR, "_work")):
+        pytest.skip(_PRE_LOOKUP_GRID)
+    df = pd.read_csv(lookup_path, dtype={"st_id": str})
+    assert ic.validate_wg2(df, st_num=6) == []
 
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
@@ -968,21 +1054,18 @@ def test_hm7_integration():
             "fixture q_indicators.csv predates R11 CR-2 (wide shape); "
             "regenerated by P3's WF3 re-run"
         )
-    # Pass the design table and RLZ_NUM, not just the table (R11 P3).
+    # Pass the LOOKUP and RLZ_NUM, not just the table (R11 P3, re-pointed).
     #
-    # This called `validate_hm7({"q": q})` bare until 2026-08-08, so the C28
-    # consistency check and the member-coverage check were BOTH skipped here --
-    # `validate_hm7` skips them when `design` is None, by design, for callers
-    # that only have the tables. The fixture is not such a caller.
-    #
-    # It matters more than a missed assertion: P2 argued that
-    # stress_test_design.csv needs no baseline fingerprint because
-    # "validate_hm7's per-row check is stronger". That check was not running on
-    # the fixture at all, so the design table had no verification of any kind.
-    design = pd.read_csv(
-        join(_EXP, "config", "stress_test_design.csv"), dtype={"st_id": str}
-    )
-    assert ic.validate_hm7({"q": q}, rlz_num=2, design=design) == []
+    # This called `validate_hm7({"q": q})` bare until 2026-08-08, so the
+    # completeness and member-coverage checks were BOTH skipped here --
+    # `validate_hm7` skips them when the second artifact is None, by design, for
+    # callers that only have the tables. The fixture is not such a caller, and
+    # that omission meant the parameter artifact had no verification of any kind.
+    lookup_path = join(_EXP, "config", "stress_test_lookup.csv")
+    if not os.path.exists(lookup_path) and os.path.isdir(join(_WG_DIR, "_work")):
+        pytest.skip(_PRE_LOOKUP_GRID)
+    lookup = pd.read_csv(lookup_path, dtype={"st_id": str})
+    assert ic.validate_hm7({"q": q}, rlz_num=2, lookup=lookup) == []
 
 
 def _gauge_identity_pairs():
