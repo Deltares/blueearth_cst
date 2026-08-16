@@ -52,6 +52,41 @@ from blueearth_cst.spatial.delineate_region import delineate_region, read_region
 #: extraction also writes ``basin_cells.csv`` -- see ``write_basin_cell_mask``.
 BUFFER_CELLS = 2
 
+#: The grid coordinate spelling EVERY store carries, whatever its source calls
+#: them. WG-1 pins the store's dims as ``(time, latitude, longitude)``, and
+#: ``basin_cells.csv`` writes the same two names for its consumer to match on.
+#:
+#: era5 arrives spelled that way already; CHIRPS arrives as ``lat``/``lon``.
+#: Normalising at the READ, rather than teaching each consumer both spellings,
+#: is what keeps ONE store contract across sources -- the seam validator checks
+#: the store, so a name-agnostic consumer would leave the artifact itself
+#: non-conforming while looking fixed.
+_Y_DIM_ALIASES = ("latitude", "lat", "y")
+_X_DIM_ALIASES = ("longitude", "lon", "x")
+
+
+def _normalize_grid_names(ds):
+    """Rename a source's y/x grid coords onto the store's canonical spelling.
+
+    First alias present wins, and a dataset already using the canonical names is
+    returned untouched (``rename`` with an empty mapping is a no-op, but the
+    explicit return keeps that obvious). Renaming here -- immediately after the
+    source read, before the era5 variables are reprojected onto this grid and
+    before the DEM is built with ``reproject_like(ds)`` -- means everything
+    downstream inherits the canonical names instead of needing its own rename.
+    """
+    rename = {}
+    for aliases, target in (
+        (_Y_DIM_ALIASES, "latitude"),
+        (_X_DIM_ALIASES, "longitude"),
+    ):
+        for name in aliases:
+            if name in getattr(ds, "dims", ()) or name in getattr(ds, "coords", ()):
+                if name != target:
+                    rename[name] = target
+                break
+    return ds.rename(rename) if rename else ds
+
 
 def write_basin_cell_mask(climate_nc, region_gdf, out_csv):
     """List the store cells the basin TOUCHES, for weathergenr to average over.
@@ -285,6 +320,10 @@ def prep_historical_climate(
             buffer=BUFFER_CELLS,
             variables=["precip"],
         ).to_dataset()
+        # CHIRPS spells its grid `lat`/`lon`; the store contract is
+        # `latitude`/`longitude`. Done HERE so the era5 reprojection below and
+        # the DEM's `reproject_like(ds)` both inherit the canonical names.
+        ds = _normalize_grid_names(ds)
         # Get clim
         ds_clim = data_catalog.get_rasterdataset(
             "era5",

@@ -325,6 +325,54 @@ def test_chirps_global_branch_requests_precip_only_from_chirps(
     assert "temp" in era5_calls[0]["variables"]
 
 
+def _grid_ds(y_name, x_name):
+    """A minimal 2-D grid dataset spelled with the given coord names."""
+    import numpy as np
+    import xarray as xr
+
+    return xr.Dataset(
+        {"precip": ((y_name, x_name), np.zeros((2, 3), dtype="float32"))},
+        coords={y_name: [1.0, 2.0], x_name: [1.0, 2.0, 3.0]},
+    )
+
+
+@pytest.mark.parametrize(
+    "y_name,x_name",
+    [("lat", "lon"), ("y", "x"), ("latitude", "longitude")],
+)
+def test_grid_names_normalize_to_the_store_spelling(y_name, x_name):
+    """Every source spelling lands on the store's `latitude`/`longitude`.
+
+    WG-1 pins the store's dims and `basin_cells.csv` writes the same two names,
+    so a source that spells its grid differently (CHIRPS uses `lat`/`lon`) must
+    be renamed at the read rather than handled by each consumer.
+    """
+    out = ehc._normalize_grid_names(_grid_ds(y_name, x_name))
+
+    assert "latitude" in out.dims and "longitude" in out.dims
+    assert y_name not in out.dims or y_name == "latitude"
+    assert x_name not in out.dims or x_name == "longitude"
+    # Values ride along unchanged -- this is a rename, not a reindex.
+    assert [float(v) for v in out["latitude"].values] == [1.0, 2.0]
+    assert [float(v) for v in out["longitude"].values] == [1.0, 2.0, 3.0]
+
+
+def test_grid_names_normalization_preserves_spatial_ref_and_attrs():
+    """The CRS coord and global attrs must survive the rename.
+
+    A rename that dropped `spatial_ref` or `crs` would still read fine and would
+    fail the WG-1 seam validator -- the failure mode this test exists for.
+    """
+    ds = _grid_ds("lat", "lon")
+    ds = ds.assign_coords(spatial_ref=0)
+    ds.attrs["crs"] = 4326
+
+    out = ehc._normalize_grid_names(ds)
+
+    assert "spatial_ref" in out.coords
+    assert out.attrs["crs"] == 4326
+
+
 def test_chirps_branch_reads_its_dem_from_the_default_hydrography(
     tmp_path, fake_chirps_catalog
 ):
