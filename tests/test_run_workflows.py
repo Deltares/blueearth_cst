@@ -6,6 +6,7 @@ monkeypatches subprocess.run to capture the argv list -- no real snakemake runs.
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -440,8 +441,7 @@ def test_opening_block_states_the_project_the_config_and_the_cores(
     _, out, project_dir = _run_and_capture(
         tmp_path, capsys, {n: "true" for n in rw.WORKFLOW_ORDER}, cores=7
     )
-    lines = out.splitlines()
-    assert "run_workflows" in lines
+    assert "  run_workflows" in out.splitlines()  # the banner's head line
     rows = _group_rows(out, "run")
     assert rows["project"] == "gabon_project"  # basename, no project_name key
     assert rows["folder"] == str(project_dir).replace(os.sep, "/")
@@ -481,19 +481,66 @@ def test_a_dry_run_says_so_in_the_opening_block(tmp_path, capture_runs, capsys):
     assert "mode" in out and "dry run -- nothing is executed" in out
 
 
-def test_each_invoked_workflow_gets_a_start_and_an_elapsed_row(
+def test_each_invoked_workflow_gets_a_hand_off_band_at_both_its_edges(
     tmp_path, capture_runs, capsys
 ):
-    """The timeline tier: position, identity, and how long it took."""
+    """Position, identity, when it started and how long it took."""
     flags = {n: "true" for n in rw.WORKFLOW_ORDER}
     flags["analyze_projections"] = "false"
     _, out, _ = _run_and_capture(tmp_path, capsys, flags)
-    assert "[1/3] wf0 analyze_climate  starting" in out
-    assert "[1/3] wf0 analyze_climate  done in 0:00:0" in out
-    assert "[3/3] wf3 run_stress_test  done in 0:00:0" in out
-    # A disabled workflow gets NO timeline row -- the sequence diagram above
-    # already named it, once, before anything ran.
-    assert "wf2 analyze_projections  starting" not in out
+    assert re.search(r"\[1/3]  wf0 analyze_climate  --  starting \d\d:\d\d:\d\d", out)
+    assert "[1/3]  wf0 analyze_climate  --  done in 0:00:0" in out
+    assert "[3/3]  wf3 run_stress_test  --  done in 0:00:0" in out
+    # A disabled workflow gets NO band -- the sequence diagram above already
+    # named it, once, before anything ran.
+    assert "wf2 analyze_projections  --  starting" not in out
+
+
+def test_every_wrapper_utterance_is_bounded_by_a_rule(tmp_path, capture_runs, capsys):
+    """The rule is the wrapper's signature, and it is the whole point.
+
+    Nested one inside the other, a wrapper block and a workflow's own block are
+    the same label over the same-shaped rows — `run` over `project`/`config` in
+    both — so a scrolled-back console could not be parsed into who said what.
+    Every line the runner speaks first therefore sits under a rule, and nothing
+    else in this console draws one.
+    """
+    flags = {n: "true" for n in rw.WORKFLOW_ORDER}
+    flags["analyze_projections"] = "false"
+    _, out, _ = _run_and_capture(tmp_path, capsys, flags)
+    lines = out.splitlines()
+    rule = "=" * 80
+    # Opening banner (2), one per hand-off band (6 = 3 workflows x 2 edges),
+    # and the closing banner's pair. A bare count is the assertion that would
+    # pass on any two extra rules, so check placement instead.
+    assert lines[0] == rule and lines[1] == "  run_workflows" and lines[2] == rule
+    assert lines[-1] == rule
+    for index, line in enumerate(lines):
+        if line.startswith("  [") and "  --  " in line:
+            assert lines[index - 1] == rule, f"unruled hand-off at {index}: {line}"
+    # And the workflow-internal grammar never appears at this level.
+    assert " - run_workflows - " not in out
+
+
+def test_the_console_is_not_muted_by_the_rule_log_level(
+    tmp_path, capture_runs, capsys, monkeypatch
+):
+    """`CST_LOG_LEVEL` quietens rule logs; the frame around them is not one.
+
+    The wrapper deliberately does not wear `log_row`'s
+    `HH:MM:SS - <module> - ...`, which every line reported from INSIDE a
+    workflow wears — so it is not governed by the floor that grammar carries,
+    and setting it must not delete the only statement of which project and
+    which config a run was.
+    """
+    monkeypatch.setenv("CST_LOG_LEVEL", "WARNING")
+    _, out, _ = _run_and_capture(
+        tmp_path, capsys, {n: "true" for n in rw.WORKFLOW_ORDER}
+    )
+    assert "  run_workflows" in out.splitlines()
+    assert "  sequence -- 4 of 4 workflows enabled, invoked in this order" in out
+    assert "  [1/4]  wf0 analyze_climate  --  done in 0:00:0" in out
+    assert "run_workflows done in" in out
 
 
 def test_closing_block_names_what_ran_how_long_and_where_it_landed(
@@ -525,7 +572,8 @@ def test_failure_console_carries_the_verdict_and_what_did_not_run(
         tmp_path, capsys, {n: "true" for n in rw.WORKFLOW_ORDER}
     )
     assert code == 4
-    assert "[2/4] wf1 build_model  FAILED (exit 4) after 0:00:0" in out
+    assert "[2/4]  wf1 build_model  --  FAILED (exit 4) after 0:00:0" in out
+    assert "stopping; later workflows not invoked" in out
     assert "run_workflows FAILED in 0:00:0" in out
     assert "not run: wf2 analyze_projections, wf3 run_stress_test" in out
     assert "the failing workflow's own output is printed above" in out
@@ -584,26 +632,6 @@ def test_the_whole_console_is_cp1252_encodable(tmp_path, capture_runs, capsys):
     _, out, _ = _run_and_capture(tmp_path, capsys, flags)
     out.encode("cp1252")  # raises UnicodeEncodeError on anything outside it
     assert out.isascii(), [line for line in out.splitlines() if not line.isascii()]
-
-
-def test_the_blocks_survive_the_quiet_log_level_that_mutes_the_timeline(
-    tmp_path, capture_runs, capsys, monkeypatch
-):
-    """`CST_LOG_LEVEL=WARNING` is quiet mode, not silent mode.
-
-    The timeline rows are what the floor exists to mute; the opening and closing
-    blocks are the only statement of which project and which config this was, so
-    they go through `print` and are unaffected. Routing them through `log_row`
-    would delete the report exactly when someone asked for less noise.
-    """
-    monkeypatch.setenv("CST_LOG_LEVEL", "WARNING")
-    _, out, _ = _run_and_capture(
-        tmp_path, capsys, {n: "true" for n in rw.WORKFLOW_ORDER}
-    )
-    assert "run_workflows" in out
-    assert "  sequence -- 4 of 4 workflows enabled, invoked in this order" in out
-    assert "run_workflows done in" in out
-    assert "starting" not in out
 
 
 def test_the_console_narration_never_leaks_a_secret(tmp_path, capture_runs, capsys):

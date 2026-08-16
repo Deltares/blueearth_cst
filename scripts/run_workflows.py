@@ -45,19 +45,30 @@ Contract (pinned, design §7 (a)-(g), plus (h) for the console):
      covers the source YAML plus resolved advanced settings;
      passthrough `--config` overrides are recorded but intentionally excluded,
      because the Snakefile snapshot owns Snakemake's authoritative merged config.
- (h) The wrapper narrates its own run on stdout, in TWO tiers (see
-     `_opening_block` for the grammar and why it is the one it is):
+ (h) The wrapper narrates its own run on stdout, and every utterance is
+     bounded by a full-width `=` rule (see the Console section for the grammar
+     and why it is the one it is). Nothing else in this console draws one, so a
+     rule means the RUNNER is speaking rather than the workflow it launched:
 
-     * an OPENING block and a CLOSING block, written with plain `print`. They
-       are the wrapper's equivalent of a Snakefile's `run_header`/`run_summary`
-       and they are the only statement of which project, which config, which
-       workflows and in what order -- so they are NOT routed through `log_row`,
-       whose `CST_LOG_LEVEL` floor would silently delete them in quiet mode.
-     * one `starting` and one `done in`/`FAILED` row per invoked workflow, via
-       `log_row(module="run_workflows")` -- a timeline, which is what the floor
-       exists to be able to mute.
+     * an OPENING block -- rule, `run_workflows`, rule, then the `run` group
+       (project, folder, config, cores, and `mode` on a dry run) and an ASCII
+       `sequence` diagram numbering the enabled workflows in invocation order
+       and marking the disabled ones in place;
+     * one HAND-OFF band per invoked workflow at each of its two edges --
+       `<rule>` then `[1/4]  wf0 analyze_climate  --  starting HH:MM:SS`, with
+       the sanitized command below it, and later the same tag with
+       `done in <h:mm:ss>` or `FAILED (exit N) after <h:mm:ss>`;
+     * a CLOSING block, framed like the opening one and terminated by a final
+       rule: the verdict and total elapsed, each invoked workflow's duration,
+       and the paths written.
 
-     Disabled workflows get NO per-workflow row: the opening block's sequence
+     Deliberately NOT `log_row`'s `HH:MM:SS - <module> - ...`: that grammar is
+     worn by every line reported from inside a workflow, so a runner wearing it
+     reads as one more rule in the run it supervises. The wrapper therefore also
+     ignores `CST_LOG_LEVEL`, which quietens rule logs -- the frame around them
+     is not part of what that floor governs.
+
+     Disabled workflows get NO hand-off band: the opening block's sequence
      diagram states every one of them, once, before anything runs. Every line
      that can carry `extra` goes through `sanitize_argv` first.
 
@@ -113,7 +124,6 @@ from blueearth_cst.shared.provenance import (  # noqa: E402
 from blueearth_cst.shared.snake_utils import (  # noqa: E402
     ADVANCED_SETTINGS,
     format_elapsed,
-    log_row,
 )
 
 # Fixed run order (climate -> model -> projections -> experiment). Each maps to
@@ -290,18 +300,43 @@ def build_command(
 # already opens with `run_header` and closes with `run_summary`; the runner
 # ABOVE them said less about the run than any one of them.
 #
-# The grammar below is deliberately theirs -- a head line, a blank, then
-# labelled groups whose `key  value` rows indent one step further and share one
-# value column across the whole block -- so a wrapper-driven console opens and
-# closes in the same shape as each workflow nested inside it. It is restated
-# here rather than imported because `run_header`/`run_summary` are shaped for a
-# Snakefile's facts (declared path tokens, a merged-log and benchmark name),
-# none of which a runner has; what is shared is the SHAPE, which is ten lines.
+# Row grammar below is deliberately theirs -- labelled groups whose `key  value`
+# rows indent one step further and share one value column across the block -- so
+# the facts inside a wrapper block read the same way as the facts inside a
+# workflow's. It is restated here rather than imported because
+# `run_header`/`run_summary` are shaped for a Snakefile's facts (declared path
+# tokens, a merged-log and benchmark name), none of which a runner has.
+#
+# **What the wrapper does NOT share with them is how it is FRAMED**, and that is
+# the point. Nested one inside the other, the two blocks were indistinguishable:
+# the wrapper's `run` group and `wf0 analyze_climate`'s own `run` group are the
+# same label over the same-shaped rows, so a console scrolled back to could not
+# be parsed into "the runner said this, then the workflow said that". Every
+# wrapper utterance is therefore bounded by a full-width `=` rule -- the opening
+# banner, each per-workflow hand-off, the closing banner -- and nothing else in
+# this console draws one. A rule means the RUNNER is speaking.
+#
+# For the same reason the per-workflow rows are NOT `log_row`'s
+# `HH:MM:SS - <module> - ...`. That grammar belongs to reporting from INSIDE a
+# workflow: every rule log line, every hydromt record and every heartbeat marker
+# wears it, so a runner wearing it too reads as one more rule in the run it is
+# actually supervising. The wrapper keeps the clock (a start time, an elapsed)
+# and drops the costume. It consequently ignores `CST_LOG_LEVEL` entirely, which
+# is correct rather than a loss -- that floor exists to quieten rule logs, and
+# the runner's dozen lines are the frame around them.
+#
+# The rule is a FIXED 80 columns, not the terminal's width. A redirected run and
+# a console run must produce the same bytes: this output is routinely piped to a
+# file (`*> log.txt`), and a frame whose width depended on whether stdout was a
+# tty would make the same run look different depending on how it was launched.
 #
 # ASCII only, everywhere in this section. A Windows console defaults to cp1252
 # and raises UnicodeEncodeError on box-drawing characters and arrows -- the same
-# constraint `snake_utils.rule_banner` records. `|`, `-` and `[1/3]`, never
-# `│`, `→` or `✓`.
+# constraint `snake_utils.rule_banner` records. `=`, `|`, `-` and `[1/3]`, never
+# `═`, `│`, `→` or `✓`.
+
+_RULE_WIDTH = 80
+_RULE = "=" * _RULE_WIDTH
 
 
 def _label(name: str) -> str:
@@ -309,8 +344,38 @@ def _label(name: str) -> str:
     return f"{WORKFLOW_ID[name]} {name}"
 
 
-def _console_block(head: str, groups: list[tuple[str, list[Any]]]) -> str:
-    """Assemble a head line plus labelled groups, in `run_header`'s grammar.
+def _clock() -> str:
+    """Wall-clock ``HH:MM:SS`` for a hand-off line.
+
+    A wall clock, unlike the monotonic durations everywhere else here: this
+    answers "when did this start", which someone reads against the timestamps in
+    the workflow's own log rows below it.
+    """
+    return f"{datetime.now():%H:%M:%S}"
+
+
+def _banner(head: str) -> list[str]:
+    """A rule, one head line, a rule -- the wrapper announcing a block."""
+    return [_RULE, f"  {head}", _RULE]
+
+
+def _handoff(tag: str, detail: str, *, note: str | None = None) -> str:
+    """One hand-off band: a rule, the workflow and what just happened to it.
+
+    Ruled rather than boxed, and ruled on the TOP side only. What has to survive
+    is that the line is the runner's; a closing rule under a one-line utterance
+    doubles the cost to say it twice, and this fires twice per workflow.
+    """
+    lines = [_RULE, f"  {tag}  --  {detail}"]
+    if note:
+        lines.append(f"    {note}")
+    return "\n".join(lines)
+
+
+def _console_block(
+    head: str, groups: list[tuple[str, list[Any]]], *, close: bool = False
+) -> str:
+    """A banner, then labelled groups of rows.
 
     A group's rows are either ``(key, value)`` pairs -- aligned on ONE value
     column across the whole block, so the column does not restart at each label
@@ -318,10 +383,16 @@ def _console_block(head: str, groups: list[tuple[str, list[Any]]]) -> str:
     diagram). A group with no rows is a NOTE: its label carries a sentence
     rather than heading a set of rows, which is how `run_summary` prints the
     one line it has that names no artifact.
+
+    ``close`` appends the trailing rule. Only the CLOSING block sets it: the
+    opening block is followed either by a hand-off band or by the closing block,
+    both of which open with a rule of their own, so closing it too would print
+    two rules separated by one blank line. The final rule is what says the
+    runner has finished talking, and it has to mean that.
     """
     pairs = [row for _, rows in groups for row in rows if isinstance(row, tuple)]
     width = max((len(key) for key, _ in pairs), default=0)
-    lines = [head]
+    lines = _banner(head)
     for label, rows in groups:
         lines.extend(["", f"  {label}"])
         for row in rows:
@@ -330,6 +401,8 @@ def _console_block(head: str, groups: list[tuple[str, list[Any]]]) -> str:
                 lines.append(f"    {key.ljust(width)}  {value}")
             else:
                 lines.append(f"    {row}".rstrip())
+    if close:
+        lines.extend(["", _RULE])
     return "\n".join(lines)
 
 
@@ -471,7 +544,7 @@ def _closing_block(
         # rather than a `run_summary` block. Both are the child's own account
         # of the failure, which is what this points at.
         groups.append(("the failing workflow's own output is printed above", []))
-    return _console_block(head, groups)
+    return _console_block(head, groups, close=True)
 
 
 def _project_name(cfg: Mapping[str, Any], project_dir: Path) -> str:
@@ -520,8 +593,7 @@ def run(config_path: str, cores: int, extra: list[str]) -> int:
                 cores=cores,
                 dry_run=manifest["dry_run"],
                 flags=flags,
-            )
-            + "\n",
+            ),
             flush=True,
         )
     except Exception as exc:  # noqa: BLE001 -- never break a run over a banner
@@ -539,12 +611,19 @@ def run(config_path: str, cores: int, extra: list[str]) -> int:
                 # every disabled workflow, once, before anything started.
                 continue
             position += 1
-            tag = f"[{position}/{total}] {_label(name)}"
+            tag = f"[{position}/{total}]  {_label(name)}"
             cmd = build_command(name, config_path, cores, extra)
             workflow["command"] = sanitize_argv(cmd)
             workflow["status"] = "running"
-            log_row(f"{tag}  starting", module="run_workflows")
-            log_row(f"  {' '.join(sanitize_argv(cmd))}", module="run_workflows")
+            print(
+                "\n"
+                + _handoff(
+                    tag,
+                    f"starting {_clock()}",
+                    note=" ".join(sanitize_argv(cmd)),
+                )
+                + "\n",
+            )
             # Before the child, not after: see contract (h) on buffering.
             sys.stdout.flush()
             workflow_started = time.monotonic()
@@ -560,16 +639,19 @@ def run(config_path: str, cores: int, extra: list[str]) -> int:
                 workflow["status"] = "failed"
                 exit_code = result.returncode
                 ran.append((name, f"FAILED (exit {result.returncode}) after {elapsed}"))
-                log_row(
-                    f"{tag}  FAILED (exit {result.returncode}) after {elapsed} "
-                    f"-- stopping, later workflows not invoked",
-                    module="run_workflows",
-                    level="ERROR",
+                print(
+                    "\n"
+                    + _handoff(
+                        tag,
+                        f"FAILED (exit {result.returncode}) after {elapsed}",
+                        note="stopping; later workflows not invoked",
+                    ),
+                    flush=True,
                 )
                 break
             workflow["status"] = "succeeded"
             ran.append((name, elapsed))
-            log_row(f"{tag}  done in {elapsed}", module="run_workflows")
+            print("\n" + _handoff(tag, f"done in {elapsed}"), flush=True)
     except BaseException as exc:
         manifest["status"] = "failed"
         manifest["error_type"] = type(exc).__name__
