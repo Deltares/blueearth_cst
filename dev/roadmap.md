@@ -1511,6 +1511,26 @@ the lookup's schema is normatively defined on the **weather-generator** seam
 baseline re-record is a prerequisite of the first implementation commit**, since
 a comparison gate cannot be applied retrospectively.
 
+**The gate is discharged — the lookup LANDED 2026-08-16** (`t2608152230` closed
+at `1717c24`; migration record `dev/milestones/r12/migration_stress-test-lookup.md`).
+So the paragraph above is history: `t2608082036` is now front of the queue with
+nothing in front of it, and this section's remaining "not yet scoped" is the
+live state.
+
+**Efficiency and resource use are design criteria, not a post-hoc measurement —
+owner directive 2026-08-16.** R12 is the mechanics milestone, so computational
+cost and resource footprint are weighed while the improvements are being chosen.
+The apparatus for it already exists: `ext2-7`'s counterbalanced AB/BA timing
+protocol survives and is reusable, so a claim can be tested rather than
+asserted. Two P3-3 board items are the concrete form of the axis and scoping
+decides whether R12 absorbs them — `t2608071216` (the batch-size default
+implements the parallelism ceiling only, so peak temp disk grows *with* the
+sweep, backwards from §6.1's binding disk ceiling) and `t2608071217` (one failing
+member re-runs its whole batch of `B`). It does **not** reopen risk-7 part 3 —
+that rejection was ratified at G2 and would have to be re-argued. Full detail on
+the item note; the caution that goes with it is that no shipped config reaches
+the scales these ceilings exist for, so a green fixture run is not evidence here.
+
 The `cst-run-control` skill governs — its scope is exactly this territory (run
 manifests, resume, checkpoints, quarantine, conformance vectors) and may already
 answer questions the design run spent rounds on.
