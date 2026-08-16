@@ -139,13 +139,13 @@ from blueearth_cst.shared.plot_style import (
 #: straight from `plot_style` for the series footnote, so map-scoping it would
 #: print the same sentence at two sizes in one folder.
 FONT_SIZE_BASE = 6.5  #: fallback size; the axes title is derived from it (+1)
-FONT_SIZE_TICK = 5.5  #: the coordinate graticule labels
-FONT_SIZE_LEGEND = 5.5  #: legend entries and the legend's own title
+FONT_SIZE_TICK = 6.0  #: the coordinate graticule labels
+FONT_SIZE_LEGEND = 6.0  #: legend entries and the legend's own title
 FONT_SIZE_COLORBAR_LABEL = 6.0  #: the colourbar's title
-FONT_SIZE_COLORBAR_TICK = 5.0  #: the numbers beside the colourbar
-FONT_SIZE_GAUGE_LABEL = 5.0  #: the wflow_id beside each gauge marker
-FONT_SIZE_SCALE_BAR = 5.0  #: the 0 / 2.5 / 5 km numbers
-FONT_SIZE_NORTH_ARROW = 6.5  #: the "N"
+FONT_SIZE_COLORBAR_TICK = 5.5  #: the numbers beside the colourbar
+FONT_SIZE_GAUGE_LABEL = 5.5  #: the wflow_id beside each gauge marker
+FONT_SIZE_SCALE_BAR = 5.5  #: the 0 / 2.5 / 5 km numbers
+FONT_SIZE_NORTH_ARROW = 7.0  #: the "N"
 
 # --- layout ----------------------------------------------------------------
 
