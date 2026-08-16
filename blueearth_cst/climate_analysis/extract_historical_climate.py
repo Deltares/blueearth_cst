@@ -29,6 +29,7 @@ from hydromt.model.processes.meteo import temp
 
 from blueearth_cst.shared.provenance import file_sha256
 from blueearth_cst.shared.snake_utils import (
+    DEFAULT_HYDROGRAPHY,
     MIN_HISTORICAL_YEARS,
     log_row,
     meets_min_historical_years,
@@ -200,6 +201,7 @@ def prep_historical_climate(
     endtime: str,
     bbox=None,
     oro_out: Optional[Union[str, Path]] = None,
+    hydrography: str = DEFAULT_HYDROGRAPHY,
     region_sha256: Optional[str] = None,
     region_source: Optional[Union[str, Path]] = None,
 ):
@@ -236,6 +238,21 @@ def prep_historical_climate(
         co-provenance contract. Defaults to the historical
         ``<dirname(fn_out)>/<clim_source>_orography.nc`` when omitted. Ignored
         outside the chirps branch.
+    hydrography : str, optional
+        Catalog ENTRY NAME of the elevation source the chirps branch reads
+        ``elevtn`` from, to reproject onto the precipitation grid and to lapse-
+        correct temperature against ``era5_orography``. Defaults to
+        ``DEFAULT_HYDROGRAPHY``; the rule passes ``shared.basin.hydrography``,
+        which is the same entry the delineation and the model build read.
+
+        It was the hardcoded ``merit_hydro`` until 2026-08-16. That was a source
+        NOTHING else in the toolbox names -- ``DEFAULT_HYDROGRAPHY`` is
+        ``merit_hydro_ihu`` and the shipped ``setup_basemaps`` agrees -- so the
+        chirps branch demanded a staged dataset a working project need not have,
+        and failed inside hydromt with a catalog-resolution error that reads as
+        a code defect. Reading the CONFIGURED entry also means the DEM behind
+        the store is the DEM behind the basin, which is the property that was
+        actually wanted. Ignored outside the chirps branch.
     region_sha256 : str, optional
         Content digest of the region artifact the ``bbox`` came from, stamped
         on the extraction as ``region_geojson_sha256`` (ADR 0003).
@@ -276,14 +293,17 @@ def prep_historical_climate(
             buffer=BUFFER_CELLS,
             variables=["temp", "temp_min", "temp_max", "kin", "kout", "press_msl"],
         )
-        # Prepare orography data corresponding to chirps from merit hydro DEM
-        # (needed for downscaling of climate variables)
+        # Prepare orography data corresponding to chirps from the CONFIGURED
+        # hydrography DEM (needed for downscaling of climate variables) -- the
+        # same catalog entry the delineation and the model build read, not a
+        # second elevation source only this branch names.
         log_row(
-            f"Preparing orography data for {clim_source} to downscale climate variables.",
+            f"Preparing orography data for {clim_source} from {hydrography} "
+            "to downscale climate variables.",
             module="extract",
         )
         dem = data_catalog.get_rasterdataset(
-            "merit_hydro",
+            hydrography,
             bbox=bbox,
             time_range=(starttime, endtime),
             buffer=BUFFER_CELLS,
@@ -413,6 +433,9 @@ if __name__ == "__main__":
                 # Absent outside the chirps/chirps_global branch, where the spec
                 # declares no oro_nc output.
                 oro_out=getattr(sm.output, "oro_nc", None),
+                # Already in the store spec's params for the delineation edge;
+                # the chirps branch reads its DEM from the same entry.
+                hydrography=sm.params.hydrography,
                 region_sha256=file_sha256(region_fn),
                 region_source=region_fn,
             )
