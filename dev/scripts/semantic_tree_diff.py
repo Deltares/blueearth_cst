@@ -475,6 +475,16 @@ def build_project_tree_rules(
         # So it needs its own row and cannot ride the `config/runs/` prefix
         # below.
         "config/run_record.yml",
+        # The bin's own README, written UNCONDITIONALLY by
+        # `copy_config_files._write_readme` on every run -- the same helper that
+        # writes `config/runs/README.md`, which the project-level prefix already
+        # covers. This one needs its own row because the experiment's `config/`
+        # is enumerated leaf by leaf rather than declared as a prefix, so its
+        # sibling was covered and it was not. An inventory gap since the README
+        # was introduced, and invisible until the whole-directory
+        # `climate/weathergenr/` prefix was narrowed and the remaining unmapped
+        # paths became few enough to read.
+        "config/README.md",
     ):
         same(f"experiments/{e}/{leaf}")
     for directory in (

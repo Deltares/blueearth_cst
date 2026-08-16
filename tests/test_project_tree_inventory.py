@@ -186,6 +186,11 @@ COVERED: dict[str, list[str]] = {
         # `config/stress_test_lookup.csv` (below) and `_work/` is deleted, so a
         # file there is stale output from a pre-migration run.
         f"experiments/{E}/config/stress_test_lookup.csv",
+        # The bin's own README, written unconditionally every run by the same
+        # helper as `config/runs/README.md`. Its sibling rode the project-level
+        # prefix while this one had no row at all, because the experiment's
+        # config/ is enumerated leaf by leaf.
+        f"experiments/{E}/config/README.md",
         f"experiments/{E}/climate/weathergenr/plots/obs_power_spectra.png",
         f"experiments/{E}/hydrology/wflow/config/rlz_1_st_2.toml",
         f"experiments/{E}/hydrology/wflow/output/rlz_1_st_2.csv",
