@@ -922,11 +922,21 @@ rule perturb_climate_realization:
     # own literal rlz_nc input) -> a rule ambiguity that surfaces as a self-loop
     # (CyclicGraphException) on the test-config dry-run. st_0 is the reserved
     # unperturbed baseline (naming.md §4); only perturbed st_num >= 1 belong here.
+    #
+    # STILL LOAD-BEARING after the lookup, and that is not obvious: the input no
+    # longer carries the member wildcard, so the constraint looks vestigial.
+    # Probed -- removing it still yields CyclicGraphException, exactly as above,
+    # because the ambiguity is between this rule's OUTPUT pattern and 3.11's.
     wildcard_constraints:
         st_num=member_index_regex(ST_WIDTH),
     input:
         rlz_nc = f"{wg_dir}/output/rlz_"+"{rlz_num}"+f"_st_{ST_BASELINE}.nc",
-        st_csv = f"{wg_dir}/_work/st_"+"{st_num}"+".csv",
+        # A CONSTANT input now: one table for the whole experiment, not one file
+        # per member. The member id no longer arrives through the filename -- it
+        # is passed as a positional argument and the R filters on it, asserting
+        # twelve ordered months so a slice that matches nothing or matches
+        # partially stops instead of recycling into a silent wrong answer.
+        lookup_csv = f"{exp_dir}/config/stress_test_lookup.csv",
         # The ONE shared config from 3.10 (C29 retired the per-member one). The
         # DAG edge was already there transitively via 3.11; declaring it makes
         # the transient-flag read visible to --dry-run.
@@ -938,7 +948,7 @@ rule perturb_climate_realization:
     benchmark:
         f"{BENCH_PARTS_DIR}/3.12_perturb_climate_realization/" + "rlz_{rlz_num}_st_{st_num}.tsv",
     shell:
-        """python -u "{run_logged}" "{log}" -- Rscript --vanilla blueearth_cst/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.st_csv} {output.rlz_st_nc}"""
+        """python -u "{run_logged}" "{log}" -- Rscript --vanilla blueearth_cst/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.lookup_csv} {output.rlz_st_nc} {wildcards.st_num}"""
 
 # 3.13  write_climate_data_catalog — build a hydromt data catalog of the climate files
 rule write_climate_data_catalog:

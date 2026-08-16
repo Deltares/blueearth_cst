@@ -4,18 +4,26 @@
 
 # General R settings and prerequisites
 source("./blueearth_cst/weathergen/global.R")
+# The R side of WG-2: one member's twelve monthly rows, carrying the
+# postcondition that makes a mis-keyed slice loud instead of silently short.
+source("./blueearth_cst/weathergen/read_member_grid.R")
 
 # Bind positional CLI args to named locals with an arity check (see
 # generate_weather.R). Placed after source(global.R) so the arity stop() is the
 # first thing to touch args.
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 4L) {
-  stop("impose_climate_change.R expects 4 args: <realization_nc> <weagen_config_yaml> <stress_csv> <output_nc>")
+if (length(args) != 5L) {
+  stop("impose_climate_change.R expects 5 args: <realization_nc> <weagen_config_yaml> <lookup_csv> <output_nc> <st_id>")
 }
 rlz_path           <- args[[1]]
 weagen_config_path <- args[[2]]
-stress_csv_path    <- args[[3]]
+lookup_csv_path    <- args[[3]]
 output_nc_path     <- args[[4]]
+# The member token, from rule 3.12's {st_num} wildcard. Already zero-padded to
+# ST_WIDTH by that rule's own wildcard_constraints, so it is textually identical
+# to the lookup's `st_id` -- C27's one-token identity, now checked on the
+# CONSUMING side because the pad width is no longer carried by a filename.
+st_id_token        <- args[[5]]
 
 # Config file — the ONE shared weathergen config from rule 3.10. C29 retired the
 # per-member weathergen_config_rlz_<n>_cst_<m>.yml: it carried nothing that
@@ -25,8 +33,28 @@ yaml <- yaml::read_yaml(weagen_config_path)
 # Stochastic weather realization to be perturbed
 message("[impose_climate_change] Reading realization: ", rlz_path)
 rlz_input <- weathergenr::read_netcdf(rlz_path, keep_leap_day = FALSE)
-# Climate stress file
-cst_data <- read.csv(stress_csv_path)
+# This member's slice of the experiment's stress-test lookup: twelve rows in
+# month order, or a stop() naming the token.
+cst_data <- read_member_grid(lookup_csv_path, st_id_token)
+
+# PERCENT -> the generator's multiplier form (WG-2). The rule is stated over the
+# percent COLUMNS rather than per column, so a future column inherits it:
+# `precip_variance_change` converts on a path no shipped config exercises
+# (variance is flat at 1.0, i.e. 0.0 percent, everywhere), and omitting it here
+# would hand apply_climate_perturbations a variance factor of ZERO rather than
+# the identity 1.0 on the default configuration.
+#
+# `1 + p/100` and not `(100 + p)/100`: measured over 200k random float32
+# multipliers, the first fails to reproduce the level in 19.9% of cases and the
+# second in 32.9%. The round trip is NOT exact in general and cannot be made so
+# -- 1,155 of 50,000 levels admit no float64 percent that inverts them exactly
+# -- but it is within one float64 ulp for every multiplier >= 0.5, which the
+# producer refuses to go below (D35), and bit-identical on every level of every
+# shipped config.
+precip_mean_factor     <- 1 + cst_data$precip_change / 100
+precip_variance_factor <- 1 + cst_data$precip_variance_change / 100
+# temp_change is additive degC and crosses unconverted in both directions, so
+# there is nothing to reconstruct and nothing that can be out of bound.
 
 
 # General stress test parameters, derived from the declared output path.
@@ -66,9 +94,9 @@ rlz_future <- weathergenr::apply_climate_perturbations(
    data               = rlz_input$data,
    grid               = rlz_input$grid,
    date               = rlz_input$date,
-   precip_mean_factor = cst_data$precip_mean,
-   precip_var_factor  = cst_data$precip_variance,
-   temp_delta         = cst_data$temp_mean,
+   precip_mean_factor = precip_mean_factor,
+   precip_var_factor  = precip_variance_factor,
+   temp_delta         = cst_data$temp_change,
    temp_transient     = temp_change_transient,
    precip_transient   = precip_change_transient,
    precip_occurrence_transient = acp$precip_occurrence_transient,
