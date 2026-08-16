@@ -46,6 +46,7 @@ from blueearth_cst.climate_analysis.climate_figures import (
     plot_climate_figures,
     source_climate_vars,
 )
+from blueearth_cst.climate_analysis.climate_levels import read_climate_levels
 from blueearth_cst.shared.climate_parity import model_parity_climate
 from blueearth_cst.shared.snake_utils import (
     DEFAULT_WATER_YEAR_ANCHOR,
@@ -172,6 +173,7 @@ def plot_climate_source(
     clim_source: str = "era5",
     geoms_dir: Optional[Union[str, Path]] = None,
     anchor: str = DEFAULT_WATER_YEAR_ANCHOR,
+    levels_json: Optional[Union[str, Path]] = None,
 ):
     """Write the canonical climate figure set from the shared climate store.
 
@@ -272,6 +274,9 @@ def plot_climate_source(
         caveat=caveat,
         overlays=load_spatial_overlays(geoms_dir),
         variables=variables,
+        # Absent for a single-source run (WF1), where there is nothing to share
+        # a scale WITH -- each figure then classifies from its own data.
+        levels=read_climate_levels(levels_json),
     )
 
 
@@ -291,4 +296,6 @@ if __name__ == "__main__":
                 clim_source=sm.params.clim_source,
                 geoms_dir=sm.params.geoms_dir,
                 anchor=water_year_end_anchor(sm.params.water_year_start),
+                # Declared by WF0's multi-source path only; absent in WF1.
+                levels_json=getattr(sm.input, "levels_json", None),
             )

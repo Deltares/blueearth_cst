@@ -42,7 +42,7 @@ grid.
 from __future__ import annotations
 
 import os
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Optional, Union
 
@@ -235,6 +235,44 @@ def _climatological_field(
     return field.compute()
 
 
+def map_field(da: xr.DataArray, spec: dict, anchor: str = DEFAULT_WATER_YEAR_ANCHOR):
+    """The values the ``map`` figure draws."""
+    return _climatological_field(da, spec["how"], anchor)
+
+
+def annual_series(
+    da: xr.DataArray, spec: dict, anchor: str = DEFAULT_WATER_YEAR_ANCHOR
+):
+    """The values the ``annual`` figure draws."""
+    return _yearly(da.mean(dim=_space_dims(da)), spec["how"], anchor).compute()
+
+
+def monthly_spread(da: xr.DataArray, spec: dict) -> list:
+    """The per-calendar-month distributions the ``monthly`` box plot draws."""
+    domain = da.mean(dim=_space_dims(da)).resample(time="ME")
+    how = spec["how"]
+    per_month = (domain.sum("time") if how == "sum" else domain.mean("time")).compute()
+    grouped = per_month.groupby("time.month")
+    spread = [
+        np.asarray(grouped[m].values, dtype=float)
+        if m in grouped.groups
+        else np.array([])
+        for m in np.arange(1, 13)
+    ]
+    return [values[np.isfinite(values)] for values in spread]
+
+
+#: The three derivations above, by figure kind. The SINGLE definition of what
+#: each figure plots -- the renderers draw from these and
+#: ``climate_levels`` pools them across datasets to derive a shared scale, so a
+#: scale cannot be computed over one quantity and applied to another.
+VALUE_DERIVATIONS = {
+    "map": map_field,
+    "annual": annual_series,
+    "monthly": lambda da, spec, anchor=None: monthly_spread(da, spec),
+}
+
+
 def _footer(fig, caveat: Optional[str]) -> None:
     if caveat:
         fig.text(0.01, 0.01, caveat, fontsize=6.5, color="dimgray", va="bottom")
@@ -335,6 +373,7 @@ def _render_map(
     overlays,
     extent_policy="basin",
     anchor=DEFAULT_WATER_YEAR_ANCHOR,
+    scale=None,
     **_,
 ):
     """Climatological field as a cartographic map.
@@ -355,7 +394,7 @@ def _render_map(
     from blueearth_cst.shared.plot_map import _basin_outline
 
     how, label, unit = spec["how"], spec["label"], spec["unit"]
-    field = _climatological_field(da, how, anchor)
+    field = map_field(da, spec, anchor)
     axis_unit = f"{unit} y$^{{-1}}$" if how == "sum" else unit
 
     base = RASTER_STYLES[spec["style"]]
@@ -364,6 +403,14 @@ def _render_map(
     style = base.replace(label=f"{label.capitalize()} ({axis_unit})")
     if spec["style"] == "temp":
         style = resolve_temperature_style(field, style)
+    if scale:
+        # Pinned to the scale every other source's figure for this variable
+        # draws against, so a difference between two maps is READABLE off the
+        # colours. `RasterStyle.levels` bypasses the per-raster classifier,
+        # which is what it exists for. AFTER resolve_temperature_style, whose
+        # diverging branch would otherwise re-derive boundaries and discard
+        # these.
+        style = style.replace(levels=list(scale), diverging_center=None)
 
     # Every overlay is optional, and the two datasets supply them from
     # different products: the FORCING maps take the wflow model's staticgeoms
@@ -497,11 +544,11 @@ def _decadal_trend(years, values):
 
 
 def _render_annual(
-    da, spec, title, caveat, overlays, anchor=DEFAULT_WATER_YEAR_ANCHOR, **_
+    da, spec, title, caveat, overlays, anchor=DEFAULT_WATER_YEAR_ANCHOR, scale=None, **_
 ):
     """Domain-mean value per year, with its trend and the period mean."""
     how, label, unit = spec["how"], spec["label"], spec["unit"]
-    series = _yearly(da.mean(dim=_space_dims(da)), how, anchor).compute()
+    series = annual_series(da, spec, anchor)
     axis_unit = f"{unit} y$^{{-1}}$" if how == "sum" else unit
     years = series["time"].dt.year.values.astype(float)
     values = series.values.astype(float)
@@ -549,11 +596,28 @@ def _render_annual(
     ax.set_ylabel(f"{label.capitalize()} ({axis_unit})")
     # Years are integers; the default locator happily labels them 2002.5.
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    _apply_scale(ax, scale)
     _style_series_axes(ax)
     return fig
 
 
-def _render_monthly(da, spec, title, caveat, overlays, **_):
+def _apply_scale(ax, scale) -> None:
+    """Pin a series axis to the shared y-range, with headroom for the ink.
+
+    A hair of padding, because the plotted extremes are the scale's own
+    endpoints by construction: without it the highest marker or whisker cap sits
+    exactly on the frame and reads as clipped.
+    """
+    if not scale:
+        return
+    lower, upper = (float(v) for v in scale)
+    if not np.isfinite(lower) or not np.isfinite(upper) or upper <= lower:
+        return
+    pad = (upper - lower) * 0.04
+    ax.set_ylim(lower - pad, upper + pad)
+
+
+def _render_monthly(da, spec, title, caveat, overlays, scale=None, **_):
     """Monthly climatology of the domain mean, and its year-to-year spread.
 
     The mean alone answered "when is the wet season?" and nothing about how
@@ -562,17 +626,8 @@ def _render_monthly(da, spec, title, caveat, overlays, **_):
     ACROSS YEARS for each calendar month, so the reader sees both.
     """
     how, label, unit = spec["how"], spec["label"], spec["unit"]
-    domain = da.mean(dim=_space_dims(da)).resample(time="ME")
-    per_month = (domain.sum("time") if how == "sum" else domain.mean("time")).compute()
     months = np.arange(1, 13)
-    grouped = per_month.groupby("time.month")
-    spread = [
-        np.asarray(grouped[m].values, dtype=float)
-        if m in grouped.groups
-        else np.array([])
-        for m in months
-    ]
-    spread = [values[np.isfinite(values)] for values in spread]
+    spread = monthly_spread(da, spec)
     axis_unit = f"{unit} month$^{{-1}}$" if how == "sum" else unit
     _, colour = _series_style(spec)
 
@@ -609,6 +664,7 @@ def _render_monthly(da, spec, title, caveat, overlays, **_):
     ax.set_xlim(0.4, 12.6)
     ax.set_xlabel("Month")
     ax.set_ylabel(f"{label.capitalize()} ({axis_unit})")
+    _apply_scale(ax, scale)
     _style_series_axes(ax)
     return fig
 
@@ -644,6 +700,7 @@ def plot_climate_figures(
     overlays: Optional[dict] = None,
     anchor: str = DEFAULT_WATER_YEAR_ANCHOR,
     variables: Optional[Sequence[str]] = None,
+    levels: Optional[Mapping] = None,
 ) -> list[Path]:
     """Write the canonical figure set for one gridded climate dataset.
 
@@ -709,6 +766,9 @@ def plot_climate_figures(
                 overlays,
                 extent_policy=extent_policy,
                 anchor=anchor,
+                # Absent for this (var, kind) -> the renderer classifies from
+                # its own data, which is right for a single-source run.
+                scale=(levels or {}).get(var, {}).get(kind),
             )
             save_figure(out_path, dpi=RASTER_DPI)
             plt.close(fig)

@@ -204,6 +204,7 @@ LOG_RULES = [
     "0.02_delineate_region",
     "0.03_delineate_spatial_units",
     "0.04_extract_historical_climate",
+    "0.04b_derive_climate_levels",
     "0.05_plot_climate_source",
 ]
 
@@ -319,6 +320,49 @@ rule delineate_spatial_units:
 # contract with a different rule NAME -- same script, inputs, params, outputs.
 # tests/test_climate_store_contract.py pins that equivalence rather than
 # byte-identity of the declaration, which is the honest form of the claim.
+# --- one plotting scale per variable, shared by every source ------------------
+# 0.04b derive_climate_levels — pool what each figure would plot, across every
+# candidate, and write the boundaries all of them then draw against.
+#
+# WITHOUT this, each 0.05 job classifies its own figure from its own data, so
+# two sources' precipitation maps carry two different colour ramps and a
+# difference between them cannot be read off the figures — which is the one
+# question this workflow exists to answer.
+#
+# The price is a BARRIER: no figure renders until every extraction has finished.
+# Accepted deliberately (owner ruling 2026-08-16); the alternative that avoids
+# it is a single plotting job over all sources, which trades the barrier for
+# losing per-source parallelism and re-rendering every source when one changes.
+#
+# NOT the sidecar retired earlier the same day. That one shared a scale between
+# the SOURCE and FORCING families and was retired because they frame different
+# footprints; these are two source extractions over the same bbox. See
+# climate_levels.py's module docstring.
+CLIMATE_LEVELS = f"{project_dir}/data/climate/historical/climate_levels.json"
+
+# Only variables at least two sources carry can be pooled meaningfully, but the
+# module handles that itself — it pools each variable over the stores that carry
+# it, and omits what nothing supplies.
+LEVEL_VARS = sorted({var for s in CANDIDATE_SOURCES for var in source_climate_vars(s)})
+
+rule derive_climate_levels:
+    message: rule_banner("0.04b", "derive_climate_levels", summary="one plotting scale per variable, across sources")
+    input:
+        climate_ncs = [CLIMATE_STORES[s].outputs["climate_nc"] for s in CANDIDATE_SOURCES],
+    params:
+        sources = CANDIDATE_SOURCES,
+        variables = LEVEL_VARS,
+        water_year_start = WATER_YEAR_START,
+    output:
+        levels = CLIMATE_LEVELS,
+    log:
+        f"{LOG_PARTS_DIR}/0.04b_derive_climate_levels.log",
+    benchmark:
+        f"{project_dir}/benchmarks/_parts/0.04b_derive_climate_levels.tsv",
+    script:
+        "blueearth_cst/climate_analysis/climate_levels.py"
+
+
 for _source in CANDIDATE_SOURCES:
     _spec = CLIMATE_STORES[_source]
 
@@ -360,6 +404,9 @@ for _source in CANDIDATE_SOURCES:
     # still produces it either way -- rule 3.08 and the forcing catalog read it.
     if "oro_nc" in _spec.outputs and _plot_vars != ("precip",):
         _plot_inputs["oro_nc"] = _spec.outputs["oro_nc"]
+    # The shared scale (rule 0.04b). A real input, so the DAG carries the barrier
+    # rather than the script reading a file behind Snakemake's back.
+    _plot_inputs["levels_json"] = CLIMATE_LEVELS
     _plot_inputs.update(
         {name: SPATIAL_UNITS.outputs[name] for name in
          ("basins", "subbasins", "rivers", "locations")}
