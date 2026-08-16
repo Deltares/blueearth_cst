@@ -284,8 +284,8 @@ More example invocations are in `scripts/run_snake_test.cmd`.
 
 Instead of invoking each Snakefile by hand, `scripts/run_workflows.py` reads the
 `workflows.<name>.enabled` flags in a full-orchestration config and runs
-`snakemake` for exactly the enabled workflows, in order (model → projections →
-experiment):
+`snakemake` for exactly the enabled workflows, in order (climate → model →
+projections → experiment):
 
 ```console
 $ pixi run python scripts/run_workflows.py \
@@ -295,7 +295,7 @@ $ pixi run python scripts/run_workflows.py \
 Contract:
 
 - Accepts **full-orchestration configs only** — a config carrying a `workflows:`
-  section with all three subsections, each with an `enabled:` key (the
+  section with all four subsections, each with an `enabled:` key (the
   `snake_config_baseline*.yml` / `snake_config.template.yml` class). The
   single-workflow `snake_config_projections_*.yml` configs — parked under
   `config/templates/archive/` and unmaintained — carry no `workflows:` section
@@ -315,6 +315,14 @@ Contract:
   `<project_dir>/config/runs/invocations/`. Passthrough `--config` overrides are
   sanitized and recorded there; each workflow's own `run_record.yml` remains
   authoritative for the merged Snakemake config.
+- The wrapper **narrates its own run**, in the same block grammar each workflow
+  opens and closes with. It leads with the project, folder, config and cores
+  plus a sequence diagram numbering the enabled workflows and marking the
+  disabled ones, prints a `starting` / `done in <h:mm:ss>` row per invoked
+  workflow, and ends with a verdict, the total elapsed, each workflow's duration
+  and the paths it wrote — including the invocation manifest above. Setting
+  `CST_LOG_LEVEL=WARNING` mutes the per-workflow rows; the opening and closing
+  blocks always print.
 
 **Skip semantics.** `enabled: false` means the wrapper does not invoke that
 Snakefile, so its outputs are not produced. It does **not** delete that
