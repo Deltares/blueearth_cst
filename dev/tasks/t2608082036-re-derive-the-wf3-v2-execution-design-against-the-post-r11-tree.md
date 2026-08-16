@@ -74,6 +74,51 @@ in the tuple.
 Adjacent, same terms, not resolved here: `precip_variance` sits in the hash under
 the G1 retention ruling with `R9-F1` as its named followup.
 
+## Computational efficiency is a design axis here — owner directive 2026-08-16
+
+> **Directive (owner).** R12 is the mechanics milestone, so computational
+> efficiency and resource use are **design criteria alongside correctness**, not
+> something measured afterwards and accepted.
+
+What that attaches to is already on the record, so it costs scoping attention
+rather than new work:
+
+- **The measurement apparatus survives.** `ext2-7`'s counterbalanced AB/BA
+  timing protocol with a median gate is on the survives list and is directly
+  reusable. An efficiency claim in R12 therefore has a stated way to be *tested*
+  rather than asserted — use it, and do not invent a second timing method.
+- **Risk-7 part 3 was rejected and the rejection was ratified at G2** — a
+  data-derived wall-clock ceiling. This directive does not silently reopen it.
+  If R12 wants such a ceiling it argues the case again, against `ext1-2`'s
+  standing objection to the accepted parts 1–2.
+- **Two P3-3 board items are this axis in concrete form.** Scoping must decide
+  whether R12 absorbs them or leaves them standing:
+  - `t2608071216` — the landed batch-size default implements only the
+    *parallelism* ceiling (`ceil(K / -c N)`), so `B` scales **up** with sweep
+    size and peak temp disk grows as the sweep grows, backwards from what §6.1
+    asks. §6.1 names the **disk** ceiling as the binding constraint; today it is
+    bounded by a constant (`batch_size_max`, default 8), not a disk computation.
+  - `t2608071217` — C5 is deliberately degraded: one failing member makes
+    Snakemake delete the `B−1` completed sibling CSVs and re-run the whole batch,
+    with rule 3.11 blocked sweep-wide until it succeeds.
+- **Resumability is an efficiency mechanism, not only a robustness one.**
+  Resumable sweeps, epochs and `member_hash`'s freshness boundary exist so a
+  re-run costs the members that actually changed. Keying `member_hash` on the
+  member's twelve monthly lookup rows must be judged on that basis too: a
+  boundary that is too coarse re-runs work that did not change, and one that is
+  too fine re-runs on noise.
+- **The existing footprint controls are the floor, not the ceiling:** `temp()`
+  on the per-realization netCDFs, `julia_threads` (`config/advanced_settings.yml`
+  `defaults:` ← `shared.julia_threads`), and the rapid/baseline cost split
+  (rapid ≈2.6× less wflow time, ≈1.7× less weather generation).
+
+**A green fixture gate is not evidence about efficiency.** `t2608071216` already
+records why: at `K = 12`, `-c 3` the clamp computes `min(ceil(12/3), 8) = 4` and
+only binds from `K > 24`, and the seed fixture's peak footprint is 120 MB — so
+the hazard the ceiling exists for is *unreachable* from the shipped configs. Any
+resource claim R12 makes needs a scale argument or a measurement at scale, not a
+passing run on `test_case/test_local`.
+
 ## Progress
 
 - [ ] <first step>
