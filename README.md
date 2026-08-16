@@ -315,14 +315,18 @@ Contract:
   `<project_dir>/config/runs/invocations/`. Passthrough `--config` overrides are
   sanitized and recorded there; each workflow's own `run_record.yml` remains
   authoritative for the merged Snakemake config.
-- The wrapper **narrates its own run**, in the same block grammar each workflow
-  opens and closes with. It leads with the project, folder, config and cores
-  plus a sequence diagram numbering the enabled workflows and marking the
-  disabled ones, prints a `starting` / `done in <h:mm:ss>` row per invoked
-  workflow, and ends with a verdict, the total elapsed, each workflow's duration
-  and the paths it wrote — including the invocation manifest above. Setting
-  `CST_LOG_LEVEL=WARNING` mutes the per-workflow rows; the opening and closing
-  blocks always print.
+- The wrapper **narrates its own run**, and every line it speaks is bounded by a
+  full-width `=` rule that nothing else in the console draws — so a rule means
+  the runner, not the workflow it launched. It opens with the project, folder,
+  config and cores plus a sequence diagram numbering the enabled workflows and
+  marking the disabled ones; hands off to each workflow at both its edges
+  (`[1/4]  wf0 analyze_climate  --  starting 12:17:24`, and later `done in
+  0:02:13` or `FAILED (exit N) after …`); and closes with a verdict, the total
+  elapsed, each workflow's duration and the paths it wrote — including the
+  invocation manifest above. It deliberately does **not** use the
+  `HH:MM:SS - <module> - …` grammar every line reported from inside a workflow
+  wears, and is correspondingly unaffected by `CST_LOG_LEVEL`, which quietens
+  those rule logs rather than the frame around them.
 
 **Skip semantics.** `enabled: false` means the wrapper does not invoke that
 Snakefile, so its outputs are not produced. It does **not** delete that
