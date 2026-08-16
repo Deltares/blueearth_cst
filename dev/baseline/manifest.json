@@ -2,8 +2,8 @@
   "project_dir": "test_case/test_local",
   "recorded_by": {
     "branch": "main",
-    "commit": "ed436c7505cfff7bf6b4acffae741fba7a3ee88f",
-    "dirty": false
+    "commit": "fd3ac63aafa7a50f0869b2a01fb02b720ce9278f",
+    "dirty": true
   },
   "targets": {
     "test_case/test_local/config/runs/snake_config_analyze_projections.yml": {
@@ -34,8 +34,6 @@
         "location",
         "st_id",
         "rlz_id",
-        "temp_change",
-        "precip_change",
         "value"
       ],
       "n_groups": 55,
