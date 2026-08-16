@@ -535,3 +535,81 @@ def test_wf0_rejects_an_unsupported_candidate_source(tmp_path):
     message = str(exc.value)
     assert "eobs" in message
     assert "candidate_sources" in message
+
+
+# ---------------------------------------------------------------------------
+# The MIN_HISTORICAL_YEARS floor splits with the source's ROLE (2026-08-16)
+# ---------------------------------------------------------------------------
+#
+# `shared.historical_window` is a ceiling, not a demand: a source that cannot
+# fill it is extracted over what it holds. The floor still binds the source that
+# FEEDS the pipeline -- weathergenr's wavelet minimum -- and not a candidate that
+# ends at a comparison figure.
+#
+# The flag rides in `params`, which is a Snakemake rerun trigger, so its ABSENCE
+# on the default path is load-bearing: emitting `enforce_min_years: True` would
+# re-extract every store already on disk and break the byte-identity above.
+
+
+@pytest.mark.workflow_contract
+def test_the_enforced_default_emits_no_param_at_all():
+    """The params dict is a rerun trigger; the default path must not touch it."""
+    from blueearth_cst.shared.snake_utils import climate_store_rule
+
+    spec = climate_store_rule(
+        project_dir="/tmp/p",
+        model_region="{'subbasin': [1.0, 2.0]}",
+        clim_source="era5",
+        historical_window={
+            "starttime": "2000-01-01T00:00:00",
+            "endtime": "2020-12-31T00:00:00",
+        },
+        data_sources="catalog.yml",
+    )
+    assert "enforce_min_years" not in spec.params
+
+
+@pytest.mark.workflow_contract
+def test_only_a_relaxed_store_carries_the_flag():
+    from blueearth_cst.shared.snake_utils import climate_store_rule
+
+    spec = climate_store_rule(
+        project_dir="/tmp/p",
+        model_region="{'subbasin': [1.0, 2.0]}",
+        clim_source="chirps",
+        historical_window={
+            "starttime": "2000-01-01T00:00:00",
+            "endtime": "2020-12-31T00:00:00",
+        },
+        data_sources="catalog.yml",
+        enforce_min_years=False,
+    )
+    assert spec.params["enforce_min_years"] is False
+    # Everything else is unchanged -- the flag is not a second store key.
+    assert "/data/climate/historical/chirps_20000101_20201231" in spec.store_dir
+
+
+@pytest.mark.slow
+@pytest.mark.workflow_contract
+def test_wf0_relaxes_the_floor_for_candidates_only(tmp_path):
+    """The primary keeps the floor; the extras relax it.
+
+    This is what stops a short candidate store from being promoted silently: WF1
+    and WF3 declare the store WITHOUT the flag, so switching
+    `shared.clim_historical` onto a candidate changes the params Snakemake
+    recorded and re-extracts it under the floor.
+    """
+    import yaml
+
+    cfg = yaml.safe_load(CONFIG_FN.read_text(encoding="utf-8"))
+    assert cfg["shared"]["clim_historical"] == "era5"
+    cfg["workflows"]["analyze_climate"]["candidate_sources"] = ["chirps"]
+    cfg_path = tmp_path / "snake_config_floor_split.yml"
+    cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+
+    wf0 = _parse_workflow("analyze_climate.smk", cfg_path)
+    primary = _wf0_rule(wf0, "era5")
+    candidate = _wf0_rule(wf0, "chirps")
+
+    assert "enforce_min_years" not in primary.params.keys()
+    assert candidate.params["enforce_min_years"] is False

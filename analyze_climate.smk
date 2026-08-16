@@ -147,6 +147,22 @@ SPATIAL_UNITS = spatial_units_rule(
 # extracted: switching `shared.clim_historical` to it costs nothing and re-runs
 # no extraction. `dev/scripts/prune_climate_store.py` already reports on exactly
 # this directory family.
+#
+# `historical_window` IS A CEILING FOR A CANDIDATE, NOT A DEMAND. CHIRPS begins
+# in 1981, a locally staged subset begins wherever the staging did, and a window
+# one candidate cannot fill is the ordinary case of two datasets with different
+# records -- not a misconfigured project. Each source is extracted over the
+# widest span it holds inside the window, and the narrowing is logged
+# (`shared/climate_window.py`).
+#
+# The MIN_HISTORICAL_YEARS floor splits with it, because its reason does:
+# weathergenr's wavelet minimum binds the source that FEEDS the pipeline, and an
+# extra candidate ends at a comparison figure. So the primary keeps the floor --
+# its spec stays byte-identical to WF1's and WF3's, which is what
+# tests/test_climate_store_contract.py pins -- and the extras relax it to a
+# logged warning. A relaxed store cannot be promoted silently: WF1 and WF3
+# declare the store WITHOUT the flag, so switching `shared.clim_historical` onto
+# a candidate changes the params, re-extracts, and meets the floor there.
 CLIMATE_STORES = {
     source: climate_store_rule(
         project_dir=project_dir,
@@ -156,6 +172,7 @@ CLIMATE_STORES = {
         data_sources=DATA_SOURCES,
         hydrography=basin_hydrography,
         basin_index=basin_index,
+        enforce_min_years=(source == clim_source),
     )
     for source in CANDIDATE_SOURCES
 }

@@ -151,8 +151,15 @@ def spy(monkeypatch):
     Each is a module-level binding imported by name, so patching the module's
     namespace is what the call site actually resolves.
     """
-    calls: dict[str, list] = {"catalog": [], "recipe": [], "command": []}
+    calls: dict[str, list] = {"catalog": [], "recipe": [], "command": [], "window": []}
 
+    # The store-window guard is a collaborator like the other three: these tests
+    # pin the argv this module issues, and their `climate_nc` paths are names
+    # rather than files. Its own behaviour is tested directly, below, against a
+    # real netCDF -- a stub could not fail the way it is meant to.
+    monkeypatch.setattr(
+        acf, "check_store_window", lambda *a, **kw: calls["window"].append((a, kw))
+    )
     monkeypatch.setattr(
         acf, "prepare_clim_data_catalog", lambda **kw: calls["catalog"].append(kw)
     )
@@ -334,3 +341,81 @@ def test_a_failing_update_propagates_rather_than_completing_green(
 # of this module, and one this module's header comment is merely the clearest
 # statement of. It is enforced over every `script:` target at
 # `tests/test_script_module_importability.py::test_no_script_target_carries_a_future_import`.
+
+
+# ---------------------------------------------------------------------------
+# check_store_window — the store this run is actually forced from
+# ---------------------------------------------------------------------------
+#
+# `shared.historical_window` stopped being a demand on every source on
+# 2026-08-16: wf0's extra `candidate_sources` are extracted over whatever they
+# hold and the MIN_HISTORICAL_YEARS floor is relaxed for them. Those candidate
+# stores land in the SAME `data/climate/historical/<source>_<window>/` family
+# WF1 forces from -- deliberately, so a winning candidate needs no
+# re-extraction. This guard is what makes that reuse safe.
+
+
+def _store_nc(path, start, end):
+    """A minimal store: one cell, a daily time axis, nothing else asserted."""
+    import numpy as np
+    import pandas as pd
+    import xarray as xr
+
+    time = pd.date_range(start, end, freq="D")
+    ds = xr.Dataset(
+        {"precip": (("time", "latitude", "longitude"), np.zeros((time.size, 1, 1)))},
+        coords={"time": time, "latitude": [0.0], "longitude": [0.0]},
+    )
+    ds.to_netcdf(path)
+    return path
+
+
+def test_a_store_covering_the_run_passes(tmp_path):
+    nc = _store_nc(tmp_path / "era5.nc", "1990-01-01", "2020-12-31")
+    bounds = acf.check_store_window(nc, "2000-01-01", "2010-12-31", "era5")
+    assert bounds is not None
+
+
+def test_a_store_below_the_floor_is_refused_here_not_inside_weathergenr(tmp_path):
+    """The relaxed-candidate hole, closed at the consumer.
+
+    A short store can exist on disk (wf0 wrote it as a comparison candidate);
+    what must not happen is WF1 forcing a model from it in silence.
+    """
+    nc = _store_nc(tmp_path / "chirps.nc", "2005-01-01", "2012-12-31")
+    with pytest.raises(ValueError) as excinfo:
+        acf.check_store_window(nc, "2006-01-01", "2010-12-31", "chirps")
+    message = str(excinfo.value)
+    assert "minimum this toolbox requires" in message
+    assert "comparison candidate" in message
+    assert "chirps" in message
+
+
+def test_a_simulation_window_outside_the_delivered_record_is_refused(tmp_path):
+    """Parse time can only compare the run window against the CONFIGURED
+    historical_window. If the source fell short of it, hydromt would slice what
+    exists and wflow would run on truncated forcing."""
+    nc = _store_nc(tmp_path / "era5.nc", "1990-01-01", "2012-06-30")
+    with pytest.raises(ValueError) as excinfo:
+        acf.check_store_window(nc, "2005-01-01", "2015-12-31", "era5")
+    message = str(excinfo.value)
+    assert "simulation_window 2005-01-01..2015-12-31" in message
+    assert "2012-06-30" in message
+
+
+def test_the_guard_runs_before_the_catalog_is_written(tmp_path, spy, monkeypatch):
+    """Failing here names the store; failing inside `hydromt update` does not."""
+    monkeypatch.setattr(
+        acf,
+        "check_store_window",
+        lambda *a, **kw: (_ for _ in ()).throw(ValueError("store is too short")),
+    )
+    with pytest.raises(ValueError, match="store is too short"):
+        _invoke(
+            tmp_path,
+            spy,
+            climate_nc=tmp_path / "era5_20000101_20101231.nc",
+            store_catalog=tmp_path / "store.yml",
+        )
+    assert spy["catalog"] == []
+    assert spy["command"] == []

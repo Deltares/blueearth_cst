@@ -1607,6 +1607,7 @@ def climate_store_rule(
     data_sources,
     hydrography=DEFAULT_HYDROGRAPHY,
     basin_index=DEFAULT_BASIN_INDEX,
+    enforce_min_years=True,
 ) -> ClimateStoreRule:
     """Build the one producer contract for ``data/climate/historical/<key>/``
     (R07 B1).
@@ -1648,6 +1649,20 @@ def climate_store_rule(
         ENTRY NAMES for the delineation, not paths. Optional config keys; the
         defaults equal the shipped build template's ``setup_basemaps`` values,
         and rule 1.02 fails loud if the two ever disagree.
+    enforce_min_years : bool, optional
+        Whether a DELIVERED record below ``MIN_HISTORICAL_YEARS`` fails the
+        extraction. ``True`` for every store that feeds the pipeline — which is
+        every caller except wf0's extra ``candidate_sources``, whose stores end
+        at a comparison figure (2026-08-16 owner ruling; see
+        ``shared/climate_window.py``).
+
+        ``True`` emits **no param at all**, rather than ``enforce_min_years:
+        True``. The params dict is a Snakemake rerun trigger, so adding a key to
+        the default path would re-extract every store already on disk and break
+        the byte-identity ``tests/test_climate_store_contract.py`` pins across
+        the four workflows. Only the relaxed candidates carry the key — and
+        because they carry it, promoting one to ``shared.clim_historical``
+        changes the params WF1/WF3 declare and re-extracts it under the floor.
 
     Returns
     -------
@@ -1699,6 +1714,19 @@ def climate_store_rule(
         # two pre-R07 spellings on `orography.nc`).
         outputs["oro_nc"] = f"{store_dir}/orography.nc"
 
+    params = {
+        "model_region": model_region,
+        "clim_source": clim_source,
+        "starttime": starttime,
+        "endtime": endtime,
+        "hydrography": hydrography,
+        "basin_index": basin_index,
+    }
+    # Present ONLY when relaxed — see the parameter's docstring for why the
+    # default path must emit no key.
+    if not enforce_min_years:
+        params["enforce_min_years"] = False
+
     return ClimateStoreRule(
         store_dir=store_dir,
         script=CLIMATE_STORE_SCRIPT,
@@ -1718,14 +1746,7 @@ def climate_store_rule(
             ).region_geojson,
         },
         outputs=outputs,
-        params={
-            "model_region": model_region,
-            "clim_source": clim_source,
-            "starttime": starttime,
-            "endtime": endtime,
-            "hydrography": hydrography,
-            "basin_index": basin_index,
-        },
+        params=params,
     )
 
 

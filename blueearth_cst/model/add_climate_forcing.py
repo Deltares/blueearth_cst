@@ -32,10 +32,18 @@ import subprocess
 from pathlib import Path
 from typing import Sequence, Union
 
+import pandas as pd
+import xarray as xr
+
 from blueearth_cst.climate_analysis.prepare_climate_data_catalog import (
     prepare_clim_data_catalog,
 )
+from blueearth_cst.shared.climate_window import time_axis_bounds
 from blueearth_cst.shared.setup_time_horizon import prep_hydromt_update_forcing_config
+from blueearth_cst.shared.snake_utils import (
+    MIN_HISTORICAL_YEARS,
+    meets_min_historical_years,
+)
 
 
 def _as_list(data_catalog):
@@ -83,6 +91,64 @@ def _run_streaming(command: Sequence[str]) -> None:
         )
 
 
+def check_store_window(climate_nc, starttime, endtime, clim_source):
+    """Refuse a store this run cannot honestly be forced from.
+
+    Two checks against the store's OWN time axis, both of which only became
+    reachable when ``shared.historical_window`` stopped being a demand on every
+    source (2026-08-16, ``shared/climate_window.py``):
+
+    * **Below ``MIN_HISTORICAL_YEARS``.** The extraction enforces this floor for
+      ``shared.clim_historical`` and relaxes it for wf0's extra
+      ``candidate_sources``. Re-checking here is what stops a relaxed candidate
+      store from being promoted into the pipeline: wf0 writes candidate stores
+      into the same ``data/climate/historical/<source>_<window>/`` family the
+      model reads from, deliberately, so that a winning candidate costs no
+      re-extraction. That reuse is the point; an unchecked reuse is the R3
+      defect (a short record failing twenty rules later, inside weathergenr).
+    * **The simulation window sits outside the delivered record.**
+      ``resolve_simulation_window`` can only compare it against the CONFIGURED
+      ``historical_window``. If the source fell short, wflow would otherwise be
+      forced over years the store has no data for — hydromt slices what exists
+      and the run proceeds on a truncated forcing.
+
+    Skips silently when the time axis cannot be read, the same
+    skip-rather-than-guess stance the extraction takes.
+    """
+    with xr.open_dataset(climate_nc) as ds:
+        bounds = time_axis_bounds(ds)
+    if bounds is None:
+        return None
+
+    if not meets_min_historical_years(*bounds):
+        raise ValueError(
+            f"The {clim_source} store at {climate_nc} covers "
+            f"{bounds[0].date()}..{bounds[1].date()} "
+            f"(~{(bounds[1] - bounds[0]).days / 365.25:.1f} years), below the "
+            f"{MIN_HISTORICAL_YEARS}-year minimum this toolbox requires "
+            f"(weathergenr's wavelet decomposition needs at least "
+            f"{MIN_HISTORICAL_YEARS} annual observations). If wf0 wrote it as a "
+            f"comparison candidate, where the floor is relaxed, re-extract it "
+            f"under shared.clim_historical -- or move shared.historical_window "
+            f"onto years the source covers"
+        )
+
+    sim_start = pd.Timestamp(pd.to_datetime(starttime))
+    sim_end = pd.Timestamp(pd.to_datetime(endtime))
+    if sim_start < bounds[0] or sim_end > bounds[1]:
+        raise ValueError(
+            f"simulation_window {sim_start.date()}..{sim_end.date()} is not "
+            f"inside the {clim_source} record the store actually holds "
+            f"({bounds[0].date()}..{bounds[1].date()}). The window is inside "
+            f"shared.historical_window -- which is what parse time can check -- "
+            f"but {clim_source} does not cover all of it, so the model would "
+            f"run on truncated forcing. Move simulation_window onto the years "
+            f"the source delivers, or force the model from a source that "
+            f"covers them"
+        )
+    return bounds
+
+
 def add_climate_forcing(
     starttime: str,
     endtime: str,
@@ -108,6 +174,10 @@ def add_climate_forcing(
     """
     store_source = None
     if climate_nc is not None:
+        # BEFORE the catalog is written and hydromt is invoked: a store that
+        # cannot force this run should fail here, naming the store, rather than
+        # inside a hydromt update whose message names neither.
+        check_store_window(climate_nc, starttime, endtime, clim_source)
         prepare_clim_data_catalog(
             fns=[climate_nc],
             data_libs_like=data_catalog,

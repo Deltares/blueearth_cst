@@ -76,6 +76,11 @@ workflows:
     # Supported: era5, chirps, chirps_global. Each lands in its own
     # data/climate/historical/<source>_<window>/ store, so a candidate that
     # wins the comparison is already extracted when you switch to it.
+    #
+    # `shared.historical_window` is a CEILING for a candidate, not a demand: a
+    # source that does not cover it is extracted over the widest range it does
+    # hold inside it, and the shortfall is reported in the rule log. Only a
+    # candidate whose records nowhere overlap the window is an error.
     # candidate_sources: [chirps]                         # list of source names
   build_model:
     enabled: true                                         # boolean
