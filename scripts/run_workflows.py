@@ -1,4 +1,4 @@
-"""Enabled-aware wrapper over the three CST Snakefiles (design §7).
+"""Enabled-aware wrapper over the four CST Snakefiles (design §7).
 
 Reads a full-orchestration `--configfile` YAML, checks each
 `workflows.<name>.enabled` flag, and invokes `snakemake -s <name>.smk
@@ -6,10 +6,10 @@ Reads a full-orchestration `--configfile` YAML, checks each
 analyze_climate -> build_model -> analyze_projections -> run_stress_test.
 
 This is the evolution of the run_snake_test.cmd / run_snake_docker.sh runners --
-a *runner over* the three Snakefiles, NOT a fourth Snakemake entry point. The
+a *runner over* the four Snakefiles, NOT a fifth Snakemake entry point. The
 Snakefiles do not read `enabled:`; the flag governs this wrapper only.
 
-Contract (pinned, design §7 (a)-(g)):
+Contract (pinned, design §7 (a)-(g), plus (h) for the console):
 
  (a) Full-orchestration configs only: a `workflows:` section with all FOUR
      subsections each carrying an `enabled:` key. The single-workflow
@@ -45,6 +45,27 @@ Contract (pinned, design §7 (a)-(g)):
      covers the source YAML plus resolved advanced settings;
      passthrough `--config` overrides are recorded but intentionally excluded,
      because the Snakefile snapshot owns Snakemake's authoritative merged config.
+ (h) The wrapper narrates its own run on stdout, in TWO tiers (see
+     `_opening_block` for the grammar and why it is the one it is):
+
+     * an OPENING block and a CLOSING block, written with plain `print`. They
+       are the wrapper's equivalent of a Snakefile's `run_header`/`run_summary`
+       and they are the only statement of which project, which config, which
+       workflows and in what order -- so they are NOT routed through `log_row`,
+       whose `CST_LOG_LEVEL` floor would silently delete them in quiet mode.
+     * one `starting` and one `done in`/`FAILED` row per invoked workflow, via
+       `log_row(module="run_workflows")` -- a timeline, which is what the floor
+       exists to be able to mute.
+
+     Disabled workflows get NO per-workflow row: the opening block's sequence
+     diagram states every one of them, once, before anything runs. Every line
+     that can carry `extra` goes through `sanitize_argv` first.
+
+     stdout is FLUSHED before each `subprocess.run`. Python block-buffers a
+     redirected stdout while the child inherits the fd directly, so without the
+     flush a `run_workflows.py ... *> log.txt` interleaves each banner AFTER the
+     output of the workflow it announces. No test can catch this -- the suite
+     fakes `subprocess.run` and the child writes nothing.
 
 Disabling a workflow neither deletes its prior outputs nor guarantees downstream
 freshness: the wrapper invokes each Snakefile independently with no
@@ -68,6 +89,7 @@ import platform
 import re
 import subprocess
 import sys
+import time
 import uuid
 from collections.abc import Mapping
 from datetime import datetime, timezone
@@ -90,6 +112,7 @@ from blueearth_cst.shared.provenance import (  # noqa: E402
 )
 from blueearth_cst.shared.snake_utils import (  # noqa: E402
     ADVANCED_SETTINGS,
+    format_elapsed,
     log_row,
 )
 
@@ -121,6 +144,22 @@ PER_WORKFLOW_FLAGS = {
     "build_model": [],
     "analyze_projections": ["--keep-going"],
     "run_stress_test": [],
+}
+
+# Workflow -> its `wf<N>` id, for the console only. This is the THIRD copy of
+# that mapping in the repo and the other two must be kept in step with it:
+# `scripts/plot_workflow_dag.py::WORKFLOW_NUMBER` keys it by Snakefile name for
+# the render filenames, and each Snakefile hardcodes the assembled label in its
+# own `run_header`/`run_summary` calls ("wf0 analyze_climate", ...). The merged
+# log names in blueearth_cst/shared/merge_logs.py carry the same ids.
+#
+# 0 for analyze_climate because it runs BEFORE model creation; `W` is a workflow
+# id, not a position (dev/reference/naming.md §9).
+WORKFLOW_ID = {
+    "analyze_climate": "wf0",
+    "build_model": "wf1",
+    "analyze_projections": "wf2",
+    "run_stress_test": "wf3",
 }
 
 # Repo root = parent of scripts/. Snakefiles and config paths are repo-root
@@ -240,6 +279,214 @@ def build_command(
     ]
 
 
+# --------------------------------------------------------------------------
+# Console: the wrapper's own narration (contract (h))
+# --------------------------------------------------------------------------
+#
+# The wrapper had no voice of its own until 2026-08-16: it echoed a snakemake
+# command line per workflow and nothing else, so a console showing four
+# back-to-back Snakemake runs never said which PROJECT they belonged to, which
+# of the four were going to run, or how long any of it took. Each Snakefile
+# already opens with `run_header` and closes with `run_summary`; the runner
+# ABOVE them said less about the run than any one of them.
+#
+# The grammar below is deliberately theirs -- a head line, a blank, then
+# labelled groups whose `key  value` rows indent one step further and share one
+# value column across the whole block -- so a wrapper-driven console opens and
+# closes in the same shape as each workflow nested inside it. It is restated
+# here rather than imported because `run_header`/`run_summary` are shaped for a
+# Snakefile's facts (declared path tokens, a merged-log and benchmark name),
+# none of which a runner has; what is shared is the SHAPE, which is ten lines.
+#
+# ASCII only, everywhere in this section. A Windows console defaults to cp1252
+# and raises UnicodeEncodeError on box-drawing characters and arrows -- the same
+# constraint `snake_utils.rule_banner` records. `|`, `-` and `[1/3]`, never
+# `│`, `→` or `✓`.
+
+
+def _label(name: str) -> str:
+    """A workflow's console identity: ``wf0 analyze_climate``."""
+    return f"{WORKFLOW_ID[name]} {name}"
+
+
+def _console_block(head: str, groups: list[tuple[str, list[Any]]]) -> str:
+    """Assemble a head line plus labelled groups, in `run_header`'s grammar.
+
+    A group's rows are either ``(key, value)`` pairs -- aligned on ONE value
+    column across the whole block, so the column does not restart at each label
+    -- or bare strings, emitted verbatim at the row indent (the sequence
+    diagram). A group with no rows is a NOTE: its label carries a sentence
+    rather than heading a set of rows, which is how `run_summary` prints the
+    one line it has that names no artifact.
+    """
+    pairs = [row for _, rows in groups for row in rows if isinstance(row, tuple)]
+    width = max((len(key) for key, _ in pairs), default=0)
+    lines = [head]
+    for label, rows in groups:
+        lines.extend(["", f"  {label}"])
+        for row in rows:
+            if isinstance(row, tuple):
+                key, value = row
+                lines.append(f"    {key.ljust(width)}  {value}")
+            else:
+                lines.append(f"    {row}".rstrip())
+    return "\n".join(lines)
+
+
+def _sequence_lines(flags: Mapping[str, bool]) -> list[str]:
+    """The enabled/disabled pipeline as an ASCII chain, in WORKFLOW_ORDER.
+
+    Every workflow appears, enabled or not, because the question this answers is
+    "what is about to happen" and a disabled workflow silently absent from the
+    list is indistinguishable from one this wrapper does not know about. Enabled
+    entries carry their `[position/total]` so the per-workflow timeline rows
+    below can be matched to the plan without counting.
+    """
+    total = sum(1 for name in WORKFLOW_ORDER if flags[name])
+    # Width from the widest marker this run can print, so the connector's `|`
+    # and a disabled row's `-` stay centred under it past nine workflows.
+    mark_width = max(5, len(f"[{total}/{total}]"))
+    label_width = max(len(_label(name)) for name in WORKFLOW_ORDER)
+    lines: list[str] = []
+    position = 0
+    for index, name in enumerate(WORKFLOW_ORDER):
+        if index:
+            lines.append("|".center(mark_width))
+        if flags[name]:
+            position += 1
+            lines.append(f"{f'[{position}/{total}]'.ljust(mark_width)}  {_label(name)}")
+        else:
+            lines.append(
+                f"{'-'.center(mark_width)}  {_label(name).ljust(label_width)}"
+                f"  (disabled, not invoked)"
+            )
+    return lines
+
+
+def _opening_block(
+    *,
+    project_name: str,
+    project_dir: Path,
+    config_path: str,
+    cores: int,
+    dry_run: bool,
+    flags: Mapping[str, bool],
+) -> str:
+    """The start-of-invocation block: which run this is, and what will run.
+
+    `config` prints as the caller SPELLED it (forward-slashed), not resolved:
+    a relative `--config` is how every documented invocation passes it, and the
+    absolute form is both longer and machine-specific. `folder` is resolved,
+    because that one is an answer -- where the outputs land -- rather than an
+    echo of the command line.
+    """
+    run_rows: list[Any] = [
+        ("project", project_name),
+        ("folder", os.fspath(project_dir).replace(os.sep, "/")),
+        ("config", os.fspath(config_path).replace(os.sep, "/")),
+        ("cores", str(cores)),
+    ]
+    if dry_run:
+        # Stated because a dry run's console is otherwise nearly identical to a
+        # real one's, and the two are worth minutes of confusion apart.
+        run_rows.append(("mode", "dry run -- nothing is executed"))
+    enabled = sum(1 for name in WORKFLOW_ORDER if flags[name])
+    total = len(WORKFLOW_ORDER)
+    groups: list[tuple[str, list[Any]]] = [("run", run_rows)]
+    if enabled:
+        groups.append(
+            (
+                f"sequence -- {enabled} of {total} workflows enabled, "
+                f"invoked in this order",
+                list(_sequence_lines(flags)),
+            )
+        )
+    else:
+        # One note, not an empty `sequence` group plus a note: there is no
+        # order to diagram, and two adjacent labels saying the same nothing
+        # read as a formatting accident.
+        groups.append(
+            (f"nothing to invoke -- 0 of {total} workflows are enabled here", [])
+        )
+    return _console_block("run_workflows", groups)
+
+
+def _closing_block(
+    *,
+    project_dir: Path,
+    manifest_path: Path,
+    manifest: Mapping[str, Any],
+    ran: list[tuple[str, str]],
+    elapsed_seconds: float,
+    failed: bool,
+) -> str:
+    """The end-of-invocation block: what ran, how long, and where it landed.
+
+    `ran` holds only workflows this invocation actually INVOKED, each with its
+    already-formatted outcome; everything the stop boundary left behind is named
+    in one `not run` note instead. A group headed "ran" listing workflows that
+    did not is worse than not printing them.
+
+    `logs` names the DIRECTORY rather than the per-workflow log files. Those
+    names are Snakefile constants (`wf3_run_stress_test_<experiment>.log` is
+    built from a resolved experiment id), so reconstructing them here would put
+    a second definition of each in the one place that cannot notice when it
+    drifts -- and each workflow's own `run_summary` has already named its exact
+    log a few lines above.
+    """
+    root = os.fspath(project_dir).replace(os.sep, "/")
+    verdict = "FAILED" if failed else "done"
+    head = f"run_workflows {verdict} in {format_elapsed(elapsed_seconds)}"
+    # `error_type` is set only on the path where a child never LAUNCHED (an
+    # OSError out of subprocess.run). Two of the rows below are claims about a
+    # child having produced something, and both are false there.
+    launched = ran and not manifest.get("error_type")
+
+    groups: list[tuple[str, list[Any]]] = []
+    if ran:
+        groups.append(("ran", [(_label(name), outcome) for name, outcome in ran]))
+    elif manifest["no_op"]:
+        groups.append(("nothing ran -- every workflow was disabled", []))
+
+    wrote: list[Any] = [("project", root)]
+    if launched:
+        wrote.append(("logs", f"{root}/logs/"))
+    wrote.append(
+        ("invocation", os.fspath(manifest_path).replace(os.sep, "/")),
+    )
+    groups.append(("wrote", wrote))
+
+    not_run = [
+        name
+        for name in WORKFLOW_ORDER
+        if manifest["workflows"][name]["status"] == "not_run"
+    ]
+    if not_run:
+        # A sentence, not a row: `key  value` under no label would read as an
+        # artifact path like the group above it.
+        groups.append(("not run: " + ", ".join(_label(name) for name in not_run), []))
+    if failed and launched:
+        # "output", not "report": a workflow that failed at PARSE time never
+        # reached its own `onerror` hook, so what is above it is a traceback
+        # rather than a `run_summary` block. Both are the child's own account
+        # of the failure, which is what this points at.
+        groups.append(("the failing workflow's own output is printed above", []))
+    return _console_block(head, groups)
+
+
+def _project_name(cfg: Mapping[str, Any], project_dir: Path) -> str:
+    """The project's display name: the explicit key, else the folder basename.
+
+    Same derivation as `scripts/plot_workflow_dag.py::read_project`, which names
+    its renders with it -- one console and one filename disagreeing about what
+    the project is called is exactly what a shared rule prevents.
+    """
+    name = cfg.get("project_name")
+    if not name and isinstance(cfg.get("project"), Mapping):
+        name = cfg["project"].get("project_name")
+    return str(name) if name else project_dir.name
+
+
 def run(config_path: str, cores: int, extra: list[str]) -> int:
     """Invoke each enabled workflow in fixed order; stop on first nonzero exit
     and return that code (contract (d)). Returns 0 if all enabled workflows
@@ -257,30 +504,68 @@ def run(config_path: str, cores: int, extra: list[str]) -> int:
     )
     _write_json_atomic(manifest_path, manifest)
 
+    # monotonic, matching each Snakefile's own `_RUN_STARTED`: a wall clock can
+    # step backwards mid-run and these are durations, never timestamps.
+    started = time.monotonic()
+    try:
+        print(
+            _opening_block(
+                project_name=_project_name(cfg, project_dir),
+                project_dir=project_dir,
+                config_path=config_path,
+                cores=cores,
+                dry_run=manifest["dry_run"],
+                flags=flags,
+            )
+            + "\n",
+            flush=True,
+        )
+    except Exception as exc:  # noqa: BLE001 -- never break a run over a banner
+        print(f"(run header unavailable: {exc})", file=sys.stderr, flush=True)
+
+    total = sum(1 for name in WORKFLOW_ORDER if flags[name])
+    ran: list[tuple[str, str]] = []
+    position = 0
     exit_code = 0
     try:
         for name in WORKFLOW_ORDER:
             workflow = manifest["workflows"][name]
             if not flags[name]:
-                log_row(f"skipping {name} (enabled: false)", module="run_workflows")
+                # No row: the opening block's sequence diagram already named
+                # every disabled workflow, once, before anything started.
                 continue
+            position += 1
+            tag = f"[{position}/{total}] {_label(name)}"
             cmd = build_command(name, config_path, cores, extra)
             workflow["command"] = sanitize_argv(cmd)
             workflow["status"] = "running"
-            log_row(f"{name}: {' '.join(sanitize_argv(cmd))}", module="run_workflows")
-            result = subprocess.run(cmd, cwd=REPO_ROOT)
+            log_row(f"{tag}  starting", module="run_workflows")
+            log_row(f"  {' '.join(sanitize_argv(cmd))}", module="run_workflows")
+            # Before the child, not after: see contract (h) on buffering.
+            sys.stdout.flush()
+            workflow_started = time.monotonic()
+            try:
+                result = subprocess.run(cmd, cwd=REPO_ROOT)
+            except BaseException as exc:
+                elapsed = format_elapsed(time.monotonic() - workflow_started)
+                ran.append((name, f"FAILED ({type(exc).__name__}) after {elapsed}"))
+                raise
+            elapsed = format_elapsed(time.monotonic() - workflow_started)
             workflow["exit_code"] = result.returncode
             if result.returncode != 0:
                 workflow["status"] = "failed"
                 exit_code = result.returncode
+                ran.append((name, f"FAILED (exit {result.returncode}) after {elapsed}"))
                 log_row(
-                    f"{name} exited {result.returncode}; stopping "
-                    f"(later workflows not invoked).",
+                    f"{tag}  FAILED (exit {result.returncode}) after {elapsed} "
+                    f"-- stopping, later workflows not invoked",
                     module="run_workflows",
                     level="ERROR",
                 )
                 break
             workflow["status"] = "succeeded"
+            ran.append((name, elapsed))
+            log_row(f"{tag}  done in {elapsed}", module="run_workflows")
     except BaseException as exc:
         manifest["status"] = "failed"
         manifest["error_type"] = type(exc).__name__
@@ -289,6 +574,17 @@ def run(config_path: str, cores: int, extra: list[str]) -> int:
                 workflow["status"] = "failed"
         _mark_pending_not_run(manifest)
         _finalize_manifest(manifest_path, manifest, exit_code=None)
+        # Before the re-raise, so a launch failure closes with a report rather
+        # than with a traceback and nothing else -- the same reason the manifest
+        # is finalized on this path.
+        _report(
+            project_dir=project_dir,
+            manifest_path=manifest_path,
+            manifest=manifest,
+            ran=ran,
+            elapsed_seconds=time.monotonic() - started,
+            failed=True,
+        )
         raise
 
     if exit_code != 0:
@@ -297,7 +593,29 @@ def run(config_path: str, cores: int, extra: list[str]) -> int:
     else:
         manifest["status"] = "succeeded"
     _finalize_manifest(manifest_path, manifest, exit_code=exit_code)
+    _report(
+        project_dir=project_dir,
+        manifest_path=manifest_path,
+        manifest=manifest,
+        ran=ran,
+        elapsed_seconds=time.monotonic() - started,
+        failed=exit_code != 0,
+    )
     return exit_code
+
+
+def _report(**kwargs: Any) -> None:
+    """Print the closing block, never letting it break the invocation.
+
+    Fail-open like every other banner in this toolbox (`install_console_style`,
+    each Snakefile's `_header`): a cosmetic layer must not be able to turn a
+    successful run into a failed one, and this one runs on the path that is
+    already handling an exception.
+    """
+    try:
+        print("\n" + _closing_block(**kwargs), flush=True)
+    except Exception as exc:  # noqa: BLE001 -- never break a run over a banner
+        print(f"(run summary unavailable: {exc})", file=sys.stderr, flush=True)
 
 
 def sanitize_argv(argv: list[str]) -> list[str]:
