@@ -53,11 +53,10 @@ def _write_target(path: str, kind: str) -> None:
         # A long indicator table (R11 Q8). Two groups so the per-group tolerance
         # has something to group by; the comparator's own cases live in
         # tests/test_check_baseline_indicator.py.
-        rows = ["metric,st_id,temp_change,precip_change,rlz_id,location,value"]
+        rows = ["metric,st_id,rlz_id,location,value"]
         for metric, base in (("q_mean", 10.0), ("q_low", 0.5)):
             rows += [
-                f"{metric},st_{i:02d},0.0,1.0,0,101,{base * (1.0 + 0.1 * i)!r}"
-                for i in range(5)
+                f"{metric},{i:02d},0,101,{base * (1.0 + 0.1 * i)!r}" for i in range(5)
             ]
         p.write_text("\n".join(rows) + "\n")
     else:  # pragma: no cover - guard against a new untested kind

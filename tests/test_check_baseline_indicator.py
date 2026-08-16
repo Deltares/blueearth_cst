@@ -49,18 +49,19 @@ def _table(rows: list[dict]) -> pd.DataFrame:
 
 def _row(
     metric="q_mean",
-    st_id="st_00",
-    temp="0.0",
-    precip="1.0",
+    st_id="00",
     rlz="0",
     location="101",
     value=10.0,
 ) -> dict:
+    """One indicator row, at the FIVE-column shape.
+
+    The axis pair left the header on 2026-08-16 -- the response-surface axis is
+    derived from the lookup at reporting time rather than baked in here.
+    """
     return {
         "metric": metric,
         "st_id": st_id,
-        "temp_change": temp,
-        "precip_change": precip,
         "rlz_id": rlz,
         "location": location,
         "value": value,
@@ -240,14 +241,25 @@ def test_a_filtered_frame_does_not_mis_index():
     assert not report["ok"] and report["n_fail"] == 1
 
 
-def test_float_key_columns_are_compared_as_written():
-    """`temp_change` reparsed as float would make 1.3 and 1.3000000000000003
-    different groups and report a key-set mismatch. Read as strings, they are
-    the same key iff they were written the same way."""
-    ref = _table([_row(temp="1.3", st_id="st_00"), _row(temp="2.6", st_id="st_01")])
+def test_key_columns_are_compared_as_WRITTEN():
+    """Re-witnessed, not deleted.
+
+    Its original subject was `temp_change`: reparsed as a float, 1.3 and
+    1.3000000000000003 become different groups and the comparison reports a
+    key-set mismatch. That column is gone and every remaining key column is
+    non-numeric -- so the claim now rests on `st_id`, where the same defect has
+    a sharper edge. `st_id` is zero-padded TEXT and is the join key to the
+    stress-test lookup; read as an integer, `01` becomes `1`, which is both a
+    different group here and a silently missed join downstream.
+    """
+    ref = _table([_row(st_id="01"), _row(st_id="02")])
     assert cb.read_indicator_table.__doc__  # documented reason for dtype=str
     report = cb.compare_indicator_table(ref, ref.copy())
     assert report["ok"]
+
+    # ... and the padding must survive the round trip as written.
+    widened = _table([_row(st_id="1"), _row(st_id="02")])
+    assert cb.compare_indicator_table(ref, widened)["ok"] is False
 
 
 # --------------------------------------------------------------------------
@@ -264,12 +276,10 @@ def test_reader_rejects_a_table_with_no_value_column(tmp_path):
 
 def test_reader_keeps_key_columns_as_written(tmp_path):
     p = tmp_path / "t.csv"
-    p.write_text(
-        "metric,st_id,temp_change,precip_change,rlz_id,location,value\n"
-        "q_mean,st_00,1.3000000000000003,1.0,0,101,12.5\n"
-    )
+    p.write_text("metric,st_id,rlz_id,location,value\nq_mean,01,0,101,12.5\n")
     df = cb.read_indicator_table(str(p))
-    assert df.loc[0, "temp_change"] == "1.3000000000000003"
+    # The zero padding is the contract, and `01` -> `1` is the defect it guards.
+    assert df.loc[0, "st_id"] == "01"
     assert df.loc[0, "value"] == pytest.approx(12.5)
 
 
