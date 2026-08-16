@@ -4,9 +4,9 @@ type: todo-item
 status: backlog
 effort: 2
 area: tooling
-queue: 8
+queue: 7
 created: 2026-08-07
-updated: 2026-08-11
+updated: 2026-08-16
 ---
 
 > [!note] Overview
