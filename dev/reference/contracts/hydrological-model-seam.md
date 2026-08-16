@@ -409,13 +409,19 @@ Rendered one subsection per artifact.
     evenly spaced across the grid**. A max or a quantile is not, and the surface
     stops being a regular grid. The admitted vocabulary is `mean` alone. An
     implementation additionally **asserts** the distinct axis levels are evenly
-    spaced — consecutive gaps agreeing to **`rtol = 1e-9`** relative to the mean
+    spaced — consecutive gaps agreeing to **`rtol = 1e-6`** relative to the mean
     gap — the postcondition the evenly-spaced guarantee never had. Two or fewer
     distinct levels pass trivially. The two thresholds in this section are
     deliberately different: month classification is **exact zero** because a held
     month's values are bit-identical by construction, while this one is a true
     tolerance because it compares different values reached by different
-    arithmetic.
+    arithmetic. **The noise floor is `float32`, not `float64`**: the grid levels
+    are `float32`-quantized, so consecutive gaps differ at ~1e-7 relative --
+    measured worst case 3.6e-07 over eight realistic grids, about 3x `float32`
+    eps. `1e-6` sits a decade above that and still orders of magnitude below
+    what a non-affine statistic does, which is to break the spacing by tens of
+    percent. An implementation using a float64-scale tolerance here will refuse
+    legitimate designs.
 
     The two are **independent**, and one does not imply the other: a
     heterogeneous design (Jan ±30%, Feb 0→+50%) yields axis levels −15, +12.5,

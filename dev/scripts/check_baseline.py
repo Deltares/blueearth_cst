@@ -755,10 +755,17 @@ def read_indicator_table(path: str) -> pd.DataFrame:
     """Parse an indicator table (or a stored reference copy) as strings + value.
 
     Every column but ``value`` is read as a STRING and left untouched. That is
-    what makes the key alignment exact: ``temp_change`` and ``precip_change``
-    are floats on disk, and letting pandas parse them would make two runs that
-    wrote ``1.3`` and ``1.3000000000000003`` land in different groups and report
-    as a key-set mismatch instead of the sub-tolerance move they are.
+    what makes the key alignment exact.
+
+    The reason was ``temp_change`` / ``precip_change``: floats on disk, so
+    letting pandas parse them made two runs that wrote ``1.3`` and
+    ``1.3000000000000003`` land in different groups and report a key-set
+    mismatch instead of the sub-tolerance move they were. Those columns were
+    removed on 2026-08-16 and every remaining key column is non-numeric -- but
+    the rule holds for a sharper reason. ``st_id`` is zero-padded TEXT and is
+    the join key to ``stress_test_lookup.csv``; parsed as an integer, ``01``
+    becomes ``1``, which is both a different group here and a silently missed
+    join in every consumer that draws a surface.
     """
     df = pd.read_csv(path, dtype=str, keep_default_na=False)
     if INDICATOR_VALUE_COLUMN not in df.columns:
