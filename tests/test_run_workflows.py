@@ -401,3 +401,221 @@ def test_sensitive_args_are_redacted_from_console(tmp_path, capture_runs, capsys
     output = capsys.readouterr().out
     assert "visible-secret" not in output
     assert "api_token=<redacted>" in output
+
+
+# --- contract (h): the wrapper's own console narration ----------------------
+
+
+def _group_rows(output, label):
+    """The ``key -> value`` rows under one ``  <label>`` group of a block."""
+    lines = output.splitlines()
+    start = lines.index(f"  {label}") + 1
+    rows = {}
+    for line in lines[start:]:
+        if not line.startswith("    "):
+            break
+        key, value = line.strip().split(maxsplit=1)
+        rows[key] = value
+    return rows
+
+
+def _run_and_capture(tmp_path, capsys, flags, *, cores=3, extra=None):
+    """Run the wrapper over a config with ``flags`` and return its stdout."""
+    project_dir = tmp_path / "gabon_project"
+    cfg = tmp_path / "c.yml"
+    _write_cfg(cfg, flags, project_dir=str(project_dir))
+    code = rw.run(str(cfg), cores=cores, extra=extra or [])
+    return code, capsys.readouterr().out, project_dir
+
+
+def test_opening_block_states_the_project_the_config_and_the_cores(
+    tmp_path, capture_runs, capsys
+):
+    """A console of four back-to-back Snakemake runs must say whose they are.
+
+    Snakemake's own preamble names the host and the job counts and never the
+    project, so before this block a scrolled-back or pasted console could not be
+    attributed to a project or a config without asking.
+    """
+    _, out, project_dir = _run_and_capture(
+        tmp_path, capsys, {n: "true" for n in rw.WORKFLOW_ORDER}, cores=7
+    )
+    lines = out.splitlines()
+    assert "run_workflows" in lines
+    rows = _group_rows(out, "run")
+    assert rows["project"] == "gabon_project"  # basename, no project_name key
+    assert rows["folder"] == str(project_dir).replace(os.sep, "/")
+    assert rows["cores"] == "7"
+    assert "c.yml" in rows["config"]
+
+
+def test_opening_block_diagrams_the_sequence_and_marks_the_disabled(
+    tmp_path, capture_runs, capsys
+):
+    """Every workflow appears; only the enabled ones are numbered.
+
+    A disabled workflow silently absent from the list is indistinguishable from
+    one the wrapper does not know about -- so it is shown, marked, and the
+    positions count only what will actually be invoked.
+    """
+    flags = {n: "true" for n in rw.WORKFLOW_ORDER}
+    flags["analyze_projections"] = "false"
+    _, out, _ = _run_and_capture(tmp_path, capsys, flags)
+    assert "sequence -- 3 of 4 workflows enabled, invoked in this order" in out
+    assert "[1/3]  wf0 analyze_climate" in out
+    assert "[2/3]  wf1 build_model" in out
+    assert "[3/3]  wf3 run_stress_test" in out
+    # Present, marked, and NOT given a position.
+    assert "wf2 analyze_projections  (disabled, not invoked)" in out
+    assert "[3/3]  wf2" not in out
+
+
+def test_a_dry_run_says_so_in_the_opening_block(tmp_path, capture_runs, capsys):
+    """A dry run's console is otherwise nearly identical to a real one's."""
+    _, out, _ = _run_and_capture(
+        tmp_path,
+        capsys,
+        {n: "true" for n in rw.WORKFLOW_ORDER},
+        extra=["--dry-run"],
+    )
+    assert "mode" in out and "dry run -- nothing is executed" in out
+
+
+def test_each_invoked_workflow_gets_a_start_and_an_elapsed_row(
+    tmp_path, capture_runs, capsys
+):
+    """The timeline tier: position, identity, and how long it took."""
+    flags = {n: "true" for n in rw.WORKFLOW_ORDER}
+    flags["analyze_projections"] = "false"
+    _, out, _ = _run_and_capture(tmp_path, capsys, flags)
+    assert "[1/3] wf0 analyze_climate  starting" in out
+    assert "[1/3] wf0 analyze_climate  done in 0:00:0" in out
+    assert "[3/3] wf3 run_stress_test  done in 0:00:0" in out
+    # A disabled workflow gets NO timeline row -- the sequence diagram above
+    # already named it, once, before anything ran.
+    assert "wf2 analyze_projections  starting" not in out
+
+
+def test_closing_block_names_what_ran_how_long_and_where_it_landed(
+    tmp_path, capture_runs, capsys
+):
+    """The three answers a finished run owes: what, how long, and where."""
+    flags = {n: "true" for n in rw.WORKFLOW_ORDER}
+    flags["analyze_projections"] = "false"
+    _, out, project_dir = _run_and_capture(tmp_path, capsys, flags)
+    root = str(project_dir).replace(os.sep, "/")
+    assert "run_workflows done in 0:00:0" in out
+    wrote = _group_rows(out, "wrote")
+    assert wrote["project"] == root
+    assert wrote["logs"] == f"{root}/logs/"
+    assert wrote["invocation"].startswith(f"{root}/config/runs/invocations/")
+    # `ran` lists what was invoked, in order, and nothing else -- a group headed
+    # "ran" naming a workflow that did not is worse than not printing it.
+    ran = out.split("\n  ran\n")[1].split("\n\n")[0].splitlines()
+    assert [line.split()[0] for line in ran] == ["wf0", "wf1", "wf3"]
+
+
+def test_failure_console_carries_the_verdict_and_what_did_not_run(
+    tmp_path, capture_runs, capsys
+):
+    """The stop boundary, stated: the exit code, and everything left behind."""
+    _, exits = capture_runs
+    exits[1] = 4  # build_model, the second invoked workflow
+    code, out, _ = _run_and_capture(
+        tmp_path, capsys, {n: "true" for n in rw.WORKFLOW_ORDER}
+    )
+    assert code == 4
+    assert "[2/4] wf1 build_model  FAILED (exit 4) after 0:00:0" in out
+    assert "run_workflows FAILED in 0:00:0" in out
+    assert "not run: wf2 analyze_projections, wf3 run_stress_test" in out
+    assert "the failing workflow's own output is printed above" in out
+
+
+def test_a_launch_error_still_closes_with_a_report(tmp_path, monkeypatch, capsys):
+    """An OSError out of subprocess.run must not end in a bare traceback.
+
+    The manifest is finalized on this path for the same reason; the console
+    report is the half a person actually reads.
+    """
+    project_dir = tmp_path / "project"
+    cfg = tmp_path / "c.yml"
+    _write_cfg(cfg, {n: "true" for n in rw.WORKFLOW_ORDER}, project_dir)
+
+    def fake_run(cmd, cwd=None, **kwargs):
+        if cmd[0] == "git":
+            return FakeResult(0, stdout="abc123\n" if "rev-parse" in cmd else "")
+        raise OSError("snakemake executable missing")
+
+    monkeypatch.setattr(rw.subprocess, "run", fake_run)
+    with pytest.raises(OSError):
+        rw.run(str(cfg), cores=3, extra=[])
+
+    out = capsys.readouterr().out
+    assert "run_workflows FAILED in" in out
+    assert "wf0 analyze_climate  FAILED (OSError)" in out
+    assert "not run: wf1 build_model" in out
+    # Two claims that are FALSE when no child ever launched.
+    assert "/logs/" not in out
+    assert "printed above" not in out
+
+
+def test_a_no_op_invocation_says_so_rather_than_printing_empty_groups(
+    tmp_path, capture_runs, capsys
+):
+    """Nothing enabled: a sentence, never a group label with nothing under it."""
+    _, out, _ = _run_and_capture(
+        tmp_path, capsys, {n: "false" for n in rw.WORKFLOW_ORDER}
+    )
+    assert "nothing to invoke -- 0 of 4 workflows are enabled here" in out
+    assert "nothing ran -- every workflow was disabled" in out
+    assert "  ran" not in out.splitlines()
+    assert "  sequence" not in out
+
+
+def test_the_whole_console_is_cp1252_encodable(tmp_path, capture_runs, capsys):
+    """ASCII only: a Windows console defaults to cp1252 and RAISES on the rest.
+
+    Box-drawing characters and arrows are the natural spelling for a sequence
+    diagram and are exactly what would crash the wrapper on the platform it is
+    most often run from -- the same constraint `rule_banner` records.
+    """
+    flags = {n: "true" for n in rw.WORKFLOW_ORDER}
+    flags["build_model"] = "false"
+    _, out, _ = _run_and_capture(tmp_path, capsys, flags)
+    out.encode("cp1252")  # raises UnicodeEncodeError on anything outside it
+    assert out.isascii(), [line for line in out.splitlines() if not line.isascii()]
+
+
+def test_the_blocks_survive_the_quiet_log_level_that_mutes_the_timeline(
+    tmp_path, capture_runs, capsys, monkeypatch
+):
+    """`CST_LOG_LEVEL=WARNING` is quiet mode, not silent mode.
+
+    The timeline rows are what the floor exists to mute; the opening and closing
+    blocks are the only statement of which project and which config this was, so
+    they go through `print` and are unaffected. Routing them through `log_row`
+    would delete the report exactly when someone asked for less noise.
+    """
+    monkeypatch.setenv("CST_LOG_LEVEL", "WARNING")
+    _, out, _ = _run_and_capture(
+        tmp_path, capsys, {n: "true" for n in rw.WORKFLOW_ORDER}
+    )
+    assert "run_workflows" in out
+    assert "  sequence -- 4 of 4 workflows enabled, invoked in this order" in out
+    assert "run_workflows done in" in out
+    assert "starting" not in out
+
+
+def test_the_console_narration_never_leaks_a_secret(tmp_path, capture_runs, capsys):
+    """Every new line that can carry `extra` goes through `sanitize_argv`."""
+    flags = {n: "false" for n in rw.WORKFLOW_ORDER}
+    flags["run_stress_test"] = "true"
+    _, out, _ = _run_and_capture(
+        tmp_path,
+        capsys,
+        flags,
+        extra=["--config", "api_token=visible-secret", "--password", "pw-secret"],
+    )
+    assert "visible-secret" not in out
+    assert "pw-secret" not in out
+    assert "api_token=<redacted>" in out

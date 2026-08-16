@@ -211,4 +211,4 @@ env-check = { cmd = "python dev/scripts/check_env.py", description = "Report whe
 # concurrent workdir locks). To pin it to the primary checkout from anywhere on
 # the machine, wrap it: `pixi run --manifest-path <primary>/pixi.toml
 # run-workflows ...`.
-run-workflows = { cmd = "python scripts/run_workflows.py", description = "Run the enabled workflows in fixed order (model -> projections -> experiment); requires --config" }
+run-workflows = { cmd = "python scripts/run_workflows.py", description = "Run the enabled workflows in fixed order (climate -> model -> projections -> experiment); requires --config" }
