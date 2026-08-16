@@ -72,10 +72,7 @@ from blueearth_cst.shared.plot_style import (
     COLOR_CAVEAT,
     FIGURE_WIDTH_MM,
     FONT_FAMILY,
-    FONT_SIZE_BASE,
     FONT_SIZE_CAVEAT,
-    FONT_SIZE_LEGEND,
-    FONT_SIZE_TICK,
     FONT_SIZE_TITLE,
     MM_PER_INCH,
     RASTER_DPI,  # noqa: F401
@@ -122,13 +119,33 @@ from blueearth_cst.shared.plot_style import (
 #: are left untouched. Raise every value together to scale the labelling; raise
 #: one to re-balance it.
 #:
-#: FONT_SIZE_BASE / _TICK / _LEGEND are shared (imported above). The four below
-#: are map furniture and live here.
-FONT_SIZE_COLORBAR_LABEL = 7.0  #: the colourbar's title
-FONT_SIZE_COLORBAR_TICK = 5.5  #: the numbers beside the colourbar
-FONT_SIZE_GAUGE_LABEL = 5.5  #: the wflow_id beside each gauge marker
-FONT_SIZE_SCALE_BAR = 6.0  #: the 0 / 2.5 / 5 km numbers
-FONT_SIZE_NORTH_ARROW = 7.5  #: the "N"
+#: **Every size here is map-scoped, including the three that `plot_style` also
+#: defines.** Those three (BASE / TICK / LEGEND) were imported from there until
+#: 2026-08-16 and are now declared HERE instead, one step smaller across the
+#: board — because the sizes that read correctly on a series plot are too heavy
+#: on a map, where the labelling competes with the picture rather than
+#: annotating an empty axes. Owner's call after reading a real basin's output:
+#: the graticule, the colourbar title and the legend all crowded the map.
+#:
+#: Declaring rather than shrinking `plot_style` is what keeps the change
+#: SCOPED. Those constants are page-level and every figure family reads them,
+#: so lowering them there would silently shrink the projections and evaluation
+#: figures too — families nobody asked about and nobody would re-render to
+#: check. The blast radius of this block is the cartographic template plus the
+#: climate series that share its `_publication_rc`, which is the one family
+#: these sizes were judged against.
+#:
+#: `FONT_SIZE_CAVEAT` deliberately stays shared: `climate_figures` imports it
+#: straight from `plot_style` for the series footnote, so map-scoping it would
+#: print the same sentence at two sizes in one folder.
+FONT_SIZE_BASE = 6.5  #: fallback size; the axes title is derived from it (+1)
+FONT_SIZE_TICK = 5.5  #: the coordinate graticule labels
+FONT_SIZE_LEGEND = 5.5  #: legend entries and the legend's own title
+FONT_SIZE_COLORBAR_LABEL = 6.0  #: the colourbar's title
+FONT_SIZE_COLORBAR_TICK = 5.0  #: the numbers beside the colourbar
+FONT_SIZE_GAUGE_LABEL = 5.0  #: the wflow_id beside each gauge marker
+FONT_SIZE_SCALE_BAR = 5.0  #: the 0 / 2.5 / 5 km numbers
+FONT_SIZE_NORTH_ARROW = 6.5  #: the "N"
 
 # --- layout ----------------------------------------------------------------
 
@@ -311,10 +328,14 @@ _LEGEND_FRAME_ALPHA = 0.85  #: 1.0 = opaque, 0.0 = no fill
 _LEGEND_FRAME_WIDTH = 0.5  #: border weight, points
 _LEGEND_BORDER_PAD = 0.4  #: padding inside the frame, in font units
 _LEGEND_HANDLE_LENGTH = 1.4  #: length of the sample line/marker, in font units
-#: ``None`` drops the title row. Dropped by default: the block sits alone under
-#: a colourbar in a panel that contains nothing else, so "Legend" labels the
-#: obvious and costs a row of the panel's height.
-_LEGEND_TITLE = None
+#: ``None`` drops the title row. Titled since 2026-08-16, and the wording is
+#: why: "Legend" would label the obvious and cost a row of the panel's height
+#: for nothing, which is why the row was dropped originally. What the row earns
+#: its place saying is what KIND of thing the entries are — the panel stacks a
+#: colourbar over this block, and both are keys, so the reader is otherwise
+#: left to infer that one describes the raster and the other the linework over
+#: it. "Map features" names the second half of that pair.
+_LEGEND_TITLE = "Map features"
 
 #: Legend wording, one place. These are what the READER sees, so they are the
 #: domain's words rather than the model's internals: "output locs" was the
@@ -731,6 +752,7 @@ class RasterStyle:
         diverging_palette=None,
         reserve_low_for=None,
         low_clip=0.45,
+        high_clip=None,
         step_ladder=None,
         levels=None,
         series_color=None,
@@ -802,6 +824,12 @@ class RasterStyle:
         #: 0.45 the driest swatch is L*=72, clearly blue; 0.32 measured L*=82,
         #: which still reads white against a white page.
         self.low_clip = low_clip
+        #: Where the ramp STOPS, 0-1 — the mirror of ``low_clip``, and the
+        #: answer to a raster so dark the linework over it cannot be read.
+        #: ``None`` derives it per palette (:func:`_readable_ramp_ceiling`) so
+        #: the darkest class stays above :data:`_MIN_RASTER_LIGHTNESS`; a float
+        #: pins it; ``1.0`` restores the full ramp.
+        self.high_clip = high_clip
         #: ``((code, colour, label), ...)`` when the raster is NOMINAL — land
         #: cover, a soil taxonomy, a subbasin identifier. Setting it switches the
         #: whole encoding: no ramp, no classifier, no colourbar. The classes go
@@ -838,6 +866,7 @@ class RasterStyle:
             diverging_palette=self.diverging_palette,
             reserve_low_for=self.reserve_low_for,
             low_clip=self.low_clip,
+            high_clip=self.high_clip,
             step_ladder=self.step_ladder,
             levels=self.levels,
             series_color=self.series_color,
@@ -1114,6 +1143,66 @@ def _elevation_colormap(levels=None):
     return ramp if levels is None else ramp.resampled(levels)
 
 
+#: The darkest a SEQUENTIAL raster is allowed to get, in CIE L*. Every map this
+#: template draws carries black linework over the raster — the basin outline,
+#: the subcatchment divides, the gauge labels' text — and a sequential palette
+#: run to its full extent puts that linework on ground too dark to read it
+#: against. Observed on a real basin's PET map, where the field is near-constant
+#: across the extent so every visible cell landed in the top class and the whole
+#: map rendered as one dark brown.
+#:
+#: Related to :data:`_DARK_RASTER_LIGHTNESS` and deliberately LOWER. That one is
+#: a threshold on the area-weighted MEAN, deciding after the fact which way to
+#: draw the divides; this is a floor on the DARKEST CLASS, applied to the ramp
+#: before anything is drawn. Both answer "can a line be read on this?", at
+#: different stages — fix the ground first, then cope with what is left.
+#:
+#: **45, not 55, and the number is a measured trade rather than a preference.**
+#: Clipping the ramp buys linework contrast by spending class separation, so it
+#: was swept rather than picked (2026-08-16, six classes, all four styles):
+#:
+#:     target   darkest L*   min adjacent dL*
+#:     none      21 - 29        8.2 - 9.9
+#:     55            55         5.1 - 6.2
+#:     45            45         6.3 - 7.1
+#:     35            35         7.4 - 8.3
+#:
+#: At 55 the ramp keeps barely half the separation it was chosen for, which
+#: trades an unreadable overlay for an unreadable ramp. 45 lifts the darkest
+#: class out of the range where black linework disappears (L* 21-29) while
+#: holding ~75% of the separation, and 7 dL* is still well clear of the ~3 a
+#: reader needs to tell two adjacent large patches apart.
+_MIN_RASTER_LIGHTNESS = 45.0
+
+#: How finely :func:`_readable_ramp_ceiling` scans for that stop. 64 steps
+#: resolves the ceiling to ~1.5% of the ramp, well inside the width of one
+#: class.
+_RAMP_CEILING_STEPS = 64
+
+
+def _readable_ramp_ceiling(ramp, min_lightness=None):
+    """The highest 0-1 stop on ``ramp`` still lighter than ``min_lightness``.
+
+    Derived per palette rather than pinned to one fraction, because the same
+    fraction means different things on different ramps: 0.85 of ``Blues``
+    measures L*=41 while 0.85 of ``Oranges`` measures L*=47, so a single
+    hardcoded cap would over-clip one and under-clip the other. Scanning for the
+    LIGHTNESS the figure actually needs is the same measured-not-guessed rule
+    the palettes themselves were chosen under.
+
+    Returns 1.0 when even the ramp's darkest end is light enough (nothing to
+    clip), and never returns below the midpoint — a palette dark throughout
+    would otherwise be clipped to a sliver and lose the class separation it
+    exists to provide. Better a slightly dark map than an unreadable ramp; the
+    divides' own contrast flip is what covers that residue.
+    """
+    target = _MIN_RASTER_LIGHTNESS if min_lightness is None else float(min_lightness)
+    stops = np.linspace(0.5, 1.0, _RAMP_CEILING_STEPS)
+    lightness = np.array([_relative_luminance(ramp(float(s))) for s in stops])
+    acceptable = stops[lightness >= target]
+    return float(acceptable.max()) if acceptable.size else 0.5
+
+
 def _style_colormap(style, levels=None, floor=None):
     """The style's palette, continuous or cut into ``levels`` classes.
 
@@ -1125,6 +1214,21 @@ def _style_colormap(style, levels=None, floor=None):
     for low values and the floor sits above that threshold, the ramp starts at
     ``style.low_clip`` instead of at its palest colour — so white keeps meaning
     "none" rather than "least of a lot".
+
+    The ramp also STOPS short of its darkest end, at ``style.high_clip`` or at
+    the derived :func:`_readable_ramp_ceiling`, so the linework drawn over the
+    raster stays readable. Applied here rather than to the drawn image so the
+    colourbar is built from the same clipped ramp — an alpha on the map would
+    have left the bar advertising colours the map never paints.
+
+    **A resolved DIVERGING style is never clipped at the top**, and the guard is
+    here rather than at the call site because ``_diverging_colormap`` builds on
+    this function — it asks for the base ramp and then samples it itself, so
+    routing by caller would not have caught it. Clipping one end of a diverging
+    ramp moves its pale middle off the centre, which is the whole encoding:
+    ``tests/test_plot_map.py::test_the_pale_middle_of_a_diverging_ramp_lands_on_the_centre``
+    caught exactly that when this shipped without the guard, with the above-zero
+    class coming out fractionally BLUER than the one below it.
     """
     palette = getattr(style, "palette", None)
     if palette is None:
@@ -1134,12 +1238,19 @@ def _style_colormap(style, levels=None, floor=None):
     else:
         ramp = colors.LinearSegmentedColormap.from_list("style", tuple(palette), N=256)
 
+    start = 0.0
     reserve = getattr(style, "reserve_low_for", None)
     if reserve is not None and floor is not None and float(floor) > float(reserve):
         start = float(getattr(style, "low_clip", 0.0))
+    if getattr(style, "diverging_center", None) is not None:
+        stop = 1.0  # see the docstring: clipping would move the pale middle
+    else:
+        stop = getattr(style, "high_clip", None)
+        stop = _readable_ramp_ceiling(ramp) if stop is None else float(stop)
+    if (start, stop) != (0.0, 1.0):
         ramp = colors.LinearSegmentedColormap.from_list(
             f"{getattr(ramp, 'name', 'style')}_clipped",
-            ramp(np.linspace(start, 1.0, 256)),
+            ramp(np.linspace(start, stop, 256)),
             N=256,
         )
     return ramp if levels is None else ramp.resampled(levels)
@@ -2426,19 +2537,40 @@ def _river_linewidths(gdf_riv, column=RIVER_ORDER_COLUMN):
 
 
 def _wrap_label(fig, text, max_width_inches, fontsize):
-    """``text`` broken across lines so no line exceeds ``max_width_inches``.
+    """The colourbar title: the quantity on one line, its unit on the next.
 
-    The colourbar's title is left-aligned to the panel, so a long one — most
-    quantity names with their units are long — runs past the panel and off the
-    figure. Wrapping is measured rather than guessed at a character count,
-    because the width that matters is the panel's, and a character estimate
-    cannot know the font's advance widths.
+    **The unit break is UNCONDITIONAL**, which is the whole of the 2026-08-16
+    change here. It used to fire only once the whole label overflowed the
+    panel, so a folder of sibling maps came out inconsistent by label length
+    alone: "Potential evaporation (mm y-1)" was long enough to split and
+    "Precipitation (mm y-1)" was not, leaving two figures a reader compares
+    side by side with their bars at different heights and their titles in
+    different shapes. Splitting always costs one line on the short ones and
+    buys a family that looks like a family.
 
-    Falls back to the unwrapped text when no renderer is available; a
-    too-wide title is better than no figure.
+    It is also the right break on its own merits. A quantity's name and its
+    unit are the two things a reader parses separately, so "Precipitation"
+    over "(mm y-1)" reads as one label on two lines — where greedy wrapping
+    gives "Precipitation (mm" over "y-1)", splitting the unit itself into two
+    half-thoughts.
+
+    Each part is then wrapped to ``max_width_inches`` in its own right, since
+    a long quantity name still has to fit the panel it is left-aligned to.
+    Wrapping is MEASURED rather than guessed at a character count, because the
+    width that matters is the panel's and a character estimate cannot know the
+    font's advance widths.
+
+    A label with no parenthesised unit is wrapped and nothing more — it yields
+    one line when it fits. Every style in ``RASTER_STYLES`` carries a unit, so
+    that path is for a caller-supplied label (``plot_basin_map``'s
+    ``elevation_label``) that omits one; inventing a second line for it would
+    mean printing an empty one.
+
+    Falls back to the unwrapped text when no renderer is available; a too-wide
+    title is better than no figure.
     """
-    words = str(text).split()
-    if len(words) < 2 or max_width_inches <= 0:
+    text = str(text)
+    if max_width_inches <= 0:
         return text
     try:
         renderer = fig.canvas.get_renderer()
@@ -2449,28 +2581,27 @@ def _wrap_label(fig, text, max_width_inches, fontsize):
         artist = mtext.Text(0, 0, line, fontsize=fontsize, figure=fig)
         return artist.get_window_extent(renderer).width / fig.dpi
 
-    if width_of(text) <= max_width_inches:
-        return text
+    def wrapped(part):
+        """``part`` greedily broken so no line exceeds the panel width."""
+        words = part.split()
+        if len(words) < 2 or width_of(part) <= max_width_inches:
+            return part
+        lines, current = [], words[0]
+        for word in words[1:]:
+            candidate = f"{current} {word}"
+            if width_of(candidate) <= max_width_inches:
+                current = candidate
+            else:
+                lines.append(current)
+                current = word
+        lines.append(current)
+        return "\n".join(lines)
 
-    # Break at the UNIT first. A quantity's name and its unit are the two things
-    # a reader parses separately, so "Precipitation" over "(mm y-1)" reads as one
-    # label on two lines, where greedy wrapping gives "Precipitation (mm" over
-    # "y-1)" — which splits the unit itself into two half-thoughts.
-    head, opener, tail = str(text).partition("(")
+    head, opener, tail = text.partition("(")
     head = head.rstrip()
-    if head and tail and width_of(head) <= max_width_inches:
-        return f"{head}\n{opener}{tail}"
-
-    lines, current = [], words[0]
-    for word in words[1:]:
-        candidate = f"{current} {word}"
-        if width_of(candidate) <= max_width_inches:
-            current = candidate
-        else:
-            lines.append(current)
-            current = word
-    lines.append(current)
-    return "\n".join(lines)
+    if head and tail:
+        return f"{wrapped(head)}\n{wrapped(f'{opener}{tail}')}"
+    return wrapped(text)
 
 
 def _colorbar_extend(dem, levels):

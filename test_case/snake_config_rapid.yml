@@ -41,6 +41,14 @@ workflows:
   # WF1 already produces. `candidate_sources` is what makes it a comparison.
   analyze_climate:
     enabled: true
+    # A second gridded source, so wf0 is a COMPARISON rather than a single-source
+    # figure set. chirps is precip-only: the branch takes temp/radiation/pressure
+    # from era5 and lapse-corrects them onto the CHIRPS grid using the configured
+    # hydrography DEM, so the store is comparable with the era5 one rather than
+    # being a bare rainfall product. `chirps_global` is the third supported name
+    # but is not staged locally; anything outside those three is refused at parse
+    # time by the wf0 raw-climate path.
+    candidate_sources: [chirps]
   build_model:
     enabled: true
     model_build_config: config/defaults/wflow_build_model.yml

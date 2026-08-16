@@ -209,9 +209,12 @@ def fake_chirps_catalog():
             "uri": "/data/era5.nc",
             "driver": {"name": "netcdf"},
         },
-        "merit_hydro": {
+        # The DEFAULT hydrography entry, which is what the branch reads when the
+        # caller passes no `hydrography`. It was `merit_hydro` until 2026-08-16,
+        # a source nothing else in the toolbox names.
+        "merit_hydro_ihu": {
             "data_type": "RasterDataset",
-            "uri": "/data/merit.nc",
+            "uri": "/data/merit_ihu.nc",
             "driver": {"name": "netcdf"},
         },
         "era5_orography": {
@@ -320,6 +323,85 @@ def test_chirps_global_branch_requests_precip_only_from_chirps(
     assert len(era5_calls) == 1
     assert "precip" not in era5_calls[0]["variables"]
     assert "temp" in era5_calls[0]["variables"]
+
+
+def test_chirps_branch_reads_its_dem_from_the_default_hydrography(
+    tmp_path, fake_chirps_catalog
+):
+    """No `hydrography` argument -> the toolbox default, not a branch-local name.
+
+    Pins the 2026-08-16 change away from a hardcoded `merit_hydro`: that entry
+    is named nowhere else in the toolbox, so the branch demanded a staged
+    dataset a working project need not have.
+    """
+    region = tmp_path / "region.geojson"
+    region.write_text("{}")
+
+    ehc.prep_historical_climate(
+        region_fn=region,
+        fn_out=tmp_path / "out.nc",
+        data_libs="dummy.yml",
+        clim_source="chirps_global",
+        starttime="2010-01-01T00:00:00",
+        endtime="2010-12-31T00:00:00",
+    )
+
+    sources = [c["source"] for c in _last_catalog().get_rasterdataset_calls]
+    assert ehc.DEFAULT_HYDROGRAPHY in sources
+    assert "merit_hydro" not in sources
+
+
+def test_chirps_branch_dem_follows_the_configured_hydrography(
+    tmp_path, fake_chirps_catalog
+):
+    """The rule passes `shared.basin.hydrography`; the DEM read must follow it.
+
+    Otherwise a project that delineates its basin on one elevation source would
+    lapse-correct its temperature against another.
+    """
+    region = tmp_path / "region.geojson"
+    region.write_text("{}")
+
+    ehc.prep_historical_climate(
+        region_fn=region,
+        fn_out=tmp_path / "out.nc",
+        data_libs="dummy.yml",
+        clim_source="chirps_global",
+        starttime="2010-01-01T00:00:00",
+        endtime="2010-12-31T00:00:00",
+        hydrography="merit_hydro_1k",
+    )
+
+    dem_calls = [
+        c
+        for c in _last_catalog().get_rasterdataset_calls
+        if c["source"] == "merit_hydro_1k"
+    ]
+    assert len(dem_calls) == 1
+    assert dem_calls[0]["variables"] == ["elevtn"]
+
+
+def test_era5_branch_reads_no_dem_at_all(tmp_path, fake_era5_catalog):
+    """`hydrography` is chirps-branch-only; era5 extracts without any DEM read.
+
+    Guards the docstring's "Ignored outside the chirps branch" against a future
+    edit that hoists the DEM read out of the branch.
+    """
+    region = tmp_path / "region.geojson"
+    region.write_text("{}")
+
+    ehc.prep_historical_climate(
+        region_fn=region,
+        fn_out=tmp_path / "out.nc",
+        data_libs="dummy.yml",
+        clim_source="era5",
+        starttime="2010-01-01T00:00:00",
+        endtime="2010-12-31T00:00:00",
+        hydrography="merit_hydro_1k",
+    )
+
+    sources = [c["source"] for c in _last_catalog().get_rasterdataset_calls]
+    assert sources == ["era5"]
 
 
 def test_starttime_and_endtime_passed_to_get_rasterdataset(tmp_path, fake_era5_catalog):
