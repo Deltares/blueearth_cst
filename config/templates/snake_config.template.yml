@@ -175,3 +175,20 @@ workflows:
       wet_spell_factor: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     #batch_size: 4                                        # integer
     #batch_size_max: 8                                    # integer
+
+# How results are DESCRIBED, not how they are produced. Everything under here is
+# post-processing: it sits outside configuration identity, so editing a caption
+# does not trip the experiment freeze, move the effective-config digest, or ask
+# for a re-run. Optional -- absent, one default surface is used, whose axes both
+# take the months that VARY across members, which reports the range the
+# experiment actually explored.
+#
+# Declare one only to say something the default cannot. The usual reason is a
+# SEASONAL design: with a subset of months perturbed, `months:` names the subset
+# the axis summarises, and the caption is derived from the lookup, never typed.
+#
+#reporting:
+#  surfaces:
+#    - id: jfm                                            # [a-z0-9_]+, unique
+#      x: {variable: temp}                                # temp | precip
+#      y: {variable: precip, months: [1, 2, 3], statistic: mean}

@@ -102,10 +102,22 @@ _SURFACE_ID = re.compile(r"^[a-z0-9_]+$")
 #: The rectilinearity tolerance (D17). A TRUE tolerance, unlike the exact-zero
 #: threshold month classification uses, and for the opposite reason: the levels
 #: compared here are DIFFERENT values reached by different arithmetic, so
-#: float64 noise at the 1e-16 scale is expected and must not fail -- while a
-#: non-affine statistic breaks the spacing by orders of magnitude. 1e-9 sits
-#: between the two by seven decades in each direction.
-RECTILINEARITY_RTOL = 1e-9
+#: quantization noise is expected and must not fail -- while a non-affine
+#: statistic breaks the spacing by orders of magnitude.
+#:
+#: **The noise floor is FLOAT32, not float64** (owner ruling 2026-08-16). The
+#: design specified 1e-9 on the reasoning that it "sits between the two by seven
+#: decades in each direction" -- true of float64 noise at 1e-16, and false here,
+#: because D7 deliberately quantizes the grid LEVELS to `float32`. Measured over
+#: eight realistic grids, three exceed 1e-9 and the worst relative gap deviation
+#: is **3.6e-07**, about 3x `float32` eps -- among them `0.6-1.4` at
+#: `step_num: 3`, the very grid V20 names as its non-round case. So D7 and the
+#: original D17 could not both hold, and D17 lost.
+#:
+#: 1e-6 is a decade above that measured floor and still orders of magnitude
+#: below what a non-affine statistic does: a max or a quantile breaks the
+#: spacing by tens of percent, not by parts per million.
+RECTILINEARITY_RTOL = 1e-6
 
 #: The cap on clause groups in a caption, PER GROUP rather than over their sum.
 #: A combined cap would let a busy "also vary" clause swallow the held-month

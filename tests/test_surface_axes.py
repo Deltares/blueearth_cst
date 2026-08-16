@@ -233,6 +233,35 @@ def test_rectilinearity_postcondition():
         axis_values(_lookup(members), Axis(variable="precip"))
 
 
+@pytest.mark.parametrize(
+    "lo, hi, steps",
+    [
+        (0.6, 1.4, 4),  # the grid V20 names as its non-round case
+        (0.5, 1.6, 7),  # the worst measured deviation, 3.6e-07
+    ],
+)
+def test_a_float32_quantized_grid_is_not_refused(lo, hi, steps):
+    """The tolerance's noise floor is FLOAT32, not float64.
+
+    D7 quantizes the grid LEVELS to `float32` on purpose — it is the grid the
+    user asked for — so consecutive gaps differ at ~1e-7 relative, a hundred
+    times above the 1e-9 the design first specified. Measured across eight
+    realistic grids, three exceeded it, INCLUDING the one V20 is built on: the
+    postcondition and the quantization discipline could not both hold as
+    written. Owner ruling 2026-08-16 set the tolerance to 1e-6.
+
+    Without this case the defect is invisible to the shipped configs, whose
+    grids have two or three levels and pass trivially or exactly.
+    """
+    df = _linspace_members(lo * 100 - 100, hi * 100 - 100, steps)
+    # Re-quantize to the levels rule 3.09 actually writes.
+    df["precip_change"] = [
+        float(str(np.float32(1 + v / 100))) * 100 - 100 for v in df["precip_change"]
+    ]
+    values = axis_values(df, Axis(variable="precip"))
+    assert len(set(values)) == steps
+
+
 def test_two_or_fewer_levels_pass_rectilinearity_trivially():
     df = _linspace_members(-30.0, 30.0, 2)
     assert len(set(axis_values(df, Axis(variable="precip")))) == 2
