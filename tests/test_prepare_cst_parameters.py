@@ -1,27 +1,45 @@
 """Unit tests for prepare_cst_parameters.prep_cst_parameters (R5 §8).
 
-Drives the CSV generation on a synthetic in-memory config written to a
-tmp_path YAML, with csv_fns=None so the function auto-names st_{i+1}.csv in
-the config's directory. Uses only pandas/numpy/yaml — the function is already
-import-clean (guarded), no heavy-dep stub, no sys.modules pollution risk.
+Drives the lookup generation on a synthetic in-memory config written to a
+tmp_path YAML, with lookup_fn=None so the function writes
+``stress_test_lookup.csv`` into the config's directory. Uses only
+pandas/numpy/yaml — the function is already import-clean (guarded), no heavy-dep
+stub, no sys.modules pollution risk.
 """
 
 import glob
-import os
+import math
 
 import numpy as np
 import pandas as pd
 import pytest
 import yaml
 
-from blueearth_cst.experiment.prepare_cst_parameters import prep_cst_parameters
+from blueearth_cst.experiment.prepare_cst_parameters import (
+    LOOKUP_COLUMNS,
+    MULTIPLIER_DOMAIN,
+    MultiplierDomainError,
+    prep_cst_parameters,
+    refuse_out_of_domain_multipliers,
+)
+
+REPO_ROOT = __import__("pathlib").Path(__file__).resolve().parents[1]
 
 
 def _twelve(v):
     return [float(v)] * 12
 
 
-def _write_cfg(tmp_path, *, temp_step=1, precip_step=2, var_min=1.0, var_max=1.0):
+def _write_cfg(
+    tmp_path,
+    *,
+    temp_step=1,
+    precip_step=2,
+    var_min=1.0,
+    var_max=1.0,
+    precip_min=0.7,
+    precip_max=1.3,
+):
     """Write a synthetic snake config and return its path (str)."""
     cfg = {
         "workflows": {
@@ -33,7 +51,10 @@ def _write_cfg(tmp_path, *, temp_step=1, precip_step=2, var_min=1.0, var_max=1.0
                     },
                     "precip": {
                         "step_num": precip_step,
-                        "mean": {"min": _twelve(0.7), "max": _twelve(1.3)},
+                        "mean": {
+                            "min": _twelve(precip_min),
+                            "max": _twelve(precip_max),
+                        },
                         "variance": {"min": _twelve(var_min), "max": _twelve(var_max)},
                     },
                 }
@@ -45,43 +66,46 @@ def _write_cfg(tmp_path, *, temp_step=1, precip_step=2, var_min=1.0, var_max=1.0
     return str(path)
 
 
-def _read_cst_csvs(tmp_path):
-    paths = sorted(
-        glob.glob(str(tmp_path / "st_*.csv")),
-        key=lambda p: int(os.path.basename(p).split("_")[1].split(".")[0]),
-    )
-    return [pd.read_csv(p) for p in paths]
+def _read_lookup(tmp_path):
+    """Read the written lookup the way WG-2 requires: `st_id` as TEXT."""
+    return pd.read_csv(tmp_path / "stress_test_lookup.csv", dtype={"st_id": str})
+
+
+def _level(v):
+    """The grid level a member carries — the module's own quantization rule."""
+    return float(str(np.float32(v)))
 
 
 def test_seed_like_grid_shape_and_endpoints(tmp_path):
-    """temp step 1 x precip step 2 -> 6 CSVs, correct columns + linspace ends."""
+    """temp step 1 x precip step 2 -> 6 members x 12 months, correct endpoints."""
     cfg_path = _write_cfg(tmp_path, temp_step=1, precip_step=2)
-    prep_cst_parameters(cfg_path, csv_fns=None)
+    prep_cst_parameters(cfg_path)
 
-    dfs = _read_cst_csvs(tmp_path)
-    assert len(dfs) == 6  # (1+1) * (2+1)
+    df = _read_lookup(tmp_path)
+    assert list(df.columns) == list(LOOKUP_COLUMNS)
+    assert len(df) == 6 * 12  # (1+1) * (2+1) members, twelve months each
+    assert df["st_id"].nunique() == 6
 
-    for df in dfs:
-        assert list(df.columns) == [
-            "month",
-            "temp_mean",
-            "precip_mean",
-            "precip_variance",
-        ]
-        assert len(df) == 12  # one row per month
-
-    # temp mean spans [0, 3]; precip mean spans [0.7, 1.3] across the grid.
-    temp_means = np.concatenate([df["temp_mean"].values for df in dfs])
-    precip_means = np.concatenate([df["precip_mean"].values for df in dfs])
-    assert temp_means.min() == pytest.approx(0.0)
-    assert temp_means.max() == pytest.approx(3.0)
-    assert precip_means.min() == pytest.approx(0.7, abs=1e-6)
-    assert precip_means.max() == pytest.approx(1.3, abs=1e-6)
+    # temp spans [0, 3] degC; precip spans [-30, +30] PERCENT across the grid.
+    assert df["temp_change"].min() == pytest.approx(0.0)
+    assert df["temp_change"].max() == pytest.approx(3.0)
+    assert df["precip_change"].min() == pytest.approx(-30.0, abs=1e-4)
+    assert df["precip_change"].max() == pytest.approx(30.0, abs=1e-4)
 
 
-def _precip_variance_grid_max(tmp_path):
-    dfs = _read_cst_csvs(tmp_path)
-    return max(df["precip_variance"].max() for df in dfs)
+def test_every_member_carries_the_twelve_calendar_months(tmp_path):
+    """WG-2: the (st_id, month) grid is complete and duplicate-free."""
+    cfg_path = _write_cfg(tmp_path, temp_step=2, precip_step=3)  # 12 members
+    prep_cst_parameters(cfg_path)
+
+    df = _read_lookup(tmp_path)
+    for st_id, member in df.groupby("st_id"):
+        assert list(member["month"]) == list(range(1, 13)), st_id
+    assert not df.duplicated(subset=["st_id", "month"]).any()
+    # Sorted by (st_id, month), which the padding makes lexical == numeric.
+    assert df[["st_id", "month"]].equals(
+        df.sort_values(["st_id", "month"]).reset_index(drop=True)[["st_id", "month"]]
+    )
 
 
 def test_precip_variance_grid_uses_max_endpoint(tmp_path):
@@ -89,17 +113,18 @@ def test_precip_variance_grid_uses_max_endpoint(tmp_path):
 
     Regression guard for the max-reads-min bug: prepare_cst_parameters once read
     variance['min'] into the max endpoint, collapsing a non-degenerate range
-    (min=1.0, max=1.5) to [1.0, 1.0]. With the fix the grid max is variance.max.
+    (min=1.0, max=1.5) to [1.0, 1.0]. With the fix the grid max is variance.max
+    — now read as a PERCENT, so 1.5 is +50.
     """
     cfg_path = _write_cfg(
         tmp_path, temp_step=1, precip_step=1, var_min=1.0, var_max=1.5
     )
-    prep_cst_parameters(cfg_path, csv_fns=None)
-    assert _precip_variance_grid_max(tmp_path) == pytest.approx(1.5)
+    prep_cst_parameters(cfg_path)
+    assert _read_lookup(tmp_path)["precip_variance_change"].max() == pytest.approx(50.0)
 
 
 # ---------------------------------------------------------------------------
-# R11 P2 — zero-padded member ids (C27) and the design table (C23-C26)
+# R11 P2 — zero-padded member ids (C27), now carried by the lookup's key column
 # ---------------------------------------------------------------------------
 #
 # The tracked test config has ST_NUM = 6, so its width is 1 and NOTHING pads.
@@ -111,129 +136,243 @@ def test_precip_variance_grid_uses_max_endpoint(tmp_path):
 def test_ids_are_unpadded_below_ten(tmp_path):
     """C27: width comes from the COUNT, so a small grid is not padded.
 
-    Padding a 6-member grid would move every filename on every existing project
-    to fix an ordering problem it does not have.
+    Padding a 6-member grid would move every member token on every existing
+    project to fix an ordering problem it does not have.
     """
     cfg_path = _write_cfg(tmp_path, temp_step=1, precip_step=2)  # 2 * 3 = 6
-    prep_cst_parameters(cfg_path, csv_fns=None)
+    prep_cst_parameters(cfg_path)
 
-    names = sorted(os.path.basename(p) for p in glob.glob(str(tmp_path / "st_*.csv")))
-    assert names == [f"st_{m}.csv" for m in range(1, 7)]
+    ids = sorted(set(_read_lookup(tmp_path)["st_id"]))
+    assert ids == [str(m) for m in range(1, 7)]
 
 
 def test_ids_pad_once_the_count_reaches_ten(tmp_path):
     """C27: 12 members -> width 2, and LEXICAL order now matches RUN order.
 
-    The falsifier is the sort: unpadded, `sorted()` yields st_1, st_10, st_11,
-    st_12, st_2 ... which is the whole reason this change exists.
+    The falsifier is the sort: unpadded, `sorted()` yields 1, 10, 11, 12, 2 ...
+    which is the whole reason this padding exists. Under the lookup it matters
+    more, not less: `st_id` is now the JOIN KEY between this table and the
+    indicator tables, so a width disagreement is a silently missing join rather
+    than a mis-sorted listing.
     """
     cfg_path = _write_cfg(tmp_path, temp_step=2, precip_step=3)  # 3 * 4 = 12
-    prep_cst_parameters(cfg_path, csv_fns=None)
+    prep_cst_parameters(cfg_path)
 
-    names = sorted(os.path.basename(p) for p in glob.glob(str(tmp_path / "st_*.csv")))
-    assert names == [f"st_{m:02d}.csv" for m in range(1, 13)]
-    # lexical == numeric, which is the property, not the padding itself
-    assert names == sorted(names, key=lambda n: int(n[3:5]))
+    ids = sorted(set(_read_lookup(tmp_path)["st_id"]))
+    assert ids == [f"{m:02d}" for m in range(1, 13)]
+    assert ids == sorted(ids, key=int)  # lexical == numeric, which is the property
 
 
-def test_design_table_carries_one_row_per_member_plus_the_baseline(tmp_path):
-    """C23: a row per design point AND a row for st_0 with every change zero."""
+def test_st_0_has_no_row(tmp_path):
+    """D4: the table is the PARAMETER GRID, and the baseline has no parameters.
+
+    Its absence is load-bearing rather than tidy — it is what makes "not on the
+    surface" a structural fact instead of a convention, so a consumer joining
+    results to the lookup cannot place `st_0` on the surface by accident. An
+    all-zero row would be indistinguishable from an identity member's while
+    denoting a differently-processed climate.
+    """
     cfg_path = _write_cfg(tmp_path, temp_step=2, precip_step=3)  # 12 members
-    design = tmp_path / "stress_test_design.csv"
-    prep_cst_parameters(cfg_path, csv_fns=None, design_fn=str(design))
+    prep_cst_parameters(cfg_path)
 
-    df = pd.read_csv(design, dtype={"st_id": str})
-    assert list(df.columns) == [
-        "st_id",
-        "temp_change",
-        "precip_change",
-        "precip_variance_change",
-    ]
-    assert len(df) == 13  # 12 members + the baseline
-    baseline = df.iloc[0]
-    assert baseline["st_id"] == "00"
-    assert (
-        baseline[["temp_change", "precip_change", "precip_variance_change"]] == 0.0
-    ).all()
+    ids = set(_read_lookup(tmp_path)["st_id"])
+    assert "00" not in ids and "0" not in ids
+    assert ids == {f"{m:02d}" for m in range(1, 13)}
 
 
-def test_design_ids_are_the_filenames(tmp_path):
-    """C26/C27: the id in the table IS the token in the filename.
+def test_units_are_percent_not_multipliers(tmp_path):
+    """S1/D3: a 1.3 mean factor is +30.0 here, not 1.3.
 
-    C28 will assert a results row against the design table's row for its
-    st_id, so a table whose ids do not match the files on disk makes that check
-    unjoinable.
+    Stated so a future edit cannot quietly switch back. The R side reconstructs
+    `1 + p/100`, so a table that carried multipliers would be read as a +30 000%
+    perturbation rather than +30%.
     """
-    cfg_path = _write_cfg(tmp_path, temp_step=2, precip_step=3)
-    design = tmp_path / "stress_test_design.csv"
-    prep_cst_parameters(cfg_path, csv_fns=None, design_fn=str(design))
+    cfg_path = _write_cfg(tmp_path, temp_step=1, precip_step=2)
+    prep_cst_parameters(cfg_path)
 
-    df = pd.read_csv(design, dtype={"st_id": str})
-    on_disk = {os.path.basename(p)[3:-4] for p in glob.glob(str(tmp_path / "st_*.csv"))}
-    assert set(df["st_id"]) - {"00"} == on_disk
-
-
-def test_design_values_use_the_indicator_tables_own_reduction_AND_units(tmp_path):
-    """The design table's axes must equal what the results tables carry.
-
-    Both go through `perturbation_axes`, so agreement is by construction rather
-    than by coincidence -- which is what makes C28's consistency check able to
-    catch a real drift instead of a unit difference.
-
-    **This case exists because it caught one.** R11 P2 commit 2 wrote the raw
-    precipitation FACTOR (1.3) while the results writer has always written a
-    PERCENT change (30.0), so the two tables disagreed by construction and C28's
-    assertion would have failed on a unit rather than on a defect. The fix was
-    to name the derivation once; this pins that there is only one.
-
-    **And it MISSED one, which is why the comparison is now exact.** Until R11
-    P3 the assertions below used ``pytest.approx``, whose default relative
-    tolerance is 1e-6. The design row was computed from the in-memory float32
-    frame while this test read the persisted float64 CSV, a ~4e-8 relative
-    disagreement -- comfortably inside ``approx`` and 40x outside the 1e-9 that
-    ``interchange_contracts._close`` uses for the same comparison. The defect
-    lived in the gap between two tolerances for one invariant. Both sides now
-    derive from the same persisted bytes, so equality is EXACT and achievable;
-    asserting it exactly is what keeps that gap closed.
-    """
-    from blueearth_cst.experiment.export_wflow_results import perturbation_axes
-
-    cfg_path = _write_cfg(tmp_path, temp_step=2, precip_step=3)
-    design = tmp_path / "stress_test_design.csv"
-    prep_cst_parameters(cfg_path, csv_fns=None, design_fn=str(design))
-
-    df = pd.read_csv(design, dtype={"st_id": str}).set_index("st_id")
-    checked = 0
-    for path in glob.glob(str(tmp_path / "st_*.csv")):
-        member = pd.read_csv(path)
-        st_id = os.path.basename(path)[3:-4]
-        temp_change, precip_change = perturbation_axes(member, path)
-        assert df.loc[st_id, "temp_change"] == temp_change
-        assert df.loc[st_id, "precip_change"] == precip_change
-        checked += 1
-    assert checked, "no member parameter files were compared"
-
-    # And the units are the RESULTS' units, stated so a future edit cannot
-    # quietly switch back: a 1.3 mean factor is 30.0, not 1.3.
-    assert (df["precip_change"].abs() > 1.0).any()
+    df = _read_lookup(tmp_path)
+    assert df["precip_change"].abs().max() > 1.0
+    # A flat variance vector of 1.0 is ZERO percent, not 1.0 — the conversion is
+    # a rule over the percent columns, and omitting it here would hand the
+    # generator a variance FACTOR of zero on every shipped config.
+    assert (df["precip_variance_change"] == 0.0).all()
 
 
 def test_a_third_stress_axis_refuses_naming_c28(tmp_path):
     """C28's second obligation: a new dimension REFUSES, never silently drops.
 
-    A third axis that merely went unrecorded would leave a design table
-    describing a different experiment than the one that ran -- the exact failure
-    a denormalised copy exists to prevent.
+    A third axis that merely went unrecorded would leave a lookup describing a
+    different experiment than the one that ran. Merging the artifacts removed
+    the SHAPE barrier -- a new parameter is now just a column -- and this is the
+    contract barrier that deliberately survives it.
     """
-    import yaml as _yaml
-
     cfg_path = _write_cfg(tmp_path, temp_step=1, precip_step=2)
-    cfg = _yaml.safe_load(open(cfg_path, encoding="utf-8"))
+    cfg = yaml.safe_load(open(cfg_path, encoding="utf-8"))
     cfg["workflows"]["run_stress_test"]["stress_test"]["wind"] = {
         "step_num": 1,
         "mean": {"min": _twelve(0.0), "max": _twelve(1.0)},
     }
-    open(cfg_path, "w", encoding="utf-8").write(_yaml.safe_dump(cfg))
+    open(cfg_path, "w", encoding="utf-8").write(yaml.safe_dump(cfg))
 
     with pytest.raises(ValueError, match="C28"):
-        prep_cst_parameters(cfg_path, csv_fns=None)
+        prep_cst_parameters(cfg_path)
+
+
+# ---------------------------------------------------------------------------
+# V20 — the reconstructed MULTIPLIER, and nothing downstream of it
+# ---------------------------------------------------------------------------
+#
+# The bound is on what the generator receives: `1 + p/100` must land within one
+# `float64` ulp of the `float32` grid level. It is NOT a bound on any indicator
+# -- between the multiplier and a metric sit a quantile mapping, wet-day
+# thresholds, caps and floors, and a distributed hydrological model, none of
+# which is Lipschitz in the forcing with a constant anyone has measured.
+
+
+def _reconstruct(percent):
+    """The R side's inverse, spelled as D25 pins it."""
+    return 1 + percent / 100
+
+
+@pytest.mark.parametrize(
+    "precip_min, precip_max, precip_step",
+    [
+        (0.6, 1.4, 3),  # non-round: levels 0.6, 0.866667, 1.133333, 1.4
+        (0.5, 1.5, 4),  # anchored at the domain FLOOR
+        (0.7, 1.3, 2),  # the shipped grid, which reconstructs exactly
+    ],
+)
+def test_reconstruction_is_within_one_ulp(
+    tmp_path, precip_min, precip_max, precip_step
+):
+    """V20: the round trip is bounded across the admitted domain, not just on
+    the shipped configs.
+
+    The shipped grids are in D25's exactly-invertible set, which is precisely
+    why the baseline comparison at step 7 cannot observe the conversion residual
+    at all — this case is what covers that gap.
+    """
+    cfg_path = _write_cfg(
+        tmp_path,
+        temp_step=1,
+        precip_step=precip_step,
+        precip_min=precip_min,
+        precip_max=precip_max,
+    )
+    prep_cst_parameters(cfg_path)
+
+    levels = {
+        _level(v)
+        for v in np.linspace(
+            _twelve(precip_min), _twelve(precip_max), precip_step + 1, axis=1
+        ).ravel()
+    }
+    checked = 0
+    for percent in set(_read_lookup(tmp_path)["precip_change"]):
+        got = _reconstruct(percent)
+        nearest = min(levels, key=lambda lv: abs(lv - got))
+        assert abs(got - nearest) <= math.ulp(nearest), (
+            f"{percent} reconstructed to {got!r}, "
+            f"{abs(got - nearest) / math.ulp(nearest):.1f} ulps from {nearest!r}"
+        )
+        checked += 1
+    assert checked, "no percent values were reconstructed"
+
+
+def test_reconstruction_holds_across_the_percent_binade_crossings():
+    """V20, widened: dense sweeps where the error is ATTAINED, not slack.
+
+    Random draws inside the domain are not an acceptable substitute. The bound
+    fails DOWNWARD only, at the first percent-binade crossing that `ulp(level)`
+    no longer keeps up with, so the levels that matter are the ones where
+    `|percent|` crosses a power of two — near 0.5, 0.68, 1.32, 1.64 and 2.0.
+    Each is swept through consecutive `float32` values in both directions.
+    """
+    floor, _ = MULTIPLIER_DOMAIN
+    for anchor in (0.5, 0.68, 1.32, 1.64, 2.0):
+        value = np.float32(anchor)
+        for _ in range(64):  # step down through consecutive float32 values
+            value = np.nextafter(value, np.float32(0.0), dtype=np.float32)
+        for _ in range(128):
+            level = float(str(value))
+            if level >= floor:
+                got = _reconstruct(level * 100 - 100)
+                assert abs(got - level) <= math.ulp(level), (
+                    f"level {level!r} near anchor {anchor}: reconstructed {got!r}, "
+                    f"{abs(got - level) / math.ulp(level):.1f} ulps out"
+                )
+            value = np.nextafter(value, np.float32(1e9), dtype=np.float32)
+
+
+def test_the_bound_does_fail_below_the_domain():
+    """The domain is a refusal because the claim is FALSE outside it.
+
+    Recorded as an executable fact rather than a remark: without this, a later
+    reader could reasonably conclude the floor was conservative and relax it.
+    """
+    level = _level(0.013596006)
+    got = _reconstruct(level * 100 - 100)
+    assert abs(got - level) > 10 * math.ulp(level)
+
+
+# ---------------------------------------------------------------------------
+# V23 — the domain guard, refusing before the DAG is built
+# ---------------------------------------------------------------------------
+
+
+def _stress_cfg(**kwargs):
+    return {
+        "temp": {"mean": {"min": _twelve(0.0), "max": _twelve(3.0)}},
+        "precip": {
+            "mean": {"min": _twelve(kwargs.get("mean_min", 0.7)), "max": _twelve(1.3)},
+            "variance": {
+                "min": _twelve(kwargs.get("var_min", 1.0)),
+                "max": _twelve(kwargs.get("var_max", 1.0)),
+            },
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "key, cfg",
+    [
+        ("precip.mean", _stress_cfg(mean_min=0.4)),
+        ("precip.variance", _stress_cfg(var_min=0.2)),
+    ],
+)
+def test_multiplier_domain_refused(key, cfg):
+    """V23: BOTH percent-converted keys carry the domain, not just `mean`.
+
+    A domain covering `mean` alone would re-create, one layer up, exactly the
+    defect D3 corrected: the conversion is a rule over the percent COLUMNS
+    rather than a formula for one of them.
+    """
+    with pytest.raises(MultiplierDomainError) as excinfo:
+        refuse_out_of_domain_multipliers(cfg)
+    assert key in str(excinfo.value)
+    assert "0.5" in str(excinfo.value)
+
+
+def test_temp_carries_no_domain():
+    """`temp` is additive degC and crosses unconverted, so it cannot be out of
+    bound — refusing a negative cooling scenario would be a real regression."""
+    cfg = _stress_cfg()
+    cfg["temp"]["mean"]["min"] = _twelve(-2.0)
+    refuse_out_of_domain_multipliers(cfg)  # must not raise
+
+
+@pytest.mark.parametrize(
+    "config_path",
+    sorted(glob.glob(str(REPO_ROOT / "test_case" / "snake_config_*.yml")))
+    + [str(REPO_ROOT / "config" / "templates" / "snake_config.template.yml")],
+)
+def test_shipped_configs_are_inside_the_domain(config_path):
+    """V23's other half: the guard must not refuse anything we ship.
+
+    A refusal that fires on the seeds would make every `--dry-run` in the repo
+    fail, so this is the case that keeps the guard honest rather than merely
+    strict.
+    """
+    cfg = yaml.safe_load(open(config_path, encoding="utf-8"))
+    stress_test_cfg = cfg["workflows"]["run_stress_test"]["stress_test"]
+    refuse_out_of_domain_multipliers(stress_test_cfg)

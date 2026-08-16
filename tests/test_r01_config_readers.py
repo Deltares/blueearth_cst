@@ -15,13 +15,17 @@ CONFIG = join(TESTDIR, "snake_config_fixture.yml")
 
 def test_prep_cst_parameters_reads_sectioned_config(tmp_path):
     """prep_cst_parameters must read stress_test from the sectioned schema."""
+    import pandas as pd
+
     from blueearth_cst.experiment.prepare_cst_parameters import prep_cst_parameters
 
     # temp.step_num=1, precip.step_num=1 in the tests config -> ST_NUM = 2*2 = 4.
-    csv_fns = [str(tmp_path / f"st_{i}.csv") for i in range(4)]
-    prep_cst_parameters(config_fn=CONFIG, csv_fns=csv_fns)
-    for fn in csv_fns:
-        assert __import__("os").path.exists(fn), f"expected {fn} written"
+    lookup_fn = tmp_path / "stress_test_lookup.csv"
+    prep_cst_parameters(config_fn=CONFIG, lookup_fn=str(lookup_fn))
+    assert lookup_fn.exists(), f"expected {lookup_fn} written"
+    df = pd.read_csv(lookup_fn, dtype={"st_id": str})
+    assert set(df["st_id"]) == {"1", "2", "3", "4"}
+    assert len(df) == 4 * 12
 
 
 @pytest.mark.parametrize(

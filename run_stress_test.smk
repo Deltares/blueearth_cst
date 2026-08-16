@@ -535,16 +535,17 @@ WF3_TARGETS = {
     "snake_config": f"{exp_dir}/config/snake_config_run_stress_test.yml",
     # The staleness sidecar (3.16b). A target entry, not merely a declared
     # output: no rule reads a sidecar, so without this it would never build --
-    # the same reachability argument the design table makes below.
+    # the same reachability argument the lookup makes below.
     "run_metadata": f"{results_dir}/run_metadata.json",
     "model_reference": f"{exp_dir}/config/model_reference.yml",
     "experiment_config": f"{exp_dir}/config/experiment.yml",
-    # C23. A target entry, not merely a declared output of 3.09: nothing
-    # downstream consumes the design table, so without this an experiment whose
-    # 3.09 is already up to date would never regain a deleted table. Same
-    # reachability argument as spatial_basins below, and the same hazard F7
-    # names -- a properly declared artifact that nothing demands.
-    "stress_test_design": f"{exp_dir}/config/stress_test_design.csv",
+    # C23/D23. A target entry, not merely a declared output of 3.09. The lookup
+    # IS demanded by 3.12, so it is reachable during a fresh run -- but on a
+    # COMPLETED experiment every 3.12 output is temp() and already deleted, so
+    # nothing would re-demand a lookup deleted from disk. That is exactly the
+    # reachability argument the design table made, and it survives the merge.
+    # Same hazard F7 names -- a properly declared artifact that nothing demands.
+    "stress_test_lookup": f"{exp_dir}/config/stress_test_lookup.csv",
     # ADR 0003 §8, and the one PROJECT-scoped entry in this otherwise
     # experiment-scoped set (see the SPATIAL_UNITS block above). Rule 3.04 has
     # no WF3 consumer yet (§10), so a target entry is what makes it reachable;
@@ -813,21 +814,24 @@ rule extract_historical_climate:
     script:
         CLIMATE_STORE.script
 
-# 3.09  prepare_stress_test_grid — write the per-cst stress-test parameter grid
+# 3.09  prepare_stress_test_grid — write the stress-test parameter lookup
 rule prepare_stress_test_grid:
     message: rule_banner("3.09", "prepare_stress_test_grid")
     input:
         config = ancient(config_path),
         consistency_ok = f"{exp_dir}/.project_consistency_ok",
     output:
-        st_csv_fns = [f"{wg_dir}/_work/st_{st_ix(m)}.csv" for m in np.arange(1, ST_NUM+1)],
-        # C23/C25: the design table answers "what is run 37?", which no
-        # per-member file can -- each holds twelve monthly rows and no id. It is
-        # EXPERIMENT-SCOPED and sits beside the config snapshot, which is already
-        # where this run's settings are pinned. Written by this rule rather than
-        # a new one because C26's property is that the enumeration which names
-        # the members and the enumeration which describes them are the same loop.
-        design_csv = f"{exp_dir}/config/stress_test_design.csv",
+        # ONE table at monthly grain (WG-2), 12 x ST_NUM rows keyed
+        # (st_id, month), replacing BOTH the per-member _work/st_<m>.csv grid --
+        # twelve rows and no id, so it could not answer "what is run 37?" -- and
+        # the derived stress_test_design.csv, which could answer that but only
+        # after collapsing the twelve months to an annual mean that misreports
+        # any seasonal design. It is EXPERIMENT-SCOPED and sits beside the config
+        # snapshot, which is already where this run's settings are pinned.
+        #
+        # Still ONE rule and one loop, per C26: the enumeration that names the
+        # members and the enumeration that describes them cannot disagree.
+        lookup_csv = f"{exp_dir}/config/stress_test_lookup.csv",
     log:
         f"{LOG_PARTS_DIR}/3.09_prepare_stress_test_grid.log",
     benchmark:

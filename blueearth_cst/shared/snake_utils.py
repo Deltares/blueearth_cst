@@ -1717,7 +1717,7 @@ def climate_store_rule(
 #: The sub-keys each stress-test axis accepts. Temperature has NO ``variance``:
 #: only precipitation variance reaches the generator
 #: (``prepare_cst_parameters`` reads ``precip.variance.{min,max}`` and
-#: ``DESIGN_COLUMNS`` carries only ``precip_variance_change``). Owner ruling
+#: ``LOOKUP_COLUMNS`` carries only ``precip_variance_change``). Owner ruling
 #: 2026-08-13: temperature variance is not a supported dimension.
 #:
 #: Closed per axis, not just at the top level. The axis guard in
