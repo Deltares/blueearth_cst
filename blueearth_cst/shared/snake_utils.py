@@ -1293,6 +1293,21 @@ def slugify_window(start, end) -> str:
 DEFAULT_HYDROGRAPHY = "merit_hydro_ihu"
 DEFAULT_BASIN_INDEX = "merit_hydro_index"
 
+#: Climate sources that carry PRECIPITATION ONLY.
+#:
+#: The extraction pairs them with era5 for temperature, radiation and pressure,
+#: because a precipitation-only source cannot force a hydrological model on its
+#: own -- so the STORE is a blend by necessity. What must not follow is a
+#: REPORT that presents the borrowed fields as this source's own: a reader
+#: choosing between sources would read an era5 temperature panel as a property
+#: of CHIRPS. Reporting therefore narrows to what the source actually carries
+#: (``climate_figures.source_climate_vars``), rather than the borrowed values
+#: being drawn under the source's name.
+#:
+#: Named for the PROPERTY, not the members, so a future precipitation-only
+#: source declares itself by joining the set.
+PRECIP_ONLY_SOURCES = ("chirps", "chirps_global")
+
 #: The store producer's script, relative to the declaring Snakefile. Both
 #: Snakefiles sit at the repository root, so one relative path serves both
 #: (``script:`` resolves against ``workflow.basedir``).

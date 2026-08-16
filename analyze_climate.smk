@@ -13,7 +13,7 @@ from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set. Imported for figure_names() ONLY, so every
 # figure is declared from the same list the plotter writes from and the two
 # cannot drift -- the same contract rule 1.05 and rule 1.13 rely on.
-from blueearth_cst.climate_analysis.climate_figures import figure_names
+from blueearth_cst.climate_analysis.climate_figures import figure_names, source_climate_vars
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -347,8 +347,18 @@ for _source in CANDIDATE_SOURCES:
     # `era5_orography` through it, but the store's freshness boundary is 0.04's
     # catalog edge (ext2-01), and duplicating it here would re-plot on every
     # catalog touch without the extraction having changed.
+    # What this source can honestly be drawn for. A precipitation-only source
+    # gets the precip figures and nothing else -- its temperature and PET fields
+    # in the store are era5's, borrowed so the model can be forced, and drawing
+    # them here would answer the comparison this workflow exists for with a
+    # panel that cannot differ.
+    _plot_vars = source_climate_vars(_source)
+
     _plot_inputs = {"climate_nc": _spec.outputs["climate_nc"]}
-    if "oro_nc" in _spec.outputs:
+    # The orography sidecar feeds the lapse correction behind the TEMPERATURE
+    # and PET figures, so it is an input only where those are drawn. The store
+    # still produces it either way -- rule 3.08 and the forcing catalog read it.
+    if "oro_nc" in _spec.outputs and _plot_vars != ("precip",):
         _plot_inputs["oro_nc"] = _spec.outputs["oro_nc"]
     _plot_inputs.update(
         {name: SPATIAL_UNITS.outputs[name] for name in
@@ -361,7 +371,10 @@ for _source in CANDIDATE_SOURCES:
         input:
             **_plot_inputs,
         output:
-            [f"{source_plot_dir(_source)}/{name}" for name in figure_names("source")],
+            [
+                f"{source_plot_dir(_source)}/{name}"
+                for name in figure_names("source", variables=_plot_vars)
+            ],
         params:
             plot_dir = source_plot_dir(_source),
             data_sources = DATA_SOURCES,

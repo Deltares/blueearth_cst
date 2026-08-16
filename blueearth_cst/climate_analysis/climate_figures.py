@@ -42,6 +42,7 @@ grid.
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional, Union
 
@@ -54,6 +55,7 @@ from matplotlib.ticker import MaxNLocator
 from blueearth_cst.shared.plot_style import RASTER_DPI
 from blueearth_cst.shared.snake_utils import (
     DEFAULT_WATER_YEAR_ANCHOR,
+    PRECIP_ONLY_SOURCES,
     log_row,
     save_figure,
 )
@@ -127,20 +129,67 @@ MAP_EXTENT = {
 _COMPLETE_YEAR_FRACTION = 0.9
 
 
-def figure_names(dataset: str) -> list[str]:
+def source_climate_vars(clim_source: str) -> tuple[str, ...]:
+    """The :data:`CLIMATE_VARS` keys ``clim_source`` can HONESTLY be drawn for.
+
+    A precipitation-only source (:data:`PRECIP_ONLY_SOURCES`) gets ``precip``
+    and nothing else. Its store does carry temperature, radiation and pressure
+    -- the extraction borrows them from era5, because the model cannot be forced
+    without them -- but those values are era5's, regridded. Drawing them under
+    this source's name would answer "how do the two sources differ?" with a
+    panel that cannot differ, in the one workflow whose job is that comparison.
+
+    Ruled 2026-08-16 (owner): a dataset missing a variable gets NO output for
+    it, rather than an output silently filled from another dataset.
+    """
+    if clim_source in PRECIP_ONLY_SOURCES:
+        return ("precip",)
+    return tuple(CLIMATE_VARS)
+
+
+def figure_names(dataset: str, variables: Optional[Sequence[str]] = None) -> list[str]:
     """Every filename this module writes for ``dataset``, in a stable order.
 
     The Snakefile calls this to declare the outputs, so it is the single source
     of the naming scheme ``<dataset>_<variable>_<kind>.png``. Nothing else may
     build those names by hand.
+
+    ``variables`` narrows the set to one source's honest subset -- pass what
+    :func:`source_climate_vars` returns. It must be the SAME list handed to
+    :func:`plot_climate_figures`, since one declares the outputs and the other
+    writes them: narrow only the declaration and the extra files are undeclared,
+    narrow only the drawing and the job ends in ``MissingOutputException``.
     """
     if dataset not in DATASETS:
         raise ValueError(
             f"unknown dataset {dataset!r}; expected one of {sorted(DATASETS)}"
         )
     return [
-        f"{dataset}_{var}_{kind}.png" for var in CLIMATE_VARS for kind in FIGURE_KINDS
+        f"{dataset}_{var}_{kind}.png"
+        for var in _resolve_variables(variables)
+        for kind in FIGURE_KINDS
     ]
+
+
+def _resolve_variables(variables: Optional[Sequence[str]]) -> tuple[str, ...]:
+    """Validate a variable subset, defaulting to the full canonical set.
+
+    Order follows :data:`CLIMATE_VARS`, not the caller's, so two callers passing
+    the same variables in a different order still declare the same filenames in
+    the same sequence.
+    """
+    if variables is None:
+        return tuple(CLIMATE_VARS)
+    requested = set(variables)
+    unknown = sorted(requested - set(CLIMATE_VARS))
+    if unknown:
+        raise ValueError(
+            f"unknown climate variables {unknown}; expected a subset of "
+            f"{list(CLIMATE_VARS)}"
+        )
+    if not requested:
+        raise ValueError("variables must name at least one climate variable")
+    return tuple(var for var in CLIMATE_VARS if var in requested)
 
 
 def _space_dims(da: xr.DataArray) -> list[str]:
@@ -594,6 +643,7 @@ def plot_climate_figures(
     caveat: Optional[str] = None,
     overlays: Optional[dict] = None,
     anchor: str = DEFAULT_WATER_YEAR_ANCHOR,
+    variables: Optional[Sequence[str]] = None,
 ) -> list[Path]:
     """Write the canonical figure set for one gridded climate dataset.
 
@@ -633,11 +683,12 @@ def plot_climate_figures(
         raise ValueError(
             f"unknown dataset {dataset!r}; expected one of {sorted(DATASETS)}"
         )
-    missing = [var for var in CLIMATE_VARS if var not in ds]
+    draw = _resolve_variables(variables)
+    missing = [var for var in draw if var not in ds]
     if missing:
         raise ValueError(
             f"plot_climate_figures: dataset {dataset!r} is missing {missing}; "
-            f"the canonical set needs {list(CLIMATE_VARS)}"
+            f"the requested set needs {list(draw)}"
         )
 
     plot_dir = Path(plot_dir)
@@ -645,7 +696,8 @@ def plot_climate_figures(
     title = DATASETS[dataset]
     extent_policy = MAP_EXTENT[dataset]
     written = []
-    for var, spec in CLIMATE_VARS.items():
+    for var in draw:
+        spec = CLIMATE_VARS[var]
         da = ds[var]
         for kind in FIGURE_KINDS:
             out_path = plot_dir / f"{dataset}_{var}_{kind}.png"

@@ -63,6 +63,74 @@ def test_unknown_dataset_is_rejected():
         cf.figure_names("wflow")
 
 
+# --- the per-source subset -------------------------------------------------
+
+
+@pytest.mark.parametrize("source", ["chirps", "chirps_global"])
+def test_a_precip_only_source_draws_precipitation_only(source):
+    """Its temp/PET fields in the store are era5's, borrowed to force the model.
+
+    Drawing them under this source's name would answer the source comparison
+    with a panel that cannot differ (owner ruling 2026-08-16).
+    """
+    assert cf.source_climate_vars(source) == ("precip",)
+
+    names = cf.figure_names("source", variables=cf.source_climate_vars(source))
+    assert len(names) == len(cf.FIGURE_KINDS)
+    assert all("precip" in name for name in names)
+    assert not any("temp" in name or "pet" in name for name in names)
+
+
+def test_a_full_source_still_draws_the_whole_set():
+    assert cf.source_climate_vars("era5") == tuple(cf.CLIMATE_VARS)
+    assert cf.figure_names("source", variables=cf.source_climate_vars("era5")) == (
+        cf.figure_names("source")
+    )
+
+
+def test_variable_order_follows_the_canonical_set_not_the_caller():
+    """Two callers naming the same variables must declare the same filenames."""
+    assert cf.figure_names("source", variables=["pet", "precip"]) == cf.figure_names(
+        "source", variables=["precip", "pet"]
+    )
+
+
+def test_an_unknown_variable_is_rejected():
+    with pytest.raises(ValueError, match="unknown climate variables"):
+        cf.figure_names("source", variables=["precip", "humidity"])
+
+
+def test_an_empty_variable_set_is_rejected():
+    with pytest.raises(ValueError, match="at least one"):
+        cf.figure_names("source", variables=[])
+
+
+@pytest.mark.slow
+def test_a_narrowed_set_writes_only_those_figures(tmp_path):
+    """The declaration and the drawing must agree, or the rule fails.
+
+    Narrow only the declaration and the extra files are undeclared outputs;
+    narrow only the drawing and Snakemake raises MissingOutputException.
+    """
+    written = cf.plot_climate_figures(
+        _dataset(), tmp_path, "source", variables=("precip",)
+    )
+
+    expected = cf.figure_names("source", variables=("precip",))
+    assert [p.name for p in written] == expected
+    assert sorted(p.name for p in tmp_path.glob("*.png")) == sorted(expected)
+
+
+@pytest.mark.slow
+def test_a_narrowed_set_ignores_a_variable_absent_from_the_dataset(tmp_path):
+    """A precip-only draw must not require the variables it does not draw."""
+    ds = _dataset().drop_vars(["temp", "pet"])
+
+    written = cf.plot_climate_figures(ds, tmp_path, "source", variables=("precip",))
+
+    assert len(written) == len(cf.FIGURE_KINDS)
+
+
 # --- writing the set -------------------------------------------------------
 
 

@@ -13,7 +13,7 @@ from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set (rules 1.13 and 1.15 both draw it). Imported
 # for figure_names() ONLY, so every figure is declared from the same list the
 # plotter writes from and the two cannot drift.
-from blueearth_cst.climate_analysis.climate_figures import figure_names
+from blueearth_cst.climate_analysis.climate_figures import figure_names, source_climate_vars
 # The thematic map family rule 1.12 draws beside basin_area. Same reason as
 # above: the output list comes from the registry the plotter iterates, so a
 # figure cannot be added in one place and forgotten in the other.
@@ -1141,11 +1141,19 @@ rule gather_benchmarks:
 # `era5_orography` through it, but the store's freshness boundary is rule 1.04's
 # catalog edge (ext2-01) and duplicating it here would re-plot on every catalog
 # touch without the extraction having changed.
+# What this source can honestly be drawn for. A precipitation-only source gets
+# the precip figures and nothing else — its temperature and PET fields in the
+# store are era5's, borrowed so the model can be forced, and drawing them under
+# this source's name would report another dataset's values as this one's.
+_source_plot_vars = source_climate_vars(clim_source)
+
 _source_plot_inputs = {"climate_nc": CLIMATE_STORE.outputs["climate_nc"]}
-if clim_source in ("chirps", "chirps_global"):
-    # Same branch split as rule 1.15: on chirps the store carries an orography
-    # sidecar and it is a declared input; on era5 there is none and the
-    # orography comes from the catalog instead.
+if "oro_nc" in CLIMATE_STORE.outputs and _source_plot_vars != ("precip",):
+    # On chirps the store carries an orography sidecar and it is a declared
+    # input; on era5 there is none and the orography comes from the catalog
+    # instead. It feeds the lapse correction behind the TEMPERATURE and PET
+    # figures only, so where those are not drawn it is not an input either —
+    # the store still produces it, for rule 3.08 and the forcing catalog.
     _source_plot_inputs["oro_nc"] = CLIMATE_STORE.outputs["oro_nc"]
 
 # The vector layers the source maps are drawn over, from rule 1.03's shared
@@ -1165,7 +1173,10 @@ rule plot_climate_source:
     input:
         **_source_plot_inputs,
     output:
-        [f"{store_dir}/plots/{name}" for name in figure_names("source")],
+        [
+            f"{store_dir}/plots/{name}"
+            for name in figure_names("source", variables=_source_plot_vars)
+        ],
     params:
         plot_dir = f"{store_dir}/plots",
         data_sources = DATA_SOURCES,

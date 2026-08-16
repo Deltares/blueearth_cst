@@ -44,6 +44,7 @@ import xarray as xr
 from blueearth_cst.climate_analysis.climate_figures import (
     load_spatial_overlays,
     plot_climate_figures,
+    source_climate_vars,
 )
 from blueearth_cst.shared.climate_parity import model_parity_climate
 from blueearth_cst.shared.snake_utils import (
@@ -178,6 +179,15 @@ def plot_climate_source(
     to ``climate_figures.plot_climate_figures`` as dataset ``source``. The file
     names are that module's to define (``climate_figures.figure_names``).
 
+    **A precipitation-only source draws precipitation only** (owner ruling
+    2026-08-16). Its store carries temperature, radiation and pressure, but the
+    extraction borrowed them from era5 -- a model cannot be forced without them
+    -- so drawing them here would put era5's values under this source's name, in
+    the workflow whose whole job is telling sources apart. The set comes from
+    ``climate_figures.source_climate_vars``; on that branch the PET derivation
+    and the orography read are skipped entirely rather than computed and
+    discarded, since both exist only to serve the temperature and PET figures.
+
     Parameters
     ----------
     climate_nc : str | Path
@@ -210,29 +220,58 @@ def plot_climate_source(
         f"Reading climate store extraction ({clim_source}): {climate_nc}", module="plot"
     )
     ds_raw = xr.open_dataset(climate_nc)
-    missing = [v for v in PARITY_VARS if v not in ds_raw]
-    if missing:
-        raise ValueError(
-            f"plot_climate_source: {climate_nc} is missing {missing}; the "
-            f"source-grid PET workflow needs {list(PARITY_VARS)}"
-        )
+    variables = source_climate_vars(clim_source)
 
-    dem_source = load_source_orography(ds_raw, oro_nc=oro_nc, data_sources=data_sources)
-    # setup_time_horizon.py maps every source supported on this path
-    # (era5/chirps/chirps_global) to debruin; eobs is rejected at DAG-parse time.
-    ds_src = source_grid_climate(ds_raw, dem_source, pet_method="debruin")
+    if variables == ("precip",):
+        # No PET derivation and no orography read: both exist only to produce
+        # the temperature and PET figures, which this source does not get.
+        # Checked against what is DRAWN rather than against PARITY_VARS -- the
+        # store does carry the era5 companions, but needing them here would be
+        # a claim this branch no longer makes.
+        missing = [v for v in variables if v not in ds_raw]
+        if missing:
+            raise ValueError(
+                f"plot_climate_source: {climate_nc} is missing {missing}; "
+                f"{clim_source} is precipitation-only and needs {list(variables)}"
+            )
+        log_row(
+            f"{clim_source} carries precipitation only; drawing the precip "
+            "figures and skipping temperature and PET (their values in the "
+            "store are era5's, borrowed to force the model)",
+            module="plot",
+        )
+        ds_src, caveat = ds_raw, _CAVEAT
+    else:
+        missing = [v for v in PARITY_VARS if v not in ds_raw]
+        if missing:
+            raise ValueError(
+                f"plot_climate_source: {climate_nc} is missing {missing}; the "
+                f"source-grid PET workflow needs {list(PARITY_VARS)}"
+            )
+
+        dem_source = load_source_orography(
+            ds_raw, oro_nc=oro_nc, data_sources=data_sources
+        )
+        # setup_time_horizon.py maps every source supported on this path
+        # (era5/chirps/chirps_global) to debruin; eobs is rejected at DAG-parse
+        # time.
+        ds_src = source_grid_climate(ds_raw, dem_source, pet_method="debruin")
+        # The PET caveat rides along on every figure rather than only on the pet
+        # ones -- one caveat block per figure, and a reader comparing precip
+        # across the two directories should also know the PET on this side is
+        # source-grid. It is dropped above, where no PET figure is drawn.
+        caveat = f"{_CAVEAT}\n{_PET_CAVEAT}"
 
     # The canonical set (climate_figures) draws these; this module's job ends at
-    # producing the dataset. The PET caveat rides along on every figure rather
-    # than only on the pet ones -- one caveat block per figure, and a reader
-    # comparing precip across the two directories should also know the PET on
-    # this side is source-grid.
+    # producing the dataset. `variables` MUST be the same list the rule declared
+    # its outputs from, or the job ends in MissingOutputException.
     return plot_climate_figures(
         ds_src,
         plot_dir,
         "source",
-        caveat=f"{_CAVEAT}\n{_PET_CAVEAT}",
+        caveat=caveat,
         overlays=load_spatial_overlays(geoms_dir),
+        variables=variables,
     )
 
 
