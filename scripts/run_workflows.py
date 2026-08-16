@@ -480,10 +480,14 @@ def _project_name(cfg: Mapping[str, Any], project_dir: Path) -> str:
     Same derivation as `scripts/plot_workflow_dag.py::read_project`, which names
     its renders with it -- one console and one filename disagreeing about what
     the project is called is exactly what a shared rule prevents.
+
+    Top level ONLY, matching that function exactly. A `project.project_name`
+    fallback looks like a kindness and is the defect this docstring claims to
+    prevent: no schema defines the key there, and a config carrying it would
+    make this console say one name while the DAG render filename said the
+    folder basename.
     """
     name = cfg.get("project_name")
-    if not name and isinstance(cfg.get("project"), Mapping):
-        name = cfg["project"].get("project_name")
     return str(name) if name else project_dir.name
 
 
