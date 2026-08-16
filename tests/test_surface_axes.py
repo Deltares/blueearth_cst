@@ -579,6 +579,12 @@ def test_a_mis_keyed_join_does_not_read_as_all_baseline():
     assert joined.key_width == 2
     assert set(joined.baseline_df["st_id"]) == {"00"}
     assert len(joined.surface_df) == 12
+    # ... and the axis actually ATTACHED. Without this the same twelve rows come
+    # back carrying NaN axis values from a silently missed `.map()` — the very
+    # false-green class the partition assertions exist to prevent, one level
+    # down, and invisible to a row count.
+    assert joined.surface_df["precip_change"].notna().all()
+    assert joined.surface_df["temp_change"].notna().all()
 
 
 def test_an_empty_surface_partition_is_refused():
