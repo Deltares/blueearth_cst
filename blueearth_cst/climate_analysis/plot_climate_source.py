@@ -194,7 +194,7 @@ def plot_climate_source(
     ----------
     climate_nc : str | Path
         ``data/climate/historical/<key>/extract_historical.nc`` — the store's
-        extraction (rule 1.10 ``extract_climate_grid``).
+        extraction (rule 0.04 / 1.04 / 3.08 ``extract_historical_climate``).
     plot_dir : str | Path
         ``data/climate/historical/<key>/plots/``. Created if absent.
     oro_nc : str | Path, optional

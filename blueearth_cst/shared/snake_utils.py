@@ -1612,8 +1612,12 @@ def climate_store_rule(
     """Build the one producer contract for ``data/climate/historical/<key>/``
     (R07 B1).
 
-    ONE rule definition, declared in **both** ``build_model.smk``
-    (rule 1.10) and ``run_stress_test.smk`` (rule 3.02), over the
+    ONE rule definition, declared in ``build_model.smk`` (rule 1.04) and
+    ``run_stress_test.smk`` (rule 3.08) as ``extract_historical_climate``, and
+    generated per candidate source by ``analyze_climate.smk`` (rule 0.04) as
+    ``extract_historical_climate_<source>``. All three resolve to the same
+    store directory, so whichever workflow runs first extracts and the others
+    read what is already there. Over the
     model-independent region specification + data catalog. wf1's `wf1_raw/`
     store and its `staticmaps.nc`-derived bbox are retired: the extent is now a
     pure function of ``shared.basin`` + the catalog, so a climate-only run needs
@@ -1625,7 +1629,8 @@ def climate_store_rule(
     (design P2(b) / ext1-02); the catalog **file** is the store's freshness
     boundary (ext2-01), so it is declared plain, never ``ancient()``. Data
     *behind* an unchanged catalog entry is out of scope — edit the entry, or use
-    ``snakemake --forcerun extract_climate_grid``
+    ``snakemake --forcerun extract_historical_climate`` (in wf0, the generated
+    name for the source you mean, e.g. ``extract_historical_climate_chirps``)
     (``dev/milestones/r07/migration_project-layout.md`` §2f).
 
     Parameters

@@ -1,13 +1,20 @@
 """R07 B1: the three ``extract_historical_climate`` declarations are ONE rule.
 
-The store producer is declared in ``build_model.smk`` (rule 1.10),
-``run_stress_test.smk`` (rule 3.02) and — since WF2 v2.0 migration
-step 1 — ``analyze_projections.smk`` (rule 2.11), all from the same
-``snake_utils.climate_store_rule`` object. Nothing in the rule grammar enforces
-that they stay identical, and a per-workflow difference re-creates the
-wf1<->wf3 re-extraction oscillation the design forbids (P2(b), ext1-02/ext2-01).
-This module is the enforcement: it parses both workflows in-process and compares
-the **full normalized contract** — rule name, script, input set, outputs, params,
+The store producer is declared as ``extract_historical_climate`` in
+``build_model.smk`` (rule 1.04) and ``run_stress_test.smk`` (rule 3.08), both
+from the same ``snake_utils.climate_store_rule`` object.
+``analyze_projections.smk`` declares it NOT AT ALL — ADR 0003 removed it, and
+``test_wf2_declares_no_store_and_no_extraction`` is what keeps it removed.
+``analyze_climate.smk`` is the third declarer but generates one rule per
+candidate source rather than copying the shared one; see the block above
+``_wf0_rule`` for why, and the two ``test_wf0_*`` cases for the weaker
+invariant that replaces byte-identity there.
+
+Nothing in the rule grammar enforces that the two byte-identical declarations
+stay identical, and a per-workflow difference re-creates the wf1<->wf3
+re-extraction oscillation the design forbids (P2(b), ext1-02/ext2-01). This
+module is the enforcement: it parses the workflows in-process and compares the
+**full normalized contract** — rule name, script, input set, outputs, params,
 **and every content- or execution-affecting directive**.
 
 Two properties, deliberately separate:
@@ -374,7 +381,7 @@ def test_retired_declarations_are_gone(declarations):
 
 @pytest.mark.workflow_contract
 def test_guard_keeps_its_receipt_but_loses_its_edge(declarations):
-    """Rule 3.00b is untouched; only rule 3.02's DAG edge to ``.guard_ok`` retires."""
+    """Rule 3.00b is untouched; only rule 3.08's DAG edge to ``.guard_ok`` retires."""
     wf3_workflow, producer = declarations["wf3"]
     guard = wf3_workflow.get_rule("check_project_consistency")
     guard_outputs = sorted(guard.output.keys())
