@@ -26,6 +26,7 @@
 | [t2608132341](tasks/t2608132341-heartbeat-backoff-on-silent-wflow-rules.md)                                                                 | Verify heartbeat cadence on the silent Wflow rules; add backoff if it floods                                   | logging / console                           | console-output assessment #2 (2026-08-13), item 1 |     | backlog |
 | [t2608151154](tasks/t2608151154-st0-not-comparable-with-the-surface.md)                                                                     | st_0 is not method-comparable with the stress-test surface                                                     | wf3 / scenario generation + reporting       | R12                                               |     | backlog |
 | [t2608161450](tasks/t2608161450-the-chirps-store-does-not-satisfy-the-wg1-seam-contract.md)                                                 | The chirps store does not satisfy the WG-1 seam contract, and nothing reports it                               | wf0 / climate store + interchange contracts | 2026-08-16 wf0 two-source run                     |     | backlog |
+| [t2608172138](tasks/t2608172138-preflight-the-wf1-leaves-when-run-workflows-drives-wf3-without-build-model.md)                              | Preflight the wf1 leaves when run_workflows drives wf3 without build_model                                     | orchestration / run_workflows               |                                                   |     | backlog |
 
 ## Watching
 
