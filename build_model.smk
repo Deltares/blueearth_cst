@@ -1316,7 +1316,13 @@ def _summary(failed):
             + "\n"
         )
     except Exception as exc:  # noqa: BLE001 -- never break a run over a banner
-        print(f"(run summary unavailable: {exc})", file=sys.stderr)
+        # Nested, because sys.stderr may be exactly what failed above. An
+        # OSError escaping here surfaces as an error in this Snakefile and
+        # masks the rule that actually failed (observed 2026-08-17, wf0).
+        try:
+            print(f"(run summary unavailable: {exc})", file=sys.stderr)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def _header():
@@ -1338,7 +1344,13 @@ def _header():
             "\n" + run_header("wf1 build_model", project_dir, config_path) + "\n\n"
         )
     except Exception as exc:  # noqa: BLE001 -- never break a run over a banner
-        print(f"(run header unavailable: {exc})", file=sys.stderr)
+        # Nested, for the reason given on `_summary` -- and it matters more
+        # here: this runs from `onstart`, so a raise aborts the run before any
+        # rule executes at all.
+        try:
+            print(f"(run header unavailable: {exc})", file=sys.stderr)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 onstart:
