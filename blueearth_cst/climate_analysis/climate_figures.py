@@ -104,22 +104,36 @@ DATASETS = {
 #: own full footprint. The forcing is masked to the basin, so for it the two are
 #: nearly the same box and ``"basin"`` is simply the tidier one.
 #:
-#: The SOURCE side is where they differ, and it changed on 2026-08-16 (owner's
-#: ruling). A raw extraction is a handful of reanalysis cells reaching well past
-#: the catchment — at ERA5's 0.25 degrees a small basin sits inside one or two
-#: of them — so cropping to the basin showed a single flat class and called it a
-#: map of the climate. Framed on its own extraction the same figure shows the
-#: cells the data actually has, which is what a reader checking a forcing choice
-#: needs to see.
+#: The SOURCE side has been both, and is BACK on ``"basin"`` as of 2026-08-17
+#: (owner's ruling), reversing the 2026-08-16 ruling that had moved it to
+#: ``"raster"`` the day before. Both directions are recorded here because the
+#: trade is real and neither answer is free.
 #:
-#: This retires an earlier deliberate alignment: both families were framed on
-#: the basin so the pair could be read side by side and any difference
-#: attributed to downscaling. That comparison is now given up on the extent, and
-#: with it the shared colourbar (see :func:`plot_climate_figures`) — each family
-#: classifies what it actually draws, because a bar derived from one footprint
-#: is wrong for the other.
+#: ``"raster"`` was chosen because a raw extraction is a handful of reanalysis
+#: cells reaching well past the catchment — at ERA5's 0.25 degrees a small basin
+#: sits inside one or two of them — so cropping to the basin shows a single flat
+#: class and calls it a map of the climate. Measured on the rapid fixture: the
+#: whole era5 extraction is 4x5 cells and the basin is 0.200 x 0.133 degrees,
+#: under one cell wide.
+#:
+#: ``"basin"`` is chosen anyway, because the question the figure pair answers is
+#: what downscaling changed, and that comparison needs both families framed on
+#: the same footprint. A flat source panel is then INFORMATION — it says the
+#: source grid does not resolve this basin — rather than a defect of the figure.
+#: On a fine source (CHIRPS at 0.05 degrees) the same frame is genuinely
+#: informative.
+#:
+#: Two consequences, both live:
+#:
+#: * ``_raster_within`` crops the field to the frame before the colourbar
+#:   classifies it, so the bar describes what is shown. That already existed for
+#:   the caller-supplied-extent path and is what makes this switch safe.
+#: * wf0's shared scale (rule 0.04b, ``climate_levels.json``) is pooled from the
+#:   FULL stores, so it now describes a wider footprint than any source panel
+#:   draws. The scale stays comparable ACROSS sources, which is its job, but it
+#:   is no longer the range of the drawn cells.
 MAP_EXTENT = {
-    "source": "raster",
+    "source": "basin",
     "forcing": "basin",
 }
 
