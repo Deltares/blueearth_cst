@@ -78,11 +78,32 @@ Contract (pinned, design §7 (a)-(g), plus (h) for the console):
      output of the workflow it announces. No test can catch this -- the suite
      fakes `subprocess.run` and the child writes nothing.
 
+ (i) The wf1 PREFLIGHT. When `run_stress_test` is enabled and `build_model` is
+     not, the wrapper checks
+     `blueearth_cst.shared.cross_workflow_leaves.LEAVES` against `project_dir`
+     BEFORE invoking anything, and raises `PrerequisiteError` (exit 2) naming
+     every absent leaf and `build_model` as their producer.
+
+     This is an EXISTENCE test, never a comparison -- see the freshness
+     paragraph below, which it deliberately does not contradict. A stale leaf
+     still resolves the DAG and yields an answer the user owns; an ABSENT one
+     makes the DAG unresolvable, so there is no run whose staleness could be
+     owned. The check therefore cannot disagree with Snakemake about whether a
+     rule should re-run, which is what kept freshness out of the wrapper.
+
+     Added 2026-08-17 (t2608172138). Without it a fresh project with
+     `build_model` disabled spends its whole run on wf0 and wf2 and only then
+     discovers wf3 was never runnable -- measured at 4:14, of which wf3 was
+     0:07. Snakemake's own message names only the FIRST missing leaf, because
+     rule 3.01 is merely the earliest to declare one; this names all of them,
+     which is why it reads the shared list rather than restating paths.
+
 Disabling a workflow neither deletes its prior outputs nor guarantees downstream
 freshness: the wrapper invokes each Snakefile independently with no
 prerequisite-freshness check -- identical to invoking a single Snakefile
 directly today. A user who disables a prerequisite owns the staleness of what
-downstream consumes.
+downstream consumes. Clause (i) is the one bounded exception, and it is about
+ABSENCE rather than freshness.
 
 Usage::
 
@@ -115,6 +136,10 @@ _REPO_ROOT_PATH = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT_PATH) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT_PATH))
 
+from blueearth_cst.shared.cross_workflow_leaves import (  # noqa: E402
+    LEAF_PRODUCER,
+    LEAVES,
+)
 from blueearth_cst.shared.provenance import (  # noqa: E402
     effective_config_digest,
     environment_file_hashes,
@@ -184,6 +209,16 @@ _SENSITIVE_KEY_RE = re.compile(
 
 class ConfigError(Exception):
     """Raised for a config that violates the wrapper's contract (a)-(c)."""
+
+
+class PrerequisiteError(Exception):
+    """Raised when an enabled workflow's cross-workflow inputs are ABSENT.
+
+    Distinct from `ConfigError`: the config may be perfectly well-formed and
+    still name a combination this project cannot satisfy. Both exit 2 -- the
+    wrapper has one "it never started" code and inventing a second would be a
+    contract change nobody asked for (contract (i)).
+    """
 
 
 def read_enabled_flags(config_path: str) -> dict[str, bool]:
@@ -269,6 +304,41 @@ def _project_dir(cfg: Mapping[str, Any], config_path: str) -> Path:
     if not path.is_absolute():
         path = _REPO_ROOT_PATH / path
     return path.resolve()
+
+
+def missing_wf1_leaves(flags: Mapping[str, bool], project_dir: Path) -> list[str]:
+    """Cross-workflow leaves wf3 needs that this run will neither find nor build.
+
+    Empty unless `run_stress_test` is enabled while `build_model` is not: with
+    `build_model` enabled the leaves are produced during the run, and with
+    `run_stress_test` disabled nothing consumes them. All three leaves are
+    wf3-only -- wf2 declares none of them -- so no other pair needs checking.
+
+    Returns them in `LEAVES` order, which is DAG order, so the first entry is
+    the one Snakemake would have reported.
+    """
+    if not flags["run_stress_test"] or flags["build_model"]:
+        return []
+    return [leaf for leaf in LEAVES if not (project_dir / leaf).exists()]
+
+
+def _check_wf1_leaves(
+    flags: Mapping[str, bool], project_dir: Path, config_path: str
+) -> None:
+    """Raise `PrerequisiteError` if wf3 is enabled with no wf1 behind it."""
+    missing = missing_wf1_leaves(flags, project_dir)
+    if not missing:
+        return
+    listed = "\n".join(f"    {leaf}" for leaf in missing)
+    raise PrerequisiteError(
+        f"{config_path}: 'workflows.run_stress_test.enabled' is true but "
+        f"'workflows.{LEAF_PRODUCER}.enabled' is false, and {len(missing)} of "
+        f"{len(LEAVES)} files wf3 declares as inputs are absent from "
+        f"{project_dir}:\n{listed}\n"
+        f"Only a {LEAF_PRODUCER} run produces them. Set "
+        f"'workflows.{LEAF_PRODUCER}.enabled: true', or disable "
+        f"'run_stress_test'. Nothing has been invoked."
+    )
 
 
 def build_command(
@@ -571,6 +641,9 @@ def run(config_path: str, cores: int, extra: list[str]) -> int:
     cfg = _read_config(config_path)
     flags = _enabled_flags(cfg, config_path)
     project_dir = _project_dir(cfg, config_path)
+    # Contract (i), BEFORE the manifest: a run that cannot start should not
+    # mint an invocation record, which exists to describe runs that did.
+    _check_wf1_leaves(flags, project_dir, config_path)
     manifest_path, manifest = _initialize_manifest(
         cfg=cfg,
         config_path=config_path,
@@ -597,7 +670,13 @@ def run(config_path: str, cores: int, extra: list[str]) -> int:
             flush=True,
         )
     except Exception as exc:  # noqa: BLE001 -- never break a run over a banner
-        print(f"(run header unavailable: {exc})", file=sys.stderr, flush=True)
+        # Nested, for the reason given at the summary site below: sys.stderr
+        # may be exactly what failed, and a raise here would end the run before
+        # a single workflow was invoked.
+        try:
+            print(f"(run header unavailable: {exc})", file=sys.stderr, flush=True)
+        except Exception:  # noqa: BLE001
+            pass
 
     total = sum(1 for name in WORKFLOW_ORDER if flags[name])
     ran: list[tuple[str, str]] = []
@@ -701,7 +780,14 @@ def _report(**kwargs: Any) -> None:
     try:
         print("\n" + _closing_block(**kwargs), flush=True)
     except Exception as exc:  # noqa: BLE001 -- never break a run over a banner
-        print(f"(run summary unavailable: {exc})", file=sys.stderr, flush=True)
+        # Nested, because sys.stderr may be exactly what failed above. An
+        # OSError escaping here would replace the wrapper's own exit code with
+        # a traceback about the banner, masking the run it was summarizing --
+        # the same defect 32e506c fixed in the four Snakefiles.
+        try:
+            print(f"(run summary unavailable: {exc})", file=sys.stderr, flush=True)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def sanitize_argv(argv: list[str]) -> list[str]:
@@ -918,7 +1004,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         return run(args.config, args.cores, extra)
-    except ConfigError as exc:
+    except (ConfigError, PrerequisiteError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 

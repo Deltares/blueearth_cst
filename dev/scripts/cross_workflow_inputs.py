@@ -1,25 +1,21 @@
-"""The wf1 leaves WF2/WF3 declare and Snakemake will not satisfy on its own.
+"""Stage the wf1 leaves WF2/WF3 declare and Snakemake will not satisfy on its own.
 
 A CROSS-WORKFLOW LEAF is a file some rule in WF2 or WF3 declares as an input
 while no rule in that workflow declares it as an output. Snakemake cannot
 produce it, so anything driving WF2/WF3 in isolation — a dry-run test, the
-layout scaffolder — has to put it on disk first.
+layout scaffolder — has to put it on disk first. This module puts it there.
 
-**Why this is one definition rather than three.** It was three, and they drifted
-independently. R9 P4's rule 3.01c `write_model_reference` is the first WF3 rule
-ever to declare model FILES as inputs; before it, WF3 reached the model only
-through `params` and the DAG could not see the dependency. Two of the three
-copies were updated for it and one was not, so `test_guard_invalidation`'s gate
-2c(iii) went red in a way that read as a guard defect (R9 P5 F3). The third copy,
-`scaffold_project_tree.py`, was never updated at all and had also fallen two
-milestones behind on the model root, so WF3 contributed 0 of its 95 declared
-outputs while the tool still exited 0.
+**The leaf LIST is not defined here.** It moved to
+`blueearth_cst/shared/cross_workflow_leaves.py` on 2026-08-17, when
+`scripts/run_workflows.py` needed it for a preflight: that is a run path, and
+AGENTS.md's invocation-model split makes `dev/scripts/` never part of a run. The
+names are re-exported below, so every consumer of this module is unaffected —
+read the shared module for why the list is one definition rather than three, and
+for the test that proves it complete and minimal.
 
-**A shared list still goes stale — it just does so in one place.** What stops it
-is `tests/test_cross_workflow_inputs.py`, which proves against the real DAG that
-`LEAVES` is COMPLETE (staging exactly it lets WF2 and WF3 dry-runs resolve) and
-MINIMAL (drop any one and a dry-run fails). A rule declaring a new leaf turns
-that test red immediately, which is the escape above.
+**What stayed here is the STAGING**, which is test-fixture machinery with no
+run-path caller: `stage`, `content_for`, the minimal file bodies, and the
+`EXTRA_*` non-leaves below.
 
 **Extras are not leaves.** Both test fixtures also stage files the DAG does not
 require, for reasons that are real but separate — see `EXTRA_*` below. They are
@@ -29,21 +25,36 @@ stay legible; folding them into `LEAVES` is how the vestigial ones survived.
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
-#: WF3 rule 3.00b `check_project_consistency` takes this as a mandatory
-#: `ancient()` input; its absence is a rule-level MissingInputException.
-LEAF_WF1_SNAPSHOT = "config/runs/snake_config_build_model.yml"
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-#: WF3 rule 3.01c `write_model_reference` (R9 P4), the first WF3 rule to declare
-#: model files as inputs. Both are `ancient()`: the reference must not re-derive
-#: because the model was rebuilt, only because the config moved.
-LEAF_MODEL_TOML = "models/hydrology/wflow/wflow_sbm.toml"
-LEAF_MODEL_READY = "models/hydrology/wflow/.outputs_configured"
+# Re-exported so this module's own consumers (two test fixtures and
+# `scaffold_project_tree.py`) keep importing the leaf set from the stager they
+# already use. The definition is in `shared/`; this is a view onto it.
+from blueearth_cst.shared.cross_workflow_leaves import (  # noqa: E402
+    LEAF_MODEL_READY,
+    LEAF_MODEL_TOML,
+    LEAF_PRODUCER,
+    LEAF_WF1_SNAPSHOT,
+    LEAVES,
+)
 
-#: The full set. Order is stable so failure messages read the same way twice.
-LEAVES: tuple[str, ...] = (LEAF_WF1_SNAPSHOT, LEAF_MODEL_TOML, LEAF_MODEL_READY)
+__all__ = [
+    "EXTRA_REGION",
+    "EXTRA_WF2_SNAPSHOT",
+    "LEAF_MODEL_READY",
+    "LEAF_MODEL_TOML",
+    "LEAF_PRODUCER",
+    "LEAF_WF1_SNAPSHOT",
+    "LEAVES",
+    "MINIMAL_REGION_GEOJSON",
+    "MINIMAL_WFLOW_TOML",
+    "content_for",
+    "stage",
+]
 
 # --- Deliberate NON-leaves -------------------------------------------------
 # Staged by some callers, required by no DAG. Each is here with its reason so

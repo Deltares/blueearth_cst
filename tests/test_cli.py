@@ -414,15 +414,19 @@ def test_snakefile_cli_run_stress_test(config_with_staged_region):
     assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
 
 
-ENTRY_POINTS = (
+#: Every file that writes a run banner to `sys.stderr` under a broad `except`.
+#: The wrapper joined the four entry points on 2026-08-17 -- it had the same two
+#: sites and the same defect, and being a `.py` file made it no less exposed.
+BANNER_SOURCES = (
     "analyze_climate.smk",
     "analyze_projections.smk",
     "build_model.smk",
     "run_stress_test.smk",
+    "scripts/run_workflows.py",
 )
 
 
-@pytest.mark.parametrize("snakefile", ENTRY_POINTS)
+@pytest.mark.parametrize("snakefile", BANNER_SOURCES)
 def test_banner_fallback_cannot_raise(snakefile):
     """`_summary` / `_header` must not report a banner failure on the failed stream.
 
