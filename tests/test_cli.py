@@ -412,3 +412,51 @@ def test_snakefile_cli_run_stress_test(config_with_staged_region):
     """
     result = _dry_run("run_stress_test.smk", cfg=config_with_staged_region)
     assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
+
+
+ENTRY_POINTS = (
+    "analyze_climate.smk",
+    "analyze_projections.smk",
+    "build_model.smk",
+    "run_stress_test.smk",
+)
+
+
+@pytest.mark.parametrize("snakefile", ENTRY_POINTS)
+def test_banner_fallback_cannot_raise(snakefile):
+    """`_summary` / `_header` must not report a banner failure on the failed stream.
+
+    Both write the block with `sys.stderr.write` under a broad `except`, and the
+    docstring on each promises it never raises. The fallback inside that except
+    used to be a bare `print(..., file=sys.stderr)` — the SAME stream — so when
+    stderr was what failed, the handler raised again and the second exception
+    escaped. Observed 2026-08-17 on wf0: `[Errno 22] Invalid argument` came out
+    of `onerror` and was reported as an OSError in analyze_climate.smk, masking
+    the two `extract_historical_climate_*` rules that had actually failed.
+    `_header` is the worse half — it runs from `onstart`, so a raise there ends
+    the run before any rule executes.
+
+    A source assertion because these live in the Snakefiles, which are not
+    importable Python. It is deliberately shape-only: that each fallback sits
+    directly under its own `try:` and that the `try` has an `except`. What the
+    fallback prints is not pinned here.
+    """
+    lines = Path(SNAKEDIR, snakefile).read_text(encoding="utf-8").splitlines()
+    sites = [i for i, line in enumerate(lines) if "unavailable: {exc}" in line]
+    assert len(sites) == 2, (
+        f"{snakefile}: expected the _summary and _header fallbacks, found {len(sites)}"
+    )
+    for i in sites:
+        before = next(
+            line
+            for line in reversed(lines[:i])
+            if line.strip() and not line.lstrip().startswith("#")
+        )
+        assert before.strip() == "try:", (
+            f"{snakefile}:{i + 1}: the banner fallback writes to sys.stderr outside a "
+            "try -- and sys.stderr may be exactly what failed above it"
+        )
+        after = next(line for line in lines[i + 1 :] if line.strip())
+        assert after.strip().startswith("except Exception"), (
+            f"{snakefile}:{i + 1}: the banner fallback's try has no except"
+        )
