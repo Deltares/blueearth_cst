@@ -31,8 +31,8 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 
 #: The R Snakemake actually runs. `dev/scripts/*.R` is deliberately excluded:
-#: it is never part of a run, and it is `lane/devmeta` territory, so a change
-#: there should not red a pipeline-lane gate.
+#: it is never part of a run, so a repo-meta change there should not red a
+#: pipeline gate.
 R_SCRIPTS = sorted((REPO / "blueearth_cst").rglob("*.R"))
 
 _NO_RSCRIPT = "Rscript not on PATH (r-base is in the pixi env; run inside it)"

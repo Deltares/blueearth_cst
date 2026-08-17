@@ -160,14 +160,6 @@ tests/test_project
 .agents
 .codex
 
-# Standing-lane occupancy marker: a session writes .lane-claim into its lane
-# worktree at start and removes it at the end. Git has no liveness signal --
-# `git worktree list` reports registration, not ownership -- and `mode: full`
-# commits as it goes, so a busy lane is usually clean and cannot be detected by
-# dirtiness. Per-session and machine-local; never committed. See AGENTS.md,
-# Standing lanes.
-.lane-claim
-
 # Baked toolbox commit, written by the Dockerfile from ARG TOOLBOX_COMMIT.
 # The image carries no .git, so this file is how a deployed run learns its own
 # revision. It must be ABSENT in a normal checkout: provenance.toolbox_identity()
