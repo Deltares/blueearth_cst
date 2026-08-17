@@ -415,12 +415,20 @@ survive; the task branch lands and is deleted like any other.
 | Slot | Worktree | State |
 |---|---|---|
 | `session-1` | `.worktrees/blueearth_cst/session-1` | detached at `main` when idle |
+| `session-2` | `.worktrees/blueearth_cst/session-2` | detached at `main` when idle |
+
+Two slots, because several sessions routinely work this repo at once — the same
+reason `worktree_policy: always` is set, and relaxing that has collided three
+times (`git log -- .git-workflow.yml`). The pool is **capacity, not taxonomy**:
+neither slot means anything, and a task takes whichever is idle. Do not name a
+slot after a workflow or a kind of work.
 
 **Why slots and not a worktree per task.** `worktree_policy: always` means every
 modifying task builds a worktree, so every task would otherwise pay a full
-`worktree_seed` copy *and* a `.pixi` solve. One slot amortizes both into a
-one-time cost that every later task reuses. That payoff is independent of
-concurrency: it arrives on purely sequential work.
+`worktree_seed` copy *and* a `.pixi` solve — and this repo's `.pixi` is the
+expensive half. Two slots amortize both into a one-time cost per slot that every
+later task reuses. That payoff is independent of concurrency: it arrives on
+purely sequential work too.
 
 **Why slots and not the standing lanes they replaced.** From 2026-08-12 to
 2026-08-17 this repo ran `lane/devmeta` and `lane/pipeline`, partitioned by
@@ -435,10 +443,37 @@ split.
 
 The trade is deliberate: lanes made merge order irrelevant **by construction**,
 because two territories cannot collide. A slot has no territory, so that
-guarantee is gone. With a single slot nothing runs concurrently and the question
-does not arise; **if a second slot is ever added, each task must declare its
-expected write paths before editing** — see `session-slots.md` § *Prevent
-semantic overlap before editing*.
+guarantee is gone and the declaration below replaces it.
+
+**Declare the expected write set before editing — both slots occupied.** A
+worktree isolates the index and `HEAD`; it does not make two edits to the same
+contract independent. Before claiming the *second* slot, compare what the two
+tasks intend to write:
+
+- implementation paths and workflow entry points (`*.smk`, `blueearth_cst/**`);
+- shared seams — `blueearth_cst/shared/`, above all `snake_utils.py` (parses
+  every Snakefile's config) and `interchange_contracts.py` (**is** the
+  wf1→wf2/wf3 seam). 72–85% of each workflow's commits touch `shared/`, so two
+  workflow-scoped tasks are **not** independent by default;
+- `config/**`, `test_case/snake_config_*.yml`, and the schema they validate;
+- the exact test modules each task expects to edit; and
+- mutable state outside the checkout — `project_dir`, `.snakemake` locks, the
+  shared Julia depot under `~/.julia`.
+
+State that set in the task brief or board note **before editing**. A `git diff`
+is useful once edits exist but cannot replace the declaration: an untouched file
+may still be the next file both tasks intend to change.
+
+Disjoint sets run concurrently. **When the sets overlap, do not run them in
+parallel** — serialize them in one slot, or consolidate into one task. When one
+task must change a shared contract several tasks need, land that contract as the
+smallest valid base change first, then rebase the others onto it. Never let two
+slots invent competing versions of the same seam.
+
+Because spanning tasks are the ordinary case here (37 of 162 commits), the
+common shape is one task in one slot touching both code and `dev/**` — that is
+fine and needs no declaration. The declaration is for the moment a *second* slot
+is claimed while the first is still occupied.
 
 **Occupancy is read from Git, not from a convention.** `git worktree list` is
 the roster: a slot showing `(detached HEAD)` is idle, and one showing a branch
@@ -451,9 +486,10 @@ and is never silently reused.
 
 ```bash
 S=~/workspace/brain/artifacts/skills/git-workflow/scripts/worktree-session.py
-python $S slot-start --slot session-1 --task <task> --type <type> --base main -- codex
+git worktree list                     # pick an IDLE slot: "(detached HEAD)"
+python $S slot-start --slot <slot> --task <task> --type <type> --base main -- codex
 # ... work, commit, then land the branch from the PRIMARY checkout ...
-python $S slot-park --slot session-1 --base main
+python $S slot-park --slot <slot> --base main
 ```
 
 `slot-start` also compares each `worktree_seed` against the primary at claim
@@ -467,12 +503,14 @@ overwritten. `slot-park` refuses to park until the branch is an ancestor of
 
 | Situation | Action |
 |---|---|
-| Any modifying task | Claim `session-1`. |
-| Slot already occupied | Report it. Wait, postpone, or take a transient worktree from `main` for urgent work. |
+| Any modifying task, a slot idle | Claim whichever slot is idle. Neither is reserved for anything. |
+| The other slot is occupied | Compare the two expected write sets first (above). Disjoint → run both. Overlapping → serialize in one slot. |
+| Both slots occupied | Report it. Wait, postpone, or take a transient worktree from `main` for urgent work. |
 | Tiny, complete, verified | `main` directly, per the ordinary landing choice. |
 
-`todoboard render` runs wherever the task runs; with one slot there is no second
-worktree to regenerate `dev/TODO.md` concurrently.
+`todoboard render` regenerates `dev/TODO.md` from the notes, so **two slots must
+not run it concurrently** — they would race on a generated file neither edits by
+hand. Land one slot's board change before rendering in the other.
 
 **Why the pipeline was never split further.** Kept from the lane analysis
 because it still governs how work is scoped: only 8 of 68 package-touching

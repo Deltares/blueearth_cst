@@ -20,7 +20,7 @@ NOT guarantee, each of which has failed on its own:
    ``t2608121104``; the repair is recorded there).
 
 **Worktrees are the case this exists for.** Each carries its own tracked
-``pixi.toml`` and therefore builds its own ``.pixi/``, so every lane needs the
+``pixi.toml`` and therefore builds its own ``.pixi/``, so every session slot needs the
 ``pixi run install`` layer separately. ``--all`` checks every worktree that
 ``git worktree list`` knows about, which is the question actually being asked:
 not "is this checkout complete" but "are they all".
