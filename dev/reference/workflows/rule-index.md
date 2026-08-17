@@ -754,7 +754,7 @@ STAGE 2 — PRODUCT                                 │                  │
               │                                                      │
               ├──► summary/*_change_factors_{annual,monthly}.csv     │
               │    composition.csv · provenance.json · report.md     │
-              │    plots/*_change_factor_cloud.png                   │
+              │    plots/overview/change-factor-cloud[-combined].png │
               ▼                                                      │
 STAGE 3 — FIGURES + RECORDS                                          │
 ──────────────────────────────────────────────────────────────────   │
@@ -866,13 +866,17 @@ report. Kept as one rule deliberately: the design gives stage B no fan-out.
 **Writes.** `<proj>/summary/<clim_project>_change_factors_annual.csv` ·
 `_monthly.csv` · `<proj>/summary/composition.csv` ·
 `<proj>/summary/provenance.json` · `<proj>/report.md` ·
-`<proj>/plots/<clim_project>_change_factor_cloud.png`.
+`<proj>/plots/overview/change-factor-cloud.png`, plus
+`overview/change-factor-cloud-combined.png` when more than one horizon is
+configured (a single horizon has no cloud travel to show).
 
 #### 2.07 · `plot_gcm_timeseries`
 
-**Does.** Plots the projected series — absolute levels and changes, annual and
-monthly, for temperature and precipitation — from the per-member series of 2.05.
-Its stage-B input is an **ordering edge only**; this rule never opens it.
+**Does.** Draws the two annual overviews (absolute and anomaly panels) from the
+per-member series of 2.05, and one monthly change-factor figure per configured
+horizon. Since 2026-08-17 the monthly figures RENDER
+`summary/*_change_factors_monthly.csv` rather than recomputing it: that table is
+a real input, opened and read. The annual table stays an **ordering edge only**.
 
 **Writes.** Eight PNGs under `<proj>/plots/`, named
 `<clim_project>_{precip,temp}_{annual,monthly}_{absolute,change}.png`. All eight

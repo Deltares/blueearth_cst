@@ -7,10 +7,9 @@ from pathlib import Path
 from typing import Dict, List, Union
 
 import hydromt  # noqa: F401 -- registers the xarray .raster accessor (ds.raster.vars below)
-import numpy as np
-import seaborn as sns
 import xarray as xr
 
+from blueearth_cst.projections import projection_figures, projection_plots
 from blueearth_cst.shared.snake_utils import log_row
 
 
@@ -123,63 +122,65 @@ def summary_climate_proj(
         encoding={k: {"zlib": True} for k in dvars},
     )
 
-    # just keep mean for temp and precip for response surface plots
-    df = ds.sel(stats="mean").to_dataframe()
+    # just keep mean for temp and precip for the change-factor cloud
+    df = ds.sel(stats="mean").to_dataframe().reset_index()
+    missing = [c for c in ("model", "scenario", "horizon") if c not in df.columns]
+    if missing:
+        raise ValueError(
+            f"the stage-B merge carries no {missing} coordinate(s); the "
+            "change-factor cloud cannot be keyed by combination"
+        )
 
-    # plot change
-    if not os.path.exists(os.path.join(clim_dir, "plots")):
-        os.mkdir(os.path.join(clim_dir, "plots"))
+    plots_dir = Path(clim_dir) / "plots"
+    plots_dir.mkdir(parents=True, exist_ok=True)
 
-    # Rename horizon names to the middle year of the period
-    hz_list = df.index.levels[df.index.names.index("horizon")].tolist()
-    for hz in horizons:
-        # Get start and end year.
-        # R01 delivers future_horizons as lists ([2030, 2060]); pre-R01 configs
-        # delivered comma-separated strings ("2030, 2060"). Accept both.
-        period = horizons[hz]
-        period = period.split(",") if isinstance(period, str) else period
-        period = [int(i) for i in period]
-        horizon_year = int((period[0] + period[1]) / 2)
-        # Replace hz values by horizon_year in hz_list
-        hz_list = [horizon_year if h == hz else h for h in hz_list]
+    # One frame per horizon, keyed by the horizon's CONFIGURED NAME.
+    #
+    # The figures this replaces relabelled each horizon to the middle year of
+    # its period, which is why the old cloud's legend read "2080" for a horizon
+    # the config calls `far`. The new set carries name AND years in the caveat
+    # and in the legend, so the relabelling is gone rather than reproduced:
+    # nothing else in WF2 knows a horizon by its midpoint, and a figure that
+    # names artifacts differently from every table beside it is the kind of
+    # small divergence a reader pays for.
+    changes = {}
+    for name in horizons:
+        frame = df[df["horizon"] == name]
+        if frame.empty:
+            # Loud, because an absent horizon silently drops a whole panel and
+            # the figure still renders as a plausible-looking cloud.
+            raise ValueError(
+                f"no rows for horizon {name!r} in the stage-B merge; "
+                f"have {sorted(df['horizon'].unique())}"
+            )
+        changes[name] = frame.rename(
+            columns={"precip": "precip_change", "temp": "temp_change"}
+        )
 
-    # Set new values in multiindex dataframe
-    df.index = df.index.set_levels(hz_list, level="horizon")
+    periods = {
+        name: projection_figures.parse_horizon_period(period)
+        for name, period in horizons.items()
+    }
 
-    scenarios = np.unique(df.index.get_level_values("scenario"))
-    clrs = []
-    for s in scenarios:
-        if s == "ssp126":
-            clrs.append("#003466")
-        if s == "ssp245":
-            clrs.append("#f69320")
-        if s == "ssp370":
-            clrs.append("#df0000")
-        elif s == "ssp585":
-            clrs.append("#980002")
-    g = sns.JointGrid(
-        data=df,
-        x="precip",
-        y="temp",
-        hue="scenario",
+    faceted = plots_dir / projection_figures.CLOUD_FACETED_PATH
+    faceted.parent.mkdir(parents=True, exist_ok=True)
+    points = projection_plots.draw_cloud_faceted(changes, periods, faceted)
+    log_row(
+        f"Wrote {projection_figures.CLOUD_FACETED_PATH} ({points} points)",
+        module="change",
     )
-    g.plot_joint(
-        sns.scatterplot, s=100, alpha=0.5, data=df, style="horizon", palette=clrs
-    )
-    g.plot_marginals(sns.kdeplot, palette=clrs)
-    g.set_axis_labels(
-        xlabel="Change in mean precipitation (%)",
-        ylabel="Change in mean temperature (degC)",
-    )
-    g.ax_joint.grid()
-    g.ax_joint.legend(loc="right", bbox_to_anchor=(1.5, 0.5))
-    # S8-07: `{proj}_change_factor_cloud.png`. "projected_climate_statistics" said
-    # almost nothing about what is plotted; this is the DeltaT/DeltaP cloud, one
-    # point per combination, and the design's own phrase for it.
-    clim_project = os.path.basename(os.path.normpath(str(clim_dir)))
-    g.savefig(
-        os.path.join(clim_dir, "plots", f"{clim_project}_change_factor_cloud.png")
-    )
+
+    # The combined view exists to show how far the cloud TRAVELS between
+    # horizons, so a single-horizon project does not get one -- it would be the
+    # faceted figure drawn again under a second name. `figure_relative_paths`
+    # applies the same rule, so the Snakefile declares exactly what is written.
+    if len(periods) > 1:
+        combined = plots_dir / projection_figures.CLOUD_COMBINED_PATH
+        points = projection_plots.draw_cloud_combined(changes, periods, combined)
+        log_row(
+            f"Wrote {projection_figures.CLOUD_COMBINED_PATH} ({points} points)",
+            module="change",
+        )
 
 
 # NOTE: this module no longer runs as a Snakemake `script:`. Step 4d merged rules
