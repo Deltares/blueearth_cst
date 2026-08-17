@@ -24,7 +24,6 @@ from typing import Optional, Union
 import geopandas as gpd
 import hydromt
 import pandas as pd
-from dask.diagnostics import ProgressBar
 from hydromt.error import NoDataException
 from hydromt.model.processes.meteo import temp
 
@@ -34,6 +33,7 @@ from blueearth_cst.shared.climate_window import (
     resolve_coverage,
     time_axis_bounds,
 )
+from blueearth_cst.shared.progress import DaskProgress
 from blueearth_cst.shared.provenance import file_sha256
 from blueearth_cst.shared.snake_utils import (
     DEFAULT_HYDROGRAPHY,
@@ -590,7 +590,9 @@ def prep_historical_climate(
 
     log_row("Saving to netcdf", module="extract")
     delayed_obj = ds.to_netcdf(fn_out, encoding=encoding, mode="w", compute=False)
-    with ProgressBar():
+    # Labelled with the SOURCE, because a multi-source project runs this rule
+    # once per source and the console would otherwise show identical bars.
+    with DaskProgress(f"{clim_source} store"):
         delayed_obj.compute()
     # Release the store handles deterministically rather than leaving them to
     # the garbage collector. Good practice on its own terms.
