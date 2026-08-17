@@ -1542,7 +1542,16 @@ def spatial_units_rule(project_dir, spatial_config, data_sources) -> SpatialUnit
         "basins": f"{geoms_dir}/basins.geojson",
         "subbasins": f"{geoms_dir}/subbasins.geojson",
         "catchments": f"{geoms_dir}/catchments.geojson",
+        # The river NETWORK, derived from this project's own flow direction at
+        # `river_uparea_km2` -- the same threshold gauge snapping and the wflow
+        # river map use, so all three call the same cells river.
         "rivers": f"{geoms_dir}/rivers.geojson",
+        # The catalog's river vector, kept for its WIDTH and BANKFULL DISCHARGE
+        # attributes, which hydromt's `setup_rivers` takes as `river_geom_fn`
+        # and which cannot be derived from flow direction. Not a network: it
+        # carries the global product's own drainage-area floor, and drawing it
+        # as one is what left station 1030 with no branch.
+        "river_attributes": f"{geoms_dir}/river_attributes.geojson",
         "locations": f"{geoms_dir}/locations.geojson",
         "location_registry": f"{spatial_dir}/location_registry.csv",
         "hydrography": hydrography_nc,

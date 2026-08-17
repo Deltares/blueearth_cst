@@ -37,6 +37,7 @@ from hydromt import DataCatalog
 from hydromt.gis import flw
 from pyflwdir import FlwdirRaster
 
+from blueearth_cst.shared.snake_utils import log_row
 from blueearth_cst.spatial.config import SpatialConfig
 from blueearth_cst.spatial.delineate_region import read_region
 from blueearth_cst.spatial.delineation import (
@@ -78,9 +79,111 @@ class SpatialUnits:
     basins: gpd.GeoDataFrame
     subbasins: gpd.GeoDataFrame
     catchments: gpd.GeoDataFrame
+    #: The river NETWORK — derived from this project's own flow direction at
+    #: ``river_uparea_km2``. See :func:`derive_river_network`.
     rivers: gpd.GeoDataFrame
+    #: The river ATTRIBUTE source — width and bankfull discharge, from the
+    #: catalog. Not a network; see :data:`RIVER_ATTRIBUTES_NAME`.
+    river_attributes: gpd.GeoDataFrame
     locations: gpd.GeoDataFrame
     location_registry: pd.DataFrame
+
+
+#: Layer name for the catalog's river vector, kept beside the derived network.
+#:
+#: It is NOT the river network and must not be drawn as one. hydromt-wflow's
+#: ``setup_rivers`` takes it as ``river_geom_fn`` — "river source data with river
+#: width and bankfull discharge" — so it is an ATTRIBUTE source, carrying
+#: ``rivwth`` and ``qbankfull`` that cannot be derived from flow direction. Its
+#: geometry comes with whatever drainage-area floor the global product has.
+RIVER_ATTRIBUTES_NAME = "river_attributes"
+
+#: Column carrying Strahler order on the derived network, matching what the
+#: wflow model spells ``strord`` so one renderer scales widths on either.
+RIVER_ORDER_COLUMN = "order"
+
+
+def derive_river_network(maps: xr.Dataset, flwdir: FlwdirRaster) -> gpd.GeoDataFrame:
+    """Vectorize the river network THIS project delineated with.
+
+    **One definition of "river", used everywhere** (owner ruling 2026-08-17).
+    The threshold is ``shared.basin.river_uparea_km2``, carried on the grid as
+    ``river_mask``, and it already governs two things: gauge snapping
+    (``_snap_gauge_points`` snaps onto that mask) and the wflow river map
+    (``build_wflow_model`` injects it as ``river_upa`` rather than letting the
+    build config declare a second number). This makes the DRAWN network the
+    third, so all three agree by construction.
+
+    Before this, maps drew the catalog's ``river_geom_fn`` vector instead — an
+    attribute source with its own, much coarser, drainage-area floor. Measured
+    on the rapid fixture: that product's smallest reach drained 90 km² while
+    subbasin 103 drains 42.9, so **no branch reached station 1030** even though
+    the gauge had been snapped onto a river cell 4.3 km away. Two definitions of
+    one word, and the figure showed the wrong one.
+
+    The coverage guarantee falls out rather than being enforced: a location is
+    snapped onto ``river_mask``, and this network is the vectorization of that
+    same mask, so every configured location sits on a reach. Nothing here has to
+    check it — but ``locations_off_network`` does, cheaply, because a guarantee
+    that holds by construction is exactly the kind that breaks silently when the
+    construction changes.
+    """
+    mask = maps["river_mask"].values.astype(bool)
+    if not mask.any():
+        raise ValueError(
+            "river_mask selects no cells; river_uparea_km2 is above the basin's "
+            "largest upstream area"
+        )
+    features = flwdir.streams(mask=mask, strord=flwdir.stream_order(mask=mask))
+    network = gpd.GeoDataFrame.from_features(features, crs=maps.raster.crs)
+    # A reach needs two cells to be a line. Where the mask is a handful of
+    # isolated cells -- a basin barely above the threshold -- `streams()` still
+    # returns features, but degenerate ones, and an invalid geometry written to
+    # the foundation fails `_validate_vector_relations` several steps later with
+    # a message that does not mention the threshold.
+    if not network.empty:
+        network = network[
+            network.geometry.notna()
+            & ~network.geometry.is_empty
+            & network.geometry.is_valid
+        ].reset_index(drop=True)
+    if network.empty:
+        threshold = maps["river_mask"].attrs.get("upstream_area_threshold_km2")
+        largest = float(np.nanmax(maps["upstream_area"].values))
+        raise ValueError(
+            "the river network has no reach with two connected cells: "
+            f"river_uparea_km2 = {threshold} against a largest upstream area of "
+            f"{largest:.1f} km2, so the river mask is isolated cells. Lower "
+            "shared.basin.river_uparea_km2 for this basin."
+        )
+    # `streams()` spells the order column `strord`; the shared foundation has
+    # always spelled it `order`, and `_river_order_column` tries both. Renamed
+    # here so the derived layer matches the layer it replaces.
+    if "strord" in network.columns:
+        network = network.rename(columns={"strord": RIVER_ORDER_COLUMN})
+    return network.to_crs(4326)
+
+
+def locations_off_network(
+    locations: gpd.GeoDataFrame, rivers: gpd.GeoDataFrame, tolerance_deg: float = 1e-6
+) -> list:
+    """Configured locations that no reach passes through, by ``wflow_id``.
+
+    Should always be empty — see :func:`derive_river_network`. Reported rather
+    than raised: an empty river network is already an error above, and a figure
+    that draws three of four stations on the network is still worth having while
+    the fourth is investigated.
+    """
+    if locations.empty or rivers.empty:
+        return []
+    network = rivers.union_all() if hasattr(rivers, "union_all") else rivers.unary_union
+    return [
+        row["wflow_id"]
+        for _, row in locations.iterrows()
+        if row.geometry is not None
+        and not row.geometry.is_empty
+        and row.geometry.distance(network) > tolerance_deg
+    ]
 
 
 def _vectorize_ids(data: xr.DataArray, id_column: str) -> gpd.GeoDataFrame:
@@ -743,12 +846,35 @@ def prepare_spatial_units(
         maps[name].attrs.setdefault("resolution", float(abs(maps.raster.res[0])))
     maps.raster.set_crs(source_ds.raster.crs)
 
-    rivers = catalog.get_geodataframe(rivers_source, geom=basins)
-    if rivers is None or rivers.empty:
+    # The catalog vector is the ATTRIBUTE source (width, bankfull discharge)
+    # hydromt's `setup_rivers` takes as `river_geom_fn`. It is NOT the network
+    # -- it carries the global product's own drainage-area floor -- so it is
+    # named for what it is and the drawn network is derived below.
+    river_attributes = catalog.get_geodataframe(rivers_source, geom=basins)
+    if river_attributes is None or river_attributes.empty:
         raise ValueError(f"catalog source {rivers_source!r} returned no rivers")
-    if rivers.crs is None:
+    if river_attributes.crs is None:
         raise ValueError(f"catalog source {rivers_source!r} has no CRS")
-    rivers = rivers.to_crs(4326)
+    river_attributes = river_attributes.to_crs(4326)
+
+    rivers = derive_river_network(maps, flwdir)
+    stranded = locations_off_network(locations, rivers)
+    if stranded:
+        log_row(
+            f"{len(stranded)} location(s) are not on the derived river network: "
+            f"{', '.join(str(value) for value in stranded)}. They were snapped "
+            "onto river_mask, so this should be unreachable -- the network "
+            "vectorization and the mask have diverged.",
+            module="spatial",
+            level="WARNING",
+        )
+    else:
+        log_row(
+            f"River network: {len(rivers)} reach(es) at "
+            f"{float(maps['river_mask'].attrs.get('upstream_area_threshold_km2', 0)):g}"
+            f" km2, reaching all {len(locations)} location(s)",
+            module="spatial",
+        )
     for frame in (basins, subbasins, catchments):
         if frame.crs is None:
             raise ValueError("generated spatial geometry has no CRS")
@@ -758,6 +884,7 @@ def prepare_spatial_units(
         subbasins=subbasins.to_crs(4326),
         catchments=catchments.to_crs(4326),
         rivers=rivers,
+        river_attributes=river_attributes,
         locations=locations,
         location_registry=registry,
     )
@@ -911,7 +1038,14 @@ def _catalog_dict() -> dict[str, Any]:
             },
         },
     }
-    for name in ("basins", "subbasins", "catchments", "rivers", "locations"):
+    for name in (
+        "basins",
+        "subbasins",
+        "catchments",
+        "rivers",
+        RIVER_ATTRIBUTES_NAME,
+        "locations",
+    ):
         entries[name] = {
             "data_type": "GeoDataFrame",
             "uri": f"geoms/{name}.geojson",
@@ -944,7 +1078,14 @@ def write_spatial_units(units: SpatialUnits, output_dir: str | Path) -> None:
     geoms_dir = output_dir / "geoms"
     geoms_dir.mkdir(parents=True, exist_ok=True)
     _write_dataset(units.maps, output_dir / HYDROGRAPHY_SEAM_NAME)
-    for name in ("basins", "subbasins", "catchments", "rivers", "locations"):
+    for name in (
+        "basins",
+        "subbasins",
+        "catchments",
+        "rivers",
+        RIVER_ATTRIBUTES_NAME,
+        "locations",
+    ):
         frame = getattr(units, name)
         frame.to_file(geoms_dir / f"{name}.geojson", driver="GeoJSON")
     units.location_registry.to_csv(output_dir / "location_registry.csv", index=False)
@@ -1046,7 +1187,14 @@ def validate_written_spatial_products(output_dir: str | Path) -> None:
     registry = catalog.get_dataframe("location_registry")
     geoms = {
         name: catalog.get_geodataframe(name)
-        for name in ("basins", "subbasins", "catchments", "rivers", "locations")
+        for name in (
+            "basins",
+            "subbasins",
+            "catchments",
+            "rivers",
+            RIVER_ATTRIBUTES_NAME,
+            "locations",
+        )
     }
     subbasins = geoms["subbasins"]
     if maps is None or maps.raster.crs is None:

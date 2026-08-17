@@ -317,7 +317,7 @@ def _step_call_kwargs(
     name: str,
     configured: dict[str, Any],
     maps: xr.Dataset,
-    rivers: gpd.GeoDataFrame,
+    river_attributes: gpd.GeoDataFrame,
 ) -> dict[str, Any]:
     """Normalize one template step into exactly what hydromt will be handed.
 
@@ -345,7 +345,15 @@ def _step_call_kwargs(
         kwargs["hydrography_fn"] = _Injected(
             _p1_hydrography(maps), "p1_spatial_maps", "hydrography"
         )
-        kwargs["river_geom_fn"] = _Injected(rivers, "p1_spatial_catalog", "rivers")
+        # The ATTRIBUTE source, not the network: `river_geom_fn` is where
+        # hydromt reads river WIDTH and BANKFULL DISCHARGE, which cannot be
+        # derived from flow direction. The EXTENT comes from `river_upa`
+        # above, which is P1's own threshold -- so passing the derived
+        # network here would hand hydromt geometry with no attributes on it
+        # and change every river width in the model.
+        kwargs["river_geom_fn"] = _Injected(
+            river_attributes, "p1_spatial_catalog", "river_attributes"
+        )
     elif name == "setup_lulcmaps":
         # The mapping table must name the source the RASTER actually came
         # from, and that is P1's -- `maps["land_cover"]` below. Until
@@ -391,7 +399,7 @@ def _apply_parameter_steps(
     model: Any,
     steps: list[tuple[str, dict[str, Any]]],
     maps: xr.Dataset,
-    rivers: gpd.GeoDataFrame,
+    river_attributes: gpd.GeoDataFrame,
 ) -> list[tuple[str, dict[str, Any]]]:
     """Run the Wflow-owned setup methods against the initialized P1 grid.
 
@@ -401,7 +409,7 @@ def _apply_parameter_steps(
     """
     records: list[tuple[str, dict[str, Any]]] = []
     for name, configured in steps:
-        kwargs = _step_call_kwargs(name, configured, maps, rivers)
+        kwargs = _step_call_kwargs(name, configured, maps, river_attributes)
         records.append((name, _record_kwargs(kwargs)))
         call = {
             key: value.value if isinstance(value, _Injected) else value
@@ -500,7 +508,14 @@ def build_wflow_model(
     registry = p1_catalog.get_dataframe("location_registry")
     geoms = {
         name: p1_catalog.get_geodataframe(name)
-        for name in ("basins", "subbasins", "catchments", "rivers", "locations")
+        for name in (
+            "basins",
+            "subbasins",
+            "catchments",
+            "rivers",
+            "river_attributes",
+            "locations",
+        )
     }
     if (
         maps is None
@@ -518,7 +533,7 @@ def build_wflow_model(
         model.geoms.set(geoms[name], name=name)
     model.setup_config(_BASE_CONFIG)
     model.set_flwdir(ftype="ldd")
-    records = _apply_parameter_steps(model, steps, maps, geoms["rivers"])
+    records = _apply_parameter_steps(model, steps, maps, geoms["river_attributes"])
     if values_used_path is not None:
         write_values_used(values_used_path, records, parameter_template)
     model.setup_gauges(

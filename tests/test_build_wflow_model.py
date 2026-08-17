@@ -362,7 +362,7 @@ def test_the_record_describes_injected_P1_objects_by_reference():
     }
     assert recorded["river_geom_fn"] == {
         "injected_from": "p1_spatial_catalog",
-        "product": "rivers",
+        "product": "river_attributes",
     }
     # Plain configured values pass through untouched, and the coupled
     # threshold is recorded as the number hydromt actually got.
