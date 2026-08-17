@@ -519,6 +519,22 @@ def _series_style(spec):
     return base, style_series_color(base)
 
 
+#: Where a series figure's footnote starts, in figure coordinates.
+#:
+#: LEFT-ALIGNED (owner ruling 2026-08-17): a footnote is read as prose, and
+#: prose starts where the reader's eye already is — under the y-axis label,
+#: flush with the left edge of the sheet. ``supxlabel``'s default centring puts
+#: it under the axes midpoint, which is not an edge the reader can see and which
+#: MOVES with the caveat's own length, so a one-line and a two-line footnote sit
+#: differently on two figures of the same family.
+#:
+#: The MAP family is right-aligned instead, deliberately and for a reason that
+#: does not apply here: it flushes to the side panel's measured right edge
+#: (``cartographic_map._align_caveat_to_panel``), which IS a visible edge shared
+#: by the locator inset and the legend. A series figure has no side panel.
+CAVEAT_X = 0.012
+
+
 def _series_axes(caveat, aspect=0.42):
     """A figure sized and styled like the maps, with the caveat in the layout.
 
@@ -536,8 +552,17 @@ def _series_axes(caveat, aspect=0.42):
         fig = plt.figure(figsize=series_figure_size(aspect), layout="constrained")
         ax = fig.add_subplot()
         if caveat:
+            # `x` and `ha` together: constrained layout rewrites a supxlabel's Y
+            # on every draw but carries the X through, which is what makes this
+            # survive the save -- the same property `_align_caveat_to_panel`
+            # relies on for the maps.
             fig.supxlabel(
-                caveat, fontsize=FONT_SIZE_CAVEAT, color=COLOR_CAVEAT, wrap=True
+                caveat,
+                fontsize=FONT_SIZE_CAVEAT,
+                color=COLOR_CAVEAT,
+                wrap=True,
+                x=CAVEAT_X,
+                ha="left",
             )
     return fig, ax
 
