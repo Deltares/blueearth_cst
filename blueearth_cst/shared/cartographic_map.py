@@ -1846,6 +1846,24 @@ def _raster_within(raster, extent):
     reanalysis grid under a 0.15 deg basin exactly one centre falls inside, so
     the range collapsed to a single value and the classifier invented 0.2 mm
     steps around it.
+
+    **At least two cells survive on each axis**, widening the selection when the
+    intersection is thinner than that. Not for the classifier — for the DRAWING.
+    ``xarray``'s ``plot.imshow`` positions pixels by measuring the coordinate
+    spacing, and on a length-1 axis it cannot::
+
+        try:
+            xstep = 0.5 * (x[1] - x[0])
+        except IndexError:
+            xstep = 0.1          # dataarray_plot.py:1838-1843
+
+    That hardcoded 0.1 replaces the real half-cell, so a lone 0.25 deg era5 cell
+    is painted 0.2 deg wide instead of 0.25 and the frame's east edge is left
+    unfilled — measured at 0.0183 deg on the rapid fixture, with the basin
+    outline (a vector, drawn correctly) hanging over the gap and reading as a
+    clipped catchment. Passing ``extent=`` cannot fix it: xarray assigns
+    ``defaults["extent"]`` AFTER ``defaults.update(kwargs)``, so a caller's
+    value is overwritten.
     """
     try:
         x_dim, y_dim = spatial_dim_names(raster)
@@ -1853,14 +1871,36 @@ def _raster_within(raster, extent):
     except ValueError:
         return raster
     lon_min, lon_max, lat_min, lat_max = (float(v) for v in extent)
-    x, y = raster[x_dim], raster[y_dim]
-    touching = raster.sel(
+    touching = raster.isel(
         {
-            x_dim: x[(x >= lon_min - res_x) & (x <= lon_max + res_x)],
-            y_dim: y[(y >= lat_min - res_y) & (y <= lat_max + res_y)],
+            x_dim: _touching_indices(raster[x_dim], lon_min, lon_max, res_x),
+            y_dim: _touching_indices(raster[y_dim], lat_min, lat_max, res_y),
         }
     )
     return touching if touching.size else raster
+
+
+def _touching_indices(coord, low, high, half):
+    """Index positions of the cells touching ``[low, high]``, at least two wide.
+
+    Positions rather than values, so a descending axis (latitude, as every store
+    carries it) needs no special case. Widening prefers the lower neighbour and
+    falls back to the upper one at the array's edge; where the axis itself has
+    only one cell there is nothing to widen to and it is returned as is.
+    """
+    values = coord.values
+    inside = np.nonzero((values >= low - half) & (values <= high + half))[0]
+    if inside.size == 0:
+        return np.arange(min(2, values.size))
+    start, stop = int(inside.min()), int(inside.max())
+    while stop - start + 1 < 2:
+        if start > 0:
+            start -= 1
+        elif stop < values.size - 1:
+            stop += 1
+        else:
+            break
+    return np.arange(start, stop + 1)
 
 
 #: Where along a style's ramp its series colour is taken from. High enough to
