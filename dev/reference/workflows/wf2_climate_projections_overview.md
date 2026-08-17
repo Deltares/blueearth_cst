@@ -76,8 +76,9 @@ until 2.09 and 2.08 have run.
 | Direction | Item | Producer |
 | --- | --- | --- |
 | in | `{CPD}/summary/{proj}_change_factors_{annual,monthly}.csv` | 2.06 |
-| in | `{CPD}/plots/{proj}_change_factor_cloud.png` | 2.06 |
-| in | `{CPD}/plots/{proj}_{precip,temp}_annual_absolute.png` | 2.07 |
+| in | `{CPD}/plots/overview/change-factor-cloud.png` | 2.06 |
+| in | `{CPD}/plots/overview/annual-{precipitation,temperature}.png` | 2.07 |
+| in | `{CPD}/plots/windows/<name>-<start>-<end>/monthly-change-factors.png` | 2.07 |
 | in | `{PD}/config/runs/snake_config_analyze_projections.yml` | 2.04 |
 | in | `{PD}/logs/wf2_analyze_projections.log` | 2.09 |
 | in | `{PD}/benchmarks/wf2_benchmarks.md` | 2.08 |
@@ -133,7 +134,8 @@ change factors for every `(point, horizon)`, and writes every result artifact.
   from the config cannot rejoin through a leftover file), plus `store_region.geojson`.
 - **Out:** `{CPD}/summary/{proj}_change_factors_{annual,monthly}.csv`,
   `{CPD}/summary/composition.csv`, `{CPD}/summary/provenance.json`,
-  `{CPD}/report.md`, `{CPD}/plots/{proj}_change_factor_cloud.png`.
+  `{CPD}/report.md`, `{CPD}/plots/overview/change-factor-cloud.png` and, for a
+  multi-horizon config, `{CPD}/plots/overview/change-factor-cloud-combined.png`.
 - **Job-internal:** the per-point change netCDFs and the wide
   `annual_change_scalar_stats_summary.nc` live in a `TemporaryDirectory`. The wide
   file is written and read back so the tidy table describes what was persisted;
@@ -226,10 +228,11 @@ says what happened.
                  ├─► summary/{proj}_change_factors_{annual,monthly}.csv│
                  ├─► summary/composition.csv, summary/provenance.json  │
                  ├─► report.md                                         │
-                 └─► plots/{proj}_change_factor_cloud.png              │
+                 └─► plots/overview/change-factor-cloud[-combined].png │
                  │                                                     │
                  ▼ (ordering edge; the CSV is declared, unread)        │
-        2.07 plot_gcm_timeseries ─► plots/*.png  ──────────────┤
+        2.07 plot_gcm_timeseries ─► plots/overview/annual-*.png │
+                 │                  plots/windows/*/monthly-*.png      │
                  │                                                     │
                  ├─► 2.09 gather_logs ─► logs/wf2_analyze_projections.log
                  │        (+ deletes logs/_parts/)                     │

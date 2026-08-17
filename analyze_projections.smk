@@ -19,6 +19,11 @@ from blueearth_cst.shared.provenance import append_journal_line, configuration_i
 from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, catalog_root, declare_path_tokens, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, get_config, patch_psutil_windows_benchmark, region_rule, resolve_water_year_start, rule_banner, run_summary, spatial_units_rule, target_banner, warn_if_project_dir_in_repo, install_console_style, run_header
 from blueearth_cst.spatial.config import parse_spatial_config
 from blueearth_cst.projections.gridded_outputs import RemovedGriddedOutputsError, validate_removed_gridded_options
+# The figure family's CONTRACT only. `projection_figures` is deliberately
+# matplotlib-free so a WF2 parse -- including the four dry-runs test_cli.py
+# performs -- stays as cheap as it is today; the drawing lives in
+# `projection_plots` and is imported by the producers, never here.
+from blueearth_cst.projections import projection_figures
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -212,6 +217,32 @@ MAX_FLAGGED_MONTHS = _relative_cfg.get(
 # S8-03) -- so `prune_series_cache.py`, which is keyed to that grammar, keeps
 # working once repointed at the new root.
 clim_project_dir = f"{project_dir}/data/climate/projections/{clim_project}"
+
+# The figure set, derived ONCE from the contract module and never re-spelled.
+# Every declaration below reads from these bindings: rule all's targets, rule
+# 2.06's cloud output and its `figure_names` promise, rule 2.07's outputs, and
+# the two gather rules' edges. The defect this replaces is eight figures written
+# where three were declared -- five invisible to Snakemake, so not cleaned on
+# failure, not remade when deleted, and unusable as a dependency.
+WF2_FIGURE_RELATIVE_PATHS = projection_figures.figure_relative_paths(future_horizons)
+WF2_FIGURE_PATHS = {
+    relative: f"{clim_project_dir}/plots/{relative}"
+    for relative in WF2_FIGURE_RELATIVE_PATHS
+}
+ANNUAL_PRECIPITATION_PLOT = WF2_FIGURE_PATHS["overview/annual-precipitation.png"]
+ANNUAL_TEMPERATURE_PLOT = WF2_FIGURE_PATHS["overview/annual-temperature.png"]
+# Rule 2.06 draws the cloud(s) from the stage-B merge; rule 2.07 draws the rest.
+CHANGE_FACTOR_CLOUD_PLOTS = [
+    WF2_FIGURE_PATHS[relative]
+    for relative in WF2_FIGURE_RELATIVE_PATHS
+    if relative.startswith("overview/change-factor-cloud")
+]
+CHANGE_FACTOR_CLOUD_PLOT = WF2_FIGURE_PATHS[projection_figures.CLOUD_FACETED_PATH]
+MONTHLY_CHANGE_FACTOR_PLOTS = [
+    WF2_FIGURE_PATHS[relative]
+    for relative in WF2_FIGURE_RELATIVE_PATHS
+    if relative.startswith("windows/")
+]
 
 # ONE producer contract, built here and identically in build_model.smk
 # and run_stress_test.smk, and splatted into rule 1.02 / 2.02 / 3.03.
@@ -661,9 +692,13 @@ WF2_TARGETS = {
     # R5 deliverable 3 — demanded explicitly, not left as an incidental
     # by-product of derive_change_factors' other outputs.
     "composition": (clim_project_dir + "/summary/composition.csv"),
-    "stats_change_plt": (clim_project_dir + f"/plots/{clim_project}_change_factor_cloud.png"),
-    "precip_plt": (clim_project_dir + f"/plots/{clim_project}_precip_annual_absolute.png"),
-    "temp_plt": (clim_project_dir + f"/plots/{clim_project}_temp_annual_absolute.png"),
+    # The whole figure set, so `rule all` demands every figure rather than the
+    # three that happened to be named. `--delete-all-output` reaches them for
+    # the same reason.
+    **{
+        f"figure_{index}": path
+        for index, path in enumerate(WF2_FIGURE_PATHS.values(), start=1)
+    },
     # ADR 0003 §8. The vector rule has NO WF2 consumer yet (§10), so a target
     # entry is what makes it reachable at all — an undeclared leaf is simply
     # never scheduled. One representative schedules the whole multi-output rule,
@@ -901,7 +936,11 @@ rule derive_change_factors:
         # blueearth_cst/experiment/ referenced them zero times, and rule 2.07
         # declared the `.nc` as an input it never opened. The `.nc` survives as a
         # job-internal intermediate, because the tidy reshape reads it back.
-        stats_change_plt = (clim_project_dir + "/plots/cmip6_change_factor_cloud.png"),
+        # Both cloud views, drawn from this rule's own stage-B merge. The
+        # combined one is present only for a multi-horizon config, which is what
+        # `figure_relative_paths` decides -- so this list is exactly what the
+        # producer writes, and never a promise it declines to keep.
+        stats_change_plt = CHANGE_FACTOR_CLOUD_PLOTS,
         # R5 deliverable 3. A stage-B output, so it describes a COMPLETED run
         # (ext2-08): a failed run leaves the DAG-build stderr summary and the job
         # logs, and no composition artifact.
@@ -938,17 +977,7 @@ rule derive_change_factors:
         # The figure set, by NAME. Stage B runs before the plot rule, so it
         # cannot take them as inputs -- but they are declared, so naming them
         # is a promise the plot rule is required to keep.
-        figure_names = [
-            f"{clim_project}_precip_annual_absolute.png",
-            f"{clim_project}_precip_annual_change.png",
-            f"{clim_project}_precip_monthly_absolute.png",
-            f"{clim_project}_precip_monthly_change.png",
-            f"{clim_project}_temp_annual_absolute.png",
-            f"{clim_project}_temp_annual_change.png",
-            f"{clim_project}_temp_monthly_absolute.png",
-            f"{clim_project}_temp_monthly_change.png",
-            f"{clim_project}_change_factor_cloud.png",
-        ],
+        figure_names = WF2_FIGURE_RELATIVE_PATHS,
         max_flagged_months = MAX_FLAGGED_MONTHS,
         variable_spec = {k: list(v) for k, v in VARIABLE_SPEC.items()},
         reference_record = REFERENCE_RECORD,
@@ -1006,6 +1035,12 @@ rule plot_gcm_timeseries:
         # retired wide summary to the tidy annual table, which is the stage-B
         # artifact that now plays the same "stage B finished" role.
         stats_change_summary = (clim_project_dir + f"/summary/{clim_project}_change_factors_annual.csv"),
+        # READ, not an ordering edge. The monthly figures render this table's own
+        # numbers rather than recomputing them, which is what stops the picture
+        # and the table describing different quantities under one name -- the
+        # defect this rule shipped until 2026-08-17. It also states the reference
+        # window the annual overviews are captioned with.
+        change_factors_monthly = (clim_project_dir + f"/summary/{clim_project}_change_factors_monthly.csv"),
         stats_time_nc_hist = sorted({series_file(m, "historical", mem) for (m, _sc, mem) in POINTS}),
         stats_time_nc = sorted({series_file(m, sc, mem) for (m, sc, mem) in POINTS}),
     params:
@@ -1013,25 +1048,18 @@ rule plot_gcm_timeseries:
         scenarios = scenarios,
         horizons = future_horizons,
     output:
-        # Step 7-i: ALL EIGHT figures declared. Three were declared and eight were
-        # written, so five were invisible to Snakemake -- not cleaned on failure,
-        # not remade when deleted, and unusable as a dependency. Declaring them is
-        # what makes them artifacts rather than side effects.
+        # The compact figure contract: two full-period overviews plus one monthly
+        # change-factor figure per configured horizon. Both cloud views are rule
+        # 2.06's outputs -- they come off its stage-B merge -- so they are not
+        # duplicated here.
         #
-        # S8-07: `{proj}_{variable}_{view}_{quantity}.png`. The old names
-        # contradicted their contents -- `precipitation_anomaly_projections_abs`
-        # carried `plt.title("Annual precipitation")` and plotted absolute levels,
-        # so "anomaly" sat in the filename of the non-anomaly figure. The three
-        # axes are variable x view x quantity, and `absolute`/`change` are the
-        # same distinction the tables' absolute_value/relative_value draw.
-        precip_annual_abs_plt = (clim_project_dir + f"/plots/{clim_project}_precip_annual_absolute.png"),
-        precip_annual_chg_plt = (clim_project_dir + f"/plots/{clim_project}_precip_annual_change.png"),
-        precip_monthly_abs_plt = (clim_project_dir + f"/plots/{clim_project}_precip_monthly_absolute.png"),
-        precip_monthly_chg_plt = (clim_project_dir + f"/plots/{clim_project}_precip_monthly_change.png"),
-        temp_annual_abs_plt = (clim_project_dir + f"/plots/{clim_project}_temp_annual_absolute.png"),
-        temp_annual_chg_plt = (clim_project_dir + f"/plots/{clim_project}_temp_annual_change.png"),
-        temp_monthly_abs_plt = (clim_project_dir + f"/plots/{clim_project}_temp_monthly_absolute.png"),
-        temp_monthly_chg_plt = (clim_project_dir + f"/plots/{clim_project}_temp_monthly_change.png"),
+        # Every path comes from `figure_relative_paths`, so what is declared and
+        # what is written cannot drift. The predecessor declared three of the
+        # eight it wrote; the five undeclared ones were not cleaned on failure,
+        # not remade when deleted, and unusable as a dependency.
+        annual_precipitation = ANNUAL_PRECIPITATION_PLOT,
+        annual_temperature = ANNUAL_TEMPERATURE_PLOT,
+        monthly_change_factors = MONTHLY_CHANGE_FACTOR_PLOTS,
         # S8-02: `timeseries/gcm_timeseries.nc` is GONE. It merged the nine series
         # into one cube that nothing read -- not `all`, not WF3, not any script --
         # while rounding to 2 dp (the quantisation step 5c removed from the series)
@@ -1074,8 +1102,8 @@ rule gather_logs:
     message: rule_banner("2.09", "gather_logs")
     input:
         (clim_project_dir + f"/summary/{clim_project}_change_factors_annual.csv"),
-        (clim_project_dir + f"/plots/{clim_project}_change_factor_cloud.png"),
-        (clim_project_dir + f"/plots/{clim_project}_precip_annual_absolute.png"),
+        CHANGE_FACTOR_CLOUD_PLOT,
+        ANNUAL_PRECIPITATION_PLOT,
         # ADR 0003 §8: rule 2.03 is a LEAF here — nothing in WF2 consumes the
         # vector layers yet (§10) — so it is not upstream of the three terminals
         # above the way 2.02 is. Without this edge it would run in parallel
@@ -1097,8 +1125,8 @@ rule gather_benchmarks:
     message: rule_banner("2.08", "gather_benchmarks")
     input:
         (clim_project_dir + f"/summary/{clim_project}_change_factors_annual.csv"),
-        (clim_project_dir + f"/plots/{clim_project}_change_factor_cloud.png"),
-        (clim_project_dir + f"/plots/{clim_project}_precip_annual_absolute.png"),
+        CHANGE_FACTOR_CLOUD_PLOT,
+        ANNUAL_PRECIPITATION_PLOT,
         # Same reason as gather_logs above: 2.03 is a leaf, and the benchmark
         # gather has to wait for it or its `_parts/` row misses this run.
         SPATIAL_UNITS.outputs["basins"],

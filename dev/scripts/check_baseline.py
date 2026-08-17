@@ -281,21 +281,27 @@ TARGETS: list[tuple[str, str, str]] = [
         "csv",
         "{clim_project_dir}/summary/{clim_project}_change_factors_monthly.csv",
     ),
-    # S8-07 renamed all three figures.
+    # 2026-08-17: the WF2 figure set collapsed the former absolute/change pairs
+    # into one overview per variable and moved every path under
+    # `plots/overview/` and `plots/windows/`. All three are FIGURE_KINDS
+    # targets, so they sit outside the gate by default anyway -- a figure is
+    # fingerprinted by byte size, and a cosmetic edit fails that without
+    # indicating a defect. They are listed so `--include-figures` still has
+    # something current to compare.
     (
         "analyze_projections",
         "png",
-        "{clim_project_dir}/plots/{clim_project}_change_factor_cloud.png",
+        "{clim_project_dir}/plots/overview/change-factor-cloud.png",
     ),
     (
         "analyze_projections",
         "png",
-        "{clim_project_dir}/plots/{clim_project}_precip_annual_absolute.png",
+        "{clim_project_dir}/plots/overview/annual-precipitation.png",
     ),
     (
         "analyze_projections",
         "png",
-        "{clim_project_dir}/plots/{clim_project}_temp_annual_absolute.png",
+        "{clim_project_dir}/plots/overview/annual-temperature.png",
     ),
     (
         "analyze_projections",
