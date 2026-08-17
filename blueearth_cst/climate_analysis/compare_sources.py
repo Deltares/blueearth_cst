@@ -96,8 +96,10 @@ TABLE_STEM = "dataset_comparison"
 #: Okabe-Ito, which is distinguishable under all three common dichromacies. It
 #: lives HERE rather than in ``shared/plot_style.py`` because this is the only
 #: figure family in the toolbox that encodes a CATEGORY by colour; everything
-#: else colours by quantity through ``RASTER_STYLES``. Hoist it if a second
-#: caller appears — see the follow-up note in the task log.
+#: else colours by quantity through ``RASTER_STYLES``, and editing
+#: ``plot_style.py`` would escalate a figure change to the full validation
+#: ladder. Hoist it if a second caller appears — that is the Trigger on
+#: ``dev/tasks/t2608171130-hoist-the-categorical-palette-out-of-compare-sources.md``.
 SOURCE_COLORS = (
     "#0072B2",  # blue
     "#D55E00",  # vermillion
