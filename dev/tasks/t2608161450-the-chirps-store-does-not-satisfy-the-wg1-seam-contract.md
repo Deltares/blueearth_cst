@@ -7,7 +7,7 @@ area: wf0 / climate store + interchange contracts
 origin: 2026-08-16 wf0 two-source run
 queue:
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-08-17
 ---
 
 > [!note] Overview
@@ -32,6 +32,38 @@ stores checked with `validate_wg1` after the run.
 | `spatial_ref`, seven variables | present | ok | ok |
 
 era5: **PASS**. chirps: **8 diffs**.
+
+## The two absent global attrs are the visible part of a wider loss (2026-08-17)
+
+The chirps store carries **no catalog metadata at all**. Measured on the same
+fixture while building rule 0.06, its entire attribute set is:
+
+```
+{'region_bbox': array([9.658, 0.35, 9.858, 0.483])}
+```
+
+The era5 store carries eight: `crs`, `category`, `notes`, `paper_doi`,
+`paper_ref`, `source_license`, `source_url`, `source_version` — the catalog
+entry's `metadata:` block, which hydromt attaches to what it returns and
+`prep_historical_climate` writes through.
+
+**The cause is now known, and it is one line.** The era5 branch fetches a whole
+Dataset and keeps its attrs; the chirps branch fetches ONE variable and calls
+`.to_dataset()` on the DataArray (`extract_historical_climate.py`, the
+`clim_source == "chirps"` branch), and the entry's metadata does not survive
+that. So `crs` and `category` were never two isolated omissions — they are the
+two rows `validate_wg1` happens to check out of eight that are all missing for
+the same reason. A producer fix that stamps the metadata back onto `ds` before
+`to_netcdf` closes all eight at once.
+
+**Rule 0.06 works around it rather than waiting for the fix**: its comparison
+table reads provenance from the store and falls back to the catalog entry
+(`compare_sources._catalog_metadata`), because without that the Reference and
+Version columns are blank for exactly the precipitation-only sources a
+comparison is run to judge. The workaround is deliberate and documented, and it
+should be REMOVED once the producer is fixed — it is a second path to the same
+fact, which is the thing this repo generally refuses. It stays until then
+because a blank Reference column is a defect a reader sees.
 
 ## Why it was never seen
 
@@ -85,3 +117,5 @@ They are complementary; (2) is what stops this class recurring.
 
 - [ ] Decide between the two directions above (or take both).
 - [ ] Check `precip` units against the VALUES before touching the attribute.
+- [ ] Stamp the catalog metadata back onto the chirps branch's dataset, then
+      drop rule 0.06's catalog fallback (`compare_sources._catalog_metadata`).
