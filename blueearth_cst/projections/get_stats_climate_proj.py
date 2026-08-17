@@ -17,7 +17,6 @@ os.environ.setdefault("GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT", "false")
 import geopandas as gpd
 import hydromt  # noqa: F401 -- registers the xarray .raster accessor used below
 import xarray as xr
-from dask.diagnostics import ProgressBar
 
 from blueearth_cst.projections import series_identity
 from blueearth_cst.projections.grid_weights import (
@@ -25,6 +24,7 @@ from blueearth_cst.projections.grid_weights import (
     geometry_check_label,
     weighted_spatial_mean,
 )
+from blueearth_cst.shared.progress import DaskProgress
 from blueearth_cst.shared.snake_utils import log_row
 
 # %%
@@ -422,7 +422,10 @@ if __name__ == "__main__":
                 encoding={k: {"zlib": True} for k in dvars},
                 compute=False,
             )
-            with ProgressBar():
+            # Labelled with the model/scenario the series belongs to: WF2 writes
+            # one series per (model, scenario), so an unlabelled bar would show
+            # the same anonymous line dozens of times.
+            with DaskProgress(f"{os.path.basename(series_nc_out)[:-3]} series"):
                 delayed_obj.compute()
 
     else:

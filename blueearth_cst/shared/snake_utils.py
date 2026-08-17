@@ -9,9 +9,11 @@ own directory to ``sys.path`` before importing — see
 
 import contextlib
 import gc
+import io
 import json
 import logging
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -73,6 +75,14 @@ _DATA_SOURCE_READ_RE = re.compile(
     r" data from "
 )
 
+#: Second half of the same row: once the TYPE is gone, ``Reading <name> from
+#: <dir>/<name>.nc`` still says ``<name>`` twice. That is not a corner case in
+#: WF3 — every downscale rule reads its realization by its own file stem, so a
+#: rapid experiment prints 20 such rows, each ~100 chars of which ~18 are the
+#: repeat. The name is dropped only when it is EXACTLY the file's stem, so a
+#: catalog key that genuinely differs from its file name still shows both.
+_DATA_SOURCE_FROM_RE = re.compile(r"^Reading (\S+) from (\S+)$")
+
 
 def _log_row_text(hms, module, level, message):
     """Assemble one log row: ``HH:MM:SS - <module> - <message>``.
@@ -132,7 +142,18 @@ def _compact_log_line(text):
     if prefixed and prefixed.group(1) == module:
         message = prefixed.group(2)
     message = _DATA_SOURCE_READ_RE.sub(r"\1 from ", message)
+    message = _drop_repeated_source_name(message)
     return _log_row_text(hms, module, level, message) + ("\n" if had_newline else "")
+
+
+def _drop_repeated_source_name(message):
+    """Rewrite ``Reading <name> from <dir>/<name>.ext`` as ``Reading <dir>/<name>.ext``."""
+    match = _DATA_SOURCE_FROM_RE.match(message)
+    if not match:
+        return message
+    name, path = match.groups()
+    stem = posixpath.splitext(posixpath.basename(path.replace("\\", "/")))[0]
+    return f"Reading {path}" if stem == name else message
 
 
 def _log_path_parts(log_path):
@@ -2299,6 +2320,154 @@ def _cr_overwrite(line):
     return segments[-1] if segments else ""
 
 
+def _drop_redraw_frames(text, in_redraw):
+    """Split a console chunk into what to print, dropping carriage-return redraws.
+
+    Snakemake multiplexes several jobs onto ONE console, so an in-place progress
+    bar cannot work here even on a real terminal: job A's redraw lands in the
+    middle of job B's log row, which is exactly the interleaved mess a WF3 run
+    with ``-c 3`` produced (measured 2026-08-17 — 214 of 624 console rows were
+    dask bar frames, against 10 in the persisted log). Progress that is worth
+    showing goes through ``blueearth_cst.shared.progress``, which is TTY-aware;
+    a library bar written straight to ``sys.stdout`` is dropped here.
+
+    Returns ``(console_text, in_redraw)``. ``in_redraw`` carries across calls
+    because a bar arrives as one ``write`` per frame and the LAST frame arrives
+    without a ``\\r`` of its own -- dask terminates the sequence with the
+    completed bar plus a plain newline. A rule that only looked for ``\\r``
+    therefore let exactly one 68-character ``[####...] | 100% Completed`` row
+    through per bar, which is what a WF1 run still showed once the per-frame
+    writes were suppressed.
+
+    The trade-off, stated: a line whose only content precedes a ``\\r`` is lost
+    from the console. The log file keeps it — ``_cr_overwrite`` collapses rather
+    than drops — so the durable record is complete either way.
+    """
+    if "\r" in text:
+        # Everything before the last `\r` was overwritten; the piece after it is
+        # the final state of that line, which is the bar frame we are dropping.
+        _head, sep, rest = text.rsplit("\r", 1)[-1].partition("\n")
+        if not sep:
+            return "", True  # line not finished; more frames may follow
+        return rest, False
+    if in_redraw:
+        # Still inside an unterminated redraw: this chunk completes the bar's
+        # final frame, so it belongs to the bar and not to the console.
+        _tail, sep, rest = text.partition("\n")
+        return (rest, False) if sep else ("", True)
+    return text, False
+
+
+#: Julia wraps ONE log record across several lines with box-drawing glyphs: a#: ``┌`` head, zero or more ``│`` continuations, and a ``└`` tail. Wflow emits
+#: dozens per run, so a WF3 experiment that runs the model 20 times spent ~500
+#: console rows on records that are 20 distinct sentences.
+#:
+#: Two continuation shapes, and they fold differently. Julia hard-wraps a long
+#: message at the terminal width, indenting the wrapped part by ONE space --
+#: ``┌ Info: Set atmosphere_water__precipitation_volume_flux using netCDF
+#: variable`` / ``└ precip as forcing parameter.`` is a single sentence cut in
+#: half. Keyword arguments, by contrast, are indented by THREE and are a list --
+#: ``┌ Info: General model settings`` / ``│   snow = true`` / ``│   glacier =
+#: false``. Joining the second shape with spaces would read as prose and lose
+#: that it is a table, so it becomes a parenthesised list instead.
+_JULIA_RECORD_HEAD = "\u250c"
+_JULIA_RECORD_MID = "\u2502"
+_JULIA_RECORD_TAIL = "\u2514"
+
+
+class _JuliaRecordFolder:
+    """Fold Julia's multi-line log records into one line each.
+
+    ``feed(line)`` returns the lines to emit now -- empty while a record is
+    still open, and the folded record on its tail. ``flush()`` closes an
+    unterminated record at end of stream.
+
+    **It fails open in every ambiguous case.** A record interrupted by an
+    unrelated line (another thread, a bare ``print``) releases what it buffered
+    VERBATIM followed by that line, and a stream that ends mid-record flushes
+    the same way. Losing a Wflow diagnostic to a cosmetic filter would cost far
+    more than the rows the filter saves, so the filter only ever fires on a
+    complete, well-formed ``┌ … └`` record.
+    """
+
+    def __init__(self):
+        self._buffer = []
+
+    def feed(self, line):
+        core = line.rstrip("\n")
+        if not self._buffer:
+            if core.startswith(_JULIA_RECORD_HEAD):
+                self._buffer.append(core)
+                return []
+            return [line]
+        if core.startswith(_JULIA_RECORD_MID):
+            self._buffer.append(core)
+            return []
+        if core.startswith(_JULIA_RECORD_TAIL):
+            self._buffer.append(core)
+            folded = self._fold(self._buffer)
+            self._buffer = []
+            return [folded + "\n"]
+        # Something else arrived inside a record: release it all, unchanged.
+        return self.flush() + [line]
+
+    def flush(self):
+        released = [line + "\n" for line in self._buffer]
+        self._buffer = []
+        return released
+
+    @staticmethod
+    def _fold(lines):
+        head = lines[0][len(_JULIA_RECORD_HEAD) :].strip()
+        prose, kwargs = [], []
+        for line in lines[1:]:
+            rest = line[1:]
+            # Three-space indent marks a keyword argument; one marks a message
+            # Julia hard-wrapped at the terminal width. See the note above.
+            (kwargs if rest.startswith("   ") else prose).append(rest.strip())
+        text = " ".join([head] + prose).strip()
+        if kwargs:
+            text = f"{text} ({', '.join(kwargs)})"
+        return text
+
+
+#: ASCII stand-ins for the glyphs a child process draws with, used ONLY when the
+#: console cannot encode them. The alternative is ``errors="replace"``, which
+#: turns Wflow's 20-cell progress bar into twenty literal question marks — a row
+#: that looks like a decoding fault rather than a bar. A legacy Windows code
+#: page is the normal case here, not an exotic one, so the degraded rendering is
+#: worth choosing rather than inheriting. The log file always gets the real
+#: glyphs; this is the console mirror only.
+_ASCII_GLYPH_FALLBACK = str.maketrans(
+    {
+        "\u2588": "#",  # full block -- a filled progress cell
+        "\u2589": "#",
+        "\u258a": "#",
+        "\u258b": "=",
+        "\u258c": "=",
+        "\u258d": "=",
+        "\u258e": "-",
+        "\u258f": "-",
+        "\u2591": ".",  # light shade -- an empty progress cell
+        "\u2592": ".",
+        "\u2593": "=",
+        "\u2500": "-",  # box drawing, as Julia's log records use
+        "\u2502": "|",
+        "\u250c": "+",
+        "\u2514": "+",
+        "\u251c": "+",
+        "\u2026": "...",
+        "\u2192": "->",
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u2013": "-",
+        "\u2014": "--",
+    }
+)
+
+
 #: Body lines muted on the CONSOLE only -- matched on the message, after
 #: :func:`_compact_log_line` has normalized the row.
 #:
@@ -2319,7 +2488,52 @@ def _cr_overwrite(line):
 #: job read is actually answered, and the run header names the catalogs up
 #: front. What the console loses is a fact it was stating up to eighteen times
 #: and that nobody reads on the eighteenth.
-_TEE_CONSOLE_MUTED = (("data_catalog", "Parsing data catalog from "),)
+#:
+#: The rest are hydromt's MODEL-OPEN BOILERPLATE, muted for the same reason and
+#: on the same terms. Every rule that touches the built model reopens it, and
+#: each reopen announces the plugin version, the TOML it read and the Wflow
+#: version it supports -- three rows, eight times in one WF1 build and once per
+#: member in WF3. All three state a property of the RUN, not of the job, and
+#: the run header states two of them already.
+#:
+#: The two ``skip writing`` rows are the other shape worth muting: a report that
+#: NOTHING happened. ``No tables found, skip writing.`` is hydromt confirming an
+#: absence on every single write, which is the definition of a row that cannot
+#: distinguish one job from another.
+#:
+#: Nothing here is ever a warning or an error -- see the INFO restriction in
+#: :func:`_muted_on_console`, which is what keeps a prefix muted for VOLUME from
+#: ever silencing a row someone is scanning for.
+_TEE_CONSOLE_MUTED = (
+    ("data_catalog", "Parsing data catalog from "),
+    ("model", "Initializing wflow_sbm model from hydromt_wflow"),
+    ("config", "Reading model config file from "),
+    ("config", "Reading default config file from "),
+    ("wflow_base", "Supported Wflow.jl version "),
+    ("tables", "Reading model table files."),
+    ("tables", "No tables found, skip writing."),
+    ("grid", "No grid data found, skip writing."),
+    # hydromt echoes the object store URI it is about to read. WF2 already
+    # printed that URI one row earlier, from `fetch_gcm_raw`, in BOTH the
+    # pinned and the globbed branch -- so this row is a duplicate that costs
+    # 162-175 characters four times per run, the longest rows the workflow
+    # produces. A pattern rather than a prefix because the entry name sits
+    # between the two fixed parts.
+    ("data_source", re.compile(r"^Reading \S+ from \w+://")),
+)
+
+
+def _muted_matches(message, muted):
+    """Whether ``message`` matches a ``_TEE_CONSOLE_MUTED`` right-hand side.
+
+    A plain string is a PREFIX test (the message must open with it, not merely
+    contain it); a compiled pattern is searched. Prefixes stay the default —
+    they cannot silence a row whose opening words differ — and a pattern is
+    used only where a variable field sits between two fixed parts.
+    """
+    if isinstance(muted, str):
+        return message.startswith(muted)
+    return muted.search(message) is not None
 
 
 def _muted_on_console(text):
@@ -2331,8 +2545,9 @@ def _muted_on_console(text):
       arbitrary chunks, not lines, so a partial write or a multi-line block is
       never matched — it prints, which is the behaviour we started from.
     * the row must carry the muted module in its own column and the message
-      must open with the muted prefix, rather than the phrase appearing
-      anywhere in the text.
+      must match the muted entry — a PREFIX test for a plain string, or a
+      search for a compiled pattern — rather than the phrase being allowed to
+      appear anywhere in the text.
     * the row must be at INFO, which :func:`_log_row_text` renders by OMITTING
       the level field. A ``data_catalog - WARNING - ...`` row therefore has a
       third field before the message and cannot match — the same restriction
@@ -2345,9 +2560,15 @@ def _muted_on_console(text):
     if len(fields) != 3:
         return False
     _stamp, module, message = fields
+    # `_compact_log_line` KEEPS a `<model>.<component>: ` prefix when the
+    # component is not the module column -- `grid - wflow_sbm.states: No grid
+    # data found, skip writing.` is that shape, and the prefix would otherwise
+    # defeat every `startswith` below. Strip it for the test only; the row is
+    # unchanged either way.
+    message = _COMPONENT_PREFIX_RE.sub(r"\2", message)
     return any(
-        module == muted_module and message.startswith(muted_prefix)
-        for muted_module, muted_prefix in _TEE_CONSOLE_MUTED
+        module == muted_module and _muted_matches(message, muted)
+        for muted_module, muted in _TEE_CONSOLE_MUTED
     )
 
 
@@ -2360,10 +2581,10 @@ class _Tee:
     stream level, so output from *shell* subprocesses (which inherit the real
     file descriptors) is not captured — only in-process Python output is.
 
-    The ``live`` sink (console) gets output verbatim, so a carriage-return
-    progress bar still animates in place during a long ``to_netcdf`` — verbatim
-    in SHAPE, that is, less the handful of high-volume boilerplate rows
-    ``_TEE_CONSOLE_MUTED`` drops from the console and keeps in the file. The
+    The ``live`` sink (console) gets output verbatim EXCEPT for carriage-return
+    redraw frames, which are dropped (see ``_console_text``) — verbatim in SHAPE,
+    that is, less those frames and less the handful of high-volume boilerplate
+    rows ``_TEE_CONSOLE_MUTED`` drops from the console and keeps in the file. The
     ``logfile`` sink instead receives each line *after* carriage-return overwrite
     (see ``_cr_overwrite``), so the persisted log keeps only the final rendered
     state of an in-place-updated line rather than every redraw. Partial (not yet
@@ -2388,6 +2609,7 @@ class _Tee:
         self._project_root = project_root
         self._on_activity = on_activity  # called on each write (heartbeat reset)
         self._pending = ""  # current, not-yet-newline-terminated log line
+        self._in_redraw = False  # console-side state for _drop_redraw_frames
         # Set by ``close``. A tee OUTLIVES its log file: ``tee_to_log`` closes
         # the file when its `with open(...)` exits, and anything still holding a
         # reference to this object then has a live handle onto a dead sink.
@@ -2398,20 +2620,23 @@ class _Tee:
         # when the redirect was set up.
         self._closed = False
 
-    def write(self, text):
+    def write(self, text, _redraw=False):
         if self._on_activity is not None:
             self._on_activity()
         out = _relativize_paths(
             _compact_log_line(text), self._project_root, self._tokens
         )
-        # Painted, but still verbatim in shape -- `_paint_body` passes a
-        # carriage-return chunk straight through, so the live console animation
-        # this sink exists to preserve is untouched. A muted line skips the
-        # console and takes the log-file path below unchanged: this is the one
-        # place the two sinks are allowed to differ in CONTENT rather than in
-        # formatting, and the durable record is the one that keeps everything.
-        if not _muted_on_console(out):
-            self._live.write(_paint_body(out, self._colour))
+        # Painted, and stripped of carriage-return redraw frames -- see
+        # `_drop_redraw_frames` for why an in-place bar cannot work under a
+        # multi-job snakemake console. A muted line skips the console and takes
+        # the log-file path below unchanged: this is the one place the two sinks
+        # are allowed to differ in CONTENT rather than in formatting, and the
+        # durable record is the one that keeps everything.
+        shown, self._in_redraw = _drop_redraw_frames(out, self._in_redraw)
+        if _redraw:
+            shown, self._in_redraw = out, False
+        if shown and not _muted_on_console(shown):
+            self._live.write(_paint_body(shown, self._colour))
         # After close the console is still open and still the right place for
         # this text; only the log file is gone. Writing to a closed file raises
         # ValueError, and a raise HERE is the expensive kind: these late writes
@@ -2430,10 +2655,22 @@ class _Tee:
         self._pending = _cr_overwrite(self._pending)  # keep the buffer bounded
         return len(text)
 
+    def write_redraw(self, text):
+        """Write a carriage-return frame the console is allowed to KEEP.
+
+        ``write`` drops redraw frames because a library bar written straight to
+        ``sys.stdout`` cannot animate under a multi-job console. Our own bar
+        (``blueearth_cst.shared.progress``) is the sanctioned exception: it is
+        installed by one rule at a time, sizes itself to the stream, and is the
+        thing a reader is meant to watch. It reaches this method by duck-typing —
+        ``getattr(stream, "write_redraw", stream.write)`` — so it degrades to a
+        plain write on any stream that is not a tee.
+        """
+        return self.write(text, _redraw=True)
+
     def flush(self):
         # Flush the sinks but NOT ``_pending``: emitting a mid-progress fragment
-        # would re-clutter the log with every partial redraw.
-        self._live.flush()
+        # would re-clutter the log with every partial redraw.        self._live.flush()
         # Same reasoning as ``write``: ``logging.shutdown`` flushes every handler
         # at exit, so a handler left pointing here must not raise.
         if not self._closed:
@@ -2527,25 +2764,57 @@ def run_and_tee(command, log_path):
         # Resolved once per RUN, for the same reason the tee resolves once per
         # construction: `emit` is called per line.
         tokens = _path_tokens()
+        # Redraw a progress bar in place only where that means something. On a
+        # pipe -- `snakemake ... *> run.txt`, or the GUI capturing a run -- the
+        # frames are not overwritten but APPENDED, so streaming them turns one
+        # bar into ~40 rows in the very artifact someone reads afterwards.
+        try:
+            stream_frames = sys.stdout.isatty()
+        except Exception:
+            stream_frames = False
 
-        def emit(text):
-            # Compact hydromt's redundant log format (see _compact_log_line) and
-            # show project files relative to the project dir; non-hydromt lines
-            # and out-of-project paths pass through unchanged.
-            text = _relativize_paths(_compact_log_line(text), project_root, tokens)
-            # Body tier on the console only: a shell rule's output is detail, and
-            # `log` below must stay free of escape codes.
-            shown = _paint_body(text, colour)
+        def _console_write(text):
             # The log file is UTF-8. The live console mirror may be a legacy
             # code page (cp1252 on Windows) that cannot encode glyphs the child
-            # emits (e.g. Julia/Wflow progress-bar blocks); fall back to a lossy
-            # encode for the console only — the log always gets the real text.
+            # emits (e.g. Julia/Wflow progress-bar blocks); fall back to ASCII
+            # stand-ins for the console only — the log always gets the real text.
             try:
-                sys.stdout.write(shown)
+                sys.stdout.write(text)
             except UnicodeEncodeError:
                 enc = getattr(sys.stdout, "encoding", None) or "utf-8"
-                sys.stdout.write(shown.encode(enc, "replace").decode(enc))
+                folded = text.translate(_ASCII_GLYPH_FALLBACK)
+                sys.stdout.write(folded.encode(enc, "replace").decode(enc))
             sys.stdout.flush()
+
+        def emit(text, redraw=False, had_cr=False):
+            # Collapse a carriage-return-redrawn line to the frame that was
+            # actually left on screen, then compact hydromt's redundant log
+            # format (see _compact_log_line) and show project files relative to
+            # the project dir; non-hydromt lines and out-of-project paths pass
+            # through unchanged.
+            text = _relativize_paths(
+                _compact_log_line(_cr_overwrite(text)), project_root, tokens
+            )
+            # The log is written unconditionally; only the console mirror drops
+            # the repeated boilerplate. A `shell:` rule and a `script:` rule run
+            # the same hydromt code and used to disagree about which of its rows
+            # reached the console, purely because they reach it through
+            # different tees -- `_Tee` consulted this and `run_and_tee` did not.
+            if not _muted_on_console(text):
+                # Body tier on the console only: a shell rule's output is
+                # detail, and `log` below must stay free of escape codes.
+                shown = _paint_body(text, colour)
+                # `redraw` means the frames of this line were already streamed,
+                # so the cursor sits mid-bar: return to column 0 and overwrite
+                # it with the final frame rather than printing a second line.
+                # Where they were NOT streamed, the bar never appeared and its
+                # final frame would be a row of its own -- drop it, the call
+                # `_Tee._drop_redraw_frames` makes for the same reason (a bar
+                # cannot animate under a multi-job console). The log keeps it.
+                if had_cr and not redraw:
+                    pass
+                else:
+                    _console_write(("\r" + shown) if redraw else shown)
             log.write(text)
             log.flush()
 
@@ -2553,16 +2822,25 @@ def run_and_tee(command, log_path):
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            bufsize=1,
-            text=True,
-            # Decode the child's pipe as UTF-8. Julia/Wflow (and Python under
-            # UTF-8 mode) emit UTF-8; without this, text mode uses the Windows
-            # locale code page (cp1252) and mangles non-ASCII — a `█` (UTF-8
-            # E2 96 88) decoded as cp1252 becomes "â–ˆ". ASCII-only children
-            # (hydromt logs) are unaffected; `errors="replace"` guards any
-            # genuinely non-UTF-8 byte instead of crashing the tee.
-            encoding="utf-8",
-            errors="replace",
+            bufsize=0,
+        )
+        # Decode the child's pipe as UTF-8. Julia/Wflow (and Python under UTF-8
+        # mode) emit UTF-8; without this, text mode uses the Windows locale code
+        # page (cp1252) and mangles non-ASCII — a `█` (UTF-8 E2 96 88) decoded
+        # as cp1252 becomes "â–ˆ". ASCII-only children (hydromt logs) are
+        # unaffected; `errors="replace"` guards any genuinely non-UTF-8 byte
+        # instead of crashing the tee.
+        #
+        # Wrapped HERE rather than via `Popen(text=True)` for `newline=""`,
+        # which Popen cannot pass on. Its default is UNIVERSAL NEWLINES, and
+        # that turned every `\r` into a `\n` — so Wflow's progress bar, which
+        # redraws one line ~40 times per model run, arrived as ~40 separate
+        # lines. A WF3 experiment runs the model 20 times, and the result was
+        # ~2000 of the log's 4000 rows being frames of a bar that is meant to
+        # occupy ONE. Preserving `\r` lets `_cr_overwrite` do to a Julia bar
+        # exactly what it already did to a Python one.
+        stream = io.TextIOWrapper(
+            proc.stdout, encoding="utf-8", errors="replace", newline=""
         )
         # Silence watchdog: prints an elapsed-time notice to the console (stderr,
         # never the log) if the child goes quiet — so a hung Julia/Wflow/hydromt
@@ -2574,11 +2852,16 @@ def run_and_tee(command, log_path):
         rc = None
         try:
             pending = []
-            for line in proc.stdout:
-                heartbeat.touch()
-                if _is_shutdown_noise(line):
-                    pending.append(line)
-                    continue
+            folder = _JuliaRecordFolder()
+            # Carriage-return frames of a line still being redrawn, held until
+            # its terminating newline arrives.
+            frames = []
+
+            def emit_folded(folded, redraw=False, had_cr=False):
+                nonlocal pending
+                if _is_shutdown_noise(folded):
+                    pending.append(folded)
+                    return
                 # Collapse here too, not just at end of stream. The block was
                 # flushed verbatim until 2026-08-10, which made the filter fire
                 # only when the cascade happened to be the LAST thing in the
@@ -2587,7 +2870,36 @@ def run_and_tee(command, log_path):
                 # the collapse the log needed never ran.
                 _flush_pending(pending, emit)
                 pending = []
-                emit(line)
+                emit(folded, redraw=redraw, had_cr=had_cr)
+
+            def deliver(line, redraw):
+                # `redraw` applies to the FIRST row only: it means the cursor is
+                # sitting on a half-drawn bar, and one row overwrites it.
+                had_cr = "\r" in line
+                for folded in folder.feed(line):
+                    emit_folded(folded, redraw, had_cr)
+                    redraw = False
+
+            for raw in stream:
+                heartbeat.touch()
+                # `\r\n` is ONE line ending, not a redraw. Normalizing it first
+                # is load-bearing: `_cr_overwrite("text\r\n")` would otherwise
+                # split on the `\r` and keep only the `\n`, blanking the row.
+                raw = raw.replace("\r\n", "\n")
+                if raw.endswith("\r"):
+                    if stream_frames:
+                        _console_write(raw)
+                    frames.append(raw)
+                    continue
+                line, frames = "".join(frames) + raw, []
+                deliver(line, redraw=stream_frames and "\r" in line)
+            if frames:
+                deliver("".join(frames), redraw=stream_frames)
+            # An unterminated record is released verbatim, and must NOT go back
+            # through `folder.feed` — its head line would simply be buffered
+            # again and lost with it.
+            for released in folder.flush():
+                emit_folded(released)
             rc = proc.wait()
             _flush_pending(pending, emit, rc)
         finally:

@@ -217,8 +217,13 @@ class DaskProgress(Callback):
 
     def _write(self, text: str) -> None:
         stream = self._stream if self._stream is not None else sys.stdout
+        # A tee DROPS carriage-return frames from its console copy, because a
+        # library bar cannot animate under a multi-job snakemake console. This
+        # bar is the sanctioned exception and says so by duck-typing; on a real
+        # terminal, or any other stream, `write` is what there is.
+        writer = getattr(stream, "write_redraw", stream.write)
         try:
-            stream.write(text)
+            writer(text)
         except (ValueError, OSError):
             # A closed or detached stream at interpreter shutdown. A progress
             # bar must never be the reason a finished compute reports failure.
