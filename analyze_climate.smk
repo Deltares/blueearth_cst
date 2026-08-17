@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 import uuid
@@ -215,7 +216,14 @@ LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
 # correct, since the comparison is about telling them apart.
 declare_path_tokens(
     data=catalog_root(DATA_SOURCES),
-    climate=CLIMATE_STORES[clim_source].store_dir,
+    # The historical ROOT, not one store — wf0 is the workflow that reads several.
+    # WF1 and WF3 declare their single store, so `<climate>/extract_historical.nc`
+    # is the whole path there. Here that would tokenize the PRIMARY source and
+    # leave every candidate at full length, so a comparison run prints its two
+    # sources in two different shapes — the one thing this workflow exists to put
+    # side by side. Rooted one level up, both read `<climate>/<key>/...` and the
+    # store key stays visible, which is the part a reader is comparing.
+    climate=os.path.dirname(CLIMATE_STORES[clim_source].store_dir),
 )
 LOG_RULES = [
     "0.02_delineate_region",

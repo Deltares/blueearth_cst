@@ -82,6 +82,52 @@ def test_compact_shortens_timestamp_and_drops_dotted_name():
     )
 
 
+def test_compact_drops_the_data_type_from_a_catalog_read():
+    """``Reading <name> <Type> data from <uri>`` -> ``Reading <name> from <uri>``.
+
+    hydromt's commonest row (``data_source.py:85``). The type is already implied
+    by the ``data_source`` column and by the catalog entry itself, so it sits
+    between the two facts a reader wants: WHICH source, from WHERE.
+    """
+    line = (
+        "2026-08-17 08:12:03,441 - hydromt.data_catalog.sources.data_source - "
+        "data_source - INFO - Reading merit_hydro_ihu RasterDataset data from "
+        "C:/data/topography/merit_hydro_ihu/30sec/*.tif\n"
+    )
+    assert _compact_log_line(line) == (
+        "08:12:03 - data_source - Reading merit_hydro_ihu from "
+        "C:/data/topography/merit_hydro_ihu/30sec/*.tif\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "data_type",
+    ["RasterDataset", "GeoDataFrame", "GeoDataset", "DataFrame", "Dataset"],
+)
+def test_compact_drops_every_data_type_hydromt_can_log(data_type):
+    """The five concrete ``data_type`` values in ``hydromt.data_catalog.sources``."""
+    line = (
+        "2026-08-17 08:12:03,441 - x - data_source - INFO - "
+        f"Reading src {data_type} data from a.nc\n"
+    )
+    assert _compact_log_line(line) == "08:12:03 - data_source - Reading src from a.nc\n"
+
+
+def test_compact_leaves_an_unknown_data_type_visible():
+    """A cosmetic filter on someone else's message must not eat what it cannot name.
+
+    An upstream addition should surface as a slightly noisy row, never as a
+    quietly mangled one — which is why the five names are enumerated.
+    """
+    line = (
+        "2026-08-17 08:12:03,441 - x - data_source - INFO - "
+        "Reading src QuantumBlob data from a.nc\n"
+    )
+    assert _compact_log_line(line) == (
+        "08:12:03 - data_source - Reading src QuantumBlob data from a.nc\n"
+    )
+
+
 def test_compact_preserves_dashes_in_message():
     line = (
         "2026-07-21 18:03:20,505 - hydromt.model.model - model - INFO - "

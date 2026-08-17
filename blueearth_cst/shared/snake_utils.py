@@ -49,6 +49,31 @@ _HYDROMT_LOG_RE = re.compile(
 _COMPONENT_PREFIX_RE = re.compile(r"^\w+\.(\w+): (.*)$")
 
 
+#: Drops the data TYPE from hydromt's catalog-read line, the single commonest
+#: row a build prints:
+#:
+#:     data_source - Reading merit_hydro_ihu RasterDataset data from <data>/...
+#:     data_source - Reading merit_hydro_ihu from <data>/...
+#:
+#: The type is already implied twice over -- by the ``data_source`` column, and
+#: by the entry's own declaration in the catalog the header names -- so on a
+#: build that reads two dozen sources it is a column of noise between the two
+#: facts a reader wants, WHICH source and from WHERE.
+#:
+#: The five names are ENUMERATED rather than matched as ``\S+`` (they are
+#: ``hydromt.data_catalog.sources``' concrete ``data_type`` values). A type this
+#: does not know then survives into the line instead of being silently eaten,
+#: which is the right way round for a cosmetic filter sitting on someone else's
+#: message: an upstream addition shows up as a slightly noisy row, never as a
+#: quietly mangled one. Longest-first, so ``Dataset`` cannot claim the tail of
+#: ``RasterDataset``.
+_DATA_SOURCE_READ_RE = re.compile(
+    r"^(Reading \S+) "
+    r"(?:RasterDataset|GeoDataFrame|GeoDataset|DataFrame|Dataset)"
+    r" data from "
+)
+
+
 def _log_row_text(hms, module, level, message):
     """Assemble one log row: ``HH:MM:SS - <module> - <message>``.
 
@@ -106,6 +131,7 @@ def _compact_log_line(text):
     prefixed = _COMPONENT_PREFIX_RE.match(message)
     if prefixed and prefixed.group(1) == module:
         message = prefixed.group(2)
+    message = _DATA_SOURCE_READ_RE.sub(r"\1 from ", message)
     return _log_row_text(hms, module, level, message) + ("\n" if had_newline else "")
 
 
