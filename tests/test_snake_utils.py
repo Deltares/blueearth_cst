@@ -21,6 +21,7 @@ import blueearth_cst.shared.snake_utils as su  # noqa: E402
 from blueearth_cst.shared.snake_utils import (  # noqa: E402
     _compact_log_line,
     _cr_overwrite,
+    _drop_redraw_frames,
     _fmt_elapsed,
     _Heartbeat,
     _log_path_parts,
@@ -920,6 +921,124 @@ def test_tee_to_log_close_flushes_interrupted_bar(tmp_path):
     assert "50% In progress" in log.read_text(encoding="utf-8")
 
 
+# --- console-side redraw suppression -----------------------------------------
+
+
+def test_drop_redraw_frames_swallows_a_bar_and_its_closing_newline():
+    """A dask bar reaches the console as N frames plus a bare newline: show none."""
+    shown, state = "", False
+    for pct in (0, 50, 100):
+        text, state = _drop_redraw_frames(f"\r[{'#' * pct}] | {pct}% Completed", state)
+        shown += text
+    assert state is True
+    text, state = _drop_redraw_frames("\n", state)  # dask's `_finish`
+    shown += text
+    assert shown == ""
+    assert state is False
+
+
+def test_drop_redraw_frames_keeps_content_that_follows_a_redraw():
+    shown, state = _drop_redraw_frames(
+        "\r[###] | 100% Completed\n08:12:03 - a - b\n", False
+    )
+    assert shown == "08:12:03 - a - b\n"
+    assert state is False
+
+
+def test_drop_redraw_frames_passes_ordinary_text_through():
+    shown, state = _drop_redraw_frames("08:12:03 - a - b\n", False)
+    assert (shown, state) == ("08:12:03 - a - b\n", False)
+
+
+def test_drop_redraw_frames_keeps_a_blank_line_that_is_not_closing_a_bar():
+    """The bare-newline rule must fire only while a redraw is open."""
+    assert _drop_redraw_frames("\n", False) == ("\n", False)
+
+
+def test_drop_redraw_frames_swallows_a_final_frame_that_carries_no_cr():
+    """dask ends a bar with the completed frame and a newline, no `\\r`.
+
+    Looking for `\\r` alone let exactly one `[####...] | 100% Completed` row
+    per bar through, which is what a WF1 run still showed after the per-frame
+    writes were suppressed.
+    """
+    _text, state = _drop_redraw_frames("\r[##  ] | 50% Completed", False)
+    assert state is True
+    shown, state = _drop_redraw_frames("[####] | 100% Completed |  1.4 s\n", state)
+    assert (shown, state) == ("", False)
+
+
+def test_drop_redraw_frames_keeps_content_after_a_cr_less_final_frame():
+    """Only the bar's own tail is swallowed; the next row must survive."""
+    _text, state = _drop_redraw_frames("\r[##  ] | 50%", False)
+    shown, state = _drop_redraw_frames("[####] | 100%\n08:12:03 - a - b\n", state)
+    assert (shown, state) == ("08:12:03 - a - b\n", False)
+
+
+def test_tee_keeps_a_bar_out_of_the_console_but_in_the_log(tmp_path, capsys):
+    log = tmp_path / "rule.log"
+    with tee_to_log(log):
+        for pct in (0, 42, 100):
+            sys.stdout.write(f"\r[{'#' * (pct // 10):<10}] | {pct}% Completed | 7.08 s")
+        sys.stdout.write("\n")
+        sys.stdout.write("08:12:03 - forcing - Write forcing file\n")
+    console = capsys.readouterr().out
+    assert "% Completed" not in console
+    assert "08:12:03 - forcing - Write forcing file" in console
+    persisted = log.read_text(encoding="utf-8")
+    assert "100% Completed" in persisted  # the durable record keeps the final state
+
+
+def test_tee_keeps_our_own_bar_visible_through_write_redraw(tmp_path, capsys):
+    """`shared.progress` is the sanctioned exception; a library bar is not."""
+    log = tmp_path / "rule.log"
+    with tee_to_log(log, heartbeat_interval=0):
+        sys.stdout.write_redraw("\r[####] ours 50%")
+        sys.stdout.write_redraw("\r[########] ours 100%")
+        sys.stdout.write_redraw("\n")
+        sys.stdout.write("\r[####] theirs 50%")
+        sys.stdout.write("\n")
+    console = capsys.readouterr().out
+    assert "ours 100%" in console
+    assert "theirs" not in console
+    assert "theirs 50%" in log.read_text(encoding="utf-8")
+
+
+# --- repeated source name ----------------------------------------------------
+
+
+def test_compact_drops_a_source_name_that_repeats_the_file_stem():
+    line = (
+        "2026-08-17 22:54:30,101 - x - data_source - INFO - "
+        "Reading rlz_1_st_3 Dataset data from climate/weathergenr/output/rlz_1_st_3.nc\n"
+    )
+    assert _compact_log_line(line) == (
+        "22:54:30 - data_source - Reading climate/weathergenr/output/rlz_1_st_3.nc\n"
+    )
+
+
+def test_compact_keeps_a_source_name_that_differs_from_the_file_stem():
+    """``era5_orography`` is not the stem of ``era5_orography_2018.nc`` — keep both."""
+    line = (
+        "2026-08-17 22:54:32,001 - x - data_source - INFO - "
+        "Reading era5_orography from meteo/era5/meta/era5_orography_2018.nc\n"
+    )
+    assert _compact_log_line(line) == (
+        "22:54:32 - data_source - "
+        "Reading era5_orography from meteo/era5/meta/era5_orography_2018.nc\n"
+    )
+
+
+def test_compact_matches_a_windows_spelt_path_stem():
+    line = (
+        "2026-08-17 22:54:30,101 - x - data_source - INFO - "
+        "Reading rlz_1_st_3 from output\\rlz_1_st_3.nc\n"
+    )
+    assert _compact_log_line(line) == (
+        "22:54:30 - data_source - Reading output\\rlz_1_st_3.nc\n"
+    )
+
+
 # --- heartbeat watchdog ------------------------------------------------------
 
 
@@ -1002,6 +1121,85 @@ def test_tee_mutes_the_catalog_line_on_the_console_but_keeps_it_in_the_log(
     assert "Parsing data catalog from a/b.yml" in logged
     # Only the muted row goes; its neighbours from the same module stay.
     assert "Resolved 12 sources" in out and "Resolved 12 sources" in logged
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        "14:02:03 - model - Initializing wflow_sbm model from hydromt_wflow (v1.0.2).\n",
+        "14:02:03 - config - Reading model config file from <model>/wflow_sbm.toml.\n",
+        "14:02:03 - config - Reading default config file from a/b.toml.\n",
+        "14:02:03 - wflow_base - Supported Wflow.jl version v1+\n",
+        "14:02:03 - tables - Reading model table files.\n",
+        "14:02:03 - tables - No tables found, skip writing.\n",
+        "14:02:03 - grid - No grid data found, skip writing.\n",
+    ],
+)
+def test_tee_mutes_hydromt_model_open_boilerplate(tmp_path, capsys, row):
+    """Every rule that touches the built model reopens it and re-announces itself.
+
+    Ten WF3 downscale members print each of these once; none of them names the
+    member, so the console cannot use them to tell one job from another.
+    """
+    log = tmp_path / "rule.log"
+    with tee_to_log(log, heartbeat_interval=0):
+        sys.stdout.write(row)
+    assert row.split(" - ", 2)[2].rstrip() not in capsys.readouterr().out
+    assert row.split(" - ", 2)[2].rstrip() in log.read_text(encoding="utf-8")
+
+
+def test_tee_mutes_a_row_whose_component_prefix_survived_compaction(tmp_path, capsys):
+    """`grid - wflow_sbm.states: No grid data found` keeps its prefix by design.
+
+    `_compact_log_line` drops the prefix only when it repeats the module column;
+    here it does not, so the mute has to look past it or never fire.
+    """
+    log = tmp_path / "rule.log"
+    row = "14:02:03 - grid - wflow_sbm.states: No grid data found, skip writing.\n"
+    with tee_to_log(log, heartbeat_interval=0):
+        sys.stdout.write(row)
+    assert "No grid data found" not in capsys.readouterr().out
+    assert "wflow_sbm.states: No grid data found" in log.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "uri",
+    [
+        "gs://cmip6/CMIP6/CMIP/INM/INM-CM4-8/historical/r1i1p1f1/Amon/{variable}"
+        "/gr1/v20190530",
+        "s3://some-bucket/a/b/c.zarr",
+    ],
+)
+def test_tee_mutes_hydromts_object_store_read_echo(tmp_path, capsys, uri):
+    """WF2 prints the same URI one row earlier, in both catalog branches.
+
+    hydromt's echo is 162-175 characters -- the longest rows WF2 produces --
+    and it repeats `fetch_gcm_raw`'s own row, so the console drops it.
+    """
+    log = tmp_path / "rule.log"
+    row = (
+        f"14:02:03 - data_source - Reading cmip6_INM/INM-CM4-8_historical from {uri}\n"
+    )
+    with tee_to_log(log, heartbeat_interval=0):
+        sys.stdout.write(row)
+    assert uri not in capsys.readouterr().out
+    assert uri in log.read_text(encoding="utf-8")
+
+
+def test_tee_keeps_a_local_data_source_read_on_the_console(tmp_path, capsys):
+    """The mute is scoped to a URI SCHEME; a filesystem read still prints.
+
+    WF1's `Reading merit_hydro_index from <data>/.../basin_index.gpkg` says
+    which basin dataset a build actually opened, and nothing else repeats it.
+    """
+    log = tmp_path / "rule.log"
+    row = (
+        "14:02:03 - data_source - Reading merit_hydro_index from "
+        "<data>/topography/merit_hydro/basin_index.gpkg\n"
+    )
+    with tee_to_log(log, heartbeat_interval=0):
+        sys.stdout.write(row)
+    assert "merit_hydro_index" in capsys.readouterr().out
 
 
 def test_tee_mute_never_silences_a_warning_or_a_partial_write(tmp_path, capsys):
@@ -1280,8 +1478,8 @@ def test_an_installed_dependency_path_collapses_to_its_package():
         r"\envs\default\Lib\site-packages\hydromt_wflow\data\parameters_data.yml"
     )
     assert _rel(line) == (
-        "Parsing data catalog from <site-packages>/hydromt_wflow\data"
-        "\parameters_data.yml"
+        r"Parsing data catalog from <site-packages>/hydromt_wflow\data"
+        r"\parameters_data.yml"
     )
 
 

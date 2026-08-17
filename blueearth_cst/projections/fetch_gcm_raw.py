@@ -354,8 +354,14 @@ if "snakemake" in globals():
             (components.get("pins") or {}).get(member, {}),
         )
         if pin_uri is None:
+            # The URI goes on OUR row in both branches. The console mutes
+            # hydromt's `data_source - Reading <entry> from <uri>` echo, which
+            # repeats this URI at ~175 characters (4 such rows per WF2 run);
+            # that mute is only information-preserving because the glob case
+            # names its URI here rather than relying on the echo.
             log_row(
-                "no single pin for this source; keeping the URI glob", module="fetch"
+                f"no single pin; keeping the URI glob: {entry_spec.get('uri', '')}",
+                module="fetch",
             )
             data_catalog = hydromt.DataCatalog(data_libs=catalog_path)
         else:

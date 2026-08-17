@@ -17,7 +17,11 @@ process's file descriptors. A bare ``subprocess.run`` inheriting stdout would
 therefore write hydromt's ``-vv`` output to the console and leave the rule's log
 part empty, silently losing what the `shell:` rule used to capture through
 ``run_logged``. Reading the pipe and re-printing puts it back inside the tee, and
-line-by-line so a long update stays visible while it runs.
+line-by-line so a long update stays visible while it runs. The pipe is decoded
+with ``newline=""`` and re-emitted one ``sys.stdout.write`` per line, both
+load-bearing: universal newlines would explode hydromt's carriage-return
+progress bar into a row per frame, and ``print`` splits text from newline into
+two writes, which is a partial chunk the tee's console mute refuses to match.
 
 The recipe builder itself is untouched and still lives in
 `blueearth_cst/shared/setup_time_horizon.py`, with `tests/test_setup_time_horizon.py`
@@ -27,8 +31,10 @@ covering it directly — the merge moves the *invocation*, not the logic.
 # NO `from __future__ import annotations` here: Snakemake's `script:` directive
 # prepends its own preamble, so a future import is no longer the first statement
 # and raises at rule run time. Every `script:` module in this repo omits it.
+import io
 import os
 import subprocess
+import sys
 from pathlib import Path
 from typing import Sequence, Union
 
@@ -73,12 +79,27 @@ def _run_streaming(command: Sequence[str]) -> None:
         list(command),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
+        bufsize=0,
     )
-    with process.stdout:
-        for line in process.stdout:
-            print(line.rstrip("\n"), flush=True)
+    # Decoded HERE rather than with `Popen(text=True)`, which cannot pass
+    # `newline` and so applies UNIVERSAL NEWLINES: every `\r` becomes a `\n`,
+    # turning one in-place progress bar into ~15 console rows. `newline=""`
+    # keeps the terminator untranslated, which is all the tee needs -- `_Tee`
+    # drops the redraw frames from the console and collapses them for the log.
+    stream = io.TextIOWrapper(
+        process.stdout, encoding="utf-8", errors="replace", newline=""
+    )
+    with stream:
+        for line in stream:
+            line = line.replace("\r\n", "\n")
+            # ONE write per line, not `print`, which emits the text and the
+            # newline separately. `_muted_on_console` refuses a chunk that is
+            # not exactly one newline-terminated line — by design, so a partial
+            # write can never be silenced — so re-printing with `print` here
+            # made every muted hydromt row reappear on the console from this
+            # rule alone (measured 2026-08-17 on a WF1 rapid build).
+            sys.stdout.write(line)
+            sys.stdout.flush()
     code = process.wait()
     if code != 0:
         raise RuntimeError(
@@ -223,7 +244,11 @@ if __name__ == "__main__":
                 store_catalog=sm.output.store_catalog,
             )
             log_row(
-                f"Added climate forcing {sm.params.starttime}..{sm.params.endtime} "
+                # Dates only: the run window is whole days, so the `T00:00:00`
+                # both stamps carry is 18 chars of constant on a row that was
+                # 142 wide.
+                f"Added climate forcing {str(sm.params.starttime)[:10]}"
+                f"..{str(sm.params.endtime)[:10]} "
                 f"(clim_source={sm.params.clim_source}) -> {sm.output.forcing_path}",
                 module="forcing",
             )
