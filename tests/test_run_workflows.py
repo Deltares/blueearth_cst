@@ -627,8 +627,14 @@ def test_the_whole_console_is_cp1252_encodable(tmp_path, capture_runs, capsys):
     diagram and are exactly what would crash the wrapper on the platform it is
     most often run from -- the same constraint `rule_banner` records.
     """
+    # One disabled workflow, so the sequence diagram renders a disabled row --
+    # which is where the box-drawing characters would appear. WHICH one is
+    # disabled is immaterial here; it is `analyze_projections` rather than
+    # `build_model` only because disabling the latter while `run_stress_test`
+    # is enabled now trips the contract (i) preflight, on a scratch project
+    # that has no wf1 leaves.
     flags = {n: "true" for n in rw.WORKFLOW_ORDER}
-    flags["build_model"] = "false"
+    flags["analyze_projections"] = "false"
     _, out, _ = _run_and_capture(tmp_path, capsys, flags)
     out.encode("cp1252")  # raises UnicodeEncodeError on anything outside it
     assert out.isascii(), [line for line in out.splitlines() if not line.isascii()]
@@ -636,8 +642,11 @@ def test_the_whole_console_is_cp1252_encodable(tmp_path, capture_runs, capsys):
 
 def test_the_console_narration_never_leaks_a_secret(tmp_path, capture_runs, capsys):
     """Every new line that can carry `extra` goes through `sanitize_argv`."""
+    # Exactly one enabled workflow, so `extra` reaches exactly one invocation.
+    # `build_model` rather than `run_stress_test`, for the contract (i) reason
+    # given on the cp1252 test above -- the choice is immaterial to redaction.
     flags = {n: "false" for n in rw.WORKFLOW_ORDER}
-    flags["run_stress_test"] = "true"
+    flags["build_model"] = "true"
     _, out, _ = _run_and_capture(
         tmp_path,
         capsys,
@@ -647,3 +656,120 @@ def test_the_console_narration_never_leaks_a_secret(tmp_path, capture_runs, caps
     assert "visible-secret" not in out
     assert "pw-secret" not in out
     assert "api_token=<redacted>" in out
+
+
+# --- contract (i): the wf1 preflight -----------------------------------------
+
+
+def _staged(project_dir: Path, leaves) -> None:
+    """Create empty files at ``leaves`` under ``project_dir``."""
+    for leaf in leaves:
+        target = project_dir / leaf
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("", encoding="utf-8")
+
+
+def test_wf3_without_wf1_is_refused_before_anything_is_invoked(tmp_path, capture_runs):
+    """The whole point: fail in one second, not after wf0 and wf2 have run.
+
+    Measured 2026-08-17 before this check existed -- 4:14 of which wf3 was
+    0:07, because Snakemake cannot discover a missing input until the DAG for
+    that workflow is built, and the wrapper builds them in order.
+    """
+    calls, _ = capture_runs
+    project_dir = tmp_path / "project"
+    cfg = tmp_path / "c.yml"
+    flags = {n: "true" for n in rw.WORKFLOW_ORDER}
+    flags["build_model"] = "false"
+    _write_cfg(cfg, flags, project_dir=str(project_dir))
+
+    with pytest.raises(rw.PrerequisiteError) as excinfo:
+        rw.run(str(cfg), cores=3, extra=[])
+
+    assert calls == [], "the preflight must run BEFORE the first invocation"
+    assert not _manifests(project_dir), (
+        "a run that cannot start must not mint an invocation record"
+    )
+    message = str(excinfo.value)
+    for leaf in rw.LEAVES:
+        assert leaf in message, f"the message hides the missing leaf {leaf}"
+    assert "build_model" in message, "the message must name the producer"
+
+
+def test_the_preflight_names_only_what_is_actually_absent(tmp_path, capture_runs):
+    """A partially built project reports its own two gaps, not a generic three.
+
+    Snakemake's own failure names one leaf because rule 3.01 is merely the
+    earliest to declare one -- naming the real set is the reason this reads
+    `LEAVES` rather than restating paths.
+    """
+    project_dir = tmp_path / "project"
+    cfg = tmp_path / "c.yml"
+    flags = {n: "true" for n in rw.WORKFLOW_ORDER}
+    flags["build_model"] = "false"
+    _write_cfg(cfg, flags, project_dir=str(project_dir))
+    _staged(project_dir, rw.LEAVES[:1])
+
+    with pytest.raises(rw.PrerequisiteError) as excinfo:
+        rw.run(str(cfg), cores=3, extra=[])
+
+    message = str(excinfo.value)
+    assert rw.LEAVES[0] not in message, "a present leaf is reported as missing"
+    for leaf in rw.LEAVES[1:]:
+        assert leaf in message
+    assert "2 of 3" in message
+
+
+def test_a_complete_wf1_tree_lets_wf3_run_with_build_model_disabled(
+    tmp_path, capture_runs
+):
+    """The check is EXISTENCE, not freshness -- clause (i) against the docstring.
+
+    Staged leaves are empty files: nothing here reads their content, and a
+    check that did would be the freshness comparison the wrapper refuses to
+    make.
+    """
+    calls, _ = capture_runs
+    project_dir = tmp_path / "project"
+    cfg = tmp_path / "c.yml"
+    flags = {n: "true" for n in rw.WORKFLOW_ORDER}
+    flags["build_model"] = "false"
+    _write_cfg(cfg, flags, project_dir=str(project_dir))
+    _staged(project_dir, rw.LEAVES)
+
+    assert rw.run(str(cfg), cores=3, extra=[]) == 0
+    assert "run_stress_test.smk" in _snakefiles_invoked(calls)
+
+
+@pytest.mark.parametrize(
+    ("build_model", "run_stress_test"),
+    [("true", "true"), ("true", "false"), ("false", "false")],
+)
+def test_the_preflight_is_silent_on_every_other_flag_pair(
+    tmp_path, capture_runs, build_model, run_stress_test
+):
+    """Only wf3-enabled-without-wf1 is checked; the run produces or ignores.
+
+    All three leaves are wf3-only -- wf2 declares none -- so no other pair can
+    need them.
+    """
+    project_dir = tmp_path / "project"
+    cfg = tmp_path / "c.yml"
+    flags = {n: "true" for n in rw.WORKFLOW_ORDER}
+    flags["build_model"] = build_model
+    flags["run_stress_test"] = run_stress_test
+    _write_cfg(cfg, flags, project_dir=str(project_dir))
+
+    assert rw.run(str(cfg), cores=3, extra=[]) == 0
+
+
+def test_the_preflight_exits_two_through_main(tmp_path, capture_runs, capsys):
+    """`main` catches PrerequisiteError beside ConfigError -- same exit 2."""
+    project_dir = tmp_path / "project"
+    cfg = tmp_path / "c.yml"
+    flags = {n: "true" for n in rw.WORKFLOW_ORDER}
+    flags["build_model"] = "false"
+    _write_cfg(cfg, flags, project_dir=str(project_dir))
+
+    assert rw.main(["--config", str(cfg)]) == 2
+    assert "error:" in capsys.readouterr().err

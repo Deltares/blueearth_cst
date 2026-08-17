@@ -62,7 +62,8 @@ The tree is self-explanatory; these are the parts that are not.
   (`model/`, `projections/`, `climate_analysis/`, `experiment/`) plus `shared/` for
   cross-cutting helpers (`snake_utils.py`, `run_logged.py`, `climate_parity.py` —
   the engine-neutral regrid/PET transform, plotting primitives, log/benchmark
-  reducers) and `weathergen/` for the R weather generator.
+  reducers, `cross_workflow_leaves.py` — the wf1 outputs WF3 declares but cannot
+  build) and `weathergen/` for the R weather generator.
 - `config/` — four bins plus `advanced_settings.yml`. There is **no
   `workflows/` bin**: every shipped `--configfile` target lives beside the project
   it writes into, under `test_case/` (`snake_config_rapid.yml`,
@@ -182,11 +183,21 @@ of a run.
 **`dev/scripts/` is not only executables.** It also holds small LIBRARIES that
 `tests/` imports via `sys.path` — `semantic_tree_diff.py` (the tree comparators
 and the project-tree inventory) and
-`cross_workflow_inputs.py` (the one definition of the wf1 leaves WF2/WF3 need
-staged). "Never part of a run" still holds — no Snakefile touches them — but
+`cross_workflow_inputs.py` (STAGES the wf1 leaves WF2/WF3 need on disk).
+"Never part of a run" still holds — no Snakefile touches them — but
 "dev-only" does not: a bare-checkout CI run imports them, so an import-time
 error there fails the suite on both legs. Treat those two as contract surfaces
 with test consumers, not as scratch helpers.
+
+The leaf LIST is not one of them. It lived in `cross_workflow_inputs.py` until
+2026-08-17, when `scripts/run_workflows.py` needed it for its wf1 preflight —
+and that is a run path, so the definition moved to
+`blueearth_cst/shared/cross_workflow_leaves.py` and the stager re-exports it.
+The split is the invocation-model rule applied, not an exception to it: a list
+of paths both a run and a fixture need belongs in the shipped package, while
+the staging machinery that only tests call stays in `dev/`. **When something in
+`dev/scripts/` acquires a run-path caller, move the shared part rather than
+importing `dev/` from a run** — a user's checkout is not guaranteed to have it.
 
 ## Key Commands
 
