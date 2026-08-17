@@ -186,7 +186,7 @@ tree-check = { cmd = "python dev/scripts/snapshot_project_tree.py --config test_
 # `pixi install` does not install everything a run needs -- weathergenr comes
 # from `pixi run install` (remotes), as does the Julia env, and a console script
 # can be missing while pixi reports success. Every WORKTREE builds its own
-# `.pixi/`, so each lane needs that second layer separately; `--all` walks
+# `.pixi/`, so each slot needs that second layer separately; `--all` walks
 # `git worktree list` and answers for all of them at once. Read-only, exits
 # non-zero when incomplete.
 env-check = { cmd = "python dev/scripts/check_env.py", description = "Report whether this checkout's env can run the workflows (--all: every worktree)" }
@@ -206,7 +206,7 @@ env-check = { cmd = "python dev/scripts/check_env.py", description = "Report whe
 # relative `--config` resolves against the repo root, not the caller's cwd.
 # From elsewhere, pass an absolute path; the runner reports the path it tried.
 #
-# It runs in THIS checkout, so inside a lane worktree it drives the pipeline
+# It runs in THIS checkout, so inside a session slot it drives the pipeline
 # from that worktree -- which AGENTS.md forbids (divergent `.snakemake` state,
 # concurrent workdir locks). To pin it to the primary checkout from anywhere on
 # the machine, wrap it: `pixi run --manifest-path <primary>/pixi.toml

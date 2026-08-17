@@ -404,87 +404,92 @@ pinned by `tests/test_run_workflows.py`.
 
 ## Workflow
 
-### Standing lanes — two permanent worktrees, partitioned by territory
+### Session slots — a reusable worktree, claimed one task at a time
 
-This repo keeps two long-lived lanes instead of a worktree per task, so the
-partition is stable and the 46 MB `worktree_seed` fixture is paid once per lane
-rather than once per task. A lane is named after a **territory of the tree**,
-never an activity: `fix` and `feat` do not partition files — a bugfix and a
-feature edit the same module — so activity-named lanes collide on their first
-real change. The pair this replaced on 2026-08-12, `fix/improvements` and
-`feat/plotting-standardization`, were exactly that; both landed to `main` before
-the split, and neither name is a lane any more.
+This repo keeps **reusable session slots** instead of a worktree per task. A
+slot is a persistent worktree with **no permanent branch**: detached at `main`
+when idle, and checking out one ordinary short-lived task branch while occupied.
+The worktree, its `.pixi` environment, and the 46 MB `worktree_seed` fixture
+survive; the task branch lands and is deleted like any other.
 
-| Lane | Worktree | Claims |
+| Slot | Worktree | State |
 |---|---|---|
-| `lane/devmeta` | `.worktrees/blueearth_cst/devmeta` | `dev/**`, `docs/**`, `AGENTS.md`, `CLAUDE.md`, `README*`, `CHANGELOG.md`, `DEVLOG.md`, `LICENSE`, `.git-workflow.yml`, `.githooks/`, `.gitignore`, `.gitattributes`, `.editorconfig`, `.zed/`, `.testing-policy.yml` |
-| `lane/pipeline` | `.worktrees/blueearth_cst/pipeline` | `blueearth_cst/**`, `tests/**`, `config/**`, `*.smk`, `scripts/**`, `profiles/**`, `test_case/snake_config_*.yml`, `pyproject.toml`, `pixi.toml`, `pixi.lock`, `Project.toml`, `Manifest.toml`, `Dockerfile`, `.github/` |
+| `session-1` | `.worktrees/blueearth_cst/session-1` | detached at `main` when idle |
 
-The two claims cover **every tracked file** — a path in neither is routed by an
-owner ruling, never by nearest-fit. Measured over the last 200 commits on `main`
-(2026-08-12) they carry 45% and 55% of the traffic, so neither is a catch-all;
-a lane absorbing the majority is the trunk with extra steps and buys no
-isolation.
+**Why slots and not a worktree per task.** `worktree_policy: always` means every
+modifying task builds a worktree, so every task would otherwise pay a full
+`worktree_seed` copy *and* a `.pixi` solve. One slot amortizes both into a
+one-time cost that every later task reuses. That payoff is independent of
+concurrency: it arrives on purely sequential work.
 
-**Why the pipeline is one lane and not three.** Splitting it per workflow looks
-right and is not: only 8 of 68 package-touching commits touch more than one
-workflow, but 72–85% of each workflow's commits also touch
-`blueearth_cst/shared/` — wf2 has *zero* commits that don't. `shared/` is 145
-file-touches, larger than any single workflow territory, because
-`snake_utils.py` parses every Snakefile's config and `interchange_contracts.py`
-*is* the wf1→wf2/wf3 seam. A seam cannot go in a lane: give it its own and every
-workflow lane spans two, duplicate it and two lanes edit one file, pin it to one
-workflow and the pinning is arbitrary. Workflow-scoped projects take a transient
-branch instead.
+**Why slots and not the standing lanes they replaced.** From 2026-08-12 to
+2026-08-17 this repo ran `lane/devmeta` and `lane/pipeline`, partitioned by
+territory. The partition itself was healthy — 45%/55% of traffic, neither a
+catch-all — but **37 of 162 commits touched both territories**, almost all "fix
+the code, then close the board note". That is 23% of tasks paying a second
+worktree visit, and the routing table needed a rule for spanning tasks because
+they were the ordinary case rather than the exception. A territory split that
+23% of work refuses to respect has stopped predicting the work. Under one slot a
+spanning task is simply one branch touching both trees, with no visit and no
+split.
 
-**Why figures is not a lane either.** 15 of the 35 plot-touching commits (43%)
-also touch non-plot code — `cartographic_map.py` is drawn through by rules 1.12
-and 1.13, so a change there is never figure-local (see *Figures are terminal
-artifacts*). And standardizing every figure is a **sweep**: it must edit call
-sites in every territory by definition, so it cannot own a partition.
+The trade is deliberate: lanes made merge order irrelevant **by construction**,
+because two territories cannot collide. A slot has no territory, so that
+guarantee is gone. With a single slot nothing runs concurrently and the question
+does not arise; **if a second slot is ever added, each task must declare its
+expected write paths before editing** — see `session-slots.md` § *Prevent
+semantic overlap before editing*.
 
-Both lanes are **standing lanes** under `git-workflow`: resync from `main` right
-after landing (`git merge --ff-only main`) and again before resuming work, land
-small increments rather than accumulating, and keep an upstream so months of
-work are not one disk away from gone. They never auto-land despite
-`isolation_landing: auto` — that setting covers isolation branches, and a lane
-is not one.
+**Occupancy is read from Git, not from a convention.** `git worktree list` is
+the roster: a slot showing `(detached HEAD)` is idle, and one showing a branch
+is occupied. The old gitignored `.lane-claim` marker is retired — it existed
+only because a permanent branch gives Git no liveness signal. `slot-start`
+refuses an occupied or dirty slot, so a crashed session stays visibly occupied
+and is never silently reused.
 
-**Routing a task.** The lane set is **closed**: pick from it, and add a lane
-only when the owner asks.
+**Lifecycle.** Claim, work, land, park:
+
+```bash
+S=~/workspace/brain/artifacts/skills/git-workflow/scripts/worktree-session.py
+python $S slot-start --slot session-1 --task <task> --type <type> --base main -- codex
+# ... work, commit, then land the branch from the PRIMARY checkout ...
+python $S slot-park --slot session-1 --base main
+```
+
+`slot-start` also compares each `worktree_seed` against the primary at claim
+time: a copy the primary has moved past is refreshed, and a copy that *leads*
+the primary is left untouched and reported — the fixture-drift failure recorded
+in `dev/tasks/t2608121258-*` is that second case, and it must never be
+overwritten. `slot-park` refuses to park until the branch is an ancestor of
+`main`, so an unlanded slot cannot be quietly recycled.
+
+**Routing a task.**
 
 | Situation | Action |
 |---|---|
-| Fits one lane | Work there. |
-| Fits no lane | **Ask.** Do not invent a lane, do not approximate into the nearest. |
-| Spans two lanes | Split at the file boundary; the lane owning the primary artifact leads. |
-| Cannot be split — it is a sweep | Transient branch from `main`. It lands and is **deleted**, never parked beside the lanes. |
+| Any modifying task | Claim `session-1`. |
+| Slot already occupied | Report it. Wait, postpone, or take a transient worktree from `main` for urgent work. |
 | Tiny, complete, verified | `main` directly, per the ordinary landing choice. |
 
-Spanning two lanes is the ordinary case here, not an exception: 37 of 162
-commits touch both territories, almost all "fix the code, then close the board
-note". That costs a second worktree visit and nothing more, because the repo
-already splits those at the commit boundary. **One session per lane forbids two
-sessions in one lane — not one session visiting both in sequence:** commit the
-code in `lane/pipeline`, then the `dev/tasks/` closure and `dev/LOG.md` in
-`lane/devmeta`. Only `lane/devmeta` runs `todoboard render`, since `dev/TODO.md`
-is generated and two lanes regenerating it would conflict on a file neither
-edits by hand.
+`todoboard render` runs wherever the task runs; with one slot there is no second
+worktree to regenerate `dev/TODO.md` concurrently.
 
-**Occupancy — one session per lane.** `git worktree list` reports registration,
-not ownership, so occupancy needs a convention: each lane worktree carries a
-gitignored **`.lane-claim`**, written at session start with a timestamp and the
-task, removed at the end. The explicit file rather than dirty-means-occupied,
-because `mode: full` commits verified work as it goes — an actively-worked lane
-is usually clean between commits and would read as free. A stale claim is
-visible by its own timestamp. When a lane is claimed, report it and let the
-owner decide: wait, postpone, or take a transient branch from `main` for urgent
-work.
+**Why the pipeline was never split further.** Kept from the lane analysis
+because it still governs how work is scoped: only 8 of 68 package-touching
+commits touch more than one workflow, but 72–85% of each workflow's commits also
+touch `blueearth_cst/shared/` — wf2 has *zero* commits that don't. `shared/` is
+145 file-touches, larger than any single workflow territory, because
+`snake_utils.py` parses every Snakefile's config and `interchange_contracts.py`
+*is* the wf1→wf2/wf3 seam. Likewise 15 of the 35 plot-touching commits (43%)
+also touch non-plot code — `cartographic_map.py` is drawn through by rules 1.12
+and 1.13, so a change there is never figure-local (see *Figures are terminal
+artifacts*). Standardizing every figure is a **sweep**: it edits call sites
+everywhere by definition. Both facts are why no territory partition held here.
 
 ### Validation ladder — match the check to the blast radius
 
-Each lane is isolated from the other, so a mistake is contained and cheap to
-revert. Spend validation time accordingly: **unit tests while iterating, the
+A slot's task branch is isolated from `main`, so a mistake is contained and
+cheap to revert. Spend validation time accordingly: **unit tests while iterating, the
 cheap whole-suite tier at the merge, the expensive one only when work leaves
 this machine.** Re-running the full suite after each incremental edit is the
 failure mode to avoid — it re-proves what the previous run already proved.

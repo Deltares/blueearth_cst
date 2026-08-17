@@ -9,7 +9,7 @@ invocation is an undocumented `PYTHONPATH=<machine path> python -m todoboard`,
 which is how a board note landed on 2026-08-12 with the table left one row
 stale — the CLI was simply not reachable and nothing said so.
 
-Usage (from anywhere in the repo; `lane/devmeta` owns the board):
+Usage (from anywhere in the repo, including a session slot):
 
     python dev/scripts/todoboard.py render
     python dev/scripts/todoboard.py list
