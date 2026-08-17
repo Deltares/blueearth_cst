@@ -246,9 +246,7 @@ def plot_climate_source(
         is deliberately loud: the rule declares three outputs, so a silent skip
         would surface as an opaque ``MissingOutputException`` instead.
     """
-    log_row(
-        f"Reading climate store extraction ({clim_source}): {climate_nc}", module="plot"
-    )
+    log_row(f"Reading store ({clim_source}): {climate_nc}", module="plot")
     ds_raw = xr.open_dataset(climate_nc)
     variables = source_climate_vars(clim_source)
 
@@ -264,10 +262,14 @@ def plot_climate_source(
                 f"plot_climate_source: {climate_nc} is missing {missing}; "
                 f"{clim_source} is precipitation-only and needs {list(variables)}"
             )
+        # The parenthetical explaining WHOSE temperature the store carries was
+        # the larger half of a 180-character row that wrapped to two console
+        # lines. It is a property of the store, not news about this run, and it
+        # is stated on the figures themselves (`_CAVEAT`) where a reader who
+        # needs it actually is.
         log_row(
-            f"{clim_source} carries precipitation only; drawing the precip "
-            "figures and skipping temperature and PET (their values in the "
-            "store are era5's, borrowed to force the model)",
+            f"{clim_source} is precipitation-only: precip figures only, "
+            "no temperature or PET",
             module="plot",
         )
         ds_src, caveat = ds_raw, _CAVEAT

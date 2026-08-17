@@ -473,8 +473,7 @@ def prep_historical_climate(
         # same catalog entry the delineation and the model build read, not a
         # second elevation source only this branch names.
         log_row(
-            f"Preparing orography data for {clim_source} from {hydrography} "
-            "to downscale climate variables.",
+            f"Orography for {clim_source} from {hydrography} (downscaling)",
             module="extract",
         )
         dem = data_catalog.get_rasterdataset(

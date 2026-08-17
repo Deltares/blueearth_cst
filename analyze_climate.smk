@@ -9,7 +9,7 @@ from pathlib import Path
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.provenance import append_journal_line, configuration_inputs_digest, effective_config_digest, environment_file_hashes, file_sha256, journal_event, referenced_inputs_for_digest, toolbox_identity
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, catalog_root, climate_store_rule, declare_path_tokens, get_config, patch_psutil_windows_benchmark, region_rule, resolve_water_year_start, rule_banner, run_summary, spatial_units_rule, target_banner, validate_historical_window, warn_if_project_dir_in_repo, install_console_style, run_header
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, catalog_root, climate_store_rule, declare_path_tokens, declare_project_root, get_config, patch_psutil_windows_benchmark, region_rule, resolve_water_year_start, rule_banner, run_summary, spatial_units_rule, target_banner, validate_historical_window, warn_if_project_dir_in_repo, install_console_style, run_header
 from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set. Imported for figure_names() ONLY, so every
 # figure is declared from the same list the plotter writes from and the two
@@ -246,6 +246,7 @@ declare_path_tokens(
     # store key stays visible, which is the part a reader is comparing.
     climate=os.path.dirname(CLIMATE_STORES[clim_source].store_dir),
 )
+declare_project_root(project_dir)
 LOG_RULES = [
     "0.02_delineate_region",
     "0.03_delineate_spatial_units",
@@ -466,7 +467,7 @@ for _source in CANDIDATE_SOURCES:
 
     rule:
         name: f"extract_historical_climate_{_source}"
-        message: rule_banner("0.04", f"extract_historical_climate_{_source}", summary="clip the global climate dataset to the basin")
+        message: rule_banner("0.04", f"extract_historical_climate_{_source}", summary="clip global climate to the basin")
         input:
             **_spec.inputs,
         params:

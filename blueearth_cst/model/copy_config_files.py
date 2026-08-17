@@ -216,7 +216,7 @@ def copy_config_files(
     current_config_path = Path(config_out_path)
     current_config_path.parent.mkdir(parents=True, exist_ok=True)
     log_row(
-        f"Copying {current_config_path.name} to {current_config_path.parent}",
+        f"Config snapshot -> {current_config_path.parent / current_config_path.name}",
         module="config",
     )
     shutil.copyfile(source_config_path, current_config_path)
@@ -325,7 +325,7 @@ def _snapshot_references(
         claimed[key] = origin
 
         destination_dir.mkdir(parents=True, exist_ok=True)
-        log_row(f"Copying {source_path.name} to {destination_dir}", module="config")
+        log_row(f"Copied {source_path.name} -> {destination_dir}", module="config")
         shutil.copyfile(source_path, destination)
         entries.append(
             {
@@ -476,10 +476,7 @@ def _write_run_record(
         except FileNotFoundError:
             pass
 
-    log_row(
-        f"Run record for {workflow_name}: {run_record_path}",
-        module="config",
-    )
+    log_row(f"Run record -> {run_record_path}", module="config")
 
 
 def _warn_on_low_gauge_ids(locations_path):

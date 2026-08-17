@@ -458,8 +458,7 @@ def write_comparison_table(table: pd.DataFrame, out_dir: Union[str, Path]) -> li
         encoding="utf-8",
     )
     log_row(
-        f"Wrote the dataset comparison table ({len(table)} sources) -> "
-        f"{csv_path.name}, {md_path.name}",
+        f"Comparison table ({len(table)} sources) -> {csv_path.name}, {md_path.name}",
         module="compare",
     )
     return [csv_path, md_path]
@@ -680,20 +679,28 @@ def plot_comparison_figures(
         areas = _comparison_areas(opened, basin_cells, subbasins)
         if len(areas) > 1:
             os.makedirs(subbasin_dir, exist_ok=True)
+        # The BASIN's cell counts only, and the area count as a number. Naming
+        # every area with its per-source counts made this row grow with the
+        # basin: 265 characters at five areas, and unbounded past that, so it
+        # wrapped to three console lines and buried the period it leads with.
+        # The per-area detail is not lost -- it is what the comparison table
+        # this rule also writes is for.
+        #
+        # `_window_note`'s prose spelling is kept for the figure caption that
+        # shares it; the console row states the same window as a bare range.
+        if window is None:
+            period = "each source over its own record"
+        else:
+            lower, upper = window
+            period = f"{lower.date().isoformat()}..{upper.date().isoformat()}"
+        headline = next(iter(areas.values()), {})
+        cells = ", ".join(
+            f"{name} {int(mask.values.sum())}" if mask is not None else f"{name} full"
+            for name, mask in headline.items()
+        )
         log_row(
-            f"Common ground: {_window_note(window)}; "
-            f"{len(areas)} area(s) — "
-            + ", ".join(
-                f"{scope} ("
-                + ", ".join(
-                    f"{name} {int(mask.values.sum())}"
-                    if mask is not None
-                    else f"{name} full grid"
-                    for name, mask in masks.items()
-                )
-                + ")"
-                for scope, masks in areas.items()
-            ),
+            f"Common ground: {period}; {len(areas)} area(s)"
+            + (f"; basin cells: {cells}" if cells else ""),
             module="compare",
         )
         for var in [v for v in COMPARABLE_VARS if v in set(variables)]:
@@ -786,9 +793,8 @@ def compare_climate_sources(
     """
     variables = comparison_variables(list(stores))
     log_row(
-        f"Comparing {len(stores)} climate sources ({', '.join(stores)}); "
-        f"variables with more than one source: "
-        f"{', '.join(variables) if variables else 'none'}",
+        f"Comparing {len(stores)} sources ({', '.join(stores)}) on "
+        f"{', '.join(variables) if variables else 'no shared variable'}",
         module="compare",
     )
     os.makedirs(out_dir, exist_ok=True)

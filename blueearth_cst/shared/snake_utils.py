@@ -186,10 +186,23 @@ def _strip_prefix(text, prefix, replacement=""):
     and a blanket replace would rewrite Windows paths this function deliberately
     leaves absolute (a data catalog under ``C:\\data\\``, whose location is the
     information), regex escapes, and any other literal backslash.
+
+    **Both spellings are derived from the prefix, not from the prefix as
+    given.** The earlier form appended ``os.sep`` to the prefix verbatim and
+    then replaced ``os.sep`` within it, which silently produced ONE spelling
+    whenever the prefix arrived already forward-slashed -- exactly what a
+    ``project_dir`` read from a shipped config is (``test_case/test_rapid``).
+    A rule that printed the same folder OS-natively (``test_case\\test_rapid\\
+    config\\runs``, from a ``pathlib`` value interpolated into a message) then
+    matched neither spelling, so the row kept the full path AND its
+    backslashes while every neighbouring row was stripped and forward-slashed.
+    Canonicalizing first makes the two spellings genuinely independent of how
+    the caller happened to write the prefix.
     """
     if not prefix:
         return text
-    for spelling in (prefix + os.sep, prefix.replace(os.sep, "/") + "/"):
+    canonical = os.fspath(prefix).replace("\\", "/")
+    for spelling in (canonical + "/", canonical.replace("/", "\\") + "\\"):
         text = re.sub(
             re.escape(spelling) + f"({_STRIPPED_TAIL_RE})",
             lambda m: replacement + m.group(1).replace("\\", "/"),
@@ -236,6 +249,34 @@ def declare_path_tokens(**folders):
         tokens[name] = os.path.normpath(os.path.abspath(os.fspath(folder)))
     os.environ[_PATH_TOKENS_ENV] = json.dumps(tokens)
     return tokens
+
+
+#: The run's project directory, for rules that print a path OUTSIDE a rule log.
+#: Travels the same way and for the same reason as `_PATH_TOKENS_ENV`.
+_PROJECT_ROOT_ENV = "CST_PROJECT_ROOT"
+
+
+def declare_project_root(project_dir):
+    """Declare the run's project directory for :func:`log_row` to shorten against.
+
+    ``tee_to_log`` already relativizes everything a rule with a ``log:``
+    directive prints, so this exists for the rules that have NONE -- the config
+    snapshot (0.01/1.01/2.01/3.01) is the standing example. Those rows reach the
+    console without passing the tee, so they were the only ones in a run still
+    printing ``test_case\\test_rapid\\config\\runs\\...`` -- full length, and
+    backslashed, while every neighbouring row was short and forward-slashed.
+    The project dir is stated once in the header either way, so nothing is lost
+    by shortening them to match.
+
+    Declared alongside :func:`declare_path_tokens` at Snakefile parse time.
+    Absent (a bare ``log_row`` in a test, or a script run by hand) the message
+    is left alone, which is the behaviour this improves on.
+    """
+    if project_dir is None or not str(project_dir).strip():
+        os.environ.pop(_PROJECT_ROOT_ENV, None)
+        return ""
+    os.environ[_PROJECT_ROOT_ENV] = os.fspath(project_dir)
+    return os.environ[_PROJECT_ROOT_ENV]
 
 
 def catalog_root(data_sources):
@@ -327,12 +368,18 @@ def _tokenize_prefix(text, prefix, token):
     The trailing lookahead is what stops ``<...>/wflow`` from also claiming
     ``<...>/wflow_extra``: with no separator-led tail, the character after the
     prefix must be one that cannot continue a path.
+
+    Both separator spellings are derived from a canonicalized prefix, for the
+    reason set out in :func:`_strip_prefix`: deriving them from the prefix as
+    given collapses to one spelling whenever the caller already used ``/``.
     """
     if not prefix:
         return text
     tail = f"([\\\\/]{_STRIPPED_TAIL_RE})?"
     guard = r"(?![^\s\"'<>|,;)\]}])"
-    for spelling in (prefix, prefix.replace(os.sep, "/")):
+    canonical = os.fspath(prefix).replace("\\", "/")
+    for spelling in (canonical + "/", canonical.replace("/", "\\") + "\\"):
+        spelling = spelling[:-1]  # match the folder named on its own too
         text = re.sub(
             re.escape(spelling) + tail + guard,
             lambda m: f"<{token}>" + (m.group(1) or "").replace("\\", "/"),
@@ -375,7 +422,19 @@ def _relativize_paths(text, project_root, tokens=()):
     above is still true of an UNDECLARED one.
     """
     text = _SITE_PACKAGES_RE.sub("<site-packages>/", text)
-    for token, path in tokens:
+    # Each token in BOTH the absolute spelling it was declared in and the
+    # project-relative one, longest first so a nested token still wins.
+    #
+    # The relative spelling is not redundant. A plotting rule builds its output
+    # path from the config's own relative `project_dir`, so it prints
+    # `test_case/test_rapid/data/climate/historical/<store>/plots/x.png` --
+    # already relative, and therefore unmatched by an absolute token. The
+    # declaration was then applied to nothing and the project strip below
+    # reduced the row to `data/climate/historical/<store>/plots/x.png`: the
+    # header declared `<climate>` as a legend for lines that never used it,
+    # which is worse than not declaring it, and left 25 characters of constant
+    # prefix on every figure row.
+    for token, path in _spelt_tokens(tokens, project_root):
         text = _tokenize_prefix(text, path, token)
     # BOTH spellings of the project root, absolute first. `project_dir` is
     # relative in every shipped config (`test_case/test_rapid`), and the two
@@ -393,6 +452,31 @@ def _relativize_paths(text, project_root, tokens=()):
         text = _strip_prefix(text, os.path.abspath(os.fspath(project_root)))
     text = _strip_prefix(text, project_root)
     return _strip_prefix(text, _REPO_ROOT, "<repo>/")
+
+
+def _spelt_tokens(tokens, project_root):
+    """Return ``(token, path)`` in every spelling a rule might print, longest first.
+
+    A declared folder is stored absolute (:func:`declare_path_tokens`), but a
+    rule that joined its output onto a relative ``project_dir`` prints the
+    relative form. Both are yielded so the token matches either, and the result
+    is sorted longest-path-first for the nesting reason in :func:`_path_tokens`
+    -- a relative spelling is shorter than its own absolute one, so appending
+    without re-sorting would let a short token claim a longer token's path.
+    """
+    spellings = []
+    root = os.path.abspath(os.fspath(project_root)) if project_root else ""
+    for token, path in tokens:
+        spellings.append((token, path))
+        if not root:
+            continue
+        relative = _strip_prefix(path, root)
+        # `_strip_prefix` is unanchored and returns the text unchanged when it
+        # does not match, so an unrelated token (an external data root) yields
+        # its own absolute path back and must not be added a second time.
+        if relative != path and relative:
+            spellings.append((token, os.path.join(os.fspath(project_root), relative)))
+    return tuple(sorted(spellings, key=lambda pair: len(pair[1]), reverse=True))
 
 
 def _folder_rows(project_root, tokens=None):
@@ -2707,12 +2791,11 @@ def tee_to_log(log_path, heartbeat_interval=60.0):
             orig_out, orig_err, stdout_tee, stderr_tee
         )
         heartbeat.start()
-        # A new log starts a new figure group, so its first `save_figure` row
-        # carries the directory even if an earlier block in this process already
-        # wrote figures there. Makes that invariant a property of the FILE,
-        # which is the unit a reader has in front of them.
-        global _LAST_FIGURE_DIR
-        _LAST_FIGURE_DIR = None
+        # A new log starts a new figure group, so its bundle rows describe only
+        # the figures this log's own rules wrote. Makes that invariant a
+        # property of the FILE, which is the unit a reader has in front of them.
+        _FIGURE_BUNDLES.clear()
+        _FIGURE_BUNDLE_MODULES.clear()
         try:
             yield
         except BaseException as exc:  # noqa: BLE001 - re-raised below, never swallowed
@@ -2743,6 +2826,15 @@ def tee_to_log(log_path, heartbeat_interval=60.0):
                 handle.flush()
             raise
         finally:
+            # Drain any figures the rule wrote but never followed with another
+            # row, BEFORE the tee closes -- `flush_figure_bundles` prints
+            # through `log_row`, so it needs the log's stdout still in place.
+            # A plotting rule whose last act is to save a figure is the normal
+            # case, so without this the whole bundle would be lost.
+            try:
+                flush_figure_bundles()
+            except Exception:  # noqa: BLE001 -- never fail a rule over a log row
+                pass
             # Collect FIRST, while the interpreter is healthy and this block is
             # still fully set up. A `script:` rule's data catalogs and model
             # objects are frame locals of the function the body just called, so
@@ -2849,45 +2941,99 @@ def log_row(message, module="cst", level="INFO"):
     rank = _LOG_LEVEL_RANK.get(str(level).strip().upper())
     if rank is not None and rank < log_level_floor():
         return
+    # Any ordinary row closes an open figure bundle first, so the bundle line
+    # appears where the figures were actually written rather than after the
+    # message that followed them. See `save_figure`.
+    if not _FIGURE_BUNDLE_FLUSHING:
+        flush_figure_bundles()
+    # Shorten paths HERE as well as in the tee, so a rule with no `log:`
+    # directive prints them the same way as every rule that has one. A row that
+    # does go through the tee is simply relativized twice, which is a no-op:
+    # the second pass finds no prefix left to strip.
+    message = _relativize_paths(
+        str(message), os.environ.get(_PROJECT_ROOT_ENV, ""), _path_tokens()
+    )
     print(_log_row_text(f"{datetime.now():%H:%M:%S}", module, level, message))
 
 
-# The directory of the figure most recently written by `save_figure`, so a run
-# of figures into one directory states it once. Reset by `tee_to_log`, which
-# makes the invariant per LOG FILE rather than per process: the first figure row
-# in any log always carries its directory, whatever ran before it.
-_LAST_FIGURE_DIR = None
+# Figures written by `save_figure` since the last flush, as
+# {absolute directory: [file name, ...]} in first-written order, plus the module
+# each was announced under. Reset and drained by `tee_to_log`, which makes the
+# grouping a property of the LOG FILE rather than of the process.
+_FIGURE_BUNDLES = {}
+_FIGURE_BUNDLE_MODULES = {}
+#: Guards `log_row` against recursing while the bundle rows are themselves
+#: being printed through it.
+_FIGURE_BUNDLE_FLUSHING = False
+
+
+def flush_figure_bundles():
+    """Emit one row per directory of pending figures, then forget them.
+
+    Called automatically -- by `log_row` before any other row, and by
+    `tee_to_log` when a rule's log closes -- so no caller has to remember it.
+    Idempotent: with nothing pending it prints nothing.
+    """
+    global _FIGURE_BUNDLE_FLUSHING
+    if not _FIGURE_BUNDLES:
+        return
+    pending = tuple(_FIGURE_BUNDLES.items())
+    _FIGURE_BUNDLES.clear()
+    modules = dict(_FIGURE_BUNDLE_MODULES)
+    _FIGURE_BUNDLE_MODULES.clear()
+    _FIGURE_BUNDLE_FLUSHING = True
+    try:
+        for directory, names in pending:
+            module = modules.get(directory, "plot")
+            if len(names) == 1:
+                # A rule that writes ONE figure names the file, exactly as
+                # before: "1 figure -> <dir>" would be a longer way of saying
+                # less, and several rules here write a single map.
+                log_row(os.path.join(directory, names[0]), module=module)
+            else:
+                log_row(f"{len(names)} figures -> {directory}", module=module)
+    finally:
+        _FIGURE_BUNDLE_FLUSHING = False
 
 
 def save_figure(path, module="plot", fig=None, **kwargs):
-    """Save a matplotlib figure to ``path`` and announce it cleanly.
+    """Save a matplotlib figure to ``path`` and announce it as part of a bundle.
 
     Centralizes the "write a figure + log one line" pattern for the plotting
-    ``script:`` rules: every produced map/plot appears in the rule's log
-    (via ``log_row``) instead of the log being empty or showing only upstream
-    library chatter. Parent directories are created. ``kwargs`` pass through to
+    ``script:`` rules: every produced map/plot is accounted for in the rule's
+    log instead of the log being empty or showing only upstream library
+    chatter. Parent directories are created. ``kwargs`` pass through to
     ``Figure.savefig`` (e.g. ``dpi``, ``bbox_inches``). matplotlib is
     imported lazily so this module stays light for the Snakefiles that import it
     only for ``get_config`` / ``stress_test_grid``.
 
-    **The row is the path and nothing else, and the directory is stated once.**
-    A plotting rule writes 9 to 17 figures into ONE directory, so the old
-    ``Saved figure: <full path>`` repeated a deep prefix on every row and buried
-    the only part that differed::
+    **One row per DIRECTORY, not per figure.** A single wf0 plotting rule
+    writes 33 figures, and a row each made the figures the bulk of the whole
+    workflow's console -- 54 of wf0's ~117 rows, all of them the same sentence
+    with one word changed. The rows are accumulated by directory and emitted on
+    flush::
 
-        11:43:44 - plot - models/hydrology/wflow/evaluation/plots/hydrograph_1030.png
-        11:43:45 - plot -   performance_1030.png
-        11:43:45 - plot -   signatures_peaks_1030.png
+        21:50:31 - plot - 9 figures -> <climate>/era5_20000101_20161231/plots
+        21:50:31 - plot - 24 figures -> <climate>/era5_.../plots/subbasins
 
-    The ``Saved figure:`` label went because it says what the row already says:
-    the module column is ``plot`` and the value is a ``.png``. Subsequent
-    figures into the same directory show the file name alone, indented to read
-    as a continuation of the row above.
+    The previous scheme printed the directory once and then indented bare file
+    names under it, which halved the width but not the row COUNT, and it broke
+    down exactly where it was needed most: these rules alternate between a
+    parent directory and its ``subbasins`` child, so "state the directory when
+    it changes" restated it on nearly every other row. Accumulating per
+    directory rather than tracking only the last one is what makes the
+    alternation collapse to two rows instead of twelve.
 
-    Eliding rather than dropping the directory is the deliberate half. A log is
-    the artifact someone sends you when a run went wrong, and bare file names
-    would leave "where did they go" answerable only from the Snakefile. Stated
-    once, it costs one row and stays answerable.
+    Naming the directory rather than dropping the paths entirely is the
+    deliberate half: a log is the artifact someone sends you when a run went
+    wrong, and a bare count would leave "where did they go" answerable only
+    from the Snakefile. A per-file record still exists -- on disk, and in the
+    rule's declared outputs.
+
+    Flushing is automatic (:func:`flush_figure_bundles`): any other ``log_row``
+    closes the open bundles first, so a module's own summary line still reads
+    after the figures it summarizes, and ``tee_to_log`` drains whatever is left
+    when the log closes.
 
     ``fig`` defaults to the current figure, which is what every historical
     caller relies on. Pass it explicitly when one plot writes MORE THAN ONE
@@ -2895,21 +3041,19 @@ def save_figure(path, module="plot", fig=None, **kwargs):
     resolve "current figure" through global pyplot state are a silent
     correctness trap the moment any intervening code creates a figure.
     """
-    global _LAST_FIGURE_DIR
     import matplotlib.pyplot as plt
 
     parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
     (fig if fig is not None else plt.gcf()).savefig(path, **kwargs)
-    # Compared as an ABSOLUTE path, so two callers spelling one directory
-    # differently (relative vs absolute, `./plots` vs `plots`) still group.
+    # Grouped by ABSOLUTE directory, so two callers spelling one directory
+    # differently (relative vs absolute, `./plots` vs `plots`) still group. The
+    # row is printed from this spelling and relativized by the tee like any
+    # other path, so the absolute form never reaches a reader.
     directory = os.path.dirname(os.path.abspath(path))
-    if directory == _LAST_FIGURE_DIR:
-        log_row(f"  {os.path.basename(path)}", module=module)
-    else:
-        _LAST_FIGURE_DIR = directory
-        log_row(os.fspath(path), module=module)
+    _FIGURE_BUNDLES.setdefault(directory, []).append(os.path.basename(path))
+    _FIGURE_BUNDLE_MODULES[directory] = module
 
 
 def patch_psutil_windows_benchmark():
