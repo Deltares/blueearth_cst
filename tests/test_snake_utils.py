@@ -224,47 +224,76 @@ def _figure(tmp_path, name, subdir="plots"):
 
 
 def test_save_figure_writes_creates_parent_and_announces(tmp_path, capsys):
-    su._LAST_FIGURE_DIR = None
+    su._FIGURE_BUNDLES.clear()
     out = _figure(tmp_path, "basin_area.png")  # parent does not exist yet
     assert out.exists()
+    su.flush_figure_bundles()
     printed = capsys.readouterr().out.strip()
     assert printed.endswith(f"- plot - {out}"), printed
 
 
-def test_save_figure_states_a_directory_once(tmp_path, capsys):
-    """A plotting rule writes 9-17 figures into ONE directory."""
-    su._LAST_FIGURE_DIR = None
+def test_save_figure_bundles_one_directory_into_one_row(tmp_path, capsys):
+    """A plotting rule writes 9-33 figures into ONE directory; that is one row."""
+    su._FIGURE_BUNDLES.clear()
     first = _figure(tmp_path, "hydrograph_1030.png")
     _figure(tmp_path, "performance_1030.png")
     _figure(tmp_path, "signatures_peaks_1030.png")
+    assert capsys.readouterr().out == ""  # nothing announced until the flush
+    su.flush_figure_bundles()
     rows = [line.split(" - ", 2)[2] for line in capsys.readouterr().out.splitlines()]
+    assert rows == [f"3 figures -> {os.path.dirname(str(first))}"], rows
+
+
+def test_save_figure_bundles_alternating_directories_separately(tmp_path, capsys):
+    """The rules that motivated this alternate between a dir and its child."""
+    su._FIGURE_BUNDLES.clear()
+    _figure(tmp_path, "a.png", subdir="plots")
+    _figure(tmp_path, "b.png", subdir="maps")
+    _figure(tmp_path, "c.png", subdir="plots")
+    _figure(tmp_path, "d.png", subdir="maps")
+    su.flush_figure_bundles()
+    rows = [line.split(" - ", 2)[2] for line in capsys.readouterr().out.splitlines()]
+    # Two rows, in the order the directories were FIRST written to -- not four,
+    # and not one per alternation.
     assert rows == [
-        str(first),
-        "  performance_1030.png",
-        "  signatures_peaks_1030.png",
+        f"2 figures -> {tmp_path / 'plots'}",
+        f"2 figures -> {tmp_path / 'maps'}",
     ], rows
 
 
-def test_save_figure_restates_the_directory_when_it_changes(tmp_path, capsys):
-    """Elision must never make a row name a directory it did not go to."""
-    su._LAST_FIGURE_DIR = None
-    _figure(tmp_path, "a.png", subdir="plots")
-    other = _figure(tmp_path, "b.png", subdir="maps")
-    back = _figure(tmp_path, "c.png", subdir="plots")
+def test_an_ordinary_row_flushes_the_bundle_first(tmp_path, capsys):
+    """A module's own summary must read AFTER the figures it summarizes."""
+    su._FIGURE_BUNDLES.clear()
+    _figure(tmp_path, "a.png")
+    _figure(tmp_path, "b.png")
+    log_row("Wrote 2 canonical climate figures", module="plot")
     rows = [line.split(" - ", 2)[2] for line in capsys.readouterr().out.splitlines()]
-    assert rows[1] == str(other) and rows[2] == str(back), rows
+    assert rows == [
+        f"2 figures -> {tmp_path / 'plots'}",
+        "Wrote 2 canonical climate figures",
+    ], rows
 
 
-def test_a_new_log_restates_the_directory(tmp_path, capsys):
-    """The invariant is per FILE: a log's first figure row always has its path."""
-    su._LAST_FIGURE_DIR = None
+def test_a_closing_log_drains_pending_figures(tmp_path, capsys):
+    """A rule whose LAST act is a figure must still report it."""
+    su._FIGURE_BUNDLES.clear()
+    with tee_to_log(tmp_path / "logs" / "rule.log"):
+        _figure(tmp_path, "second.png")
+    body = (tmp_path / "logs" / "rule.log").read_text(encoding="utf-8")
+    assert "second.png" in body
+
+
+def test_a_new_log_starts_a_new_bundle(tmp_path, capsys):
+    """The grouping is per FILE: an earlier block's figures are not counted in."""
+    su._FIGURE_BUNDLES.clear()
     _figure(tmp_path, "first.png")
     capsys.readouterr()
     with tee_to_log(tmp_path / "logs" / "rule.log"):
-        second = _figure(tmp_path, "second.png")
+        _figure(tmp_path, "second.png")
     body = (tmp_path / "logs" / "rule.log").read_text(encoding="utf-8")
-    assert os.path.basename(str(second)) in body
-    assert "  second.png" not in body  # not elided into a bare continuation row
+    assert "second.png" in body
+    assert "first.png" not in body
+    assert "2 figures" not in body
 
 
 # --- log_row -----------------------------------------------------------------
@@ -571,6 +600,46 @@ def test_declare_path_tokens_drops_what_a_workflow_does_not_have(declare_folders
     tokens = declare_folders(data="", model=None, projections="proj/x")
     assert set(tokens) == {"projections"}
     assert os.path.isabs(tokens["projections"])
+
+
+def test_declare_project_root_lets_a_row_shorten_without_a_rule_log(monkeypatch):
+    """Rule 0.01 declares no `log:`, so nothing tees its output. Its rows were
+    the only ones in a run still printing the project dir in full."""
+    monkeypatch.setenv(su._PATH_TOKENS_ENV, "{}")
+    monkeypatch.delenv(su._PROJECT_ROOT_ENV, raising=False)
+    su.declare_project_root("test_case/test_rapid")
+    assert os.environ[su._PROJECT_ROOT_ENV] == "test_case/test_rapid"
+    native = os.path.join("test_case", "test_rapid", "config", "runs", "cfg.yml")
+    assert (
+        su._relativize_paths(f"snapshot -> {native}", os.environ[su._PROJECT_ROOT_ENV])
+        == "snapshot -> config/runs/cfg.yml"
+    )
+
+
+def test_declare_project_root_unsets_on_a_blank(monkeypatch):
+    """A caller with no project dir must not leave a stale root behind for the
+    next process to shorten against."""
+    monkeypatch.setenv(su._PROJECT_ROOT_ENV, "old/root")
+    assert su.declare_project_root("") == ""
+    assert su._PROJECT_ROOT_ENV not in os.environ
+
+
+def test_log_row_shortens_the_project_dir_it_was_given(capsys, monkeypatch):
+    monkeypatch.setenv(su._PATH_TOKENS_ENV, "{}")
+    monkeypatch.setenv(su._PROJECT_ROOT_ENV, "test_case/test_rapid")
+    native = os.path.join("test_case", "test_rapid", "config", "runs", "record.yml")
+    su.log_row(f"Run record -> {native}", module="config")
+    assert "Run record -> config/runs/record.yml" in capsys.readouterr().out
+
+
+def test_log_row_leaves_a_row_alone_when_no_project_root_is_declared(
+    capsys, monkeypatch
+):
+    """A bare script run by hand keeps the behaviour this improves on."""
+    monkeypatch.setenv(su._PATH_TOKENS_ENV, "{}")
+    monkeypatch.delenv(su._PROJECT_ROOT_ENV, raising=False)
+    su.log_row("Run record -> test_case/test_rapid/config/runs/record.yml")
+    assert "test_case/test_rapid/config/runs/record.yml" in capsys.readouterr().out
 
 
 def test_path_tokens_fails_open_on_a_malformed_declaration(monkeypatch):

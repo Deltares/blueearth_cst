@@ -8,7 +8,7 @@ from pathlib import Path
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.provenance import append_journal_line, configuration_inputs_digest, effective_config_digest, environment_file_hashes, file_sha256, journal_event, referenced_inputs_for_digest, toolbox_identity
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, catalog_root, declare_path_tokens, DEFAULT_JULIA_THREADS, DEFAULT_WFLOW_OUTVARS, climate_store_rule, get_config, julia_prefix, patch_psutil_windows_benchmark, region_rule, resolve_simulation_window, resolve_water_year_start, rule_banner, run_summary, spatial_units_rule, target_banner, validate_historical_window, warn_if_project_dir_in_repo, install_console_style, run_header
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, catalog_root, declare_path_tokens, declare_project_root, DEFAULT_JULIA_THREADS, DEFAULT_WFLOW_OUTVARS, climate_store_rule, get_config, julia_prefix, patch_psutil_windows_benchmark, region_rule, resolve_simulation_window, resolve_water_year_start, rule_banner, run_summary, spatial_units_rule, target_banner, validate_historical_window, warn_if_project_dir_in_repo, install_console_style, run_header
 from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set (rules 1.13 and 1.15 both draw it). Imported
 # for figure_names() ONLY, so every figure is declared from the same list the
@@ -372,6 +372,7 @@ declare_path_tokens(
     model=basin_dir,
     climate=store_dir,
 )
+declare_project_root(project_dir)
 LOG_RULES = [
     "1.02_delineate_region",
     "1.03_delineate_spatial_units",

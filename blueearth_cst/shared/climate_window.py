@@ -86,12 +86,21 @@ class WindowCoverage:
         return meets_min_historical_years(self.effective_start, self.effective_end)
 
     def describe(self) -> str:
-        """The one line every caller logs: requested, delivered, and how long."""
+        """The one line every caller logs: requested, delivered, and how long.
+
+        When nothing was narrowed the two spans are the SAME dates, and stating
+        both spent 40 characters saying it twice -- enough to wrap the row. The
+        requested span is then dropped and only the delivered one is named,
+        which is the span every later stage actually uses. A narrowed record
+        still prints both, because there the difference is the whole point.
+        """
+        delivered = f"{self.effective_start.date()}..{self.effective_end.date()}"
+        requested = f"{self.requested_start.date()}..{self.requested_end.date()}"
+        if delivered == requested:
+            return f"{self.source}: {delivered} (~{self.years:.1f} years)"
         return (
-            f"{self.source}: requested "
-            f"{self.requested_start.date()}..{self.requested_end.date()}, "
-            f"delivered {self.effective_start.date()}..{self.effective_end.date()} "
-            f"(~{self.years:.1f} years)"
+            f"{self.source}: requested {requested}, "
+            f"delivered {delivered} (~{self.years:.1f} years)"
         )
 
 

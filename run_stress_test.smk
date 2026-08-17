@@ -16,7 +16,7 @@ from blueearth_cst.shared.provenance import append_journal_line, configuration_i
 from blueearth_cst.shared.indicator_tables import indicator_tables, refuse_retired_experiment_keys
 from blueearth_cst.shared.surface_axes import parse_surfaces, warn_on_heterogeneous_design
 from blueearth_cst.experiment.prepare_cst_parameters import refuse_out_of_domain_multipliers
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, catalog_root, declare_path_tokens, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, DEFAULT_JULIA_THREADS, DEFAULT_WFLOW_OUTVARS, file_digest_or_absent, get_config, julia_prefix, index_width, member_index_regex, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, run_summary, spatial_units_rule, resolve_seed, resolve_water_year_start, stress_test_grid, validate_spell_factor, target_banner, validate_experiment_name, warn_if_project_dir_in_repo, install_console_style, run_header
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, catalog_root, declare_path_tokens, declare_project_root, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, DEFAULT_JULIA_THREADS, DEFAULT_WFLOW_OUTVARS, file_digest_or_absent, get_config, julia_prefix, index_width, member_index_regex, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, run_summary, spatial_units_rule, resolve_seed, resolve_water_year_start, stress_test_grid, validate_spell_factor, target_banner, validate_experiment_name, warn_if_project_dir_in_repo, install_console_style, run_header
 from blueearth_cst.spatial.config import parse_spatial_config
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
@@ -483,6 +483,7 @@ declare_path_tokens(
     climate=store_dir,
     experiment=exp_dir,
 )
+declare_project_root(project_dir)
 
 WORKFLOW_LOG_NAME = f"wf3_run_stress_test_{experiment}.log"
 BENCHMARKS_NAME = f"wf3_benchmarks_{experiment}.md"
