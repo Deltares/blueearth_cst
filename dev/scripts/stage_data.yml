@@ -37,73 +37,156 @@ bbox: [8.5, -0.5, 11.0, 1.5]
 # so a small bbox still reads whole spatial chunks — tightening time_range is the
 # effective lever. netcdf_glob `workers>1` gives little speed-up (the netCDF-C
 # library serializes concurrent reads); it mainly helps raster_glob.
+#
+# Every entry carries a coverage block in this fixed order:
+#   spatial coverage / spatial resolution / temporal coverage /
+#   temporal resolution / parameters
+# The figures are READ OFF THE SOURCE FILES under source_root, because the data
+# catalog cannot supply them: `config/catalogs/deltares_data.yml` declares only
+# category, crs, nodata, notes, paper_doi, paper_ref, source_license,
+# source_url and source_version — no extent and no period. They describe the
+# SOURCE, not the staged clip; what lands locally is the bbox above intersected
+# with each entry's `time_range`.
 datasets:
   - name: vito
     type: raster
     path: landuse/vito/ProbaV_LC100_epoch2015_global_v2.0.2_discrete-classification_EPSG-4326.tif
+    # - spatial coverage    : global land, 180°W-180°E, 60°S-80°N
+    # - spatial resolution  : 0.000992° (~100 m)
+    # - temporal coverage   : one epoch, 2015
+    # - temporal resolution : static (no time axis)
+    # - parameters          : discrete land-cover class (1 band, uint8)
 
   - name: merit_hydro_ihu
     type: raster_glob
     path: topography/merit_hydro_ihu/30sec
     pattern: "*.tif"
+    # - spatial coverage    : global, 180°W-180°E, 60°S-85°N
+    # - spatial resolution  : 0.008333° (30 arcsec)
+    # - temporal coverage   : static
+    # - temporal resolution : static (no time axis)
+    # - parameters          : 14 tifs — basids, elevtn, flwdir, flwerr, outlat,
+    #                         outlon, outwth, rivlen, rivlen_ds, rivslp, strord,
+    #                         subare, upaerr, uparea. The directory also holds
+    #                         two .gpkg the `*.tif` pattern does not match.
 
   - name: modis_lai
     type: raster_glob
     path: landuse/modis/MODIS_MCD15A3H_LAI
     pattern: "*.tif"
+    # - spatial coverage    : global, 180°W-180°E, 90°S-90°N
+    # - spatial resolution  : 0.004492° (~500 m)
+    # - temporal coverage   : climatology, no calendar years
+    # - temporal resolution : 12 monthly composites, one file each (LAI_1..LAI_12)
+    # - parameters          : leaf area index
 
   - name: soilgrids
     type: raster_glob
     path: soil/soilgrids_v1.0
     pattern: "*.tif"
+    # - spatial coverage    : global land, 180°W-180°E, 56°S-84°N
+    # - spatial resolution  : 0.002083° (~250 m)
+    # - temporal coverage   : static (SoilGrids v1.0)
+    # - temporal resolution : static (no time axis)
+    # - parameters          : 45 tifs — BLDFIE, CLYPPT, ORCDRC, PHIHOX, SLTPPT
+    #                         and SNDPPT at 7 soil levels each, plus BDTICM,
+    #                         SoilThickness and TAXOUSDA
 
   - name: basin_index
     type: vector
     path: topography/merit_hydro/basin_index.gpkg
+    # - spatial coverage    : global, 180.0°W-190.3°E (crosses the antimeridian),
+    #                         59.5°S-83.7°N
+    # - spatial resolution  : vector polygons, 510 637 basins
+    # - temporal coverage   : static
+    # - temporal resolution : static (no time axis)
+    # - parameters          : basid, outlet_lat, outlet_lon, uparea_km2,
+    #                         pfaf_id, pit
 
   - name: rivers_lin2019
     type: vector
     path: hydrography/rivers_lin2019/rivers_ge30m.gpkg
+    # - spatial coverage    : global, 177.2°W-180.2°E, 55.4°S-82.1°N
+    # - spatial resolution  : vector lines, 723 822 reaches >= 30 m wide
+    # - temporal coverage   : static
+    # - temporal resolution : static (no time axis)
+    # - parameters          : 21 fields, incl. width_m, width_DHG, QMEAN, Q2,
+    #                         Slp, Elev, order, area
 
   # --- Meteo / climate forcing sources ---------------------------------------
-  # Source coverage + native->wflow variable names are noted per dataset. wflow
-  # historical forcing here is `clim_historical: era5` with `variables:
-  # [precip, temp]` over 2000-2020 (see test_case/snake_config_*.yml);
-  # CHIRPS/E-OBS are staged as alternative forcing sources for the same window.
+  # wflow historical forcing here is `clim_historical: era5` with
+  # `variables: [precip, temp]` over 2000-2020 (see test_case/snake_config_*.yml).
+  # The two CHIRPS entries and E-OBS stage ALTERNATIVE sources for the same
+  # window, to be compared against era5 via `analyze_climate.candidate_sources`.
+  # The wf0/wf1 raw-climate path accepts era5, chirps and chirps_global only
+  # (analyze_climate.smk `_SUPPORTED_SOURCES`), and rejects eobs at DAG-parse
+  # time — so the E-OBS entries below stage a source no workflow can select yet.
 
   - name: era5_daily
     type: zarr
     path: meteo/era5_daily.zarr
-    # Coverage: daily, ~1950 -> present (the full "~73-year" zarr). The wflow
-    # forcing build only uses 2000-2020 (see snake config); limiting the time
-    # slice avoids streaming the whole zarr over SMB.
+    # - spatial coverage    : global, 0-360°E, 90°S-90°N
+    # - spatial resolution  : 0.25°
+    # - temporal coverage   : 1950-01-02 -> 2023-02-01
+    # - temporal resolution : daily
+    # - parameters          : tp->precip, t2m->temp, tmin->temp_min,
+    #                         tmax->temp_max, msl->press_msl, ssrd->kin,
+    #                         tisr->kout. The store also carries d2m, tcwv, u10
+    #                         and v10, which the catalog does not rename.
+    # The wflow forcing build only uses 2000-2020 (see snake config); limiting
+    # the time slice avoids streaming the whole zarr over SMB.
     time_range: ["1970-01-01", "2020-12-31"]
     # `variables:` takes the zarr's NATIVE ERA5 short names (filtered BEFORE
-    # hydromt applies its rename). native -> wflow (deltares_data.yml `era5`):
-    #   tp -> precip   t2m -> temp   tmin -> temp_min   tmax -> temp_max
-    #   msl -> press_msl   ssrd -> kin   tisr -> kout
-    # wflow forcing here needs precip + temp; the rest are optional PET inputs.
+    # hydromt applies its rename, per the header). wflow forcing here needs
+    # precip + temp; the rest are optional PET inputs.
     #variables: [tp, t2m, tmin, tmax]
 
-  - name: chirps_africa_daily_v2.0   # precip-only (catalog default `chirps`)
+  - name: chirps_africa_daily_v2.0   # precip-only (catalog name `chirps`)
     type: netcdf_glob
     path: meteo/chirps_africa_daily_v2.0
     pattern: "CHIRPS_rainfall_*.nc"
-    # Coverage: daily, per-year files 1981 -> 2023.
-    # native -> wflow (deltares_data.yml `chirps`): precipitation -> precip
-    # NOTE: CHIRPS carries precipitation ONLY (no temperature), so it cannot be
-    # a standalone wflow forcing source — pair it with temp from era5/E-OBS.
+    # - spatial coverage    : Africa, 19.975°W-54.975°E, 39.975°S-39.975°N
+    # - spatial resolution  : 0.05°
+    # - temporal coverage   : per-year files, 1981 -> 2023
+    # - temporal resolution : daily
+    # - parameters          : precipitation -> precip. PRECIP ONLY — no
+    #                         temperature, so it cannot be a standalone wflow
+    #                         forcing source; wf0 pairs it with era5.
     time_range: ["1990-01-01", "2020-12-31"]
-    #variables: [precipitation]   # native source name (single var; optional)
+    #variables: [precipitation]   # native name in the AFRICA files
+
+  - name: chirps_global_daily_v2.0   # precip-only (catalog name `chirps_global`)
+    type: netcdf_glob
+    path: meteo/chirps_global_daily_v2.0
+    pattern: "chirps-v2.0.*.days_p05.nc"
+    # - spatial coverage    : quasi-global, 179.975°W-179.975°E,
+    #                         49.975°S-49.975°N
+    # - spatial resolution  : 0.05°
+    # - temporal coverage   : per-year files, 1981 -> 2023, where 2023 is
+    #                         PARTIAL (January only)
+    # - temporal resolution : daily
+    # - parameters          : precip, already the catalog's name. PRECIP ONLY,
+    #                         with the same pairing caveat as the africa set.
+    # The same window as the africa set, so the two are directly comparable as
+    # `analyze_climate.candidate_sources` entries.
+    time_range: ["1990-01-01", "2020-12-31"]
+    # The native spelling DIFFERS from the africa files, which carry
+    # `precipitation`; filtering on that name here would keep nothing.
+    #variables: [precip]
 
   # E-OBS stores each variable as its own single file under an upper-case subdir
   # (RR, TG, ...). One entry per variable; both mirror to `meteo/eobs/<VAR>/...`
   # so the catalog glob `meteo/eobs/*/{variable}_..._v22.0e.nc` resolves locally.
-  # DOMAIN: Europe only (~25-72°N, 25°W-45°E) — these entries cleanly SKIP
-  # ("no overlap") for non-European bboxes such as the current African test basin.
-  # Coverage (v22.0e): daily, 1950-01-01 -> 2020-06-30 (series ends mid-2020).
-  # native -> wflow (deltares_data.yml `eobs`): rr -> precip, tg -> temp,
-  #   pp -> press_msl, qq -> kin  (tn/tx/hu/fg exist but are not renamed).
+  # Both entries cleanly SKIP ("no overlap") for non-European bboxes such as the
+  # current African test basin.
+  # - spatial coverage    : Europe, 24.95°W-45.45°E, 25.05°N-71.45°N
+  # - spatial resolution  : 0.1°
+  # - temporal coverage   : 1950-01-01 -> 2020-06-30 for v22.0e (later releases
+  #                         run longer: v23.1e to 2020-12-31, v24.0e to
+  #                         2021-06-30, v25.0e to 2021-12-31)
+  # - temporal resolution : daily
+  # - parameters          : rr->precip, tg->temp, pp->press_msl, qq->kin. The
+  #                         source also has tn/tx/hu/fg, which are not renamed.
   - name: eobs_rr_v22.0e            # precip (rr)
     type: netcdf
     path: meteo/eobs/RR/rr_ens_mean_0.1deg_reg_v22.0e.nc
@@ -119,6 +202,10 @@ datasets:
   - name: era5_orography
     type: netcdf
     path: meteo/era5/meta/era5_orography_2018.nc
-    # Static single-time (2018) surface geopotential; native var `z`, no time
-    # axis to slice. Elevation metadata for temperature lapse correction during
-    # the build (hydromt derives elevtn from z), not a forcing variable.
+    # - spatial coverage    : global, 0-360°E, 90°S-90°N (the ERA5 grid)
+    # - spatial resolution  : 0.25°
+    # - temporal coverage   : one step, 2018-01-01
+    # - temporal resolution : static (no axis to slice)
+    # - parameters          : z, surface geopotential -> elevtn
+    # Elevation metadata for the temperature lapse correction during the build
+    # (hydromt derives elevtn from z), not a forcing variable.
