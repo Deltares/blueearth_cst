@@ -53,6 +53,13 @@ one caller.
   ([[t2608091006-standardize-plotting-across-the-toolbox-with-shared-templates-then-sweep-the-existing-figures-onto-them]],
   currently `active`). Coordinate — do not add a figure that the sweep then has
   to re-do. `RdBu` is the `fao` default; the repo's palette decision wins.
+  **The blocking half of that coordination cleared 2026-08-17**: the WF2 figure
+  set was ruled ADOPTED and the cloud orientation ruled unchanged, so the page
+  contract this port must build on is settled — no titles, `a)`/`b)` panel
+  labels, `_publication_rc()` + `series_figure_size()` + constrained layout +
+  `supxlabel(wrap=True)`. A heatmap is not a series figure, so take the
+  typography and export settings from `plot_style.py` and derive the rest;
+  do not invent a second page spec.
 - **Mutable default arguments.** `invert_cmap_for: List[str] = []` is a mutable
   default; ruff will flag it (B006).
 - **Naming** per `dev/reference/naming.md`.

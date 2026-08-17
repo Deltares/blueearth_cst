@@ -30,8 +30,35 @@ would change a project's numbers as a side effect of an upgrade.
 **This item is not "fix the inert key".** That is done. It is the two things
 the fix left open.
 
+## The sweep half is DESCOPED — owner ruling 2026-08-17
+
+> **Ruling (owner).** Do not run the sweep; go straight to the verification run.
+> **No project inventory was taken** — this is a scope decision, not a recorded
+> finding that every project uses `Jan`. Read it as "not worth enumerating",
+> which is why the parse-time refusal below is what makes it safe.
+
+The per-project re-run-versus-pin decision the sweep would have fed therefore
+does not arise now. It would arise again if a non-Jan project surfaces.
+
+So this item reduces to its **verification half**, which the descoping does not
+touch: the non-Jan path has still never been run, and the gate that passed proves
+nothing about the path this work exists to enable, because at `Jan` the change is
+provably a no-op.
+
+**Why descoping is safe without the inventory.** A project that sets the legacy
+key is **refused at parse time**, with the replacement block in the message
+(`analyze_projections.smk`). So an affected project cannot silently produce
+Jan-computed change factors while claiming a water year — it stops, loudly, and
+the sweep's question gets asked then, about a project that is in front of you.
+
 ## Progress
 
+- [x] ~~Sweep for existing projects carrying a non-Jan value~~ — **descoped**,
+      owner ruling 2026-08-17. No inventory was taken; the parse-time refusal is
+      what carries the risk instead.
+- [x] ~~Decide, per affected project, whether to re-run WF2 or pin
+      `water_year_start: Jan`~~ — descoped with the sweep. Re-opens per project
+      if one ever hits the parse-time refusal.
 - [ ] **Run WF2 with a non-Jan water year against real data.** Everything so
       far is DAG-parse, unit tests, and value-neutrality at `Jan` — where the
       change is provably a no-op, so the gate that passed proves nothing about
@@ -45,14 +72,12 @@ the fix left open.
       October-start case until 2026-07-30. That fix has never been exercised
       end-to-end with a non-Jan config, because no non-Jan config ever reached
       the arithmetic. This is the first run that would.
-- [ ] **Sweep for existing projects carrying a non-Jan value.** They now
-      hard-error until the key is moved, and once moved their change factors
-      change — correctly, but every recorded result for that project becomes
-      non-comparable. Production `project_dir`s live outside this repository,
-      so this cannot be grepped from here; it needs the owner's own project
-      list.
-- [ ] Decide, per affected project, whether to re-run WF2 or pin
-      `water_year_start: Jan` to preserve comparability with existing results.
+The two sweep steps that stood here are closed above. Their original text, kept
+because it states the hazard that would return if a project ever adopts a
+non-Jan value: *"They now hard-error until the key is moved, and once moved
+their change factors change — correctly, but every recorded result for that
+project becomes non-comparable."* That remains true; it simply has no subject
+today.
 
 ## Refs
 
