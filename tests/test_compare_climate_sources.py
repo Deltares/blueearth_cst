@@ -317,6 +317,78 @@ def test_non_overlapping_records_have_no_mutual_window(tmp_path):
             ds.close()
 
 
+def test_the_common_ground_reaches_every_renderer(tmp_path, monkeypatch):
+    """The COMPOSITION, which the helper tests above cannot see.
+
+    ``mutual_window`` and ``basin_cell_mask`` can both be correct while the
+    plotting path forgets to apply one of them to one source, and the figure
+    would still look right — shorter lines read as a shorter record. So the
+    renderers are spied on and asked what they were actually handed.
+    """
+    import blueearth_cst.climate_analysis.compare_sources as module
+
+    stores = {
+        "era5": _store(
+            tmp_path / "era5" / "extract_historical.nc",
+            step=0.25,
+            precip_scale=3.0,
+            start="2001-01-01",
+            end="2017-12-31",
+        ),
+        "chirps": _store(
+            tmp_path / "chirps" / "extract_historical.nc",
+            step=0.05,
+            precip_scale=2.4,
+            start="2005-01-01",
+            end="2020-12-31",
+        ),
+    }
+    cells = {name: _basin_cells(Path(path)) for name, path in stores.items()}
+
+    calls = []
+    original = dict(module._RENDERERS)
+
+    def spy(kind):
+        def wrapped(datasets, var, anchor, caveat):
+            calls.append(
+                {
+                    "caveat": caveat,
+                    "spans": {
+                        name: (
+                            pd.Timestamp(ds["time"].values.min()),
+                            pd.Timestamp(ds["time"].values.max()),
+                        )
+                        for name, ds in datasets.items()
+                    },
+                    "cells": {
+                        name: int(np.isfinite(ds["precip"].isel(time=0)).sum())
+                        for name, ds in datasets.items()
+                    },
+                }
+            )
+            return original[kind](datasets, var, anchor, caveat)
+
+        return wrapped
+
+    for kind in module.COMPARISON_KINDS:
+        monkeypatch.setitem(module._RENDERERS, kind, spy(kind))
+
+    module.plot_comparison_figures(
+        stores, tmp_path / "out", ("precip",), basin_cells=cells
+    )
+
+    assert len(calls) == len(module.COMPARISON_KINDS)
+    for call in calls:
+        # Every source clipped to the INTERSECTION, not to its own record.
+        for span in call["spans"].values():
+            assert span == (pd.Timestamp("2005-01-01"), pd.Timestamp("2017-12-31"))
+        # ...and masked, so the buffer cells are NaN rather than averaged in.
+        for name, kept in call["cells"].items():
+            assert kept == len(pd.read_csv(cells[name]))
+        assert "common period 2005-01-01 to 2017-12-31" in call["caveat"]
+        assert "Basin cells only" in call["caveat"]
+
+
 def test_caveat_states_the_domain_and_the_period():
     window = (pd.Timestamp("2005-01-01"), pd.Timestamp("2017-12-31"))
     masked = comparison_caveat(window, masked=True)
