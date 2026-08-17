@@ -341,7 +341,7 @@ def test_orography_entry_points_at_the_standardised_sidecar(
     The CATALOG ENTRY key stays `<source>_orography` — downstream consumers
     (plot_results, the parity transform, weathergenr's downscaling) look it up
     by that name. Only the on-disk FILENAME standardises, so producer
-    (rule 1.10/3.02's declared `oro_nc`) and consumer (rule 3.08's `oro_path`)
+    (rule 1.04/3.08's declared `oro_nc`) and consumer (rule 3.14's `oro_path`)
     finally agree. The seed config is era5, so nothing else in this repo would
     catch the pre-R07 mismatch.
     """

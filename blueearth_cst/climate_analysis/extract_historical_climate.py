@@ -1,9 +1,10 @@
 """Extract historical climate data for a given region and time period.
 
-Rule ``extract_climate_grid``'s script — the SINGLE producer of the shared
-``data/climate/historical/<key>/`` store, declared identically in
-``build_model.smk`` (1.10) and ``run_stress_test.smk`` (3.02)
-from ``snake_utils.climate_store_rule`` (R07 B1). The extraction extent stays
+The SINGLE producer of the shared ``data/climate/historical/<key>/`` store.
+Declared identically as ``extract_historical_climate`` in ``build_model.smk``
+(1.04) and ``run_stress_test.smk`` (3.08), and generated per candidate source
+as ``extract_historical_climate_<source>`` by ``analyze_climate.smk`` (0.04) —
+all from ``snake_utils.climate_store_rule`` (R07 B1). The extraction extent stays
 **model-free**: it comes from ``data/spatial/geoms/region.geojson``, the one
 project region artifact delineated from ``shared.basin`` + the catalog by rule
 ``delineate_region`` (ADR 0003), so nothing here reads a built model.
@@ -16,7 +17,6 @@ which cannot be separated from the data they describe.
 """
 
 import os
-import warnings
 from os.path import join
 from pathlib import Path
 from typing import Optional, Union
@@ -25,14 +25,19 @@ import geopandas as gpd
 import hydromt
 import pandas as pd
 from dask.diagnostics import ProgressBar
+from hydromt.error import NoDataException
 from hydromt.model.processes.meteo import temp
 
+from blueearth_cst.shared.climate_window import (
+    intersect_bounds,
+    report_coverage,
+    resolve_coverage,
+    time_axis_bounds,
+)
 from blueearth_cst.shared.provenance import file_sha256
 from blueearth_cst.shared.snake_utils import (
     DEFAULT_HYDROGRAPHY,
-    MIN_HISTORICAL_YEARS,
     log_row,
-    meets_min_historical_years,
 )
 from blueearth_cst.spatial.delineate_region import delineate_region, read_region
 
@@ -162,8 +167,24 @@ def write_basin_cell_mask(climate_nc, region_gdf, out_csv):
     return frame
 
 
-def _check_window_coverage(ds, starttime, endtime, clim_source):
-    """Check what the extraction ACTUALLY covers against three expectations.
+#: What the below-the-floor message tells an ENFORCING caller to do. The
+#: reporting caller gets ``_FLOOR_ADVISORY`` instead: for a candidate that only
+#: feeds a comparison figure there is nothing to fix, only a consequence to know.
+_FLOOR_REMEDY = (
+    "The staged source does not cover the configured historical_window. Either "
+    "stage data for that period, or move shared.historical_window onto the "
+    "years the source actually holds"
+)
+
+_FLOOR_ADVISORY = (
+    "This source is a comparison candidate only, so the extraction proceeds -- "
+    "but it cannot be promoted to shared.clim_historical over this window: "
+    "weathergenr would reject the record and WF3 would fail at rule 3.11"
+)
+
+
+def _check_window_coverage(ds, starttime, endtime, clim_source, enforce_min_years=True):
+    """Report what the extraction ACTUALLY covers, and enforce the floor if asked.
 
     The parse-time guard (``snake_utils.validate_historical_window``) can only
     check what the config REQUESTS. What the staged source holds is knowable
@@ -172,58 +193,49 @@ def _check_window_coverage(ds, starttime, endtime, clim_source):
     years with no signal, and WF3 then died on weathergenr's wavelet minimum
     twenty rules away (dev/tasks/ R3, observed 2026-05-07).
 
-    Two deliberately separate comparisons:
+    Since 2026-08-16 the requested window is a CEILING rather than a demand
+    (``shared/climate_window.py``): a source that cannot fill it is extracted
+    over the widest span it holds inside it, and the narrowing is logged. Only
+    ``enforce_min_years`` still raises, and only for the source that feeds the
+    pipeline -- ``shared.clim_historical``. wf0's extra
+    ``candidate_sources`` pass ``False``: they end at a comparison figure, so
+    weathergenr's minimum is not their constraint.
 
-    * **shortfall vs requested** -- advisory, with a 31-day tolerance. A source
-      that begins three weeks late is normal, not an error, and this says
-      nothing about whether what arrived is long enough.
-    * **below MIN_HISTORICAL_YEARS** -- ``ValueError``. The same floor the
-      parse-time guard applies to the requested window, applied here to what was
-      actually delivered. Failing in the producer names the cause; failing in a
-      consumer does not.
+    That relaxation cannot leak into WF1/WF3 by way of a shared store. Those two
+    declare the store ONLY for ``shared.clim_historical``, without the flag, so
+    a candidate promoted to primary re-extracts (the params differ, which is
+    Snakemake's rerun trigger) and meets the floor here. Rule 1.10 checks the
+    store it consumes as well -- see ``model/add_climate_forcing.py`` -- so the
+    guarantee does not rest on that trigger alone.
+    """
+    return report_coverage(
+        resolve_coverage(time_axis_bounds(ds), starttime, endtime, clim_source),
+        enforce_min_years=enforce_min_years,
+        where=_FLOOR_REMEDY if enforce_min_years else _FLOOR_ADVISORY,
+    )
 
-    The tolerance belongs to the first check only -- a floor with a tolerance is
-    not a floor.
 
-    This runs in the SHARED store producer, so the floor applies to WF2's rule
-    2.11 and WF3's rule 3.02 as well as WF1's 1.10. That is the point of a
-    unified floor: the store is one artifact serving all three, and a record too
-    short for a stress test is a misconfigured project regardless of which
-    workflow happens to be running.
+def _read_source(data_catalog, source, *, requested, **kwargs):
+    """``get_rasterdataset`` with a NoDataException that names the window.
+
+    Partial coverage never reaches here: the convention resolver globs one URI
+    per year and simply skips the years a source has no file for, and hydromt's
+    temporal slice returns the overlap. ``NoDataException`` therefore means ZERO
+    overlap -- the one shortfall no widest-possible-range can rescue -- and
+    hydromt's own message names neither the source nor the window that missed.
     """
     try:
-        time_vals = ds.time.values
-        actual_start = pd.Timestamp(pd.to_datetime(time_vals.min()))
-        actual_end = pd.Timestamp(pd.to_datetime(time_vals.max()))
-        req_start = pd.Timestamp(pd.to_datetime(starttime))
-        req_end = pd.Timestamp(pd.to_datetime(endtime))
-    except (AttributeError, ValueError, TypeError):
-        return  # cannot introspect the time axis -> skip the checks
-    actual_days = (actual_end - actual_start).days
-
-    tol = pd.Timedelta(days=31)
-    if actual_start > req_start + tol or actual_end < req_end - tol:
-        warnings.warn(
-            f"Extracted {clim_source} window "
-            f"{actual_start.date()}..{actual_end.date()} is shorter than the "
-            f"requested {req_start.date()}..{req_end.date()}; the staged source "
-            f"may not cover the full period.",
-            stacklevel=2,
-        )
-
-    if not meets_min_historical_years(actual_start, actual_end):
+        return data_catalog.get_rasterdataset(source, **kwargs)
+    except NoDataException as exc:
         raise ValueError(
-            f"Extracted {clim_source} record covers "
-            f"{actual_start.date()}..{actual_end.date()} "
-            f"(~{actual_days / 365.25:.1f} years) for the requested "
-            f"{req_start.date()}..{req_end.date()}, below the "
-            f"{MIN_HISTORICAL_YEARS}-year minimum this toolbox requires "
-            f"(weathergenr's wavelet decomposition needs at least "
-            f"{MIN_HISTORICAL_YEARS} annual observations). The staged "
-            f"{clim_source} source does not cover the configured "
-            f"historical_window. Either stage data for that period, or move "
-            f"shared.historical_window onto the years the source actually holds"
-        )
+            f"{source!r} has no data at all inside "
+            f"{pd.Timestamp(requested[0]).date()}.."
+            f"{pd.Timestamp(requested[1]).date()}. A source that merely falls "
+            f"SHORT of shared.historical_window is extracted over what it does "
+            f"hold; this one overlaps it nowhere, so there is nothing to "
+            f"extract. Check that the source is staged for this basin, and that "
+            f"shared.historical_window names years it covers. ({exc})"
+        ) from exc
 
 
 def prep_historical_climate(
@@ -239,6 +251,7 @@ def prep_historical_climate(
     hydrography: str = DEFAULT_HYDROGRAPHY,
     region_sha256: Optional[str] = None,
     region_source: Optional[Union[str, Path]] = None,
+    enforce_min_years: bool = True,
 ):
     """
     Extract historical climate data for a given region and time period.
@@ -293,6 +306,11 @@ def prep_historical_climate(
         on the extraction as ``region_geojson_sha256`` (ADR 0003).
     region_source : str, Path, optional
         Path of that artifact, stamped as ``region_source``.
+    enforce_min_years : bool, optional
+        Whether a delivered record below ``MIN_HISTORICAL_YEARS`` is an ERROR
+        (default) or a logged warning. ``False`` only for wf0's extra
+        ``candidate_sources``, which end at a comparison figure; see
+        ``_check_window_coverage``.
     """
     if (region_fn is None) == (bbox is None):
         raise ValueError(
@@ -313,8 +331,10 @@ def prep_historical_climate(
             module="extract",
         )
         # Get precip first
-        ds = data_catalog.get_rasterdataset(
+        ds = _read_source(
+            data_catalog,
             clim_source,
+            requested=(starttime, endtime),
             bbox=bbox,
             time_range=(starttime, endtime),
             buffer=BUFFER_CELLS,
@@ -325,13 +345,49 @@ def prep_historical_climate(
         # the DEM's `reproject_like(ds)` both inherit the canonical names.
         ds = _normalize_grid_names(ds)
         # Get clim
-        ds_clim = data_catalog.get_rasterdataset(
+        ds_clim = _read_source(
+            data_catalog,
             "era5",
+            requested=(starttime, endtime),
             bbox=bbox,
             time_range=(starttime, endtime),
             buffer=BUFFER_CELLS,
             variables=["temp", "temp_min", "temp_max", "kin", "kout", "press_msl"],
         )
+        # THE STORE'S WINDOW IS WHAT BOTH SOURCES COVER, and clipping to it here
+        # is load-bearing rather than tidy. The six era5-derived variables are
+        # assigned into `ds` below, and `ds[var] = da` REINDEXES `da` onto `ds`'s
+        # time axis -- so a chirps record longer than the era5 one would leave
+        # real precipitation beside all-NaN temperature and radiation over the
+        # non-overlap. That store passes WG-1 (all seven variables present, right
+        # dtypes) and hands the NaNs to weathergenr's area average twenty rules
+        # later. Intersecting first turns a silent corruption into a window that
+        # is merely shorter, which is the whole stance of this change.
+        _chirps_bounds = time_axis_bounds(ds)
+        _era5_bounds = time_axis_bounds(ds_clim)
+        _shared_bounds = intersect_bounds(_chirps_bounds, _era5_bounds)
+        if _shared_bounds is None and None not in (_chirps_bounds, _era5_bounds):
+            raise ValueError(
+                f"{clim_source} covers "
+                f"{_chirps_bounds[0].date()}..{_chirps_bounds[1].date()} and era5 "
+                f"covers {_era5_bounds[0].date()}..{_era5_bounds[1].date()} inside "
+                f"the requested window; the two do not overlap, so no store can "
+                f"be assembled -- {clim_source} supplies precipitation only and "
+                f"era5 supplies every other variable"
+            )
+        if _shared_bounds is not None:
+            if _chirps_bounds != _shared_bounds or _era5_bounds != _shared_bounds:
+                log_row(
+                    f"{clim_source} covers "
+                    f"{_chirps_bounds[0].date()}..{_chirps_bounds[1].date()}, era5 "
+                    f"covers {_era5_bounds[0].date()}..{_era5_bounds[1].date()}; "
+                    f"the store takes their overlap "
+                    f"{_shared_bounds[0].date()}..{_shared_bounds[1].date()}",
+                    module="extract",
+                    level="WARNING",
+                )
+            ds = ds.sel(time=slice(*_shared_bounds))
+            ds_clim = ds_clim.sel(time=slice(*_shared_bounds))
         # Prepare orography data corresponding to chirps from the CONFIGURED
         # hydrography DEM (needed for downscaling of climate variables) -- the
         # same catalog entry the delineation and the model build read, not a
@@ -395,8 +451,10 @@ def prep_historical_climate(
         driver.setdefault("options", {})["chunks"] = "auto"
         data_catalog = hydromt.DataCatalog().from_dict(data_catalog_temp)
 
-        ds = data_catalog.get_rasterdataset(
+        ds = _read_source(
+            data_catalog,
             clim_source,
+            requested=(starttime, endtime),
             bbox=bbox,
             time_range=(starttime, endtime),
             buffer=BUFFER_CELLS,
@@ -411,7 +469,9 @@ def prep_historical_climate(
             ],
         )
 
-    _check_window_coverage(ds, starttime, endtime, clim_source)
+    _check_window_coverage(
+        ds, starttime, endtime, clim_source, enforce_min_years=enforce_min_years
+    )
 
     # The store's extent provenance, IN the extraction rather than beside it
     # (ADR 0003). `store_region.geojson` used to sit in the store directory as
@@ -477,6 +537,11 @@ if __name__ == "__main__":
                 hydrography=sm.params.hydrography,
                 region_sha256=file_sha256(region_fn),
                 region_source=region_fn,
+                # Absent everywhere except wf0's extra `candidate_sources`.
+                # `climate_store_rule` omits the param entirely when the floor
+                # is enforced, so every pre-existing declaration -- and every
+                # store already on disk -- keeps its params byte-identical.
+                enforce_min_years=getattr(sm.params, "enforce_min_years", True),
             )
             # Which of the extracted cells the basin actually touches. Written
             # HERE rather than derived by the consumer because this is the only

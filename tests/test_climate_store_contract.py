@@ -1,13 +1,20 @@
 """R07 B1: the three ``extract_historical_climate`` declarations are ONE rule.
 
-The store producer is declared in ``build_model.smk`` (rule 1.10),
-``run_stress_test.smk`` (rule 3.02) and — since WF2 v2.0 migration
-step 1 — ``analyze_projections.smk`` (rule 2.11), all from the same
-``snake_utils.climate_store_rule`` object. Nothing in the rule grammar enforces
-that they stay identical, and a per-workflow difference re-creates the
-wf1<->wf3 re-extraction oscillation the design forbids (P2(b), ext1-02/ext2-01).
-This module is the enforcement: it parses both workflows in-process and compares
-the **full normalized contract** — rule name, script, input set, outputs, params,
+The store producer is declared as ``extract_historical_climate`` in
+``build_model.smk`` (rule 1.04) and ``run_stress_test.smk`` (rule 3.08), both
+from the same ``snake_utils.climate_store_rule`` object.
+``analyze_projections.smk`` declares it NOT AT ALL — ADR 0003 removed it, and
+``test_wf2_declares_no_store_and_no_extraction`` is what keeps it removed.
+``analyze_climate.smk`` is the third declarer but generates one rule per
+candidate source rather than copying the shared one; see the block above
+``_wf0_rule`` for why, and the two ``test_wf0_*`` cases for the weaker
+invariant that replaces byte-identity there.
+
+Nothing in the rule grammar enforces that the two byte-identical declarations
+stay identical, and a per-workflow difference re-creates the wf1<->wf3
+re-extraction oscillation the design forbids (P2(b), ext1-02/ext2-01). This
+module is the enforcement: it parses the workflows in-process and compares the
+**full normalized contract** — rule name, script, input set, outputs, params,
 **and every content- or execution-affecting directive**.
 
 Two properties, deliberately separate:
@@ -374,7 +381,7 @@ def test_retired_declarations_are_gone(declarations):
 
 @pytest.mark.workflow_contract
 def test_guard_keeps_its_receipt_but_loses_its_edge(declarations):
-    """Rule 3.00b is untouched; only rule 3.02's DAG edge to ``.guard_ok`` retires."""
+    """Rule 3.00b is untouched; only rule 3.08's DAG edge to ``.guard_ok`` retires."""
     wf3_workflow, producer = declarations["wf3"]
     guard = wf3_workflow.get_rule("check_project_consistency")
     guard_outputs = sorted(guard.output.keys())
@@ -535,3 +542,104 @@ def test_wf0_rejects_an_unsupported_candidate_source(tmp_path):
     message = str(exc.value)
     assert "eobs" in message
     assert "candidate_sources" in message
+
+
+# ---------------------------------------------------------------------------
+# The MIN_HISTORICAL_YEARS floor splits with the source's ROLE (2026-08-16)
+# ---------------------------------------------------------------------------
+#
+# `shared.historical_window` is a ceiling, not a demand: a source that cannot
+# fill it is extracted over what it holds. The floor still binds the source that
+# FEEDS the pipeline -- weathergenr's wavelet minimum -- and not a candidate that
+# ends at a comparison figure.
+#
+# The flag rides in `params`, which is a Snakemake rerun trigger, so its ABSENCE
+# on the default path is load-bearing: emitting `enforce_min_years: True` would
+# re-extract every store already on disk and break the byte-identity above.
+
+
+@pytest.mark.workflow_contract
+def test_the_enforced_default_emits_no_param_at_all():
+    """The params dict is a rerun trigger; the default path must not touch it."""
+    from blueearth_cst.shared.snake_utils import climate_store_rule
+
+    spec = climate_store_rule(
+        project_dir="/tmp/p",
+        model_region="{'subbasin': [1.0, 2.0]}",
+        clim_source="era5",
+        historical_window={
+            "starttime": "2000-01-01T00:00:00",
+            "endtime": "2020-12-31T00:00:00",
+        },
+        data_sources="catalog.yml",
+    )
+    assert "enforce_min_years" not in spec.params
+
+
+@pytest.mark.workflow_contract
+def test_only_a_relaxed_store_carries_the_flag():
+    from blueearth_cst.shared.snake_utils import climate_store_rule
+
+    spec = climate_store_rule(
+        project_dir="/tmp/p",
+        model_region="{'subbasin': [1.0, 2.0]}",
+        clim_source="chirps",
+        historical_window={
+            "starttime": "2000-01-01T00:00:00",
+            "endtime": "2020-12-31T00:00:00",
+        },
+        data_sources="catalog.yml",
+        enforce_min_years=False,
+    )
+    assert spec.params["enforce_min_years"] is False
+    # Everything else is unchanged -- the flag is not a second store key.
+    assert "/data/climate/historical/chirps_20000101_20201231" in spec.store_dir
+
+
+@pytest.mark.slow
+@pytest.mark.workflow_contract
+def test_wf0_relaxes_the_floor_for_candidates_only(tmp_path):
+    """The primary keeps the floor; the extras relax it.
+
+    This is what stops a short candidate store from being promoted silently: WF1
+    and WF3 declare the store WITHOUT the flag, so switching
+    `shared.clim_historical` onto a candidate changes the params Snakemake
+    recorded and re-extracts it under the floor.
+    """
+    import yaml
+
+    cfg = yaml.safe_load(CONFIG_FN.read_text(encoding="utf-8"))
+    assert cfg["shared"]["clim_historical"] == "era5"
+    cfg["workflows"]["analyze_climate"]["candidate_sources"] = ["chirps"]
+    cfg_path = tmp_path / "snake_config_floor_split.yml"
+    cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+
+    wf0 = _parse_workflow("analyze_climate.smk", cfg_path)
+    primary = _wf0_rule(wf0, "era5")
+    candidate = _wf0_rule(wf0, "chirps")
+
+    assert "enforce_min_years" not in primary.params.keys()
+    assert candidate.params["enforce_min_years"] is False
+
+
+@pytest.mark.workflow_contract
+def test_wf3_config_prep_declares_the_store_so_it_can_check_it(tmp_path):
+    """Rule 3.10 guards what rule 3.11 cannot.
+
+    3.11 is a `shell:` running R, so the floor check has to sit in the Python
+    rule ahead of it. The edge is `ancient()` for the same reason 3.11's is: a
+    re-extraction must not by itself re-run the config prep.
+    """
+    workflow = _parse_workflow("run_stress_test.smk", CONFIG_FN)
+    rule = workflow.get_rule("prepare_weathergen_config")
+
+    store_nc = str(workflow.get_rule(RULE_NAME).output.climate_nc)
+    assert str(rule.input.climate_nc) == store_nc
+    ancient_paths = {str(f) for f in rule.input if getattr(f, "is_ancient", False)}
+    assert store_nc in ancient_paths, (
+        f"the store input must be ancient(), got ancient inputs {ancient_paths}"
+    )
+    # The source name travels too, so the message can say WHICH source fell short.
+    assert str(rule.params.clim_source) == str(
+        workflow.get_rule(RULE_NAME).params.clim_source
+    )

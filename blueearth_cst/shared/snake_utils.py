@@ -1607,12 +1607,17 @@ def climate_store_rule(
     data_sources,
     hydrography=DEFAULT_HYDROGRAPHY,
     basin_index=DEFAULT_BASIN_INDEX,
+    enforce_min_years=True,
 ) -> ClimateStoreRule:
     """Build the one producer contract for ``data/climate/historical/<key>/``
     (R07 B1).
 
-    ONE rule definition, declared in **both** ``build_model.smk``
-    (rule 1.10) and ``run_stress_test.smk`` (rule 3.02), over the
+    ONE rule definition, declared in ``build_model.smk`` (rule 1.04) and
+    ``run_stress_test.smk`` (rule 3.08) as ``extract_historical_climate``, and
+    generated per candidate source by ``analyze_climate.smk`` (rule 0.04) as
+    ``extract_historical_climate_<source>``. All three resolve to the same
+    store directory, so whichever workflow runs first extracts and the others
+    read what is already there. Over the
     model-independent region specification + data catalog. wf1's `wf1_raw/`
     store and its `staticmaps.nc`-derived bbox are retired: the extent is now a
     pure function of ``shared.basin`` + the catalog, so a climate-only run needs
@@ -1624,7 +1629,8 @@ def climate_store_rule(
     (design P2(b) / ext1-02); the catalog **file** is the store's freshness
     boundary (ext2-01), so it is declared plain, never ``ancient()``. Data
     *behind* an unchanged catalog entry is out of scope — edit the entry, or use
-    ``snakemake --forcerun extract_climate_grid``
+    ``snakemake --forcerun extract_historical_climate`` (in wf0, the generated
+    name for the source you mean, e.g. ``extract_historical_climate_chirps``)
     (``dev/milestones/r07/migration_project-layout.md`` §2f).
 
     Parameters
@@ -1648,6 +1654,20 @@ def climate_store_rule(
         ENTRY NAMES for the delineation, not paths. Optional config keys; the
         defaults equal the shipped build template's ``setup_basemaps`` values,
         and rule 1.02 fails loud if the two ever disagree.
+    enforce_min_years : bool, optional
+        Whether a DELIVERED record below ``MIN_HISTORICAL_YEARS`` fails the
+        extraction. ``True`` for every store that feeds the pipeline — which is
+        every caller except wf0's extra ``candidate_sources``, whose stores end
+        at a comparison figure (2026-08-16 owner ruling; see
+        ``shared/climate_window.py``).
+
+        ``True`` emits **no param at all**, rather than ``enforce_min_years:
+        True``. The params dict is a Snakemake rerun trigger, so adding a key to
+        the default path would re-extract every store already on disk and break
+        the byte-identity ``tests/test_climate_store_contract.py`` pins across
+        the four workflows. Only the relaxed candidates carry the key — and
+        because they carry it, promoting one to ``shared.clim_historical``
+        changes the params WF1/WF3 declare and re-extracts it under the floor.
 
     Returns
     -------
@@ -1699,6 +1719,19 @@ def climate_store_rule(
         # two pre-R07 spellings on `orography.nc`).
         outputs["oro_nc"] = f"{store_dir}/orography.nc"
 
+    params = {
+        "model_region": model_region,
+        "clim_source": clim_source,
+        "starttime": starttime,
+        "endtime": endtime,
+        "hydrography": hydrography,
+        "basin_index": basin_index,
+    }
+    # Present ONLY when relaxed — see the parameter's docstring for why the
+    # default path must emit no key.
+    if not enforce_min_years:
+        params["enforce_min_years"] = False
+
     return ClimateStoreRule(
         store_dir=store_dir,
         script=CLIMATE_STORE_SCRIPT,
@@ -1718,14 +1751,7 @@ def climate_store_rule(
             ).region_geojson,
         },
         outputs=outputs,
-        params={
-            "model_region": model_region,
-            "clim_source": clim_source,
-            "starttime": starttime,
-            "endtime": endtime,
-            "hydrography": hydrography,
-            "basin_index": basin_index,
-        },
+        params=params,
     )
 
 

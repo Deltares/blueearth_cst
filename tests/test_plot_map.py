@@ -23,7 +23,8 @@ from blueearth_cst.shared import cartographic_map as carto
 from blueearth_cst.shared import plot_map
 from blueearth_cst.shared.cartographic_map import (
     _CORNERS,
-    _EXTENT_BUFFER_DEG,
+    _EXTENT_BUFFER_FRACTION,
+    _EXTENT_BUFFER_MIN_DEG,
     _NORTH_ARROW_CORNER,
     FIGURE_WIDTH_MM,
     GRATICULE_MAX_TICKS,
@@ -53,6 +54,7 @@ from blueearth_cst.shared.cartographic_map import (
     _weighted_quantiles,
     _wrap_label,
     check_geographic_inputs,
+    extent_from_layer,
     map_extent,
     pixel_resolution,
     plot_raster_map,
@@ -769,14 +771,36 @@ def test_extent_reaches_half_a_cell_beyond_the_outermost_centres():
     assert lat_max == pytest.approx(0.0 + res / 2)
 
 
-def test_extent_buffer_pads_every_side_and_defaults_to_the_constant():
-    dem = _dem()
+def test_extent_buffer_scales_independently_with_each_axis():
+    dem = _dem(res=0.1)
     tight = map_extent(dem, buffer_deg=0.0)
     padded = map_extent(dem)
-    assert padded[0] == pytest.approx(tight[0] - _EXTENT_BUFFER_DEG)
-    assert padded[1] == pytest.approx(tight[1] + _EXTENT_BUFFER_DEG)
-    assert padded[2] == pytest.approx(tight[2] - _EXTENT_BUFFER_DEG)
-    assert padded[3] == pytest.approx(tight[3] + _EXTENT_BUFFER_DEG)
+    lon_pad = max(
+        (tight[1] - tight[0]) * _EXTENT_BUFFER_FRACTION,
+        _EXTENT_BUFFER_MIN_DEG,
+    )
+    lat_pad = max(
+        (tight[3] - tight[2]) * _EXTENT_BUFFER_FRACTION,
+        _EXTENT_BUFFER_MIN_DEG,
+    )
+    np.testing.assert_allclose(
+        padded,
+        [
+            tight[0] - lon_pad,
+            tight[1] + lon_pad,
+            tight[2] - lat_pad,
+            tight[3] + lat_pad,
+        ],
+    )
+
+
+def test_layer_extent_uses_the_layer_size_for_proportional_padding():
+    basin = _basins_frame((0.0, 0.0, 4.0, 1.0))
+
+    np.testing.assert_allclose(
+        extent_from_layer(basin),
+        [-0.2, 4.2, -0.05, 1.05],
+    )
 
 
 def test_an_undecoded_fill_value_is_masked_to_nan():

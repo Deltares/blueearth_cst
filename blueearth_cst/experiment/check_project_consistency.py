@@ -196,7 +196,7 @@ def check_project_consistency(
 
     A failing guard writes NEITHER artifact (and Snakemake removes a failed
     job's outputs), so both consumer classes — the four per-experiment roots
-    (fresh sentinel) and ``extract_climate_grid`` (``ancient()`` guard
+    (fresh sentinel) and ``extract_historical_climate`` (``ancient()`` guard
     artifact) — stay blocked on failure (design §3a/§3b).
     """
     diffs = compare_project_consistency(live_cfg, wf1_snapshot_path, wf2_snapshot_path)

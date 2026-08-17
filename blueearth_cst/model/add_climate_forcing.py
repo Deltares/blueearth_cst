@@ -32,9 +32,12 @@ import subprocess
 from pathlib import Path
 from typing import Sequence, Union
 
+import pandas as pd
+
 from blueearth_cst.climate_analysis.prepare_climate_data_catalog import (
     prepare_clim_data_catalog,
 )
+from blueearth_cst.shared.climate_window import require_min_years, store_time_bounds
 from blueearth_cst.shared.setup_time_horizon import prep_hydromt_update_forcing_config
 
 
@@ -83,6 +86,65 @@ def _run_streaming(command: Sequence[str]) -> None:
         )
 
 
+def check_store_window(climate_nc, starttime, endtime, clim_source):
+    """Refuse a store this run cannot honestly be forced from.
+
+    Two checks against the store's OWN time axis, both of which only became
+    reachable when ``shared.historical_window`` stopped being a demand on every
+    source (2026-08-16, ``shared/climate_window.py``):
+
+    * **Below ``MIN_HISTORICAL_YEARS``** (``require_min_years``). The extraction
+      enforces this floor for ``shared.clim_historical`` and relaxes it for wf0's
+      extra ``candidate_sources``. Unreachable for a store WF1 itself extracted —
+      the producer applies the same arithmetic to the same bounds and fails
+      first. It fires on the one case the relaxation opens: a candidate store
+      promoted to primary without re-extraction, which wf0 writes into the same
+      ``data/climate/historical/<source>_<window>/`` family deliberately, so a
+      winning candidate costs no re-extraction. That reuse is the point; an
+      unchecked reuse is the R3 defect (a short record failing twenty rules
+      later, inside weathergenr).
+    * **The simulation window sits outside the delivered record.**
+      ``resolve_simulation_window`` can only compare it against the CONFIGURED
+      ``historical_window``. If the source fell short, wflow would otherwise be
+      forced over years the store has no data for — hydromt slices what exists
+      and the run proceeds on a truncated forcing.
+
+    Skips silently when the time axis cannot be read, the same
+    skip-rather-than-guess stance the extraction takes.
+    """
+    bounds = store_time_bounds(climate_nc)
+    if bounds is None:
+        return None
+
+    require_min_years(
+        bounds,
+        clim_source,
+        climate_nc,
+        where="This is the store WF1 forces the model from",
+    )
+
+    # DAY resolution on both sides. The store's stamps are daily midnights,
+    # while `resolve_simulation_window` accepts any ISO datetime -- it does not
+    # reject a sub-day component the way `slugify_window` does for the
+    # historical window. So a perfectly good `endtime: ...T23:59:59` exceeds the
+    # last stamp of the very day it names, and a timestamp comparison would
+    # refuse a configuration that is fine.
+    sim_start = pd.Timestamp(pd.to_datetime(starttime)).normalize()
+    sim_end = pd.Timestamp(pd.to_datetime(endtime)).normalize()
+    if sim_start < bounds[0].normalize() or sim_end > bounds[1].normalize():
+        raise ValueError(
+            f"simulation_window {sim_start.date()}..{sim_end.date()} is not "
+            f"inside the {clim_source} record the store actually holds "
+            f"({bounds[0].date()}..{bounds[1].date()}). The window is inside "
+            f"shared.historical_window -- which is what parse time can check -- "
+            f"but {clim_source} does not cover all of it, so the model would "
+            f"run on truncated forcing. Move simulation_window onto the years "
+            f"the source delivers, or force the model from a source that "
+            f"covers them"
+        )
+    return bounds
+
+
 def add_climate_forcing(
     starttime: str,
     endtime: str,
@@ -108,6 +170,10 @@ def add_climate_forcing(
     """
     store_source = None
     if climate_nc is not None:
+        # BEFORE the catalog is written and hydromt is invoked: a store that
+        # cannot force this run should fail here, naming the store, rather than
+        # inside a hydromt update whose message names neither.
+        check_store_window(climate_nc, starttime, endtime, clim_source)
         prepare_clim_data_catalog(
             fns=[climate_nc],
             data_libs_like=data_catalog,
