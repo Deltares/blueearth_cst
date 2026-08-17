@@ -74,6 +74,57 @@ change-factor tables contradict.
 
 The prototype is `a80e47e`, revised once against the four rulings in `9f18b97`.
 
+**Integrated 2026-08-17**, `feat/wf2-projection-figures`, four commits — and it
+is a re-implementation rather than a `git revert` of the revert, because `main`
+moved 14 commits on those files since `dc40a22` (two breaking renames, the
+console overhaul, the config-snapshot P2/P4 wiring, ruff format + import sort).
+`dc40a22` supplied the CONTRACT, the prototype supplied the drawing.
+
+1. `projection_figures.py` — the figure set, defined once. Every downstream
+   declaration derives from it. **`dc40a22`'s helper named four paths and was
+   already wrong for the adopted set**: it predates the combined cloud, so every
+   declaration deriving from it would have inherited the omission.
+2. The monthly figures **read** `*_change_factors_monthly.csv` instead of
+   recomputing it — see below.
+3. `projection_plots.py` — the drawing, in its OWN module because the Snakefile
+   imports the contract at parse time and `snake_utils` deliberately keeps
+   matplotlib off that path.
+4. Snakefile, `report.py`, `check_baseline.py`, the tree inventory and the two
+   `dev/reference/workflows/` documents.
+
+**The falsifier's finding became a structural fix, not an arithmetic one.** The
+shipped rule recomputed the monthly change with two departures from the table
+(historical ANNUAL mean rather than the same calendar month; the full 2015–2100
+series rather than the horizon). Rather than correcting the formula, the producer
+now renders the table — so there is one definition of a monthly change factor in
+this repository and no second computation left to drift.
+`test_values_come_through_untouched` passes a table carrying 999.0 and −42.0,
+numbers no series produces, and asserts they reach the figure; it fails if anyone
+reintroduces a formula.
+
+Gates: 53 new unit tests; `test_cli` 14/14 (the rule-output gate); `pixi run
+test-full` **2538 passed / 6 skipped / 1 xfailed** in 8:39; lint and
+format-check clean. Figure gate: rendered through the PRODUCTION functions
+against `test_case/test_local` and published as
+[Artifact 3f2d49aa](https://claude.ai/code/artifact/3f2d49aa-c292-4e95-8483-2485912e0d32).
+Counts match the prototype's exactly — 9 traces per overview panel, 6 cloud
+points, 6 monthly traces — which is the evidence the port carried the semantics
+and not only the shapes.
+
+A full `snakemake -s analyze_projections.smk` was deliberately NOT run: its DAG
+plans 26 jobs including nine `fetch_gcm_slice` network fetches and would mutate
+the seeded fixture, which is the divergence hazard [[t2608121258]] records.
+
+> [!question] Left open, not covered by the ruling
+> `dev/scripts/preview_wf2_projection_plots.py` is now a **duplicate
+> implementation** of figures the producers draw. Retargeting it at them would
+> destroy the property that made its agreement check worth anything — it
+> reimplements the change factors independently, which is why it could falsify
+> the producers at all, the same reason `t2608152230`'s V21 notebook imported
+> nothing from the module it checked. Three options: keep it as an independent
+> falsifier (and say so in its docstring), retarget it, or retire it. Needs an
+> owner call.
+
 - **Run it:** `pixi run python dev/scripts/preview_wf2_projection_plots.py
   --horizon near=2040-2060 --horizon far=2070-2090`. Renders to `.tmp/`, reads
   the project tree read-only, and prints the agreement check.
@@ -99,13 +150,11 @@ The prototype is `a80e47e`, revised once against the four rulings in `9f18b97`.
 - [x] **Half 1: extract the shared template/style module** — `6d3ec75` added
       `shared/plot_style.py` for page size, typography and export settings
 - [ ] **Half 2, remainder — the surfaces still styled independently:**
-  - [ ] `projections/get_change_climate_proj_summary.py` — **ruled ADOPTED
-        2026-08-17; integrate.** Restore `dc40a22`, re-validate, and take the
-        prototype's drawing functions wherever the two disagree. The gate is the
-        full ladder, not the figure gate: this edits a producer, a Snakefile, the
-        output contract and its tests
-  - [ ] `projections/plot_proj_timeseries.py` — same prototype, same ruling,
-        same integration
+  - [x] `projections/get_change_climate_proj_summary.py` — **integrated
+        2026-08-17** on `feat/wf2-projection-figures`, four commits. Draws both
+        cloud views from its own stage-B merge
+  - [x] `projections/plot_proj_timeseries.py` — same sitting. Two annual
+        overviews plus one monthly figure per horizon
   - [ ] `shared/func_plot_signature.py` (`plot_signatures`, `plot_hydro`,
         `plot_basavg` — `plot_clim` is gone, ADR 0006)
   - [ ] `dev/scripts/basin_map_example.py`
