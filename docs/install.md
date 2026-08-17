@@ -72,7 +72,7 @@ pixi run install
 ```
 This adds two more pieces on top of step 5:
 
-- **weathergenr** — the R weather generator
+- **weathergenr** — the R weather generator (pinned to `v2.0.0`)
 - **Wflow.jl** — the Julia hydrological model and its dependencies (~130 packages)
 
 The Julia part downloads a lot, so give it time. If it stops partway with a
@@ -118,9 +118,13 @@ snakemake all -c 1 -s build_model.smk --configfile test_case/snake_config_baseli
   step 2 (the Defender exclusion), then retry the command.
 - **Re-running is safe.** Both `pixi install` and `pixi run install` skip work
   that is already done, so you can rerun them anytime.
-- **weathergenr location.** On Windows the R weather generator installs into your
-  personal R library (under `AppData\Local\R`) rather than the project folder.
-  This is intentional and avoids a known Windows build crash.
+- **weathergenr location.** `pixi run install` puts the R weather generator in
+  the project's own environment (`.pixi/envs/default/lib/R/library`), so it
+  follows the checkout rather than your user account. If you also have a
+  separately installed R, its personal library (under `AppData\Local\R`) may
+  hold another copy — the project never reads that one, so a version mismatch
+  between the two is expected and harmless. Re-run `pixi run install` after
+  pulling: it reinstalls whenever the installed version is not the pinned one.
 - **Certificate messages from Julia.** If you run Julia by hand and see repeated
   `curl_easy_setopt: 4` messages, they come from a Windows certificate setting.
   The project's install step works around this automatically, so you can ignore

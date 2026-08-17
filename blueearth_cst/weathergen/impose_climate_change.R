@@ -77,8 +77,15 @@ nc_file_suffix <- sub("^.*_", "", output_stem)
 temp_change_transient   <- yaml$temp$transient_change
 precip_change_transient <- yaml$precip$transient_change
 
-# Section and key names are weathergenr 1.2.0's own function and argument names
-# (renamed 2026-08-12 from `generateWeatherSeries`), so these are pass-throughs.
+# Section and key names are weathergenr's own function and argument names
+# (renamed 2026-08-12 from `generateWeatherSeries`; tracking 2.0.0 since
+# 2026-08-17), so these are pass-throughs.
+#
+# 2.0.0 makes a year-varying `n_years x 12` factor MATRIX an error when its
+# transient flag is TRUE, because only row 1 would be read. This call is
+# unaffected: every factor below is a length-12 monthly VECTOR read from the
+# member's twelve lookup rows, which weathergenr expands to identical rows and
+# accepts under either flag.
 acp <- yaml$apply_climate_perturbations
 wnc <- yaml$write_netcdf
 

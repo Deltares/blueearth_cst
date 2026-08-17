@@ -90,10 +90,11 @@ def build_weagen_config(
     experiment_cfg = yml_snake["workflows"]["run_stress_test"]
 
     yml_dict = read_yml(default_config_path)
-    # Section and key names are weathergenr 1.2.0's own function and argument
-    # names (renamed 2026-08-12 from `generateWeatherSeries`, a function 1.2.0
-    # does not export). The values below are the per-run ones the template
-    # cannot carry; every other argument comes from the template verbatim.
+    # Section and key names are weathergenr's own function and argument names
+    # (renamed 2026-08-12 from `generateWeatherSeries`, a function 1.2.0 does
+    # not export; tracking 2.0.0 since 2026-08-17). The values below are the
+    # per-run ones the template cannot carry; every other argument comes from
+    # the template verbatim.
     yml_dict["generate_weather"].update(
         {
             "out_dir": output_path,

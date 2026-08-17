@@ -7,7 +7,7 @@ here is invoked by `Snakefile_*` rules — those live in `blueearth_cst/`.
 
 | Script | What it does |
 |---|---|
-| [`install_weathergenr.R`](install_weathergenr.R) | Idempotent install of `weathergenr` v1.2.0 from GitHub via `remotes::install_github` (`dependencies=FALSE`, `upgrade="never"`). Invoked by `pixi run install-rdeps` (and transitively by `pixi run install`). Lands in `.libPaths()[1]` — the pixi env's R site-lib on both platforms. |
+| [`install_weathergenr.R`](install_weathergenr.R) | Idempotent install of `weathergenr` v2.0.0 from GitHub via `remotes::install_github` (`dependencies=FALSE`, `upgrade="never"`). Invoked by `pixi run install-rdeps` (and transitively by `pixi run install`). Lands in `.libPaths()[1]` — the pixi env's R site-lib on both platforms. |
 | [`check_r_packages.R`](check_r_packages.R) | Loops over the R packages the workflow needs (`weathergenr`, `dplyr`, `ggplot2`, `ncdf4`, `yaml`, …) and reports presence + version. Quick sanity check after env changes. |
 
 ## Data catalog / staging
