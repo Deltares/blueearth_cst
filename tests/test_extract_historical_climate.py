@@ -40,9 +40,17 @@ class _FakeDataArrayRaster:
 
 
 class _FakeDataArray:
-    def __init__(self, name):
+    def __init__(self, name, dtype="float32"):
         self.name = name
         self.raster = _FakeDataArrayRaster()
+        # t2608161450: the producer coerces the WG-1 variables to float32 before
+        # writing, and asks each one what it already is. Conforming by default,
+        # so the cast is a no-op against this double -- the coercion's own
+        # falsifier runs against real xarray objects in
+        # tests/test_climate_store_wg1_conformance.py, and asserting it twice
+        # here (once against a double that cannot be wrong) would be worse than
+        # not asserting it at all.
+        self.dtype = dtype
 
 
 class _FakeDataset:
@@ -66,6 +74,20 @@ class _FakeDataset:
         # (region_bbox / region_geojson_sha256 / region_source), so the fake has
         # to carry an attrs mapping like a real Dataset.
         self.attrs = {}
+        # t2608161450: the producer also coerces the WG-1 coords and variables
+        # to float32 before writing. `_coerce_store_dtypes` asks a Dataset what
+        # it holds, so the fake has to answer -- EMPTY coords and the declared
+        # variables, which makes every cast a no-op here. That is deliberate:
+        # these tests are about the branch logic and the coverage report, and
+        # the dtype coercion has its own falsifier against real xarray objects
+        # in tests/test_climate_store_wg1_conformance.py. A fake that pretended
+        # to have float64 coords would be asserting the cast twice, once against
+        # a double that cannot be wrong.
+        self.coords = {}
+
+    @property
+    def data_vars(self):
+        return {name: _FakeDataArray(name) for name in self._vars}
 
     def __getitem__(self, key):
         return _FakeDataArray(key)
