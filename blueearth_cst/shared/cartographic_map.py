@@ -141,7 +141,7 @@ from blueearth_cst.shared.plot_style import (
 FONT_SIZE_BASE = 6.5  #: fallback size; the axes title is derived from it (+1)
 FONT_SIZE_TICK = 6.0  #: the coordinate graticule labels
 FONT_SIZE_LEGEND = 6.0  #: legend entries and the legend's own title
-FONT_SIZE_COLORBAR_LABEL = 6.0  #: the colourbar's title
+FONT_SIZE_COLORBAR_LABEL = 6.5  #: the colourbar's title
 FONT_SIZE_COLORBAR_TICK = 5.5  #: the numbers beside the colourbar
 FONT_SIZE_GAUGE_LABEL = 5.5  #: the wflow_id beside each gauge marker
 FONT_SIZE_SCALE_BAR = 5.5  #: the 0 / 2.5 / 5 km numbers
@@ -193,8 +193,8 @@ _PANEL_LEFT = 1.03
 #: position is DERIVED from what the locator above it and the legend below it
 #: leave, which is the only way the three can be guaranteed to fit the map's
 #: height without a hand-tuned constant per combination.
-_COLORBAR_WIDTH = 0.025
-_COLORBAR_HEIGHT = 0.65
+_COLORBAR_WIDTH = 0.030
+_COLORBAR_HEIGHT = 1.50
 #: The bar never shrinks below this, even if that overruns the panel. A bar too
 #: short to carry its own tick labels is not a smaller bar, it is a broken one —
 #: better to overflow visibly than to render something unreadable.
@@ -706,9 +706,15 @@ RIVER_ORDER_COLUMN = "strord"
 #: one-line label gives the bar back the axes fraction the second line cost.
 ELEVATION_LABEL = "Elevation (m a.s.l.)"
 
-#: Padding around the model's own bounding box, in degrees, so the basin does
-#: not touch the frame.
-_EXTENT_BUFFER_DEG = 0.02
+#: Padding around the mapped footprint, as a fraction of its longitude and
+#: latitude spans. Each axis is padded independently so a long, narrow basin
+#: does not acquire excessive whitespace along its short axis.
+_EXTENT_BUFFER_FRACTION = 0.05
+#: Absolute padding floor, in degrees, for very small or degenerate footprints.
+_EXTENT_BUFFER_MIN_DEG = 0.01
+#: Optional fixed-degree override retained for previews and explicit tuning.
+#: ``None`` uses the proportional rule above.
+_EXTENT_BUFFER_DEG = None
 
 # --- raster styles ---------------------------------------------------------
 # What makes one raster map differ from another. Everything ELSE on the figure
@@ -1703,24 +1709,51 @@ def pixel_resolution(da):
     return tuple(resolutions)
 
 
-def map_extent(da, buffer_deg=_EXTENT_BUFFER_DEG):
+def _pad_extent(extent, buffer_deg=None):
+    """Pad an extent proportionally, or by an explicit fixed degree value."""
+    lon_min, lon_max, lat_min, lat_max = (float(value) for value in extent)
+    fixed_buffer_deg = _EXTENT_BUFFER_DEG if buffer_deg is None else buffer_deg
+    if fixed_buffer_deg is None:
+        lon_pad = max(
+            (lon_max - lon_min) * _EXTENT_BUFFER_FRACTION,
+            _EXTENT_BUFFER_MIN_DEG,
+        )
+        lat_pad = max(
+            (lat_max - lat_min) * _EXTENT_BUFFER_FRACTION,
+            _EXTENT_BUFFER_MIN_DEG,
+        )
+    else:
+        lon_pad = lat_pad = float(fixed_buffer_deg)
+    return np.array(
+        [
+            lon_min - lon_pad,
+            lon_max + lon_pad,
+            lat_min - lat_pad,
+            lat_max + lat_pad,
+        ]
+    )
+
+
+def map_extent(da, buffer_deg=None):
     """``[lon_min, lon_max, lat_min, lat_max]`` covering the DEM, plus padding.
 
     Replaces ``da.raster.box.buffer(...).total_bounds``. Coordinates are cell
     CENTRES, so the box reaches half a cell beyond them on each side — dropping
-    that half-cell shrinks the frame by one pixel row and column.
+    that half-cell shrinks the frame by one pixel row and column. Padding is
+    proportional to each axis unless ``buffer_deg`` explicitly fixes it.
     """
     x_dim, y_dim = spatial_dim_names(da)
     res_x, res_y = pixel_resolution(da)
     half_x, half_y = abs(res_x) / 2.0, abs(res_y) / 2.0
     x, y = da[x_dim].values, da[y_dim].values
-    return np.array(
+    return _pad_extent(
         [
-            x.min() - half_x - buffer_deg,
-            x.max() + half_x + buffer_deg,
-            y.min() - half_y - buffer_deg,
-            y.max() + half_y + buffer_deg,
-        ]
+            x.min() - half_x,
+            x.max() + half_x,
+            y.min() - half_y,
+            y.max() + half_y,
+        ],
+        buffer_deg=buffer_deg,
     )
 
 
@@ -1778,7 +1811,7 @@ def check_geographic_inputs(raster, layers, value_label=None, expected_units=Non
         )
 
 
-def extent_from_layer(layer, buffer_deg=_EXTENT_BUFFER_DEG):
+def extent_from_layer(layer, buffer_deg=None):
     """``[lon_min, lon_max, lat_min, lat_max]`` covering a vector layer.
 
     The companion to :func:`map_extent`, which frames a map on its RASTER. Two
@@ -1786,18 +1819,15 @@ def extent_from_layer(layer, buffer_deg=_EXTENT_BUFFER_DEG):
     — the wflow forcing is masked to the basin, the source extraction is a
     handful of reanalysis cells reaching far beyond it — so the pair cannot be
     read side by side. Framing both on the same VECTOR layer is what makes them
-    comparable, and the basin is the subject of both.
+    comparable, and the basin is the subject of both. Padding is proportional
+    to each axis unless ``buffer_deg`` explicitly fixes it.
     """
     if not _present(layer):
         return None
     lon_min, lat_min, lon_max, lat_max = layer.total_bounds
-    return np.array(
-        [
-            lon_min - buffer_deg,
-            lon_max + buffer_deg,
-            lat_min - buffer_deg,
-            lat_max + buffer_deg,
-        ]
+    return _pad_extent(
+        [lon_min, lon_max, lat_min, lat_max],
+        buffer_deg=buffer_deg,
     )
 
 
@@ -2040,9 +2070,9 @@ def _graticule_ticks(extent, max_ticks=GRATICULE_MAX_TICKS):
     """Shared tick positions for the grid LINES and the axis LABELS.
 
     The latitude window is clamped to +/-90 BEFORE the ticks are chosen.
-    ``map_extent`` pads the DEM bounds by ``_EXTENT_BUFFER_DEG`` plus half a cell
-    and clamps nothing, so a basin near a pole yields ``lat_max > 90`` and the
-    graticule would label a latitude that does not exist.
+    ``map_extent`` pads the DEM bounds proportionally plus half a cell and clamps
+    nothing, so a basin near a pole yields ``lat_max > 90`` and the graticule
+    would label a latitude that does not exist.
 
     Longitude is deliberately NOT clamped: past +/-180 is a legitimate way to
     express a basin spanning the antimeridian, whereas past +/-90 is always
@@ -3194,7 +3224,7 @@ def plot_raster_map(
         ``WATERBODY_COLORS``.
     extent : sequence of float, optional
         ``[lon_min, lon_max, lat_min, lat_max]``. Defaults to the DEM's own
-        bounding box plus ``_EXTENT_BUFFER_DEG``. Set it to frame several basins
+        bounding box plus proportional padding. Set it to frame several basins
         alike, or to crop.
     gauge_label_column : str or None
         Column annotated beside each gauge; ``None`` draws the markers unlabelled.
