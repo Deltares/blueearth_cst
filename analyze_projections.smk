@@ -695,9 +695,14 @@ WF2_TARGETS = {
     # The whole figure set, so `rule all` demands every figure rather than the
     # three that happened to be named. `--delete-all-output` reaches them for
     # the same reason.
+    #
+    # Keyed by the figure's own relative path, NOT by position: an ordinal key
+    # would silently re-point when a horizon is added to the config, which is
+    # the "gain a name, which changes nothing" property the comment above this
+    # dict describes. `windows/far-2070-2090/monthly-change-factors.png` names
+    # the same artifact whatever else the config declares.
     **{
-        f"figure_{index}": path
-        for index, path in enumerate(WF2_FIGURE_PATHS.values(), start=1)
+        f"figure_{relative}": path for relative, path in WF2_FIGURE_PATHS.items()
     },
     # ADR 0003 §8. The vector rule has NO WF2 consumer yet (§10), so a target
     # entry is what makes it reachable at all — an undeclared leaf is simply
