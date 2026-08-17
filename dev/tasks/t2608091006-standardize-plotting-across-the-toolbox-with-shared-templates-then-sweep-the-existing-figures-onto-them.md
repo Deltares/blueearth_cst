@@ -44,10 +44,35 @@ a renderer under `dev/scripts/` plus an Artifact, no code integration. The two
 WF2 boxes below stay open until that ruling comes back, and the reverted commit
 is where a future integration starts rather than a blank page.
 
-**PAUSED 2026-08-11 awaiting the owner's ruling — resume here.** The prototype
-is built (`a80e47e`) and revised once against four owner rulings (`9f18b97`);
-the review page is
-[Artifact b04f34e3](https://claude.ai/code/artifact/b04f34e3-5268-4269-beeb-8a022a73f8f6).
+**UNPAUSED 2026-08-17 — both open questions ruled. Resume at integration.**
+
+> **Ruling 1 (owner, 2026-08-17): ADOPT the set as the WF2 output contract.**
+> Integration is `dc40a22` **restored and re-validated, not rewritten** — but its
+> figure code predates the four 2026-08-11 rulings, so the prototype's drawing
+> functions are the newer source and win on every conflict.
+>
+> **Ruling 2 (owner, 2026-08-17): KEEP the current cloud orientation.** The axes
+> do NOT flip to ΔT on x. Integration ships the orientation as rendered; the two
+> cloud views stay in agreement with each other.
+
+**What the ruling was taken on.** The prototype was re-rendered 2026-08-17 from
+`test_case/test_local` with two horizons declared, and published as
+[Artifact 777a2736](https://claude.ai/code/artifact/777a2736-4985-4fab-9c21-91d18a7993e3)
+(supersedes the 2026-08-11 page,
+[Artifact b04f34e3](https://claude.ai/code/artifact/b04f34e3-5268-4269-beeb-8a022a73f8f6)).
+Command: `pixi run python dev/scripts/preview_wf2_projection_plots.py --horizon
+near=2040-2060 --horizon far=2070-2090`.
+
+**The falsifier is why this was a correctness change and not a restyle**, and it
+should be quoted in the integration commit rather than re-derived: one
+model×scenario×member drawn three ways — proposal, shipped definition, and the
+authoritative table. The proposal sits ON the table's markers, max abs difference
+**0.000491 %** for precip and **0.000894 °C** for temp over 72 rows each (worst
+case `GFDL-ESM4 · ssp585` both times); the shipped definition visibly does not.
+So the WF2 figures currently ship a monthly-change definition that the
+change-factor tables contradict.
+
+The prototype is `a80e47e`, revised once against the four rulings in `9f18b97`.
 
 - **Run it:** `pixi run python dev/scripts/preview_wf2_projection_plots.py
   --horizon near=2040-2060 --horizon far=2070-2090`. Renders to `.tmp/`, reads
@@ -56,17 +81,14 @@ the review page is
   TOOLBOX-WIDE convention, not a WF2 one); the WF1 page spec is
   `_publication_rc()` + `series_figure_size()` + constrained layout +
   `supxlabel(wrap=True)`, not `tight_layout`; model names annotated on cloud
-  points; the combined all-horizons scatter kept beside the faceted one.
-- **What is still open:** (1) adopt / amend / reject the set as the WF2 output
-  contract; (2) whether the cloud's axes flip to ΔT on x, per the
-  decision-scaling convention — deliberately not bundled, and it now applies to
-  both cloud views so it is one decision rather than two.
-- **If adopted**, integration is `dc40a22` restored and re-validated, not
-  rewritten — but the figure code in it predates all four rulings above, so the
-  prototype's drawing functions are the newer source.
+  points; the combined all-horizons scatter kept beside the faceted one. **Plus,
+  2026-08-17: the set is ADOPTED, and the cloud orientation STAYS.**
+- **Nothing is open.** Both questions were ruled on 2026-08-17; see the callout
+  above. Integration is the next artifact, not another prototype revision.
 - **Watch:** the two "no titles" and "WF1 page spec" rulings are toolbox-wide.
   The three surfaces still unswept below inherit them, and so does any figure
-  work outside this item.
+  work outside this item. The cloud-orientation ruling is narrower — it settles
+  the two cloud views, and says nothing about other figure families.
 
 - [x] Frame both climate map families on the basin — `11ffcc4`
 - [x] Share colourbar levels across each source/forcing pair — `403b55e`
@@ -77,9 +99,13 @@ the review page is
 - [x] **Half 1: extract the shared template/style module** — `6d3ec75` added
       `shared/plot_style.py` for page size, typography and export settings
 - [ ] **Half 2, remainder — the surfaces still styled independently:**
-  - [ ] `projections/get_change_climate_proj_summary.py` — prototype built and
-        revised; awaiting the owner's ruling, see the resume note above
-  - [ ] `projections/plot_proj_timeseries.py` — same prototype, same ruling
+  - [ ] `projections/get_change_climate_proj_summary.py` — **ruled ADOPTED
+        2026-08-17; integrate.** Restore `dc40a22`, re-validate, and take the
+        prototype's drawing functions wherever the two disagree. The gate is the
+        full ladder, not the figure gate: this edits a producer, a Snakefile, the
+        output contract and its tests
+  - [ ] `projections/plot_proj_timeseries.py` — same prototype, same ruling,
+        same integration
   - [ ] `shared/func_plot_signature.py` (`plot_signatures`, `plot_hydro`,
         `plot_basavg` — `plot_clim` is gone, ADR 0006)
   - [ ] `dev/scripts/basin_map_example.py`
