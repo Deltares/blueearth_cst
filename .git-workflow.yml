@@ -36,3 +36,16 @@ worktree_link:
   - .claude   # skills/ + agents/, symlinks into ~/workspace/brain/artifacts
   - .codex    # Codex personas (regular files, no brain fallback)
   - .agents   # runtime-neutral skills/
+
+# Environment the launcher BUILDS in each new worktree — it can be neither
+# copied nor symlinked. `.pixi/` embeds absolute paths, so a copy is subtly
+# broken and a link points two checkouts at one mutable prefix. `pixi install`
+# is not the whole environment: weathergenr comes from GitHub via remotes and
+# the Julia env from Pkg.instantiate(), both under `pixi run install`.
+# Runs after seeding and linking; a failure is reported, not fatal, and never
+# unwinds an otherwise-correct worktree. Skip once with --no-provision.
+# VERIFY AFTERWARDS — a missing env is gitignored and invisible to git status:
+#   pixi run python dev/scripts/check_env.py --all
+worktree_provision:
+  - pixi install
+  - pixi run install
