@@ -954,16 +954,23 @@ def test_the_source_footnote_is_flush_left_not_centred_under_the_page():
     """
     import matplotlib.pyplot as plt
 
-    from blueearth_cst.shared.plot_style import CAVEAT_X
-
     layers = _layers()
-    fig, _ = plot_basin_map(
+    fig, ax = plot_basin_map(
         layers["dem"], layers["rivers"], layers["basin"], caveat="Source: X (Y, 2020)."
     )
     try:
         footnote = fig._supxlabel
         assert footnote.get_horizontalalignment() == "left"
-        assert footnote.get_position()[0] == pytest.approx(CAVEAT_X)
+        # Flush to the PLOT AREA, not the sheet: the sheet's edge put the line
+        # under the y-axis label and the tick numbers, left of everything else
+        # on the figure.
+        assert footnote.get_position()[0] == pytest.approx(
+            ax.get_position().x0, abs=1e-6
+        )
+        assert footnote.get_position()[0] > 0.02, (
+            "flush to the sheet, not the axes — the plot area starts well right "
+            "of the canvas edge on a map"
+        )
     finally:
         plt.close(fig)
 

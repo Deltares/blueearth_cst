@@ -69,7 +69,6 @@ from blueearth_cst.shared import plot_style
 # direct `plot_style` import in the plotting sweep, alongside a change to that
 # file that is worth the invalidation.
 from blueearth_cst.shared.plot_style import (
-    CAVEAT_X,
     COLOR_CAVEAT,
     FIGURE_WIDTH_MM,
     FONT_FAMILY,
@@ -77,6 +76,7 @@ from blueearth_cst.shared.plot_style import (
     FONT_SIZE_TITLE,
     MM_PER_INCH,
     RASTER_DPI,  # noqa: F401
+    align_caveat_to_plot_area,
 )
 
 # ===========================================================================
@@ -3238,25 +3238,6 @@ def _absorb_right_margin(fig, panel_items, passes=6):
         fig.draw_without_rendering()
 
 
-def _align_caveat_left(fig, footnote):
-    """Flush the footnote to the sheet's left edge.
-
-    ONE alignment for every figure family (owner ruling 2026-08-17). This one
-    used to right-align to the side panel's measured edge, which was defensible
-    on its own terms — that edge is visible and shared by the locator and the
-    legend — but it made the map family the odd one out: the series figures
-    start their footnote under the y-axis label, where prose starts.
-
-    Only ``x`` and the alignment are set. Constrained layout repositions a
-    ``supxlabel`` on every draw, but it rewrites the Y ONLY and carries the x
-    through, so this survives the saves that follow.
-    """
-    if footnote is None:
-        return
-    footnote.set_x(CAVEAT_X)
-    footnote.set_horizontalalignment("left")
-
-
 def plot_raster_map(
     raster,
     rivers=None,
@@ -3541,9 +3522,11 @@ def plot_raster_map(
         # rather than as a misplaced caption.
         if title:
             fig.suptitle(title, fontsize=FONT_SIZE_TITLE)
-        footnote = None
         if caveat:
-            footnote = fig.supxlabel(
+            # Not kept: `align_caveat_to_plot_area` reaches it through
+            # `fig._supxlabel`, which is where matplotlib stores it, so holding
+            # a second reference here would only be a second thing to keep true.
+            fig.supxlabel(
                 caveat, fontsize=FONT_SIZE_CAVEAT, color=COLOR_CAVEAT, wrap=True
             )
 
@@ -3562,6 +3545,8 @@ def plot_raster_map(
         # colourbar is narrower and sits between them, so it cannot set the
         # right edge -- and it is local to `_draw_raster` anyway.
         _absorb_right_margin(fig, (locator_axes, legend))
-        _align_caveat_left(fig, footnote)
+        # Flush to the MAP AXES' left edge, not the sheet's -- one rule for
+        # every figure family (`plot_style.align_caveat_to_plot_area`).
+        align_caveat_to_plot_area(fig, ax)
 
     return fig, ax
