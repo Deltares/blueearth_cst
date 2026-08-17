@@ -1,8 +1,6 @@
 ---
 title: Hoist the categorical palette out of compare_sources when a second caller appears
 type: watch-item
-status: backlog
-effort: 1
 area: wf0 / figures + shared plot style
 origin: 2026-08-17 wf0 rule 0.06
 created: 2026-08-17
