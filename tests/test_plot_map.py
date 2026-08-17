@@ -1513,3 +1513,94 @@ def test_a_single_word_title_is_never_wrapped():
         assert _wrap_label(fig, "Elevation", 0.01, 7.0) == "Elevation"
     finally:
         plt.close(fig)
+
+
+# --- the crop that feeds the frame --------------------------------------------
+#
+# `_raster_within` cuts a raster to the drawn frame so the colourbar classifies
+# what is visible. Since the source maps went back to basin framing (8ff5d17), a
+# coarse source can leave it a single column, and that broke the DRAWING rather
+# than the classifier: xarray's `plot.imshow` derives the half-cell from the
+# coordinate spacing and on a length-1 axis substitutes a hardcoded 0.1
+# (`dataarray_plot.py:1841`), painting a 0.25 deg era5 cell 0.2 deg wide and
+# leaving the frame's east edge unfilled. Measured at 0.0183 deg on the rapid
+# fixture, with the basin outline hanging over the gap.
+
+
+def _grid(lons, lats):
+    """A raster with the descending latitude every climate store carries."""
+    return xr.DataArray(
+        np.arange(len(lats) * len(lons), dtype=float).reshape(len(lats), len(lons)),
+        coords={"latitude": lats, "longitude": lons},
+        dims=("latitude", "longitude"),
+    )
+
+
+def _cell_edges(cropped):
+    """The cropped raster's true footprint, half a cell past the outer centres."""
+    lon, lat = cropped["longitude"].values, cropped["latitude"].values
+    half_x = abs(float(lon[1] - lon[0])) / 2.0
+    half_y = abs(float(lat[1] - lat[0])) / 2.0
+    return (
+        float(lon.min()) - half_x,
+        float(lon.max()) + half_x,
+        float(lat.min()) - half_y,
+        float(lat.max()) + half_y,
+    )
+
+
+def test_a_single_column_crop_is_widened_so_a_half_cell_can_be_measured():
+    """The regression: one era5 column under the basin, framed on the basin."""
+    raster = _grid([9.25, 9.5, 9.75, 10.0, 10.25], [0.75, 0.5, 0.25, 0.0])
+    # The rapid fixture's basin bbox, padded by `_pad_extent`'s 0.01 floor.
+    frame = (9.6483, 9.8683, 0.34, 0.4933)
+
+    cropped = carto._raster_within(raster, frame)
+
+    assert cropped["longitude"].size >= 2, (
+        "a length-1 axis leaves xarray no spacing to measure, and it falls back "
+        "to a hardcoded 0.1 deg half-cell"
+    )
+    assert cropped["latitude"].size >= 2
+    west, east, south, north = _cell_edges(cropped)
+    assert west <= frame[0] and east >= frame[1], (
+        f"cropped footprint {west:.4f}..{east:.4f} does not cover the frame "
+        f"{frame[0]:.4f}..{frame[1]:.4f} — the east edge renders unfilled"
+    )
+    assert south <= frame[2] and north >= frame[3]
+
+
+def test_widening_does_not_disturb_a_crop_that_already_has_two_cells():
+    """A fine source is untouched — chirps is 6x4 here and must stay exact."""
+    lons = [9.60 + 0.05 * i for i in range(8)]
+    lats = [0.55 - 0.05 * i for i in range(6)]
+    raster = _grid(lons, lats)
+    frame = (9.6483, 9.8683, 0.34, 0.4933)
+
+    cropped = carto._raster_within(raster, frame)
+    plain = raster.sel(
+        longitude=[v for v in lons if 9.6483 - 0.025 <= v <= 9.8683 + 0.025],
+        latitude=[v for v in lats if 0.34 - 0.025 <= v <= 0.4933 + 0.025],
+    )
+
+    assert cropped["longitude"].size == plain["longitude"].size
+    assert cropped["latitude"].size == plain["latitude"].size
+
+
+def test_widening_reads_positions_not_values_on_a_descending_axis():
+    """Latitude descends in every store; a value-ordered slice would come back empty."""
+    raster = _grid([9.75], [0.75, 0.5, 0.25, 0.0])
+    cropped = carto._raster_within(raster, (9.6483, 9.8683, 0.34, 0.4933))
+
+    assert cropped["latitude"].size >= 2
+    assert list(cropped["latitude"].values) == sorted(
+        cropped["latitude"].values, reverse=True
+    ), "the crop must preserve the source's descending latitude order"
+
+
+def test_an_axis_with_one_cell_in_the_source_is_returned_as_is():
+    """Nothing to widen to — the guard must not index past the array."""
+    raster = _grid([9.75], [0.5, 0.25])
+    cropped = carto._raster_within(raster, (9.6483, 9.8683, 0.34, 0.4933))
+
+    assert cropped["longitude"].size == 1
