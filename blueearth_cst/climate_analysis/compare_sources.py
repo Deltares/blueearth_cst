@@ -34,7 +34,8 @@ Three boundaries, all deliberate:
 Values come from ``climate_figures``' own derivations
 (:data:`~blueearth_cst.climate_analysis.climate_figures.VALUE_DERIVATIONS`), on
 the same water-year anchor, so "annual precipitation" means here exactly what it
-means in each source's own ``source_precip_annual.png``. Deriving it
+means in each source's own ``era5_precip_annual_ts_basin_avg.png``, over the
+same basin cells and the same period. Deriving it
 independently is the defect that indirection exists to prevent — the same reason
 ``climate_levels`` reaches for it.
 """
@@ -58,9 +59,16 @@ from blueearth_cst.climate_analysis.climate_figures import (
     _series_axes,
     _style_series_axes,
     annual_series,
+    load_spatial_overlays,
     monthly_spread,
     source_climate_vars,
 )
+from blueearth_cst.climate_analysis.figure_naming import (
+    COMPARISON_SCOPE,
+    figure_filename,
+    subbasin_scope,
+)
+from blueearth_cst.shared.grid_cells import cells_csv_mask, masked, subbasin_masks
 from blueearth_cst.shared.plot_style import RASTER_DPI
 from blueearth_cst.shared.snake_utils import (
     DEFAULT_WATER_YEAR_ANCHOR,
@@ -75,15 +83,16 @@ from blueearth_cst.shared.snake_utils import (
 #: the figure set reads in the same order as every per-source directory.
 COMPARABLE_VARS = ("precip", "temp")
 
-#: The figure kinds this module renders. Deliberately its OWN tuple rather than
-#: ``climate_figures.FIGURE_KINDS``: there is no ``map`` kind here — two grids at
-#: different resolutions cannot share one raster panel — and a future entry added
-#: there must not silently demand a renderer this module does not have.
-COMPARISON_KINDS = ("annual", "monthly")
-
-#: Filename prefix, mirroring ``<dataset>_<variable>_<kind>.png``. A figure
-#: copied out of its directory still says what it is.
-FIGURE_PREFIX = "comparison"
+#: The figure kinds this module renders, mapped to their ``plot_context`` token
+#: in the WF0 filename grammar. Deliberately its OWN mapping rather than
+#: ``climate_figures.KIND_PLOT_CONTEXTS``: there is no ``map`` kind here — two
+#: grids at different resolutions cannot share one raster panel — and the
+#: monthly figure is a LINE per source, not the box plot the per-source family
+#: draws, so it carries a different context token for a real reason.
+COMPARISON_KINDS = {
+    "annual": "annual_ts",
+    "monthly": "monthly_clim_line",
+}
 
 #: The summary table, written in both machine- and human-readable form. The CSV
 #: is the one a GUI or a notebook reads; the Markdown is the one that goes in a
@@ -133,12 +142,21 @@ def comparison_variables(sources: Sequence[str]) -> tuple:
     return tuple(var for var in COMPARABLE_VARS if carriers[var] >= 2)
 
 
-def comparison_figure_names(variables: Sequence[str]) -> list:
+def comparison_figure_names(
+    variables: Sequence[str], spatial_scopes: Sequence[str] = ("basin_avg",)
+) -> list:
     """Every figure filename this module writes, in a stable order.
 
-    The Snakefile declares its outputs from this, so it is the single source of
-    the ``comparison_<variable>_<kind>.png`` scheme. Nothing else may build
-    those names by hand.
+    Built through ``figure_naming`` under the WF0 grammar, so the Snakefile's
+    declaration and this module's writes come from one place. The
+    ``dataset_scope`` is the literal ``comparison`` rather than a list of the
+    compared sources — the rule is explicit that the datasets belong in the
+    legend and the run record, so the filename stays stable as the compared set
+    changes.
+
+    ``spatial_scopes`` defaults to the basin, which is the only scope whose
+    existence is knowable at DAG-parse time; the per-subbasin figures are
+    declared through a ``directory()`` instead.
     """
     unknown = sorted(set(variables) - set(COMPARABLE_VARS))
     if unknown:
@@ -148,9 +166,10 @@ def comparison_figure_names(variables: Sequence[str]) -> list:
         )
     ordered = [var for var in COMPARABLE_VARS if var in set(variables)]
     return [
-        f"{FIGURE_PREFIX}_{var}_{kind}.png"
+        figure_filename(COMPARISON_SCOPE, var, context, scope)
         for var in ordered
-        for kind in COMPARISON_KINDS
+        for context in COMPARISON_KINDS.values()
+        for scope in spatial_scopes
     ]
 
 
@@ -452,70 +471,19 @@ def write_comparison_table(table: pd.DataFrame, out_dir: Union[str, Path]) -> li
 # DATASETS.
 
 
-#: Coordinate rounding used to match a store's grid against ``basin_cells.csv``.
-#: Six decimals, matching ``weathergen/generate_weather.R``'s ``mask_key`` — the
-#: other consumer of the same file — so the two cannot disagree about which
-#: cells the basin touches.
-_CELL_KEY_DECIMALS = 6
-
-
-def basin_cell_mask(ds: xr.Dataset, cells_csv: Union[str, Path]):
-    """Boolean mask of the store cells the basin touches, or ``None``.
-
-    **The domains differ before this, and not slightly.** A store is a bbox read
-    plus ``BUFFER_CELLS``, and the buffer is counted in CELLS — so ERA5's
-    0.25-degree store reaches physically further past the basin than CHIRPS's
-    0.05-degree one, and a plain domain mean over each extraction averages two
-    different areas. Measured on the rapid fixture: 4x5 ERA5 cells against 7x8
-    CHIRPS cells, the same basin under both. A difference between the two lines
-    would then partly be the neighbouring climate each grid happened to include.
-
-    The mask comes from the store's OWN ``basin_cells.csv``, the file rule 0.04
-    already writes and weathergenr already averages over
-    (``extract_historical_climate.write_basin_cell_mask``). Reusing it rather
-    than re-deriving from the basin polygon means the comparison, the weather
-    generator and the stress test all agree on what "the basin" is — and it
-    inherits that function's INTERSECTS rule, which is what keeps a basin
-    smaller than one ERA5 cell from selecting no cells at all.
-
-    Returns ``None`` when the file is absent, when the store does not spell its
-    grid ``latitude``/``longitude``, or when nothing matches — the figure is
-    then drawn over the full extraction and says so, which beats no figure.
-    """
-    if cells_csv is None or not Path(cells_csv).is_file():
-        return None
-    if not {"latitude", "longitude"} <= set(ds.dims):
-        log_row(
-            "store does not spell its grid latitude/longitude; the basin mask "
-            "cannot be matched and the full extraction is used",
-            module="compare",
-            level="WARNING",
-        )
-        return None
-    frame = pd.read_csv(cells_csv)
-    keys = {
-        (
-            round(float(lat), _CELL_KEY_DECIMALS),
-            round(float(lon), _CELL_KEY_DECIMALS),
-        )
-        for lat, lon in zip(frame["latitude"], frame["longitude"])
-    }
-    lats = [round(float(v), _CELL_KEY_DECIMALS) for v in ds["latitude"].values]
-    lons = [round(float(v), _CELL_KEY_DECIMALS) for v in ds["longitude"].values]
-    values = np.array([[(la, lo) in keys for lo in lons] for la in lats])
-    if not values.any():
-        log_row(
-            f"{Path(cells_csv).name} matched no cell in the store; the full "
-            "extraction is used instead",
-            module="compare",
-            level="WARNING",
-        )
-        return None
-    return xr.DataArray(
-        values,
-        dims=("latitude", "longitude"),
-        coords={"latitude": ds["latitude"], "longitude": ds["longitude"]},
-    )
+# The basin mask itself comes from `shared.grid_cells.cells_csv_mask`, the one
+# predicate rule 0.05 also averages over — which is what makes this figure's era5
+# line and `era5_precip_annual_ts_basin_avg.png` show the SAME period mean. They
+# did not before: measured 2026-08-17, the per-source figure said 2,546 mm/y over
+# the buffered extraction while this one said 2,722 over the basin.
+#
+# **Why the domains differ at all.** A store is a bbox read plus BUFFER_CELLS,
+# and the buffer is counted in CELLS — so ERA5's 0.25-degree store reaches
+# physically further past the basin than CHIRPS's 0.05-degree one (4x5 against
+# 7x8 cells on the rapid fixture, the same basin under both). A plain domain
+# mean over each extraction therefore averages two different areas, and part of
+# the difference between two lines would be whichever neighbouring climate each
+# grid happened to include.
 
 
 def mutual_window(datasets: Sequence) -> Optional[tuple]:
@@ -542,9 +510,8 @@ def mutual_window(datasets: Sequence) -> Optional[tuple]:
 
 
 def _on_common_ground(ds: xr.Dataset, mask, window) -> xr.Dataset:
-    """One store restricted to the basin cells and the shared period."""
-    if mask is not None:
-        ds = ds.where(mask)
+    """One store restricted to an area's cells and the shared period."""
+    ds = masked(ds, mask)
     if window is not None:
         ds = ds.sel(time=slice(*window))
     return ds
@@ -557,22 +524,28 @@ def _window_note(window) -> str:
     return f"common period {lower.date().isoformat()} to {upper.date().isoformat()}"
 
 
-def comparison_caveat(window, masked: bool) -> str:
+def comparison_caveat(window, has_mask: bool, area: str = "basin") -> str:
     """The footnote every comparison figure carries, stating what was compared.
 
     Rendered on the figure rather than left to a caption, for the same reason
     the per-source set carries its own: the file outlives its directory. It
     names the period because a reader cannot otherwise tell whether two lines
-    differ by climate or by calendar.
+    differ by climate or by calendar, and it names the AREA because the same
+    figure is now drawn for the basin and for each subbasin.
+
+    The resolution sentence is not boilerplate on a subbasin figure — it is the
+    warning that matters most there. A subbasin can be finer than the coarse
+    grid, so two subbasins may select the SAME cell and draw identical lines.
     """
     domain = (
-        "Basin cells only — each grid's cells touching the basin"
-        if masked
+        f"{area.capitalize()} cells only — each grid's cells meeting the {area}"
+        if has_mask
         else "Full extraction grids, which differ in footprint"
     )
     return (
         f"{domain}; {_window_note(window)}. The grids differ in resolution, "
-        "which damps extremes on the coarser one."
+        "which damps extremes on the coarser one and can make two small areas "
+        "select the same cells."
     )
 
 
@@ -671,8 +644,10 @@ def plot_comparison_figures(
     variables: Sequence[str],
     anchor: str = DEFAULT_WATER_YEAR_ANCHOR,
     basin_cells: Optional[Mapping] = None,
+    subbasins=None,
+    subbasin_dir: Optional[Union[str, Path]] = None,
 ) -> list:
-    """Write one figure per ``(variable, kind)``, every source on one axis.
+    """Write one figure per ``(variable, kind, area)``, every source on one axis.
 
     Every source is put on common ground first — masked to the basin cells its
     own grid contributes (:func:`basin_cell_mask`) and clipped to the period all
@@ -687,6 +662,7 @@ def plot_comparison_figures(
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     basin_cells = basin_cells or {}
+    subbasin_dir = Path(subbasin_dir) if subbasin_dir is not None else out_dir
     opened = {name: xr.open_dataset(path) for name, path in stores.items()}
     written = []
     try:
@@ -698,49 +674,59 @@ def plot_comparison_figures(
                 module="compare",
                 level="WARNING",
             )
-        masks = {
-            name: basin_cell_mask(ds, basin_cells.get(name))
-            for name, ds in opened.items()
-        }
-        prepared = {
-            name: _on_common_ground(ds, masks[name], window)
-            for name, ds in opened.items()
-        }
-        masked = bool(masks) and all(mask is not None for mask in masks.values())
-        caveat = comparison_caveat(window, masked)
+        # {spatial_scope: {source: mask}} -- one entry per AREA, each holding
+        # that area's mask on every source's own grid. Keyed this way because a
+        # figure is one area across all sources, which is the loop below.
+        areas = _comparison_areas(opened, basin_cells, subbasins)
+        if len(areas) > 1:
+            os.makedirs(subbasin_dir, exist_ok=True)
         log_row(
             f"Common ground: {_window_note(window)}; "
-            + (
-                "basin cells only ("
+            f"{len(areas)} area(s) — "
+            + ", ".join(
+                f"{scope} ("
                 + ", ".join(
                     f"{name} {int(mask.values.sum())}"
-                    for name, mask in masks.items()
                     if mask is not None
+                    else f"{name} full grid"
+                    for name, mask in masks.items()
                 )
-                + " cells)"
-                if masked
-                else "full extraction grids (no basin mask available)"
+                + ")"
+                for scope, masks in areas.items()
             ),
             module="compare",
         )
         for var in [v for v in COMPARABLE_VARS if v in set(variables)]:
-            # A source that does not carry the variable is left OUT of the
-            # figure rather than drawn from a borrowed field -- the same ruling
-            # `source_climate_vars` applies to the per-source set.
-            carriers = {
-                name: ds
-                for name, ds in prepared.items()
-                if var in source_climate_vars(name) and var in ds
-            }
-            for kind in COMPARISON_KINDS:
-                fig = _RENDERERS[kind](carriers, var, anchor, caveat)
-                out_path = out_dir / f"{FIGURE_PREFIX}_{var}_{kind}.png"
-                save_figure(out_path, dpi=RASTER_DPI)
-                plt.close(fig)
-                written.append(out_path)
+            for scope, masks in areas.items():
+                prepared = {
+                    name: _on_common_ground(ds, masks.get(name), window)
+                    for name, ds in opened.items()
+                }
+                # A source that does not carry the variable is left OUT of the
+                # figure rather than drawn from a borrowed field -- the same
+                # ruling `source_climate_vars` applies to the per-source set.
+                carriers = {
+                    name: ds
+                    for name, ds in prepared.items()
+                    if var in source_climate_vars(name) and var in ds
+                }
+                caveat = comparison_caveat(
+                    window,
+                    any(mask is not None for mask in masks.values()),
+                    area=_area_label(scope),
+                )
+                destination = subbasin_dir if scope.startswith("subbasin_") else out_dir
+                for kind, context in COMPARISON_KINDS.items():
+                    fig = _RENDERERS[kind](carriers, var, anchor, caveat)
+                    out_path = destination / figure_filename(
+                        COMPARISON_SCOPE, var, context, scope
+                    )
+                    save_figure(out_path, dpi=RASTER_DPI)
+                    plt.close(fig)
+                    written.append(out_path)
             log_row(
-                f"Compared {var} across {len(carriers)} source(s): "
-                f"{', '.join(carriers)}",
+                f"Compared {var} over {len(areas)} area(s) across "
+                f"{len(stores)} source(s)",
                 module="compare",
             )
     finally:
@@ -749,19 +735,53 @@ def plot_comparison_figures(
     return written
 
 
+def _area_label(spatial_scope: str) -> str:
+    """``basin`` / ``subbasin 1010`` — the area named for a human, from its scope."""
+    if not spatial_scope.startswith("subbasin_"):
+        return "basin"
+    return "subbasin " + spatial_scope[len("subbasin_") : -len("_avg")]
+
+
+def _comparison_areas(opened: Mapping, basin_cells: Mapping, subbasins) -> dict:
+    """``{spatial_scope: {source: mask}}`` for the basin and each subbasin.
+
+    A subbasin is included when at least ONE source resolves it. A source that
+    does not — its grid may be coarser than the subbasin, though the INTERSECTS
+    rule makes that rare — contributes ``None`` and is therefore drawn over its
+    full extraction for that panel, which the caveat states. Dropping the source
+    instead would silently change which datasets a subbasin figure compares.
+    """
+    areas = {
+        "basin_avg": {
+            name: cells_csv_mask(ds, basin_cells.get(name))
+            for name, ds in opened.items()
+        }
+    }
+    per_source = {name: subbasin_masks(ds, subbasins) for name, ds in opened.items()}
+    for subbasin_id in sorted({sid for masks in per_source.values() for sid in masks}):
+        areas[subbasin_scope(subbasin_id)] = {
+            name: masks.get(subbasin_id) for name, masks in per_source.items()
+        }
+    return areas
+
+
 def compare_climate_sources(
     stores: Mapping,
     out_dir: Union[str, Path],
     anchor: str = DEFAULT_WATER_YEAR_ANCHOR,
     data_sources=None,
     basin_cells: Optional[Mapping] = None,
+    geoms_dir: Optional[Union[str, Path]] = None,
+    subbasin_dir: Optional[Union[str, Path]] = None,
+    subbasins_gdf=None,
 ) -> list:
     """The rule's whole job: the summary table, then the comparison figures.
 
     ``data_sources`` is the hydromt catalog, read only to fill provenance the
     stores did not keep; ``basin_cells`` is ``{source: basin_cells.csv}``, the
-    domain the figures average over. Returns every path written, table first —
-    the order :func:`comparison_outputs` declares them in.
+    domain the basin figures average over; ``geoms_dir`` supplies
+    ``subbasins.geojson`` for the per-subbasin set. Returns every path written,
+    the declared ones first — the order :func:`comparison_outputs` gives them.
     """
     variables = comparison_variables(list(stores))
     log_row(
@@ -772,7 +792,23 @@ def compare_climate_sources(
     )
     os.makedirs(out_dir, exist_ok=True)
     written = write_comparison_table(summarize_sources(stores, data_sources), out_dir)
-    written += plot_comparison_figures(stores, out_dir, variables, anchor, basin_cells)
+    written += plot_comparison_figures(
+        stores,
+        out_dir,
+        variables,
+        anchor,
+        basin_cells,
+        # The SAME vector foundation rule 0.05 draws its subbasin set from, so
+        # the two families cover the same areas under the same ids. Passed
+        # directly by a caller that already holds the layer (the tests); read
+        # from `geoms_dir` by the rule, which holds a path.
+        subbasins=(
+            subbasins_gdf
+            if subbasins_gdf is not None
+            else load_spatial_overlays(geoms_dir).get("subbasins")
+        ),
+        subbasin_dir=subbasin_dir,
+    )
     return written
 
 
@@ -794,4 +830,6 @@ if __name__ == "__main__":
                 # A real `input`, unlike the catalog: it is rule 0.04's own
                 # output and changes with the extraction it describes.
                 basin_cells=dict(zip(sm.params.sources, sm.input.basin_cells)),
+                geoms_dir=sm.params.geoms_dir,
+                subbasin_dir=sm.params.subbasin_plot_dir,
             )

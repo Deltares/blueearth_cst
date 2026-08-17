@@ -102,11 +102,23 @@ def _rule_bodies() -> dict[str, str]:
 
 
 BODIES = _rule_bodies()
+
+#: ``basin_dir`` as a WHOLE identifier.
+#:
+#: A plain ``"basin_dir" in body`` also matches ``subbasin_dir``, which is not
+#: the model root and has nothing to do with ADR 0004. That fired for real on
+#: 2026-08-17, when rule 1.05 gained a ``subbasin_plot_dir`` param for its
+#: per-subbasin figures: the guard reported that a figure rule "reads the model
+#: root" and demanded a ``.model_final`` edge it must not have. A false positive
+#: here is expensive precisely because the message is so specific — it reads as
+#: a real ordering defect and invites exactly the wrong fix.
+_MODEL_ROOT = re.compile(r"\bbasin_dir\b")
+
 #: Rules whose body references the model root at all.
 TOUCHERS = sorted(
     name
     for name, body in BODIES.items()
-    if "basin_dir" in body and name not in NOT_A_READER
+    if _MODEL_ROOT.search(body) and name not in NOT_A_READER
 )
 READERS = [name for name in TOUCHERS if name not in MODEL_ROOT_WRITERS]
 

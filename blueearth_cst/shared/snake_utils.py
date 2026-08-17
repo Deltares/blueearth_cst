@@ -177,7 +177,8 @@ def _strip_prefix(text, prefix, replacement=""):
     The remainder is normalized to FORWARD SLASHES. Without that, one log mixes
     both spellings of the same tree -- ``data/climate/historical/...`` from a
     library that builds paths with ``/`` beside
-    ``data\\climate\\historical\\...\\source_precip_map.png`` from one that used
+    ``data\\climate\\historical\\...\\era5_precip_annual_clim_map_basin_ext.png``
+    from one that used
     ``os.path.join`` -- and the two read as different locations at a glance.
 
     Normalization is deliberately scoped to the run of text FOLLOWING a stripped

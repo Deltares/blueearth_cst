@@ -14,10 +14,27 @@ from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set. Imported for figure_names() ONLY, so every
 # figure is declared from the same list the plotter writes from and the two
 # cannot drift -- the same contract rule 1.05 and rule 1.13 rely on.
-from blueearth_cst.climate_analysis.climate_figures import figure_names, source_climate_vars
+from blueearth_cst.climate_analysis.climate_figures import source_climate_vars, source_figure_names
 # The cross-source comparison set (rule 0.06). Imported for the same reason:
 # the module that WRITES the table and the figures is the one that names them.
 from blueearth_cst.climate_analysis.compare_sources import comparison_outputs
+
+# --- figure filenames ---------------------------------------------------------
+# WF0's figures follow `dev/working/wf0-figure-filename-rule.md`:
+#   <dataset_scope>_<variable>_<plot_context>_<spatial_scope>.png
+# built by `climate_analysis.figure_naming`, never spelled here. The wflow
+# FORCING family (rule 1.13) keeps its own names -- the rule stages WF0 first.
+#
+# ONE spatial scope is declarable: `basin_avg`. The per-subbasin figures are
+# named `..._subbasin_<id>_avg.png`, and the ids come from the DELINEATION --
+# rule 0.03's `subbasins.geojson`, which need not exist when this file is
+# parsed. Their count is therefore unknowable at DAG-construction time, exactly
+# as rule 1.15's per-station figures are (see the O-24 note in build_model.smk).
+# They land in a `subbasins/` bin declared as a `directory()`, which keeps
+# `--delete-all-output` complete without the checkpoint that rule shape would
+# otherwise need.
+DECLARED_SPATIAL_SCOPES = ("basin_avg",)
+SUBBASIN_PLOT_DIRNAME = "subbasins"
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -252,6 +269,20 @@ def source_plot_dir(source):
     return f"{CLIMATE_STORES[source].store_dir}/plots"
 
 
+def source_subbasin_dir(source):
+    """The per-subbasin bin inside that source's plot directory."""
+    return f"{source_plot_dir(source)}/{SUBBASIN_PLOT_DIRNAME}"
+
+
+def source_figures(source):
+    """The DECLARED figure filenames for one source, under the WF0 grammar."""
+    return source_figure_names(
+        source,
+        variables=source_climate_vars(source),
+        spatial_scopes=DECLARED_SPATIAL_SCOPES,
+    )
+
+
 # --- the cross-source comparison (rule 0.06) ----------------------------------
 # ONE directory beside the per-source stores, not inside any of them: it belongs
 # to no single source, and `data/climate/historical/` is already the root this
@@ -265,6 +296,7 @@ def source_plot_dir(source):
 # writes the files is the one that names them, and the figure set narrows itself
 # to the variables more than one source carries.
 COMPARISON_DIR = f"{project_dir}/data/climate/historical/comparison"
+COMPARISON_SUBBASIN_DIR = f"{COMPARISON_DIR}/{SUBBASIN_PLOT_DIRNAME}"
 COMPARISON_OUTPUTS = (
     [f"{COMPARISON_DIR}/{name}" for name in comparison_outputs(CANDIDATE_SOURCES)]
     if len(CANDIDATE_SOURCES) > 1
@@ -275,10 +307,11 @@ COMPARISON_OUTPUTS = (
 # upstream of them and none feeds another rule, which is exactly the input set
 # the two gather rules need and what schedules each of them LAST.
 #
-# ONE representative figure per source is enough: rule 0.05 writes its nine
-# figures as a single job, so requesting one schedules the rest.
+# ONE representative figure per source is enough: rule 0.05 writes its whole set
+# as a single job, so requesting one schedules the rest. The map is the
+# representative because every source draws one, precipitation-only included.
 WF0_TERMINALS = [
-    *[f"{source_plot_dir(s)}/source_precip_map.png" for s in CANDIDATE_SOURCES],
+    *[f"{source_plot_dir(s)}/{source_figures(s)[0]}" for s in CANDIDATE_SOURCES],
     # Empty on a single-source run, where rule 0.06 is not declared either.
     *COMPARISON_OUTPUTS,
     # The vector foundation is a LEAF here -- nothing in this workflow consumes
@@ -408,6 +441,12 @@ rule derive_climate_levels:
     message: rule_banner("0.04b", "derive_climate_levels", summary="one plotting scale per variable, across sources")
     input:
         climate_ncs = [CLIMATE_STORES[s].outputs["climate_nc"] for s in CANDIDATE_SOURCES],
+        # The SERIES scales are pooled over the basin's cells, because that is
+        # what rule 0.05 draws. Pooling them over the buffered extraction and
+        # applying the result to a basin mean would classify one quantity and
+        # plot another -- the defect this module exists to prevent. The `map`
+        # scale stays pooled over the full field, which is what a map shows.
+        basin_cells = [CLIMATE_STORES[s].outputs["basin_cells"] for s in CANDIDATE_SOURCES],
     params:
         sources = CANDIDATE_SOURCES,
         variables = LEVEL_VARS,
@@ -466,6 +505,12 @@ for _source in CANDIDATE_SOURCES:
     # The shared scale (rule 0.04b). A real input, so the DAG carries the barrier
     # rather than the script reading a file behind Snakemake's back.
     _plot_inputs["levels_json"] = CLIMATE_LEVELS
+    # The cells the basin touches, on THIS source's grid. It is what the
+    # `basin_avg` figures reduce over, and it is rule 0.04's own output -- the
+    # same file weathergenr averages over, so the figures, the generator and the
+    # stress test share one definition of the basin. Without it the series were
+    # a mean over the store's BUFFERED bbox, which is a different area per grid.
+    _plot_inputs["basin_cells"] = _spec.outputs["basin_cells"]
     _plot_inputs.update(
         {name: SPATIAL_UNITS.outputs[name] for name in
          ("basins", "subbasins", "rivers", "locations")}
@@ -477,12 +522,17 @@ for _source in CANDIDATE_SOURCES:
         input:
             **_plot_inputs,
         output:
+            # The basin-level set, declared file by file (O-24) ...
             [
                 f"{source_plot_dir(_source)}/{name}"
-                for name in figure_names("source", variables=_plot_vars)
+                for name in source_figures(_source)
             ],
+            # ... and the per-subbasin set as a DIRECTORY, because its members
+            # are named for delineation ids this file cannot know at parse time.
+            directory(source_subbasin_dir(_source)),
         params:
             plot_dir = source_plot_dir(_source),
+            subbasin_plot_dir = source_subbasin_dir(_source),
             data_sources = DATA_SOURCES,
             clim_source = _source,
             geoms_dir = SPATIAL_UNITS.spatial_dir + "/geoms",
@@ -522,9 +572,16 @@ if len(CANDIDATE_SOURCES) > 1:
             # is partly of neighbouring climate. Rule 0.04 already writes this,
             # and weathergenr already averages over it.
             basin_cells = [CLIMATE_STORES[s].outputs["basin_cells"] for s in CANDIDATE_SOURCES],
+            # The subbasin polygons the per-subbasin comparison figures reduce
+            # over -- rule 0.03's shared foundation, the same layer rule 0.05
+            # takes its subbasin set from, so both families cover the same
+            # areas under the same ids.
+            subbasins = SPATIAL_UNITS.outputs["subbasins"],
         params:
             sources = CANDIDATE_SOURCES,
             out_dir = COMPARISON_DIR,
+            subbasin_plot_dir = COMPARISON_SUBBASIN_DIR,
+            geoms_dir = SPATIAL_UNITS.spatial_dir + "/geoms",
             water_year_start = WATER_YEAR_START,
             # Read ONLY to fill provenance a store did not keep: the chirps
             # branch fetches a single variable and loses the entry's metadata,
@@ -533,6 +590,9 @@ if len(CANDIDATE_SOURCES) > 1:
             data_sources = DATA_SOURCES,
         output:
             COMPARISON_OUTPUTS,
+            # As in rule 0.05: the per-subbasin figures are named for
+            # delineation ids, so their count is a runtime fact.
+            directory(COMPARISON_SUBBASIN_DIR),
         log:
             f"{LOG_PARTS_DIR}/0.06_compare_climate_sources.log",
         benchmark:

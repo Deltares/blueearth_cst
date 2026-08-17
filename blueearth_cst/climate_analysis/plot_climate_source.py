@@ -47,7 +47,9 @@ from blueearth_cst.climate_analysis.climate_figures import (
     source_climate_vars,
 )
 from blueearth_cst.climate_analysis.climate_levels import read_climate_levels
+from blueearth_cst.climate_analysis.figure_naming import subbasin_scope
 from blueearth_cst.shared.climate_parity import model_parity_climate
+from blueearth_cst.shared.grid_cells import cells_csv_mask, subbasin_masks
 from blueearth_cst.shared.snake_utils import (
     DEFAULT_WATER_YEAR_ANCHOR,
     log_row,
@@ -165,6 +167,30 @@ def source_grid_climate(
     )
 
 
+def area_masks_for(
+    ds: xr.Dataset,
+    basin_cells: Optional[Union[str, Path]] = None,
+    subbasins=None,
+) -> dict:
+    """``{spatial_scope: mask}`` for every area the series figures are drawn over.
+
+    The basin comes from the store's own ``basin_cells.csv`` and the subbasins
+    from the shared vector foundation, both through
+    :mod:`blueearth_cst.shared.grid_cells` — so one predicate decides every
+    domain, and rule 0.06's comparison of the same source lands on the same
+    number as this rule's own figure.
+
+    **The basin scope is always present, even with nothing to build it from**:
+    it then maps to ``None``, which draws the full extraction. Dropping it
+    instead would leave a source with no annual figure at all, and the rule
+    declares one.
+    """
+    masks = {"basin_avg": cells_csv_mask(ds, basin_cells)}
+    for subbasin_id, mask in subbasin_masks(ds, subbasins).items():
+        masks[subbasin_scope(subbasin_id)] = mask
+    return masks
+
+
 def plot_climate_source(
     climate_nc: Union[str, Path],
     plot_dir: Union[str, Path],
@@ -174,6 +200,8 @@ def plot_climate_source(
     geoms_dir: Optional[Union[str, Path]] = None,
     anchor: str = DEFAULT_WATER_YEAR_ANCHOR,
     levels_json: Optional[Union[str, Path]] = None,
+    basin_cells: Optional[Union[str, Path]] = None,
+    subbasin_dir: Optional[Union[str, Path]] = None,
 ):
     """Write the canonical climate figure set from the shared climate store.
 
@@ -264,6 +292,22 @@ def plot_climate_source(
         # source-grid. It is dropped above, where no PET figure is drawn.
         caveat = f"{_CAVEAT}\n{_PET_CAVEAT}"
 
+    overlays = load_spatial_overlays(geoms_dir)
+    # The areas the series figures reduce to. The MAP ignores them -- it draws
+    # the field, and cropping it per subbasin would be one raster shown N ways.
+    masks = area_masks_for(ds_src, basin_cells, overlays.get("subbasins"))
+    subbasins_drawn = [s for s in masks if s.startswith("subbasin_")]
+    log_row(
+        f"Aggregating over {len(masks)} area(s): basin"
+        + (f" + {len(subbasins_drawn)} subbasin(s)" if subbasins_drawn else "")
+        + (
+            ""
+            if masks.get("basin_avg") is not None
+            else " (no basin cell mask available -- the full extraction is used)"
+        ),
+        module="plot",
+    )
+
     # The canonical set (climate_figures) draws these; this module's job ends at
     # producing the dataset. `variables` MUST be the same list the rule declared
     # its outputs from, or the job ends in MissingOutputException.
@@ -272,11 +316,16 @@ def plot_climate_source(
         plot_dir,
         "source",
         caveat=caveat,
-        overlays=load_spatial_overlays(geoms_dir),
+        overlays=overlays,
         variables=variables,
         # Absent for a single-source run (WF1), where there is nothing to share
         # a scale WITH -- each figure then classifies from its own data.
         levels=read_climate_levels(levels_json),
+        # Present ⇒ the WF0 filename grammar, with the source id as the
+        # dataset_scope (`era5_precip_annual_ts_basin_avg.png`).
+        clim_source=clim_source,
+        area_masks=masks,
+        subbasin_dir=subbasin_dir,
     )
 
 
@@ -298,4 +347,9 @@ if __name__ == "__main__":
                 anchor=water_year_end_anchor(sm.params.water_year_start),
                 # Declared by WF0's multi-source path only; absent in WF1.
                 levels_json=getattr(sm.input, "levels_json", None),
+                # Rule 0.04's own output: the cells the basin touches, which is
+                # what the basin-average figures reduce over -- and the same
+                # file weathergenr averages over, so the two agree.
+                basin_cells=getattr(sm.input, "basin_cells", None),
+                subbasin_dir=getattr(sm.params, "subbasin_plot_dir", None),
             )

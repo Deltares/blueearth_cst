@@ -40,7 +40,6 @@ from blueearth_cst.climate_analysis.compare_sources import (
     FOOTNOTE_COLUMN,
     MISSING,
     TABLE_STEM,
-    basin_cell_mask,
     compare_climate_sources,
     comparison_caveat,
     comparison_figure_names,
@@ -49,6 +48,8 @@ from blueearth_cst.climate_analysis.compare_sources import (
     mutual_window,
     summarize_sources,
 )
+from blueearth_cst.climate_analysis.figure_naming import subbasin_scope
+from blueearth_cst.shared.grid_cells import cells_csv_mask
 
 TESTDIR = Path(__file__).resolve().parent
 SNAKEDIR = TESTDIR.parent
@@ -71,6 +72,7 @@ def _store(
     start: str = _START,
     end: str = _END,
     buffer_cells: int = 2,
+    basin_gradient: float = 0.0,
 ) -> Path:
     """A synthetic ``extract_historical.nc`` on its own grid resolution.
 
@@ -81,6 +83,12 @@ def _store(
       physically different footprints, which is the defect the basin mask fixes;
     * rainfall east of :data:`_BASIN_EAST_EDGE` is three times the basin's, so
       including those cells moves the mean by an amount an assertion can see.
+
+    Inside the basin the field is UNIFORM by default, which keeps the two grids'
+    basin means in exact proportion however differently they sample it — the
+    property ``test_two_grids_disagree_more_before_masking_than_after`` rests on.
+    ``basin_gradient`` adds a west-east ramp for the per-subbasin tests, where
+    the point is precisely that two areas of one basin differ.
 
     Temperature is written even for a precipitation-only source, because a
     CHIRPS store really does carry era5's — the comparison must exclude it on
@@ -96,7 +104,8 @@ def _store(
     season = np.sin(2 * np.pi * time.dayofyear.values / 365.25)
     base = precip_scale * (1.6 + season)[:, None, None]
     outside = np.where(lons > _BASIN_EAST_EDGE + step / 2, 3.0, 1.0)[None, None, :]
-    precip = base * np.ones((time.size, lats.size, lons.size)) * outside
+    ramp = 1.0 + basin_gradient * (lons - lons[0])[None, None, :]
+    precip = base * np.ones((time.size, lats.size, lons.size)) * outside * ramp
     temp = 24.0 + 4.0 * season[:, None, None] * np.ones(
         (time.size, lats.size, lons.size)
     )
@@ -164,6 +173,23 @@ def cells(stores) -> dict:
     return {name: _basin_cells(Path(path)) for name, path in stores.items()}
 
 
+@pytest.fixture
+def subbasins():
+    """Two subbasins splitting the fixture basin west/east of 9.15.
+
+    Both are well inside the basin, so each selects cells on both grids and the
+    per-subbasin figures are genuinely different rather than the basin's twice.
+    """
+    import geopandas as gpd
+    from shapely.geometry import box
+
+    return gpd.GeoDataFrame(
+        {"subbasin_id": ["1010", "1020"]},
+        geometry=[box(9.0, 0.0, 9.15, 0.2), box(9.15, 0.0, _BASIN_EAST_EDGE, 0.2)],
+        crs="EPSG:4326",
+    )
+
+
 # --- what gets compared -------------------------------------------------------
 
 
@@ -187,10 +213,30 @@ def test_pet_is_never_compared():
     assert all("pet" not in name for name in comparison_outputs(["era5", "era5"]))
 
 
-def test_figure_names_follow_the_declared_scheme():
+def test_figure_names_follow_the_wf0_grammar():
+    """``<dataset_scope>_<variable>_<plot_context>_<spatial_scope>.png``.
+
+    The monthly comparison is ``monthly_clim_line``, not the per-source set's
+    ``monthly_box``: this family draws a line per source, and the grammar's
+    plot_context carries the plot FORM as well as the temporal reading.
+    """
     assert comparison_figure_names(["precip"]) == [
-        "comparison_precip_annual.png",
-        "comparison_precip_monthly.png",
+        "comparison_precip_annual_ts_basin_avg.png",
+        "comparison_precip_monthly_clim_line_basin_avg.png",
+    ]
+
+
+def test_the_compared_datasets_stay_out_of_the_filename():
+    """They belong in the legend and the run record, so the name is stable."""
+    for name in comparison_figure_names(["precip"]):
+        assert "era5" not in name and "chirps" not in name
+        assert name.startswith("comparison_")
+
+
+def test_subbasin_scope_names_follow_the_grammar():
+    assert comparison_figure_names(["precip"], [subbasin_scope("1010")]) == [
+        "comparison_precip_annual_ts_subbasin_1010_avg.png",
+        "comparison_precip_monthly_clim_line_subbasin_1010_avg.png",
     ]
 
 
@@ -204,7 +250,7 @@ def test_unknown_variable_is_refused():
 
 def test_mask_selects_exactly_the_declared_cells(stores, cells):
     with xr.open_dataset(stores["era5"]) as ds:
-        mask = basin_cell_mask(ds, cells["era5"])
+        mask = cells_csv_mask(ds, cells["era5"])
         assert mask is not None
         assert int(mask.values.sum()) == len(pd.read_csv(cells["era5"]))
         # The buffer cells are excluded, so the mask is a strict subset.
@@ -222,7 +268,7 @@ def test_mask_changes_the_value_the_figure_plots(stores, cells):
         whole = float(annual_series(ds["precip"], spec).mean())
         basin = float(
             annual_series(
-                ds.where(basin_cell_mask(ds, cells["era5"]))["precip"], spec
+                ds.where(cells_csv_mask(ds, cells["era5"]))["precip"], spec
             ).mean()
         )
     assert basin < whole
@@ -244,7 +290,7 @@ def test_two_grids_disagree_more_before_masking_than_after(stores, cells):
     for name, path in stores.items():
         with xr.open_dataset(path) as ds:
             whole[name] = float(annual_series(ds["precip"], spec).mean())
-            masked = ds.where(basin_cell_mask(ds, cells[name]))
+            masked = ds.where(cells_csv_mask(ds, cells[name]))
             basin[name] = float(annual_series(masked["precip"], spec).mean())
     assert basin["era5"] / basin["chirps"] == pytest.approx(3.0 / 2.4, rel=0.02)
     assert abs(whole["era5"] / whole["chirps"] - 3.0 / 2.4) > 0.02
@@ -253,13 +299,13 @@ def test_two_grids_disagree_more_before_masking_than_after(stores, cells):
 def test_absent_or_unmatched_cells_fall_back_to_the_full_grid(stores, tmp_path):
     """A missing mask costs the correction, never the figure."""
     with xr.open_dataset(stores["era5"]) as ds:
-        assert basin_cell_mask(ds, None) is None
-        assert basin_cell_mask(ds, tmp_path / "absent.csv") is None
+        assert cells_csv_mask(ds, None) is None
+        assert cells_csv_mask(ds, tmp_path / "absent.csv") is None
         elsewhere = tmp_path / "elsewhere.csv"
         pd.DataFrame({"latitude": [51.5], "longitude": [4.2]}).to_csv(
             elsewhere, index=False
         )
-        assert basin_cell_mask(ds, elsewhere) is None
+        assert cells_csv_mask(ds, elsewhere) is None
 
 
 # --- common ground: the shared period -----------------------------------------
@@ -391,12 +437,141 @@ def test_the_common_ground_reaches_every_renderer(tmp_path, monkeypatch):
 
 def test_caveat_states_the_domain_and_the_period():
     window = (pd.Timestamp("2005-01-01"), pd.Timestamp("2017-12-31"))
-    masked = comparison_caveat(window, masked=True)
-    assert "Basin cells only" in masked
-    assert "common period 2005-01-01 to 2017-12-31" in masked
-    unmasked = comparison_caveat(None, masked=False)
+    on_basin = comparison_caveat(window, True)
+    assert "Basin cells only" in on_basin
+    assert "common period 2005-01-01 to 2017-12-31" in on_basin
+    unmasked = comparison_caveat(None, False)
     assert "Full extraction grids" in unmasked
     assert "own extracted period" in unmasked
+    # A subbasin figure names its own area, not the basin's.
+    assert "Subbasin 1010 cells only" in comparison_caveat(
+        window, True, area="subbasin 1010"
+    )
+
+
+# --- per-subbasin figures -----------------------------------------------------
+
+
+def test_subbasin_figures_are_written_to_their_own_bin(
+    stores, cells, subbasins, tmp_path
+):
+    """One file per subbasin, named by id, in the ``directory()`` the rule declares."""
+    out_dir, sub_dir = tmp_path / "comparison", tmp_path / "comparison" / "subbasins"
+    written = compare_climate_sources(
+        stores,
+        out_dir,
+        basin_cells=cells,
+        subbasins_gdf=subbasins,
+        subbasin_dir=sub_dir,
+    )
+    names = {path.name for path in written}
+    for subbasin_id in ("1010", "1020"):
+        for context in ("annual_ts", "monthly_clim_line"):
+            assert (
+                f"comparison_precip_{context}_subbasin_{subbasin_id}_avg.png" in names
+            )
+    # The basin-level ones stay beside the table; only the per-id set moves.
+    assert (out_dir / "comparison_precip_annual_ts_basin_avg.png").is_file()
+    assert (sub_dir / "comparison_precip_annual_ts_subbasin_1010_avg.png").is_file()
+    assert not (out_dir / "comparison_precip_annual_ts_subbasin_1010_avg.png").exists()
+
+
+def test_each_subbasin_reduces_over_its_own_cells(
+    stores, cells, subbasins, tmp_path, monkeypatch
+):
+    """The subbasin figures are not the basin's figure relabelled.
+
+    The fixture's two subbasins split the basin, so their means must differ from
+    each other and from the basin's — a wiring slip that passed the same masked
+    dataset to every area would draw three identical figures under three names.
+    """
+    import blueearth_cst.climate_analysis.compare_sources as module
+
+    # A west-east ramp INSIDE the basin, so the two halves genuinely differ.
+    stores = {
+        name: _store(
+            Path(path).parent / "gradient.nc",
+            step=0.25 if name == "era5" else 0.05,
+            precip_scale=3.0 if name == "era5" else 2.4,
+            basin_gradient=4.0,
+        )
+        for name, path in stores.items()
+    }
+    cells = {name: _basin_cells(Path(path)) for name, path in stores.items()}
+
+    seen = {}
+    original = dict(module._RENDERERS)
+
+    def spy(datasets, var, anchor, caveat):
+        seen[caveat] = {
+            name: float(annual_series(ds[var], CLIMATE_VARS[var], anchor).mean())
+            for name, ds in datasets.items()
+        }
+        return original["annual"](datasets, var, anchor, caveat)
+
+    monkeypatch.setitem(module._RENDERERS, "annual", spy)
+    module.plot_comparison_figures(
+        stores,
+        tmp_path / "out",
+        ("precip",),
+        basin_cells=cells,
+        subbasins=subbasins,
+        subbasin_dir=tmp_path / "out" / "subbasins",
+    )
+
+    by_area = {
+        next(
+            word
+            for word in caveat.split(";")[0].split()
+            if word.isdigit() or word == "Basin"
+        ): means
+        for caveat, means in seen.items()
+    }
+    assert set(by_area) == {"Basin", "1010", "1020"}
+    era5 = {area: means["era5"] for area, means in by_area.items()}
+    assert era5["1010"] != era5["1020"]
+
+
+# --- the two rules must agree on the number -----------------------------------
+
+
+def test_rule_0_05_and_0_06_report_the_same_basin_mean(stores, cells, tmp_path):
+    """One source, one period, one basin — therefore one number, in both rules.
+
+    They disagreed before the basin mask reached rule 0.05: measured on the
+    rapid fixture 2026-08-17, ``source_precip_annual.png`` said a period mean of
+    2,546 mm/y over the buffered extraction while the comparison figure said
+    2,722 over the basin's cells. Both figures were labelled "precipitation",
+    both were era5, both covered 2000–2016.
+
+    Nothing either module tests on its own catches that: each is
+    self-consistent. So the check is here, deriving both through the paths the
+    two rules actually use.
+    """
+    from blueearth_cst.climate_analysis.compare_sources import _on_common_ground
+    from blueearth_cst.climate_analysis.plot_climate_source import area_masks_for
+    from blueearth_cst.shared.grid_cells import masked
+
+    spec = CLIMATE_VARS["precip"]
+    with xr.open_dataset(stores["era5"]) as ds:
+        # Rule 0.05's path: `area_masks_for` -> the `basin_avg` entry.
+        via_source = float(
+            annual_series(
+                masked(ds, area_masks_for(ds, cells["era5"])["basin_avg"])["precip"],
+                spec,
+            ).mean()
+        )
+        # Rule 0.06's path: the same cells, with no window to intersect (one
+        # source), which is what makes the two comparable at all.
+        via_comparison = float(
+            annual_series(
+                _on_common_ground(ds, cells_csv_mask(ds, cells["era5"]), None)[
+                    "precip"
+                ],
+                spec,
+            ).mean()
+        )
+    assert via_source == pytest.approx(via_comparison, rel=1e-9)
 
 
 # --- the summary table --------------------------------------------------------
@@ -568,7 +743,9 @@ def test_rule_declares_the_module_named_outputs_on_two_sources(two_source_config
     rule = _rule(_parse_workflow(two_source_config), "compare_climate_sources")
     assert rule is not None, "rule 0.06 must be declared for a multi-source run"
     declared = sorted(Path(str(path)).name for path in rule.output)
-    assert declared == sorted(comparison_outputs(["era5", "chirps"]))
+    # The named figures and the table, PLUS the per-subbasin bin: those members
+    # are named for delineation ids, so only the directory is declarable.
+    assert declared == sorted([*comparison_outputs(["era5", "chirps"]), "subbasins"])
     # Every output lands in the one comparison directory beside the stores.
     assert all(Path(str(path)).parent.name == "comparison" for path in rule.output)
 
