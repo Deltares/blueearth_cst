@@ -40,9 +40,10 @@ st_baseline <- pad(0L, st_index_width)
 yaml <- yaml::read_yaml(weagen_config_path)
 
 # Parse global parameters from the yaml configuration file. Section and key
-# names are weathergenr 1.2.0's own function and argument names (renamed
-# 2026-08-12 from the pre-1.2.0 `generateWeatherSeries` spelling), so the
-# assignments below are a pass-through rather than a translation table.
+# names are weathergenr's own function and argument names (renamed 2026-08-12
+# from the pre-1.2.0 `generateWeatherSeries` spelling; tracking 2.0.0 since
+# 2026-08-17), so the assignments below are a pass-through rather than a
+# translation table.
 gw <- yaml$generate_weather
 wnc <- yaml$write_netcdf
 rwg <- yaml$run_weather_generator
@@ -138,6 +139,13 @@ message("[generate_weather] Generating ", historical_realizations_num,
 # section is named for generate_weather's arguments, that list IS the section --
 # no translation table, which is what the 1.2.0 rename bought.
 #
+# weathergenr 2.0.0 (2026-08-17) changed how that config list is consumed, in
+# our favour: an entry the config does not name is now DROPPED from the call
+# instead of forwarded as an explicit NULL that overwrote the receiving
+# function's default. It also forwards `relax_order` -- 1.2.0's one unforwarded
+# argument, spelled `relax_priority` then -- so the key is back in the config
+# and pinned in the contract (t2608121742).
+#
 # `config$out_dir` is not read by the wrapper (out_dir is its own argument), but
 # it is not dead either: OUR code above derives the output/ and plots/ split
 # from it.
@@ -226,33 +234,18 @@ for (n in 1:historical_realizations_num) {
         file_suffix   = paste0(pad(n, rlz_index_width), "_st_", st_baseline)
   )
 
-  # Workaround (load-bearing): weathergenr::write_netcdf does NOT propagate
-  # spatial_ref attributes from template_path to the output. Downstream
-  # (impose_climate_change.R) uses the realization file as its own template and
-  # needs `x_dim` / `y_dim` on its spatial_ref; without them it crashes with
-  # "attempt to select less than one element". Copy them here from the
-  # historical template.
-  # REMOVAL CONDITION: drop this block only once tanerumit/weathergenr's
-  # write_netcdf propagates spatial_ref (and its ncatt_get check asserts
-  # hasatt=TRUE) — tracked in dev/tasks/ § R5. Removing it before the
-  # upstream fix lands breaks the pipeline.
-  # Match THIS realization only: all realizations now share one output dir, so
-  # an index-free pattern would re-patch realization 1 on every iteration.
-  rlz_files <- list.files(
-    rlz_out_dir, pattern = paste0("_", pad(n, rlz_index_width), "_st_", st_baseline, "\\.nc$"), full.names = TRUE
-  )
-  if (length(rlz_files) >= 1) {
-    src <- ncdf4::nc_open(climate_nc_path)
-    dst <- ncdf4::nc_open(rlz_files[1], write = TRUE)
-    src_atts <- ncdf4::ncatt_get(src, "spatial_ref")
-    for (an in names(src_atts)) {
-      try(
-        ncdf4::ncatt_put(dst, "spatial_ref", an, src_atts[[an]]),
-        silent = TRUE
-      )
-    }
-    ncdf4::nc_close(src)
-    ncdf4::nc_close(dst)
-  }
+  # A `spatial_ref` re-patching block stood here until the weathergenr 2.0.0
+  # upgrade (2026-08-17, t2608071225). weathergenr::write_netcdf did not carry
+  # the template's spatial_ref attributes into its output, and downstream
+  # (impose_climate_change.R) uses the realization file as ITS template and
+  # needs `x_dim` / `y_dim` on that variable -- without them it failed with
+  # "attempt to select less than one element" -- so the attributes were copied
+  # back from the historical template by hand.
+  #
+  # 2.0.0's write_netcdf copies the spatial_ref VALUE and every atomic
+  # attribute from the template unconditionally, which is the removal condition
+  # the block carried. Verified rather than assumed, on the era5 store fixture:
+  # a round trip through read_netcdf + write_netcdf returns all 13 template
+  # attributes, `x_dim` and `y_dim` among them, each with hasatt=TRUE.
 
 }
