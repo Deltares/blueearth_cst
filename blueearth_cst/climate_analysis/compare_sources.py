@@ -69,7 +69,7 @@ from blueearth_cst.climate_analysis.figure_naming import (
     subbasin_scope,
 )
 from blueearth_cst.shared.grid_cells import cells_csv_mask, masked, subbasin_masks
-from blueearth_cst.shared.plot_style import RASTER_DPI
+from blueearth_cst.shared.plot_style import RASTER_DPI, align_caveat_to_plot_area
 from blueearth_cst.shared.snake_utils import (
     DEFAULT_WATER_YEAR_ANCHOR,
     PRECIP_ONLY_SOURCES,
@@ -718,6 +718,7 @@ def plot_comparison_figures(
                 destination = subbasin_dir if scope.startswith("subbasin_") else out_dir
                 for kind, context in COMPARISON_KINDS.items():
                     fig = _RENDERERS[kind](carriers, var, anchor, caveat)
+                    align_caveat_to_plot_area(fig, fig.axes[0] if fig.axes else None)
                     out_path = destination / figure_filename(
                         COMPARISON_SCOPE, var, context, scope
                     )

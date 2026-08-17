@@ -123,19 +123,49 @@ FONT_FAMILY = None
 #: figure's own content in the reading order.
 COLOR_CAVEAT = "0.35"
 
-#: Where a caveat footnote STARTS, in figure fractions.
+#: Fallback x for a caveat footnote, in figure fractions.
 #:
-#: LEFT-ALIGNED everywhere (owner ruling 2026-08-17): a footnote is read as
-#: prose, and prose starts where the reader's eye already is. ``supxlabel``'s
-#: default centring puts it under the axes midpoint — not an edge the reader can
-#: see, and one that MOVES with the caveat's own length, so a one-line and a
-#: two-line footnote sit differently on two figures of the same family.
-#:
-#: Lives here rather than in either plotting module because BOTH families use
-#: it: the series figures (``climate_analysis.climate_figures``) and the
-#: cartographic template (``shared.cartographic_map``). The map family
-#: right-aligned to its side panel's measured edge until this ruling.
+#: Used only when the plotting area cannot be measured — see
+#: :func:`align_caveat_to_plot_area`, which is what normally places it.
 CAVEAT_X = 0.012
+
+
+def align_caveat_to_plot_area(fig, ax) -> None:
+    """Flush the figure's footnote to the PLOTTING AREA's left edge.
+
+    LEFT-ALIGNED everywhere (owner ruling 2026-08-17), and aligned to the AXES
+    rather than to the sheet (refined the same day). ``supxlabel``'s default
+    centring puts the line under the axes midpoint — not an edge the reader can
+    see, and one that MOVES with the caveat's own length, so a one-line and a
+    two-line footnote sit differently on two figures of the same family.
+
+    The sheet's left edge was the first correction and it was still wrong: it
+    put the footnote under the y-axis LABEL and the tick numbers, so the text
+    started left of everything else on the figure and read as belonging to the
+    page rather than to the plot. The axes' left spine is the edge the data
+    already starts at, so the footnote lines up with the plot's own left margin.
+
+    Measured AFTER a settle pass, because constrained layout is still moving the
+    axes until then. It rewrites a ``supxlabel``'s Y on every subsequent draw
+    but carries the X through, so this survives the saves that follow.
+
+    Lives here rather than in either plotting module because BOTH families use
+    it: the series figures (``climate_analysis.climate_figures``) and the
+    cartographic template (``shared.cartographic_map``).
+    """
+    footnote = getattr(fig, "_supxlabel", None)
+    if footnote is None:
+        return
+    x = CAVEAT_X
+    if ax is not None:
+        try:
+            fig.draw_without_rendering()
+            x = float(ax.get_position().x0)
+        except Exception:  # noqa: BLE001 -- never break a figure over a footnote
+            x = CAVEAT_X
+    footnote.set_x(x)
+    footnote.set_horizontalalignment("left")
+
 
 # ===========================================================================
 # PDF TEXT ENCODING

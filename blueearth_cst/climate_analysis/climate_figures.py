@@ -57,7 +57,7 @@ from blueearth_cst.climate_analysis.figure_naming import (
     map_spatial_scope,
 )
 from blueearth_cst.shared.grid_cells import masked
-from blueearth_cst.shared.plot_style import RASTER_DPI
+from blueearth_cst.shared.plot_style import RASTER_DPI, align_caveat_to_plot_area
 from blueearth_cst.shared.snake_utils import (
     DEFAULT_WATER_YEAR_ANCHOR,
     PRECIP_ONLY_SOURCES,
@@ -952,6 +952,9 @@ def plot_climate_figures(
                 else:
                     name = _legacy_figure_name(dataset, var, kind)
                     destination = plot_dir
+                # The footnote flushes to the PLOT AREA's left edge; the
+                # map path does its own inside `plot_raster_map`.
+                align_caveat_to_plot_area(fig, fig.axes[0] if fig.axes else None)
                 out_path = destination / name
                 save_figure(out_path, dpi=RASTER_DPI)
                 plt.close(fig)
