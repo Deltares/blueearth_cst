@@ -81,10 +81,12 @@ to `indicator_tables.py` or `change_factor_table.py` to feed it is not.
 
 ## Progress
 
-- [ ] Port the module into `blueearth_cst/shared/`, adapted per above.
-- [ ] Unit tests over a synthetic frame — including `invert_cmap_for` and the
-      multi-index path.
-- [ ] Wire ONE caller; render and publish the PNG as an Artifact for review.
+- [x] Port the module into `blueearth_cst/shared/`, adapted per above —
+      **done 2026-08-17 (`3c47b31`)**, `shared/statistics_heatmap.py`.
+- [x] Unit tests over a synthetic frame — including `invert_cmap_for` and the
+      multi-index path. 22 tests.
+- [ ] **Wire ONE caller — NEEDS AN OWNER CALL, see below.** Then render and
+      publish the PNG as an Artifact for review.
 - [ ] Wire the second caller once the first is accepted.
 
 ## Refs
@@ -94,3 +96,35 @@ to `indicator_tables.py` or `change_factor_table.py` to feed it is not.
 - `AGENTS.md` § Figures are terminal artifacts.
 - Related: [[t2608091006-standardize-plotting-across-the-toolbox-with-shared-templates-then-sweep-the-existing-figures-onto-them]]
   — that sweep owns the shared templates this should be built on, not beside.
+
+
+## What landed, and the one thing it deliberately did not decide
+
+**The module is in; the caller is not, and that is a decision rather than an
+omission.** Wiring either candidate adds a declared figure to a workflow's
+output contract, and the WF2 figure set was ruled on the same day
+([[t2608091006]]) — adding a sixth figure to a set the owner had just adopted is
+not a call to make inside an implementation commit. The two candidates read
+differently:
+
+- **WF2 change factors** (`projections/change_factor_table.py`). The monthly
+  table is 12 months × 6 combinations, which is the shape a heatmap is best at,
+  and it complements the monthly line figure that landed today. But it reopens a
+  contract settled hours earlier.
+- **WF3 indicator tables** (`shared/indicator_tables.py`). More indicators, and
+  the audience is the stress-test reader. But the WF3 axis is the temp×precip
+  grid rather than a scenario, so "indicator × st_id" is a less natural heatmap
+  than it first sounds.
+
+**Four departures from upstream** are recorded in the module docstring; the two
+worth knowing here are that nothing is transposed internally (the original
+flipped the frame, so a caller who had already oriented the table got it rotated)
+and that `sns.set_theme` is gone (it rewrites the GLOBAL rc, so any figure drawn
+later in the same process inherits seaborn's styling instead of the toolbox page
+contract — a real hazard in a job that draws more than one family).
+
+**This module is now what keeps `seaborn` in `pixi.toml`.** The WF2 integration
+replaced the change-factor `JointGrid`, which was seaborn's last usage; the
+dependency was left declared with nothing importing it — precisely the state that
+got `flit` removed under ADR 0008 the same day. If this module is ever deleted,
+take `seaborn` with it or give it another job.

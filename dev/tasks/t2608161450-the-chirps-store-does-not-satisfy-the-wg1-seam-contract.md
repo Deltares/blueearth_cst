@@ -131,16 +131,43 @@ staged name leaves the identical defect behind the other one.
 
 - [x] Decide between the two directions above (or take both) — **both, ruled
       2026-08-17.** See the ruling callout for the order and why.
+## Direction 1 landed 2026-08-17 — and the ORDER was not the one ruled
+
+The ruling said: wire the WF0 check first so it FAILS on the current store, then
+fix the producer and watch it pass. **The producer landed first.** The reason is
+that this worktree has no chirps store — `test_case/test_rapid` is not seeded
+here, and producing one needs a WF0 run against staged CHIRPS data — so the
+"watch it fail on the real store" step was not available to perform in either
+order.
+
+What replaced it is a unit-level falsifier rather than nothing: a store shaped
+exactly like the measured one (precip only, `float64`, carrying only
+`region_bbox`) is asserted to FAIL `validate_wg1` before the fix is applied, in
+the same test module. That preserves the property the ordering existed to buy —
+the fix is not asserting a condition that was already true — but it is a
+synthetic store, not the one that was measured. **When a chirps store next
+exists, run `validate_wg1` against it directly.**
+
+The fix went in at the SHARED write path rather than in the chirps branch, which
+is a deliberate widening of what the note proposed: a per-branch fix is correct
+for chirps and silently absent for the next source added to `_SUPPORTED_SOURCES`,
+which is exactly how `chirps_global` came to carry the identical defect behind a
+second name.
+
 - [ ] Check `precip` units against the VALUES before touching the attribute.
       Independent of the ruling and first in line: `mm` vs `mm d**-1` is either
       a label defect or a magnitude that multiplies through the whole stress
       test, and the attribute cannot tell them apart. Needs a chirps store on
       disk, which this slot has not got (`test_case/test_rapid` is absent here).
-- [ ] Wire the WF0 candidate-store WG-1 validation and watch it FAIL on the
-      current chirps store, surfacing the diffs beside rule 0.06's comparison.
-- [ ] Stamp the catalog metadata and the `float32` dtypes back onto the chirps
-      branch's dataset before `to_netcdf` — one producer fix closes all eight
-      rows — and confirm the check from the previous step turns green.
+- [ ] **Direction 2, still open — the half that stops this recurring.** Wire
+      the WF0 candidate-store WG-1 validation and surface the diffs beside rule
+      0.06's comparison, so a source that cannot be promoted says so where the
+      choice is made. This adds a WF0 output, so it is an output-contract change
+      and wants its own sitting.
+- [x] Stamp the catalog metadata and the `float32` dtypes back onto the store
+      before `to_netcdf` — **done 2026-08-17 (`33bf0ef`)**, at the shared write
+      path so every branch is covered, with 13 tests including the fail-then-pass
+      falsifier.
 - [ ] Drop rule 0.06's catalog fallback (`compare_sources._catalog_metadata`),
       which exists only to paper over the missing metadata.
 - [ ] Cover `chirps_global` by the same fix; it has never been run at all.
