@@ -238,6 +238,86 @@ def _read_source(data_catalog, source, *, requested, **kwargs):
         ) from exc
 
 
+#: Global attributes WG-1 pins, with the values it pins them to. Both are
+#: constants of the contract rather than of a source: every climate store this
+#: toolbox writes is EPSG:4326 meteorological data by construction.
+_WG1_GLOBAL_ATTRS = {"crs": 4326, "category": "meteo"}
+
+#: Store variables and coordinates WG-1 requires as ``float32``.
+_WG1_FLOAT32_COORDS = ("latitude", "longitude")
+_WG1_FLOAT32_VARS = (
+    "precip",
+    "temp",
+    "temp_min",
+    "temp_max",
+    "kin",
+    "kout",
+    "press_msl",
+)
+
+
+def _stamp_catalog_metadata(ds, data_catalog, source):
+    """Put the catalog entry's ``metadata:`` block back onto the store.
+
+    hydromt attaches a source's metadata to the Dataset it returns, so the era5
+    path gets it for free. A branch that fetches one variable and calls
+    ``.to_dataset()`` does not: the DataArray never carried the Dataset-level
+    attrs, so they are simply gone by the time the store is written.
+
+    Existing attributes WIN. This runs after the read and before the run-level
+    provenance below, so a source that already carried its metadata keeps
+    exactly what it read -- the function fills gaps rather than overwriting an
+    answer it did not compute.
+
+    A catalog that cannot be interrogated for the entry is not an error here:
+    the two WG-1 attrs are contract constants and are stamped regardless, and a
+    missing citation block degrades the run record rather than the store's
+    conformance.
+    """
+    for key, value in _WG1_GLOBAL_ATTRS.items():
+        ds.attrs.setdefault(key, value)
+
+    try:
+        entry = data_catalog.get_source(source)
+        metadata = getattr(entry, "metadata", None)
+        items = dict(metadata) if metadata else {}
+    except Exception:  # noqa: BLE001 -- see the docstring: this must not fail a run
+        items = {}
+
+    for key, value in items.items():
+        if value is None or key in ds.attrs:
+            continue
+        # netCDF attributes are scalars or arrays of them; anything structured
+        # is rendered rather than dropped, so a nested `metadata:` block still
+        # reaches a reader instead of vanishing on `to_netcdf`.
+        ds.attrs[key] = value if isinstance(value, (str, int, float)) else str(value)
+    return ds
+
+
+def _coerce_store_dtypes(ds):
+    """Cast the WG-1 coordinates and variables to ``float32``.
+
+    The contract pins ``float32`` for the lat/lon coordinates and all seven
+    variables. era5 arrives that way from hydromt's read; a hand-assembled
+    dataset does not, and a ``float64`` store fails ``validate_wg1`` on one row
+    per coordinate and per variable.
+
+    This is a narrowing cast, and it is the one the era5 path already performs
+    implicitly -- so applying it to every store makes the two branches agree
+    rather than introducing a precision choice. Variables absent from a store
+    are skipped rather than created: a precipitation-only source has no
+    ``temp``, and inventing one is the failure mode
+    ``skip-outputs-for-missing-variables`` exists to prevent.
+    """
+    for coord in _WG1_FLOAT32_COORDS:
+        if coord in ds.coords and str(ds[coord].dtype) != "float32":
+            ds = ds.assign_coords({coord: ds[coord].astype("float32")})
+    for var in _WG1_FLOAT32_VARS:
+        if var in ds.data_vars and str(ds[var].dtype) != "float32":
+            ds[var] = ds[var].astype("float32")
+    return ds
+
+
 def prep_historical_climate(
     region_fn: Optional[Union[str, Path]],
     fn_out: Union[str, Path],
@@ -479,6 +559,26 @@ def prep_historical_climate(
     # project artifact, so a copy per store key would be a second source of
     # truth that can drift. Attributes cannot be separated from the data they
     # describe, and the sha256 says WHICH polygon, not merely which numbers.
+    # WG-1 conformance, applied HERE rather than inside a branch.
+    #
+    # The chirps branch fetches ONE variable and calls `.to_dataset()` on the
+    # resulting DataArray, and the catalog entry's `metadata:` block does not
+    # survive that: measured 2026-08-16, a chirps store carried exactly one
+    # attribute (`region_bbox`) against era5's eight, and `validate_wg1` failed
+    # it on eight counts. `crs` and `category` were never two isolated
+    # omissions -- they are the two rows the validator happens to check out of
+    # eight that go missing for the same reason. Its dtypes drifted to float64
+    # for the same underlying cause: era5 inherits both from hydromt's read,
+    # the chirps branch assembles its dataset by hand.
+    #
+    # Stamping at the single write path rather than in the branch that failed is
+    # deliberate. A per-branch fix is correct for chirps and silently absent for
+    # the next source someone adds to `_SUPPORTED_SOURCES` -- which is exactly
+    # how `chirps_global` came to carry the identical defect behind a second
+    # name. Both calls are idempotent, so the era5 path is unaffected.
+    ds = _stamp_catalog_metadata(ds, data_catalog, clim_source)
+    ds = _coerce_store_dtypes(ds)
+
     ds.attrs["region_bbox"] = [float(value) for value in bbox]
     if region_sha256 is not None:
         ds.attrs["region_geojson_sha256"] = region_sha256
