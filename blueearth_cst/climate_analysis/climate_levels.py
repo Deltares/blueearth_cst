@@ -36,6 +36,7 @@ from blueearth_cst.climate_analysis.climate_figures import (
     FIGURE_KINDS,
     VALUE_DERIVATIONS,
 )
+from blueearth_cst.shared.grid_cells import cells_csv_mask, masked
 from blueearth_cst.shared.snake_utils import DEFAULT_WATER_YEAR_ANCHOR, log_row
 
 #: Quantiles the pooled range is clipped to before classing, mirroring
@@ -110,6 +111,7 @@ def compute_climate_levels(
     stores: Mapping[str, Union[str, Path]],
     variables: Sequence[str],
     anchor: str = DEFAULT_WATER_YEAR_ANCHOR,
+    basin_cells: Optional[Mapping] = None,
 ) -> dict:
     """Pool every store's plotted values and derive one scale per (var, kind).
 
@@ -125,6 +127,16 @@ def compute_climate_levels(
         fields out of a scale as surely as it keeps them out of a figure.
     anchor : str
         Water-year resample anchor, as the figures use.
+    basin_cells : mapping, optional
+        ``{source_name: basin_cells.csv}``. The SERIES kinds are pooled over the
+        basin's cells, because that is what rule 0.05 now draws -- a scale
+        computed over the buffered extraction and applied to a basin mean is
+        exactly the "computed over one quantity, applied to another" defect the
+        indirection through ``VALUE_DERIVATIONS`` exists to prevent.
+
+        The ``map`` kind is pooled UNMASKED, and that is not an oversight: the
+        map draws the field itself, over the frame ``MAP_EXTENT`` chooses, so
+        its colourbar must describe those cells rather than the basin's.
 
     Returns
     -------
@@ -135,7 +147,14 @@ def compute_climate_levels(
         instead of drawing against an invented scale.
     """
     levels: dict = {}
+    basin_cells = basin_cells or {}
     opened = {name: xr.open_dataset(path) for name, path in stores.items()}
+    # The basin-masked twin of each store, for the SERIES kinds. Built once per
+    # store rather than per (var, kind): the mask is a property of the grid.
+    on_basin = {
+        name: masked(ds, cells_csv_mask(ds, basin_cells.get(name)))
+        for name, ds in opened.items()
+    }
     try:
         for var in variables:
             carriers = [name for name, ds in opened.items() if var in ds]
@@ -143,9 +162,12 @@ def compute_climate_levels(
                 continue
             per_kind: dict = {}
             for kind in FIGURE_KINDS:
+                # `map` from the full field, the series kinds from the basin --
+                # each scale pooled over the domain its own figure draws.
+                source_of = opened if kind == "map" else on_basin
                 pooled = np.concatenate(
                     [
-                        _plotted_values(opened[name], var, kind, anchor)
+                        _plotted_values(source_of[name], var, kind, anchor)
                         for name in carriers
                     ]
                     or [np.array([], dtype=float)]
@@ -208,6 +230,10 @@ if __name__ == "__main__":
                     dict(zip(sm.params.sources, sm.input.climate_ncs)),
                     sm.params.variables,
                     anchor=water_year_end_anchor(sm.params.water_year_start),
+                    # The series scales are pooled over the SAME cells rule 0.05
+                    # averages, or the shared axis describes a domain no figure
+                    # draws.
+                    basin_cells=dict(zip(sm.params.sources, sm.input.basin_cells)),
                 ),
                 sm.output.levels,
             )

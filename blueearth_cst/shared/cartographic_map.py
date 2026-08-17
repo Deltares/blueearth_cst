@@ -69,6 +69,7 @@ from blueearth_cst.shared import plot_style
 # direct `plot_style` import in the plotting sweep, alongside a change to that
 # file that is worth the invalidation.
 from blueearth_cst.shared.plot_style import (
+    CAVEAT_X,
     COLOR_CAVEAT,
     FIGURE_WIDTH_MM,
     FONT_FAMILY,
@@ -3166,45 +3167,94 @@ def _add_legend(ax, handles):
     return legend
 
 
-def _align_caveat_to_panel(fig, footnote, panel_items):
-    """Right-align the footnote to the SIDE PANEL's right edge.
+def _panel_right_edge(fig, panel_items):
+    """Rightmost drawn edge of the side panel, in figure fractions, or ``None``.
 
-    Centred under the whole figure — matplotlib's default for ``supxlabel`` —
-    the line sits under the map-plus-panel midpoint, which is nothing the reader
-    can see: slightly right of the map's centre, slightly left of the panel's,
-    aligned to neither. The panel's right edge IS a visible edge, shared by the
-    locator inset and the legend, so a footnote flushed to it reads as belonging
-    to the sheet rather than as having drifted.
-
-    The edge is MEASURED off the drawn panel items, not computed from
-    ``_PANEL_LEFT`` plus the panel's available width. That was the first
-    version and it overshot: with no legend to measure, the available width is
-    the whole strip ``_LAYOUT_RIGHT`` leaves, which is wider than anything
-    actually drawn in it — so the line ran past the locator's edge, which is the
-    one edge the reader can see. What is drawn is the only thing worth aligning
-    to.
-
-    Only ``x`` and the alignment are set. Constrained layout repositions a
-    ``supxlabel`` on every draw, but it rewrites the Y ONLY and carries the x
-    through, so this survives the saves that follow.
-
-    Leaves the default centring when nothing measurable is in the panel (no
-    locator, no legend) or when the backend cannot produce a renderer.
+    MEASURED off the drawn items rather than computed from ``_PANEL_LEFT`` plus
+    the strip ``_LAYOUT_RIGHT`` leaves: with no legend, that strip is wider than
+    anything actually in it. What is drawn is the only thing worth measuring.
     """
-    if footnote is None:
-        return
     try:
         renderer = fig.canvas.get_renderer()
     except AttributeError:
-        return
+        return None
     edges = [
         item.get_window_extent(renderer).x1 for item in panel_items if item is not None
     ]
     if not edges:
+        return None
+    return float(fig.transFigure.inverted().transform((max(edges), 0.0))[0])
+
+
+#: Figure fraction left clear to the RIGHT of the side panel. Enough that the
+#: legend frame does not touch the sheet edge, and no more.
+_RIGHT_MARGIN = 0.012
+
+#: How much of the measured slack to take per pass.
+#:
+#: Widening the map moves the panel with it — the panel is anchored at
+#: ``_PANEL_LEFT`` in AXES coordinates — so this is a fixed point, not a
+#: one-shot calculation, and each pass closes only about 40% of the remaining
+#: gap. Taking the full measured slack is safe because the approach is
+#: MONOTONE FROM BELOW (the panel never overshoots) and ``_RIGHT_MARGIN`` caps
+#: the rect regardless.
+_ABSORB_DAMPING = 1.0
+
+#: Slack below this is left alone: another pass costs a full re-layout and buys
+#: nothing a reader can see.
+_ABSORB_TOLERANCE = 0.004
+
+
+def _absorb_right_margin(fig, panel_items, passes=6):
+    """Widen the map until the side panel reaches the sheet's right edge.
+
+    The layout engine is confined to ``_LAYOUT_RIGHT`` of the canvas and the
+    panel is anchored to the map axes' right edge, so whatever the panel does
+    not use is left as dead white space on the right — measured on the rapid
+    fixture before this, about 11% of the figure width, which reads as a
+    cropping mistake rather than as margin.
+
+    Widening the layout rect gives that space to the MAP instead of trimming the
+    canvas, which keeps every figure in the family at one published width. The
+    panel travels right with the axes it is anchored to, so the correction
+    converges rather than solving in one step — measured on the synthetic
+    fixture, each pass closes ~40% of the remaining gap and it settles by the
+    fifth. The loop exits early on ``_ABSORB_TOLERANCE``, so a figure whose
+    panel already fills the strip pays one measurement and no re-layout.
+    """
+    for _ in range(passes):
+        edge = _panel_right_edge(fig, panel_items)
+        if edge is None:
+            return
+        slack = 1.0 - _RIGHT_MARGIN - edge
+        if abs(slack) <= _ABSORB_TOLERANCE:
+            return
+        engine = fig.get_layout_engine()
+        if engine is None:
+            return
+        current = engine.get()["rect"]
+        widened = min(float(current[2]) + slack * _ABSORB_DAMPING, 1.0 - _RIGHT_MARGIN)
+        engine.set(rect=(current[0], current[1], widened, current[3]))
+        fig.draw_without_rendering()
+
+
+def _align_caveat_left(fig, footnote):
+    """Flush the footnote to the sheet's left edge.
+
+    ONE alignment for every figure family (owner ruling 2026-08-17). This one
+    used to right-align to the side panel's measured edge, which was defensible
+    on its own terms — that edge is visible and shared by the locator and the
+    legend — but it made the map family the odd one out: the series figures
+    start their footnote under the y-axis label, where prose starts.
+
+    Only ``x`` and the alignment are set. Constrained layout repositions a
+    ``supxlabel`` on every draw, but it rewrites the Y ONLY and carries the x
+    through, so this survives the saves that follow.
+    """
+    if footnote is None:
         return
-    right_edge = fig.transFigure.inverted().transform((max(edges), 0.0))[0]
-    footnote.set_x(float(right_edge))
-    footnote.set_horizontalalignment("right")
+    footnote.set_x(CAVEAT_X)
+    footnote.set_horizontalalignment("left")
 
 
 def plot_raster_map(
@@ -3506,8 +3556,12 @@ def plot_raster_map(
         for _ in range(_LAYOUT_SETTLE_PASSES):
             fig.draw_without_rendering()
 
-        # AFTER the passes, because it measures the panel items where they
+        # AFTER the passes, because both measure the panel items where they
         # FINALLY landed — constrained layout is still moving them until here.
-        _align_caveat_to_panel(fig, footnote, (locator_axes, legend))
+        # The locator and the legend, which are the panel's WIDEST items. The
+        # colourbar is narrower and sits between them, so it cannot set the
+        # right edge -- and it is local to `_draw_raster` anyway.
+        _absorb_right_margin(fig, (locator_axes, legend))
+        _align_caveat_left(fig, footnote)
 
     return fig, ax

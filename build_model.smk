@@ -13,7 +13,15 @@ from blueearth_cst.spatial.config import parse_spatial_config
 # The canonical climate figure set (rules 1.13 and 1.15 both draw it). Imported
 # for figure_names() ONLY, so every figure is declared from the same list the
 # plotter writes from and the two cannot drift.
-from blueearth_cst.climate_analysis.climate_figures import figure_names, source_climate_vars
+from blueearth_cst.climate_analysis.climate_figures import figure_names, source_climate_vars, source_figure_names
+
+# The source family follows the WF0 filename grammar
+# (`dev/working/wf0-figure-filename-rule.md`); rule 1.05 writes the same files
+# to the same directory wf0's 0.05 does, so the two must name them alike. Kept
+# beside wf0's declaration rather than imported from it — a Snakefile does not
+# import another Snakefile — so any change is made in both places deliberately.
+DECLARED_SPATIAL_SCOPES = ("basin_avg",)
+SUBBASIN_PLOT_DIRNAME = "subbasins"
 # The thematic map family rule 1.12 draws beside basin_area. Same reason as
 # above: the output list comes from the registry the plotter iterates, so a
 # figure cannot be added in one place and forgotten in the other.
@@ -412,8 +420,14 @@ WF1_TERMINALS = [
     f"{FORCING_PLOTS_DIR}/forcing_precip_map.png",
     # R07 B4: the source-grid climate figures are rule-`all` members by
     # design — they are a product of the workflow, not an incidental
-    # by-product, and their subgraph needs no built model.
-    f"{store_dir}/plots/source_precip_map.png",
+    # by-product, and their subgraph needs no built model. The representative is
+    # the MAP, which every source draws, precipitation-only included.
+    f"{store_dir}/plots/"
+    + source_figure_names(
+        clim_source,
+        variables=source_climate_vars(clim_source),
+        spatial_scopes=DECLARED_SPATIAL_SCOPES,
+    )[0],
     f"{basin_dir}/staticgeoms/outlet_index.csv",
     # P1 spatial foundation. One representative output schedules the complete
     # multi-output rule and makes both gather rules wait for its log/benchmark.
@@ -1168,17 +1182,37 @@ _source_plot_inputs.update(
      ("basins", "subbasins", "rivers", "locations")}
 )
 
+# The basin's cells on THIS source's grid — what the `basin_avg` series reduce
+# over, and rule 1.04's own output. The same file weathergenr averages over, so
+# the figures, the generator and the stress test share one definition of the
+# basin; without it the series were a mean over the store's BUFFERED bbox.
+_source_plot_inputs["basin_cells"] = CLIMATE_STORE.outputs["basin_cells"]
+
 rule plot_climate_source:
     message: rule_banner("1.05", "plot_climate_source")
     input:
         **_source_plot_inputs,
     output:
+        # The WF0 filename grammar (`dev/working/wf0-figure-filename-rule.md`),
+        # NOT because this is WF0 but because it is the same FAMILY: this rule
+        # and wf0's 0.05 write the same files to the same `<store>/plots/`, so a
+        # rename in one is a rename in both or the two workflows disagree about
+        # what they produce. The forcing family (1.13) is the separate one that
+        # keeps its own names.
         [
             f"{store_dir}/plots/{name}"
-            for name in figure_names("source", variables=_source_plot_vars)
+            for name in source_figure_names(
+                clim_source,
+                variables=_source_plot_vars,
+                spatial_scopes=DECLARED_SPATIAL_SCOPES,
+            )
         ],
+        # Per-subbasin figures are named for delineation ids, so their count is
+        # a runtime fact — see the same note on wf0's rule 0.05.
+        directory(f"{store_dir}/plots/{SUBBASIN_PLOT_DIRNAME}"),
     params:
         plot_dir = f"{store_dir}/plots",
+        subbasin_plot_dir = f"{store_dir}/plots/{SUBBASIN_PLOT_DIRNAME}",
         data_sources = DATA_SOURCES,
         clim_source = clim_source,
         geoms_dir = SPATIAL_UNITS.spatial_dir + "/geoms",

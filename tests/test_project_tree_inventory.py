@@ -105,7 +105,8 @@ COVERED: dict[str, list[str]] = {
         # The basin-cell mask that ships with every extraction (2026-08-10).
         f"data/climate/historical/{KEY}/basin_cells.csv",
         f"data/climate/historical/{KEY}/.guard_ok",
-        f"data/climate/historical/{KEY}/plots/source_precip_map.png",
+        # WF0 filename grammar: <dataset>_<var>_<context>_<scope>.png
+        f"data/climate/historical/{KEY}/plots/era5_precip_annual_clim_map_basin_ext.png",
         # A SECOND store key is legitimate: the key is a cache key, so a project
         # with an era5 and a chirps store holds both.
         "data/climate/historical/chirps_19900101_20101231/extract_historical.nc",

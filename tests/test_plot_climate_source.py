@@ -240,9 +240,12 @@ def _snakemake(args, cfg_path):
 def test_source_figures_build_without_a_model(modelfree_project):
     """P4: source figures schedule without the model-build subgraph."""
     cfg_path, project_dir, store, absent_template = modelfree_project
-    from blueearth_cst.climate_analysis.climate_figures import figure_names
+    from blueearth_cst.climate_analysis.climate_figures import source_figure_names
 
-    targets = [store / "plots" / name for name in figure_names("source")]
+    # The WF0 filename grammar -- the same names rule 1.05 declares. Asking for
+    # the legacy `source_<var>_<kind>.png` spelling here would dry-run clean
+    # against no rule at all and assert nothing.
+    targets = [store / "plots" / name for name in source_figure_names("era5")]
     quoted = " ".join(f'"{t.as_posix()}"' for t in targets)
     result = _snakemake(f"--dry-run {quoted}", cfg_path)
     combined = (result.stdout or "") + (result.stderr or "")

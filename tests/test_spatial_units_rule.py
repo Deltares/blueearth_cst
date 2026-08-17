@@ -53,6 +53,12 @@ def test_the_six_vector_artifacts_keep_their_paths():
     assert rule.outputs["subbasins"] == "/proj/data/spatial/geoms/subbasins.geojson"
     assert rule.outputs["catchments"] == "/proj/data/spatial/geoms/catchments.geojson"
     assert rule.outputs["rivers"] == "/proj/data/spatial/geoms/rivers.geojson"
+    # The catalog's river vector, kept for the WIDTH and BANKFULL columns
+    # hydromt reads as `river_geom_fn`. `rivers` is the derived network.
+    assert (
+        rule.outputs["river_attributes"]
+        == "/proj/data/spatial/geoms/river_attributes.geojson"
+    )
     assert rule.outputs["locations"] == "/proj/data/spatial/geoms/locations.geojson"
     assert (
         rule.outputs["location_registry"] == "/proj/data/spatial/location_registry.csv"
@@ -64,7 +70,7 @@ def test_the_seventh_output_is_the_seam_intermediate():
     rule = _rule()
     assert rule.hydrography_nc == "/proj/data/spatial/hydrography.nc"
     assert rule.outputs["hydrography"] == rule.hydrography_nc
-    assert len(rule.outputs) == 7
+    assert len(rule.outputs) == 8
 
 
 def test_the_inputs_are_the_catalog_and_the_shared_region():
@@ -301,6 +307,7 @@ def test_the_outputs_are_the_shared_vector_artifacts(declarations):
         "geoms/subbasins.geojson",
         "geoms/catchments.geojson",
         "geoms/rivers.geojson",
+        "geoms/river_attributes.geojson",
         "geoms/locations.geojson",
         "location_registry.csv",
         "hydrography.nc",

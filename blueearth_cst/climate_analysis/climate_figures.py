@@ -52,6 +52,11 @@ import numpy as np
 import xarray as xr
 from matplotlib.ticker import MaxNLocator
 
+from blueearth_cst.climate_analysis.figure_naming import (
+    figure_filename,
+    map_spatial_scope,
+)
+from blueearth_cst.shared.grid_cells import masked
 from blueearth_cst.shared.plot_style import RASTER_DPI
 from blueearth_cst.shared.snake_utils import (
     DEFAULT_WATER_YEAR_ANCHOR,
@@ -161,25 +166,110 @@ def source_climate_vars(clim_source: str) -> tuple[str, ...]:
     return tuple(CLIMATE_VARS)
 
 
+#: Which ``plot_context`` token of the WF0 grammar each figure kind carries.
+#: ``monthly`` is ``monthly_box`` HERE because this family draws the
+#: year-to-year distribution as boxes; the comparison family draws the same
+#: months as lines and names itself ``monthly_clim_line`` accordingly.
+KIND_PLOT_CONTEXTS = {
+    "map": "annual_clim_map",
+    "annual": "annual_ts",
+    "monthly": "monthly_box",
+}
+
+#: The kinds that REDUCE the field to a series over an area, and therefore exist
+#: once per spatial scope. ``map`` is not one of them: it draws the field itself,
+#: so a per-subbasin map would be the same raster cropped twelve ways.
+AGGREGATED_KINDS = tuple(k for k in FIGURE_KINDS if k != "map")
+
+
+def scope_caveat(caveat: Optional[str], spatial_scope: str, mask) -> Optional[str]:
+    """Add the AREA a series figure reduces over to its footnote.
+
+    Without this the per-source caveat still reads "on the source extraction
+    grid" while the values are a basin-cell mean — true of the map beside it and
+    false of the series itself.
+
+    The CELL COUNT is the part that earns its place. At ERA5's 0.25 degrees a
+    small basin's subbasins can all select the same one or two cells, so several
+    per-subbasin figures come out identical; a reader who sees "2 cells" reads
+    that as the source failing to resolve the subbasin, which it is, instead of
+    suspecting the figures were mislabelled.
+    """
+    if mask is None:
+        area = "the full extraction grid, which reaches past the basin"
+    else:
+        cells = int(mask.values.sum())
+        where = (
+            "the basin"
+            if spatial_scope == "basin_avg"
+            else "subbasin " + spatial_scope[len("subbasin_") : -len("_avg")]
+        )
+        area = f"{where}'s {cells} cell{'s' if cells != 1 else ''}"
+    line = f"Domain mean over {area}."
+    return f"{caveat}\n{line}" if caveat else line
+
+
+def _legacy_figure_name(dataset: str, var: str, kind: str) -> str:
+    """``<dataset>_<variable>_<kind>.png`` — the pre-grammar spelling.
+
+    Retained for the FORCING family only. ``wf0-figure-filename-rule.md`` stages
+    the new grammar at WF0 first, and the forcing figures have their own
+    consumers and their own directory; migrating them is a separate step with
+    its own rename sweep.
+    """
+    return f"{dataset}_{var}_{kind}.png"
+
+
+def source_figure_names(
+    clim_source: str,
+    variables: Optional[Sequence[str]] = None,
+    spatial_scopes: Sequence[str] = ("basin_avg",),
+) -> list[str]:
+    """Every filename the SOURCE family writes for one source, in a stable order.
+
+    The WF0 grammar (``climate_analysis.figure_naming``), so the
+    ``dataset_scope`` is the source id itself — ``era5_precip_annual_ts_basin_avg.png``
+    — rather than the literal word ``source``. A figure copied out of its
+    directory then still says which dataset it came from, which the old
+    ``source_precip_annual.png`` did not.
+
+    ``spatial_scopes`` lists the areas the AGGREGATED kinds are drawn for; the
+    map is drawn once, framed per :data:`MAP_EXTENT`. Pass only the scopes whose
+    count is knowable at DAG-parse time — the per-subbasin scopes are not, and
+    the Snakefile declares those through a ``directory()`` instead.
+
+    It must be the SAME list handed to :func:`plot_climate_figures`: narrow only
+    the declaration and the extra files are undeclared, narrow only the drawing
+    and the job ends in ``MissingOutputException``.
+    """
+    map_scope = map_spatial_scope(MAP_EXTENT["source"])
+    names = []
+    for var in _resolve_variables(variables):
+        for kind in FIGURE_KINDS:
+            context = KIND_PLOT_CONTEXTS[kind]
+            if kind == "map":
+                names.append(figure_filename(clim_source, var, context, map_scope))
+                continue
+            names.extend(
+                figure_filename(clim_source, var, context, scope)
+                for scope in spatial_scopes
+            )
+    return names
+
+
 def figure_names(dataset: str, variables: Optional[Sequence[str]] = None) -> list[str]:
     """Every filename this module writes for ``dataset``, in a stable order.
 
-    The Snakefile calls this to declare the outputs, so it is the single source
-    of the naming scheme ``<dataset>_<variable>_<kind>.png``. Nothing else may
-    build those names by hand.
-
-    ``variables`` narrows the set to one source's honest subset -- pass what
-    :func:`source_climate_vars` returns. It must be the SAME list handed to
-    :func:`plot_climate_figures`, since one declares the outputs and the other
-    writes them: narrow only the declaration and the extra files are undeclared,
-    narrow only the drawing and the job ends in ``MissingOutputException``.
+    The FORCING family's declaration (rule 1.13), on the legacy spelling. The
+    source family is named by :func:`source_figure_names` under the WF0 grammar;
+    the two spellings coexist deliberately while that migration is staged.
     """
     if dataset not in DATASETS:
         raise ValueError(
             f"unknown dataset {dataset!r}; expected one of {sorted(DATASETS)}"
         )
     return [
-        f"{dataset}_{var}_{kind}.png"
+        _legacy_figure_name(dataset, var, kind)
         for var in _resolve_variables(variables)
         for kind in FIGURE_KINDS
     ]
@@ -519,22 +609,6 @@ def _series_style(spec):
     return base, style_series_color(base)
 
 
-#: Where a series figure's footnote starts, in figure coordinates.
-#:
-#: LEFT-ALIGNED (owner ruling 2026-08-17): a footnote is read as prose, and
-#: prose starts where the reader's eye already is — under the y-axis label,
-#: flush with the left edge of the sheet. ``supxlabel``'s default centring puts
-#: it under the axes midpoint, which is not an edge the reader can see and which
-#: MOVES with the caveat's own length, so a one-line and a two-line footnote sit
-#: differently on two figures of the same family.
-#:
-#: The MAP family is right-aligned instead, deliberately and for a reason that
-#: does not apply here: it flushes to the side panel's measured right edge
-#: (``cartographic_map._align_caveat_to_panel``), which IS a visible edge shared
-#: by the locator inset and the legend. A series figure has no side panel.
-CAVEAT_X = 0.012
-
-
 def _series_axes(caveat, aspect=0.42):
     """A figure sized and styled like the maps, with the caveat in the layout.
 
@@ -546,7 +620,11 @@ def _series_axes(caveat, aspect=0.42):
         _publication_rc,
         series_figure_size,
     )
-    from blueearth_cst.shared.plot_style import COLOR_CAVEAT, FONT_SIZE_CAVEAT
+    from blueearth_cst.shared.plot_style import (
+        CAVEAT_X,
+        COLOR_CAVEAT,
+        FONT_SIZE_CAVEAT,
+    )
 
     with plt.rc_context(_publication_rc()):
         fig = plt.figure(figsize=series_figure_size(aspect), layout="constrained")
@@ -740,6 +818,9 @@ def plot_climate_figures(
     anchor: str = DEFAULT_WATER_YEAR_ANCHOR,
     variables: Optional[Sequence[str]] = None,
     levels: Optional[Mapping] = None,
+    clim_source: Optional[str] = None,
+    area_masks: Optional[Mapping] = None,
+    subbasin_dir: Optional[Union[str, Path]] = None,
 ) -> list[Path]:
     """Write the canonical figure set for one gridded climate dataset.
 
@@ -762,11 +843,28 @@ def plot_climate_figures(
         ``{"basins": gdf, "rivers": gdf, ...}`` drawn on the MAP figures only.
         Absent or empty entries are skipped, so a caller without a model simply
         passes nothing.
+    clim_source : str, optional
+        The source id. Present ⇒ the SOURCE family, named under the WF0 grammar
+        with this as the ``dataset_scope``; absent ⇒ the legacy
+        ``<dataset>_<var>_<kind>.png`` spelling the forcing family keeps.
+    area_masks : mapping, optional
+        ``{spatial_scope: mask_or_None}`` for the AGGREGATED kinds — typically
+        ``{"basin_avg": <basin mask>}`` plus one entry per subbasin. Each mask
+        restricts the domain mean to that area's cells; ``None`` means the full
+        extraction, which is what a caller with no basin geometry gets. The map
+        kind ignores this entirely: it draws the field, not a reduction of it.
+    subbasin_dir : str | Path, optional
+        Where the per-subbasin figures land. They are written to their own
+        directory because their COUNT is a property of the delineation and so is
+        unknown when the Snakefile declares its outputs — the rule declares this
+        directory instead, which is the same trade rule 1.15 records for its
+        per-station figures. Defaults to ``plot_dir``.
 
     Returns
     -------
     list[Path]
-        The figures written, in :func:`figure_names` order.
+        The figures written, in :func:`source_figure_names` order for the source
+        family and :func:`figure_names` order for the forcing one.
 
     Raises
     ------
@@ -791,33 +889,80 @@ def plot_climate_figures(
     os.makedirs(plot_dir, exist_ok=True)
     title = DATASETS[dataset]
     extent_policy = MAP_EXTENT[dataset]
+    # One scope, unmasked, when the caller supplied none -- which is what keeps
+    # the forcing family (rule 1.13) drawing exactly what it drew before.
+    scopes = dict(area_masks) if area_masks else {"basin_avg": None}
+    subbasin_dir = Path(subbasin_dir) if subbasin_dir is not None else plot_dir
+    if any(scope.startswith("subbasin_") for scope in scopes):
+        os.makedirs(subbasin_dir, exist_ok=True)
     written = []
     for var in draw:
         spec = CLIMATE_VARS[var]
-        da = ds[var]
         for kind in FIGURE_KINDS:
-            out_path = plot_dir / f"{dataset}_{var}_{kind}.png"
-            fig = _RENDERERS[kind](
-                da,
-                spec,
-                title,
-                caveat,
-                overlays,
-                extent_policy=extent_policy,
-                anchor=anchor,
-                # Absent for this (var, kind) -> the renderer classifies from
-                # its own data, which is right for a single-source run.
-                scale=(levels or {}).get(var, {}).get(kind),
-            )
-            save_figure(out_path, dpi=RASTER_DPI)
-            plt.close(fig)
-            written.append(out_path)
+            context = KIND_PLOT_CONTEXTS[kind]
+            if kind == "map":
+                # Drawn ONCE, from the whole field: a map is the spatial view,
+                # so reducing it to an area is what the other kinds are for.
+                fig = _RENDERERS[kind](
+                    ds[var],
+                    spec,
+                    title,
+                    caveat,
+                    overlays,
+                    extent_policy=extent_policy,
+                    anchor=anchor,
+                    # Absent for this (var, kind) -> the renderer classifies
+                    # from its own data, right for a single-source run.
+                    scale=(levels or {}).get(var, {}).get(kind),
+                )
+                name = (
+                    figure_filename(
+                        clim_source, var, context, map_spatial_scope(extent_policy)
+                    )
+                    if clim_source
+                    else _legacy_figure_name(dataset, var, kind)
+                )
+                out_path = plot_dir / name
+                save_figure(out_path, dpi=RASTER_DPI)
+                plt.close(fig)
+                written.append(out_path)
+                continue
+
+            for scope, mask in scopes.items():
+                fig = _RENDERERS[kind](
+                    masked(ds, mask)[var],
+                    spec,
+                    title,
+                    # The AREA belongs on the figure, not only in the filename:
+                    # a file copied out of its directory keeps its footnote and
+                    # loses its path.
+                    scope_caveat(caveat, scope, mask) if clim_source else caveat,
+                    overlays,
+                    extent_policy=extent_policy,
+                    anchor=anchor,
+                    scale=(levels or {}).get(var, {}).get(kind),
+                )
+                if clim_source:
+                    name = figure_filename(clim_source, var, context, scope)
+                    # Per-subbasin figures sit in their own bin; see
+                    # `subbasin_dir`. The basin-level ones stay beside the maps.
+                    destination = (
+                        subbasin_dir if scope.startswith("subbasin_") else plot_dir
+                    )
+                else:
+                    name = _legacy_figure_name(dataset, var, kind)
+                    destination = plot_dir
+                out_path = destination / name
+                save_figure(out_path, dpi=RASTER_DPI)
+                plt.close(fig)
+                written.append(out_path)
     # The directory is deliberately NOT repeated here: every figure above came
     # through `save_figure`, whose first row of the group already states it.
-    # What this row adds is the COUNT -- "did I get all nine" without counting
-    # rows -- and which dataset they belong to.
+    # What this row adds is the COUNT -- "did I get all of them" without
+    # counting rows -- and which dataset they belong to.
     log_row(
-        f"Wrote {len(written)} canonical climate figures ({dataset})",
+        f"Wrote {len(written)} canonical climate figures "
+        f"({clim_source or dataset}, {len(scopes)} spatial scope(s))",
         module="plot",
     )
     return written
