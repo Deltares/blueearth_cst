@@ -138,6 +138,6 @@ Land H's remainder first or accept the conflict; do not run them concurrently.
 
 - `AGENTS.md` — validation ladder, lane routing, primary-checkout rule.
 - `dev/reference/naming.md` §8, §8b — generated-output names, rule numbering.
-- Related: [[t2608112239-rename-the-project-dir-config-templates-snapshot-bin-to-say-what-it-holds]]
-  — this design **deletes** that bin rather than renaming it, so closing this
-  item supersedes that one.
+- `t2608112239` (rename the project-dir `config/templates` snapshot bin) —
+  **closed as superseded 2026-08-17**, see `dev/LOG.md`. This design deletes
+  that bin rather than renaming it, so the rename had nothing left to rename.
