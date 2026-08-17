@@ -96,7 +96,7 @@ pixi run install     # weathergenr (R) + Wflow.jl (Julia)
 
 The first command installs everything declared in `pixi.toml` into a local
 `.pixi/` env. The second runs `dev/scripts/install_weathergenr.R` (installs
-`Deltares-research/weathergenr@v1.2.0`) and
+`Deltares-research/weathergenr@v2.0.0`) and
 `julia +1.11.7 --project=. -e 'using Pkg; Pkg.instantiate()'` (locks Wflow.jl
 and ~130 transitive Julia deps from `Manifest.toml`).
 

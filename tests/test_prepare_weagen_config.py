@@ -204,6 +204,13 @@ def test_f7_the_template_is_a_declared_input_of_rule_3_10():
         ("write_netcdf", "calendar", "noleap"),
         ("generate_weather", "dry_spell_factor", [1.0] * 12),
         ("generate_weather", "wet_spell_factor", [1.0] * 12),
+        # Restored with weathergenr 2.0.0, which both renamed the argument from
+        # `relax_priority` and made run_weather_generator forward it.
+        (
+            "generate_weather",
+            "relax_order",
+            ["wavelet", "sd", "tail_low", "tail_high", "mean"],
+        ),
     ],
 )
 def test_surfaced_arguments_reach_the_generated_config(tmp_path, section, key, value):

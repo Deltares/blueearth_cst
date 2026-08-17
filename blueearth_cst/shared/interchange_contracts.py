@@ -318,20 +318,36 @@ def validate_wg2(df: Any, st_num: int | None = None) -> list[str]:
 #: dot.case preserved verbatim" rationale this list used to carry (naming.md §2)
 #: is what the rename RESTORES — upstream now spells them snake_case.
 #:
+#: **weathergenr 2.0.0 (2026-08-17).** One key changed here: ``relax_priority``
+#: became ``relax_order`` and is now pinned, because the wrapper forwards it (see
+#: the entry below). Every other section and key survives the major version
+#: unchanged — the argument sets of ``run_weather_generator``,
+#: ``generate_weather``, ``apply_climate_perturbations`` and ``write_netcdf``
+#: were checked one by one against the 2.0.0 sources.
+#:
+#: 2.0.0 also weakened the FAILURE MODE this list guards, without weakening the
+#: reason for it. ``run_weather_generator`` forwarded every ``config`` entry
+#: unconditionally, so an absent one arrived as an explicit ``NULL`` that
+#: replaced the receiving function's default; it now OMITS absent entries, so a
+#: dropped key falls back to that default instead. The list stays exhaustive
+#: because the point is that every setting this toolbox runs on is a stated
+#: choice, readable in one file — not that upstream would otherwise crash.
+#:
 #: Every key is pinned for the same reason the transient flags are: the R reads
-#: it, and an omission reaches weathergenr as NULL, silently restoring whatever
-#: upstream defaults to. That is the C34 defect, and a contract is how it stays
-#: fixed.
+#: it, and an omission silently substitutes whatever upstream defaults to. That
+#: is the C34 defect, and a contract is how it stays fixed.
 _WG3_GENERATE_WEATHER_KEYS = (
     "vars",
     "warm_var",
     "warm_signif",
     "warm_pool_size",
     "warm_filter_bounds",
-    # `relax_priority` is deliberately NOT pinned. It is a generate_weather
-    # argument, but rule 3.11 calls run_weather_generator, and that wrapper
-    # forwards every generate_weather argument except this one -- so pinning it
-    # would require a key that reaches nothing. Restore if upstream forwards it.
+    # Restored 2026-08-17 for weathergenr 2.0.0, which renamed the argument
+    # from `relax_priority` AND made run_weather_generator forward it. On 1.2.0
+    # the wrapper dropped it, so pinning it would have required a key that
+    # reaches nothing -- the C34 defect this contract exists to prevent
+    # (t2608121742, closed by the upgrade).
+    "relax_order",
     "annual_knn_n",
     "wet_q",
     "extreme_q",
