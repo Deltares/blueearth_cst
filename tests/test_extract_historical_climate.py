@@ -167,8 +167,9 @@ _geopandas_stub = types.SimpleNamespace(
 # Note: dask is NOT stubbed because pandas does a lazy `import dask` and
 # accesses dask.__spec__ during type checks. A SimpleNamespace stub there
 # breaks unrelated test files that import pandas during collection. dask
-# is in the env (pixi-installed), and dask.diagnostics.ProgressBar is a
-# cheap context manager — let the real one run.
+# is in the env (pixi-installed), and `DaskProgress` — which replaced
+# `dask.diagnostics.ProgressBar` here — is a cheap callback that draws
+# nothing when no compute runs, so let the real one run.
 
 from blueearth_cst.climate_analysis import (  # noqa: E402
     extract_historical_climate as ehc,
