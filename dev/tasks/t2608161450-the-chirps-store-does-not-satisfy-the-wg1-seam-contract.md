@@ -94,7 +94,13 @@ unexercised -- it has no local staging, so it has never been run at all. Fixing
 only the source that happened to be staged would leave the identical defect
 behind the other name.
 
-## Two directions, not yet chosen
+## Two directions — RULED 2026-08-17: take BOTH
+
+> **Ruling (owner).** Both, not one. (1) is what a promotion needs; (2) is what
+> stops the class recurring for the next source admitted to
+> `_SUPPORTED_SOURCES`. Neither alone was accepted: (1) alone leaves the next
+> unexercised source failing silently in the same place, and (2) alone leaves
+> chirps unusable while reporting that it is.
 
 1. **Fix the producer** so the chirps branch emits a WG-1-conforming store. This
    is the substantive answer and it is what a promotion needs.
@@ -103,7 +109,15 @@ behind the other name.
    says so where the choice is made. Cheap, and useful even after (1), since it
    generalises to the next source.
 
-They are complementary; (2) is what stops this class recurring.
+**Order is not free.** (2) is the falsifier for (1): wire the WF0 validation
+first so it FAILS on the current chirps store, then fix the producer and watch
+it pass. Fixing first leaves the check asserting a condition already true, which
+is the weaker gate. The units row is exempt from both and comes first — see
+below; it is a values question, not a producer-conformance one.
+
+`chirps_global` is in scope with `chirps`, per *Both precip-only sources* above:
+it is admitted by the same list and has never been run, so fixing only the
+staged name leaves the identical defect behind the other one.
 
 ## Refs
 
@@ -115,7 +129,18 @@ They are complementary; (2) is what stops this class recurring.
 
 ## Progress
 
-- [ ] Decide between the two directions above (or take both).
+- [x] Decide between the two directions above (or take both) — **both, ruled
+      2026-08-17.** See the ruling callout for the order and why.
 - [ ] Check `precip` units against the VALUES before touching the attribute.
-- [ ] Stamp the catalog metadata back onto the chirps branch's dataset, then
-      drop rule 0.06's catalog fallback (`compare_sources._catalog_metadata`).
+      Independent of the ruling and first in line: `mm` vs `mm d**-1` is either
+      a label defect or a magnitude that multiplies through the whole stress
+      test, and the attribute cannot tell them apart. Needs a chirps store on
+      disk, which this slot has not got (`test_case/test_rapid` is absent here).
+- [ ] Wire the WF0 candidate-store WG-1 validation and watch it FAIL on the
+      current chirps store, surfacing the diffs beside rule 0.06's comparison.
+- [ ] Stamp the catalog metadata and the `float32` dtypes back onto the chirps
+      branch's dataset before `to_netcdf` — one producer fix closes all eight
+      rows — and confirm the check from the previous step turns green.
+- [ ] Drop rule 0.06's catalog fallback (`compare_sources._catalog_metadata`),
+      which exists only to paper over the missing metadata.
+- [ ] Cover `chirps_global` by the same fix; it has never been run at all.
