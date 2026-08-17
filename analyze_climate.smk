@@ -15,6 +15,9 @@ from blueearth_cst.spatial.config import parse_spatial_config
 # figure is declared from the same list the plotter writes from and the two
 # cannot drift -- the same contract rule 1.05 and rule 1.13 rely on.
 from blueearth_cst.climate_analysis.climate_figures import figure_names, source_climate_vars
+# The cross-source comparison set (rule 0.06). Imported for the same reason:
+# the module that WRITES the table and the figures is the one that names them.
+from blueearth_cst.climate_analysis.compare_sources import comparison_outputs
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
 patch_psutil_windows_benchmark()
@@ -185,10 +188,11 @@ CLIMATE_STORES = {
 # `ls logs/` sorts wf0, wf1, wf2, wf3 in execution order without renumbering
 # the three that already exist.
 #
-# 0.06-0.09 ARE RESERVED, not missing: the station-sampling, observation
+# 0.07-0.09 ARE RESERVED, not missing: the station-sampling, observation
 # comparison and Budyko rules land under them in this same milestone. A gap that
 # closes within one landing is cheaper than renumbering the gathers afterwards,
-# which naming.md calls a migration rather than an edit.
+# which naming.md calls a migration rather than an edit. 0.06 was part of that
+# band until 2026-08-17, when the cross-source comparison took it.
 #
 # DO NOT RENUMBER TO INSERT A RULE. Use a letter suffix (0.04b).
 
@@ -233,11 +237,39 @@ LOG_RULES = [
     "0.05_plot_climate_source",
 ]
 
+# Rule 0.06 exists only when there is more than one source to compare, so its
+# label is APPENDED rather than written into the literal above. Both halves are
+# load-bearing: tests/test_log_rules_contract.py reads the literal textually and
+# parses the workflow on the single-source fixture config, so a label sitting in
+# the literal would be an orphan there. tests/test_compare_climate_sources.py
+# covers the other direction, which that module's fixture cannot reach.
+if len(CANDIDATE_SOURCES) > 1:
+    LOG_RULES.append("0.06_compare_climate_sources")
+
 
 def source_plot_dir(source):
     """Where one source's canonical climate figures land."""
     return f"{CLIMATE_STORES[source].store_dir}/plots"
 
+
+# --- the cross-source comparison (rule 0.06) ----------------------------------
+# ONE directory beside the per-source stores, not inside any of them: it belongs
+# to no single source, and `data/climate/historical/` is already the root this
+# workflow tokenizes its paths against (see declare_path_tokens above).
+#
+# DECLARED ONLY FOR A MULTI-SOURCE RUN. With no `candidate_sources` this
+# workflow draws exactly what WF1 already draws and adds no cost -- the property
+# AGENTS.md names as the reason wf0 is safe to run on any project -- and a
+# "comparison" of one dataset would break it for a table with one row. The
+# outputs come from `compare_sources.comparison_outputs`, so the module that
+# writes the files is the one that names them, and the figure set narrows itself
+# to the variables more than one source carries.
+COMPARISON_DIR = f"{project_dir}/data/climate/historical/comparison"
+COMPARISON_OUTPUTS = (
+    [f"{COMPARISON_DIR}/{name}" for name in comparison_outputs(CANDIDATE_SOURCES)]
+    if len(CANDIDATE_SOURCES) > 1
+    else []
+)
 
 # WF0_TERMINALS — the artifacts with no WF0 consumer. Every producing rule is
 # upstream of them and none feeds another rule, which is exactly the input set
@@ -247,6 +279,8 @@ def source_plot_dir(source):
 # figures as a single job, so requesting one schedules the rest.
 WF0_TERMINALS = [
     *[f"{source_plot_dir(s)}/source_precip_map.png" for s in CANDIDATE_SOURCES],
+    # Empty on a single-source run, where rule 0.06 is not declared either.
+    *COMPARISON_OUTPUTS,
     # The vector foundation is a LEAF here -- nothing in this workflow consumes
     # `basins.geojson` downstream of the figures -- so without this edge rule
     # 0.03 could run in parallel with the merge and strand its log part under
@@ -458,6 +492,53 @@ for _source in CANDIDATE_SOURCES:
         benchmark:
             f"{project_dir}/benchmarks/_parts/0.05_plot_climate_source/{_source}.tsv",
         script: "blueearth_cst/climate_analysis/plot_climate_source.py"
+
+
+# 0.06  compare_climate_sources — every candidate on ONE axis, plus the table.
+#
+# Rules 0.04b and 0.05 already make the per-source figure sets comparable, by
+# pinning them to a shared scale. This is the step that stops asking the reader
+# to do the comparing: one annual figure and one monthly figure per variable
+# with every source drawn on it, and a summary table saying what each source is
+# (resolution, extracted window, reference) and what it delivers.
+#
+# NOT an input: `climate_levels.json`. The shared scale exists so SEPARATE
+# figures can be read against each other; every figure here already carries
+# every source on one axis, so the edge would buy nothing and would re-fire this
+# rule whenever the scale moved. The stores are the only data this needs.
+#
+# One job, not a fan-out -- so its log part is a flat file, matching the label
+# appended to LOG_RULES above.
+if len(CANDIDATE_SOURCES) > 1:
+
+    rule compare_climate_sources:
+        message: rule_banner("0.06", "compare_climate_sources", summary="compare the candidate climate datasets")
+        input:
+            climate_ncs = [CLIMATE_STORES[s].outputs["climate_nc"] for s in CANDIDATE_SOURCES],
+            # The DOMAIN the figures average over: the cells each source's own
+            # grid contributes to the basin. Without it the means are taken over
+            # each store's buffered bbox, and the buffer is counted in CELLS --
+            # so a coarse grid reaches physically further out and the comparison
+            # is partly of neighbouring climate. Rule 0.04 already writes this,
+            # and weathergenr already averages over it.
+            basin_cells = [CLIMATE_STORES[s].outputs["basin_cells"] for s in CANDIDATE_SOURCES],
+        params:
+            sources = CANDIDATE_SOURCES,
+            out_dir = COMPARISON_DIR,
+            water_year_start = WATER_YEAR_START,
+            # Read ONLY to fill provenance a store did not keep: the chirps
+            # branch fetches a single variable and loses the entry's metadata,
+            # so without this the Reference/Version/DOI columns are blank for
+            # exactly the precipitation-only sources a comparison judges.
+            data_sources = DATA_SOURCES,
+        output:
+            COMPARISON_OUTPUTS,
+        log:
+            f"{LOG_PARTS_DIR}/0.06_compare_climate_sources.log",
+        benchmark:
+            f"{project_dir}/benchmarks/_parts/0.06_compare_climate_sources.tsv",
+        script:
+            "blueearth_cst/climate_analysis/compare_sources.py"
 
 
 # --- benchmark gather ---------------------------------------------------------
