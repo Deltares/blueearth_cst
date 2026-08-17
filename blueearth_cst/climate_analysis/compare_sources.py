@@ -224,28 +224,39 @@ def _catalog_metadata(source: str, data_sources) -> dict:
     """
     if not data_sources:
         return {}
-    key = (str(data_sources), source)
+    entry = _catalog_entries(data_sources).get(source, {})
+    found = entry.get("metadata") or entry.get("meta") or {}
+    return found if isinstance(found, dict) else {}
+
+
+def _catalog_entries(data_sources) -> dict:
+    """Every entry in the catalog library, parsed ONCE per process.
+
+    Keyed on the library rather than on ``(library, source)``, which is what the
+    first version did — and `to_dict()` parses the WHOLE library either way, so
+    that cached the answer while re-paying the cost for every row. Measured on
+    the rapid fixture: rule 0.06 took 18 s, of which 12 s was parsing the same
+    catalog twice for two sources.
+    """
+    key = str(data_sources)
     if key in _CATALOG_CACHE:
         return _CATALOG_CACHE[key]
-    metadata: dict = {}
+    entries: dict = {}
     try:
         import hydromt
 
-        entry = hydromt.DataCatalog(data_libs=data_sources).to_dict().get(source, {})
-        found = entry.get("metadata") or entry.get("meta") or {}
-        metadata = found if isinstance(found, dict) else {}
+        entries = hydromt.DataCatalog(data_libs=data_sources).to_dict()
     except Exception as exc:  # noqa: BLE001 -- provenance is not worth a failed rule
         log_row(
-            f"could not read catalog metadata for {source}: {exc}",
+            f"could not read catalog metadata from {data_sources}: {exc}",
             module="compare",
             level="WARNING",
         )
-    _CATALOG_CACHE[key] = metadata
-    return metadata
+    _CATALOG_CACHE[key] = entries
+    return entries
 
 
-#: One catalog read per (catalog, source) per process — ``to_dict()`` parses the
-#: whole library, and a comparison asks for it once per row.
+#: One parse per catalog LIBRARY per process, keyed by the library path.
 _CATALOG_CACHE: dict = {}
 
 
