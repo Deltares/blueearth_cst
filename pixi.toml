@@ -132,7 +132,7 @@ scripts = ["dev/scripts/pixi_activate.bat"]
 # SSL_CERT_DIR is cleared here too, and that is now belt-and-braces --
 # [activation.env] above unsets it for the whole env. Kept so the task stays
 # correct on its own terms if that ever changes.
-install-rdeps = { cmd = "Rscript --vanilla dev/scripts/install_weathergenr.R", description = "Install weathergenr v1.2.0 via remotes (idempotent; lands in .libPaths()[1])", env = { SSL_CERT_DIR = "", SSL_CERT_FILE = "" } }
+install-rdeps = { cmd = "Rscript --vanilla dev/scripts/install_weathergenr.R", description = "Install weathergenr v2.0.0 via remotes (idempotent; lands in .libPaths()[1])", env = { SSL_CERT_DIR = "", SSL_CERT_FILE = "" } }
 # SSL_CERT_FILE is cleared for this task only, so Julia falls back to its
 # bundled CA (share/julia/cert.pem) -- NetworkOptions treats empty as unset.
 # SSL_CERT_DIR matters more here than anywhere: Julia forwards it to libcurl as
