@@ -943,28 +943,62 @@ def test_the_minimal_call_draws_a_figure_and_writes_nothing(tmp_path):
         plt.close(fig)
 
 
-def test_the_source_footnote_is_flush_with_the_panel_not_centred_under_the_page():
-    """Centred, a ``supxlabel`` lands under the map-plus-panel midpoint, which is
-    an edge nothing on the figure has. The panel's right edge is one the reader
-    can see, so the footnote is flushed to it.
+def test_the_source_footnote_is_flush_left_not_centred_under_the_page():
+    """ONE alignment for every figure family (owner ruling 2026-08-17).
 
-    Measured against the LEGEND's own right edge rather than a constant: the
-    first version computed the edge from ``_PANEL_LEFT`` plus the panel's
-    AVAILABLE width and overshot whatever was actually drawn there.
+    Centred — matplotlib's default for ``supxlabel`` — the line lands under the
+    map-plus-panel midpoint, an edge nothing on the figure has, and it MOVES
+    with the caveat's own length. This family right-aligned to the side panel's
+    measured edge until the ruling; the series figures have always started their
+    footnote at the left, and the map now matches them.
     """
     import matplotlib.pyplot as plt
+
+    from blueearth_cst.shared.plot_style import CAVEAT_X
+
+    layers = _layers()
+    fig, _ = plot_basin_map(
+        layers["dem"], layers["rivers"], layers["basin"], caveat="Source: X (Y, 2020)."
+    )
+    try:
+        footnote = fig._supxlabel
+        assert footnote.get_horizontalalignment() == "left"
+        assert footnote.get_position()[0] == pytest.approx(CAVEAT_X)
+    finally:
+        plt.close(fig)
+
+
+def test_the_side_panel_reaches_the_sheets_right_edge():
+    """No dead white space to the right of the legend.
+
+    The layout engine is confined to ``_LAYOUT_RIGHT`` and the panel is anchored
+    to the map axes, so whatever the panel does not use was left blank —
+    measured about 11% of the figure width on the rapid fixture, which reads as
+    a cropping mistake rather than as margin. The map absorbs it instead, which
+    keeps every figure in the family at one published width.
+    """
+    import matplotlib.pyplot as plt
+
+    from blueearth_cst.shared import cartographic_map as carto
 
     layers = _layers()
     fig, ax = plot_basin_map(
         layers["dem"], layers["rivers"], layers["basin"], caveat="Source: X (Y, 2020)."
     )
     try:
-        footnote = fig._supxlabel
-        assert footnote.get_horizontalalignment() == "right"
-        renderer = fig.canvas.get_renderer()
-        legend_right = ax.get_legend().get_window_extent(renderer).x1
-        footnote_right = fig.transFigure.transform((footnote.get_position()[0], 0.0))[0]
-        assert footnote_right == pytest.approx(legend_right, abs=2.0)
+        # The WIDEST drawn item, whichever it is: the legend and the locator
+        # inset trade places depending on how long the legend's labels are, and
+        # the absorber targets whichever reaches furthest.
+        items = tuple(fig.axes) + (ax.get_legend(),)
+        edge = carto._panel_right_edge(fig, items)
+        assert edge is not None
+        # Inside the sheet, and close enough to its edge that no reader sees a gap.
+        assert edge <= 1.0
+        # Within ~2% of the sheet's edge. The absorber converges from BELOW
+        # onto `1 - _RIGHT_MARGIN` and settles a hair short of it, which is the
+        # safe side: a gap this small is invisible, an overshoot would push the
+        # legend off the canvas. Before the absorber this fixture sat at 0.89.
+        assert edge > 1.0 - carto._RIGHT_MARGIN - 0.02
     finally:
         plt.close(fig)
 

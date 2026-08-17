@@ -123,6 +123,20 @@ FONT_FAMILY = None
 #: figure's own content in the reading order.
 COLOR_CAVEAT = "0.35"
 
+#: Where a caveat footnote STARTS, in figure fractions.
+#:
+#: LEFT-ALIGNED everywhere (owner ruling 2026-08-17): a footnote is read as
+#: prose, and prose starts where the reader's eye already is. ``supxlabel``'s
+#: default centring puts it under the axes midpoint — not an edge the reader can
+#: see, and one that MOVES with the caveat's own length, so a one-line and a
+#: two-line footnote sit differently on two figures of the same family.
+#:
+#: Lives here rather than in either plotting module because BOTH families use
+#: it: the series figures (``climate_analysis.climate_figures``) and the
+#: cartographic template (``shared.cartographic_map``). The map family
+#: right-aligned to its side panel's measured edge until this ruling.
+CAVEAT_X = 0.012
+
 # ===========================================================================
 # PDF TEXT ENCODING
 # ===========================================================================

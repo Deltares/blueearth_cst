@@ -37,7 +37,9 @@ DOCUMENTED_EXAMPLES = [
     "era5_precip_annual_ts_basin_avg.png",
     "era5_temp_annual_clim_map_basin_ext.png",
     "chirps_precip_monthly_box_basin_avg.png",
-    "era5_precip_annual_ts_subbasin_1010_avg.png",
+    # `101` is the SUBBASIN's id, not the station's. `1010` is a wflow_id and
+    # belongs to a `station_<id>` scope -- see the id table in the rule.
+    "era5_precip_annual_ts_subbasin_101_avg.png",
     "comparison_precip_annual_ts_basin_avg.png",
     "comparison_temp_monthly_box_basin_avg.png",
 ]
@@ -49,7 +51,7 @@ def test_the_documented_examples_are_producible():
         figure_filename("era5", "precip", "annual_ts", "basin_avg"),
         figure_filename("era5", "temp", "annual_clim_map", "basin_ext"),
         figure_filename("chirps", "precip", "monthly_box", "basin_avg"),
-        figure_filename("era5", "precip", "annual_ts", subbasin_scope("1010")),
+        figure_filename("era5", "precip", "annual_ts", subbasin_scope("101")),
         figure_filename(COMPARISON_SCOPE, "precip", "annual_ts", "basin_avg"),
         figure_filename(COMPARISON_SCOPE, "temp", "monthly_box", "basin_avg"),
     ]

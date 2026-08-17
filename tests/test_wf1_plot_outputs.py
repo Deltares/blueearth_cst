@@ -34,7 +34,10 @@ from pathlib import Path
 import pytest
 import yaml
 
-from blueearth_cst.climate_analysis.climate_figures import figure_names as _figure_names
+from blueearth_cst.climate_analysis.climate_figures import (
+    figure_names as _figure_names,
+)
+from blueearth_cst.climate_analysis.climate_figures import source_figure_names
 
 #: A model's staticgeoms layers, spelled as hydromt_wflow actually writes them
 #: (`output_locations.csv` -> `gauges_output-locations`, note the HYPHEN).
@@ -90,7 +93,12 @@ def fabricated_project(tmp_path):
     )
     store_plots = Path(spec.store_dir, "plots")
     expected = [project_dir / rel for rel in DECLARED_PLOT_OUTPUTS]
-    expected += [store_plots / name for name in _figure_names("source")]
+    # The SOURCE family follows the WF0 filename grammar; only the FORCING
+    # family still uses the legacy `<dataset>_<var>_<kind>.png` spelling.
+    expected += [
+        store_plots / name
+        for name in source_figure_names(cfg["shared"]["clim_historical"])
+    ]
     # Knowingly UNDECLARED (config-dependent): it must survive, which is what
     # makes the assertion below a discriminating check rather than a tautology
     # about an emptied directory.
