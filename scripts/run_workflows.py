@@ -50,28 +50,30 @@ Contract (pinned, design §7 (a)-(g), plus (h) for the console):
      and why it is the one it is). Nothing else in this console draws one, so a
      rule means the RUNNER is speaking rather than the workflow it launched:
 
-     * an OPENING block -- rule, `run_workflows`, rule, then the `run` group
-       (project, folder, config, cores, and `mode` on a dry run), the `settings`
-       group, and a `sequence` diagram numbering the enabled workflows in
+     * an OPENING block -- rule, `run_workflows`, rule, then ONE `settings`
+       group (project, region, resolution, folder, config, plus `mode` on a dry
+       run) and a `sequence` diagram numbering the enabled workflows in
        invocation order and marking the disabled ones in place. The diagram is
        a chain of ASCII boxes joined by `|` / `v`, solid for a workflow that
        will be invoked and dashed for one that will not;
 
-       `settings` states what the run is ABOUT rather than where it is: the
-       region specification, the delineated bounding box and its approximate
-       extent in km, the model resolution, the historical climate source and
-       the historical window. Every row is optional -- the wrapper's contract
+       `settings` answers "which run is this" in one group. It was two --
+       `run` for what the command line said, `settings` for what the config
+       said -- and where a value came FROM is the writer's distinction rather
+       than the reader's. Every row is optional: the wrapper's contract
        validates `workflows:` and nothing else, so a key that is absent is
-       simply not printed. The bounding box is DERIVED from
-       `data/spatial/geoms/region.geojson` and is reported as absent until some
-       workflow has written it; it is never computed from the region
-       specification, which names an outlet and an upstream-area threshold and
-       so could only yield an invented box (`_settings_rows`);
+       simply not printed. Under `region`, a continuation line aligned into the
+       value column states the box that specification DELINEATED, read from
+       `data/spatial/geoms/region.geojson`, with its approximate extent in km.
+       It reads as absent until some workflow has written that file, and is
+       never computed from the specification, which names an outlet and an
+       upstream-area threshold and so could only yield an invented box
+       (`_settings_rows`);
      * one HAND-OFF band per invoked workflow, at its LEADING edge only --
-       `<rule>` then `[1/4]  wf0 analyze_climate  --  starting HH:MM:SS`, with
-       the sanitized command below it. A workflow that FAILS gets a closing
-       band too, carrying `FAILED (exit N) after <h:mm:ss>` and the fact that
-       later workflows were not invoked;
+       `<rule>` then `[1/4]  wf0 analyze_climate  --  starting HH:MM:SS` flush
+       left, with the sanitized command on the line directly under it. A
+       workflow that FAILS gets a closing band too, carrying `FAILED (exit N)
+       after <h:mm:ss>` and the fact that later workflows were not invoked;
      * a CLOSING block, framed like the opening one and terminated by a final
        rule: the verdict and total elapsed, each invoked workflow's duration,
        and the paths written.
@@ -460,10 +462,17 @@ def _handoff(tag: str, detail: str, *, note: str | None = None) -> str:
     Ruled rather than boxed, and ruled on the TOP side only. What has to survive
     is that the line is the runner's; a closing rule under a one-line utterance
     doubles the cost to say it twice, and this fires twice per workflow.
+
+    Flush left, both lines. The block above indents its ROWS under a group
+    label, which is what an indent means there; a band has no label and no
+    rows, so the same two spaces only made the one line a reader scans for --
+    `[1/4]  wf0 analyze_climate` -- start one column later than the rule that
+    announces it. The command sits directly under the title for the same
+    reason: it is the title's detail, not a row of anything.
     """
-    lines = [_RULE, f"  {tag}  --  {detail}"]
+    lines = [_RULE, f"{tag}  --  {detail}"]
     if note:
-        lines.append(f"    {note}")
+        lines.append(note)
     return "\n".join(lines)
 
 
@@ -663,23 +672,27 @@ def _section(cfg: Mapping[str, Any], *keys: str) -> Mapping[str, Any]:
 
 
 def _settings_rows(cfg: Mapping[str, Any], project_dir: Path) -> list[tuple[str, str]]:
-    """The handful of config values that decide WHAT this run is about.
+    """The basin the run is ABOUT: its region specification and its resolution.
 
-    The `run` group above says which project and which config; this says what
-    they contain -- where the basin is, how big it is, and which historical
-    climate it is being characterised from. Those are the settings someone
-    checks before letting a multi-hour run proceed, and reading them meant
-    opening the YAML in another window.
+    Assembled into the one `settings` group by `_opening_block`, between the
+    project's name and the two paths. Every row is optional -- the wrapper's
+    contract validates `workflows:` and nothing else, so a key absent from the
+    config is simply not printed and an alternative spelling of the tree cannot
+    stop the run before it starts.
 
-    The bounding box is DERIVED from the delineated region
-    (`data/spatial/geoms/region.geojson`), never from the region specification:
-    `{'subbasin': [9.666, 0.4476], 'uparea': 100}` is an outlet and a threshold,
-    and a box computed from those would be an invention in exactly the row a
-    reader is least able to check. Before the first delineation there is no box,
-    and the row says so.
+    The region's own row states the SPECIFICATION, and a continuation line
+    beneath it states the box that specification actually delineated. Two lines
+    under one key rather than two keys: `bbox` and `extent` name no setting a
+    reader could go and change, and the box is only meaningful as an answer to
+    the specification above it.
+
+    That box is DERIVED from `data/spatial/geoms/region.geojson` and never from
+    the specification: `{'subbasin': [9.666, 0.4476], 'uparea': 100}` is an
+    outlet and an upstream-area threshold, so a box computed from those would be
+    an invention in exactly the line a reader is least able to check. Before the
+    first delineation there is no box, and the line says so.
     """
     basin = _section(cfg, "shared", "basin")
-    window = _section(cfg, "shared", "historical_window")
     rows: list[tuple[str, str]] = []
 
     region = basin.get("region")
@@ -698,26 +711,19 @@ def _settings_rows(cfg: Mapping[str, Any], project_dir: Path) -> list[tuple[str,
     if bbox is None:
         if region is not None:
             # Only where a region was ASKED for. A config that declares no basin
-            # at all has nothing absent -- a lone `not delineated yet` under a
-            # `settings` heading would be a row about a question nobody put.
-            rows.append(
-                (
-                    "bbox",
-                    "not delineated yet -- written by the first workflow that runs",
-                )
-            )
+            # has nothing absent, and a lone `not delineated yet` would be a
+            # line about a question nobody put.
+            rows.append(("", "not delineated yet -- the first workflow writes it"))
     else:
         lon_min, lat_min, lon_max, lat_max = bbox
-        rows.append(
-            (
-                "bbox",
-                f"lon {lon_min:.4f} .. {lon_max:.4f}, "
-                f"lat {lat_min:.4f} .. {lat_max:.4f}",
-            )
-        )
+        box = f"lon {lon_min:.4f} .. {lon_max:.4f}, lat {lat_min:.4f} .. {lat_max:.4f}"
         extent = _bbox_extent_km(bbox)
         if extent is not None:
-            rows.append(("extent", f"approx {_km(extent[0])} x {_km(extent[1])} km"))
+            box += f"  (approx {_km(extent[0])} x {_km(extent[1])} km)"
+        # An empty key, so the line lands in the shared VALUE column rather than
+        # at the row indent -- it is the row above continuing, not a row of its
+        # own, and the alignment is what says so.
+        rows.append(("", box))
 
     resolution = basin.get("resolution")
     if resolution is not None:
@@ -726,14 +732,6 @@ def _settings_rows(cfg: Mapping[str, Any], project_dir: Path) -> list[tuple[str,
             rows.append(("resolution", f"{resolution} deg  (approx {_km(cell_km)} km)"))
         except (TypeError, ValueError):
             rows.append(("resolution", str(resolution)))
-
-    source = _section(cfg, "shared").get("clim_historical")
-    if source is not None:
-        rows.append(("climate", str(source)))
-
-    start, end = window.get("starttime"), window.get("endtime")
-    if start and end:
-        rows.append(("historical", f"{str(start)[:10]} .. {str(end)[:10]}"))
     return rows
 
 
@@ -743,34 +741,38 @@ def _opening_block(
     project_name: str,
     project_dir: Path,
     config_path: str,
-    cores: int,
     dry_run: bool,
     flags: Mapping[str, bool],
 ) -> str:
     """The start-of-invocation block: which run this is, and what will run.
+
+    ONE group, not the `run` / `settings` pair this carried until 2026-08-18.
+    Splitting where the values come FROM -- the command line versus the config
+    -- is the writer's distinction, not the reader's: both halves answer "which
+    run is this", they were adjacent, and each label cost a line to say so.
 
     `config` prints as the caller SPELLED it (forward-slashed), not resolved:
     a relative `--config` is how every documented invocation passes it, and the
     absolute form is both longer and machine-specific. `folder` is resolved,
     because that one is an answer -- where the outputs land -- rather than an
     echo of the command line.
+
+    `cores` is gone with the split. It is not a property of the project, and
+    every hand-off band below prints the `-c N` it was forwarded to, verbatim,
+    in the command it is about to run.
     """
-    run_rows: list[Any] = [
-        ("project", project_name),
-        ("folder", os.fspath(project_dir).replace(os.sep, "/")),
-        ("config", os.fspath(config_path).replace(os.sep, "/")),
-        ("cores", str(cores)),
-    ]
+    rows: list[Any] = [("project", project_name)]
+    rows.extend(_settings_rows(cfg, project_dir))
+    rows.append(("folder", os.fspath(project_dir).replace(os.sep, "/")))
+    rows.append(("config", os.fspath(config_path).replace(os.sep, "/")))
     if dry_run:
-        # Stated because a dry run's console is otherwise nearly identical to a
-        # real one's, and the two are worth minutes of confusion apart.
-        run_rows.append(("mode", "dry run -- nothing is executed"))
+        # Kept out of the five above, and kept: a dry run's console is otherwise
+        # nearly identical to a real one's, and this is a notice about what will
+        # HAPPEN rather than a setting a reader could go and change.
+        rows.append(("mode", "dry run -- nothing is executed"))
     enabled = sum(1 for name in WORKFLOW_ORDER if flags[name])
     total = len(WORKFLOW_ORDER)
-    groups: list[tuple[str, list[Any]]] = [("run", run_rows)]
-    settings = _settings_rows(cfg, project_dir)
-    if settings:
-        groups.append(("settings", settings))
+    groups: list[tuple[str, list[Any]]] = [("settings", rows)]
     if enabled:
         groups.append(
             (
@@ -899,7 +901,6 @@ def run(config_path: str, cores: int, extra: list[str]) -> int:
                 project_name=_project_name(cfg, project_dir),
                 project_dir=project_dir,
                 config_path=config_path,
-                cores=cores,
                 dry_run=manifest["dry_run"],
                 flags=flags,
             ),

@@ -407,15 +407,28 @@ def test_sensitive_args_are_redacted_from_console(tmp_path, capture_runs, capsys
 # --- contract (h): the wrapper's own console narration ----------------------
 
 
-def _group_rows(output, label):
-    """The ``key -> value`` rows under one ``  <label>`` group of a block."""
+def _group_raw_lines(output, label):
+    """The raw lines under one ``  <label>`` group, indentation intact."""
     lines = output.splitlines()
     start = lines.index(f"  {label}") + 1
-    rows = {}
+    kept = []
     for line in lines[start:]:
         if not line.startswith("    "):
             break
-        key, value = line.strip().split(maxsplit=1)
+        kept.append(line)
+    return kept
+
+
+def _group_lines(output, label):
+    """The same lines, stripped -- for asserting on a continuation line."""
+    return [line.strip() for line in _group_raw_lines(output, label)]
+
+
+def _group_rows(output, label):
+    """The ``key -> value`` rows under one ``  <label>`` group of a block."""
+    rows = {}
+    for line in _group_lines(output, label):
+        key, value = line.split(maxsplit=1)
         rows[key] = value
     return rows
 
@@ -429,7 +442,7 @@ def _run_and_capture(tmp_path, capsys, flags, *, cores=3, extra=None):
     return code, capsys.readouterr().out, project_dir
 
 
-def test_opening_block_states_the_project_the_config_and_the_cores(
+def test_opening_block_states_the_project_and_the_config_in_one_group(
     tmp_path, capture_runs, capsys
 ):
     """A console of four back-to-back Snakemake runs must say whose they are.
@@ -437,16 +450,22 @@ def test_opening_block_states_the_project_the_config_and_the_cores(
     Snakemake's own preamble names the host and the job counts and never the
     project, so before this block a scrolled-back or pasted console could not be
     attributed to a project or a config without asking.
+
+    ONE group: what came from the command line and what came from the config
+    were two, and that is a distinction the writer cares about rather than the
+    reader. `cores` went with the split -- it is not a property of the project,
+    and every hand-off band prints the `-c N` it forwarded.
     """
     _, out, project_dir = _run_and_capture(
         tmp_path, capsys, {n: "true" for n in rw.WORKFLOW_ORDER}, cores=7
     )
     assert "  run_workflows" in out.splitlines()  # the banner's head line
-    rows = _group_rows(out, "run")
+    assert "  run" not in out.splitlines()  # the old first group is gone
+    rows = _group_rows(out, "settings")
     assert rows["project"] == "gabon_project"  # basename, no project_name key
     assert rows["folder"] == str(project_dir).replace(os.sep, "/")
-    assert rows["cores"] == "7"
     assert "c.yml" in rows["config"]
+    assert "cores" not in rows
 
 
 def test_opening_block_diagrams_the_sequence_and_marks_the_disabled(
@@ -545,15 +564,21 @@ def test_the_opening_block_states_the_basin_settings(tmp_path, capture_runs, cap
         encoding="utf-8",
     )
     rw.run(str(cfg), cores=3, extra=[])
-    rows = _group_rows(capsys.readouterr().out, "settings")
+    out = capsys.readouterr().out
+    rows = _group_rows(out, "settings")
+    lines = _group_lines(out, "settings")
 
     assert rows["region"] == "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
-    assert rows["bbox"] == "lon 9.6000 .. 9.8000, lat 0.4000 .. 0.6000"
-    # ~22 x 22 km at this latitude; the row is a scale, so it says `approx`.
-    assert rows["extent"].startswith("approx 22 x 22 km")
-    assert rows["climate"] == "era5"
-    assert rows["historical"] == "2000-01-01 .. 2016-12-31"
     assert rows["resolution"].startswith("0.00833 deg")
+    # The delineated box is the region row CONTINUING -- one setting, stated and
+    # then answered -- so it carries no key of its own and is aligned into the
+    # value column (`~22 x 22 km` at this latitude; a scale, hence `approx`).
+    region_at = next(i for i, line in enumerate(lines) if line.startswith("region"))
+    assert lines[region_at + 1] == (
+        "lon 9.6000 .. 9.8000, lat 0.4000 .. 0.6000  (approx 22 x 22 km)"
+    )
+    raw = _group_raw_lines(out, "settings")
+    assert raw[region_at + 1].index("lon ") == raw[region_at].index("{'subbasin'")
 
 
 def test_the_bbox_says_it_is_absent_rather_than_deriving_one(
@@ -577,22 +602,28 @@ def test_the_bbox_says_it_is_absent_rather_than_deriving_one(
         encoding="utf-8",
     )
     rw.run(str(cfg), cores=3, extra=[])
-    rows = _group_rows(capsys.readouterr().out, "settings")
+    out = capsys.readouterr().out
+    lines = _group_lines(out, "settings")
 
-    assert rows["bbox"].startswith("not delineated yet")
-    assert "extent" not in rows
-    assert "9.666" in rows["region"]  # the specification is still stated
+    region_at = next(i for i, line in enumerate(lines) if line.startswith("region"))
+    assert "9.666" in lines[region_at]  # the specification is still stated
+    assert lines[region_at + 1].startswith("not delineated yet")
+    assert "approx" not in out  # and no extent, since there is no box
 
 
-def test_the_settings_group_is_skipped_when_the_config_declares_none(
+def test_the_basin_rows_are_omitted_when_the_config_declares_no_basin(
     tmp_path, capture_runs, capsys
 ):
-    """The wrapper validates `workflows:` and nothing else, so every row here is
-    optional -- an empty group would be a heading over nothing."""
+    """The wrapper validates `workflows:` and nothing else, so both basin rows
+    are optional -- but project, folder and config always answer."""
     _, out, _ = _run_and_capture(
         tmp_path, capsys, {n: "true" for n in rw.WORKFLOW_ORDER}
     )
-    assert "  settings" not in out.splitlines()
+    rows = _group_rows(out, "settings")
+    assert set(rows) == {"project", "folder", "config"}
+    # No orphaned continuation either: with no region asked for, there is
+    # nothing whose absence is worth a line.
+    assert "not delineated yet" not in out
 
 
 def test_an_extent_is_withheld_when_the_geometry_is_not_in_degrees(tmp_path):
@@ -648,6 +679,16 @@ def test_each_invoked_workflow_gets_a_hand_off_band_at_its_leading_edge(
     assert re.search(r"\[1/3]  wf0 analyze_climate  --  starting \d\d:\d\d:\d\d", out)
     assert re.search(r"\[3/3]  wf3 run_stress_test  --  starting \d\d:\d\d:\d\d", out)
     assert "  --  done in " not in out
+    # Flush left, title and command both. A band has no group label and no rows,
+    # so an indent would only make the line a reader scans for start one column
+    # later than the rule announcing it.
+    lines = out.splitlines()
+    title_at = next(
+        i for i, line in enumerate(lines) if "wf0 analyze_climate  --" in line
+    )
+    assert lines[title_at].startswith("[1/3]")
+    assert lines[title_at - 1] == rw._RULE  # the rule it hangs from
+    assert lines[title_at + 1].startswith("snakemake ")
     # A disabled workflow gets NO band -- the sequence diagram above already
     # named it, once, before anything ran.
     assert "wf2 analyze_projections  --  starting" not in out
