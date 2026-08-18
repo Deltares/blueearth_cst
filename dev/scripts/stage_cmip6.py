@@ -346,11 +346,20 @@ _RULE = "=" * 78
 def _unreadable(error):
     """True when the store EXISTS but this toolbox cannot read its grid.
 
-    A handful of CMIP6 models publish `Amon` on a non-rectilinear native grid,
-    and hydromt's `.raster` accessor requires 1-D monotonic lat/lon -- so the
-    read fails with `ValueError: The 'raster' accessor only applies to regular
-    grids`. Nothing about the request is wrong and retrying cannot help; the
-    data would have to be regridded first. Observed on NUIST/NESM3.
+    RESIDUAL since 2026-08-18. The case this was written for -- a GAUSSIAN
+    latitude axis, which hydromt's `.raster` accessor refuses with
+    `ValueError: The 'raster' accessor only applies to regular grids` -- is now
+    handled inside `fetch_raw_slice`, which re-reads unclipped and applies the
+    bbox itself (board item `t2608182020`). That was 27 of 67 models, including
+    CanESM5 and every EC-Earth3 variant.
+
+    Kept rather than deleted because it classifies a phrase, not a cause: a
+    slice reaching this bucket now means the branch did NOT engage, which is
+    worth seeing separately from an ordinary download failure. What still fails
+    outright is a grid the branch cannot read either -- 2-D/curvilinear
+    coordinates, or a store with no `lat` variable at all (MPI-M/ICON-ESM-LR,
+    UA/MCM-UA-1-0) -- and those raise their own messages, so they land in
+    `broke` with the reason attached.
 
     Matched on the accessor's own phrase rather than the exception type,
     because ValueError is far too common to key on alone.
@@ -431,15 +440,17 @@ def _print_report(
         for key in sorted(unavailable):
             print(f"    {FAILED_GLYPH} {key}")
     # Third kind: the model is THERE and the request was right, but its grid
-    # cannot be read. Retrying is pointless and choosing another member will
-    # not help either -- the only routes are regridding or dropping the model.
+    # was refused. Since the irregular-grid branch landed this should be EMPTY
+    # -- a Gaussian axis is read now -- so anything here means the branch did
+    # not engage and is worth reporting on its own line rather than among the
+    # ordinary download failures.
     if unreadable:
         print("")
         print(f"  irregular grid, cannot be read  ({len(unreadable)})")
         for key in sorted(unreadable):
             print(f"    {FAILED_GLYPH} {key}")
-        print("        hydromt's raster accessor needs a regular lat/lon grid;")
-        print("        these models publish Amon on a non-rectilinear native grid")
+        print("        hydromt's raster accessor refused the grid AND")
+        print("        fetch_raw_slice's irregular-grid branch did not engage")
 
     if broke:
         print("")

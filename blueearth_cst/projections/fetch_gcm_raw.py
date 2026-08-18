@@ -53,7 +53,9 @@ import os
 # one-line switch.
 os.environ.setdefault("GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT", "false")
 
-from blueearth_cst.projections import series_identity
+import numpy as np
+
+from blueearth_cst.projections import grid_weights, series_identity
 from blueearth_cst.shared.snake_utils import log_row, tee_to_log
 
 # ---------------------------------------------------------------------------
@@ -81,6 +83,120 @@ def hns_switch_row(value):
         + ("" if value == "false" else "  <-- expect ~14x slower remote opens"),
         "INFO" if value == "false" else "WARNING",
     )
+
+
+#: hydromt's own phrase for the refusal this module routes around
+#: (``hydromt/gis/raster.py:441`` -- ``np.allclose(dys, dys[0], atol=5e-4)``).
+#: Matched on the MESSAGE rather than on ``ValueError``, which is far too common
+#: a type to key on; ``dev/scripts/stage_cmip6.py`` classifies the same phrase.
+IRREGULAR_GRID_PHRASE = "only applies to regular grids"
+
+
+def is_irregular_grid_error(error):
+    """True when hydromt refused a read because the grid is not evenly spaced.
+
+    27 of 67 CMIP6 models publish ``Amon`` on a GAUSSIAN grid, whose latitudes
+    are Legendre roots and vary by ~1% -- against hydromt's 5e-4 tolerance, so
+    no Gaussian grid can ever pass. The data is well formed; the accessor's
+    precondition is simply tighter than the grid type allows (board item
+    `t2608182020`, which carries the measured table).
+    """
+    return IRREGULAR_GRID_PHRASE in str(error)
+
+
+def bbox_index_slice(centers, low, high, buffer, axis="axis", source=""):
+    """The index range ``.raster.clip_bbox`` would take, without needing regularity.
+
+    hydromt maps the bbox through the grid's affine transform and rounds to whole
+    cells (``gis/raster.py:1265-1271``). An affine transform is exactly what an
+    irregular axis does not have -- but the transform is only ever used to ask
+    *which cell edge is nearest this coordinate*, and midpoint edges answer that
+    on any ordered 1-D axis. So this interpolates the coordinate's position
+    within :func:`grid_weights.midpoint_edges` instead, which on a uniformly
+    spaced axis is the same linear map hydromt inverts, and therefore selects the
+    same cells (pinned by ``test_fetch_gcm_raw`` against ``clip_bbox`` itself).
+
+    Two properties are inherited from hydromt rather than chosen here:
+
+    * ``buffer`` is in CELLS, not degrees. The config key is named
+      ``buffer_degrees`` and hydromt has always read it as
+      "resolution multiplicity" (``data_catalog.py:1370``), so a regular and an
+      irregular slice of the same region must use the same reading or the two
+      would differ silently inside one ensemble. The misleading NAME is a
+      separate finding, and fixing it would invalidate every cached slice.
+    * the direction of the axis is irrelevant. ``harmonise_dims`` orients
+      latitude N->S, so a label-based ``slice(south, north)`` would return
+      NOTHING -- and nothing downstream catches an empty spatial selection,
+      since ``check_time_axis`` is about time. Working in index space off the
+      edge ladder is order-independent by construction.
+
+    Raises when the bbox leaves the axis's own span, which is the one case
+    hydromt handles differently: on a grid spanning 360 degrees it shifts
+    longitudes across the 180 meridian first (``_meridian_offset``), and that
+    helper reads ``.raster.bounds`` -- so it cannot run here. Refused loudly
+    rather than clamped, which would drop the part of the region that wrapped.
+    """
+    arr = grid_weights.check_axis(centers, axis, source)
+    if arr.size == 1:
+        return slice(0, 1)
+    edges = grid_weights.midpoint_edges(arr)
+    span_low, span_high = min(edges[0], edges[-1]), max(edges[0], edges[-1])
+    if low < span_low or high > span_high:
+        where = f" ({source})" if source else ""
+        raise RuntimeError(
+            f"{axis}{where}: the region {low:.6g}..{high:.6g} leaves the grid's "
+            f"own span {span_low:.6g}..{span_high:.6g}. On a regular grid hydromt "
+            "would first shift the axis across the 180 meridian; that shift reads "
+            "the raster accessor and so cannot run on an irregular grid. Refused "
+            "rather than clipped to the edge, which would silently drop the part "
+            "of the region that wrapped."
+        )
+    ladder = np.arange(edges.size, dtype="float64")
+    ascending = edges[-1] > edges[0]
+    positions = np.interp(
+        [low, high],
+        edges if ascending else edges[::-1],
+        ladder if ascending else ladder[::-1],
+    )
+    first = max(int(np.round(positions.min() - buffer)), 0)
+    last = max(int(np.round(positions.max() + buffer)), 0)
+    return slice(first, last)
+
+
+def clip_to_bbox(data, bbox, buffer, y_dim, x_dim, source=""):
+    """Clip an unclipped dataset to ``bbox``, the way hydromt would have.
+
+    The irregular-grid branch: ``get_rasterdataset`` is asked for the store
+    WITHOUT a bbox, so hydromt never reaches ``_slice_spatial_dimensions`` -- the
+    only step in its read path that needs an evenly spaced grid -- and the rename,
+    unit conversion, CRS and nodata handling all still run. The bbox is then
+    applied here, on an axis whose spacing nothing requires to be uniform.
+
+    Refuses an empty selection instead of returning it. With ``buffer >= 1`` the
+    index range is at least two cells wide, so this cannot trigger on WF2's
+    configuration; it exists because an empty spatial selection produces a slice
+    of all-NaN rather than an error, and would surface as a broken change factor
+    several rules later.
+    """
+    west, south, east, north = bbox
+    selection = {
+        y_dim: bbox_index_slice(
+            data[y_dim].values, south, north, buffer, "latitude", source
+        ),
+        x_dim: bbox_index_slice(
+            data[x_dim].values, west, east, buffer, "longitude", source
+        ),
+    }
+    clipped = data.isel(selection)
+    empty = [dim for dim in (y_dim, x_dim) if clipped.sizes[dim] == 0]
+    if empty:
+        where = f" ({source})" if source else ""
+        raise RuntimeError(
+            f"clipping to {bbox}{where} selected no cells along {empty}. A raw "
+            "slice with an empty spatial dimension reduces to NaN rather than "
+            "failing, so it is refused here."
+        )
+    return clipped
 
 
 def resolve_entry_name(catalog_entry, member):
@@ -345,8 +461,10 @@ def fetch_raw_slice(
     # 118 MiB RSS versus geopandas + hydromt + xarray 6.7-7.4 s / 311 MiB, so a
     # cached job stops paying ~4 s and ~193 MiB peak (against the 9.98-10.24 s /
     # ~327 MiB the nine cached fetch jobs cost in wf2_benchmarks.md).
-    # The `.raster` accessor hydromt registers is not used here -- this module
-    # reads through DataCatalog, unlike get_stats_climate_proj.py.
+    # The `.raster` accessor hydromt registers is used only for the dimension
+    # NAMES on the irregular-grid branch below -- this module reads through
+    # DataCatalog, unlike get_stats_climate_proj.py. That branch exists because
+    # the accessor's REGULARITY precondition is what refuses a Gaussian grid.
     # It stays INSIDE the tee: `tee_to_log` repoints library handlers bound
     # before entry, so an import that lands after entry must keep landing after
     # entry, or hydromt's StreamHandler binds to the real stdout and bypasses
@@ -407,13 +525,61 @@ def fetch_raw_slice(
         data_catalog = hydromt.DataCatalog()
         data_catalog.from_dict({catalog_entry: pinned_spec})
         log_row(f"pinned URI (no bucket listing): {pin_uri}", module="fetch")
-    data = data_catalog.get_rasterdataset(
-        entry,
-        bbox=bbox,
-        buffer=buffer,
-        time_range=acquisition_window,
-        variables=variables,
-    )
+    # --- the read, with the irregular-grid branch behind it ----------------
+    # 27 of 67 CMIP6 models publish Amon on a Gaussian grid, whose latitudes are
+    # Legendre roots and so vary by ~1% -- an order above hydromt's 5e-4
+    # regularity tolerance. Those models raised here and were SILENTLY ABSENT
+    # from every WF2 ensemble: CanESM5, all five EC-Earth3 variants,
+    # MPI-ESM1-2-HR/LR, CNRM-CM6-1/ESM2-1, MIROC6, MRI-ESM2-0, BCC-CSM2-MR
+    # (measured 2026-08-18, board item t2608182020).
+    #
+    # `_slice_spatial_dimensions` is the ONLY step in hydromt's read path that
+    # needs an evenly spaced grid, and it runs only when a bbox is passed. So the
+    # branch asks for the same store WITHOUT one -- rename, unit conversion, CRS
+    # and nodata all still hydromt's -- and applies the bbox with `clip_to_bbox`,
+    # which needs the axes ordered but not evenly spaced.
+    #
+    # Tried in this order, rather than probing the grid first, because the probe
+    # would have to guess which variable's store to read and could then DISAGREE
+    # with hydromt's own verdict. The regular path is therefore untouched, down
+    # to the cell selection, so no cached slice invalidates and the digest does
+    # not move; the models this rescues never had a cached slice to begin with.
+    # The price is a second open on the irregular path (~20 s pinned, against a
+    # first open that has already paid the store metadata), on models that
+    # previously produced nothing at all.
+    try:
+        data = data_catalog.get_rasterdataset(
+            entry,
+            bbox=bbox,
+            buffer=buffer,
+            time_range=acquisition_window,
+            variables=variables,
+        )
+    except ValueError as exc:
+        if not is_irregular_grid_error(exc):
+            raise
+        log_row(
+            f"{entry}: hydromt refuses this grid as irregular (Gaussian latitudes); "
+            "re-reading unclipped and applying the bbox directly",
+            module="fetch",
+            level="WARNING",
+        )
+        try:
+            data = data_catalog.get_rasterdataset(
+                entry,
+                time_range=acquisition_window,
+                variables=variables,
+            )
+            data = clip_to_bbox(
+                data, bbox, buffer, data.raster.y_dim, data.raster.x_dim, source=entry
+            )
+        except Exception as fallback_exc:
+            # hydromt's own errors name neither the entry nor the member, and
+            # this one is now two reads deep -- say which series died.
+            raise RuntimeError(
+                f"{entry}: the irregular-grid read path failed after hydromt "
+                f"refused the grid ({type(fallback_exc).__name__}: {fallback_exc})"
+            ) from fallback_exc
     # Kept for the empty-window error below: `time_range` is applied by the
     # driver and `.sel` narrows it again, so "the driver returned 1850..2014"
     # is the diagnostic that tells the two apart.

@@ -1,7 +1,7 @@
 ---
 title: 40% of CMIP6 models are refused by hydromt's regular-grid check
 type: todo-item
-status: backlog
+status: active
 effort: 2
 area: wf2 projections / remote store
 origin: 2026-08-18 stage_cmip6 run
@@ -24,13 +24,65 @@ updated: 2026-08-18
 
 ## Progress
 
-- [ ] Decide the approach (see the three below); it is a design call, not a patch
-- [ ] Implement on the ONE fetch path — `fetch_gcm_raw.fetch_raw_slice`, which
+- [x] Decide the approach — **option 1**, as an IRREGULAR-ONLY branch: the
+      regular path is untouched down to the cell selection, so nothing that
+      works today changes
+- [x] Implement on the ONE fetch path — `fetch_gcm_raw.fetch_raw_slice`, which
       WF2 rule 2.04 and `dev/scripts/stage_cmip6.py` both call
-- [ ] Decide what happens to slices already cached under the old path: whether
-      the digest changes, and therefore whether existing `raw/` caches invalidate
-- [ ] Re-run `dev/scripts/probe_cmip6_grids.py` afterwards and confirm the
-      refused set is empty (bar the genuine outliers below)
+- [x] Decide what happens to slices already cached: **nothing invalidates**, and
+      `SCHEMA_VERSION` does not move. The regular path is byte-identical, and
+      the models this rescues never had a cached slice to begin with
+- [x] Acceptance — CanESM5 (Gaussian) staged end to end, with GFDL-ESM4
+      (regular) as the control. See "What landed" below
+- [ ] Re-run the full ensemble once and confirm no model in the 27 still fails.
+      A **spot check is not the measurement**: the branch was verified on one
+      Gaussian model, and 26 others have never been read
+
+## What landed
+
+`fetch_raw_slice` wraps its `get_rasterdataset` call and, on hydromt's own
+`only applies to regular grids` phrase only, re-reads the SAME store without a
+bbox and applies the bbox itself:
+
+- `_slice_spatial_dimensions` is the only step in hydromt's read path that needs
+  an evenly spaced grid, and it runs **only when a bbox is passed**. Verified
+  against a live CanESM5 store before the branch was written: the un-clipped
+  read succeeds, and rename, unit conversion, CRS and nodata are still
+  hydromt's.
+- `bbox_index_slice` reproduces `.raster.clip_bbox` in index space, off
+  `grid_weights.midpoint_edges` rather than an affine transform. Pinned against
+  `clip_bbox` itself on a uniform grid across 3 bboxes × 3 buffer values, which
+  is what makes the **`buffer` = CELLS** reading evidence rather than assertion.
+- Latitude is handled in index space because `harmonise_dims` leaves it N->S: a
+  label slice `sel(lat=slice(south, north))` would return nothing, and an empty
+  spatial selection reduces to NaN rather than raising.
+
+Measured 2026-08-18, `--workers 1`, region `test_case/test_local`:
+
+| model | grid | result |
+|---|---|---|
+| CCCma/CanESM5 | Gaussian | staged, 2x2 cells, 780 steps, 26.4 degC / 9.59 mm day-1 |
+| NOAA-GFDL/GFDL-ESM4 | regular (control) | staged, 2x2 cells, 780 steps, 24.5 degC / 9.41 mm day-1 |
+
+CanESM5 cost 1:25 against the control's 0:22 — the branch pays a second open
+(~19 s here) on a model that previously produced nothing at all. A cheap
+pre-probe of the grid was considered and rejected: it would have to guess which
+variable's store to read and could then DISAGREE with hydromt's own verdict.
+
+## Not done here, and why
+
+- **The `buffer_degrees` name is wrong.** hydromt has always read `buffer` as
+  "resolution multiplicity" — cells (`data_catalog.py:1370`) — while
+  `analyze_projections.smk:402` calls it `REGION_BUFFER_DEGREES` and passes
+  `1.0`. Every slice ever fetched used the cell reading, so the branch matches
+  it deliberately; correcting the NAME is safe, correcting the SEMANTICS would
+  invalidate every cached slice and change every change factor. Its own item.
+- **`CAS/FGOALS-g3`** (`dlat 2.0253 .. 5.1811`, a real variable-resolution grid)
+  needs no separate answer after all: the branch requires the axis to be
+  ordered, not evenly spaced, so it reads like any Gaussian model. Unverified —
+  it is in the 26 the sweep above still has to cover.
+- **The two `error` models** (MPI-M/ICON-ESM-LR, UA/MCM-UA-1-0) carry no `lat`
+  variable and still fail, before any grid question is asked.
 
 ## The measurement
 
@@ -58,8 +110,9 @@ That is a **Gaussian grid**, and the variation is ~0.008 deg against hydromt's
 tolerance of 5e-4. No Gaussian grid can ever satisfy that test — the data is
 well-formed and the tolerance is simply tighter than the grid type allows.
 
-**One genuine outlier**, which is NOT Gaussian and needs its own answer:
-`CAS/FGOALS-g3` at `dlat 2.0253 .. 5.1811` — a real variable-resolution grid.
+**One genuine outlier**, which is NOT Gaussian: `CAS/FGOALS-g3` at
+`dlat 2.0253 .. 5.1811` — a real variable-resolution grid. It looked at the time
+as though it needed its own answer; it does not (see "Not done here").
 
 ## The check being failed
 
@@ -94,6 +147,11 @@ only 17 models in the index do, and neither `AWI/AWI-CM-1-1-MR` nor
 
 - `dev/scripts/probe_cmip6_grids.py` — the probe; re-run it to re-measure.
   Reads coordinates only, so it is far cheaper than a hydromt open.
+  **It cannot be the acceptance check**, which this note originally said it was:
+  it applies hydromt's tolerance to the store's own coordinates and never touches
+  `fetch_gcm_raw`. The grids stay Gaussian, so it will report the same 27
+  IRREGULAR forever. It measures grid GEOMETRY, not readability — staging a
+  slice is what measures readability.
 - `blueearth_cst/projections/fetch_gcm_raw.py` — `fetch_raw_slice`, the single
   read path both WF2 and the staging tool use. Whatever is done goes here.
 - [[t2608172138]] — the wf1 preflight, same "refuse it up front" instinct that
