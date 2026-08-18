@@ -205,8 +205,11 @@ def test_plan_refuses_a_scenario_the_model_never_published():
 
     The catalog knows, so the request is refused before a worker is spawned.
     """
+    # `plan` never opens the region -- it only consults the catalog -- so these
+    # cases need no fixture and run on a bare checkout, which is where a
+    # regression in the pre-filter would otherwise go unseen.
     cfg = _cfg() | {
-        "region": str(REGION),
+        "region": "unused",
         "target_root": "unused",
         "models": ["NCAR/CESM2-FV2"],
         "scenarios": ["ssp245"],
@@ -228,8 +231,11 @@ def test_plan_refuses_a_member_the_entry_does_not_have_and_names_the_real_ones()
     separator, and nothing anywhere saying "wrong member". 70 of the catalog's
     289 entries lack `r1i1p1f1`, so this is the common case, not an oddity.
     """
+    # `plan` never opens the region -- it only consults the catalog -- so these
+    # cases need no fixture and run on a bare checkout, which is where a
+    # regression in the pre-filter would otherwise go unseen.
     cfg = _cfg() | {
-        "region": str(REGION),
+        "region": "unused",
         "target_root": "unused",
         "models": ["NIMS-KMA/UKESM1-0-LL"],
         "scenarios": ["historical"],
@@ -244,8 +250,11 @@ def test_plan_refuses_a_member_the_entry_does_not_have_and_names_the_real_ones()
 
 def test_plan_keeps_a_combination_the_catalog_really_carries():
     """The filter must not be over-eager -- a real request still plans."""
+    # `plan` never opens the region -- it only consults the catalog -- so these
+    # cases need no fixture and run on a bare checkout, which is where a
+    # regression in the pre-filter would otherwise go unseen.
     cfg = _cfg() | {
-        "region": str(REGION),
+        "region": "unused",
         "target_root": "unused",
         "models": ["INM/INM-CM4-8"],
         "scenarios": ["historical"],
@@ -331,6 +340,29 @@ def test_resolve_workers_caps_at_the_slice_count_and_floors_at_one():
     assert sc.resolve_workers(0, 5) == 1
 
 
+#: A syntactically valid polygon, written into tmp_path. `load_config` only
+#: checks that the region FILE exists, and any test that stubs the fetch never
+#: reads its geometry -- so depending on `test_case/` for it would tie the case
+#: to a fixture no bare checkout has. That is not hypothetical: this test
+#: originally used the fixture region, passed everywhere `test_case/` exists,
+#: and failed on BOTH CI legs, which is the one place it could.
+MINIMAL_REGION = """{
+  "type": "FeatureCollection",
+  "features": [{
+    "type": "Feature", "properties": {},
+    "geometry": {"type": "Polygon", "coordinates": [[
+      [9.6, 0.3], [9.9, 0.3], [9.9, 0.5], [9.6, 0.5], [9.6, 0.3]]]}
+  }]
+}
+"""
+
+
+def _standalone_region(tmp_path):
+    path = tmp_path / "region.geojson"
+    path.write_text(MINIMAL_REGION, encoding="utf-8")
+    return path
+
+
 def test_one_worker_stays_in_process(tmp_path, capsys, monkeypatch):
     """`--workers 1` must not spin up a pool.
 
@@ -338,6 +370,9 @@ def test_one_worker_stays_in_process(tmp_path, capsys, monkeypatch):
     real failure, which is the whole reason the flag accepts 1. Asserted by
     making the pool EXPLODE if touched, and stubbing the fetch -- both work
     here only because this path never leaves the process, which is the point.
+
+    Runs on EVERY checkout: it needs no fixture, which is what lets CI catch a
+    regression in it.
     """
     import yaml
 
@@ -348,7 +383,7 @@ def test_one_worker_stays_in_process(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr(sc, "stage_one", lambda cfg, job: (job["key"], None, 0.5))
 
     cfg = {
-        "region": str(REGION),
+        "region": str(_standalone_region(tmp_path)),
         "target_root": str(tmp_path / "out"),
         "models": ["INM/INM-CM4-8"],
         "scenarios": ["historical"],
