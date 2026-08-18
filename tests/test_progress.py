@@ -8,6 +8,7 @@ per compute, an ASCII fallback, and a final frame that reads as a summary.
 import io
 import os
 import sys
+import time
 
 import pytest
 
@@ -531,3 +532,31 @@ def test_wflow_relay_starts_a_fresh_bar_after_a_completed_one(tmp_path=None):
     assert reopened is not None and reopened.endswith("\r")
     # ...and its own completion is rendered again, not swallowed.
     assert relay.feed(_cst("wflow", 1.0), stream=_FakeStream()) is not None
+
+
+def test_wflow_relay_tick_is_silent_when_no_bar_is_open():
+    """Nothing to redraw is not the same as a bar at 0% -- the caller must be
+    able to tell, because that is what decides whether the watchdog beeps."""
+    relay = WflowFrameRelay(width=20)
+    assert relay.tick() is None
+
+    relay.feed(_cst("wflow", 1.0), stream=_FakeStream())
+    # The bar closed with its final frame; a tick after it would redraw a
+    # completed run as though it were still working.
+    assert relay.tick() is None
+
+
+def test_wflow_relay_tick_redraws_the_open_bar_with_the_clock_advanced():
+    """The stall answer: same position, later time, still one in-place frame."""
+    relay = WflowFrameRelay(width=20)
+    drawn = relay.feed(_cst("wflow", 0.5), stream=_FakeStream())
+    time.sleep(0.01)
+    ticked = relay.tick()
+
+    assert drawn.endswith("\r") and ticked.endswith("\r")
+    # The POSITION is the child's to report; a tick may not invent progress.
+    assert "50.0%" in ticked
+    assert ticked.startswith("wflow")
+    # Only the elapsed clock may differ, so the frames are the same width -- a
+    # shorter redraw would leave a tail of the one it overwrites.
+    assert len(ticked) == len(drawn)

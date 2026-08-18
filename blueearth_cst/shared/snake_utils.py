@@ -1514,6 +1514,23 @@ class RegionRule:
     params: Mapping
 
 
+def region_geojson_path(project_dir):
+    """The project's one delineated-region artifact, given its root.
+
+    R9 P2 commit 2: engine-neutral geometry lives under `data/` (design v10).
+    Defined ONCE here and splatted into all three workflows' delineate_region
+    rule through :func:`region_rule`, so a move lands in every workflow at the
+    same instant -- tests/test_region_rule.py parses all three and fails on any
+    difference.
+
+    Split out of `region_rule` so a caller that wants only the PATH need not
+    invent a region specification and a catalog to get one:
+    `scripts/run_workflows.py` reads the polygon to state the project's bounding
+    box in its opening block, long before any rule has been built.
+    """
+    return f"{project_dir}/data/spatial/geoms/region.geojson"
+
+
 def region_rule(
     project_dir,
     model_region,
@@ -1559,11 +1576,7 @@ def region_rule(
     RegionRule
         ``region_geojson``, ``script``, ``inputs``, ``outputs``, ``params``.
     """
-    # R9 P2 commit 2: engine-neutral geometry lives under `data/` (design v10).
-    # Defined ONCE here and splatted into all three workflows' delineate_region
-    # rule, so the move lands in every workflow at the same instant --
-    # tests/test_region_rule.py parses all three and fails on any difference.
-    region_geojson = f"{project_dir}/data/spatial/geoms/region.geojson"
+    region_geojson = region_geojson_path(project_dir)
     return RegionRule(
         region_geojson=region_geojson,
         script=REGION_SCRIPT,
@@ -2199,9 +2212,12 @@ class _Heartbeat:
     the interval without touching a Snakefile.
     """
 
-    def __init__(self, label, stream, interval=60.0):
+    def __init__(self, label, stream, interval=60.0, on_stall=None):
         self._label = label
         self._stream = stream
+        #: Called INSTEAD of printing the notice; a truthy return means the
+        #: stall was already answered elsewhere on the console (see `_run`).
+        self._on_stall = on_stall
         raw = os.environ.get("CST_HEARTBEAT_SECS")
         try:
             self._interval = float(raw) if raw is not None else float(interval)
@@ -2286,6 +2302,16 @@ class _Heartbeat:
             if now - last >= self._interval:
                 if quiet_since is None:
                     quiet_since = last
+                # A rule that is drawing a progress bar answers the stall in the
+                # bar's own line: the hook redraws it with the clock advanced,
+                # which is the only fact the notice carries, and the notice's
+                # row would otherwise land ON the line the bar occupies. The
+                # silence is still REAL and is still recorded in `_quiet` below
+                # -- only its console presentation changed, so `quiet_rows` is
+                # unaffected. `_noticed` stays unset too: no yellow bracket was
+                # opened here, so `stop()` has none to close.
+                if self._on_stall is not None and self._on_stall():
+                    continue
                 elapsed = _fmt_elapsed(now - self._start)
                 self._noticed = True
                 self._emit(
@@ -2364,6 +2390,31 @@ def _cr_overwrite(line):
         return line
     segments = [s for s in line.split("\r") if s]
     return segments[-1] if segments else ""
+
+
+def _pad_line_over(text, columns):
+    """Pad ``text`` so it covers a progress frame it is about to overwrite.
+
+    A frame is written as ``<bar>\\r``: the text lands, then the carriage return
+    puts the cursor back at column 0 WITHOUT erasing anything. Whatever is
+    written next therefore overwrites the frame from the left and leaves
+    everything past its own end standing -- which is how a bar's summary row
+    kept a stale ``eta 0:12`` hanging off it, and how an ordinary log row landed
+    looking like it had been appended to the bar with no line break between them
+    (both observed 2026-08-18, on WF3's batched Wflow runs).
+
+    Padding goes before the trailing newline, and on the FIRST line of a
+    multi-line chunk, because the frame occupies the line the cursor is on and
+    not the one the text ends on.
+
+    Returns ``(padded_text, columns_still_dirty)`` -- the second being what to
+    pass back next time: the width now standing on the console line, or ``0``
+    once a newline has moved past it.
+    """
+    head, sep, tail = text.partition("\n")
+    if len(head) < columns:
+        head = head.ljust(columns)
+    return head + sep + tail, 0 if sep else len(head)
 
 
 def _drop_redraw_frames(text, in_redraw):
@@ -2802,6 +2853,9 @@ class _NoFrameRelay:
     def feed(self, line, stream=None):
         return None
 
+    def tick(self):
+        return None
+
     def close(self):
         return None
 
@@ -2837,7 +2891,10 @@ def run_and_tee(command, log_path):
 
     Wflow progress frames (``[cst-progress] <label> <fraction>``, emitted by
     ``shared/wflow_progress.jl``) are re-rendered here as the house progress bar;
-    see :class:`~blueearth_cst.shared.progress.WflowFrameRelay`.
+    see :class:`~blueearth_cst.shared.progress.WflowFrameRelay`. While such a bar
+    is open the silence watchdog redraws it instead of printing its own
+    ``still running`` notice (``_bar_tick``), and every console write is padded
+    over whatever frame is standing on the line (``_pad_line_over``).
 
     A *pure* trailing run of benign interpreter-shutdown excepthook noise (see
     ``_EXCEPTHOOK_MARKERS``) is collapsed into a single summary line so it does
@@ -2896,6 +2953,20 @@ def run_and_tee(command, log_path):
                 sys.stdout.write(folded.encode(enc, "replace").decode(enc))
             sys.stdout.flush()
 
+        # Columns of a progress frame currently standing on the console line, or
+        # 0 when the cursor sits on a clean one. A frame ends in a carriage
+        # return, which moves the cursor back without erasing, so every later
+        # write has to cover it -- see `_pad_line_over`. ONE counter, because all
+        # three writers (a streamed frame, the watchdog's tick, an ordinary row)
+        # share the one console line.
+        bar_line = {"columns": 0}
+
+        def _console_frame(text):
+            """Write one in-place frame, padded over what it overwrites."""
+            body = _cr_overwrite(text)
+            _console_write(body.ljust(bar_line["columns"]) + "\r")
+            bar_line["columns"] = len(body)
+
         def emit(text, redraw=False, had_cr=False):
             # Collapse a carriage-return-redrawn line to the frame that was
             # actually left on screen, then compact hydromt's redundant log
@@ -2913,7 +2984,14 @@ def run_and_tee(command, log_path):
             if not _muted_on_console(text):
                 # Body tier on the console only: a shell rule's output is
                 # detail, and `log` below must stay free of escape codes.
-                shown = _paint_body(text, colour)
+                #
+                # Padded for the CONSOLE only, and painted afterwards:
+                # `log.write` below takes the original `text`, so a bar's
+                # summary row does not reach the file with trailing spaces on
+                # it, and the padding is measured on the text rather than on the
+                # escape codes `_paint_body` wraps around it.
+                console_text, columns = _pad_line_over(text, bar_line["columns"])
+                shown = _paint_body(console_text, colour)
                 # `redraw` means the frames of this line were already streamed,
                 # so the cursor sits mid-bar: return to column 0 and overwrite
                 # it with the final frame rather than printing a second line.
@@ -2925,6 +3003,10 @@ def run_and_tee(command, log_path):
                     pass
                 else:
                     _console_write(("\r" + shown) if redraw else shown)
+                    # Only where the row was actually WRITTEN: a row the console
+                    # dropped leaves whatever frame is standing exactly where it
+                    # was, so the next writer still has to cover it.
+                    bar_line["columns"] = columns
             log.write(text)
             log.flush()
 
@@ -2952,10 +3034,38 @@ def run_and_tee(command, log_path):
         stream = io.TextIOWrapper(
             proc.stdout, encoding="utf-8", errors="replace", newline=""
         )
+        # Wflow reports its timestep progress as a bare fraction (see
+        # `shared/wflow_progress.jl`); this turns each one into a frame of the
+        # same bar wf0's and wf2's long writes animate. Built BEFORE the
+        # watchdog because the watchdog consults it -- see `_bar_tick`.
+        wflow_bar = _wflow_frame_relay()
+
+        def _bar_tick():
+            """Answer a stall by redrawing the open bar; False if there is none.
+
+            The watchdog's `still running, 1m00s elapsed` and a live bar carry
+            the same fact, and printing the first onto the second's line is what
+            leaves a row with a frame's tail hanging off it. So while a bar is
+            open the stall is answered IN the bar, and the notice is kept for
+            the rules that have no bar to draw -- 3.06 (weathergenr), 3.12 and
+            3.14, where silence really is the only thing there is to report.
+
+            False off a terminal as well: there the frames are not streamed at
+            all (`stream_frames`), so a redraw would print nothing and the
+            notice is the only liveness signal a captured log gets.
+            """
+            if not stream_frames:
+                return False
+            frame = wflow_bar.tick()
+            if frame is None:
+                return False
+            _console_frame(frame)
+            return True
+
         # Silence watchdog: prints an elapsed-time notice to the console (stderr,
         # never the log) if the child goes quiet — so a hung Julia/Wflow/hydromt
         # step is visible live. Touched on every line read from the child.
-        heartbeat = _Heartbeat(label, sys.stderr).start()
+        heartbeat = _Heartbeat(label, sys.stderr, on_stall=_bar_tick).start()
         # ``pending`` holds a trailing run of candidate shutdown-noise lines that
         # are withheld until we know whether real content follows (flush
         # verbatim) or the stream ends (collapse if it is a true cascade).
@@ -2963,10 +3073,6 @@ def run_and_tee(command, log_path):
         try:
             pending = []
             folder = _JuliaRecordFolder()
-            # Wflow reports its timestep progress as a bare fraction (see
-            # `shared/wflow_progress.jl`); this turns each one into a frame of
-            # the same bar wf0's and wf2's long writes animate.
-            wflow_bar = _wflow_frame_relay()
             # Carriage-return frames of a line still being redrawn, held until
             # its terminating newline arrives.
             frames = []
@@ -3018,7 +3124,7 @@ def run_and_tee(command, log_path):
                     raw = rendered
                 if raw.endswith("\r"):
                     if stream_frames:
-                        _console_write(raw)
+                        _console_frame(raw)
                     frames.append(raw)
                     continue
                 line, frames = "".join(frames) + raw, []
@@ -3035,8 +3141,14 @@ def run_and_tee(command, log_path):
                     # would become that segment and blank the bar it closes.
                     chunk = chunk.rstrip("\r") + trailing
                 deliver(chunk, redraw=stream_frames)
-            elif trailing is not None and stream_frames:
+            elif trailing is not None and stream_frames and bar_line["columns"]:
+                # Only when a frame is still standing. The bar's line may have
+                # been closed already -- by its own summary, or by an ordinary
+                # row that overwrote it -- and a newline written onto a clean
+                # line is a blank one, which reads as output that went missing.
+                # The LOG is unaffected either way: this branch is console-only.
                 _console_write(trailing)
+                bar_line["columns"] = 0
             # An unterminated record is released verbatim, and must NOT go back
             # through `folder.feed` — its head line would simply be buffered
             # again and lost with it.

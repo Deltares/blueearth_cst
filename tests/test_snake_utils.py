@@ -921,6 +921,36 @@ def test_tee_to_log_close_flushes_interrupted_bar(tmp_path):
     assert "50% In progress" in log.read_text(encoding="utf-8")
 
 
+# --- covering the frame a carriage return did not erase -----------------------
+
+
+def test_pad_line_over_covers_a_wider_frame():
+    """A short row over a long frame must clear the frame's tail, not sit in it."""
+    padded, dirty = su._pad_line_over("done\n", 12)
+    assert padded == "done        \n"  # padding BEFORE the newline
+    assert dirty == 0  # the newline moved past the frame
+
+
+def test_pad_line_over_reports_what_is_left_standing():
+    """A write with no newline leaves its own width on the line for the next one."""
+    padded, dirty = su._pad_line_over("bar 50%", 20)
+    assert dirty == 20  # the padding is what now stands there
+    assert len(padded) == 20
+
+
+def test_pad_line_over_leaves_a_line_wider_than_the_frame_alone():
+    """Padding is a floor, never a width: a long row is not truncated or grown."""
+    padded, dirty = su._pad_line_over("a considerably longer row\n", 5)
+    assert padded == "a considerably longer row\n"
+    assert dirty == 0
+
+
+def test_pad_line_over_pads_the_first_line_of_a_multi_line_chunk():
+    """The frame is on the line the CURSOR is on, not the one the text ends on."""
+    padded, _ = su._pad_line_over("first\nsecond\n", 10)
+    assert padded == "first     \nsecond\n"
+
+
 # --- console-side redraw suppression -----------------------------------------
 
 
@@ -1143,6 +1173,56 @@ def test_heartbeat_suppressed_while_active():
         time.sleep(0.02)
     hb.stop()
     assert "still running" not in stream.getvalue()  # never beeped
+
+
+def test_heartbeat_hands_a_stall_to_the_bar_when_one_is_open():
+    """`on_stall` answering the stall replaces the notice, and the summary too.
+
+    The summary exists to CLOSE a `still running` bracket. Where none was
+    opened, printing `done in 4m` is the redundant line `stop()` already
+    declines to print on a rule that never beeped.
+    """
+    stream = io.StringIO()
+    answered = []
+    hb = _Heartbeat(
+        "3.15_run_wflow",
+        stream,
+        interval=0.05,
+        on_stall=lambda: (answered.append(1), True)[1],
+    ).start()
+    time.sleep(0.16)
+    hb.stop()
+
+    assert answered  # the hook was consulted rather than bypassed
+    assert stream.getvalue() == ""
+
+
+def test_heartbeat_still_beeps_when_the_hook_declines():
+    """A rule with no bar to redraw -- 3.06, 3.12, 3.14 -- keeps the notice."""
+    stream = io.StringIO()
+    hb = _Heartbeat("3.06_weathergen", stream, interval=0.05, on_stall=lambda: False)
+    hb.start()
+    time.sleep(0.16)
+    hb.stop()
+
+    assert "still running" in stream.getvalue()
+
+
+def test_heartbeat_records_the_quiet_period_even_when_the_bar_answered_it():
+    """The console presentation changed; the silence itself did not.
+
+    `quiet_rows` is the durable record a log reader gets, and a stall covered by
+    a redrawn bar is still a stretch in which the rule produced no output.
+    """
+    stream = io.StringIO()
+    hb = _Heartbeat("3.15_run_wflow", stream, interval=0.05, on_stall=lambda: True)
+    hb.start()
+    time.sleep(0.16)
+    hb.touch()  # output resumes, closing the period
+    time.sleep(0.06)
+    hb.stop()
+
+    assert any("quiet for" in row for row in hb.quiet_rows())
 
 
 def test_heartbeat_disabled_when_interval_zero():

@@ -51,9 +51,22 @@ Contract (pinned, design §7 (a)-(g), plus (h) for the console):
      rule means the RUNNER is speaking rather than the workflow it launched:
 
      * an OPENING block -- rule, `run_workflows`, rule, then the `run` group
-       (project, folder, config, cores, and `mode` on a dry run) and an ASCII
-       `sequence` diagram numbering the enabled workflows in invocation order
-       and marking the disabled ones in place;
+       (project, folder, config, cores, and `mode` on a dry run), the `settings`
+       group, and a `sequence` diagram numbering the enabled workflows in
+       invocation order and marking the disabled ones in place. The diagram is
+       a chain of ASCII boxes joined by `|` / `v`, solid for a workflow that
+       will be invoked and dashed for one that will not;
+
+       `settings` states what the run is ABOUT rather than where it is: the
+       region specification, the delineated bounding box and its approximate
+       extent in km, the model resolution, the historical climate source and
+       the historical window. Every row is optional -- the wrapper's contract
+       validates `workflows:` and nothing else, so a key that is absent is
+       simply not printed. The bounding box is DERIVED from
+       `data/spatial/geoms/region.geojson` and is reported as absent until some
+       workflow has written it; it is never computed from the region
+       specification, which names an outlet and an upstream-area threshold and
+       so could only yield an invented box (`_settings_rows`);
      * one HAND-OFF band per invoked workflow, at its LEADING edge only --
        `<rule>` then `[1/4]  wf0 analyze_climate  --  starting HH:MM:SS`, with
        the sanitized command below it. A workflow that FAILS gets a closing
@@ -126,6 +139,7 @@ from __future__ import annotations
 import argparse
 import importlib.metadata
 import json
+import math
 import os
 import platform
 import re
@@ -159,6 +173,7 @@ from blueearth_cst.shared.provenance import (  # noqa: E402
 from blueearth_cst.shared.snake_utils import (  # noqa: E402
     ADVANCED_SETTINGS,
     format_elapsed,
+    region_geojson_path,
 )
 
 # Fixed run order (climate -> model -> projections -> experiment). Each maps to
@@ -486,38 +501,246 @@ def _console_block(
     return "\n".join(lines)
 
 
+def _box_lines(content: str, width: int, *, dashed: bool) -> list[str]:
+    """One framed row: a top edge, ``content`` padded to ``width``, a bottom edge.
+
+    Dashed (`+ - -` / `:`) for a workflow this run will NOT invoke, so the frame
+    itself says "not part of what is about to happen" before the row is read;
+    solid (`+---` / `|`) for one that will. Both are ASCII, per this section's
+    rule -- a cp1252 console raises on the box-drawing characters that would be
+    the natural spelling.
+    """
+    edge = "- " * ((width + 3) // 2) if dashed else "-" * (width + 2)
+    side = ":" if dashed else "|"
+    return [
+        f"+{edge[: width + 2]}+",
+        f"{side} {content.ljust(width)} {side}",
+        f"+{edge[: width + 2]}+",
+    ]
+
+
 def _sequence_lines(flags: Mapping[str, bool]) -> list[str]:
-    """The enabled/disabled pipeline as an ASCII chain, in WORKFLOW_ORDER.
+    """The enabled/disabled pipeline as a chain of ASCII boxes, in WORKFLOW_ORDER.
 
     Every workflow appears, enabled or not, because the question this answers is
     "what is about to happen" and a disabled workflow silently absent from the
     list is indistinguishable from one this wrapper does not know about. Enabled
     entries carry their `[position/total]` so the per-workflow timeline rows
     below can be matched to the plan without counting.
+
+    Boxed rather than listed since 2026-08-18. The rows had been an indented
+    list with a bare `|` between them, which reads as a chain only if you
+    already know it is one -- and it sat directly under the `run` group's rows
+    at the same indent, so the diagram's shape did not distinguish it from more
+    key/value pairs. A framed chain with `|` / `v` connectors is a picture of
+    the sequence, which is what this group is for.
     """
     total = sum(1 for name in WORKFLOW_ORDER if flags[name])
-    # Width from the widest marker this run can print, so the connector's `|`
-    # and a disabled row's `-` stay centred under it past nine workflows.
+    # Width from the widest marker this run can print, so a disabled row's `-`
+    # stays centred under an enabled row's position past nine workflows.
     mark_width = max(5, len(f"[{total}/{total}]"))
     label_width = max(len(_label(name)) for name in WORKFLOW_ORDER)
-    lines: list[str] = []
+    rows: list[tuple[str, bool]] = []
     position = 0
-    for index, name in enumerate(WORKFLOW_ORDER):
-        if index:
-            lines.append("|".center(mark_width))
+    for name in WORKFLOW_ORDER:
         if flags[name]:
             position += 1
-            lines.append(f"{f'[{position}/{total}]'.ljust(mark_width)}  {_label(name)}")
-        else:
-            lines.append(
-                f"{'-'.center(mark_width)}  {_label(name).ljust(label_width)}"
-                f"  (disabled, not invoked)"
+            rows.append(
+                (f"{f'[{position}/{total}]'.ljust(mark_width)}  {_label(name)}", False)
             )
+        else:
+            rows.append(
+                (
+                    f"{'-'.center(mark_width)}  {_label(name).ljust(label_width)}"
+                    f"  (disabled, not invoked)",
+                    True,
+                )
+            )
+    # One width for every box, so the chain is a column rather than a ragged
+    # stack -- the disabled rows are the long ones, and a box that grew and
+    # shrank down the list would read as significant.
+    width = max(len(content) for content, _ in rows)
+    lines: list[str] = []
+    for index, (content, dashed) in enumerate(rows):
+        if index:
+            # Centred on the box, not on the marker: the arrow belongs to the
+            # frame it joins.
+            lines.extend(["|".center(width + 4), "v".center(width + 4)])
+        lines.extend(_box_lines(content, width, dashed=dashed))
     return lines
+
+
+#: Kilometres per degree of latitude (WGS84 meridian arc / 180) and per degree
+#: of longitude at the equator. Both are averages: this is the scale bar under a
+#: bounding box, printed as `approx`, not a projection.
+_KM_PER_DEG_LAT = 111.19
+_KM_PER_DEG_LON = 111.32
+
+
+def _geojson_bbox(path: Path) -> tuple[float, float, float, float] | None:
+    """``(lon_min, lat_min, lon_max, lat_max)`` of a GeoJSON, or None.
+
+    Read with the stdlib `json` rather than with geopandas: this runs in the
+    wrapper, before any workflow, and a several-second import for four numbers
+    would be paid by every invocation including the ones that print them as
+    "not delineated yet". A GeoJSON's coordinates are lon/lat by specification
+    (RFC 7946 §4), so no CRS handling is needed to read them as degrees -- and
+    `_bbox_extent_km` refuses anything outside degree range anyway.
+    """
+    document = json.loads(path.read_text(encoding="utf-8"))
+    declared = document.get("bbox")
+    if isinstance(declared, list) and len(declared) >= 4:
+        # The file's own answer wins: it is what every other reader of this
+        # artifact sees, and a 3D bbox states its planar box in the same first
+        # two and last two slots.
+        values = [float(v) for v in declared]
+        pairs = 3 if len(values) >= 6 else 2
+        return values[0], values[1], values[pairs], values[pairs + 1]
+
+    lons: list[float] = []
+    lats: list[float] = []
+
+    def collect(node: Any) -> None:
+        if not isinstance(node, list):
+            return
+        if len(node) >= 2 and all(isinstance(v, (int, float)) for v in node[:2]):
+            lons.append(float(node[0]))
+            lats.append(float(node[1]))
+            return
+        for item in node:
+            collect(item)
+
+    for feature in document.get("features", [document]):
+        geometry = feature.get("geometry") or feature
+        collect(geometry.get("coordinates", []))
+    if not lons:
+        return None
+    return min(lons), min(lats), max(lons), max(lats)
+
+
+def _bbox_extent_km(
+    bbox: tuple[float, float, float, float],
+) -> tuple[float, float] | None:
+    """Approximate width and height of ``bbox`` in km, or None if it is not degrees.
+
+    The range guard is the point of the None: a geometry that reached this in a
+    projected CRS would otherwise be multiplied by 111 and printed as a
+    confident, enormous, wrong number -- in the one row a reader has no way to
+    check. Without the extent the bbox itself is still shown, and it is the
+    part that carries the units on its face.
+    """
+    lon_min, lat_min, lon_max, lat_max = bbox
+    if not (-180.0 <= lon_min <= lon_max <= 180.0):
+        return None
+    if not (-90.0 <= lat_min <= lat_max <= 90.0):
+        return None
+    mean_lat = math.radians((lat_min + lat_max) / 2.0)
+    width = (lon_max - lon_min) * _KM_PER_DEG_LON * math.cos(mean_lat)
+    height = (lat_max - lat_min) * _KM_PER_DEG_LAT
+    return width, height
+
+
+def _km(value: float) -> str:
+    """A distance a reader can compare at a glance, not one they must parse."""
+    return f"{value:.1f}" if value < 10 else f"{value:.0f}"
+
+
+def _section(cfg: Mapping[str, Any], *keys: str) -> Mapping[str, Any]:
+    """A nested mapping from the config, or an empty one at the first gap.
+
+    The wrapper's contract validates `workflows:` and nothing else, so every
+    key this block reads is genuinely optional -- a settings row that is absent
+    from the config is simply not printed, and an alternative spelling of the
+    tree (a project mid-migration, a hand-written config) must not be able to
+    stop the run before it starts.
+    """
+    node: Any = cfg
+    for key in keys:
+        if not isinstance(node, Mapping):
+            return {}
+        node = node.get(key)
+    return node if isinstance(node, Mapping) else {}
+
+
+def _settings_rows(cfg: Mapping[str, Any], project_dir: Path) -> list[tuple[str, str]]:
+    """The handful of config values that decide WHAT this run is about.
+
+    The `run` group above says which project and which config; this says what
+    they contain -- where the basin is, how big it is, and which historical
+    climate it is being characterised from. Those are the settings someone
+    checks before letting a multi-hour run proceed, and reading them meant
+    opening the YAML in another window.
+
+    The bounding box is DERIVED from the delineated region
+    (`data/spatial/geoms/region.geojson`), never from the region specification:
+    `{'subbasin': [9.666, 0.4476], 'uparea': 100}` is an outlet and a threshold,
+    and a box computed from those would be an invention in exactly the row a
+    reader is least able to check. Before the first delineation there is no box,
+    and the row says so.
+    """
+    basin = _section(cfg, "shared", "basin")
+    window = _section(cfg, "shared", "historical_window")
+    rows: list[tuple[str, str]] = []
+
+    region = basin.get("region")
+    if region is not None:
+        rows.append(("region", str(region)))
+
+    region_path = Path(region_geojson_path(os.fspath(project_dir)))
+    bbox = None
+    if region_path.is_file():
+        try:
+            bbox = _geojson_bbox(region_path)
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            # A region file that cannot be read is a diagnostic for the workflow
+            # that reads it for real, not a reason to fail the opening block.
+            bbox = None
+    if bbox is None:
+        if region is not None:
+            # Only where a region was ASKED for. A config that declares no basin
+            # at all has nothing absent -- a lone `not delineated yet` under a
+            # `settings` heading would be a row about a question nobody put.
+            rows.append(
+                (
+                    "bbox",
+                    "not delineated yet -- written by the first workflow that runs",
+                )
+            )
+    else:
+        lon_min, lat_min, lon_max, lat_max = bbox
+        rows.append(
+            (
+                "bbox",
+                f"lon {lon_min:.4f} .. {lon_max:.4f}, "
+                f"lat {lat_min:.4f} .. {lat_max:.4f}",
+            )
+        )
+        extent = _bbox_extent_km(bbox)
+        if extent is not None:
+            rows.append(("extent", f"approx {_km(extent[0])} x {_km(extent[1])} km"))
+
+    resolution = basin.get("resolution")
+    if resolution is not None:
+        try:
+            cell_km = float(resolution) * _KM_PER_DEG_LAT
+            rows.append(("resolution", f"{resolution} deg  (approx {_km(cell_km)} km)"))
+        except (TypeError, ValueError):
+            rows.append(("resolution", str(resolution)))
+
+    climate = cfg.get("shared", {})
+    source = climate.get("clim_historical") if isinstance(climate, Mapping) else None
+    if source is not None:
+        rows.append(("climate", str(source)))
+
+    start, end = window.get("starttime"), window.get("endtime")
+    if start and end:
+        rows.append(("historical", f"{str(start)[:10]} .. {str(end)[:10]}"))
+    return rows
 
 
 def _opening_block(
     *,
+    cfg: Mapping[str, Any],
     project_name: str,
     project_dir: Path,
     config_path: str,
@@ -546,6 +769,9 @@ def _opening_block(
     enabled = sum(1 for name in WORKFLOW_ORDER if flags[name])
     total = len(WORKFLOW_ORDER)
     groups: list[tuple[str, list[Any]]] = [("run", run_rows)]
+    settings = _settings_rows(cfg, project_dir)
+    if settings:
+        groups.append(("settings", settings))
     if enabled:
         groups.append(
             (
@@ -670,6 +896,7 @@ def run(config_path: str, cores: int, extra: list[str]) -> int:
     try:
         print(
             _opening_block(
+                cfg=cfg,
                 project_name=_project_name(cfg, project_dir),
                 project_dir=project_dir,
                 config_path=config_path,

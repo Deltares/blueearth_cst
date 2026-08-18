@@ -445,6 +445,9 @@ class WflowFrameRelay:
         self._start_time = 0.0
         self._glyphs = _GLYPHS_UNICODE
         self._active = False
+        #: Fraction of the frame last rendered, so :meth:`tick` can redraw the
+        #: bar where it stands rather than inventing a position for it.
+        self._fraction = 0.0
         #: Label of the run whose bar has already been completed, so the
         #: duplicate final frame described in ``feed`` can be recognised.
         self._done_label = None
@@ -498,6 +501,7 @@ class WflowFrameRelay:
             self._active = True
             self._done_label = None
 
+        self._fraction = fraction
         elapsed = time.monotonic() - self._start_time
         width = self._width if self._width is not None else _bar_width(label)
         text = render_bar(fraction, elapsed, label, width, self._glyphs)
@@ -508,6 +512,29 @@ class WflowFrameRelay:
             # row the log keeps for this run.
             return text + "\n"
         return text + "\r"
+
+    def tick(self) -> str | None:
+        """Redraw the open bar at the current time; ``None`` when none is open.
+
+        The one frame this relay produces without the child having sent
+        anything. Its caller is the silence watchdog in ``snake_utils``: while a
+        bar is open, ``still running, 1m00s elapsed`` states in a second grammar
+        the one fact the bar's own clock already carries -- and it states it by
+        writing a row onto the line the bar is sitting on. Redrawing instead
+        keeps the elapsed time moving inside the line that is already there.
+
+        This is what covers the two windows Wflow leaves silent: the package
+        load and JIT before the first timestep, and the ~45 s
+        ``Wflow.Model(config)`` construction, neither of which is instrumented
+        upstream. Both are why WF3 beeped where WF1 looked fine -- WF1 runs the
+        model once, WF3 once per batch member.
+        """
+        if not self._active:
+            return None
+        elapsed = time.monotonic() - self._start_time
+        width = self._width if self._width is not None else _bar_width(self._label)
+        frame = render_bar(self._fraction, elapsed, self._label, width, self._glyphs)
+        return frame + "\r"
 
     def close(self) -> str | None:
         """Close an unfinished bar's line; ``None`` when there is nothing open.
