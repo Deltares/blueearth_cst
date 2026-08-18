@@ -410,3 +410,112 @@ class DaskFrameRelay:
         bar, self._bar = self._bar, None
         self._last_percent = -1
         bar.finish()
+
+
+# --------------------------------------------------------------------------
+# a Wflow.jl progress frame arriving from a CHILD process
+# --------------------------------------------------------------------------
+
+#: One frame emitted by ``shared/wflow_progress.jl``, e.g.
+#: ``[cst-progress] rlz_1_st_2 0.24561``. A sentinel rather than a
+#: percentage-bearing sentence, so no ordinary log row can match it and so the
+#: frame is recognisable without knowing which engine produced it.
+_CST_FRAME_RE = re.compile(r"^\[cst-progress\]\s+(\S+)\s+([0-9]*\.?[0-9]+)\s*$")
+
+
+class WflowFrameRelay:
+    """Turn Wflow.jl progress frames into frames of the house bar.
+
+    The counterpart of :class:`DaskFrameRelay`, for the other child process the
+    toolbox waits on. It differs in one way that matters: dask's child renders a
+    bar and this one reports only a NUMBER, so there is no upstream format to
+    break -- ``wflow_progress.jl`` and this regex are two halves of one contract
+    we own on both sides.
+
+    Unlike the dask relay it does not write to a stream. It RETURNS the rendered
+    text, because its caller is the tee itself (``snake_utils.tee_to_log``),
+    which already knows how to stream carriage-return frames to the console and
+    collapse them to a single row in the log. Rendering here and writing there
+    keeps one implementation of each job.
+    """
+
+    def __init__(self, *, width=None):
+        self._width = width
+        self._label = ""
+        self._start_time = 0.0
+        self._glyphs = _GLYPHS_UNICODE
+        self._active = False
+        #: Label of the run whose bar has already been completed, so the
+        #: duplicate final frame described in ``feed`` can be recognised.
+        self._done_label = None
+
+    @property
+    def active(self) -> bool:
+        return self._active
+
+    def feed(self, line: str, stream=None) -> str | None:
+        """Render ``line`` as a bar frame.
+
+        Returns the rendered text, ``""`` for a frame that is recognised but
+        deliberately not drawn, or ``None`` when ``line`` is not a frame at all.
+        The three are distinct on purpose: a line that is not ours must reach the
+        log untouched, while a frame we chose to swallow must vanish rather than
+        appear as raw ``[cst-progress]`` noise. A malformed frame counts as "not
+        ours", so it costs the bar rather than the row.
+        """
+        match = _CST_FRAME_RE.match(line.strip("\r\n"))
+        if match is None:
+            return None
+        label, raw = match.group(1), match.group(2)
+        try:
+            fraction = float(raw)
+        except ValueError:  # unreachable via the regex; belt and braces
+            return None
+        fraction = min(max(fraction, 0.0), 1.0)
+
+        # A completed run reports 100% TWICE: ProgressLogging emits the last
+        # iteration's `i/n == 1.0` and then a `"done"` sentinel, which the Julia
+        # side maps to 1.0 as well. Both are genuine frames, so the emitter
+        # cannot drop either without guessing which is last -- swallowing the
+        # repeat here is what keeps one finished bar from printing as two
+        # identical rows (observed on rule 1.14, 2026-08-18).
+        if fraction >= 1.0 and not self._active and label == self._done_label:
+            return ""
+
+        # A label change means a new run has started -- rule 3.15 runs B members
+        # in one process, each with its own progress. Reset the timer so the
+        # next member's ETA is not computed from the previous one's start.
+        #
+        # The incomplete bar of the member being replaced is simply dropped: the
+        # tee accumulates `\r` frames and `_cr_overwrite` keeps only the last
+        # non-empty segment, so no prefix here could preserve it -- and a bar cut
+        # off partway is not a row worth keeping. The `[k/N]` line the batch
+        # driver prints on completion is the per-member record.
+        if not self._active or label != self._label:
+            self._label = label
+            self._start_time = time.monotonic()
+            self._glyphs = _stream_glyphs(stream if stream is not None else sys.stdout)
+            self._active = True
+            self._done_label = None
+
+        elapsed = time.monotonic() - self._start_time
+        width = self._width if self._width is not None else _bar_width(label)
+        text = render_bar(fraction, elapsed, label, width, self._glyphs)
+        if fraction >= 1.0:
+            self._active = False
+            self._done_label = label
+            # A newline, so the completed frame stays on screen and becomes the
+            # row the log keeps for this run.
+            return text + "\n"
+        return text + "\r"
+
+    def close(self) -> str | None:
+        """Close an unfinished bar's line; ``None`` when there is nothing open.
+
+        Called when the child exits mid-bar -- a crashed run must not leave the
+        next row starting halfway across a stale frame.
+        """
+        if not self._active:
+            return None
+        self._active = False
+        return "\n"

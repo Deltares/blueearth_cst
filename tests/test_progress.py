@@ -18,6 +18,7 @@ from blueearth_cst.shared.progress import (  # noqa: E402
     _GLYPHS_UNICODE,
     DaskFrameRelay,
     DaskProgress,
+    WflowFrameRelay,
     _fraction,
     _stream_glyphs,
     format_duration,
@@ -411,3 +412,122 @@ def test_relay_clamps_a_percentage_above_one_hundred():
     assert relay.feed("[####] | 137% Completed | 1.00 s\r") is True
     relay.close()
     assert "137" not in out.getvalue()
+
+
+# --- a wflow.jl bar arriving from a child process -----------------------------
+#
+# The counterpart of the dask relay above. The contract is OURS on both sides
+# (`shared/wflow_progress.jl` emits, this consumes), so these tests pin the wire
+# format as much as the rendering.
+
+
+def _cst(label, fraction):
+    """One frame exactly as ``shared/wflow_progress.jl`` writes it."""
+    return f"[cst-progress] {label} {fraction}\n"
+
+
+def test_wflow_relay_renders_a_frame_in_the_house_style():
+    relay = WflowFrameRelay(width=20)
+    out = relay.feed(_cst("wflow", 0.5), stream=_FakeStream())
+
+    assert out is not None
+    assert "wflow" in out
+    assert "50.0%" in out
+    # A redraw, not a new row: the tee collapses `\r` frames to one log line.
+    assert out.endswith("\r")
+    assert "\n" not in out
+
+
+def test_wflow_relay_refuses_anything_that_is_not_a_frame():
+    relay = WflowFrameRelay()
+    for line in (
+        "00:01:09 - forcing - Write forcing file\n",
+        "[cst-progress] wflow\n",  # no fraction
+        "[cst-progress] 0.5\n",  # no label
+        "prefixed [cst-progress] wflow 0.5\n",  # must anchor at the start
+        "",
+    ):
+        assert relay.feed(line, stream=_FakeStream()) is None
+    # Refusing a line must not open a bar, or `close` would emit a stray row.
+    assert relay.active is False
+    assert relay.close() is None
+
+
+def test_wflow_relay_final_frame_terminates_the_row():
+    relay = WflowFrameRelay(width=20)
+    relay.feed(_cst("wflow", 0.4), stream=_FakeStream())
+    out = relay.feed(_cst("wflow", 1.0), stream=_FakeStream())
+
+    assert out.endswith("\n")
+    assert "100.0%" in out
+    # The bar closed itself, so `close` has nothing left to terminate.
+    assert relay.active is False
+    assert relay.close() is None
+
+
+def test_wflow_relay_restarts_the_timer_when_the_member_changes():
+    """Rule 3.15 runs several members in one process, each with its own bar."""
+    relay = WflowFrameRelay(width=20)
+    relay.feed(_cst("rlz_1_st_0", 0.9), stream=_FakeStream())
+    out = relay.feed(_cst("rlz_1_st_1", 0.1), stream=_FakeStream())
+
+    assert "rlz_1_st_1" in out
+    assert "rlz_1_st_0" not in out
+    assert "10.0%" in out
+    # No embedded newline: `_cr_overwrite` keeps only the last non-empty `\r`
+    # segment, so a prefixed row would survive as a blank line and nothing else.
+    assert "\n" not in out
+
+
+def test_wflow_relay_clamps_a_fraction_above_one():
+    relay = WflowFrameRelay(width=20)
+    out = relay.feed(_cst("wflow", 1.7), stream=_FakeStream())
+    assert "170" not in out
+    assert "100.0%" in out
+
+
+def test_wflow_relay_close_terminates_a_bar_cut_short_exactly_once():
+    """A crashed child must not leave the next row starting mid-frame."""
+    relay = WflowFrameRelay(width=20)
+    relay.feed(_cst("wflow", 0.3), stream=_FakeStream())
+
+    assert relay.close() == "\n"
+    assert relay.close() is None
+
+
+def test_wflow_relay_falls_back_to_ascii_on_a_cp1252_console():
+    relay = WflowFrameRelay(width=20)
+    out = relay.feed(_cst("wflow", 0.5), stream=_FakeStream(encoding="cp1252"))
+    out.encode("cp1252")  # raises if a box-drawing glyph leaked through
+
+
+def test_wflow_relay_prints_one_row_for_a_run_that_reports_done_twice():
+    """ProgressLogging emits `i/n == 1.0` and then a `"done"` sentinel.
+
+    Both reach the relay as 1.0. Rendering both put the finished bar on screen
+    twice (observed on rule 1.14, 2026-08-18).
+    """
+    relay = WflowFrameRelay(width=20)
+    relay.feed(_cst("wflow", 0.5), stream=_FakeStream())
+    first = relay.feed(_cst("wflow", 1.0), stream=_FakeStream())
+    second = relay.feed(_cst("wflow", 1.0), stream=_FakeStream())
+
+    assert first is not None and first.endswith(
+        "\
+"
+    )
+    # "" -- recognised, deliberately not drawn -- not None, which would let
+    # the raw sentinel through to the log.
+    assert second == ""
+
+
+def test_wflow_relay_starts_a_fresh_bar_after_a_completed_one(tmp_path=None):
+    """A second run under the SAME label is a new bar, not a suppressed repeat."""
+    relay = WflowFrameRelay(width=20)
+    relay.feed(_cst("wflow", 1.0), stream=_FakeStream())
+    assert relay.feed(_cst("wflow", 1.0), stream=_FakeStream()) == ""
+
+    reopened = relay.feed(_cst("wflow", 0.2), stream=_FakeStream())
+    assert reopened is not None and reopened.endswith("\r")
+    # ...and its own completion is rendered again, not swallowed.
+    assert relay.feed(_cst("wflow", 1.0), stream=_FakeStream()) is not None
