@@ -122,6 +122,47 @@ Rendered one subsection per artifact.
   `meta_*` layers we don't index.
 - **validator:** `validate_hm3`.
 
+### Which tree is authoritative — the six colliding basenames
+
+`staticgeoms/` is **not** the authority on the basin. Six basenames exist in
+both `data/spatial/geoms/` (ours, upstream of the build) and `staticgeoms/`
+(hydromt's, written by `model.write()`), and **none of the six pairs holds the
+same content**. Read the wrong one and the result is plausible rather than
+obviously broken, which is what makes this worth writing down.
+
+| basename | `data/spatial/geoms/` — AUTHORITATIVE for | `staticgeoms/` — AUTHORITATIVE for | relationship |
+|---|---|---|---|
+| `region` | the delineated basin | the model **grid extent** (a bounding box) | ours ⊆ theirs |
+| `basins` | the basin as ONE polygon | hydromt's per-subbasin decomposition (`value` column) | same union area, different features |
+| `rivers` | MERIT attributes (21 columns) | routing topology (`idx, idx_ds, pit, strord`) | different provenance |
+| `subbasins` | — | — | true copy, either is correct |
+| `catchments` | — | — | true copy, either is correct |
+| `locations` | — | — | true copy, either is correct |
+
+The `region` row is the one that surprises people, and it is not a defect on
+either side: `GridComponent._region_data` returns `box(*self.bounds)`
+(`hydromt/model/components/grid.py:269`, hydromt 1.3.1), so a rectangle is
+hydromt's deliberate definition of "region" for a grid model. Both files are
+hydromt products — ours comes from `parse_region_basin` via
+`spatial/delineate_region.py`, theirs from `model.write()` — and `ours ⊆ theirs`
+holds because the grid is built to circumscribe the delineated basin.
+
+**Enforced, not merely documented.** `blueearth_cst/shared/spatial_geoms_parity.py`
+asserts the RELATIONSHIP per layer — containment for `region`, tolerant
+topological equality for the three copies, and explicit non-comparison for
+`basins` / `rivers`, whose reasons it carries. It is a sibling of
+`interchange_contracts` rather than a member: same `-> list[str]`,
+parsed-objects-only, `-O`-safe invariants, but it pins a relationship BETWEEN
+two trees rather than the shape of one artifact. `tests/test_spatial_geoms_parity.py`
+runs it against the built fixture, which is what would notice a hydromt upgrade
+that changed how the grid region is derived.
+
+**Renaming is not the fix and is not available.** `staticgeoms/` is
+hydromt_wflow's own output surface and off-limits by AGENTS.md's hard
+constraint; renaming our side would touch `region_rule` / `spatial_units_rule`
+in `snake_utils.py`, the seam most workflow commits already contend for. Board
+item `t2608071203` (R9-1) records the full measurement and the options weighed.
+
 ## HM-4 — run configuration (wflow_sbm.toml)
 
 - **path pattern:** `models/hydrology/wflow/wflow_sbm.toml` (base) and per-cst
@@ -710,6 +751,13 @@ executes on **every** checkout, fixture or not. HM-2 unit attrs are asserted
 | *(HM-6a)* | HM-6a | `models/hydrology/wflow/run_default/outstate/outstates.nc` | **no validator** — existence pinned transitively via HM-4's `[state].path_output` |
 | `validate_hm6b` | HM-6b | `<exp>/hydrology/wflow/output/outstates_rlz_<n>_st_<m>.nc` | **no** — `temp()` content absent; skip-until-captured on disk, synthetic-proven every suite |
 | `validate_hm7` | HM-7 | `<exp>/results/<token>_indicators.csv` (one per `wflow_outvars` entry) | **yes** (persists; `rule all`, manifested) |
+
+One validator lives OUTSIDE that module, deliberately:
+`validate_spatial_geoms_parity` in
+`blueearth_cst/shared/spatial_geoms_parity.py` (HM-3's two-tree authority,
+above). It obeys the same invariants but pins a RELATIONSHIP between two trees
+rather than the shape of one artifact, so it is a sibling rather than an
+`HM-<n>` entry. It is continuously verified on the built fixture.
 
 ### `--notemp` capture procedure (temp() on-disk validators)
 

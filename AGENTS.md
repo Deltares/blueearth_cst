@@ -63,7 +63,8 @@ The tree is self-explanatory; these are the parts that are not.
   cross-cutting helpers (`snake_utils.py`, `run_logged.py`, `climate_parity.py` —
   the engine-neutral regrid/PET transform, plotting primitives, log/benchmark
   reducers, `cross_workflow_leaves.py` — the wf1 outputs WF3 declares but cannot
-  build) and `weathergen/` for the R weather generator.
+  build, `spatial_geoms_parity.py` — which of the two geoms trees answers
+  which question) and `weathergen/` for the R weather generator.
 - `config/` — four bins plus `advanced_settings.yml`. There is **no
   `workflows/` bin**: every shipped `--configfile` target lives beside the project
   it writes into, under `test_case/` (`snake_config_rapid.yml`,
