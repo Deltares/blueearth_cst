@@ -211,9 +211,27 @@ def test_the_worker_pool_round_trips_and_reports_every_failure(tmp_path, capsys)
     code = sc.main(["--config", str(cfg_path), "--workers", "2"])
     captured = capsys.readouterr()
     assert code == 1, "a run where every slice failed must exit nonzero"
-    assert "2 of 2 failed" in captured.err
+    # An absent (model, scenario) is the catalog saying it has none, so it is
+    # reported as UNAVAILABLE rather than as a download that broke -- the two
+    # call for different actions and the report keeps them apart.
+    assert "not available in the catalog  (2)" in captured.out
+    assert "could not be downloaded" not in captured.out
+    assert "staged      0 of 2" in captured.out
     for model in ("NO_SUCH-MODEL-A", "NO_SUCH-MODEL-B"):
-        assert model in captured.err, f"{model} missing from the failure summary"
+        assert model in captured.out, f"{model} missing from the report"
+
+
+@pytest.mark.skipif(not REGION.is_file(), reason="needs the test_local fixture region")
+def test_the_report_states_what_was_requested(tmp_path, capsys):
+    """The recap must name the REQUESTED cross product, not just the outcome.
+
+    2 models x 1 scenario x 1 member is 2 slices; a reader who asked for more
+    than arrived needs the ask echoed back to see the gap at all.
+    """
+    cfg_path = _write_cfg(tmp_path, ["NO/SUCH-MODEL-A", "NO/SUCH-MODEL-B"], tmp_path)
+    sc.main(["--config", str(cfg_path), "--workers", "2"])
+    out = capsys.readouterr().out
+    assert "requested   2 model(s) x 1 scenario(s) x 1 member(s)  =  2 slice(s)" in out
 
 
 @pytest.mark.skipif(not REGION.is_file(), reason="needs the test_local fixture region")

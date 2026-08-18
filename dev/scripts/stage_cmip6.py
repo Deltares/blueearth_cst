@@ -250,6 +250,83 @@ def stage_one(cfg, job):
     return job["key"], None, time.perf_counter() - started
 
 
+#: Outcome glyphs, borrowed from `stage_data.py`'s RunReport so the two staging
+#: tools read alike: `+` written, `=` already present, `x` failed.
+WRITTEN_GLYPH = "+"
+EXISTS_GLYPH = "="
+FAILED_GLYPH = "x"
+
+_RULE = "=" * 78
+
+
+def _unavailable(error):
+    """True when the slice does not EXIST rather than having failed to download.
+
+    A KeyError from `load_catalog_entry` is the catalog saying it carries no
+    such (model, scenario) -- an ordinary fact about the ensemble, not a fault
+    in the run. Separating the two is the difference between "ask for something
+    else" and "try again". The test is the exception NAME rather than the
+    message, so a reworded error does not silently reclassify.
+    """
+    return error.startswith("KeyError")
+
+
+def _print_report(cfg, jobs, existed, out_by_key, errors, seconds, workers, wall):
+    """The end-of-run recap: what was asked for, what arrived, what did not."""
+    ok = [job["key"] for job in jobs if job["key"] not in errors]
+    written = [k for k in ok if not existed[k]]
+    present = [k for k in ok if existed[k]]
+    unavailable = {k: e for k, e in errors.items() if _unavailable(e)}
+    broke = {k: e for k, e in errors.items() if not _unavailable(e)}
+    size = sum(out_by_key[k].stat().st_size for k in ok if out_by_key[k].exists())
+
+    print("")
+    print(_RULE)
+    print(
+        f"  requested   {len(cfg['models'])} model(s) x {len(cfg['scenarios'])} "
+        f"scenario(s) x {len(cfg['members'])} member(s)  =  {len(jobs)} slice(s)"
+    )
+    print(
+        f"  staged      {len(ok)} of {len(jobs)}"
+        f"   ({len(written)} {WRITTEN_GLYPH} written, "
+        f"{len(present)} {EXISTS_GLYPH} already present)"
+    )
+    print(f"  target      {cfg['target_root']}   {size / 1e6:.2f} MB")
+
+    # The two failure kinds are listed SEPARATELY because they call for
+    # different actions: an absent (model, scenario) will never appear however
+    # many times it is retried, while a broken one may well succeed next run.
+    if unavailable:
+        print("")
+        print(f"  not available in the catalog  ({len(unavailable)})")
+        for key in sorted(unavailable):
+            print(f"    {FAILED_GLYPH} {key}")
+    if broke:
+        print("")
+        print(f"  could not be downloaded  ({len(broke)})")
+        for key in sorted(broke):
+            print(f"    {FAILED_GLYPH} {key}")
+            print(f"        {broke[key]}")
+
+    if seconds:
+        slice_total = sum(seconds.values())
+        print("")
+        print(f"  wall        {format_elapsed(wall)}")
+        # Slice time SUMMED across workers against wall clock. The ratio is the
+        # speed-up the pool actually delivered -- worth printing because this
+        # workload is bound by the remote store's open, so more workers help
+        # until the store rate-limits and then stop. A ratio well below
+        # `workers` says adding more will not pay.
+        ratio = f", {slice_total / wall:.1f}x" if wall > 0 else ""
+        print(
+            f"  slice time  {format_elapsed(slice_total)} summed over "
+            f"{workers} worker(s){ratio}"
+        )
+        slowest = max(seconds.items(), key=lambda kv: kv[1])
+        print(f"  slowest     {slowest[0]}  ({format_elapsed(slowest[1])})")
+    print(_RULE)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Stage WF2-cache-compatible CMIP6 slices for one region."
@@ -299,13 +376,20 @@ def main(argv=None):
     os.makedirs(cfg["target_root"], exist_ok=True)
     workers = max(1, min(args.workers, len(jobs)))
     print(f"workers     {workers}")
+    print("")
+
+    # Which outputs were ALREADY there before this run. `fetch_raw_slice`
+    # revalidates and returns without touching the network when a slice is
+    # present and its digest matches, so without this the report could not tell
+    # "fetched" from "was already good" -- and on a re-run that is the whole
+    # story.
+    existed = {job["key"]: Path(job["out"]).exists() for job in jobs}
+    out_by_key = {job["key"]: Path(job["out"]) for job in jobs}
 
     done = 0
-    failed = {}
     seconds = {}
+    errors = {}
     wall_started = time.perf_counter()
-
-    out_by_key = {job["key"]: Path(job["out"]) for job in jobs}
 
     def _report(key, error, elapsed):
         """One line per finished slice, in COMPLETION order.
@@ -313,24 +397,24 @@ def main(argv=None):
         Completion order, not config order: with several workers in flight the
         useful signal is which slice just landed, and a staging run is long
         enough that waiting to sort would mean a silent console for minutes.
+        The end-of-run report re-states everything in a stable order.
         """
         nonlocal done
         done += 1
         seconds[key] = elapsed
+        prefix = f"[{done}/{len(jobs)}]"
         if error:
-            failed[key] = error
+            errors[key] = error
             print(
-                f"[{done}/{len(jobs)}] FAILED  {key}  ({format_elapsed(elapsed)})",
+                f"{prefix} {FAILED_GLYPH} {key}  ({format_elapsed(elapsed)})",
                 file=sys.stderr,
             )
-            print(f"          {error}", file=sys.stderr)
-        else:
-            path = out_by_key[key]
-            mb = path.stat().st_size / 1e6 if path.exists() else 0.0
-            print(
-                f"[{done}/{len(jobs)}] ok      {key}  "
-                f"({mb:.2f} MB, {format_elapsed(elapsed)})"
-            )
+            print(f"        {error}", file=sys.stderr)
+            return
+        path = out_by_key[key]
+        mb = path.stat().st_size / 1e6 if path.exists() else 0.0
+        glyph = EXISTS_GLYPH if existed[key] else WRITTEN_GLYPH
+        print(f"{prefix} {glyph} {key}  ({mb:.2f} MB, {format_elapsed(elapsed)})")
 
     if workers == 1:
         # Deliberately NOT a one-worker pool: staying in-process keeps
@@ -348,40 +432,19 @@ def main(argv=None):
                     # return, so `stage_one`'s own handler never ran. Most likely
                     # a killed process (memory) rather than a bad source.
                     key = futures[future]
-                    # No slice duration exists -- the worker never returned one.
                     _report(key, f"worker died: {type(exc).__name__}: {exc}", 0.0)
 
-    wall = time.perf_counter() - wall_started
-    slice_total = sum(seconds.values())
-
-    print("")
-    print(f"wall        {format_elapsed(wall)}")
-    if seconds:
-        # Slice time SUMMED across workers, against wall clock. The ratio is the
-        # speed-up the pool actually delivered -- worth printing because this
-        # workload is bound by the remote store's open, so more workers help
-        # until the store rate-limits and then stop helping. A ratio well below
-        # `workers` says adding more will not pay.
-        print(
-            f"slice time  {format_elapsed(slice_total)} summed over {workers} worker(s)"
-        )
-        if wall > 0:
-            print(f"speed-up    {slice_total / wall:.1f}x")
-        slowest = max(seconds.items(), key=lambda kv: kv[1])
-        print(f"slowest     {slowest[0]}  ({format_elapsed(slowest[1])})")
-
-    if failed:
-        # Repeated at the end, sorted, because the per-slice rows above are in
-        # completion order and scroll past: on a long run the summary is the
-        # only place the full failure set is legible.
-        print("", file=sys.stderr)
-        print(f"{len(failed)} of {len(jobs)} failed:", file=sys.stderr)
-        for key, error in sorted(failed.items()):
-            print(f"  {key}", file=sys.stderr)
-            print(f"    {error}", file=sys.stderr)
-        return 1
-    print(f"staged {len(jobs)} slice(s) into {cfg['target_root']}")
-    return 0
+    _print_report(
+        cfg,
+        jobs,
+        existed,
+        out_by_key,
+        errors,
+        seconds,
+        workers,
+        time.perf_counter() - wall_started,
+    )
+    return 1 if errors else 0
 
 
 if __name__ == "__main__":
