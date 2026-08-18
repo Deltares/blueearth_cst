@@ -553,6 +553,15 @@ failure mode to avoid — it re-proves what the previous run already proved.
 | **After a push** | **Read the run it triggered** — `gh run list -L 1` / `gh run watch`. See below; this is not optional. |
 | Before a milestone seal / after touching numeric outputs | `check_baseline.py check`, plus `semantic_tree_diff.py` if the tree shape moved. |
 
+**Redirect a gate to a FILE; never pipe it through `tail`.** A rare
+intermittent failure carries its diagnosis in pytest's detail, and a pipe throws
+that away while still reporting the pass/fail line — so the run looks fully
+informative and is not. Two of the two bounded failures of the
+`test_stage_data_incremental` stall since its 2026-08-09 containment
+(`t2608071208`) were lost exactly this way, on 2026-08-12 and 2026-08-18, each
+costing another wait for an occurrence nobody can schedule. Write
+`pixi run test-contract > run.log 2>&1` and read the tail of the FILE.
+
 **Why the split lands there.** `test-fast` deselects **55 tests — under 3% of
 the suite — and they cost the large majority of the runtime**. They are exactly
 the `workflow_contract` and `process_isolation` markers. Paying several times
