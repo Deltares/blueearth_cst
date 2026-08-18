@@ -153,3 +153,88 @@ def test_the_tool_reproduces_a_digest_wf2_itself_wrote():
         checked += 1
 
     assert checked, "no slice carried a cst_raw_digest; nothing was verified"
+
+
+# --- the parallel machinery --------------------------------------------------
+
+
+def _write_cfg(tmp_path, models, target):
+    """A minimal config file pointing at the fixture region."""
+    import yaml
+
+    cfg = {
+        "region": str(REGION),
+        "target_root": str(target),
+        "models": models,
+        "scenarios": ["historical"],
+        "members": ["r1i1p1f1"],
+        "variables": SEED_VARIABLES,
+    }
+    path = tmp_path / "stage_cmip6.yml"
+    path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    return path
+
+
+@pytest.mark.skipif(not REGION.is_file(), reason="needs the test_local fixture region")
+def test_stage_one_returns_the_error_instead_of_raising():
+    """One unavailable source must not end a run with hours of work in it.
+
+    A model the catalog does not carry is an ordinary fact, not a crash, so the
+    worker reports it as a value. Uses a deliberately absent model, which fails
+    long before any network call.
+    """
+    cfg = _cfg() | {"region": str(REGION), "clim_project": "cmip6"}
+    job = {
+        "key": "cmip6_NO_SUCH_MODEL_historical_r1i1p1f1",
+        "model": "NO/SUCH-MODEL",
+        "experiment": "historical",
+        "member": "r1i1p1f1",
+        "out": "unused.nc",
+    }
+    key, error, elapsed = sc.stage_one(cfg, job)
+    assert key == job["key"]
+    assert error, "an absent model must be reported, not silently succeed"
+    assert elapsed >= 0, "every slice reports a duration, failures included"
+
+
+@pytest.mark.skipif(not REGION.is_file(), reason="needs the test_local fixture region")
+def test_the_worker_pool_round_trips_and_reports_every_failure(tmp_path, capsys):
+    """Exercise the ProcessPoolExecutor path itself, with no network.
+
+    What this actually proves is the machinery around the fetch: that `cfg` and
+    a job pickle to a worker, that a worker starts and imports the module, and
+    that both failures come back and are summarised. Every model here is absent
+    from the catalog, so each worker fails fast and the case stays offline and
+    quick -- the fetch itself is covered by the digest guard above, not here.
+    """
+    cfg_path = _write_cfg(tmp_path, ["NO/SUCH-MODEL-A", "NO/SUCH-MODEL-B"], tmp_path)
+    code = sc.main(["--config", str(cfg_path), "--workers", "2"])
+    captured = capsys.readouterr()
+    assert code == 1, "a run where every slice failed must exit nonzero"
+    assert "2 of 2 failed" in captured.err
+    for model in ("NO_SUCH-MODEL-A", "NO_SUCH-MODEL-B"):
+        assert model in captured.err, f"{model} missing from the failure summary"
+
+
+@pytest.mark.skipif(not REGION.is_file(), reason="needs the test_local fixture region")
+def test_one_worker_stays_in_process(tmp_path, capsys):
+    """`--workers 1` must not spin up a pool.
+
+    That is what keeps a traceback and any attached debugger pointing at the
+    real failure, which is the whole reason the flag accepts 1.
+    """
+    cfg_path = _write_cfg(tmp_path, ["NO/SUCH-MODEL-A"], tmp_path)
+    assert sc.main(["--config", str(cfg_path), "--workers", "1"]) == 1
+    assert "workers     1" in capsys.readouterr().out
+
+
+@pytest.mark.skipif(not REGION.is_file(), reason="needs the test_local fixture region")
+def test_workers_never_exceeds_the_slice_count(tmp_path, capsys):
+    """Asking for 8 workers on 1 slice starts 1, not 8.
+
+    Each worker costs ~7 s of imports and ~311 MiB, so spawning idle ones is a
+    real cost rather than a tidiness point.
+    """
+    cfg_path = _write_cfg(tmp_path, ["NO/SUCH-MODEL-A"], tmp_path)
+    sc.main(["--config", str(cfg_path), "--workers", "8"])
+    assert "workers     1" in capsys.readouterr().out
