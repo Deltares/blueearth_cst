@@ -228,242 +228,300 @@ def raw_slice_attrs(
     }
 
 
+def fetch_raw_slice(
+    *,
+    region_path,
+    raw_nc_out,
+    catalog_path,
+    catalog_entry,
+    member,
+    variables,
+    variable_units,
+    buffer,
+    acquisition_window,
+    components,
+):
+    """Fetch ONE raw slice of the remote store, or return early on a cache hit.
+
+    Extracted from the `if "snakemake"` block on 2026-08-18 so a second caller
+    could exist without a second implementation. `dev/scripts/stage_cmip6.py`
+    stages slices outside a project with it; the Snakemake adapter below is the
+    only other caller. Everything the two share -- the buffer and time
+    semantics, the D8 duplicate-time check, the D12 pin, the units adapter, the
+    calendar read and the atomic write -- lives here precisely so neither can
+    drift from the other.
+
+    Writes `raw_nc_out` atomically, stamped with `cst_raw_digest`, and returns
+    without touching the network when a valid slice is already there.
+
+    Args:
+        region_path: polygon whose bounds clip the store. Part of the cache
+            identity via `series_identity.region_fingerprint`, so a different
+            polygon is a different slice.
+        raw_nc_out: destination netCDF.
+        catalog_path: hydromt data catalog (the generated cmip6 one).
+        catalog_entry: entry name, `{member}` placeholder still in it.
+        member: the ensemble member to resolve that placeholder with.
+        variables: variable names to read.
+        variable_units: name -> units string stamped after the adapter's
+            conversion (S8-08(a)).
+        buffer: degrees added around the polygon bounds.
+        acquisition_window: (start, end) as the driver understands them.
+        components: raw digest components -- `series_identity.raw_components`,
+            carrying NO reducer hash. A caller that adds one makes a formula
+            edit re-download, which is what the stage-A split exists to avoid.
+    """
+    # Report the switch above rather than enforce it. `setdefault` is correct:
+    # it fixes the UNSET case, which is what the 57.7 s vs >836 s benchmark
+    # actually measured, while leaving a deliberate export intact -- the opt-in
+    # a future HNS-backed catalog would need. What was missing is legibility:
+    # an inherited "true" turned a 58 s job into a 14-minute one with nothing in
+    # the log to say why. One row, WARNING when the effective value is not the
+    # one this module needs, so a slow run explains itself.
+    _row, _level = hns_switch_row(
+        os.environ.get("GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT", "")
+    )
+    log_row(_row, module="fetch", level=_level)
+
+    # S8-08(a): see get_stats_climate_proj.py. The adapter converts the values
+    # and leaves the `units` attribute describing the pre-conversion quantity.
+    # NOTE: raw_digest_components carries NO reducer hash. See
+    # series_identity.raw_components — the Snakefile must keep it that way, or a
+    # formula edit re-downloads and the split buys nothing.
+
+    region_fp = series_identity.region_fingerprint(region_path)
+    expected_raw_digest = series_identity.raw_digest(components, region_fp)
+
+    # --- revalidation before touching the network (D9's argument, one layer up)
+    if series_identity.cache_hit(
+        [raw_nc_out], expected_raw_digest, digest_attr="cst_raw_digest"
+    ):
+        log_row(
+            f"raw cache_hit entry={catalog_entry} member={member} ({raw_nc_out})",
+            module="fetch",
+        )
+        # S8-08(a): a slice cached BEFORE the units fix still claims the
+        # pre-conversion units. Repair it in place rather than leaving the two
+        # tiers disagreeing -- `scalar/` is stamped on every reduce, so
+        # skipping this would make `raw/` the only artifact still lying about
+        # its own values, and only on projects old enough to have a cache.
+        #
+        # Safe against the identity: `units` is a VARIABLE attribute and the
+        # digest covers neither it nor the values. Paid once per stale file;
+        # a slice already carrying the right units takes the fast path.
+        import xarray as _xr
+
+        with _xr.open_dataset(raw_nc_out) as _cached:
+            stale = stale_units(_cached, variable_units)
+            repaired = _cached.load() if stale else None
+        if stale:
+            for name, units in stale.items():
+                repaired[name].attrs["units"] = units
+            series_identity.write_netcdf_atomic(repaired, raw_nc_out)
+            repaired.close()
+            log_row(
+                f"repaired stale units on the cached slice: {sorted(stale)}",
+                module="fetch",
+            )
+        os.utime(raw_nc_out, None)
+        return
+
+    # The digest is deliberately NOT echoed here (nor on the cache-hit row
+    # above): it is stamped on the slice as `cst_raw_digest`, so the durable
+    # copy is the file's own, and a 12-char hex prefix identifies nothing a
+    # reader can act on. What identifies the job is the entry and member.
+    log_row(
+        f"fetching entry={catalog_entry} "
+        f"member={member} window={acquisition_window[0]}..{acquisition_window[1]}",
+        module="fetch",
+    )
+
+    os.makedirs(os.path.dirname(raw_nc_out) or ".", exist_ok=True)
+
+    # --- everything below the cache exit is MISS-ONLY work -----------------
+    # hydromt is imported here, not with the module: it is used first at the
+    # DataCatalog below, and a cache hit is the common case. Fresh-process
+    # measurement, external review 2026-07-31: geopandas + xarray 2.7-3.0 s /
+    # 118 MiB RSS versus geopandas + hydromt + xarray 6.7-7.4 s / 311 MiB, so a
+    # cached job stops paying ~4 s and ~193 MiB peak (against the 9.98-10.24 s /
+    # ~327 MiB the nine cached fetch jobs cost in wf2_benchmarks.md).
+    # The `.raster` accessor hydromt registers is not used here -- this module
+    # reads through DataCatalog, unlike get_stats_climate_proj.py.
+    # It stays INSIDE the tee: `tee_to_log` repoints library handlers bound
+    # before entry, so an import that lands after entry must keep landing after
+    # entry, or hydromt's StreamHandler binds to the real stdout and bypasses
+    # the log file.
+    import geopandas as gpd
+    import hydromt
+
+    # The region is read here too, not before the cache check: `bbox` is
+    # consumed only by the read below and by the attrs at the end, both on this
+    # path, so a cache hit now opens the polygon once (inside
+    # `region_fingerprint`) instead of twice. Deliberately NOT folded into
+    # `region_fingerprint` -- that function is a cache-identity contract
+    # (design D9), not a place to hang a bounds helper.
+    geom = gpd.read_file(region_path)
+    bbox = list(geom.geometry.bounds.values[0])
+
+    # The generated catalog expands placeholders at generation time, so the
+    # member is part of the entry NAME (get_stats_climate_proj.py:236). Use the
+    # catalog's own grammar rather than string surgery.
+    entry = resolve_entry_name(catalog_entry, member)
+
+    # --- spend the D12 pin instead of listing the bucket ------------------
+    # The URI ends /{variable}/*/* , so resolving it lists the store to expand
+    # {grid_label}/{version}. The index already records that location, so
+    # substitute it and address the store directly.
+    # Worth ~10 s per source: open 49.9 s pinned vs 60.0 s globbed, 3 samples
+    # per arm, non-overlapping (benchmark note 3.2). But gcsfs answers the same
+    # patterns in 0.41 s, so what this removes is hydromt's resolver overhead on
+    # a wildcard URI, NOT a slow network listing -- describe it that way. The
+    # second reason to keep it is determinism: one known store rather than a
+    # pattern whose match set can change under the job.
+    # Falls back to the globbed catalog whenever the pins cannot name one
+    # location (per-variable divergence, or >1 match, which is D8's ambiguity and
+    # must stay globbed so the duplicate-time assertion still fires).
+    entry_spec = series_identity.load_catalog_entry(catalog_path, catalog_entry)
+    pin_uri = series_identity.pinned_uri(
+        str(entry_spec.get("uri", "")),
+        (components.get("pins") or {}).get(member, {}),
+    )
+    if pin_uri is None:
+        # The URI goes on OUR row in both branches. The console mutes
+        # hydromt's `data_source - Reading <entry> from <uri>` echo, which
+        # repeats this URI at ~175 characters (4 such rows per WF2 run);
+        # that mute is only information-preserving because the glob case
+        # names its URI here rather than relying on the echo.
+        log_row(
+            f"no single pin; keeping the URI glob: {entry_spec.get('uri', '')}",
+            module="fetch",
+        )
+        data_catalog = hydromt.DataCatalog(data_libs=catalog_path)
+    else:
+        pinned_spec = dict(entry_spec)
+        pinned_spec["uri"] = pin_uri
+        # Registered through hydromt's own dict schema -- same driver, adapter and
+        # metadata, only the URI narrowed. from_dict rather than a YAML round-trip:
+        # hydromt 1.3's to_yml drops driver.options.preprocess (see
+        # prepare_climate_data_catalog.py).
+        data_catalog = hydromt.DataCatalog()
+        data_catalog.from_dict({catalog_entry: pinned_spec})
+        log_row(f"pinned URI (no bucket listing): {pin_uri}", module="fetch")
+    data = data_catalog.get_rasterdataset(
+        entry,
+        bbox=bbox,
+        buffer=buffer,
+        time_range=acquisition_window,
+        variables=variables,
+    )
+    # Kept for the empty-window error below: `time_range` is applied by the
+    # driver and `.sel` narrows it again, so "the driver returned 1850..2014"
+    # is the diagnostic that tells the two apart.
+    driver_index = data.indexes.get("time")
+    # cmip6/cmip5 cftime calendars are not always honoured by time_range alone.
+    data = data.sel(time=slice(*acquisition_window))
+
+    # D8: the catalog URI globs {grid_label}/{version} and ~6% of pinned stores
+    # match more than one. Two concatenated stores give a duplicated time axis,
+    # which halves the effective record while looking fine.
+    # Checked BEFORE `.load()`: coordinates are read at open, so this costs
+    # nothing lazily, and an ambiguous source now fails without first
+    # transferring every selected chunk (~19 s on the benchmark source). Kept
+    # AFTER `.sel()` so duplicates outside the acquisition window stay out of it.
+    index = data.indexes.get("time")
+    check_time_axis(entry, index, driver_index, acquisition_window)
+
+    # Eager, and not only for speed: a lazy slice written by to_netcdf reads from
+    # dask's thread pool and deadlocks on the HDF5 lock (measured, commit
+    # bf1f4a5). After bbox/time slicing this is well under a megabyte.
+    data = data.load()
+
+    # --- the model's TRUE calendar, read from the store ---------------------
+    # `index` is a DatetimeIndex by now and has no `.calendar`: our catalog
+    # requests `preprocess: harmonise_dims`, whose time branch converts a
+    # CFTimeIndex away (hydromt .../drivers/preprocessing.py:66). Reading
+    # `.calendar` off it recorded "" while the file was written asserting
+    # `proleptic_gregorian` -- false for every noleap/360_day model. So ask the
+    # store, which is the only place that still knows.
+    # One consolidated-metadata read, ~0.3 s; see the blocker note.
+    pins_for_member = (components.get("pins") or {}).get(member, {})
+    # Prefer a CERTIFIED variable: the crawl proved pr/tas present, and any
+    # other name is best-effort (A3), so its store may not exist.
+    calendar_var = calendar_pin(pins_for_member)
+    store_uri = calendar_store_uri(
+        pin_uri or str(entry_spec.get("uri", "")),
+        member,
+        calendar_var,
+        pins_for_member,
+    )
+    store_calendar = (
+        series_identity.read_store_calendar(store_uri)
+        if store_uri
+        else series_identity.CALENDAR_UNKNOWN
+    )
+    log_row(
+        f"store calendar={store_calendar} ({calendar_var or 'no pin'})",
+        module="fetch",
+    )
+
+    first, last = (str(index[0]), str(index[-1])) if index is not None else ("", "")
+    for _name, _units in variable_units.items():
+        if _name in data:
+            data[_name].attrs["units"] = _units
+
+    data.attrs.update(
+        raw_slice_attrs(
+            components,
+            member,
+            expected_raw_digest,
+            acquisition_window,
+            first,
+            last,
+            store_calendar,
+            bbox,
+            region_fp,
+            buffer,
+        )
+    )
+    # ...and drop the inherited attrs that describe ONE source file. This
+    # slice merges pr and tas, so a single `variable_id` is wrong whichever
+    # way the merge resolved it; `cst_source_paths` above carries the real
+    # per-variable provenance (R9 P2 F4).
+    series_identity.drop_inherited_single_source_attrs(data)
+
+    series_identity.write_netcdf_atomic(data, raw_nc_out)
+    log_row(
+        f"wrote raw {os.path.basename(raw_nc_out)} "
+        f"({os.path.getsize(raw_nc_out) / 1e6:.2f} MB, {len(index) if index is not None else 0} steps)",
+        module="fetch",
+    )
+    data.close()
+
+
+# ---------------------------------------------------------------------------
+# Snakemake adapter. `if "snakemake" in globals():` is invisible to every unit
+# test, so it is checked by running the pipeline or not at all -- which is the
+# reason it now holds nothing but the unpacking.
+# ---------------------------------------------------------------------------
+
 if "snakemake" in globals():
     sm = globals()["snakemake"]
 
     with tee_to_log(sm.log[0]):
-        # Report the switch above rather than enforce it. `setdefault` is correct:
-        # it fixes the UNSET case, which is what the 57.7 s vs >836 s benchmark
-        # actually measured, while leaving a deliberate export intact -- the opt-in
-        # a future HNS-backed catalog would need. What was missing is legibility:
-        # an inherited "true" turned a 58 s job into a 14-minute one with nothing in
-        # the log to say why. One row, WARNING when the effective value is not the
-        # one this module needs, so a slow run explains itself.
-        _row, _level = hns_switch_row(
-            os.environ.get("GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT", "")
+        fetch_raw_slice(
+            region_path=sm.input.region_path,
+            raw_nc_out=str(sm.output.raw_nc),
+            catalog_path=sm.params.catalog_path,
+            catalog_entry=sm.params.catalog_entry,
+            member=sm.params.member,
+            variables=list(sm.params.variables),
+            # S8-08(a): see get_stats_climate_proj.py. The adapter converts the
+            # values and leaves `units` describing the pre-conversion quantity.
+            variable_units=dict(sm.params.variable_units),
+            buffer=sm.params.buffer_degrees,
+            acquisition_window=tuple(sm.params.acquisition_window),
+            # NOTE: carries NO reducer hash. See series_identity.raw_components --
+            # the Snakefile must keep it that way, or a formula edit re-downloads
+            # and the split buys nothing.
+            components=sm.params.raw_digest_components,
         )
-        log_row(_row, module="fetch", level=_level)
-
-        region_path = sm.input.region_path
-        raw_nc_out = str(sm.output.raw_nc)
-        catalog_path = sm.params.catalog_path
-        catalog_entry = sm.params.catalog_entry
-        member = sm.params.member
-        variables = list(sm.params.variables)
-        # S8-08(a): see get_stats_climate_proj.py. The adapter converts the values
-        # and leaves the `units` attribute describing the pre-conversion quantity.
-        variable_units = dict(sm.params.variable_units)
-        buffer = sm.params.buffer_degrees
-        acquisition_window = tuple(sm.params.acquisition_window)
-        # NOTE: raw_digest_components carries NO reducer hash. See
-        # series_identity.raw_components — the Snakefile must keep it that way, or a
-        # formula edit re-downloads and the split buys nothing.
-        components = sm.params.raw_digest_components
-
-        region_fp = series_identity.region_fingerprint(region_path)
-        expected_raw_digest = series_identity.raw_digest(components, region_fp)
-
-        # --- revalidation before touching the network (D9's argument, one layer up)
-        if series_identity.cache_hit(
-            [raw_nc_out], expected_raw_digest, digest_attr="cst_raw_digest"
-        ):
-            log_row(
-                f"raw cache_hit entry={catalog_entry} member={member} ({raw_nc_out})",
-                module="fetch",
-            )
-            # S8-08(a): a slice cached BEFORE the units fix still claims the
-            # pre-conversion units. Repair it in place rather than leaving the two
-            # tiers disagreeing -- `scalar/` is stamped on every reduce, so
-            # skipping this would make `raw/` the only artifact still lying about
-            # its own values, and only on projects old enough to have a cache.
-            #
-            # Safe against the identity: `units` is a VARIABLE attribute and the
-            # digest covers neither it nor the values. Paid once per stale file;
-            # a slice already carrying the right units takes the fast path.
-            import xarray as _xr
-
-            with _xr.open_dataset(raw_nc_out) as _cached:
-                stale = stale_units(_cached, variable_units)
-                repaired = _cached.load() if stale else None
-            if stale:
-                for name, units in stale.items():
-                    repaired[name].attrs["units"] = units
-                series_identity.write_netcdf_atomic(repaired, raw_nc_out)
-                repaired.close()
-                log_row(
-                    f"repaired stale units on the cached slice: {sorted(stale)}",
-                    module="fetch",
-                )
-            os.utime(raw_nc_out, None)
-            raise SystemExit(0)
-
-        # The digest is deliberately NOT echoed here (nor on the cache-hit row
-        # above): it is stamped on the slice as `cst_raw_digest`, so the durable
-        # copy is the file's own, and a 12-char hex prefix identifies nothing a
-        # reader can act on. What identifies the job is the entry and member.
-        log_row(
-            f"fetching entry={catalog_entry} "
-            f"member={member} window={acquisition_window[0]}..{acquisition_window[1]}",
-            module="fetch",
-        )
-
-        os.makedirs(os.path.dirname(raw_nc_out) or ".", exist_ok=True)
-
-        # --- everything below the cache exit is MISS-ONLY work -----------------
-        # hydromt is imported here, not with the module: it is used first at the
-        # DataCatalog below, and a cache hit is the common case. Fresh-process
-        # measurement, external review 2026-07-31: geopandas + xarray 2.7-3.0 s /
-        # 118 MiB RSS versus geopandas + hydromt + xarray 6.7-7.4 s / 311 MiB, so a
-        # cached job stops paying ~4 s and ~193 MiB peak (against the 9.98-10.24 s /
-        # ~327 MiB the nine cached fetch jobs cost in wf2_benchmarks.md).
-        # The `.raster` accessor hydromt registers is not used here -- this module
-        # reads through DataCatalog, unlike get_stats_climate_proj.py.
-        # It stays INSIDE the tee: `tee_to_log` repoints library handlers bound
-        # before entry, so an import that lands after entry must keep landing after
-        # entry, or hydromt's StreamHandler binds to the real stdout and bypasses
-        # the log file.
-        import geopandas as gpd
-        import hydromt
-
-        # The region is read here too, not before the cache check: `bbox` is
-        # consumed only by the read below and by the attrs at the end, both on this
-        # path, so a cache hit now opens the polygon once (inside
-        # `region_fingerprint`) instead of twice. Deliberately NOT folded into
-        # `region_fingerprint` -- that function is a cache-identity contract
-        # (design D9), not a place to hang a bounds helper.
-        geom = gpd.read_file(region_path)
-        bbox = list(geom.geometry.bounds.values[0])
-
-        # The generated catalog expands placeholders at generation time, so the
-        # member is part of the entry NAME (get_stats_climate_proj.py:236). Use the
-        # catalog's own grammar rather than string surgery.
-        entry = resolve_entry_name(catalog_entry, member)
-
-        # --- spend the D12 pin instead of listing the bucket ------------------
-        # The URI ends /{variable}/*/* , so resolving it lists the store to expand
-        # {grid_label}/{version}. The index already records that location, so
-        # substitute it and address the store directly.
-        # Worth ~10 s per source: open 49.9 s pinned vs 60.0 s globbed, 3 samples
-        # per arm, non-overlapping (benchmark note 3.2). But gcsfs answers the same
-        # patterns in 0.41 s, so what this removes is hydromt's resolver overhead on
-        # a wildcard URI, NOT a slow network listing -- describe it that way. The
-        # second reason to keep it is determinism: one known store rather than a
-        # pattern whose match set can change under the job.
-        # Falls back to the globbed catalog whenever the pins cannot name one
-        # location (per-variable divergence, or >1 match, which is D8's ambiguity and
-        # must stay globbed so the duplicate-time assertion still fires).
-        entry_spec = series_identity.load_catalog_entry(catalog_path, catalog_entry)
-        pin_uri = series_identity.pinned_uri(
-            str(entry_spec.get("uri", "")),
-            (components.get("pins") or {}).get(member, {}),
-        )
-        if pin_uri is None:
-            # The URI goes on OUR row in both branches. The console mutes
-            # hydromt's `data_source - Reading <entry> from <uri>` echo, which
-            # repeats this URI at ~175 characters (4 such rows per WF2 run);
-            # that mute is only information-preserving because the glob case
-            # names its URI here rather than relying on the echo.
-            log_row(
-                f"no single pin; keeping the URI glob: {entry_spec.get('uri', '')}",
-                module="fetch",
-            )
-            data_catalog = hydromt.DataCatalog(data_libs=catalog_path)
-        else:
-            pinned_spec = dict(entry_spec)
-            pinned_spec["uri"] = pin_uri
-            # Registered through hydromt's own dict schema -- same driver, adapter and
-            # metadata, only the URI narrowed. from_dict rather than a YAML round-trip:
-            # hydromt 1.3's to_yml drops driver.options.preprocess (see
-            # prepare_climate_data_catalog.py).
-            data_catalog = hydromt.DataCatalog()
-            data_catalog.from_dict({catalog_entry: pinned_spec})
-            log_row(f"pinned URI (no bucket listing): {pin_uri}", module="fetch")
-        data = data_catalog.get_rasterdataset(
-            entry,
-            bbox=bbox,
-            buffer=buffer,
-            time_range=acquisition_window,
-            variables=variables,
-        )
-        # Kept for the empty-window error below: `time_range` is applied by the
-        # driver and `.sel` narrows it again, so "the driver returned 1850..2014"
-        # is the diagnostic that tells the two apart.
-        driver_index = data.indexes.get("time")
-        # cmip6/cmip5 cftime calendars are not always honoured by time_range alone.
-        data = data.sel(time=slice(*acquisition_window))
-
-        # D8: the catalog URI globs {grid_label}/{version} and ~6% of pinned stores
-        # match more than one. Two concatenated stores give a duplicated time axis,
-        # which halves the effective record while looking fine.
-        # Checked BEFORE `.load()`: coordinates are read at open, so this costs
-        # nothing lazily, and an ambiguous source now fails without first
-        # transferring every selected chunk (~19 s on the benchmark source). Kept
-        # AFTER `.sel()` so duplicates outside the acquisition window stay out of it.
-        index = data.indexes.get("time")
-        check_time_axis(entry, index, driver_index, acquisition_window)
-
-        # Eager, and not only for speed: a lazy slice written by to_netcdf reads from
-        # dask's thread pool and deadlocks on the HDF5 lock (measured, commit
-        # bf1f4a5). After bbox/time slicing this is well under a megabyte.
-        data = data.load()
-
-        # --- the model's TRUE calendar, read from the store ---------------------
-        # `index` is a DatetimeIndex by now and has no `.calendar`: our catalog
-        # requests `preprocess: harmonise_dims`, whose time branch converts a
-        # CFTimeIndex away (hydromt .../drivers/preprocessing.py:66). Reading
-        # `.calendar` off it recorded "" while the file was written asserting
-        # `proleptic_gregorian` -- false for every noleap/360_day model. So ask the
-        # store, which is the only place that still knows.
-        # One consolidated-metadata read, ~0.3 s; see the blocker note.
-        pins_for_member = (components.get("pins") or {}).get(member, {})
-        # Prefer a CERTIFIED variable: the crawl proved pr/tas present, and any
-        # other name is best-effort (A3), so its store may not exist.
-        calendar_var = calendar_pin(pins_for_member)
-        store_uri = calendar_store_uri(
-            pin_uri or str(entry_spec.get("uri", "")),
-            member,
-            calendar_var,
-            pins_for_member,
-        )
-        store_calendar = (
-            series_identity.read_store_calendar(store_uri)
-            if store_uri
-            else series_identity.CALENDAR_UNKNOWN
-        )
-        log_row(
-            f"store calendar={store_calendar} ({calendar_var or 'no pin'})",
-            module="fetch",
-        )
-
-        first, last = (str(index[0]), str(index[-1])) if index is not None else ("", "")
-        for _name, _units in variable_units.items():
-            if _name in data:
-                data[_name].attrs["units"] = _units
-
-        data.attrs.update(
-            raw_slice_attrs(
-                components,
-                member,
-                expected_raw_digest,
-                acquisition_window,
-                first,
-                last,
-                store_calendar,
-                bbox,
-                region_fp,
-                buffer,
-            )
-        )
-        # ...and drop the inherited attrs that describe ONE source file. This
-        # slice merges pr and tas, so a single `variable_id` is wrong whichever
-        # way the merge resolved it; `cst_source_paths` above carries the real
-        # per-variable provenance (R9 P2 F4).
-        series_identity.drop_inherited_single_source_attrs(data)
-
-        series_identity.write_netcdf_atomic(data, raw_nc_out)
-        log_row(
-            f"wrote raw {os.path.basename(raw_nc_out)} "
-            f"({os.path.getsize(raw_nc_out) / 1e6:.2f} MB, {len(index) if index is not None else 0} steps)",
-            module="fetch",
-        )
-        data.close()
