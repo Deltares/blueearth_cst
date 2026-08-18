@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="890" viewBox="0 0 1100 890" role="img" aria-label="Workflow 3, the climate stress test experiment, in two columns: setup, climate input and scenario generation on the left, hydrological simulation and close-out on the right">
+  <style>
+
+  :root {
+    --bg:        #ffffff;
+    --card:      #f7f8fa;
+    --border:    #d3d8e0;
+    --fg:        #1c2430;
+    --muted:     #5d6779;
+    --rule-id:   #3b5bdb;
+    --edge:      #8d97a8;
+    --accent-fg: #9a5a12;
+  }
+  :root[data-theme="dark"] {
+    --bg:        #14181f;
+    --card:      #1c222c;
+    --border:    #333c4a;
+    --fg:        #e6eaf0;
+    --muted:     #a4aec0;
+    --rule-id:   #8aa4ff;
+    --edge:      #5b6678;
+    --accent-fg: #f0a352;
+  }
+  .d-ground { fill: #ffffff; }
+  .d-card   { fill: #f7f8fa; stroke: #d3d8e0; stroke-width: 1.5; }
+  .d-title  { fill: #1c2430; font: 700 18px "Segoe UI", system-ui, sans-serif; }
+  .d-stage  { fill: #1c2430; font: 700 13.5px "Segoe UI", system-ui, sans-serif; }
+  .d-stagen { fill: #5d6779; font: 600 13.5px "Segoe UI", system-ui, sans-serif; }
+  .d-desc   { fill: #5d6779; font: 400 12px "Segoe UI", system-ui, sans-serif; }
+  .d-accent { fill: #9a5a12; font: 600 12px "Segoe UI", system-ui, sans-serif; }
+  .d-id     { fill: #3b5bdb; font: 600 12.5px "Cascadia Mono", Consolas, monospace; }
+  .d-name   { fill: #1c2430; font: 400 12.5px "Cascadia Mono", Consolas, monospace; }
+  .d-note   { fill: #5d6779; font: 400 11.5px "Segoe UI", system-ui, sans-serif; }
+  .d-edge   { stroke: #8d97a8; stroke-width: 2.5; fill: none; stroke-linejoin: round; }
+
+svg { width: 1100px; height: 890px; max-width: none; }
+</style>
+<rect width="1100" height="890" fill="#FFFFFF"/>
+<defs>
+    <marker id="arrow-down" viewBox="0 0 12 12" refX="6" refY="11"
+            markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="0">
+      <path d="M 0.5 0.5 L 6 11 L 11.5 0.5 z" fill="var(--edge)"/>
+    </marker>
+    <marker id="arrow-right" viewBox="0 0 12 12" refX="11" refY="6"
+            markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="0">
+      <path d="M 0.5 0.5 L 11 6 L 0.5 11.5 z" fill="var(--edge)"/>
+    </marker>
+  </defs>
+
+  <rect class="d-ground" x="0" y="0" width="1100" height="890"/>
+
+  <text class="d-title" x="40" y="46">Workflow 3: Climate Stress Test Experiment</text>
+
+  <!-- ============ LEFT COLUMN — cards span x 60..520, mid-line x = 290 ============ -->
+
+  <!-- 1 -->
+  <text class="d-stagen" x="60" y="102">1</text>
+  <text class="d-stage"  x="76" y="102">Experiment setup</text>
+  <text class="d-desc"   x="60" y="122">Pin the catchment model, confirm the basin, record the settings.</text>
+  <rect class="d-card" x="60" y="132" width="460" height="228" rx="9"/>
+  <text class="d-id" x="78" y="156">3.01</text><text class="d-name" x="126" y="156">check_project_consistency</text>
+  <text class="d-note" x="126" y="174">refuse to build on a basin that has since changed</text>
+  <text class="d-id" x="78" y="196">3.02</text><text class="d-name" x="126" y="196">snapshot_config</text>
+  <text class="d-note" x="126" y="214">record the settings this experiment used</text>
+  <text class="d-id" x="78" y="236">3.03</text><text class="d-name" x="126" y="236">delineate_region</text>
+  <text class="d-id" x="78" y="258">3.04</text><text class="d-name" x="126" y="258">delineate_spatial_units</text>
+  <text class="d-note" x="126" y="276">the basin boundary and its sub-catchments</text>
+  <text class="d-id" x="78" y="298">3.05</text><text class="d-name" x="126" y="298">write_model_reference</text>
+  <text class="d-id" x="78" y="320">3.06</text><text class="d-name" x="126" y="320">check_model_reference</text>
+  <text class="d-id" x="78" y="342">3.07</text><text class="d-name" x="126" y="342">write_experiment_config</text>
+
+  <path class="d-edge" d="M 290 360 L 290 428" marker-end="url(#arrow-down)"/>
+
+  <!-- 2 -->
+  <text class="d-stagen" x="60" y="460">2</text>
+  <text class="d-stage"  x="76" y="460">Climate input data</text>
+  <text class="d-desc"   x="60" y="480">The observed record, the changes to test, the generator's settings.</text>
+  <rect class="d-card" x="60" y="492" width="460" height="104" rx="9"/>
+  <text class="d-id" x="78" y="516">3.08</text><text class="d-name" x="126" y="516">extract_historical_climate</text>
+  <text class="d-note" x="126" y="534">the basin's observed rainfall and temperature record</text>
+  <text class="d-id" x="78" y="556">3.09</text><text class="d-name" x="126" y="556">prepare_stress_test_grid</text>
+  <text class="d-id" x="78" y="578">3.10</text><text class="d-name" x="126" y="578">prepare_weathergen_config</text>
+
+  <path class="d-edge" d="M 290 596 L 290 664" marker-end="url(#arrow-down)"/>
+
+  <!-- 3 -->
+  <text class="d-stagen" x="60" y="696">3</text>
+  <text class="d-stage"  x="76" y="696">Stochastic scenario generation</text>
+  <text class="d-desc"   x="60" y="716">Many plausible records, each shifted by every change tested.</text>
+  <rect class="d-card" x="60" y="728" width="460" height="122" rx="9"/>
+  <text class="d-id" x="78" y="752">3.11</text><text class="d-name" x="126" y="752">generate_weather_realizations</text>
+  <text class="d-note" x="126" y="770">alternative, equally plausible versions of that record</text>
+  <text class="d-id" x="78" y="792">3.12</text><text class="d-name" x="126" y="792">perturb_climate_realization</text>
+  <text class="d-note" x="126" y="810">shift one version by one temperature-and-rainfall change</text>
+  <text class="d-id" x="78" y="832">3.13</text><text class="d-name" x="126" y="832">write_climate_data_catalog</text>
+
+  <!-- cross-over: mid-height of stage 3's right edge (789) into
+       mid-height of stage 4's left edge (213) -->
+  <path class="d-edge" d="M 520 789 L 560 789 L 560 213 L 588 213"
+        marker-end="url(#arrow-right)"/>
+
+  <!-- ============ RIGHT COLUMN — cards span x 600..1060, mid-line x = 830 ============ -->
+
+  <!-- 4 -->
+  <text class="d-stagen" x="600" y="102">4</text>
+  <text class="d-stage"  x="616" y="102">Hydrological simulation</text>
+  <text class="d-accent" x="600" y="122">The only stage that knows which catchment model is used.</text>
+  <rect class="d-card" x="600" y="132" width="460" height="162" rx="9"/>
+  <text class="d-id" x="618" y="156">3.14</text><text class="d-name" x="666" y="156">downscale_climate_realization</text>
+  <text class="d-note" x="666" y="174">put each scenario onto the catchment model's own grid</text>
+  <text class="d-id" x="618" y="196">3.15</text><text class="d-name" x="666" y="196">run_wflow_batch</text>
+  <text class="d-note" x="666" y="214">simulate river flow under every scenario, in groups</text>
+  <text class="d-id" x="618" y="236">3.16</text><text class="d-name" x="666" y="236">derive_wflow_indicators</text>
+  <text class="d-note" x="666" y="254">reduce all those flows to the indicators being compared</text>
+  <text class="d-id" x="618" y="280">3.16b</text><text class="d-name" x="680" y="280">write_run_metadata</text>
+
+  <path class="d-edge" d="M 830 294 L 830 362" marker-end="url(#arrow-down)"/>
+
+  <!-- 5 -->
+  <text class="d-stagen" x="600" y="394">5</text>
+  <text class="d-stage"  x="616" y="394">Experiment close-out</text>
+  <text class="d-desc"   x="600" y="414">Collect the timings and logs, then assemble what was asked for.</text>
+  <rect class="d-card" x="600" y="426" width="460" height="104" rx="9"/>
+  <text class="d-id" x="618" y="450">3.17</text><text class="d-name" x="666" y="450">gather_benchmarks</text>
+  <text class="d-id" x="618" y="472">3.18</text><text class="d-name" x="666" y="472">gather_logs</text>
+  <text class="d-id" x="618" y="494">3.00</text><text class="d-name" x="666" y="494">all</text>
+  <text class="d-note" x="666" y="512">what the experiment is asked for — it demands every stage</text>
+</svg>
