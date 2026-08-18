@@ -21,6 +21,7 @@ from os.path import join
 from pathlib import Path
 from typing import Optional, Union
 
+import dask
 import geopandas as gpd
 import hydromt
 import pandas as pd
@@ -591,7 +592,43 @@ def prep_historical_climate(
     delayed_obj = ds.to_netcdf(fn_out, encoding=encoding, mode="w", compute=False)
     # Labelled with the SOURCE, because a multi-source project runs this rule
     # once per source and the console would otherwise show identical bars.
-    with DaskProgress(f"{clim_source} store"):
+    #
+    # SYNCHRONOUS, and that is the whole fix for a hard deadlock -- measured
+    # 2026-08-18, when wf0 parked forever on the chirps store at 94.2%.
+    #
+    # netCDF4/HDF5 takes a PROCESS-GLOBAL lock and xarray serializes every
+    # netCDF touch through it. Under the threaded scheduler this graph asks for
+    # that lock from both directions at once: the `to_netcdf` write tasks
+    # (`netCDF4_.py::__setitem__`) and the source's own read tasks
+    # (`netCDF4_.py::_getitem`) run in the SAME pool, so writers and readers
+    # each hold one sub-lock of a `CombinedLock` while waiting for the other and
+    # nobody is left making progress. A py-spy dump shows every worker parked at
+    # `xarray/backends/locks.py:66` with the process burning 0.08 s of CPU per
+    # 20 s of wall clock -- a deadlock, not a slow write.
+    #
+    # It is SOURCE-SHAPED, which is why it stayed hidden: era5 reads from
+    # `era5_daily.zarr`, zarr takes no such lock, and that store writes in
+    # seconds. chirps reads 17 yearly `CHIRPS_rainfall_{year}.nc` plus
+    # `era5_orography_2018.nc` for the lapse correction -- netCDF on both sides
+    # of one graph, so the deadlock is reachable only there.
+    #
+    # The same failure is diagnosed in bf1f4a5 and worked around at three WF2
+    # call sites by materializing the READ eagerly (`.load()`) before writing.
+    # That fix would be wrong here: those sites load small per-member summaries,
+    # whereas this is the climate store itself, whose size is set by the basin
+    # and the historical window and is bounded by nothing in this function.
+    # Eager would trade a deadlock for an OOM on a large basin. Going
+    # synchronous removes the concurrency the lock contends over while still
+    # streaming chunk by chunk, so peak memory is unchanged.
+    #
+    # Cost is one core on a zlib-bound write. `DaskProgress` is unaffected:
+    # `dask.local.get_sync` drives the same callback machinery, so the bar
+    # still renders (verified, not assumed).
+    #
+    # Set through `dask.config` rather than passed as `compute(scheduler=...)`
+    # so the call signature stays what every caller and fake already expects,
+    # and so any compute nested inside `to_netcdf` inherits it too.
+    with DaskProgress(f"{clim_source} store"), dask.config.set(scheduler="synchronous"):
         delayed_obj.compute()
     # Release the store handles deterministically rather than leaving them to
     # the garbage collector. Good practice on its own terms.
