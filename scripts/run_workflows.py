@@ -727,8 +727,7 @@ def _settings_rows(cfg: Mapping[str, Any], project_dir: Path) -> list[tuple[str,
         except (TypeError, ValueError):
             rows.append(("resolution", str(resolution)))
 
-    climate = cfg.get("shared", {})
-    source = climate.get("clim_historical") if isinstance(climate, Mapping) else None
+    source = _section(cfg, "shared").get("clim_historical")
     if source is not None:
         rows.append(("climate", str(source)))
 
