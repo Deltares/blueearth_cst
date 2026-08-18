@@ -57,6 +57,16 @@ bbox and applies the bbox itself:
   label slice `sel(lat=slice(south, north))` would return nothing, and an empty
   spatial selection reduces to NaN rather than raising.
 
+**The downstream link was checked, not assumed.** A slice that lands on disk but
+dies in the reduce stage would leave the 27 models just as absent. The reducer
+opens `raw/*.nc` with plain `xr.open_dataset`, resolves its dims name-based
+through `_spatial_dim`, and reduces with `grid_weights.weighted_spatial_mean`,
+whose D10 weights need ordered but not evenly spaced axes -- so nothing on that
+path reaches `.raster.res`. `.raster.vars` (`get_stats_climate_proj:357`,
+`derive_change_factors:194`) is `list(data_vars)` and touches no geometry.
+Confirmed on the staged CanESM5 slice: geometry check passes, the area-weighted
+series is 26.43 degC with no NaN.
+
 Measured 2026-08-18, `--workers 1`, region `test_case/test_local`:
 
 | model | grid | result |

@@ -495,6 +495,12 @@ def test_a_descending_axis_is_not_read_backwards():
     `harmonise_dims` orients latitude N->S, so a label slice in south-to-north
     order returns NOTHING — and an empty spatial selection reduces to NaN rather
     than raising, several rules downstream.
+
+    The bbox avoids a half-index boundary deliberately. `np.round` rounds .5 to
+    even, so a bbox edge landing exactly between two cells resolves differently
+    depending on which way the axis runs — hydromt's own `clip_bbox` behaves the
+    same way, being the code this mirrors. This pins the ordinary case; parity
+    with hydromt is what the uniform-grid test above pins.
     """
     lat = np.arange(60.0, -60.1, -2.5)
     ascending = bbox_index_slice(lat[::-1], 44.0, 47.0, 0, "latitude")
