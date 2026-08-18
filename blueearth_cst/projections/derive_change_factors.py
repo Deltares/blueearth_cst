@@ -366,10 +366,20 @@ if "snakemake" in globals():
         )
         # Step 5e / D1: the durable reference-window record. Its designated homes
         # -- provenance.json (6a) and report.md (7) -- do not exist yet, so it
-        # lands in this log and 6a relocates it. Logged as one line per fact so a
-        # later reader can grep a single condition rather than parse a blob.
-        for _key, _value in sorted(dict(sm.params.reference_record).items()):
-            log_row(f"reference_window {_key}={_value}", module="change")
+        # lands in this log and 6a relocates it.
+        #
+        # ONE row, not one per fact. Every key already begins `reference_`, so
+        # seven rows differing only in their suffix read as repetition rather than
+        # as seven findings, and this rule is a single job covering every point --
+        # there is no model or scenario that would distinguish them. The keys stay
+        # `key=value` on the joined row, so grepping a single condition
+        # (`reference_window_years=`) still lands on it; provenance.json remains
+        # the structured copy.
+        _facts = " ".join(
+            f"{_key}={_value}"
+            for _key, _value in sorted(dict(sm.params.reference_record).items())
+        )
+        log_row(f"reference_window {_facts}", module="change")
 
         # The per-point files were `temp()` rule outputs; they are job-internal
         # now, with the same lifetime. TemporaryDirectory removes them even if the

@@ -1,9 +1,19 @@
 """In-place progress reporting for the long dask computes a rule waits on.
 
-Replaces ``dask.diagnostics.ProgressBar`` where a rule blocks on one big graph
-(rule 0.04's climate-store write is the case this was built for). Same
-mechanism -- a dask ``Callback`` redrawing one line in place -- with three
-things dask's bar does not give:
+Replaces ``dask.diagnostics.ProgressBar`` wherever a rule blocks on one big
+graph, so every workflow's long write animates the same labelled line:
+
+* wf0's climate-store write and wf2's series write call :class:`DaskProgress`
+  directly, as a dask ``Callback``;
+* wf1's and wf3's writes go through hydromt, which hard-codes
+  ``progressbar=True`` and offers no way in for a caller's bar --
+  :func:`hydromt_progress` rebinds the name hydromt resolves;
+* rule 1.08 drives hydromt through its CLI, so the bar is drawn in a child
+  process no rebind can reach -- :class:`DaskFrameRelay` re-renders the frames
+  arriving on the pipe.
+
+Same mechanism as dask's bar -- one line redrawn in place -- with three things
+dask's does not give:
 
 * **a label**, so a console running several sources says WHICH one is writing;
 * an **ETA**, which is the number someone watching a multi-minute write wants;
@@ -36,6 +46,8 @@ covered by the silence-triggered heartbeat in ``snake_utils``.
 
 from __future__ import annotations
 
+import contextlib
+import re
 import shutil
 import sys
 import time
@@ -171,6 +183,23 @@ class DaskProgress(Callback):
         self._last_len = 0
 
     def _start_state(self, dsk, state):
+        self.start()
+
+    def _posttask(self, key, result, dsk, state, worker_id):
+        self.update(_fraction(state))
+
+    def _finish(self, dsk, state, errored):
+        self.finish(errored=bool(errored))
+
+    # -- the same bar, driven by something other than a dask graph ----------
+    #
+    # Rule 1.08's bar arrives as text from a child process, so there is no
+    # graph to attach a Callback to. These three are that entry point; the
+    # Callback hooks above are thin wrappers over them, so both drivers render
+    # through exactly one implementation.
+
+    def start(self) -> None:
+        """Resolve the output stream and draw the opening frame."""
         self._stream = self._out if self._out is not None else sys.stdout
         self._glyphs = _stream_glyphs(self._stream)
         self._start_time = time.monotonic()
@@ -179,10 +208,12 @@ class DaskProgress(Callback):
         self._last_len = 0
         self._draw(0.0, force=True)
 
-    def _posttask(self, key, result, dsk, state, worker_id):
-        self._draw(_fraction(state))
+    def update(self, fraction: float, *, force: bool = False) -> None:
+        """Redraw at ``fraction``, subject to the redraw throttle."""
+        self._draw(fraction, force=force)
 
-    def _finish(self, dsk, state, errored):
+    def finish(self, *, errored: bool = False) -> None:
+        """Close the line, completing the bar unless the compute errored."""
         if not self._drawn:
             return
         if errored:
@@ -248,3 +279,134 @@ def _fraction(state) -> float:
     if total <= 0:
         return 0.0
     return done / total
+
+
+# --------------------------------------------------------------------------
+# hydromt's netCDF writes
+# --------------------------------------------------------------------------
+#
+# ``hydromt.writers._nc_progress`` wraps its ``obj.compute()`` in
+# ``ProgressBar() if progressbar else nullcontext()``, and
+# ``hydromt_wflow.components.forcing`` passes ``progressbar=True`` unconditionally
+# -- there is no flag on the way in that a caller can set. So a wf1 or wf3
+# forcing write emitted dask's bar while wf0 and wf2 emitted ours, which is the
+# inconsistency this section removes.
+#
+# The name is rebound in hydromt's OWN module namespace rather than in
+# ``dask.diagnostics``: ``writers.py`` does ``from dask.diagnostics import
+# ProgressBar`` at import, so the module global is what the call site resolves.
+# Patching ``dask.diagnostics.ProgressBar`` instead would change nothing here
+# and would silently redirect every other dask consumer in the process.
+#
+# This is a rebind at run time in our own code, not an edit to the vendored
+# package -- the distinction AGENTS.md draws. It degrades to a no-op rather
+# than raising when hydromt is absent or has moved the name, because a progress
+# bar must never be the reason a model write fails.
+
+
+@contextlib.contextmanager
+def hydromt_progress(label: str = "", *, module=None):
+    """Render hydromt's netCDF writes through :class:`DaskProgress`.
+
+    Wrap any hydromt call that may write a lazy dataset::
+
+        with hydromt_progress("forcing"):
+            model.write()
+
+    ``module`` is for tests, which pass a stand-in rather than importing
+    hydromt. Restores the original binding on the way out, including when the
+    wrapped call raises.
+    """
+    target = module
+    if target is None:
+        try:
+            import hydromt.writers as target  # noqa: PLC0415  (optional, lazy)
+        except Exception:  # pragma: no cover - hydromt absent or restructured
+            target = None
+
+    original = getattr(target, "ProgressBar", None) if target is not None else None
+    if original is None:
+        yield
+        return
+
+    def _factory(*_args, **_kwargs):
+        # hydromt calls ``ProgressBar()`` with no arguments; anything it might
+        # start passing (a width, a minimum) is dask's vocabulary, not ours, so
+        # it is accepted and ignored rather than crashing the write.
+        return DaskProgress(label)
+
+    target.ProgressBar = _factory
+    try:
+        yield
+    finally:
+        target.ProgressBar = original
+
+
+# --------------------------------------------------------------------------
+# a dask bar arriving from a CHILD process
+# --------------------------------------------------------------------------
+
+#: One frame of ``dask.diagnostics.ProgressBar``, e.g.
+#: ``[####      ] | 39% Completed | 106.82 ms``. Anchored on the bracketed bar
+#: so an ordinary log row that happens to contain a percentage cannot match.
+_DASK_FRAME_RE = re.compile(r"^\[[#\s]*\]\s*\|\s*(\d{1,3})%\s+Completed\b")
+
+
+class DaskFrameRelay:
+    """Re-render a child process's dask bar frames as one of ours.
+
+    Rule 1.08 drives hydromt through its CLI, so the bar is drawn inside a
+    process whose module namespace :func:`hydromt_progress` cannot reach. The
+    frames still arrive on the pipe, though, and they carry the one number that
+    matters -- so the parent parses the percentage out and redraws the line in
+    the house style, with a label and an ETA the child's bar never had.
+
+    Parsing another project's output is normally a bad trade. It is the right
+    one here because the alternative is bootstrapping the child through a
+    ``python -c`` preamble, which would stop the command being the byte-identical
+    ``hydromt update`` invocation that made rule 1.07+1.08's merge
+    behaviour-preserving. A frame that does not match is simply not consumed and
+    falls through to the caller unchanged, so a format change upstream costs the
+    bar, never the run.
+
+    Elapsed time is measured HERE rather than read out of the frame: the child
+    reports ``106.82 ms`` with no total, and an ETA needs a clock we control.
+    """
+
+    def __init__(self, label: str = "", *, out=None):
+        self._label = label
+        self._out = out
+        self._bar: DaskProgress | None = None
+        self._last_percent = -1
+
+    @property
+    def active(self) -> bool:
+        return self._bar is not None
+
+    def feed(self, chunk: str) -> bool:
+        """Consume ``chunk`` if it is a bar frame; return whether it was.
+
+        A caller streaming a child's output writes anything this refuses.
+        """
+        match = _DASK_FRAME_RE.match(chunk.strip("\r\n"))
+        if match is None:
+            return False
+        percent = min(int(match.group(1)), 100)
+        # A percentage that goes BACKWARDS is a second write starting its own
+        # bar, not a stall: hydromt writes one netCDF per forcing file.
+        if self._bar is not None and percent < self._last_percent:
+            self.close()
+        if self._bar is None:
+            self._bar = DaskProgress(self._label, out=self._out)
+            self._bar.start()
+        self._last_percent = percent
+        self._bar.update(percent / 100.0, force=percent >= 100)
+        return True
+
+    def close(self) -> None:
+        """Finish the frame in place and end the line. Idempotent."""
+        if self._bar is None:
+            return
+        bar, self._bar = self._bar, None
+        self._last_percent = -1
+        bar.finish()

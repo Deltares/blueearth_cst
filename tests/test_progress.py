@@ -16,10 +16,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from blueearth_cst.shared.progress import (  # noqa: E402
     _GLYPHS_ASCII,
     _GLYPHS_UNICODE,
+    DaskFrameRelay,
     DaskProgress,
     _fraction,
     _stream_glyphs,
     format_duration,
+    hydromt_progress,
     render_bar,
 )
 
@@ -283,3 +285,129 @@ def test_fraction_tracks_a_graph_that_grows_mid_flight():
     after = _fraction(_state(finished=5, ready=15))
     assert before == 0.5
     assert after < before
+
+
+# --- hydromt's own writes -----------------------------------------------------
+
+
+class _FakeWriters:
+    """Stands in for ``hydromt.writers``, whose module global is what is rebound."""
+
+    ProgressBar = "the original dask bar"
+
+
+def test_hydromt_progress_rebinds_the_name_hydromt_resolves():
+    module = _FakeWriters()
+    with hydromt_progress("forcing", module=module):
+        bar = module.ProgressBar()
+    assert isinstance(bar, DaskProgress)
+    assert bar._label == "forcing"
+
+
+def test_hydromt_progress_tolerates_the_arguments_dask_accepts():
+    """hydromt calls ``ProgressBar()`` bare today; a width is dask's vocabulary."""
+    module = _FakeWriters()
+    with hydromt_progress("forcing", module=module):
+        assert isinstance(module.ProgressBar(minimum=0, width=40), DaskProgress)
+
+
+def test_hydromt_progress_restores_the_original_binding():
+    module = _FakeWriters()
+    with hydromt_progress("forcing", module=module):
+        pass
+    assert module.ProgressBar == "the original dask bar"
+
+
+def test_hydromt_progress_restores_the_binding_when_the_write_raises():
+    module = _FakeWriters()
+    with pytest.raises(RuntimeError):
+        with hydromt_progress("forcing", module=module):
+            raise RuntimeError("write failed")
+    assert module.ProgressBar == "the original dask bar"
+
+
+def test_hydromt_progress_is_a_no_op_when_the_name_is_gone():
+    """A progress bar may never be the reason a model write fails."""
+
+    class _Moved:
+        pass
+
+    module = _Moved()
+    with hydromt_progress("forcing", module=module):
+        pass
+    assert not hasattr(module, "ProgressBar")
+
+
+# --- a dask bar arriving from a child process ---------------------------------
+
+
+def _frame(percent, filled=None):
+    """One frame exactly as ``dask.diagnostics.ProgressBar`` renders it."""
+    filled = percent * 40 // 100 if filled is None else filled
+    bar = "#" * filled
+    return f"[{bar:<40}] | {percent}% Completed | 106.82 ms\r"
+
+
+def test_relay_consumes_a_dask_frame_and_redraws_it_in_the_house_style():
+    out = _FakeStream()
+    relay = DaskFrameRelay("forcing", out=out)
+
+    assert relay.feed(_frame(0)) is True
+    assert relay.feed(_frame(39)) is True
+    relay.close()
+
+    text = out.getvalue()
+    assert "forcing" in text  # the label dask's bar never had
+    assert "Completed" not in text  # dask's own wording is gone
+    assert "\033" not in text
+    assert text.count("\n") == 1
+    assert text.endswith("\n")
+
+
+def test_relay_refuses_anything_that_is_not_a_frame():
+    """A row it does not consume falls through to the caller unchanged."""
+    relay = DaskFrameRelay("forcing", out=_FakeStream())
+    assert relay.feed("00:01:09 - forcing - Write forcing file\n") is False
+    assert relay.feed("reached 100% Completed of the quota\n") is False
+    assert relay.feed("\n") is False
+    assert relay.active is False
+
+
+def test_relay_final_frame_reads_as_a_summary():
+    out = _FakeStream()
+    relay = DaskFrameRelay("forcing", out=out)
+    relay.feed(_frame(0))
+    relay.feed(_frame(100, filled=40))
+    relay.close()
+
+    last = [seg for seg in out.getvalue().rstrip("\n").split("\r") if seg][-1]
+    assert "100.0%" in last
+    assert "forcing" in last
+
+
+def test_relay_starts_a_new_bar_when_the_percentage_goes_backwards():
+    """hydromt writes one netCDF per forcing file, each with its own bar."""
+    out = _FakeStream()
+    relay = DaskFrameRelay("forcing", out=out)
+    relay.feed(_frame(0))
+    relay.feed(_frame(100, filled=40))
+    relay.feed(_frame(0))  # the second write opens
+    relay.close()
+
+    assert out.getvalue().count("\n") == 2
+
+
+def test_relay_close_is_idempotent_and_silent_when_nothing_was_fed():
+    out = _FakeStream()
+    relay = DaskFrameRelay("forcing", out=out)
+    relay.close()
+    relay.close()
+    assert out.getvalue() == ""
+
+
+def test_relay_clamps_a_percentage_above_one_hundred():
+    out = _FakeStream()
+    relay = DaskFrameRelay("forcing", out=out)
+    assert relay.feed("[####] | 137% Completed | 1.00 s\r") is True
+    relay.close()
+    assert "137" not in out.getvalue()

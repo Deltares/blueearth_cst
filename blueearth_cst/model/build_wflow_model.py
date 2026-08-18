@@ -13,6 +13,8 @@ import yaml
 from hydromt.gis import flw
 from pyflwdir import core_d8, core_ldd
 
+from blueearth_cst.shared.progress import hydromt_progress
+
 _BASE_CONFIG = {
     "input": {
         "path_static": "staticmaps.nc",
@@ -545,7 +547,8 @@ def build_wflow_model(
         toml_output=None,
     )
     model.setup_outlets(river_only=True, toml_output=None)
-    model.write()
+    with hydromt_progress("model"):
+        model.write()
     model.close()
     _validate_written_model(root, maps, registry)
     maps.close()

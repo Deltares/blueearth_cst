@@ -247,7 +247,7 @@ if __name__ == "__main__":
 
             if series_identity.cache_hit(declared_outputs, expected_digest):
                 log_row(
-                    f"cache_hit digest={expected_digest[:12]} "
+                    f"{name_model} {name_scenario} cache_hit "
                     f"({len(declared_outputs)} output(s) already current)",
                     module="stats",
                 )
@@ -255,10 +255,11 @@ if __name__ == "__main__":
                     os.utime(path, None)  # refresh mtime so Snakemake sees it done
                 raise SystemExit(0)
 
-            log_row(
-                f"deriving digest={expected_digest[:12]} region_fp={region_fp[:12]}",
-                module="stats",
-            )
+            # Identity, not digests: several reduce jobs interleave on the console
+            # under `-c 3`, so a row has to say which (model, scenario) it belongs
+            # to. The digest and the region fingerprint say nothing a reader can
+            # act on and are stamped on the series file itself.
+            log_row(f"{name_model} {name_scenario} deriving", module="stats")
 
             # --- revision 6: the reduce stage reads LOCAL raw slices only -------
             # No DataCatalog, no get_rasterdataset, no network. Measured on
@@ -287,7 +288,6 @@ if __name__ == "__main__":
             ds_members_mean_stats_time = []
 
             for name_member, raw_path in zip(name_members, raw_paths):
-                log_row(f"{name_member}", module="stats")
                 entry = (
                     f"{name_clim_project}_{name_model}_{name_scenario}_{name_member}"
                 )
@@ -302,9 +302,13 @@ if __name__ == "__main__":
                 series_identity.assert_raw_coverage(
                     data, acquisition_window, variables, raw_label
                 )
+                # One identified row per member, where there used to be a bare
+                # member name before the read and a digest-carrying row after it.
+                # They announced the same step, and neither said which model or
+                # scenario was reducing.
                 log_row(
-                    f"reducing local raw {os.path.basename(raw_path)} "
-                    f"digest={expected_raw_digest[:12]}",
+                    f"{name_model} {name_scenario} {name_member} reducing "
+                    f"{os.path.basename(raw_path)}",
                     module="stats",
                 )
 

@@ -268,7 +268,7 @@ if "snakemake" in globals():
             [raw_nc_out], expected_raw_digest, digest_attr="cst_raw_digest"
         ):
             log_row(
-                f"raw cache_hit digest={expected_raw_digest[:12]} ({raw_nc_out})",
+                f"raw cache_hit entry={catalog_entry} member={member} ({raw_nc_out})",
                 module="fetch",
             )
             # S8-08(a): a slice cached BEFORE the units fix still claims the
@@ -297,8 +297,12 @@ if "snakemake" in globals():
             os.utime(raw_nc_out, None)
             raise SystemExit(0)
 
+        # The digest is deliberately NOT echoed here (nor on the cache-hit row
+        # above): it is stamped on the slice as `cst_raw_digest`, so the durable
+        # copy is the file's own, and a 12-char hex prefix identifies nothing a
+        # reader can act on. What identifies the job is the entry and member.
         log_row(
-            f"fetching raw digest={expected_raw_digest[:12]} entry={catalog_entry} "
+            f"fetching entry={catalog_entry} "
             f"member={member} window={acquisition_window[0]}..{acquisition_window[1]}",
             module="fetch",
         )
