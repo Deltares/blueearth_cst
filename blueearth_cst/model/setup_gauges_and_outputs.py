@@ -20,6 +20,7 @@ WFLOW_VARS = {
     "snow": "snowpack_liquid_water__depth",
 }
 
+from blueearth_cst.shared.progress import hydromt_progress  # noqa: E402
 from blueearth_cst.shared.wflow_outputs import code_for  # noqa: E402
 
 
@@ -135,7 +136,8 @@ def update_wflow_gauges_outputs(
             reducer=["mean"] * len(extras),
         )
 
-    mod.write()
+    with hydromt_progress("model"):
+        mod.write()
     # mod.close() commits deferred staticmaps writes — without it,
     # hydromt 1.x leaves the new variables in `staticmaps_<hash>.nc`
     # temp files instead of swapping them into the real file.

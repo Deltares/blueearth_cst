@@ -2600,6 +2600,19 @@ class _Tee:
         # value is fixed when the redirect is set up, which is also when the
         # header naming those folders is written.
         self._tokens = _path_tokens() if tokens is None else tuple(tokens)
+        # Animate an in-place bar only where redrawing means something. On a
+        # pipe -- `snakemake ... *> run.txt`, or the GUI capturing a run -- a
+        # carriage return does NOT overwrite, so streaming the frames turns one
+        # bar into a row per frame in the very artifact someone reads later.
+        # ``run_and_tee`` has always made this check for `shell:` rules; making
+        # it here puts `script:` rules on the same footing.
+        try:
+            self._stream_frames = bool(live.isatty())
+        except Exception:
+            self._stream_frames = False
+        #: The last frame seen while frames are NOT streamed, held so the
+        #: console still gets the bar's summary -- once, as an ordinary row.
+        self._held_frame = ""
         # Decided once, against the REAL console this tee wraps -- and it paints
         # the live copy ONLY. The log file must never receive an escape code:
         # it is read months later, by tools and by `merge_logs`, where a colour
@@ -2665,8 +2678,25 @@ class _Tee:
         thing a reader is meant to watch. It reaches this method by duck-typing —
         ``getattr(stream, "write_redraw", stream.write)`` — so it degrades to a
         plain write on any stream that is not a tee.
+
+        The exception is granted only where a carriage return OVERWRITES. Off a
+        terminal the frames would append, so they are held instead and the last
+        one is emitted as a single ordinary row when the bar closes its line —
+        the same summary the log file keeps, and the same row count.
         """
-        return self.write(text, _redraw=True)
+        if self._stream_frames:
+            return self.write(text, _redraw=True)
+        if "\r" in text:
+            frame = _cr_overwrite(text)
+            if frame.strip():
+                self._held_frame = frame
+            return self.write(text)
+        if self._held_frame:
+            # The bar's closing newline: release the summary, then let `write`
+            # terminate the log's own pending line as usual.
+            self._live.write(_paint_body(self._held_frame, self._colour) + "\n")
+            self._held_frame = ""
+        return self.write(text)
 
     def flush(self):
         # Flush the sinks but NOT ``_pending``: emitting a mid-progress fragment

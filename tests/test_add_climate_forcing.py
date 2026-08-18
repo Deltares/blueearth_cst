@@ -139,6 +139,56 @@ def test_a_zero_exit_returns_quietly():
     assert _run_streaming([sys.executable, "-c", "pass"]) is None
 
 
+def test_a_child_dask_bar_is_rerendered_in_the_house_style(capsys):
+    """hydromt draws dask's bar in the CHILD, where no rebind can reach it.
+
+    The frames still arrive on the pipe, so the parent re-renders them as the
+    same labelled bar wf0 and wf2 draw. What must NOT survive is dask's own
+    wording, and the row count must stay at one line per write rather than one
+    per frame.
+    """
+    child = (
+        "import sys\n"
+        "for pct in (0, 39, 100):\n"
+        "    sys.stdout.write('[%-40s] | %d%% Completed | 1.00 s\\r' % ('#' * (pct * 40 // 100), pct))\n"
+        "sys.stdout.write('\\n')\n"
+        "sys.stdout.write('done writing\\n')\n"
+    )
+    _run_streaming([sys.executable, "-c", child], progress_label="forcing")
+
+    # Past the `$ ...` echo, which necessarily quotes the child's own source.
+    out = capsys.readouterr().out.split(child)[-1]
+    assert "forcing" in out  # our label, which dask's bar has no room for
+    assert "Completed" not in out  # dask's wording is gone
+    assert "done writing" in out  # ordinary rows still pass through
+    assert "\033" not in out  # no escape codes, ever — the log sees this too
+
+
+def test_a_child_bar_left_open_is_still_closed(capsys):
+    """A child that exits mid-bar must not leave the line unterminated."""
+    child = "import sys\nsys.stdout.write('[####    ] | 42% Completed | 1.00 s\\r')\n"
+    _run_streaming([sys.executable, "-c", child], progress_label="forcing")
+
+    assert capsys.readouterr().out.endswith("\n")
+
+
+def test_a_row_that_merely_mentions_a_percentage_is_not_eaten(capsys):
+    """The relay consumes bar frames, not any row carrying a number."""
+    _run_streaming(
+        [sys.executable, "-c", "print('reached 100% Completed of the quota')"],
+        progress_label="forcing",
+    )
+
+    assert "reached 100% Completed of the quota" in capsys.readouterr().out
+
+
+def test_no_label_still_streams_ordinary_output(capsys):
+    """Every other caller passes no label; nothing about them may change."""
+    _run_streaming([sys.executable, "-c", "print('plain row')"])
+
+    assert "plain row" in capsys.readouterr().out
+
+
 # ---------------------------------------------------------------------------
 # add_climate_forcing — the orchestration
 # ---------------------------------------------------------------------------
@@ -168,7 +218,9 @@ def spy(monkeypatch):
         "prep_hydromt_update_forcing_config",
         lambda **kw: calls["recipe"].append(kw),
     )
-    monkeypatch.setattr(acf, "_run_streaming", lambda cmd: calls["command"].append(cmd))
+    monkeypatch.setattr(
+        acf, "_run_streaming", lambda cmd, **kw: calls["command"].append(cmd)
+    )
     return calls
 
 
@@ -321,7 +373,7 @@ def test_a_failing_update_propagates_rather_than_completing_green(
     monkeypatch.setattr(
         acf,
         "_run_streaming",
-        lambda cmd: _run_streaming([sys.executable, "-c", "raise SystemExit(1)"]),
+        lambda cmd, **kw: _run_streaming([sys.executable, "-c", "raise SystemExit(1)"]),
     )
 
     with pytest.raises(RuntimeError, match="exit code 1"):

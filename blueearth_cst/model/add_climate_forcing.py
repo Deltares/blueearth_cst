@@ -44,6 +44,7 @@ from blueearth_cst.climate_analysis.prepare_climate_data_catalog import (
     prepare_clim_data_catalog,
 )
 from blueearth_cst.shared.climate_window import require_min_years, store_time_bounds
+from blueearth_cst.shared.progress import DaskFrameRelay
 from blueearth_cst.shared.setup_time_horizon import prep_hydromt_update_forcing_config
 
 
@@ -72,7 +73,7 @@ def _catalog_flags(data_catalog):
     return flags
 
 
-def _run_streaming(command: Sequence[str]) -> None:
+def _run_streaming(command: Sequence[str], progress_label: str = "") -> None:
     """Run a command, re-printing its output so ``tee_to_log`` captures it."""
     print(f"$ {' '.join(command)}", flush=True)
     process = subprocess.Popen(
@@ -89,9 +90,21 @@ def _run_streaming(command: Sequence[str]) -> None:
     stream = io.TextIOWrapper(
         process.stdout, encoding="utf-8", errors="replace", newline=""
     )
+    # hydromt draws dask's bar inside the CHILD, where `hydromt_progress` cannot
+    # reach. The relay re-renders those frames in the same style wf0 and wf2
+    # use, so every workflow's long write animates one labelled line.
+    relay = DaskFrameRelay(progress_label)
     with stream:
         for line in stream:
             line = line.replace("\r\n", "\n")
+            if relay.feed(line):
+                continue
+            if relay.active:
+                if not line.strip():
+                    # The bar's own closing newline. The relay ends its line
+                    # itself, so passing this through would add a blank row.
+                    continue
+                relay.close()
             # ONE write per line, not `print`, which emits the text and the
             # newline separately. `_muted_on_console` refuses a chunk that is
             # not exactly one newline-terminated line — by design, so a partial
@@ -100,6 +113,7 @@ def _run_streaming(command: Sequence[str]) -> None:
             # rule alone (measured 2026-08-17 on a WF1 rapid build).
             sys.stdout.write(line)
             sys.stdout.flush()
+    relay.close()
     code = process.wait()
     if code != 0:
         raise RuntimeError(
@@ -223,7 +237,8 @@ def add_climate_forcing(
             os.fspath(forcing_yml),
             *_catalog_flags(data_catalog),
             "-vv",
-        ]
+        ],
+        progress_label="forcing",
     )
 
 

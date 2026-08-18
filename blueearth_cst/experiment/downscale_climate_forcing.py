@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 from hydromt_wflow import WflowSbmModel
 
+from blueearth_cst.shared.progress import hydromt_progress
 from blueearth_cst.shared.snake_utils import member_pointer_base
 
 
@@ -174,7 +175,8 @@ def downscale_climate_forcing(
 
     # Write forcing + per-realization toml to absolute paths so the model root
     # (which is the source hydrology_model dir) doesn't have to be moved.
-    mod.forcing.write(filename=str(fn_out.resolve()))
+    with hydromt_progress(f"{run_name} forcing"):
+        mod.forcing.write(filename=str(fn_out.resolve()))
     mod.config.write(
         filename=config_out_name,
         config_root=Path(config_out_root).resolve(),

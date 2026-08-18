@@ -18,6 +18,8 @@ from typing import Union
 
 import yaml
 
+from blueearth_cst.shared.progress import hydromt_progress
+
 
 def _run_waterbody_methods(mod, config, no_data_errors):
     """Run each configured method on ``mod``, capturing per-method outcome.
@@ -119,7 +121,8 @@ def update_wflow_waterbodies_glaciers(
     results = _run_waterbody_methods(mod, config, (NoDataException, FileNotFoundError))
 
     if any(r["status"] == "ok" for r in results):
-        mod.write()
+        with hydromt_progress("model"):
+            mod.write()
         mod.close()  # commits deferred staticmaps writes
 
     write_sentinel(

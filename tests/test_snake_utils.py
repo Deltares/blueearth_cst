@@ -1004,6 +1004,81 @@ def test_tee_keeps_our_own_bar_visible_through_write_redraw(tmp_path, capsys):
     assert "theirs 50%" in log.read_text(encoding="utf-8")
 
 
+class _LiveConsole:
+    """A console sink that can declare itself a terminal, or not."""
+
+    def __init__(self, tty):
+        self._buffer = io.StringIO()
+        self._tty = tty
+        self.encoding = "utf-8"
+
+    def write(self, text):
+        return self._buffer.write(text)
+
+    def flush(self):
+        pass
+
+    def isatty(self):
+        return self._tty
+
+    def getvalue(self):
+        return self._buffer.getvalue()
+
+
+def _drive_a_bar(live, logfile):
+    """Exactly what ``shared.progress`` emits: frames, then a closing newline."""
+    tee = su._Tee(live, logfile)
+    tee.write_redraw("\rforcing  ====------  40.0%  0:03 | eta 0:04")
+    tee.write_redraw("\rforcing  ==========  100.0%  0:07 elapsed")
+    tee.write_redraw("\n")
+    tee.close()
+
+
+def test_tee_animates_our_bar_on_a_terminal(tmp_path):
+    """A carriage return overwrites here, so the frames are worth streaming."""
+    log = tmp_path / "rule.log"
+    live = _LiveConsole(tty=True)
+    with open(log, "w", encoding="utf-8") as handle:
+        _drive_a_bar(live, handle)
+
+    console = live.getvalue()
+    assert console.count("\r") == 2  # every frame reached the screen
+    assert "40.0%" in console
+
+
+def test_tee_holds_our_bar_to_one_summary_row_off_a_terminal(tmp_path):
+    """`snakemake ... *> run.txt` and the GUI capture: a `\\r` APPENDS there.
+
+    Streaming would put one row per frame into the very artifact someone reads
+    afterwards, which is the defect ``run_and_tee`` has always guarded against
+    for `shell:` rules. The bar still reports — once, as an ordinary row.
+    """
+    log = tmp_path / "rule.log"
+    live = _LiveConsole(tty=False)
+    with open(log, "w", encoding="utf-8") as handle:
+        _drive_a_bar(live, handle)
+
+    console = live.getvalue()
+    assert "\r" not in console
+    assert console.count("\n") == 1
+    assert "100.0%" in console
+    assert "40.0%" not in console  # intermediate frames stay off the record
+
+
+def test_tee_persists_the_same_summary_whatever_the_console_is(tmp_path):
+    """The log file is the durable record and must not depend on the terminal."""
+    written = []
+    for tty in (True, False):
+        log = tmp_path / f"rule-{tty}.log"
+        with open(log, "w", encoding="utf-8") as handle:
+            _drive_a_bar(_LiveConsole(tty=tty), handle)
+        written.append(log.read_text(encoding="utf-8"))
+
+    assert written[0] == written[1]
+    assert written[0].count("100.0%") == 1
+    assert "40.0%" not in written[0]
+
+
 # --- repeated source name ----------------------------------------------------
 
 
