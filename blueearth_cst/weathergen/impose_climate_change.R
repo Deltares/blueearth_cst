@@ -31,7 +31,7 @@ st_id_token        <- args[[5]]
 # this rule's own declared output, so it now arrives as args[[4]].
 yaml <- yaml::read_yaml(weagen_config_path)
 # Stochastic weather realization to be perturbed
-message("[impose_climate_change] Reading realization: ", rlz_path)
+log_row("Reading realization: ", rlz_path)
 rlz_input <- weathergenr::read_netcdf(rlz_path, keep_leap_day = FALSE)
 # This member's slice of the experiment's stress-test lookup: twelve rows in
 # month order, or a stop() naming the token.
@@ -96,7 +96,7 @@ wnc <- yaml$write_netcdf
 # `diagnostic = FALSE` makes the return shape compatible with write_netcdf
 # directly (a list of data.frames, one per grid cell — same as the old
 # imposeClimateChanges return).
-message("[impose_climate_change] Applying climate perturbations")
+log_row("Applying climate perturbations")
 rlz_future <- weathergenr::apply_climate_perturbations(
    data               = rlz_input$data,
    grid               = rlz_input$grid,
@@ -141,7 +141,7 @@ rlz_future <- weathergenr::apply_climate_perturbations(
 )
 
 # Save to netcdf file
-message("[impose_climate_change] Saving perturbed netcdf to: ", output_path)
+log_row("Saving perturbed netcdf to: ", output_path)
 weathergenr::write_netcdf(
    data          = rlz_future,
    grid          = rlz_input$grid,
