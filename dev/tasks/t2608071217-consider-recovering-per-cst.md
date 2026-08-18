@@ -5,7 +5,7 @@ status: backlog
 effort: 2
 area: wf3 batching
 origin: P3-3
-queue: 5
+queue: 4
 created: 2026-08-07
 updated: 2026-08-18
 ---

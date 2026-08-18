@@ -4,11 +4,18 @@
   R07, rule 1.13 wrote three PNGs and declared one, and rule 1.11 wrote
   ``performance_metrics.csv`` and declared
   none of them; undeclared outputs survive ``--delete-all-output`` and are
-  invisible to the baseline. The claim is scoped to configs without extra
-  gauges: ``signatures_{station}.png`` and the per-station
-  ``clim_{station}_{period}.png`` stay undeclared because their COUNT is the
-  model's outlet/subcatchment count — a rule-1.03 product, unknown at parse
-  time — so this asserts the config-invariant subset and nothing wider.
+  invisible to the baseline.
+
+  That claim USED to be scoped to configs without extra gauges, because the
+  per-station sheets stayed undeclared: their count is the model's
+  outlet/subcatchment count, a build product unknown at parse time. Since
+  2026-08-18 (t2608071206) rule 1.15 declares the ``plots/stations/`` bin as a
+  ``directory()``, so they are reachable too and the scope caveat is gone. The
+  control file below moved with it — it has to be something still genuinely
+  undeclared, or the assertion stops discriminating.
+
+  (The docstring named a third family, ``clim_{station}_{period}.png``. It has
+  not existed since ADR 0006 removed it on 2026-08-09.)
 
 * ``test_delete_all_output_removes_a_basavg_figure`` — the half of O-24 that
   IS derivable. ``plot_basavg``'s PNGs are a pure function of
@@ -99,11 +106,23 @@ def fabricated_project(tmp_path):
         store_plots / name
         for name in source_figure_names(cfg["shared"]["clim_historical"])
     ]
+    # A per-station sheet inside the directory() bin rule 1.15 declares. Named
+    # for a wflow_id, which is why the FILE could never be declared and the BIN
+    # is (t2608071206). It belongs in `expected` -- the point of the change is
+    # that --delete-all-output now reaches it.
+    expected.append(
+        project_dir
+        / "models/hydrology/wflow/evaluation/plots/stations/hydrograph_1010.png"
+    )
     # Knowingly UNDECLARED (config-dependent): it must survive, which is what
     # makes the assertion below a discriminating check rather than a tautology
     # about an emptied directory.
+    # A stray directly in plots/ -- that directory is NOT declared, only the
+    # basavg files and the stations/ bin inside it are, so this survives.
+    # It used to be `signatures_wflow_1.png`, which the stations/ bin now
+    # covers; leaving it there would have made the control a tautology.
     undeclared = (
-        project_dir / "models/hydrology/wflow/evaluation/plots/signatures_wflow_1.png"
+        project_dir / "models/hydrology/wflow/evaluation/plots/legacy_leftover.png"
     )
     for path in [*expected, undeclared]:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -168,8 +187,12 @@ def project_with_basavg_outvar(tmp_path):
     basavg.parent.mkdir(parents=True, exist_ok=True)
     basavg.write_bytes(b"placeholder")
     # Same control as the fixture above: an undeclared sibling must survive.
+    # A stray directly in plots/ -- that directory is NOT declared, only the
+    # basavg files and the stations/ bin inside it are, so this survives.
+    # It used to be `signatures_wflow_1.png`, which the stations/ bin now
+    # covers; leaving it there would have made the control a tautology.
     undeclared = (
-        project_dir / "models/hydrology/wflow/evaluation/plots/signatures_wflow_1.png"
+        project_dir / "models/hydrology/wflow/evaluation/plots/legacy_leftover.png"
     )
     undeclared.write_bytes(b"placeholder")
     return cfg_path, basavg, undeclared

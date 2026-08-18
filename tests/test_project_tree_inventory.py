@@ -150,11 +150,14 @@ COVERED: dict[str, list[str]] = {
         # run, which is why this inventory cannot simply assert its absence.
         "models/hydrology/wflow/run_default/outstate/outstates.nc",
         "models/hydrology/wflow/evaluation/performance_metrics.csv",
-        # Keyed by wflow_id since 2026-08-10; four sheets per station.
-        "models/hydrology/wflow/evaluation/plots/hydrograph_1010.png",
-        "models/hydrology/wflow/evaluation/plots/signatures_peaks_1010.png",
-        "models/hydrology/wflow/evaluation/plots/signatures_lows_1010.png",
-        "models/hydrology/wflow/evaluation/plots/performance_1010.png",
+        # Keyed by wflow_id since 2026-08-10; four sheets per station. They sit
+        # in a `stations/` bin since 2026-08-18 (t2608071206) because rule 1.15
+        # declares that bin as a directory() -- their count is a product of the
+        # model build, so the files themselves cannot be declared.
+        "models/hydrology/wflow/evaluation/plots/stations/hydrograph_1010.png",
+        "models/hydrology/wflow/evaluation/plots/stations/signatures_peaks_1010.png",
+        "models/hydrology/wflow/evaluation/plots/stations/signatures_lows_1010.png",
+        "models/hydrology/wflow/evaluation/plots/stations/performance_1010.png",
         # The staleness sidecar (rule 1.15b) and the two values-used records
         # (rules 1.07 and 1.08) -- see design §5.6 and §5.8.
         "models/hydrology/wflow/evaluation/run_metadata.json",

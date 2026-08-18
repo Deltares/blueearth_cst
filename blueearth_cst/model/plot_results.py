@@ -22,7 +22,11 @@ from blueearth_cst.shared.func_plot_signature import (
     plot_basavg,
 )
 from blueearth_cst.shared.gauges import gauges_layer_name, gauges_variable_name
-from blueearth_cst.shared.plot_evaluation import Station, plot_station_evaluation
+from blueearth_cst.shared.plot_evaluation import (
+    STATION_PLOT_DIRNAME,
+    Station,
+    plot_station_evaluation,
+)
 from blueearth_cst.shared.snake_utils import log_row
 from blueearth_cst.shared.wflow_outputs import (
     SUBCATCHMENT_SUFFIX,
@@ -244,10 +248,20 @@ def analyse_wflow_historical(
     model_dir = model_dir or f"{project_dir}/models/hydrology/wflow"
     Folder_eval = f"{model_dir}/evaluation"
     Folder_plots = f"{Folder_eval}/plots"
+    # The per-station bin. Its members are named for wflow_ids, which are a
+    # product of the model build and so unknowable when the Snakefile is
+    # parsed -- rule 1.15 therefore declares this DIRECTORY rather than the
+    # files, which is what lets `--delete-all-output` reach them (R7-5 /
+    # t2608071206). Same device, and the same reason, as WF0's `subbasins/`
+    # bin for its per-subbasin figures.
+    Folder_stations = f"{Folder_plots}/{STATION_PLOT_DIRNAME}"
 
     # makedirs, not mkdir: evaluation/plots/ is two levels deep, and only the
-    # DECLARED outputs get their parents pre-created by Snakemake.
+    # DECLARED outputs get their parents pre-created by Snakemake. The stations
+    # bin IS declared, but as a directory() -- Snakemake creates a declared
+    # directory's PARENT, not the directory itself, so it is created here too.
     os.makedirs(Folder_plots, exist_ok=True)
+    os.makedirs(Folder_stations, exist_ok=True)
 
     # Style is not decided here any more. Font sizes, line weights, colours and
     # the printed page all live in `shared/plot_evaluation.py` beside the code
@@ -410,7 +424,7 @@ def analyse_wflow_historical(
             simulated=qsim_i,
             observed=qobs_i,
             station=station,
-            plot_dir=Folder_plots,
+            plot_dir=Folder_stations,
             metrics=metrics,
             signatures=do_signatures and qobs_i is not None,
             log=_log,
