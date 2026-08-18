@@ -22,10 +22,17 @@
 # progress signal, and the rule banner already names the step.
 
 using Dates
-using Wflow
 
+# Included and called ABOVE `using Wflow`, deliberately. `WflowProgress` needs
+# only stdlib `Logging`, and the load-plus-JIT of Wflow itself is one of the two
+# windows that reported nothing (see `open_frame`) -- opening the bar first is
+# what puts a line on the console for it.
 include(joinpath(@__DIR__, "..", "shared", "wflow_progress.jl"))
-using .WflowProgress: run_with_progress
+using .WflowProgress: open_frame, run_with_progress
+
+open_frame("wflow")
+
+using Wflow
 
 row(body) = println("$(Dates.format(now(), "HH:MM:SS")) - wflow - $(body)")
 

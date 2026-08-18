@@ -52,6 +52,34 @@ const FRAME_PREFIX = "[cst-progress]"
 const FRAME_INTERVAL = 1.0
 
 """
+    open_frame(label; io = stdout)
+
+Emit the bar's OPENING frame, before anything slow has been reached.
+
+Wflow instruments its timestep loop and nothing else, so two long windows report
+nothing at all: Julia's package load and JIT for `using Wflow`, and the
+`Wflow.Model(config)` construction inside `Wflow.run` (~45 s on the rapid
+fixture, uninstrumented upstream). The Python tee's silence watchdog used to
+fill both with a yellow `still running, 1m00s elapsed` -- once per WF1 run,
+which reads as reasonable, but once per MEMBER in a WF3 batch, times the batches
+running concurrently, which does not.
+
+A frame at 0.0 opens the bar before either window, so the console has a line
+that is visibly this member's from the start, and the watchdog redraws THAT
+rather than printing over it. The cost is that the member's elapsed clock (and
+so its early ETA) includes construction, which is honest: that time is part of
+the member.
+
+Callable without Wflow loaded -- this module needs only stdlib `Logging` -- which
+is what lets a driver call it ABOVE its own `using Wflow`.
+"""
+function open_frame(label::AbstractString; io::IO = stdout)
+    println(io, "$(FRAME_PREFIX) $(label) 0.0")
+    flush(io)
+    return nothing
+end
+
+"""
     FrameLogger(io, label; interval)
 
 Consumes ProgressLogging records and writes throttled `[cst-progress]` frames.
@@ -172,6 +200,11 @@ it: same `init_logger`, same `silent`, same `close` in a `finally`. The only
 addition is the second tee leg.
 """
 function run_with_progress(Wflow, tomlpath::AbstractString; label::AbstractString, io::IO = stdout)
+    # Before `Wflow.Config`, so the bar is already open across the model
+    # construction this call is about to spend most of a minute on; see
+    # `open_frame`. In a batch this is also what hands the bar from the previous
+    # member to this one, since the relay keys a new bar on the label.
+    open_frame(label; io = io)
     config = Wflow.Config(tomlpath)
     # Honour the TOML's own `silent`, exactly as `Wflow.run(tomlpath)` does, so
     # this driver never overrides an operator who set `silent = false` to debug.

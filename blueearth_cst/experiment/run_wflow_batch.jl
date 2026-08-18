@@ -22,14 +22,22 @@
 using Dates  # stdlib -- resolves via LOAD_PATH's `@stdlib` entry, so it needs no
              # Project.toml dep and adds no Manifest churn (verified under the
              # real `--project=.` invocation rule 3.15 uses)
-using Wflow
 
 # Per-member timestep progress, on top of the `[k/N]` position below. The two
 # answer different questions -- the counter says how much of the BATCH is left,
 # the bar how much of the current MEMBER is -- and a batch member is minutes
 # long, so the counter alone leaves the console still for most of a batch.
+#
+# Included ABOVE `using Wflow` so the FIRST member's bar can open before the
+# package load and JIT this process pays once (see `open_frame`); the module
+# itself needs only stdlib `Logging`. Members 2..N open theirs inside
+# `run_with_progress`.
 include(joinpath(@__DIR__, "..", "shared", "wflow_progress.jl"))
-using .WflowProgress: run_with_progress
+using .WflowProgress: open_frame, run_with_progress
+
+isempty(ARGS) || open_frame(first(splitext(basename(ARGS[1]))))
+
+using Wflow
 
 exitcode = 0
 total = length(ARGS)

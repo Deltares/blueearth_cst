@@ -6,6 +6,8 @@ output into the log file. Child commands are ``python -c`` snippets so the tests
 are OS-independent and need no hydromt/julia.
 """
 
+import io
+import re
 import sys
 
 from blueearth_cst.shared.run_logged import main
@@ -375,3 +377,142 @@ def test_run_and_tee_drops_the_duplicate_final_frame_entirely(tmp_path):
     assert rc == 0
     assert "[cst-progress]" not in text
     assert text.count("100.0%") == 1
+
+
+# --- the console line those frames share --------------------------------------
+#
+# Everything above reads the LOG, where `_cr_overwrite` collapses a redrawn line
+# to its final segment. A terminal does not collapse: `\r` moves the cursor back
+# and the next write overwrites from the left, leaving whatever it is too short
+# to cover standing. That difference is the whole of the 2026-08-18 defect, so
+# these tests replay the console stream the way a terminal would.
+
+
+class _TTY(io.StringIO):
+    """A stdout `run_and_tee` treats as a terminal, so it streams frames."""
+
+    def isatty(self):
+        return True
+
+
+def _screen(text):
+    """The lines a terminal would SHOW for ``text``.
+
+    `\\r` returns the cursor to column 0 without erasing; a later, shorter write
+    therefore leaves the tail of the earlier one visible. Emulating that is the
+    only way a test can see the defect at all -- reading the same stream with
+    `_cr_overwrite` reports the intended line and hides the residue.
+    """
+    lines, current, cursor = [], "", 0
+    for char in _ANSI_RE.sub("", text):
+        if char == "\n":
+            lines.append(current)
+            current, cursor = "", 0
+        elif char == "\r":
+            cursor = 0
+        else:
+            current = current[:cursor] + char + current[cursor + 1 :]
+            cursor += 1
+    if current:
+        lines.append(current)
+    return lines
+
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _console(monkeypatch):
+    """Point the tee's console at a fake terminal and return both streams."""
+    out, err = _TTY(), io.StringIO()
+    monkeypatch.setattr(sys, "stdout", out)
+    monkeypatch.setattr(sys, "stderr", err)
+    return out, err
+
+
+def test_the_row_after_a_bar_covers_it_instead_of_hanging_off_its_end(
+    tmp_path, monkeypatch
+):
+    """The reported symptom: a row that looks appended to the bar's frame.
+
+    The running frames are the LONG ones (`0:45 | eta 0:12`); both the bar's own
+    summary and any ordinary row that follows are shorter, so before the padding
+    they overwrote a prefix and left the rest of the frame standing -- which
+    reads as a row with junk stuck to its end rather than as a missing newline.
+    """
+    out, _ = _console(monkeypatch)
+    snippet = (
+        "print('[cst-progress] rlz_1_st_2 0.5')\n"
+        "print('00:02 - wflow - [1/2] rlz_1_st_2  1.0 s')\n"
+    )
+    rc = run_and_tee([sys.executable, "-c", snippet], tmp_path / "bar.log")
+    assert rc == 0
+
+    lines = _screen(out.getvalue())
+    assert lines, out.getvalue()
+    # Exactly the row, with nothing of the frame it overwrote left behind. The
+    # equality is the assertion: `in` or an `endswith` on the row would pass on
+    # the defect, since the residue lands PAST the row's own end.
+    assert lines[-1].rstrip() == "00:02 - wflow - [1/2] rlz_1_st_2  1.0 s"
+
+
+def test_a_bar_summary_covers_the_running_frame_it_replaces(tmp_path, monkeypatch):
+    """The final frame is SHORTER than the ones it overwrites, by construction.
+
+    A running frame ends `0:45 | eta 0:12` and the summary ends `1:02 elapsed`,
+    so the last characters of the ETA survived past the end of the summary --
+    on every completed bar, not occasionally.
+    """
+    out, _ = _console(monkeypatch)
+    snippet = (
+        "print('[cst-progress] rlz_1_st_2 0.5')\n"
+        "print('[cst-progress] rlz_1_st_2 1.0')\n"
+    )
+    rc = run_and_tee([sys.executable, "-c", snippet], tmp_path / "summary.log")
+    assert rc == 0
+
+    summary = next(line for line in _screen(out.getvalue()) if "100.0%" in line)
+    assert summary.rstrip().endswith("elapsed"), summary
+
+
+def test_a_stall_under_an_open_bar_redraws_it_instead_of_beeping(tmp_path, monkeypatch):
+    """Item 1+2: WF3's yellow `still running` while a bar was on the console.
+
+    Wflow leaves two windows uninstrumented -- package load plus JIT, and the
+    ~45 s `Wflow.Model(config)` construction -- and WF1 pays them once where a
+    WF3 batch pays them per member. The bar is opened across both by the Julia
+    driver, so the watchdog now has something to redraw and the notice (which
+    would land ON the bar's line) is not printed.
+    """
+    monkeypatch.setenv("CST_HEARTBEAT_SECS", "0.1")
+    out, err = _console(monkeypatch)
+    snippet = (
+        "import time\n"
+        "print('[cst-progress] rlz_1_st_2 0.0', flush=True)\n"
+        "time.sleep(0.45)\n"
+        "print('[cst-progress] rlz_1_st_2 1.0', flush=True)\n"
+    )
+    rc = run_and_tee([sys.executable, "-c", snippet], tmp_path / "stall.log")
+    assert rc == 0
+
+    assert "still running" not in err.getvalue()
+    assert "done in" not in err.getvalue()  # no bracket opened, none to close
+    # The bar was redrawn in place: more 0.0% frames than the child ever sent,
+    # and still one console line for all of them.
+    assert out.getvalue().count("0.0%") > 1
+
+
+def test_a_stall_with_no_bar_open_still_says_so(tmp_path, monkeypatch):
+    """Rules 3.06, 3.12 and 3.14 draw no bar, so the notice is all they have.
+
+    Suppressing it everywhere would trade one wrong console for another: on a
+    genuinely silent rule the yellow line is the only evidence the job is alive.
+    """
+    monkeypatch.setenv("CST_HEARTBEAT_SECS", "0.1")
+    _, err = _console(monkeypatch)
+    snippet = (
+        "import time\nprint('00:01 - weathergen - generating')\ntime.sleep(0.45)\n"
+    )
+    rc = run_and_tee([sys.executable, "-c", snippet], tmp_path / "quiet.log")
+
+    assert rc == 0
+    assert "still running" in err.getvalue()

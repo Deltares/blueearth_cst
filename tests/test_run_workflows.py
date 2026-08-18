@@ -470,6 +470,158 @@ def test_opening_block_diagrams_the_sequence_and_marks_the_disabled(
     assert "[3/3]  wf2" not in out
 
 
+def test_the_sequence_is_drawn_as_a_chain_of_boxes(tmp_path, capture_runs, capsys):
+    """Framed, and framed DIFFERENTLY for what will not be invoked.
+
+    The rows sat at the same indent as the `run` group's key/value pairs, so
+    the diagram's shape did not say it was a diagram. A solid box for a workflow
+    that will run and a dashed one for a workflow that will not is legible
+    before any of the text is read -- and stays ASCII, which the cp1252 test
+    below is the guard for.
+    """
+    flags = {n: "true" for n in rw.WORKFLOW_ORDER}
+    flags["analyze_projections"] = "false"
+    _, out, _ = _run_and_capture(tmp_path, capsys, flags)
+    lines = [line.strip() for line in out.splitlines()]
+
+    enabled = lines.index(next(ln for ln in lines if "[1/3]  wf0" in ln))
+    assert lines[enabled].startswith("|") and lines[enabled].endswith("|")
+    assert set(lines[enabled - 1]) == {"+", "-"}  # a solid edge above it
+
+    disabled = lines.index(next(ln for ln in lines if "wf2 analyze_projections" in ln))
+    assert lines[disabled].startswith(":") and lines[disabled].endswith(":")
+    assert set(lines[disabled - 1]) == {"+", "-", " "}  # a dashed one
+    # The boxes are joined, not merely stacked.
+    assert "v" in lines[enabled + 2 : disabled]
+
+
+def test_the_opening_block_states_the_basin_settings(tmp_path, capture_runs, capsys):
+    """What the run is ABOUT, next to where it is: bbox, extent, window.
+
+    These are the values someone checks before letting a multi-hour run
+    proceed, and reading them meant opening the config in another window.
+    """
+    project_dir = tmp_path / "gabon_project"
+    region = project_dir / "data" / "spatial" / "geoms"
+    region.mkdir(parents=True)
+    (region / "region.geojson").write_text(
+        json.dumps(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [
+                                [
+                                    [9.6, 0.4],
+                                    [9.8, 0.4],
+                                    [9.8, 0.6],
+                                    [9.6, 0.6],
+                                    [9.6, 0.4],
+                                ]
+                            ],
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    cfg = tmp_path / "c.yml"
+    _write_cfg(
+        cfg, {n: "true" for n in rw.WORKFLOW_ORDER}, project_dir=str(project_dir)
+    )
+    cfg.write_text(
+        cfg.read_text(encoding="utf-8") + "shared:\n"
+        "  basin:\n"
+        "    region: \"{'subbasin': [9.666, 0.4476], 'uparea': 100}\"\n"
+        "    resolution: 0.00833\n"
+        "  clim_historical: era5\n"
+        "  historical_window:\n"
+        '    starttime: "2000-01-01T00:00:00"\n'
+        '    endtime: "2016-12-31T00:00:00"\n',
+        encoding="utf-8",
+    )
+    rw.run(str(cfg), cores=3, extra=[])
+    rows = _group_rows(capsys.readouterr().out, "settings")
+
+    assert rows["region"] == "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
+    assert rows["bbox"] == "lon 9.6000 .. 9.8000, lat 0.4000 .. 0.6000"
+    # ~22 x 22 km at this latitude; the row is a scale, so it says `approx`.
+    assert rows["extent"].startswith("approx 22 x 22 km")
+    assert rows["climate"] == "era5"
+    assert rows["historical"] == "2000-01-01 .. 2016-12-31"
+    assert rows["resolution"].startswith("0.00833 deg")
+
+
+def test_the_bbox_says_it_is_absent_rather_than_deriving_one(
+    tmp_path, capture_runs, capsys
+):
+    """A box from `{'subbasin': [lon, lat], 'uparea': 100}` would be invented.
+
+    The specification names an outlet and an upstream-area threshold; the extent
+    of the basin they delineate is not knowable from them, and the bbox row is
+    exactly where a reader has no way to check a fabricated number.
+    """
+    cfg = tmp_path / "c.yml"
+    project_dir = tmp_path / "fresh_project"
+    _write_cfg(
+        cfg, {n: "true" for n in rw.WORKFLOW_ORDER}, project_dir=str(project_dir)
+    )
+    cfg.write_text(
+        cfg.read_text(encoding="utf-8") + "shared:\n"
+        "  basin:\n"
+        "    region: \"{'subbasin': [9.666, 0.4476], 'uparea': 100}\"\n",
+        encoding="utf-8",
+    )
+    rw.run(str(cfg), cores=3, extra=[])
+    rows = _group_rows(capsys.readouterr().out, "settings")
+
+    assert rows["bbox"].startswith("not delineated yet")
+    assert "extent" not in rows
+    assert "9.666" in rows["region"]  # the specification is still stated
+
+
+def test_the_settings_group_is_skipped_when_the_config_declares_none(
+    tmp_path, capture_runs, capsys
+):
+    """The wrapper validates `workflows:` and nothing else, so every row here is
+    optional -- an empty group would be a heading over nothing."""
+    _, out, _ = _run_and_capture(
+        tmp_path, capsys, {n: "true" for n in rw.WORKFLOW_ORDER}
+    )
+    assert "  settings" not in out.splitlines()
+
+
+def test_an_extent_is_withheld_when_the_geometry_is_not_in_degrees(tmp_path):
+    """A projected polygon multiplied by 111 would print a confident wrong number.
+
+    The bbox itself is still shown: it carries its units on its face, so a
+    reader can see what it is. The km scale cannot.
+    """
+    projected = (500000.0, 4649776.0, 520000.0, 4669776.0)
+    assert rw._bbox_extent_km(projected) is None
+    assert rw._bbox_extent_km((9.6, 0.4, 9.8, 0.6)) is not None
+
+
+def test_a_declared_bbox_member_is_preferred_over_walking_the_coordinates(tmp_path):
+    """It is what every other reader of the artifact sees."""
+    path = tmp_path / "region.geojson"
+    path.write_text(
+        json.dumps(
+            {
+                "type": "Feature",
+                "bbox": [1.0, 2.0, 3.0, 4.0],
+                "geometry": {"type": "Point", "coordinates": [99.0, 99.0]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert rw._geojson_bbox(path) == (1.0, 2.0, 3.0, 4.0)
+
+
 def test_a_dry_run_says_so_in_the_opening_block(tmp_path, capture_runs, capsys):
     """A dry run's console is otherwise nearly identical to a real one's."""
     _, out, _ = _run_and_capture(
