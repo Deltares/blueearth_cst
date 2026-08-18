@@ -22,9 +22,35 @@ Exit 0 = all pass; 1 = failure (with a diagnostic on stdout).
 
 from __future__ import annotations
 
+import faulthandler
+import os
 import shutil
 import sys
 from pathlib import Path
+
+# --- the stall's self-diagnosis (t2608071208) --------------------------------
+#
+# The hang was captured for the first time on 2026-08-18 and localised only as
+# far as its `STEP` marker: `STEP glob`, the widen stage, 0 of 6 files. What it
+# is BLOCKED ON is the open question, and the answer is a stack trace of the
+# stalled child -- which nothing could take, because the child is a subprocess
+# that never returns and py-spy is not a dependency of this repo.
+#
+# `faulthandler` is stdlib and needs no dependency, no signal, and no second
+# process: it dumps EVERY thread's stack from inside this process on a timer,
+# to stderr, which `test_stage_data_incremental` already captures and prints
+# under PARTIAL STDERR when the 600 s bound fires. A Python frame blocked in a
+# C call still shows the frame that entered it, which is the whole question
+# here (netCDF/HDF5 open, a lock, a rename).
+#
+# 120 s, repeating: every passing run takes 12-14 s, so a dump means a stall
+# rather than a slow machine, and repeating turns one occurrence into a series
+# that distinguishes "stuck in one place" from "livelocked between two".
+# CST_HARNESS_DUMP_SECS overrides it; 0 disables.
+_DUMP_SECS = float(os.environ.get("CST_HARNESS_DUMP_SECS", "120"))
+if _DUMP_SECS > 0:
+    faulthandler.enable()
+    faulthandler.dump_traceback_later(_DUMP_SECS, repeat=True, exit=False)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "dev" / "scripts"))
 import dask  # noqa: E402
