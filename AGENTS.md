@@ -346,8 +346,19 @@ which `worktree_policy: always` is what enforces.
 `.pixi/` self-ignores through a `.gitignore` the tool writes itself, so it needs
 no repo rule. The pytest and ruff caches were redirected out of the root on
 2026-08-11 (`pyproject.toml` `cache_dir` / `cache-dir`) and now sit under the
-ignored `.tmp/`; they still self-ignore, which is what covers a `--isolated`
-run that recreates them at the root.
+ignored `.tmp/`. **The root carries no cache directory of any kind, and
+`tests/test_cache_dir_hygiene.py` fails if one appears** -- matched by shape, so
+a tool nobody has added yet is caught too. Ignoring was never the guard: it
+keeps such a directory out of a commit, not out of the root, and the two the
+redirect left behind sat there unread for a week because nothing failed.
+The one invocation that still writes one is `ruff check --isolated` (which
+discards config by definition, and both `pyproject.toml` and `ci.yml` invite it
+as a rule-set diagnostic); run it as `RUFF_CACHE_DIR=.tmp/ruff_cache ruff check
+--isolated`, since the variable outranks the config-less default. That variable
+does NOT belong in `pixi.toml` `[activation.env]`: pixi does not expand values
+there, so it would have to be relative -- and a relative `RUFF_CACHE_DIR`
+resolves against the CWD, scattering `.tmp/ruff_cache` into whichever directory
+ruff ran from, while `cache-dir` already resolves correctly from any of them.
 
 Use `test_case/*_linux.yml` + `config/catalogs/*_linux.yml` variants on
 Linux — data-catalog paths differ from Windows. `scripts/run_snake_test.cmd`

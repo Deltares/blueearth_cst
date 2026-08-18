@@ -115,6 +115,11 @@ force-exclude = true
 # set below) and has broadened across releases -- an unpinned `select` would make
 # a routine ruff upgrade a repo-wide lint failure.
 #
+# Re-measuring that costs a root `.ruff_cache`, because `--isolated` discards
+# the `cache-dir` above with everything else. Put `RUFF_CACHE_DIR=.tmp/ruff_cache`
+# in front of it -- the variable outranks the config-less default, so the cache
+# still lands under `.tmp/` (tests/test_cache_dir_hygiene.py).
+#
 # The classic pyflakes + pycodestyle-essentials core -- rules that find defects
 # rather than express taste -- plus `I`, added 2026-08-09 under t2608091116.
 # Still deliberately NOT enabled, and unmeasured:
