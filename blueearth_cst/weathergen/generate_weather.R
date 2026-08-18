@@ -61,7 +61,7 @@ weathergen_output_path <- paste0(weathergen_root, "output/")
 weathergen_plots_path <- paste0(weathergen_root, "plots/")
 
 # Step 1) Read weather data from the netcdf file
-message("[generate_weather] Reading weather netcdf: ", climate_nc_path)
+log_row("Reading weather netcdf: ", climate_nc_path)
 ncdata <- weathergenr::read_netcdf(climate_nc_path)
 
 # Step 1b) Restrict the RESAMPLING to the cells the basin touches.
@@ -89,7 +89,7 @@ if (length(keep) == 0L) {
   stop("basin_cells.csv matched no cell in ", climate_nc_path,
        " -- the mask and the store disagree about the grid")
 }
-message("[generate_weather] Resampling on ", length(keep), " basin cell(s) of ",
+log_row("Resampling on ", length(keep), " basin cell(s) of ",
         length(ncdata$data), " in the store")
 obs_data_basin <- ncdata$data[keep]
 obs_grid_basin <- ncdata$grid[keep, , drop = FALSE]
@@ -130,7 +130,7 @@ if ("id" %in% names(obs_grid_basin) &&
 }
 
 # Step 2) Generate new weather realizations
-message("[generate_weather] Generating ", historical_realizations_num,
+log_row("Generating ", historical_realizations_num,
         " weather realization(s)")
 # run_weather_generator, not generate_weather: the wrapper runs the SAME
 # generation and then the evaluation pass (prepare_evaluation_data +
@@ -188,7 +188,7 @@ weathergen_figures <- list.files(
   weathergen_output_path, pattern = "[.](png|pdf)$", ignore.case = TRUE,
   full.names = FALSE
 )
-message("[generate_weather] Moving ", length(weathergen_figures),
+log_row("Moving ", length(weathergen_figures),
         " figure(s) to ", weathergen_plots_path)
 for (fig in weathergen_figures) {
   file.rename(file.path(weathergen_output_path, fig),
@@ -198,7 +198,7 @@ for (fig in weathergen_figures) {
 # STEP 3) Save each stochastic realization back to a netcdf file
 for (n in 1:historical_realizations_num) {
 
-  message("[generate_weather] Saving realization ", n, " of ",
+  log_row("Saving realization ", n, " of ",
           historical_realizations_num)
 
   # New return: $resampled is a data.frame with columns rlz_1, rlz_2, ...
