@@ -67,7 +67,9 @@ def test_repo_root_carries_no_cache_directory():
     offenders = sorted(
         entry.name
         for entry in REPO_ROOT.iterdir()
-        if entry.is_dir() and entry.name.startswith(".") and "cache" in entry.name.lower()
+        if entry.is_dir()
+        and entry.name.startswith(".")
+        and "cache" in entry.name.lower()
     )
     assert not offenders, (
         f"cache director{'y' if len(offenders) == 1 else 'ies'} in the repo root: "
