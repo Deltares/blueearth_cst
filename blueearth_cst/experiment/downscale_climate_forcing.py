@@ -5,6 +5,9 @@ from pathlib import Path
 
 from hydromt_wflow import WflowSbmModel
 
+from blueearth_cst.climate_analysis.prepare_climate_data_catalog import (
+    prepare_clim_data_catalog,
+)
 from blueearth_cst.experiment.forcing_window import forcing_window
 from blueearth_cst.shared.progress import hydromt_progress
 from blueearth_cst.shared.snake_utils import member_pointer_base
@@ -34,6 +37,13 @@ def pet_method_for(precip_source):
     return "makkink" if precip_source == "eobs" else "debruin"
 
 
+def _as_list(data_libs):
+    """The catalogs as a plain list, whether one path or several came in."""
+    if isinstance(data_libs, (str, os.PathLike)):
+        return [os.fspath(data_libs)]
+    return [os.fspath(item) for item in data_libs]
+
+
 def downscale_climate_forcing(
     config_out_fn,
     fn_out,
@@ -43,13 +53,49 @@ def downscale_climate_forcing(
     precip_source,
     horizontime_climate,
     wflow_run_length,
+    catalog_out,
+    oro_path=None,
 ):
-    """Downscale one member's forcing onto the wflow grid and write its run TOML."""
+    """Downscale one member's forcing onto the wflow grid and write its run TOML.
+
+    ``catalog_out`` is THIS member's one-entry hydromt catalog, written here
+    before the model is opened. It used to be one file naming every member,
+    built by rule 3.13 from a fan-in over the whole sweep; the entries differed
+    only in ``uri``, and the fan-in was what stopped any member from being
+    downscaled until all of them had been perturbed (and what pinned every
+    ``temp()`` perturbed NC on disk at once). Writing it here costs the 0.49 s
+    catalog parse — the 12.2 s hydromt import that dominated the old rule is
+    already paid by this process.
+
+    It is still a catalog rather than a path handed straight to hydromt because
+    ``setup_precip_forcing`` / ``setup_temp_pet_forcing`` forward to
+    ``get_rasterdataset`` with no ``source_kwargs``: a bare path would resolve
+    through the fallback driver and silently lose ``preprocess=harmonise_dims``
+    (the R files are written longitude/latitude/time) and ``crs=4326`` (the
+    generator's NC carries empty global attrs).
+    """
     fn_out = Path(fn_out)
     starttime, endtime = forcing_window(horizontime_climate, wflow_run_length)
 
     oro_source = f"{precip_source}_orography"
     pet_method = pet_method_for(precip_source)
+
+    # Before the model: `WflowSbmModel` parses `data_libs` on construction, so
+    # the member's catalog has to exist by then. Its entry is cloned from the
+    # project catalog's `precip_source` entry with the unit/rename adapters
+    # dropped -- the generator already emits standard names and units, and
+    # keeping them would convert twice.
+    data_libs = _as_list(data_libs)
+    prepare_clim_data_catalog(
+        fns=[fn_in],
+        data_libs_like=data_libs,
+        source_like=precip_source,
+        fn_out=catalog_out,
+        oro_path=oro_path,
+    )
+    # The member's own catalog FIRST, so its entry wins over any same-named
+    # source in the project catalogs.
+    data_libs = [os.fspath(catalog_out), *data_libs]
 
     # Only the basename is used, so no resolution is needed. This read
     # `Path(fn_in, resolve_path=True)` until the [R7-22] conversion: pathlib
@@ -187,6 +233,8 @@ if __name__ == "__main__":
                 precip_source=sm.params.clim_source,
                 horizontime_climate=sm.params.horizontime_climate,
                 wflow_run_length=sm.params.run_length,
+                catalog_out=sm.output.catalog,
+                oro_path=sm.params.oro_path,
             )
     else:
         raise ValueError("This script should be run from a snakemake environment")

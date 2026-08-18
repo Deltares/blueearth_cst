@@ -313,11 +313,6 @@ RUN_RECORD = f"{exp_dir}/config/run_record.yml"
 # well as the series, and mirrors hydrology/wflow/output/.
 wg_dir = f"{exp_dir}/climate/weathergenr"
 runs_dir = f"{exp_dir}/hydrology/wflow"
-# The experiment's generated climate catalog joins the experiment's own config
-# snapshot rather than sitting loose at the experiment root (migration map, v6
-# ruling). It DESCRIBES data this experiment produced, so it is a catalog
-# snapshot in the same sense as the project-scope config/catalogs/.
-exp_catalog = f"{exp_dir}/config/catalogs/data_catalog_run_stress_test.yml"
 # B7: "indicators" is the CST term for the reduction's response-surface tables.
 # "outputs" was rejected -- the hydrology side also holds outputs.
 # R9 P3: machine-readable experiment products live in `results/`, and the
@@ -502,7 +497,6 @@ LOG_RULES = [
     "3.10_prepare_weathergen_config",
     "3.11_generate_weather_realizations",
     "3.12_perturb_climate_realization",
-    "3.13_write_climate_data_catalog",
     "3.14_downscale_climate_realization",
     "3.15_run_wflow",
     "3.16_derive_wflow_indicators",
@@ -987,32 +981,28 @@ rule perturb_climate_realization:
     shell:
         """python -u "{run_logged}" "{log}" -- Rscript --vanilla blueearth_cst/weathergen/impose_climate_change.R {input.rlz_nc} {input.weagen_config} {input.lookup_csv} {output.rlz_st_nc} {wildcards.st_num}"""
 
-# 3.13  write_climate_data_catalog — build a hydromt data catalog of the climate files
-rule write_climate_data_catalog:
-    message: rule_banner("3.13", "write_climate_data_catalog")
-    input:
-        st_nc = expand((f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_st_"+"{st_num}"+".nc"), rlz_num = [rlz_ix(n) for n in np.arange(1, RLZ_NUM+1)], st_num = [st_ix(m) for m in np.arange(1, ST_NUM+1)]),
-        rlz_nc = [f"{wg_dir}/output/rlz_{rlz_ix(n)}_st_{ST_BASELINE}.nc" for n in np.arange(1, RLZ_NUM+1)]
-    output:
-        clim_data = exp_catalog
-    params:
-        data_sources = DATA_SOURCES,
-        clim_source = clim_source,
-        # Orography sidecar path for the chirps/chirps_global branch: the store
-        # producer writes it as the clim_source-INDEPENDENT orography.nc beside
-        # extract_historical.nc under the keyed store dir (R07 B1 standardises
-        # the filename; it is rule 1.04/3.08's declared oro_nc output). Passed
-        # explicitly (design §4a) so the catalog builder no longer reconstructs
-        # it by fragile ../.. walking from a realization NC — which broke on both
-        # the store move and every subsequent change to the realization NC dir
-        # (now climate/weathergenr/output/).
-        oro_path = f"{store_dir}/orography.nc",
-    log:
-        f"{LOG_PARTS_DIR}/3.13_write_climate_data_catalog.log",
-    benchmark:
-        f"{BENCH_PARTS_DIR}/3.13_write_climate_data_catalog.tsv",
-    script:
-        "blueearth_cst/climate_analysis/prepare_climate_data_catalog.py"
+# 3.13 was write_climate_data_catalog, removed 2026-08-18. It built ONE hydromt
+# catalog naming every member, and rule 3.14 read a single entry out of it — so
+# a file whose N entries differed only in `uri` imposed a fan-in over the whole
+# sweep. Three costs, none of them the catalog's purpose: no member could be
+# downscaled until EVERY member was perturbed; the perturbed NCs are `temp()`
+# and could not be deleted until the catalog had read them all, so all N had to
+# coexist; and a straggler held back the rest.
+#
+# The catalog itself was never redundant — it is how hydromt learns
+# `driver.options.preprocess = harmonise_dims` (the R files are written
+# longitude/latitude/time) and `metadata.crs = 4326` (the generator's NC carries
+# empty global attrs), and hydromt_wflow's setup methods pass no `source_kwargs`,
+# so a bare path cannot carry either. It is an implementation detail OF the
+# downscale step, not an experiment artifact, so rule 3.14 now writes its own
+# one-entry catalog as a `temp()` output. Measured: 12.2 s of the old rule's
+# 13.6 s was the hydromt import, which 3.14 has already paid, so per member this
+# costs the 0.49 s catalog parse and nothing else.
+#
+# The number 3.13 is NOT reused. `W.NN` is a rule id, not a position
+# (dev/reference/naming.md §9) — the same reason wf0 leads without renumbering
+# the other three — and reusing it would silently repoint every log part,
+# benchmark row and doc reference that names it.
 
 # 3.14  downscale_climate_realization — downscale climate forcing to wflow grid
 rule downscale_climate_realization:
@@ -1025,17 +1015,33 @@ rule downscale_climate_realization:
         st_num=rf"[0-9]{{{ST_WIDTH}}}",
     input:
         nc = f"{wg_dir}/output/rlz_"+"{rlz_num}"+"_st_"+"{st_num}"+".nc",
-        data_sources = [exp_catalog, DATA_SOURCES],
+        data_sources = DATA_SOURCES,
         # The drift guard, BEFORE any simulation work touches the model.
         model_reference_ok = f"{exp_dir}/.model_reference_ok",
     output:
         nc = temp(f"{runs_dir}/forcing/inmaps_rlz_"+"{rlz_num}"+"_st_"+"{st_num}"+".nc"),
-        toml = f"{runs_dir}/config/rlz_"+"{rlz_num}"+"_st_"+"{st_num}"+".toml"
+        toml = f"{runs_dir}/config/rlz_"+"{rlz_num}"+"_st_"+"{st_num}"+".toml",
+        # This member's one-entry hydromt catalog, written and read by this rule
+        # (the removed 3.13 above). `temp()` because it is scaffolding for the
+        # hydromt call and not a result: it names one input file this rule was
+        # handed and one source entry cloned from the project catalog, both of
+        # which the run already records elsewhere. Beside the TOML and sharing
+        # its stem, so a member's two files are obviously one member's.
+        catalog = temp(f"{runs_dir}/config/rlz_"+"{rlz_num}"+"_st_"+"{st_num}"+".yml"),
     params:
         model_dir = basin_dir,
         clim_source = clim_source,
         horizontime_climate = horizontime_climate,
         run_length = wflow_run_length,
+        # Orography sidecar for the chirps/chirps_global branch: the store
+        # producer writes it as the clim_source-INDEPENDENT orography.nc beside
+        # extract_historical.nc under the keyed store dir (R07 B1 standardises
+        # the filename; it is rule 1.04/3.08's declared oro_nc output). Passed
+        # explicitly (design §4a) so the catalog builder does not reconstruct it
+        # by fragile ../.. walking from a realization NC — which broke on both
+        # the store move and every subsequent change to the realization NC dir
+        # (now climate/weathergenr/output/).
+        oro_path = f"{store_dir}/orography.nc",
     log:
         f"{LOG_PARTS_DIR}/3.14_downscale_climate_realization/" + "rlz_{rlz_num}_st_{st_num}.log",
     benchmark:

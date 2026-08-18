@@ -230,14 +230,15 @@ WG-3 is the *current* generator's contract, not a universal one.
   and `<exp>/climate/weathergenr/output/rlz_<n>_st_<m>.nc` (`m ≥ 1`, perturbed).
   R07 B5 dissolved `realization_<n>/`; the index stays in the file name.
 - **producer:** rule 3.11 (st_0) / rule 3.12 (st_m).
-- **consumer:** rule 3.13 `write_climate_data_catalog` + rule 3.14
-  `downscale_climate_realization`.
+- **consumer:** rule 3.14 `downscale_climate_realization` (rule 3.13
+  `write_climate_data_catalog` consumed the whole set until 2026-08-18; 3.14
+  now reads only its own member).
 - **shape:** the **generator OUTPUT contract** — a raster netCDF the hydromt
   catalog reads: `(time, lat, lon)` daily grid with **at least `precip`, `temp`**
   (+ `pet` if present) on an EPSG:4326 grid carrying a `spatial_ref` CRS
   descriptor (so `raster_xarray` + `harmonise_dims` load it — WG-5).
 - **naming pattern:** `rlz_<n>_st_<m>.nc` — a **DAG-globbed pattern**
-  (rule 3.13 `expand`; rule 3.14 wildcards).
+  (rule 3.14 wildcards; rule 3.12 `expand` over the grid).
 - **temp() lifecycle:** **`temp()`** (both st_0 and st_m). Deleted after
   consumers finish — **absent on the completed fixture**.
 - **pinned surface:** the `(time, lat, lon)` raster shape, the minimal
@@ -261,10 +262,14 @@ WG-3 is the *current* generator's contract, not a universal one.
 
 ## WG-5 — hydromt climate data catalog (side channel)
 
-- **path pattern:** `<exp>/config/catalogs/data_catalog_run_stress_test.yml` (rule-3.08 side
-  channel).
-- **producer:** rule 3.13 `write_climate_data_catalog`
-  (`blueearth_cst/climate_analysis/prepare_climate_data_catalog.py`).
+- **path pattern:** `<runs>/config/rlz_<n>_st_<m>.yml` — ONE per member,
+  `temp()`, beside that member's TOML. It was a single
+  `<exp>/config/catalogs/data_catalog_run_stress_test.yml` naming every member
+  until 2026-08-18; the entries differed only in `uri`, and the rule that built
+  it fanned in over the whole sweep.
+- **producer:** rule 3.14 `downscale_climate_realization`, calling
+  `blueearth_cst/climate_analysis/prepare_climate_data_catalog.py` (rule 3.13
+  `write_climate_data_catalog` was removed with the aggregate file).
 - **consumer:** rule 3.14 `downscale_climate_realization` (as the `-d` catalog).
 - **shape (pinned-as-reliance — hydromt data-catalog schema, OUR emitted
   subset):** one entry per `rlz_<n>_st_<m>` (**including `st_0`**), each
@@ -362,7 +367,8 @@ A drop-in generator (design §5.6) must:
   `weathergen/*.R`, plus the two config-prep scripts if the WG-3 config surface
   changes).
 - **Files it must NOT change (the pinned boundaries):** rule 3.08 (WG-1
-  producer), rule 3.13 (WG-5 catalog), rule 3.14 (WG-6 downscale).
+  producer), rule 3.14 (WG-5 catalog + WG-6 downscale — it owns both since the
+  catalog became per-member).
 - **Contracts it must satisfy:** WG-1 / WG-2 (in), WG-4 shape + naming (out),
   and — if it emits its own catalog — WG-5 **including the catalog↔grid
   invariant** (an entry per realization × cst incl. `st_0`). Acceptance check:
@@ -386,15 +392,15 @@ executes on **every** checkout, fixture or not.
 | `validate_wg2` | WG-2 | `<exp>/config/stress_test_lookup.csv` | **yes** (persists) |
 | `validate_wg3` | WG-3 | `<exp>/climate/weathergenr/config/weathergen_config.yml` (the per-member config is gone — C29) | **yes** (persists) |
 | `validate_wg4` | WG-4 | `<exp>/climate/weathergenr/output/rlz_<n>_st_<m>.nc` | **captured 2026-07-25** — `temp()` content, absent until a `--notemp` capture; green on the real artifact **after** the `crs`/`category` correction; synthetic-proven every suite |
-| `validate_wg5` | WG-5 | `<exp>/config/catalogs/data_catalog_run_stress_test.yml` | **yes** (catalog persists) |
-| `validate_wg5_catalog_grid` (relational) | WG-5 entry-key grid vs intended `rlz × cst` (incl. `st_0`) | `<exp>/config/catalogs/data_catalog_run_stress_test.yml` + the run's config snapshot | **yes** (all inputs persist) |
+| `validate_wg5` | WG-5 | `<runs>/config/rlz_<n>_st_<m>.yml` | `temp()` since 2026-08-18 — absent until a `--notemp` capture, then every member's file is checked; synthetic-proven every suite |
+| `validate_wg5_catalog_grid` (relational) | WG-5 entry-key grid vs intended `rlz × cst` (incl. `st_0`) | the UNION of `<runs>/config/rlz_<n>_st_<m>.yml` + the run's config snapshot | `temp()` since 2026-08-18 — the union of the per-member files is the set the aggregate catalog used to hold, so the validator is unchanged; needs a `--notemp` capture |
 | `validate_wg6` | WG-6 | `<exp>/hydrology/wflow/forcing/inmaps_rlz_<n>_st_<m>.nc` | **captured 2026-07-25** — `temp()` content, absent until a `--notemp` capture; green on the real artifact unchanged; synthetic-proven every suite |
 
 `validate_wg5_catalog_grid(catalog_cfg, rlz_num, st_num) -> list[str]` checks the
 WG-5 entry-key set against the **intended** grid: expected keys exactly
 `{rlz_<n>_st_<m> : n ∈ 1..rlz_num, m ∈ 0..st_num}` (**st_0 included** — rule
-3.13 consumes both the st_0 list and the perturbed `expand` grid,
-`run_stress_test.smk:318-319`). Missing and unexpected keys are each
+3.14 is instantiated over both the st_0 members and the perturbed grid).
+Applied to the UNION of the per-member catalogs. Missing and unexpected keys are each
 reported. The intended grid is derived from the run's *recorded* P3-1 config
 snapshot (`<exp>/config/snake_config_run_stress_test.yml`) via the same
 `stress_test_grid` helper the Snakefile uses (`shared/snake_utils.py:336`), so

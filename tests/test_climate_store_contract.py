@@ -409,9 +409,16 @@ def test_chirps_branch_declares_and_consumes_one_orography_path(tmp_path):
     """R07 standardises the sidecar on ``orography.nc``, producer and consumer.
 
     Pre-R07 the two stores spelled it differently (``wf1_raw/orography.nc`` vs
-    ``<key>/<clim_source>_orography.nc``), and rule 3.08's ``oro_path`` params
-    string pointed at the second spelling. The seed config is era5, so no gate
-    in this repo would otherwise exercise the chirps branch at all.
+    ``<key>/<clim_source>_orography.nc``), and the consumer's ``oro_path``
+    params string pointed at the second spelling. The seed config is era5, so no
+    gate in this repo would otherwise exercise the chirps branch at all.
+
+    The consumer is rule 3.14 ``downscale_climate_realization`` since
+    2026-08-18: it writes its own member catalog, and building the chirps
+    ``<source>_orography`` entry is what needs the sidecar path. It was rule
+    3.13 ``write_climate_data_catalog``, which is gone with the aggregate
+    catalog — and this test failing on that move is the whole reason it exists,
+    since the era5 fixture would not have noticed.
     """
     import yaml
 
@@ -422,14 +429,14 @@ def test_chirps_branch_declares_and_consumes_one_orography_path(tmp_path):
 
     workflow = _parse_workflow("run_stress_test.smk", cfg_path)
     producer = workflow.get_rule(RULE_NAME)
-    catalog_rule = workflow.get_rule("write_climate_data_catalog")
+    consumer = workflow.get_rule("downscale_climate_realization")
 
     oro_out = str(producer.output.oro_nc)
     assert oro_out.endswith("/orography.nc"), oro_out
     assert "chirps_global_orography" not in oro_out
-    assert str(catalog_rule.params.oro_path) == oro_out, (
-        "rule 3.08's oro_path must resolve to the emitted sidecar, got "
-        f"{catalog_rule.params.oro_path!r} vs {oro_out!r}"
+    assert str(consumer.params.oro_path) == oro_out, (
+        "the catalog builder's oro_path must resolve to the emitted sidecar, got "
+        f"{consumer.params.oro_path!r} vs {oro_out!r}"
     )
 
     # wf1 declares the same sidecar output on the same branch.

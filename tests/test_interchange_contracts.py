@@ -22,6 +22,7 @@ seam docs ``dev/reference/contracts/*-seam.md``.
 """
 
 import os
+from glob import glob
 from os.path import dirname, join, realpath
 
 import pandas as pd
@@ -61,9 +62,35 @@ _MODEL_DIR = join(_FIXTURE, "models", "hydrology", "wflow")
 _STORE_ROOT = join(_FIXTURE, "data", "climate", "historical")
 _WG_DIR = join(_EXP, "climate", "weathergenr")
 _RUNS_DIR = join(_EXP, "hydrology", "wflow")
-# The generated climate catalog joins the experiment's own config dir (R9
-# arch-10), it is not loose at the experiment root.
-_EXP_CATALOG = join(_EXP, "config", "catalogs", "data_catalog_run_stress_test.yml")
+# The generated climate catalog is PER MEMBER since 2026-08-18 -- rule 3.14
+# writes its own one-entry file beside the member's TOML, and the single
+# `config/catalogs/data_catalog_run_stress_test.yml` that rule 3.13 built over
+# the whole sweep is gone with that rule. It is a `temp()` output, so like the
+# other temp-backed contracts below these tests skip unless the tree came from a
+# `--notemp` capture.
+_MEMBER_CATALOG_GLOB = join(_RUNS_DIR, "config", "rlz_*_st_*.yml")
+
+
+def _member_catalogs() -> list[str]:
+    """Every member catalog in the fixture, in a stable order."""
+    return sorted(glob(_MEMBER_CATALOG_GLOB))
+
+
+def _merged_member_catalog() -> dict:
+    """The member catalogs as ONE mapping, for the grid-coverage contract.
+
+    WG-5's grid check asks whether the catalog entries cover exactly the
+    intended `rlz x st` grid. That question outlived the single file it was
+    written against: the entries now live one per file, so the union of them is
+    the same set the aggregate catalog used to hold, and the validator is
+    unchanged.
+    """
+    merged: dict = {}
+    for path in _member_catalogs():
+        with open(path) as handle:
+            merged.update(yaml.safe_load(handle) or {})
+    return merged
+
 
 _FIXTURE_ABSENT = (
     "untracked test_case/test_local fixture tree not present "
@@ -955,15 +982,23 @@ def test_wg3_integration():
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_wg5_integration():
-    with open(_EXP_CATALOG) as f:
-        cfg = yaml.safe_load(f)
-    assert ic.validate_wg5(cfg) == []
+    catalogs = _member_catalogs()
+    if not catalogs:
+        pytest.skip(_TEMP_ABSENT)
+    # Every member's file, not a sample: they are one entry each, so checking
+    # them all costs a few reads and is what the single aggregate file used to
+    # give for free.
+    for path in catalogs:
+        with open(path) as f:
+            cfg = yaml.safe_load(f)
+        assert ic.validate_wg5(cfg) == [], path
 
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_wg5_catalog_grid_integration():
-    with open(_EXP_CATALOG) as f:
-        catalog = yaml.safe_load(f)
+    catalog = _merged_member_catalog()
+    if not catalog:
+        pytest.skip(_TEMP_ABSENT)
     with open(join(_EXP, "config", "snake_config_run_stress_test.yml")) as f:
         snap = yaml.safe_load(f)
     exp_cfg = snap["workflows"]["run_stress_test"]
