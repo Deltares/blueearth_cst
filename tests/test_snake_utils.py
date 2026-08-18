@@ -2782,6 +2782,7 @@ def test_a_warning_line_is_painted_orange_whatever_emitted_it(line):
     [
         "ERROR could not open the store",
         "13:42:17 - fetch - FAILURE after 3 attempts",
+        "08:03:16 - wflow - FAILED [2/3] rlz_1_st_2  boom",
         "CRITICAL julia exited 1",
         "Traceback (most recent call last):",
         "Error in eval(expr) : object 'x' not found",  # R

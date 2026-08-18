@@ -5,21 +5,56 @@
 # the batch's outputs (C5 persistence isolation is DEGRADED by design; blast
 # radius = the batch). Per-cst timing/status lines preserve per-run visibility
 # now that the Snakemake benchmark row covers the whole batch.
+#
+# Those lines carry a `[k/N]` POSITION, and are spelled in the toolbox's own row
+# format -- `HH:MM:SS - wflow - ...`. Both for the same reason. Rule 3.15 is the
+# longest-running step in the toolbox (RLZ_NUM x ST_NUM Wflow runs, batched),
+# and Wflow itself is silent on the terminal (`[logging] silent = true`, set so
+# Julia's box-drawing records do not swamp the console), so these are the ONLY
+# rows a batch emits while it works. Without a position they say a member
+# finished but not how much of the batch is left; in a bare format they sit as
+# untimestamped text among rows that all carry a clock.
+#
+# `N` is `length(ARGS)` -- one batch's members, not the experiment's. Rule 3.15
+# runs several batches concurrently and each is its own process, so a run-wide
+# counter is not knowable here; the rule banner already states the experiment's
+# shape, and the batch id is in the log part's name.
+using Dates  # stdlib -- resolves via LOAD_PATH's `@stdlib` entry, so it needs no
+             # Project.toml dep and adds no Manifest churn (verified under the
+             # real `--project=.` invocation rule 3.15 uses)
 using Wflow
 
 exitcode = 0
-for t in ARGS
+total = length(ARGS)
+
+# One definition, so the OK and FAIL rows cannot drift apart in either the
+# timestamp or the counter. `module` is `wflow` rather than `batch`: the column
+# names the SUBSYSTEM that produced the row, and it is Wflow that ran.
+row(body) = println("$(Dates.format(now(), "HH:MM:SS")) - wflow - $(body)")
+
+for (k, t) in enumerate(ARGS)
     global exitcode
-    # R07 B5 moved the realization index out of the toml NAME and into its run
-    # directory, so basename alone (cst_1.toml, as the member token then read)
-    # no longer identifies a member within a batch. Tag with the parent too.
-    tag = joinpath(basename(dirname(dirname(t))), basename(t))
+    # The TOML name IS the member: rule 3.15 writes
+    # `<exp>/hydrology/wflow/config/rlz_<i>_st_<j>.toml`, matching the spelling
+    # of the run's own output (`output/rlz_<i>_st_<j>.csv`).
+    #
+    # This used to prepend the parent directory, from R07 B5 -- which had moved
+    # the realization index out of the toml NAME and into its run directory, so
+    # that `cst_1.toml` alone was ambiguous within a batch. That layout is gone
+    # and the index is back in the name, which left the prefix resolving to the
+    # literal constant `wflow` on every row of every batch.
+    tag = first(splitext(basename(t)))
     try
         dt = @elapsed Wflow.run(t)
-        println("BATCH-RUN OK   $(tag)  $(round(dt; digits=1)) s")
+        row("[$(k)/$(total)] $(tag)  $(round(dt; digits=1)) s")
         flush(stdout)
     catch e
-        println("BATCH-RUN FAIL $(tag)  $(sprint(showerror, e))")
+        # `FAILED` rather than the old `FAIL`: the console picks a row's colour
+        # by reading its text (`_SEVERITY_PATTERNS` in shared/snake_utils.py),
+        # and this is the one row in a batch that must not read as routine.
+        # `FAILED` is that matcher's own spelling, shared with every other
+        # failure row the toolbox emits.
+        row("FAILED [$(k)/$(total)] $(tag)  $(sprint(showerror, e))")
         flush(stdout)
         exitcode = 1
     end
