@@ -481,16 +481,21 @@ def test_a_dry_run_says_so_in_the_opening_block(tmp_path, capture_runs, capsys):
     assert "mode" in out and "dry run -- nothing is executed" in out
 
 
-def test_each_invoked_workflow_gets_a_hand_off_band_at_both_its_edges(
+def test_each_invoked_workflow_gets_a_hand_off_band_at_its_leading_edge(
     tmp_path, capture_runs, capsys
 ):
-    """Position, identity, when it started and how long it took."""
+    """Position, identity and when it started -- but no closing band on success.
+
+    Every workflow signs off with its own `wfN <name> done in <h:mm:ss>`, so a
+    runner band repeating that was a second copy of one fact. The duration
+    survives in the closing block's `ran` group.
+    """
     flags = {n: "true" for n in rw.WORKFLOW_ORDER}
     flags["analyze_projections"] = "false"
     _, out, _ = _run_and_capture(tmp_path, capsys, flags)
     assert re.search(r"\[1/3]  wf0 analyze_climate  --  starting \d\d:\d\d:\d\d", out)
-    assert "[1/3]  wf0 analyze_climate  --  done in 0:00:0" in out
-    assert "[3/3]  wf3 run_stress_test  --  done in 0:00:0" in out
+    assert re.search(r"\[3/3]  wf3 run_stress_test  --  starting \d\d:\d\d:\d\d", out)
+    assert "  --  done in " not in out
     # A disabled workflow gets NO band -- the sequence diagram above already
     # named it, once, before anything ran.
     assert "wf2 analyze_projections  --  starting" not in out
@@ -510,9 +515,9 @@ def test_every_wrapper_utterance_is_bounded_by_a_rule(tmp_path, capture_runs, ca
     _, out, _ = _run_and_capture(tmp_path, capsys, flags)
     lines = out.splitlines()
     rule = "=" * 80
-    # Opening banner (2), one per hand-off band (6 = 3 workflows x 2 edges),
-    # and the closing banner's pair. A bare count is the assertion that would
-    # pass on any two extra rules, so check placement instead.
+    # Opening banner (2), one per hand-off band (3 = 3 workflows, leading edge
+    # only on a clean run), and the closing banner's pair. A bare count is the
+    # assertion that would pass on any two extra rules, so check placement.
     assert lines[0] == rule and lines[1] == "  run_workflows" and lines[2] == rule
     assert lines[-1] == rule
     for index, line in enumerate(lines):
@@ -539,7 +544,7 @@ def test_the_console_is_not_muted_by_the_rule_log_level(
     )
     assert "  run_workflows" in out.splitlines()
     assert "  sequence -- 4 of 4 workflows enabled, invoked in this order" in out
-    assert "  [1/4]  wf0 analyze_climate  --  done in 0:00:0" in out
+    assert re.search(r"\[1/4]  wf0 analyze_climate  --  starting \d\d:\d\d:\d\d", out)
     assert "run_workflows done in" in out
 
 
