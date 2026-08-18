@@ -189,7 +189,11 @@ def rasterise(
             "--disable-gpu",
             "--hide-scrollbars",
             f"--window-size={width * scale},{height * scale}",
-            f"--screenshot={png_path}",
+            # RESOLVED: Chrome writes a relative --screenshot path against its
+            # OWN working directory, not the caller's, and still exits 0 -- so a
+            # relative path silently produces no file. Found 2026-08-18 via
+            # `--out-dir .tmp/...`. The wrapper URI below was already absolute.
+            f"--screenshot={png_path.resolve()}",
             wrapper.resolve().as_uri(),
         ],
         check=True,
