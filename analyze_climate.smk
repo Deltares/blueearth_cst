@@ -32,7 +32,9 @@ from blueearth_cst.climate_analysis.compare_sources import comparison_outputs
 # as rule 1.15's per-station figures are (see the O-24 note in build_model.smk).
 # They land in a `subbasins/` bin declared as a `directory()`, which keeps
 # `--delete-all-output` complete without the checkpoint that rule shape would
-# otherwise need.
+# otherwise need. Rule 1.15 took the same device on 2026-08-18 for the same
+# reason (t2608071206), so `stations/` there and `subbasins/` here are one
+# pattern rather than two coincidences.
 DECLARED_SPATIAL_SCOPES = ("basin_avg",)
 SUBBASIN_PLOT_DIRNAME = "subbasins"
 

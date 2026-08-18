@@ -50,6 +50,18 @@ from matplotlib.ticker import MaxNLocator
 from blueearth_cst.shared import plot_style
 from blueearth_cst.shared.snake_utils import save_figure
 
+#: The bin every per-station sheet is written into, relative to
+#: ``evaluation/plots/``. Defined HERE, beside the code that draws them,
+#: because two unrelated readers need the same string: ``plot_results.py``
+#: to write into it, and ``build_model.smk`` rule 1.15 to declare it as a
+#: ``directory()`` output. A bin rather than flat files because the sheets
+#: are named for wflow_ids, a product of the model BUILD -- so their count
+#: is unknowable when the Snakefile is parsed, and only a directory can be
+#: declared. That is what lets ``--delete-all-output`` reach them
+#: (R7-5 / t2608071206); WF0's ``subbasins/`` bin is the same device for
+#: the same reason.
+STATION_PLOT_DIRNAME = "stations"
+
 # ===========================================================================
 # TUNABLE CONSTANTS
 # ===========================================================================
@@ -827,6 +839,7 @@ def plot_station_evaluation(
 
 
 __all__ = [
+    "STATION_PLOT_DIRNAME",
     "Station",
     "annual_extremes",
     "plot_extremes",

@@ -26,6 +26,7 @@ SUBBASIN_PLOT_DIRNAME = "subbasins"
 # above: the output list comes from the registry the plotter iterates, so a
 # figure cannot be added in one place and forgotten in the other.
 from blueearth_cst.shared.plot_spatial_maps import figure_paths
+from blueearth_cst.shared.plot_evaluation import STATION_PLOT_DIRNAME
 # Recognises both "unset" spellings (YAML null and the legacy "None" string),
 # so an unset observation key never becomes a declared input.
 from blueearth_cst.shared.gauges import is_unset
@@ -967,20 +968,29 @@ rule plot_wflow_evaluation:
    # DECLARED: the config-invariant subset below, plus `_basavg_pngs` — one PNG
    # per basin-average entry in wflow_outvars, a pure function of config.
    #
-   # STILL UNDECLARED, and NOT for want of effort: hydro_{station}.png,
-   # clim_{station}_{month,year}.png and signatures_{station}.png. R7-5 assumed
-   # these could be derived at parse time "from wflow_outvars /
-   # output_locations". They cannot. Their count is the number of model OUTLETS
-   # and SUBCATCHMENTS, which is a product of the model build (rule 1.07, read
-   # back through Q_outlets / the subcatchment map) — unknown until rule 1.07
-   # has run, and output_locations contributes only the extra gauge stations on
-   # top. signatures_* is narrower still: it also requires observations AND a
-   # run longer than a year (plot_results.py `do_signatures`), so it is
-   # data-conditional, not merely config-conditional.
+   # AND the per-station bin as a DIRECTORY (t2608071206, 2026-08-18). Its
+   # members cannot be enumerated at parse time and never could: their count is
+   # the model's OUTLETS and SUBCATCHMENTS, a product of rule 1.07 read back
+   # through Q_outlets / the subcatchment map, with output_locations
+   # contributing only the extra gauge stations on top. The signatures sheets
+   # are narrower still — they also need observations AND a run longer than a
+   # year (`do_signatures`), so they are data-conditional, not merely
+   # config-conditional. R7-5 assumed all of this was derivable "from
+   # wflow_outvars / output_locations"; it is not, and no enumeration closes it.
    #
-   # Closing those needs a checkpoint or a directory() output, i.e. a real
-   # rule-shape change, not the enumeration R7-5 imagined. `--delete-all-output`
-   # completeness therefore still holds only for configs without extra gauges.
+   # A directory() rather than a checkpoint, following WF0's `subbasins/` bin,
+   # which solved the identical problem for its per-subbasin figures. A
+   # checkpoint would re-plan the DAG to learn a set nothing downstream
+   # consumes — no rule reads these PNGs (figures are terminal artifacts), so
+   # the only thing the enumeration would buy is `--delete-all-output`
+   # completeness, and declaring the bin buys that outright.
+   #
+   # `--delete-all-output` completeness now holds for configs WITH extra gauges
+   # too, which is what R7-5 was actually about.
+   #
+   # Note the family list above is two, not the three R7-5 named:
+   # `clim_{station}_{period}.png` no longer exists — ADR 0006 removed it on
+   # 2026-08-09 with the branch that drew it.
    #
    # The two clim_wflow_1_* figures were declared here until 2026-08-09 and are
    # gone with the branch that wrote them (ADR 0006). Their removal also
@@ -998,6 +1008,9 @@ rule plot_wflow_evaluation:
    output:
        metrics_csv = f"{basin_dir}/evaluation/performance_metrics.csv",
        basavg_pngs = _basavg_pngs,
+       station_plots = directory(
+           f"{basin_dir}/evaluation/plots/{STATION_PLOT_DIRNAME}"
+       ),
    params:
        project_dir = f"{project_dir}",
        # The model root is OWNED BY THE RULE, not rebuilt inside the script.
