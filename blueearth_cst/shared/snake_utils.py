@@ -870,6 +870,7 @@ ADVANCED_SETTINGS_PATH = (
 _ADVANCED_SETTINGS_SCHEMA = {
     "constraints": {"min_historical_years": "positive_int"},
     "defaults": {
+        "batch_disk_headroom_fraction": "unit_fraction",
         "julia_threads": "positive_int",
         "seed": "nonnegative_int",
         "water_year_start": "month_abbrev",
@@ -932,6 +933,24 @@ def _month_abbrev(value, where: str) -> str:
     return token
 
 
+def _unit_fraction(value, where: str) -> float:
+    """A share of a whole, in ``(0, 1]``.
+
+    Rejects 0 (a zero budget would cap every batch at 1 while claiming to have
+    computed something) and anything above 1 (no share of free disk can exceed
+    the free disk). Accepts an int so ``1`` need not be written ``1.0``, but
+    not a bool, which ``isinstance(x, int)`` would otherwise admit.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(
+            f"{where} must be a number between 0 and 1, got {value!r} "
+            f"({type(value).__name__})"
+        )
+    if not 0 < float(value) <= 1:
+        raise ValueError(f"{where} must be > 0 and <= 1, got {value}")
+    return float(value)
+
+
 def _version_string(value, where: str) -> str:
     """A quoted three-part version.
 
@@ -953,6 +972,7 @@ _VALIDATORS = {
     "positive_int": _positive_int,
     "nonnegative_int": _nonnegative_int,
     "month_abbrev": _month_abbrev,
+    "unit_fraction": _unit_fraction,
     "version_string": _version_string,
 }
 

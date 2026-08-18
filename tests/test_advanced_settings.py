@@ -20,7 +20,12 @@ def _write(tmp_path, payload):
 
 VALID = {
     "constraints": {"min_historical_years": 16},
-    "defaults": {"julia_threads": 4, "seed": 123, "water_year_start": "Jan"},
+    "defaults": {
+        "batch_disk_headroom_fraction": 0.25,
+        "julia_threads": 4,
+        "seed": 123,
+        "water_year_start": "Jan",
+    },
     "runtime": {"julia_version": "1.11.7"},
 }
 
@@ -128,7 +133,8 @@ def test_an_unquoted_two_part_version_reaches_the_validator_as_a_float(tmp_path)
     path = tmp_path / "advanced_settings.yml"
     path.write_text(
         "constraints:\n  min_historical_years: 16\n"
-        "defaults:\n  julia_threads: 4\n  seed: 123\n  water_year_start: Jan\n"
+        "defaults:\n  batch_disk_headroom_fraction: 0.25\n  julia_threads: 4\n"
+        "  seed: 123\n  water_year_start: Jan\n"
         "runtime:\n  julia_version: 1.11\n",
         encoding="utf-8",
     )

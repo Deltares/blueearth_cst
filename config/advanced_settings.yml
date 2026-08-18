@@ -45,6 +45,31 @@ constraints:
 
 defaults:
 
+  # The share of FREE disk that WF3's batched Wflow runs may hold in transient
+  # `temp()` files at their peak. Overridable per project via
+  # `workflows.run_stress_test.disk_headroom_gb`, which states an ABSOLUTE
+  # budget instead — the two answer different questions, so they differ in unit
+  # deliberately: this one is a policy ("never eat more than a quarter of what
+  # is free"), the project key is a budget ("you may use 40 GB").
+  #
+  # Rule 3.15 runs B members per Julia session and holds BOTH `temp()` classes
+  # — 3.14's forcing NC and 3.15's outstates NC — for the whole batch, with p
+  # batches in flight at `-c N`. Peak transient disk is therefore
+  # `p x B x (forcing + state)`, so B is a disk knob as much as a throughput
+  # one. P3-3 design §6.1 calls this the BINDING constraint on large
+  # `RLZ_NUM x ST_NUM` runs.
+  #
+  # A share rather than a constant because the only honest default is one that
+  # adapts to the machine: a figure generous enough for a workstation is wrong
+  # on a laptop, and vice versa. It only ever LOWERS B, and only when the whole
+  # sweep would not fit anyway; it can never raise it past the parallelism
+  # ceiling or `batch_size_max`.
+  #
+  # Applied only when WF1's model is on disk to measure against — a fresh
+  # project falls back to the previous behaviour rather than failing, since a
+  # safety cap must not become a new way for a run to break.
+  batch_disk_headroom_fraction: 0.25
+
   # Wflow.jl `--threads`. Overridable per project via `shared.julia_threads`.
   #
   # Wflow parallelizes over grid CELLS, so raising this pays on a large basin

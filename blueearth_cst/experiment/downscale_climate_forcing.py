@@ -3,23 +3,11 @@
 import os
 from pathlib import Path
 
-import numpy as np
 from hydromt_wflow import WflowSbmModel
 
+from blueearth_cst.experiment.forcing_window import forcing_window
 from blueearth_cst.shared.progress import hydromt_progress
 from blueearth_cst.shared.snake_utils import member_pointer_base
-
-
-def forcing_window(horizontime_climate, wflow_run_length):
-    """Return the ``(starttime, endtime)`` pair centred on ``horizontime_climate``.
-
-    The window is ``wflow_run_length`` years wide, split around the horizon year
-    and snapped to whole years: ``ceil`` backwards, ``round`` forwards, so an odd
-    run length puts the extra year at the end.
-    """
-    startyear = int(horizontime_climate - np.ceil(wflow_run_length / 2))
-    endyear = int(horizontime_climate + np.round(wflow_run_length / 2))
-    return f"{startyear}-01-01T00:00:00", f"{endyear}-12-31T00:00:00"
 
 
 def forcing_chunksize(size):

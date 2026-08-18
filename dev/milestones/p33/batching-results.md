@@ -187,6 +187,20 @@ so it is recorded in `dev/followups.md` § Post-P3-3. **Every measurement in thi
 note is unaffected** — `min(ceil(12/3), 8) = 4`, verified — and the clamp only
 binds from `K > 24` at `-c 3` (verified: `K=60` yields 8 batch rules, not 3).
 
+> **Update 2026-08-18 — the disk ceiling is now implemented** (`t2608071216`, the
+> board's successor to that `dev/followups.md` entry). The parse-time estimate the
+> paragraph above calls unavailable turned out to be obtainable by MEASURING two
+> persisted WF1 artifacts — `<basin>/forcing/inmaps_historical.nc` and
+> `<basin>/run_default/outstate/outstates.nc` — rather than modelling the encoded
+> size: bytes-per-timestep is a property of the model, not the window, so it
+> transfers to a member forcing within 0.07 %. The cap only ever lowers `B`, and
+> degrades to the behaviour measured here whenever the estimate is unavailable.
+> **Every number in this note still stands**: on this fixture the cap is inert
+> (peak 53 MB against a 26 GB headroom), so GN-3 measures the same run it always
+> did. The peak formula was corrected to `min(K, cores × B) × per_member`,
+> which is this note's own observation — that once the whole sweep is resident the
+> cap degenerates — written into the arithmetic instead of left as a caveat.
+
 **Outstates reclamation verified, not assumed** (the §6.1 verify-in-commit-2 item):
 the sampler shows both `temp()` classes dropping in **B-sized groups** — 12 → 8 → 4
 → 0 at 11:20:39 / 11:20:49 / 11:21:03, ending at **0 MB**. Nothing leaks; deletion

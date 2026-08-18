@@ -12,11 +12,12 @@ from pathlib import Path
 # See dev/milestones/r03/model-builder-design.md §3.
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.experiment.allocate import resolve_default_experiment_name
+from blueearth_cst.experiment.batch_sizing import disk_headroom_bytes, measure_member_footprint, resolve_batch_size
 from blueearth_cst.shared.provenance import append_journal_line, configuration_inputs_digest, effective_config_digest, environment_file_hashes, file_sha256, journal_event, referenced_inputs_for_digest, toolbox_identity
 from blueearth_cst.shared.indicator_tables import indicator_tables, refuse_retired_experiment_keys
 from blueearth_cst.shared.surface_axes import parse_surfaces, warn_on_heterogeneous_design
 from blueearth_cst.experiment.prepare_cst_parameters import refuse_out_of_domain_multipliers
-from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, catalog_root, declare_path_tokens, declare_project_root, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, DEFAULT_JULIA_THREADS, DEFAULT_WFLOW_OUTVARS, file_digest_or_absent, get_config, julia_prefix, index_width, member_index_regex, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, run_summary, spatial_units_rule, resolve_seed, resolve_water_year_start, stress_test_grid, validate_spell_factor, target_banner, validate_experiment_name, warn_if_project_dir_in_repo, install_console_style, run_header
+from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, catalog_root, declare_path_tokens, declare_project_root, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, climate_store_rule, DEFAULT_JULIA_THREADS, DEFAULT_WFLOW_OUTVARS, file_digest_or_absent, get_config, julia_prefix, index_width, log_row, member_index_regex, patch_psutil_windows_benchmark, project_slug, region_rule, rule_banner, run_summary, spatial_units_rule, resolve_seed, resolve_water_year_start, stress_test_grid, validate_spell_factor, target_banner, validate_experiment_name, warn_if_project_dir_in_repo, install_console_style, run_header
 from blueearth_cst.spatial.config import parse_spatial_config
 
 # Windows: make Snakemake's benchmark memory/IO/CPU metrics work (else all NA).
@@ -1060,17 +1061,24 @@ try:
     _cores = int(workflow.cores) if workflow.cores else 1
 except Exception:
     _cores = 1
-# B default from -c N (the §6.1 parallelism ceiling, B ≈ ceil(K/N)), then CLAMPED
-# by the §6.1 DISK ceiling. Peak temp() footprint is p × B × (forcing + state) —
-# both the 3.14 forcing NC and the 3.15 outstates NC are held per batch, and all p
-# concurrent batches are resident — so an unclamped ceil(K/N) default scales B UP
-# with sweep size, making peak disk grow as the sweep grows. That is backwards:
-# §6.1 calls disk "the BINDING constraint" that forces B small on large
-# RLZ_NUM×ST_NUM runs. The true cap needs a stated disk headroom and a per-run
-# size estimate, neither available at parse time (the forcing NCs are temp() and
-# do not exist yet) — see dev/tasks/ § Post-P3-3. Until then batch_size_max
-# bounds the blast radius and the footprint; both keys are overridable, and
-# batch_size set explicitly still wins outright.
+# B is bounded by all three of §6.1's ceilings. The parallelism one (B ≈ ceil(K/N))
+# keeps the cores busy; `batch_size_max` bounds the failure blast radius (C5 is
+# DEGRADED to the batch, so B is also how many members one bad run takes down);
+# and the DISK ceiling — peak temp() footprint p × B × (forcing + state), since
+# both the 3.14 forcing NC and the 3.15 outstates NC are held for a whole batch
+# with p batches in flight — is the one §6.1 calls BINDING on large
+# RLZ_NUM×ST_NUM runs.
+#
+# The disk ceiling was unimplemented until 2026-08-18 (P3-3 GN-3 / task
+# t2608071216): the default was the parallelism ceiling alone, which scales B UP
+# with sweep size and so grows peak disk as the sweep grows — backwards from what
+# §6.1 asks. `batch_size_max` bounded the blast radius but is a constant, not a
+# disk computation. `batch_sizing` supplies the missing term, estimating a member
+# from WF1's own persisted forcing and outstates files (the per-member NCs are
+# temp() and do not exist at parse time). It only ever LOWERS B, never raises it,
+# and an unavailable estimate — a fresh project, WF1 not yet run — degrades to the
+# previous behaviour rather than failing: a safety cap must not become a new way
+# for a run to break. `batch_size` set explicitly still wins outright.
 def _positive_batch_key(key, value):
     """Fail at parse time naming the offending key, not deep inside range()."""
     value = int(value)
@@ -1085,11 +1093,27 @@ def _positive_batch_key(key, value):
 # reported as batch_size_max rather than as the batch_size it silently zeroed.
 batch_size_max = _positive_batch_key("batch_size_max",
                                      get_config(my_cfg, "batch_size_max", 8))
-batch_size = _positive_batch_key(
-    "batch_size",
-    get_config(my_cfg, "batch_size",
-               min(batch_size_max, max(1, -(-len(_k_members) // max(1, _cores))))),
+_explicit_batch_size = get_config(my_cfg, "batch_size", None, optional=True)
+if _explicit_batch_size is not None:
+    _explicit_batch_size = _positive_batch_key("batch_size", _explicit_batch_size)
+
+_batch_sizing = resolve_batch_size(
+    member_count=len(_k_members),
+    cores=_cores,
+    batch_size_max=batch_size_max,
+    explicit=_explicit_batch_size,
+    footprint=measure_member_footprint(basin_dir, horizontime_climate, wflow_run_length),
+    headroom_bytes=disk_headroom_bytes(
+        project_dir,
+        fraction=ADVANCED_SETTINGS["defaults"]["batch_disk_headroom_fraction"],
+        headroom_gb=get_config(my_cfg, "disk_headroom_gb", None, optional=True),
+    ),
 )
+batch_size = _batch_sizing.batch_size
+if _batch_sizing.warning:
+    # WARNING rather than a raise: the cap cannot shrink below B=1, so this is
+    # the one overrun it can only report. The console paints it orange.
+    log_row(_batch_sizing.warning, module="wflow", level="WARNING")
 _batches = {bid: _k_members[i:i + batch_size]
             for bid, i in enumerate(range(0, len(_k_members), batch_size))}
 _batch_driver = str(Path(workflow.basedir) / "blueearth_cst" / "experiment" / "run_wflow_batch.jl")
@@ -1375,6 +1399,7 @@ def _header():
                 project_dir,
                 config_path,
                 experiment=experiment,
+                batching=_batch_sizing.summary(),
             )
             + "\n\n"
         )
