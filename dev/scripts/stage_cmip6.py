@@ -62,10 +62,23 @@ Usage
     python dev/scripts/stage_cmip6.py --workers 8        # 4 slices at once by default
     python dev/scripts/stage_cmip6.py --workers 1        # serial, for a real traceback
 
+The requested cross product is PRE-FILTERED against the catalog, which already
+records which (model, scenario) pairs exist and which members each carries. Much
+of a naive cross product is not real: of 65 models with `historical`, 19 never
+published `ssp245`, and 70 of 289 entries do not offer `r1i1p1f1`. Those are
+refused before a worker starts, with the reason -- and for a missing member, the
+members the entry DOES have. Nothing is auto-substituted: choosing a different
+realisation is a methodological decision, not a convenience.
+
 Slices are staged in parallel PROCESSES because the cost is the remote open, not
 compute -- see `DEFAULT_WORKERS` for the measurement and for why threads are the
 wrong tool here. Progress is reported in completion order, and one unavailable
 source is reported without ending the run.
+
+The closing report separates what the catalog refused, what could not be read
+(a few models publish `Amon` on a non-rectilinear grid that hydromt's raster
+accessor cannot take), and what simply failed -- because those call for
+different actions.
 
 Not part of a run: this is an authoring/staging helper
 (see AGENTS.md, "Three homes for executables").
@@ -173,13 +186,83 @@ def load_config(path):
     return cfg
 
 
+def catalog_availability(cfg):
+    """`(model, scenario) -> [members]`, read from the generated catalog.
+
+    The catalog is an inventory of what the bucket actually holds: one entry
+    per (model, scenario) that has BOTH `pr` and `tas` at `Amon`, each listing
+    exactly the members that exist. So it can answer "is this combination
+    real?" without a single network call, which is what lets `plan` refuse an
+    impossible request instead of spending a worker discovering it.
+
+    Read ONCE per run rather than per slice: the file is ~3 900 lines, and the
+    Snakefile memoises its own lookups for the same reason.
+    """
+    with open(cfg["catalog"], encoding="utf-8") as handle:
+        catalog = yaml.safe_load(handle) or {}
+
+    prefix, suffix = f"{cfg['clim_project']}_", "_{member}"
+    available = {}
+    for key, spec in catalog.items():
+        if not (
+            isinstance(key, str) and key.startswith(prefix) and key.endswith(suffix)
+        ):
+            continue
+        body = key[len(prefix) : -len(suffix)]
+        # Neither a model id nor a scenario contains `_`, so the last one
+        # separates them. `NOAA-GFDL/GFDL-ESM4_ssp245` -> (model, "ssp245").
+        model, _, experiment = body.rpartition("_")
+        if model:
+            available[(model, experiment)] = list(
+                (spec.get("placeholders") or {}).get("member") or []
+            )
+    return available
+
+
 def plan(cfg):
-    """Every (model, scenario, member) slice the config asks for, in a stable order."""
-    jobs = []
+    """Split the requested cross product into runnable jobs and skipped ones.
+
+    Returns `(jobs, skipped)`, where `skipped` is `(key, reason)` pairs.
+
+    PRE-FILTERED against the catalog, because a large share of the cross
+    product is not real and asking anyway is both slow and confusing. Measured
+    on the shipped catalog: of 65 models with `historical`, 19 never published
+    `ssp245`; and 70 of 289 entries do not offer `r1i1p1f1`, so a single global
+    `members:` list misses a quarter of the catalog.
+
+    The second case is the one worth filtering hardest. An absent (model,
+    scenario) at least fails with a KeyError naming the entry, but an absent
+    MEMBER used to reach hydromt, which could not resolve the name, fell back
+    to treating it as a local path, and reported
+    `NoDataException: ... found no files at C:\\...\\cmip6_NIMS-KMA\\UKESM1-0-LL_...`
+    -- the model's `/` read as a directory separator. Nothing in that said
+    "wrong member". UKESM1-0-LL publishes `r13i1p1f2`, `r14i1p1f2`,
+    `r15i1p1f2`: the `f2` forcing variant, realisations from 13. Now the
+    request is refused up front, naming what the entry does have.
+
+    Nothing is auto-substituted. Falling back to whichever member exists would
+    silently change WHICH realisation is analysed, and that is a methodological
+    choice for the caller, not a convenience for the tool.
+    """
+    available = catalog_availability(cfg)
+    jobs, skipped = [], []
     for model in cfg["models"]:
         for experiment in cfg["scenarios"]:
             for member in cfg["members"]:
                 key = series_key(cfg["clim_project"], model, experiment, member)
+                members = available.get((model, experiment))
+                if members is None:
+                    skipped.append((key, f"{model} published no {experiment}"))
+                    continue
+                if member not in members:
+                    skipped.append(
+                        (
+                            key,
+                            f"member {member} not available — this entry has "
+                            f"{', '.join(members) or 'none'}",
+                        )
+                    )
+                    continue
                 jobs.append(
                     {
                         "key": key,
@@ -189,7 +272,7 @@ def plan(cfg):
                         "out": str(Path(cfg["target_root"]) / f"{key}.nc"),
                     }
                 )
-    return jobs
+    return jobs, skipped
 
 
 #: Slices staged at once. PROCESSES, not threads, and the reason is measured:
@@ -255,36 +338,72 @@ def stage_one(cfg, job):
 WRITTEN_GLYPH = "+"
 EXISTS_GLYPH = "="
 FAILED_GLYPH = "x"
+SKIPPED_GLYPH = "-"
 
 _RULE = "=" * 78
+
+
+def _unreadable(error):
+    """True when the store EXISTS but this toolbox cannot read its grid.
+
+    A handful of CMIP6 models publish `Amon` on a non-rectilinear native grid,
+    and hydromt's `.raster` accessor requires 1-D monotonic lat/lon -- so the
+    read fails with `ValueError: The 'raster' accessor only applies to regular
+    grids`. Nothing about the request is wrong and retrying cannot help; the
+    data would have to be regridded first. Observed on NUIST/NESM3.
+
+    Matched on the accessor's own phrase rather than the exception type,
+    because ValueError is far too common to key on alone.
+    """
+    return "only applies to regular grids" in error
 
 
 def _unavailable(error):
     """True when the slice does not EXIST rather than having failed to download.
 
     A KeyError from `load_catalog_entry` is the catalog saying it carries no
-    such (model, scenario) -- an ordinary fact about the ensemble, not a fault
-    in the run. Separating the two is the difference between "ask for something
-    else" and "try again". The test is the exception NAME rather than the
-    message, so a reworded error does not silently reclassify.
+    such (model, scenario). Since `plan` now pre-filters against the catalog
+    this should be rare -- it survives for the case where the catalog and the
+    store index disagree, which is exactly when a loud report is wanted. The
+    test is the exception NAME rather than the message, so a reworded error
+    does not silently reclassify.
     """
     return error.startswith("KeyError")
 
 
-def _print_report(cfg, jobs, existed, out_by_key, errors, seconds, workers, wall):
+def resolve_workers(requested, n_jobs):
+    """How many workers to actually start.
+
+    Capped at the slice count because each worker costs ~7 s of imports and
+    ~311 MiB resident, so idle ones are a real expense rather than untidiness.
+    Floored at 1 so a nonsense `--workers 0` still runs.
+    """
+    return max(1, min(requested, n_jobs))
+
+
+def _print_report(
+    cfg, jobs, existed, out_by_key, errors, seconds, workers, wall, skipped, requested
+):
     """The end-of-run recap: what was asked for, what arrived, what did not."""
     ok = [job["key"] for job in jobs if job["key"] not in errors]
     written = [k for k in ok if not existed[k]]
     present = [k for k in ok if existed[k]]
     unavailable = {k: e for k, e in errors.items() if _unavailable(e)}
-    broke = {k: e for k, e in errors.items() if not _unavailable(e)}
+    unreadable = {k: e for k, e in errors.items() if _unreadable(e)}
+    broke = {
+        k: e for k, e in errors.items() if not _unavailable(e) and not _unreadable(e)
+    }
     size = sum(out_by_key[k].stat().st_size for k in ok if out_by_key[k].exists())
 
     print("")
     print(_RULE)
     print(
         f"  requested   {len(cfg['models'])} model(s) x {len(cfg['scenarios'])} "
-        f"scenario(s) x {len(cfg['members'])} member(s)  =  {len(jobs)} slice(s)"
+        f"scenario(s) x {len(cfg['members'])} member(s)  =  {requested} slice(s)"
+    )
+    print(
+        f"  attempted   {len(jobs)}"
+        + (f"   ({len(skipped)} refused by the catalog, below)" if skipped else "")
     )
     print(
         f"  staged      {len(ok)} of {len(jobs)}"
@@ -292,6 +411,16 @@ def _print_report(cfg, jobs, existed, out_by_key, errors, seconds, workers, wall
         f"{len(present)} {EXISTS_GLYPH} already present)"
     )
     print(f"  target      {cfg['target_root']}   {size / 1e6:.2f} MB")
+
+    # Listed BEFORE the failures, and separately, because these never reached
+    # the network: the catalog already knew they do not exist. Nothing was
+    # spent on them, which is the point of pre-filtering.
+    if skipped:
+        print("")
+        print(f"  not in the catalog  ({len(skipped)})")
+        for key, reason in skipped:
+            print(f"    {SKIPPED_GLYPH} {key}")
+            print(f"        {reason}")
 
     # The two failure kinds are listed SEPARATELY because they call for
     # different actions: an absent (model, scenario) will never appear however
@@ -301,6 +430,17 @@ def _print_report(cfg, jobs, existed, out_by_key, errors, seconds, workers, wall
         print(f"  not available in the catalog  ({len(unavailable)})")
         for key in sorted(unavailable):
             print(f"    {FAILED_GLYPH} {key}")
+    # Third kind: the model is THERE and the request was right, but its grid
+    # cannot be read. Retrying is pointless and choosing another member will
+    # not help either -- the only routes are regridding or dropping the model.
+    if unreadable:
+        print("")
+        print(f"  irregular grid, cannot be read  ({len(unreadable)})")
+        for key in sorted(unreadable):
+            print(f"    {FAILED_GLYPH} {key}")
+        print("        hydromt's raster accessor needs a regular lat/lon grid;")
+        print("        these models publish Amon on a non-rectilinear native grid")
+
     if broke:
         print("")
         print(f"  could not be downloaded  ({len(broke)})")
@@ -360,21 +500,31 @@ def main(argv=None):
     if args.models:
         cfg["models"] = args.models
 
-    jobs = plan(cfg)
+    jobs, skipped = plan(cfg)
+    requested = len(cfg["models"]) * len(cfg["scenarios"]) * len(cfg["members"])
     print(f"region      {cfg['region']}")
     print(f"target      {cfg['target_root']}")
     print(f"buffer      {cfg['buffer_degrees']} deg")
     print(f"variables   {', '.join(cfg['variables'])}")
-    print(f"slices      {len(jobs)}")
+    print(f"slices      {len(jobs)} of {requested} requested", end="")
+    print(f"  ({len(skipped)} not in the catalog)" if skipped else "")
 
     if args.dry_run:
         for job in jobs:
             state = "present" if Path(job["out"]).exists() else "would fetch"
             print(f"  {state:11s} {job['key']}")
+        for key, reason in skipped:
+            print(f"  {'skip':11s} {key}")
+            print(f"                {reason}")
         return 0
 
+    if not jobs:
+        # Every requested combination was refused before any worker started.
+        _print_report(cfg, [], {}, {}, {}, {}, 0, 0.0, skipped, requested)
+        return 1
+
     os.makedirs(cfg["target_root"], exist_ok=True)
-    workers = max(1, min(args.workers, len(jobs)))
+    workers = resolve_workers(args.workers, len(jobs))
     print(f"workers     {workers}")
     print("")
 
@@ -443,6 +593,8 @@ def main(argv=None):
         seconds,
         workers,
         time.perf_counter() - wall_started,
+        skipped,
+        requested,
     )
     return 1 if errors else 0
 

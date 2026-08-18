@@ -197,62 +197,166 @@ def test_stage_one_returns_the_error_instead_of_raising():
     assert elapsed >= 0, "every slice reports a duration, failures included"
 
 
+# --- pre-filtering against the catalog ---------------------------------------
+
+
+def test_plan_refuses_a_scenario_the_model_never_published():
+    """19 of 65 models with `historical` never submitted `ssp245`.
+
+    The catalog knows, so the request is refused before a worker is spawned.
+    """
+    cfg = _cfg() | {
+        "region": str(REGION),
+        "target_root": "unused",
+        "models": ["NCAR/CESM2-FV2"],
+        "scenarios": ["ssp245"],
+        "members": ["r1i1p1f1"],
+    }
+    jobs, skipped = sc.plan(cfg)
+    assert jobs == []
+    assert len(skipped) == 1
+    assert "published no ssp245" in skipped[0][1]
+
+
+def test_plan_refuses_a_member_the_entry_does_not_have_and_names_the_real_ones():
+    """The failure this exists to prevent, and the worst error in the old log.
+
+    UKESM1-0-LL publishes the `f2` forcing variant from realisation 13, so
+    `r1i1p1f1` does not exist. Unfiltered it reached hydromt, which could not
+    resolve the name, treated it as a LOCAL PATH and reported a NoDataException
+    about finding no files -- with the model's slash read as a directory
+    separator, and nothing anywhere saying "wrong member". 70 of the catalog's
+    289 entries lack `r1i1p1f1`, so this is the common case, not an oddity.
+    """
+    cfg = _cfg() | {
+        "region": str(REGION),
+        "target_root": "unused",
+        "models": ["NIMS-KMA/UKESM1-0-LL"],
+        "scenarios": ["historical"],
+        "members": ["r1i1p1f1"],
+    }
+    jobs, skipped = sc.plan(cfg)
+    assert jobs == []
+    reason = skipped[0][1]
+    assert "member r1i1p1f1 not available" in reason
+    assert "r13i1p1f2" in reason, "the reason must name what the entry DOES have"
+
+
+def test_plan_keeps_a_combination_the_catalog_really_carries():
+    """The filter must not be over-eager -- a real request still plans."""
+    cfg = _cfg() | {
+        "region": str(REGION),
+        "target_root": "unused",
+        "models": ["INM/INM-CM4-8"],
+        "scenarios": ["historical"],
+        "members": ["r1i1p1f1"],
+    }
+    jobs, skipped = sc.plan(cfg)
+    assert skipped == []
+    assert [job["key"] for job in jobs] == ["cmip6_INM_INM-CM4-8_historical_r1i1p1f1"]
+
+
+# --- the parallel machinery, offline -----------------------------------------
+
+
+def _local_catalog(tmp_path):
+    """A catalog whose one entry passes the filter but resolves to nothing.
+
+    Cloned from a real entry so the spec is realistic, with the URI pointed at
+    a local path that does not exist -- so `fetch_raw_slice` fails FAST and
+    without touching the network, which is what makes a pool test cheap.
+    """
+    import copy
+
+    import yaml
+
+    with open(_REPO_ROOT / "config/catalogs/cmip6_data.yml", encoding="utf-8") as h:
+        real = yaml.safe_load(h)
+    spec = copy.deepcopy(real["cmip6_INM/INM-CM4-8_historical_{member}"])
+    # `file://` on purpose: a bare Windows path is handed to gcsfs, which
+    # treats `C:\...` as a bucket name and spends ~40 s retrying an HTTP 400
+    # before giving up. An explicit local scheme fails immediately and keeps
+    # the case genuinely offline.
+    spec["uri"] = (tmp_path / "no_such_store" / "{variable}").as_uri()
+    out = {}
+    for name in ("FAKE/MODEL-A", "FAKE/MODEL-B"):
+        entry = copy.deepcopy(spec)
+        entry.setdefault("placeholders", {})["member"] = ["r1i1p1f1"]
+        out[f"cmip6_{name}_historical_{{member}}"] = entry
+    path = tmp_path / "catalog.yml"
+    path.write_text(yaml.safe_dump(out), encoding="utf-8")
+    return path
+
+
 @pytest.mark.skipif(not REGION.is_file(), reason="needs the test_local fixture region")
 def test_the_worker_pool_round_trips_and_reports_every_failure(tmp_path, capsys):
     """Exercise the ProcessPoolExecutor path itself, with no network.
 
-    What this actually proves is the machinery around the fetch: that `cfg` and
-    a job pickle to a worker, that a worker starts and imports the module, and
-    that both failures come back and are summarised. Every model here is absent
-    from the catalog, so each worker fails fast and the case stays offline and
-    quick -- the fetch itself is covered by the digest guard above, not here.
+    What this proves is the machinery AROUND the fetch: that `cfg` and a job
+    pickle to a worker, that a worker starts and imports the module, and that
+    both failures come back and are summarised. The fetch itself is covered by
+    the digest guard, not here.
     """
-    cfg_path = _write_cfg(tmp_path, ["NO/SUCH-MODEL-A", "NO/SUCH-MODEL-B"], tmp_path)
+    import yaml
+
+    cfg = {
+        "region": str(REGION),
+        "target_root": str(tmp_path / "out"),
+        "catalog": str(_local_catalog(tmp_path)),
+        "models": ["FAKE/MODEL-A", "FAKE/MODEL-B"],
+        "scenarios": ["historical"],
+        "members": ["r1i1p1f1"],
+        "variables": SEED_VARIABLES,
+    }
+    cfg_path = tmp_path / "stage_cmip6.yml"
+    cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+
     code = sc.main(["--config", str(cfg_path), "--workers", "2"])
-    captured = capsys.readouterr()
-    assert code == 1, "a run where every slice failed must exit nonzero"
-    # An absent (model, scenario) is the catalog saying it has none, so it is
-    # reported as UNAVAILABLE rather than as a download that broke -- the two
-    # call for different actions and the report keeps them apart.
-    assert "not available in the catalog  (2)" in captured.out
-    assert "could not be downloaded" not in captured.out
-    assert "staged      0 of 2" in captured.out
-    for model in ("NO_SUCH-MODEL-A", "NO_SUCH-MODEL-B"):
-        assert model in captured.out, f"{model} missing from the report"
-
-
-@pytest.mark.skipif(not REGION.is_file(), reason="needs the test_local fixture region")
-def test_the_report_states_what_was_requested(tmp_path, capsys):
-    """The recap must name the REQUESTED cross product, not just the outcome.
-
-    2 models x 1 scenario x 1 member is 2 slices; a reader who asked for more
-    than arrived needs the ask echoed back to see the gap at all.
-    """
-    cfg_path = _write_cfg(tmp_path, ["NO/SUCH-MODEL-A", "NO/SUCH-MODEL-B"], tmp_path)
-    sc.main(["--config", str(cfg_path), "--workers", "2"])
     out = capsys.readouterr().out
-    assert "requested   2 model(s) x 1 scenario(s) x 1 member(s)  =  2 slice(s)" in out
+    assert code == 1, "a run where every slice failed must exit nonzero"
+    assert "attempted   2" in out, "both slices must survive the pre-filter"
+    assert "staged      0 of 2" in out
+    assert "could not be downloaded  (2)" in out
 
 
-@pytest.mark.skipif(not REGION.is_file(), reason="needs the test_local fixture region")
-def test_one_worker_stays_in_process(tmp_path, capsys):
+def test_resolve_workers_caps_at_the_slice_count_and_floors_at_one():
+    """Each worker costs ~7 s of imports and ~311 MiB, so idle ones are a cost.
+
+    Extracted from `main` precisely so this can be asserted without starting a
+    pool -- the arithmetic is the claim, and running a fetch to check it added
+    36 s to the suite for nothing.
+    """
+    assert sc.resolve_workers(8, 1) == 1
+    assert sc.resolve_workers(2, 5) == 2
+    assert sc.resolve_workers(0, 5) == 1
+
+
+def test_one_worker_stays_in_process(tmp_path, capsys, monkeypatch):
     """`--workers 1` must not spin up a pool.
 
     That is what keeps a traceback and any attached debugger pointing at the
-    real failure, which is the whole reason the flag accepts 1.
+    real failure, which is the whole reason the flag accepts 1. Asserted by
+    making the pool EXPLODE if touched, and stubbing the fetch -- both work
+    here only because this path never leaves the process, which is the point.
     """
-    cfg_path = _write_cfg(tmp_path, ["NO/SUCH-MODEL-A"], tmp_path)
-    assert sc.main(["--config", str(cfg_path), "--workers", "1"]) == 1
-    assert "workers     1" in capsys.readouterr().out
+    import yaml
 
+    def _explode(*_a, **_k):
+        raise AssertionError("--workers 1 must not construct a process pool")
 
-@pytest.mark.skipif(not REGION.is_file(), reason="needs the test_local fixture region")
-def test_workers_never_exceeds_the_slice_count(tmp_path, capsys):
-    """Asking for 8 workers on 1 slice starts 1, not 8.
+    monkeypatch.setattr(sc, "ProcessPoolExecutor", _explode)
+    monkeypatch.setattr(sc, "stage_one", lambda cfg, job: (job["key"], None, 0.5))
 
-    Each worker costs ~7 s of imports and ~311 MiB, so spawning idle ones is a
-    real cost rather than a tidiness point.
-    """
-    cfg_path = _write_cfg(tmp_path, ["NO/SUCH-MODEL-A"], tmp_path)
-    sc.main(["--config", str(cfg_path), "--workers", "8"])
+    cfg = {
+        "region": str(REGION),
+        "target_root": str(tmp_path / "out"),
+        "models": ["INM/INM-CM4-8"],
+        "scenarios": ["historical"],
+        "members": ["r1i1p1f1"],
+        "variables": SEED_VARIABLES,
+    }
+    cfg_path = tmp_path / "stage_cmip6.yml"
+    cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+
+    assert sc.main(["--config", str(cfg_path), "--workers", "1"]) == 0
     assert "workers     1" in capsys.readouterr().out
