@@ -24,6 +24,13 @@ using Dates  # stdlib -- resolves via LOAD_PATH's `@stdlib` entry, so it needs n
              # real `--project=.` invocation rule 3.15 uses)
 using Wflow
 
+# Per-member timestep progress, on top of the `[k/N]` position below. The two
+# answer different questions -- the counter says how much of the BATCH is left,
+# the bar how much of the current MEMBER is -- and a batch member is minutes
+# long, so the counter alone leaves the console still for most of a batch.
+include(joinpath(@__DIR__, "..", "shared", "wflow_progress.jl"))
+using .WflowProgress: run_with_progress
+
 exitcode = 0
 total = length(ARGS)
 
@@ -45,7 +52,9 @@ for (k, t) in enumerate(ARGS)
     # literal constant `wflow` on every row of every batch.
     tag = first(splitext(basename(t)))
     try
-        dt = @elapsed Wflow.run(t)
+        # The member tag is the bar's LABEL, which is what lets the relay tell
+        # one member's bar from the next within a batch and close each line.
+        dt = @elapsed run_with_progress(Wflow, t; label = tag)
         row("[$(k)/$(total)] $(tag)  $(round(dt; digits=1)) s")
         flush(stdout)
     catch e

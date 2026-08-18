@@ -814,13 +814,19 @@ rule run_wflow:
         # readable record of a batched run.
         wflow_log = f"{basin_dir}/run_default/log.txt",
     params:
-        toml_path = f"{basin_dir}/wflow_sbm.toml"
+        toml_path = f"{basin_dir}/wflow_sbm.toml",
+        driver = str(Path(workflow.basedir) / "blueearth_cst" / "model" / "run_wflow.jl"),
     log:
         f"{LOG_PARTS_DIR}/1.14_run_wflow.log",
     benchmark:
         f"{project_dir}/benchmarks/_parts/1.14_run_wflow.tsv",
     shell:
-        """python -u "{run_logged}" "{log}" -- {wflow_julia} -e "using Wflow; Wflow.run()" "{params.toml_path}" """
+        # A DRIVER FILE rather than the `-e "using Wflow; Wflow.run()"` one-liner
+        # Wflow's docstring suggests. Under `[logging] silent = true` that form
+        # emits nothing at all for the whole run -- the longest single step in
+        # WF1 -- so the driver adds the progress bar every other long step in the
+        # toolbox animates. It is also the shape rule 3.15 already has.
+        """python -u "{run_logged}" "{log}" -- {wflow_julia} "{params.driver}" "{params.toml_path}" """
 
 # 1.04  extract_historical_climate — the SHARED historical-climate store producer
 # (R07 B1). This declaration and rule 3.08 in run_stress_test.smk are

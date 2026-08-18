@@ -299,3 +299,79 @@ def test_an_interrupted_julia_record_releases_what_it_held(tmp_path):
         "unrelated line",
         "[ Info: after",
     ]
+
+
+# --- wflow.jl progress frames through the tee ---------------------------------
+#
+# `shared/wflow_progress.jl` emits `[cst-progress] <label> <fraction>` and the
+# tee re-renders it as the house bar. These tests use a python child rather than
+# julia so they run in CI, where no julia exists -- the wire format is the
+# contract, not the language that produced it.
+
+
+def test_run_and_tee_renders_wflow_frames_as_a_bar(tmp_path):
+    log = tmp_path / "wflow.log"
+    snippet = (
+        "print('00:01 - wflow - starting')\n"
+        "for f in (0.0, 0.5, 1.0):\n"
+        "    print(f'[cst-progress] wflow {f}')\n"
+        "print('00:02 - wflow - simulation complete  1.0 s')\n"
+    )
+    rc = run_and_tee([sys.executable, "-c", snippet], log)
+    text = log.read_text(encoding="utf-8")
+
+    assert rc == 0
+    # The raw frames never reach the log -- they are rendered, not passed through.
+    assert "[cst-progress]" not in text
+    # The bar's completed frame survives as the one row for the whole run.
+    assert "100.0%" in text
+    assert "wflow" in text
+    # `_cr_overwrite` collapses the redraws, so the intermediate frame is gone.
+    assert "50.0%" not in text
+    # Ordinary rows either side are untouched.
+    assert "starting" in text
+    assert "simulation complete" in text
+
+
+def test_run_and_tee_leaves_a_bar_cut_short_on_its_own_line(tmp_path):
+    """A child that dies mid-bar must not strand the next row inside a frame."""
+    log = tmp_path / "crash.log"
+    snippet = "import sys\nprint('[cst-progress] wflow 0.25')\nsys.exit(7)\n"
+    rc = run_and_tee([sys.executable, "-c", snippet], log)
+    text = log.read_text(encoding="utf-8")
+
+    assert rc == 7
+    assert "[cst-progress]" not in text
+    assert "25.0%" in text
+    assert text.endswith("\n")
+
+
+def test_run_and_tee_passes_through_a_malformed_frame(tmp_path):
+    """A frame the relay cannot parse costs the bar, never the row."""
+    log = tmp_path / "malformed.log"
+    rc = run_and_tee(
+        [sys.executable, "-c", "print('[cst-progress] wflow not-a-number')"], log
+    )
+    assert rc == 0
+    assert "[cst-progress] wflow not-a-number" in log.read_text(encoding="utf-8")
+
+
+def test_run_and_tee_drops_the_duplicate_final_frame_entirely(tmp_path):
+    """The swallowed repeat must vanish, not surface as a raw sentinel.
+
+    `feed` returning `""` (recognised, not drawn) and `None` (not a frame) are
+    different instructions to the tee; conflating them put a literal
+    `[cst-progress] wflow 1.0` in the log (observed 2026-08-18).
+    """
+    log = tmp_path / "dup.log"
+    snippet = (
+        "print('[cst-progress] wflow 0.5')\n"
+        "print('[cst-progress] wflow 1.0')\n"
+        "print('[cst-progress] wflow 1.0')\n"
+    )
+    rc = run_and_tee([sys.executable, "-c", snippet], log)
+    text = log.read_text(encoding="utf-8")
+
+    assert rc == 0
+    assert "[cst-progress]" not in text
+    assert text.count("100.0%") == 1

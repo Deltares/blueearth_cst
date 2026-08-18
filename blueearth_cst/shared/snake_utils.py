@@ -2792,6 +2792,35 @@ def _is_shutdown_noise(line):
     return stripped == "" or stripped in _EXCEPTHOOK_MARKERS
 
 
+class _NoFrameRelay:
+    """Stand-in used when :mod:`blueearth_cst.shared.progress` cannot be
+    imported. Refuses every line, so the tee behaves exactly as it did before
+    the bar existed -- a progress bar must never be able to fail a run."""
+
+    active = False
+
+    def feed(self, line, stream=None):
+        return None
+
+    def close(self):
+        return None
+
+
+def _wflow_frame_relay():
+    """A :class:`~blueearth_cst.shared.progress.WflowFrameRelay`, or a no-op.
+
+    Imported HERE rather than at module scope because ``progress`` pulls in
+    ``dask.callbacks``, and every Snakefile imports this module at PARSE time --
+    where the tee is never used. ``tee_to_log`` runs in the ``run_logged.py``
+    child, so the cost lands only where the bar is actually drawn.
+    """
+    try:
+        from blueearth_cst.shared.progress import WflowFrameRelay
+    except Exception:  # pragma: no cover - defensive; see _NoFrameRelay
+        return _NoFrameRelay()
+    return WflowFrameRelay()
+
+
 def run_and_tee(command, log_path):
     """Run ``command`` (an argv list), streaming combined stdout+stderr to the
     console AND ``log_path``, and return the child's exit code.
@@ -2803,7 +2832,12 @@ def run_and_tee(command, log_path):
     success (t260721a; dev/tasks/). Teeing in-process restores exit-code
     fidelity while keeping live console output. The child runs with
     ``shell=False`` so argument quoting is preserved identically across cmd.exe
-    and bash (e.g. Julia's ``-e "using Wflow; Wflow.run()"`` stays one argv).
+    and bash (a quoted ``julia -e "..."`` body stays one argv -- rules 1.14 and
+    3.15 now pass a driver *file* instead, but other callers still rely on it).
+
+    Wflow progress frames (``[cst-progress] <label> <fraction>``, emitted by
+    ``shared/wflow_progress.jl``) are re-rendered here as the house progress bar;
+    see :class:`~blueearth_cst.shared.progress.WflowFrameRelay`.
 
     A *pure* trailing run of benign interpreter-shutdown excepthook noise (see
     ``_EXCEPTHOOK_MARKERS``) is collapsed into a single summary line so it does
@@ -2929,6 +2963,10 @@ def run_and_tee(command, log_path):
         try:
             pending = []
             folder = _JuliaRecordFolder()
+            # Wflow reports its timestep progress as a bare fraction (see
+            # `shared/wflow_progress.jl`); this turns each one into a frame of
+            # the same bar wf0's and wf2's long writes animate.
+            wflow_bar = _wflow_frame_relay()
             # Carriage-return frames of a line still being redrawn, held until
             # its terminating newline arrives.
             frames = []
@@ -2962,6 +3000,22 @@ def run_and_tee(command, log_path):
                 # is load-bearing: `_cr_overwrite("text\r\n")` would otherwise
                 # split on the `\r` and keep only the `\n`, blanking the row.
                 raw = raw.replace("\r\n", "\n")
+                # A Wflow progress frame is REWRITTEN into a frame of the house
+                # bar, then falls through to the ordinary carriage-return path
+                # below -- which already streams frames to the console and
+                # collapses them to one row in the log. Rendering here and
+                # writing there keeps one implementation of each job; see
+                # `WflowFrameRelay` for why the child reports only a number.
+                rendered = wflow_bar.feed(raw, stream=sys.stdout)
+                if rendered is not None:
+                    # An empty render means the relay recognised the frame and
+                    # chose not to draw it (the duplicate final frame). Dropping
+                    # it here is what keeps the raw `[cst-progress]` sentinel out
+                    # of the log -- `None`, by contrast, means "not mine", and
+                    # that line must pass through untouched.
+                    if not rendered:
+                        continue
+                    raw = rendered
                 if raw.endswith("\r"):
                     if stream_frames:
                         _console_write(raw)
@@ -2969,8 +3023,20 @@ def run_and_tee(command, log_path):
                     continue
                 line, frames = "".join(frames) + raw, []
                 deliver(line, redraw=stream_frames and "\r" in line)
+            # A child that died mid-bar leaves its last frame unterminated, so
+            # close the row before anything else is written to it.
+            trailing = wflow_bar.close()
             if frames:
-                deliver("".join(frames), redraw=stream_frames)
+                chunk = "".join(frames)
+                if trailing is not None:
+                    # The terminator REPLACES the dangling carriage return
+                    # rather than following it: `_cr_overwrite` keeps the last
+                    # non-empty `\r`-separated segment, so an appended newline
+                    # would become that segment and blank the bar it closes.
+                    chunk = chunk.rstrip("\r") + trailing
+                deliver(chunk, redraw=stream_frames)
+            elif trailing is not None and stream_frames:
+                _console_write(trailing)
             # An unterminated record is released verbatim, and must NOT go back
             # through `folder.feed` — its head line would simply be buffered
             # again and lost with it.
