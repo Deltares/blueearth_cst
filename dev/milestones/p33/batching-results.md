@@ -220,6 +220,13 @@ cannot be fooled by a partially-written CSV that would satisfy an output check.
 | per-cst driver lines for every member incl. the failed one | `BATCH-RUN FAIL wflow_sbm_rlz_1_cst_1.toml …` + `BATCH-RUN OK` for all 11 others | ✅ compute isolation preserved |
 | clean re-convergence passing GN-2 | fault removed → **exit 0 in 4 jobs** (only the failed batch + its downstream, not the whole sweep), then gate 1 **CLEAN** | ✅ |
 
+> The driver rows quoted above are the ones observed at the time. They are
+> spelled differently now — `HH:MM:SS - wflow - [k/N] rlz_<i>_st_<j>  <s> s`,
+> with `FAILED` in place of `BATCH-RUN FAIL` — since the rows moved into the
+> toolbox's house log format and gained a batch position. The observation
+> stands; only its spelling moved. Emit site:
+> `blueearth_cst/experiment/run_wflow_batch.jl`.
+
 Realized blast radius is **equal to — never wider than — the documented C5 cost**.
 C5 remains **DEGRADED by design** (blast radius `B`), documented and now measured
 rather than asserted.

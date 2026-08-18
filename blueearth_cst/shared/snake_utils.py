@@ -3549,7 +3549,7 @@ _ANSI_RESET = "\033[0m"
 _SEVERITY_PATTERNS = (
     (
         re.compile(
-            r"\b(?:ERROR|ERRORS|FAILURE|FAILED|CRITICAL|FATAL)\b"
+            r"\b(?:ERROR|ERRORS|FAIL|FAILURE|FAILED|CRITICAL|FATAL)\b"
             r"|Traceback \(most recent call last\)"
             r"|\bError in\b|\bError:"
         ),
