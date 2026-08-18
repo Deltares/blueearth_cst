@@ -74,11 +74,37 @@ def _source_ds(years, *, with_temp=False, bump_year=None, bump=0.0) -> xr.Datase
 
 
 def _write_source(path: Path, ds: xr.Dataset, *, as_zarr: bool) -> None:
+    """Write one generation of a source dataset, replacing any previous one.
+
+    The zarr leg goes through the PRODUCT's writer rather than a bare
+    ``to_zarr``. `stage_data._write_zarr` already absorbs the zarr-v3 metadata
+    rename that intermittently raises ``PermissionError [WinError 5]`` on
+    Windows -- it clears the partial store and retries, three attempts with a
+    backoff -- and this fixture write was the one zarr write in the harness that
+    had no such protection.
+
+    That is not hypothetical: it is what failed on 2026-08-18 (t2608071208).
+    The traceback landed on `_atomic_write`'s `tmp_path.replace(path)` for
+    `zarr.json`, in THIS function, called the second time
+    `_rebuild_provenance` writes its source -- the delete-then-recreate of the
+    same store path is what gives the OS a delete-pending target to deny.
+
+    Reusing the product's helper rather than adding a second retry here is
+    deliberate: a private import from a module this harness already imports
+    beats two implementations of one workaround drifting apart. `serial=True`
+    because these fixtures are tiny, matching `_stage`'s own reason for pinning
+    the synchronous scheduler.
+
+    Writing each generation to a FRESH path was the other candidate and is
+    rejected: the scenario's whole point is that the source at the CONFIGURED
+    path changes between stages, so moving it would alter the property under
+    test rather than the flake.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
         shutil.rmtree(path) if path.is_dir() else path.unlink()
     if as_zarr:
-        ds.to_zarr(path, consolidated=True, mode="w")
+        sd._write_zarr(ds, path, {}, serial=True)
     else:
         ds.to_netcdf(path)
 
