@@ -5,9 +5,9 @@ status: backlog
 effort: 2
 area: wf2
 origin: R6
-queue: 8
+queue: 7
 created: 2026-08-07
-updated: 2026-08-17
+updated: 2026-08-18
 ---
 
 > [!note] Overview
