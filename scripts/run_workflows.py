@@ -54,13 +54,23 @@ Contract (pinned, design §7 (a)-(g), plus (h) for the console):
        (project, folder, config, cores, and `mode` on a dry run) and an ASCII
        `sequence` diagram numbering the enabled workflows in invocation order
        and marking the disabled ones in place;
-     * one HAND-OFF band per invoked workflow at each of its two edges --
+     * one HAND-OFF band per invoked workflow, at its LEADING edge only --
        `<rule>` then `[1/4]  wf0 analyze_climate  --  starting HH:MM:SS`, with
-       the sanitized command below it, and later the same tag with
-       `done in <h:mm:ss>` or `FAILED (exit N) after <h:mm:ss>`;
+       the sanitized command below it. A workflow that FAILS gets a closing
+       band too, carrying `FAILED (exit N) after <h:mm:ss>` and the fact that
+       later workflows were not invoked;
      * a CLOSING block, framed like the opening one and terminated by a final
        rule: the verdict and total elapsed, each invoked workflow's duration,
        and the paths written.
+
+     There is deliberately NO closing band on SUCCESS. Every workflow already
+     signs off with its own `wfN <name> done in <h:mm:ss>` and the paths it
+     wrote, so a runner band saying the same thing one line later was a second
+     copy of the same fact -- differing only in that the runner's clock also
+     counts process startup. The per-workflow durations survive in the closing
+     block, which is where a reader compares them anyway. A FAILURE is not
+     duplicated: a workflow that dies prints no sign-off, so that band is the
+     only place the exit code and the stop decision are stated.
 
      Deliberately NOT `log_row`'s `HH:MM:SS - <module> - ...`: that grammar is
      worn by every line reported from inside a workflow, so a runner wearing it
@@ -730,7 +740,6 @@ def run(config_path: str, cores: int, extra: list[str]) -> int:
                 break
             workflow["status"] = "succeeded"
             ran.append((name, elapsed))
-            print("\n" + _handoff(tag, f"done in {elapsed}"), flush=True)
     except BaseException as exc:
         manifest["status"] = "failed"
         manifest["error_type"] = type(exc).__name__
