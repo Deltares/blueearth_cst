@@ -44,8 +44,10 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
-# Relocated to .tmp/pytest_cache (pyproject.toml). Kept: a `--isolated` or
-# config-less run still writes the root dir.
+# Relocated to .tmp/pytest_cache (pyproject.toml). Kept as insurance: a
+# config-less run still writes the root dir. Ignoring only keeps such a
+# directory out of a COMMIT -- what keeps it out of the root is
+# tests/test_cache_dir_hygiene.py, which fails on any cache directory here.
 .pytest_cache
 nosetests.xml
 coverage.xml

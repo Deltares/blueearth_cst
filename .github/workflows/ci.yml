@@ -67,8 +67,11 @@ jobs:
         #
         # The rule set is pinned in pyproject.toml [tool.ruff.lint] and must stay
         # pinned: ruff's DEFAULT selection is ~415 rules (409 findings in this
-        # repo under `ruff check --isolated`), so an unpinned `select` would turn
-        # a routine ruff version bump into a red CI on an untouched tree.
+        # repo under `RUFF_CACHE_DIR=.tmp/ruff_cache ruff check --isolated` --
+        # the variable keeps that measurement from dropping a cache directory in
+        # the repo root, which `--isolated` otherwise does), so an unpinned
+        # `select` would turn a routine ruff version bump into a red CI on an
+        # untouched tree.
         #
         run: pixi run ruff check .
 
