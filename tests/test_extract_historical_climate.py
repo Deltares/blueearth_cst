@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 import types
 
+import dask
 import numpy as np
 import pytest
 
@@ -55,6 +56,11 @@ class _FakeDataArray:
 
 class _FakeDataset:
     """Quacks enough like an xarray Dataset for prep_historical_climate."""
+
+    #: Scheduler in force at each ``to_netcdf(...).compute()``, newest last.
+    #: Class-level because the catalog fake builds its datasets internally and
+    #: hands the caller no reference to the one that actually gets written.
+    _COMPUTE_SCHEDULERS = []
 
     def __init__(self, vars_, time_size=None, time_start="1980-01-01"):
         self._vars = list(vars_)
@@ -136,6 +142,12 @@ class _FakeDataset:
 
         class _Delayed:
             def compute(self_inner):
+                # Recorded AT COMPUTE TIME, which is the only moment the
+                # scheduler is actually in force -- the producer sets it with a
+                # `dask.config.set` context manager around this call.
+                _FakeDataset._COMPUTE_SCHEDULERS.append(
+                    dask.config.get("scheduler", None)
+                )
                 return None
 
         return _Delayed()
@@ -650,6 +662,33 @@ def test_relaxing_the_floor_still_writes_the_store(
     assert (tmp_path / "out.nc").parent.exists()
     # The fake records to_netcdf calls rather than writing; the absence of an
     # exception plus the recorded call is what "the store was written" means here.
+
+
+def test_the_store_write_runs_under_the_synchronous_scheduler(
+    tmp_path, fake_era5_catalog, monkeypatch
+):
+    """The store write must never run on dask's THREAD POOL.
+
+    netCDF4/HDF5 takes a process-global lock and xarray funnels every netCDF
+    touch through it, so a graph that both reads netCDF and writes netCDF
+    deadlocks: writers and readers each hold one sub-lock of a `CombinedLock`
+    and wait for the other. Measured 2026-08-18, when wf0 parked on the chirps
+    store at 94.2% with every worker in `xarray/backends/locks.py` and the
+    process burning 0.08 s of CPU per 20 s of wall clock.
+
+    This is a UNIT guard for a defect only integration could otherwise catch,
+    and it is worth having because the deadlock is source-shaped: era5 reads
+    zarr, which takes no such lock, so an all-era5 run is green and proves
+    nothing about the netCDF-backed sources that can actually reach it.
+    """
+    _FakeDataset._COMPUTE_SCHEDULERS.clear()
+
+    _run_with_span(monkeypatch, tmp_path, 40, _RecordingDataCatalog)
+
+    assert _FakeDataset._COMPUTE_SCHEDULERS == ["synchronous"]
+    # And scoped, not pinned process-wide: everything downstream of this rule
+    # still gets the threaded scheduler it expects.
+    assert dask.config.get("scheduler", None) != "synchronous"
 
 
 def test_zero_overlap_names_the_source_and_the_window(
