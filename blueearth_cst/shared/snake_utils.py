@@ -96,6 +96,11 @@ def _log_row_text(hms, module, level, message):
         11:13:01 - geoms - Writing geoms to basins.geojson.
         11:13:04 - states - WARNING - state file not found, using cold start
 
+    On a colour-capable console that second row is also painted (orange for a
+    warning, red for a failure) — see ``_SEVERITY_PATTERNS``, which keys off
+    this very spelling. The text is the durable signal and the colour is the
+    console's amplification of it; the log file carries only the text.
+
     Absence therefore MEANS ``INFO``; the log header says so. Every row in these
     logs goes through here -- :func:`_compact_log_line` for hydromt's records,
     :func:`log_row` for our own, and the heartbeat's stall markers -- because
@@ -184,6 +189,19 @@ _REPO_ROOT = str(Path(__file__).resolve().parents[2])
 #: useful in its first hundred characters, and those characters differ per
 #: machine and per environment.
 _SITE_PACKAGES_RE = re.compile(r"[A-Za-z]:[\\/](?:[^\\/\s]+[\\/])*?site-packages[\\/]")
+
+#: Object-store prefixes that dominate a WF2 row the way an absolute local path
+#: dominates a WF1 one. ``gs://cmip6/CMIP6/`` is 17 constant characters in front
+#: of the only part that identifies anything -- the activity/institution/model/
+#: experiment/member run below it -- and it appears on every fetch row and in
+#: hydromt's echo of the same URI.
+#:
+#: A plain prefix table rather than a declared token: the store is a property of
+#: the CMIP6 catalog, identical on every machine and in every project, so there
+#: is nothing per-run to declare. It needs no header legend for the same reason
+#: ``<repo>`` and ``<site-packages>`` need none -- the token names the thing it
+#: replaced. Longest first, so a more specific prefix wins.
+_REMOTE_PREFIXES = (("gs://cmip6/CMIP6/", "<cmip6>/"),)
 
 
 #: The path-looking run immediately after a stripped prefix. Stops at
@@ -429,6 +447,10 @@ def _relativize_paths(text, project_root, tokens=()):
       reads ``<site-packages>/hydromt_wflow/data/parameters_data.yml``. What
       matters is which package the file came from, not where pixi put the env.
 
+    A fourth, remote rather than local: the object-store prefixes in
+    :data:`_REMOTE_PREFIXES`, so a CMIP6 URI reads ``<cmip6>/ScenarioMIP/...``.
+    Applied first, since a URI shares no structure with the three below it.
+
     Order matters: the repo contains the pixi env, so ``site-packages`` is
     matched FIRST or a repo-relative rewrite would hide it. A path in none of
     the three (a data catalog under ``C:\\data\\``) is left absolute — its
@@ -443,6 +465,10 @@ def _relativize_paths(text, project_root, tokens=()):
     above is still true of an UNDECLARED one.
     """
     text = _SITE_PACKAGES_RE.sub("<site-packages>/", text)
+    # Before the local rewrites: a remote URI shares none of their structure, so
+    # nothing below can match it and nothing above can be hidden by it.
+    for prefix, token in _REMOTE_PREFIXES:
+        text = text.replace(prefix, token)
     # Each token in BOTH the absolute spelling it was declared in and the
     # project-relative one, longest first so a nested token still wins.
     #
@@ -3490,7 +3516,58 @@ _ANSI_DONE = "92"  # bright green
 _ANSI_BODY = "38;5;250"  # light grey
 _ANSI_FAIL = "91"  # bright red
 _ANSI_WARN = "93"  # bright yellow
+_ANSI_ALERT = "38;5;208"  # orange
 _ANSI_RESET = "\033[0m"
+
+
+# A sixth colour, and the only one chosen by reading a line rather than by the
+# caller that emits it: severity announced by the TEXT.
+#
+# The five above are assigned at the emit site, because the emitter knows what
+# kind of line it is writing. That does not reach the majority of what scrolls
+# past here -- rows from our own scripts, and the raw stdout of hydromt, R,
+# Julia and wflow -- all of which arrive at the tee as undifferentiated body
+# text. A warning from any of them was previously the same light grey as the
+# path it printed on the line before, which is the one case where "everything
+# routine looks alike" is wrong: the whole point of a warning is that it is not
+# routine.
+#
+# Orange rather than the heartbeat's yellow, deliberately. Yellow already means
+# "the console does not know whether anything is wrong" (a stall notice), and it
+# appears at most twice in a run; this means "something in the run reported a
+# problem", and can appear inline anywhere. Two adjacent meanings that a reader
+# must not have to disambiguate by position.
+#
+# Matching is CASE-SENSITIVE and word-bounded, which is what keeps it from
+# firing on ordinary text: `error_metrics.csv`, `n_errors=0` and a rule named
+# `compute_errors` are all lowercase and none of them match. The uppercase forms
+# are what Python's `logging`, hydromt and Snakemake emit; the mixed-case ones
+# are R's (`Warning message:`, `Error in ...`) and Python's warning classes
+# (`FutureWarning:`), which are equally load-bearing and equally unmissable.
+#
+# Failure is tested FIRST so a line carrying both reads as the worse of the two.
+_SEVERITY_PATTERNS = (
+    (
+        re.compile(
+            r"\b(?:ERROR|ERRORS|FAILURE|FAILED|CRITICAL|FATAL)\b"
+            r"|Traceback \(most recent call last\)"
+            r"|\bError in\b|\bError:"
+        ),
+        _ANSI_FAIL,
+    ),
+    (
+        re.compile(r"\b(?:WARNING|WARN)\b|\bWarning message\b|\b\w*Warning:"),
+        _ANSI_ALERT,
+    ),
+)
+
+
+def _severity_code(line):
+    """The SGR code a line's own text demands, or ``None`` for the caller's."""
+    for pattern, code in _SEVERITY_PATTERNS:
+        if pattern.search(line):
+            return code
+    return None
 
 
 def _ansi(text, code):
@@ -3524,6 +3601,16 @@ def _paint_body(text, colour, code=_ANSI_BODY):
     every painted chunk, since those are properties of the CHUNK, not of the
     colour.
 
+    **A line's own severity outranks ``code``.** ``_severity_code`` is consulted
+    per line, so a ``WARNING`` or ``ERROR`` arriving as ordinary body text --
+    from our scripts, or from hydromt / R / Julia / wflow stdout -- is painted
+    for what it says rather than for the tier its emitter assumed. Applied here
+    because this is the ONE funnel every console-bound chunk passes through:
+    the tee, the heartbeat and the console handler all call it, and none of them
+    can see inside the text they forward. Nothing here reaches a log file --
+    ``_paint_body`` returns ``text`` unchanged when ``colour`` is false, and the
+    log branch never asks for colour -- so the file stays free of escapes.
+
     **Chunks containing a carriage return pass through untouched.** Those are
     in-place progress bars (dask's ``[####] | 100% Completed``), which redraw
     many times a second: wrapping each redraw would put an SGR pair around every
@@ -3543,7 +3630,8 @@ def _paint_body(text, colour, code=_ANSI_BODY):
     if not colour or "\r" in text or not text.strip():
         return text
     return "\n".join(
-        _ansi(line, code) if line.strip() else line for line in text.split("\n")
+        _ansi(line, _severity_code(line) or code) if line.strip() else line
+        for line in text.split("\n")
     )
 
 

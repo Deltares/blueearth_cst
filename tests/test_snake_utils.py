@@ -1238,14 +1238,20 @@ def test_tee_mutes_a_row_whose_component_prefix_survived_compaction(tmp_path, ca
 
 
 @pytest.mark.parametrize(
-    "uri",
+    "uri,logged",
     [
-        "gs://cmip6/CMIP6/CMIP/INM/INM-CM4-8/historical/r1i1p1f1/Amon/{variable}"
-        "/gr1/v20190530",
-        "s3://some-bucket/a/b/c.zarr",
+        (
+            "gs://cmip6/CMIP6/CMIP/INM/INM-CM4-8/historical/r1i1p1f1/Amon/{variable}"
+            "/gr1/v20190530",
+            # The log keeps the row, in the log's own spelling: the CMIP6 store
+            # prefix is abbreviated in BOTH sinks, exactly as a project path is.
+            "<cmip6>/CMIP/INM/INM-CM4-8/historical/r1i1p1f1/Amon/{variable}"
+            "/gr1/v20190530",
+        ),
+        ("s3://some-bucket/a/b/c.zarr", "s3://some-bucket/a/b/c.zarr"),
     ],
 )
-def test_tee_mutes_hydromts_object_store_read_echo(tmp_path, capsys, uri):
+def test_tee_mutes_hydromts_object_store_read_echo(tmp_path, capsys, uri, logged):
     """WF2 prints the same URI one row earlier, in both catalog branches.
 
     hydromt's echo is 162-175 characters -- the longest rows WF2 produces --
@@ -1258,7 +1264,7 @@ def test_tee_mutes_hydromts_object_store_read_echo(tmp_path, capsys, uri):
     with tee_to_log(log, heartbeat_interval=0):
         sys.stdout.write(row)
     assert uri not in capsys.readouterr().out
-    assert uri in log.read_text(encoding="utf-8")
+    assert logged in log.read_text(encoding="utf-8")
 
 
 def test_tee_keeps_a_local_data_source_read_on_the_console(tmp_path, capsys):
@@ -1611,6 +1617,24 @@ def test_forward_slash_spelling_is_handled_too():
     """hydromt emits either separator."""
     line = "Writing to C:/TESTS/CST/gabon_0108/hydrology_model/basins.geojson"
     assert _rel(line) == "Writing to hydrology_model/basins.geojson"
+
+
+def test_the_cmip6_store_prefix_is_abbreviated():
+    """17 constant characters in front of the only part that identifies a run."""
+    line = (
+        "entry=cmip6_MPI-ESM1-2-HR_ssp585 uri=gs://cmip6/CMIP6/ScenarioMIP/"
+        "DKRZ/MPI-ESM1-2-HR/ssp585/r1i1p1f1/Amon/pr/gn/v20190710/"
+    )
+    assert _rel(line) == (
+        "entry=cmip6_MPI-ESM1-2-HR_ssp585 uri=<cmip6>/ScenarioMIP/"
+        "DKRZ/MPI-ESM1-2-HR/ssp585/r1i1p1f1/Amon/pr/gn/v20190710/"
+    )
+
+
+def test_a_non_cmip6_remote_uri_is_left_alone():
+    """The table is a closed list of stores we actually read, not a URI rule."""
+    line = "uri=s3://somebucket/CMIP6/ScenarioMIP/x.nc"
+    assert _rel(line) == line
 
 
 def test_an_already_relative_line_is_untouched():
@@ -2714,12 +2738,12 @@ def test_tee_paints_the_console_and_never_the_log_file(tmp_path):
     console = _TTYWriter()
     with open(log, "w", encoding="utf-8") as handle:
         tee = su._Tee(console, handle)
-        tee.write("13:42:17 - stats - deriving digest=7dc9315280ff\n")
+        tee.write("13:42:17 - stats - MPI-ESM1-2-HR ssp585 deriving\n")
         tee.close()
     # The reset lands BEFORE the newline: a colour spanning the break would
     # carry across a terminal reflow.
     assert console.getvalue() == (
-        f"\033[{su._ANSI_BODY}m13:42:17 - stats - deriving digest=7dc9315280ff\033[0m\n"
+        f"\033[{su._ANSI_BODY}m13:42:17 - stats - MPI-ESM1-2-HR ssp585 deriving\033[0m\n"
     )
     assert "\033" not in log.read_text(encoding="utf-8")
 
@@ -2732,3 +2756,83 @@ def test_tee_does_not_colour_a_console_that_is_not_a_terminal(tmp_path):
         tee.write("plain row\n")
         tee.close()
     assert console.getvalue() == "plain row\n"
+
+
+# --- severity colouring -------------------------------------------------------
+# A line's own text outranks the tier its emitter assumed, because most of what
+# scrolls past arrives as undifferentiated body text from a foreign process.
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "13:42:17 - forcing - WARNING: precip units look wrong",
+        "WARN reservoir table is empty",
+        "Warning message:",  # R
+        "FutureWarning: 'M' is deprecated",  # Python warnings
+    ],
+)
+def test_a_warning_line_is_painted_orange_whatever_emitted_it(line):
+    out = su._paint_body(line, True)
+    assert out == f"\033[{su._ANSI_ALERT}m{line}\033[0m", repr(out)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "ERROR could not open the store",
+        "13:42:17 - fetch - FAILURE after 3 attempts",
+        "CRITICAL julia exited 1",
+        "Traceback (most recent call last):",
+        "Error in eval(expr) : object 'x' not found",  # R
+    ],
+)
+def test_a_failure_line_is_painted_red_whatever_emitted_it(line):
+    out = su._paint_body(line, True)
+    assert out == f"\033[{su._ANSI_FAIL}m{line}\033[0m", repr(out)
+
+
+def test_failure_outranks_warning_on_one_line():
+    """A line carrying both reads as the worse of the two."""
+    line = "ERROR while handling WARNING backlog"
+    assert su._paint_body(line, True).startswith(f"\033[{su._ANSI_FAIL}m")
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "13:42:17 - plot - wrote error_metrics.csv",
+        "n_errors=0 n_warnings=0",
+        "running compute_errors on 4 members",
+        "13:42:17 - stats - MPI-ESM1-2-HR ssp585 deriving",
+    ],
+)
+def test_ordinary_lines_keep_the_body_tier(line):
+    """Case-sensitive and word-bounded is what keeps this off ordinary text."""
+    out = su._paint_body(line, True)
+    assert out == f"\033[{su._ANSI_BODY}m{line}\033[0m", repr(out)
+
+
+def test_severity_paints_only_the_offending_line_of_a_chunk():
+    out = su._paint_body("routine row\nWARNING: something\n", True)
+    assert out == (
+        f"\033[{su._ANSI_BODY}mroutine row\033[0m\n"
+        f"\033[{su._ANSI_ALERT}mWARNING: something\033[0m\n"
+    ), repr(out)
+
+
+def test_severity_never_reaches_the_log_file(tmp_path):
+    """The whole constraint: merge_logs reads these files months later, where
+    an escape code is corruption rather than colour."""
+    log = tmp_path / "rule.log"
+    console = _TTYWriter()
+    with open(log, "w", encoding="utf-8") as handle:
+        tee = su._Tee(console, handle)
+        tee.write("13:42:17 - fetch - WARNING: retrying\n")
+        tee.write("13:42:18 - fetch - ERROR: gave up\n")
+        tee.close()
+    assert f"\033[{su._ANSI_ALERT}m" in console.getvalue()
+    assert f"\033[{su._ANSI_FAIL}m" in console.getvalue()
+    assert log.read_text(encoding="utf-8") == (
+        "13:42:17 - fetch - WARNING: retrying\n13:42:18 - fetch - ERROR: gave up\n"
+    )
