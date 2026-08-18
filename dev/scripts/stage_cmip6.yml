@@ -33,6 +33,11 @@ models:
 scenarios:
   - historical
   - ssp245
+# One list, applied to every model — and many models do not carry r1i1p1f1.
+# 70 of the catalog's 289 entries do not: UKESM1-0-LL, for instance, publishes
+# the f2 forcing variant from realisation 13 (r13i1p1f2). Those combinations are
+# refused up front, naming what the entry does have, rather than failing deep
+# inside hydromt with a message about a local path that does not exist.
 members:
   - r1i1p1f1
 
