@@ -33,6 +33,16 @@ _NO_RSCRIPT = "Rscript not on PATH (r-base is in the pixi env; run inside it)"
 #: One row, anchored: stamp, module, then the message -- no level field.
 INFO_ROW = re.compile(r"^\d\d:\d\d:\d\d - weathergen - (?P<message>.*)$")
 
+#: A line that IS one of our rows. `message()` shares stderr with everything
+#: else R writes there -- on a leg with an unset locale it opens with
+#: `Setting LC_CTYPE failed` / `During startup - Warning message:` -- so the
+#: cases below count rows, not lines. Filtering on blankness alone would make
+#: every `len(rows) == n` assertion fail on one CI leg only, which is exactly
+#: the class AGENTS.md records as ten days of red ubuntu behind a green local
+#: suite. A genuinely malformed row is still caught: it fails the unpack or the
+#: `fullmatch`, rather than being silently tolerated.
+ROW = re.compile(r"^\d\d:\d\d:\d\d - ")
+
 
 def _emit(calls, env=None):
     """Source `global.R`, run `calls`, and return the rows it wrote to stderr."""
@@ -48,7 +58,7 @@ def _emit(calls, env=None):
         env=child_env,
     )
     assert result.returncode == 0, result.stderr
-    return [line for line in result.stderr.splitlines() if line.strip()]
+    return [line for line in result.stderr.splitlines() if ROW.match(line)]
 
 
 @pytest.mark.skipif(shutil.which("Rscript") is None, reason=_NO_RSCRIPT)
