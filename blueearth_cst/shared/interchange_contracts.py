@@ -522,7 +522,15 @@ def _validate_catalog_entry(key: str, entry: Any, label: str) -> list[str]:
 
 
 def validate_wg5(cfg: Any) -> list[str]:
-    """WG-5 — hydromt climate data catalog (``data_catalog_run_stress_test.yml``).
+    """WG-5 — a member's hydromt climate data catalog (``rlz_<n>_st_<m>.yml``).
+
+    One file per member since 2026-08-18, written by rule 3.14 beside that
+    member's TOML as a ``temp()`` output. It was one
+    ``config/catalogs/data_catalog_run_stress_test.yml`` naming every member,
+    built by rule 3.13 over a fan-in across the whole sweep; the entries
+    differed only in ``uri``, and this validator never cared how many were in
+    the file. It validates a one-entry mapping exactly as it validated an
+    N-entry one.
 
     Pinned-as-reliance (design §5.2): OUR emitted subset of the hydromt
     data-catalog schema — for every ``rlz_<n>_st_<m>`` entry the driver /
@@ -1079,7 +1087,7 @@ def validate_wg4(ds: Any) -> list[str]:
     attrs: its CRS travels the CF/rioxarray way, in the ``spatial_ref``
     coordinate's ``crs_wkt`` (``ID["EPSG",4326]``), while ``crs: 4326`` and
     ``category: meteo`` are supplied by the generated **data catalog** —
-    ``data_catalog_run_stress_test.yml``, which is exactly where hydromt reads
+    the member's own ``rlz_<n>_st_<m>.yml``, which is exactly where hydromt reads
     them and exactly what ``validate_wg5`` already pins
     (``metadata.crs`` / ``metadata.category``). Requiring them as file-level
     global attrs asserted the right values on the wrong surface; the pipeline

@@ -99,6 +99,44 @@ def test_single_fn_produces_one_entry_named_after_basename(tmp_path, era5_like_c
     assert list(written.keys()) == ["rlz_1_st_0"]
 
 
+def test_one_at_a_time_yields_exactly_the_aggregate_entry(tmp_path, era5_like_catalog):
+    """The claim the per-member catalog rests on: building one member at a time
+    produces byte-identical entries to building the whole sweep at once.
+
+    Rule 3.13 built ONE catalog over every member and rule 3.14 read a single
+    entry out of it; since 2026-08-18 rule 3.14 builds its own member's entry.
+    That is only a refactor if the entry does not change, and nothing else in
+    this module compares the two call shapes -- each pins one of them.
+    """
+    members = ["rlz_1_st_0.nc", "rlz_1_st_1.nc", "rlz_2_st_1.nc"]
+    paths = []
+    for name in members:
+        path = tmp_path / name
+        path.write_bytes(b"")
+        paths.append(path)
+
+    aggregate_fn = tmp_path / "aggregate.yml"
+    pcdc.prepare_clim_data_catalog(
+        fns=paths,
+        data_libs_like="dummy_catalog.yml",
+        source_like="era5",
+        fn_out=aggregate_fn,
+    )
+    aggregate = yaml.safe_load(aggregate_fn.read_text())
+
+    for path in paths:
+        member_fn = tmp_path / f"{path.stem}.yml"
+        pcdc.prepare_clim_data_catalog(
+            fns=[path],
+            data_libs_like="dummy_catalog.yml",
+            source_like="era5",
+            fn_out=member_fn,
+        )
+        member = yaml.safe_load(member_fn.read_text())
+        assert list(member) == [path.stem]
+        assert member[path.stem] == aggregate[path.stem]
+
+
 def test_multiple_fns_produce_one_entry_per_input(tmp_path, era5_like_catalog):
     fns = []
     for name in ["rlz_1_st_0.nc", "rlz_2_st_0.nc", "rlz_3_st_0.nc"]:

@@ -169,7 +169,12 @@ COVERED: dict[str, list[str]] = {
         f"experiments/{E}/config/snake_config_run_stress_test.yml",
         f"experiments/{E}/config/model_reference.yml",
         f"experiments/{E}/config/experiment.yml",
-        f"experiments/{E}/config/catalogs/data_catalog_run_stress_test.yml",
+        # No row for a generated climate catalog. Rule 3.13 wrote one naming
+        # every member until 2026-08-18; rule 3.14 now writes its own one-entry
+        # file beside each member's TOML as a `temp()` output, so a finished run
+        # leaves none behind. WF1's `models/hydrology/wflow/config/
+        # climate_store_catalog.yml` above is NOT the same case -- it is read by
+        # a `hydromt update` CLI child, which needs a real file on disk.
         # WF3's record sits DIRECTLY in the experiment's config bin, not under
         # config/runs/ like WF1's and WF2's: per arch-10 the WF3 snapshot stays
         # inside the experiment, which IS the partition here. It therefore has

@@ -54,11 +54,16 @@ Either re-run the workflow, or rename these by hand:
 | `config/runs/model_creation/run_record.yml` | `config/runs/build_model/run_record.yml` |
 | `config/runs/climate_projections/run_record.yml` | `config/runs/analyze_projections/run_record.yml` |
 | `<exp>/config/snake_config_climate_experiment.yml` | `<exp>/config/snake_config_run_stress_test.yml` |
-| `<exp>/config/catalogs/data_catalog_climate_experiment.yml` | `<exp>/config/catalogs/data_catalog_run_stress_test.yml` |
+| `<exp>/config/catalogs/data_catalog_climate_experiment.yml` | *(no longer produced — delete it)* |
 | `<exp>/config/runs/climate_experiment/<digest>/` | `<exp>/config/runs/run_stress_test/<digest>/` |
 
 `config/runs/journal.jsonl` records a `workflow` field per line; old lines keep
 the old spelling, which is correct — they record runs that happened under it.
+
+The generated climate catalog has no new name because it has no successor file:
+rule 3.13 was removed on 2026-08-18 and rule 3.14 now writes a `temp()`
+one-entry catalog per member beside that member's TOML. An existing project
+carries the old file as a leftover; nothing reads it, and deleting it is safe.
 
 ## Why
 

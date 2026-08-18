@@ -1178,23 +1178,28 @@ converts both percent columns back to the generator's multiplier form.
 
 **Writes.** `<wg>/output/rlz_<n>_st_<m>.nc`, `temp()`.
 
-#### 3.13 · `write_climate_data_catalog`
+#### 3.13 · *(removed 2026-08-18)*
 
-**Does.** Enumerates every generated climate file — perturbed and unperturbed —
-into a hydromt data catalog the downscaling step reads, with the orography
-sidecar path passed in explicitly rather than reconstructed by walking up from a
-realization file.
-
-**Writes.** `<exp>/config/catalogs/data_catalog_run_stress_test.yml`.
+Was `write_climate_data_catalog`: it enumerated every generated climate file —
+perturbed and unperturbed — into ONE hydromt catalog the downscaling step read a
+single entry out of. The fan-in was the cost: no member could be downscaled
+until every member had been perturbed, and the perturbed NCs are `temp()`, so
+all of them had to coexist on disk until this rule had read them. 3.14 now
+writes its own one-entry catalog per member. The number is not reused — `W.NN`
+is an id, not a position (`dev/reference/naming.md` §9).
 
 #### 3.14 · `downscale_climate_realization`
 
 **Does.** Downscales one perturbed realization onto the Wflow grid via hydromt,
 producing that member's forcing and its run TOML. The first rule to touch the
-model, which is why 3.06's guard sentinel is a declared input here.
+model, which is why 3.06's guard sentinel is a declared input here. Writes the
+member's own one-entry hydromt catalog first: a bare path cannot carry
+`preprocess=harmonise_dims` or `crs=4326`, because hydromt_wflow's setup methods
+pass no `source_kwargs`.
 
 **Writes.** `<runs>/forcing/inmaps_rlz_<n>_st_<m>.nc` (`temp()`) ·
-`<runs>/config/rlz_<n>_st_<m>.toml`.
+`<runs>/config/rlz_<n>_st_<m>.toml` · `<runs>/config/rlz_<n>_st_<m>.yml`
+(`temp()`).
 
 #### 3.15 · `run_wflow_batch_<b>`
 

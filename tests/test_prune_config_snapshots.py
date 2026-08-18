@@ -34,10 +34,14 @@ def project(tmp_path):
         (bundle / "source.yml").write_text("x\n", encoding="utf-8")
 
     keep = {
-        # The GENERATED experiment catalog, written over generated forcing at
-        # run time. The design keeps it, and a pattern match on
-        # `config/catalogs/` across the whole tree would delete it.
-        root / "experiments/exp1/config/catalogs/data_catalog_run_stress_test.yml",
+        # A GENERATED catalog under an experiment's own `config/catalogs/`. The
+        # file WF3 used to write there is gone (rule 3.13, removed 2026-08-18 --
+        # rule 3.14 writes a `temp()` one-entry catalog per member instead), but
+        # the property under test is the pruner's, not that rule's: a pattern
+        # match on `config/catalogs/` across the whole tree would delete
+        # anything a project generated there, so the case stays with a name that
+        # does not pretend to be a current artifact.
+        root / "experiments/exp1/config/catalogs/generated_by_the_project.yml",
         # Outside-repo files the predicate copies BY DESIGN. Losing these costs
         # the project its record of what it was evaluated against.
         root / "config/basin_data/output_locations.csv",
