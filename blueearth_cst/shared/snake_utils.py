@@ -3053,6 +3053,13 @@ def run_and_tee(command, log_path):
             False off a terminal as well: there the frames are not streamed at
             all (`stream_frames`), so a redraw would print nothing and the
             notice is the only liveness signal a captured log gets.
+
+            Called on the watchdog THREAD while the main one owns the console.
+            It is not a race in practice -- the watchdog fires only after a full
+            interval in which the main thread wrote nothing, which is to say
+            while it is blocked reading the child's pipe -- and the failure mode
+            if it ever were is a stray frame that the next padded write covers,
+            never a corrupted log: this path is console-only.
             """
             if not stream_frames:
                 return False
