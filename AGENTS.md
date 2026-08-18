@@ -63,7 +63,8 @@ The tree is self-explanatory; these are the parts that are not.
   cross-cutting helpers (`snake_utils.py`, `run_logged.py`, `climate_parity.py` —
   the engine-neutral regrid/PET transform, plotting primitives, log/benchmark
   reducers, `cross_workflow_leaves.py` — the wf1 outputs WF3 declares but cannot
-  build) and `weathergen/` for the R weather generator.
+  build, `spatial_geoms_parity.py` — which of the two geoms trees answers
+  which question) and `weathergen/` for the R weather generator.
 - `config/` — four bins plus `advanced_settings.yml`. There is **no
   `workflows/` bin**: every shipped `--configfile` target lives beside the project
   it writes into, under `test_case/` (`snake_config_rapid.yml`,
@@ -551,6 +552,15 @@ failure mode to avoid — it re-proves what the previous run already proved.
 | **Before pushing `main` to `origin`** | `pixi run test-full` — **~10–15 min**. The authoritative gate, and the only one that runs the workflow/process-contract tier. |
 | **After a push** | **Read the run it triggered** — `gh run list -L 1` / `gh run watch`. See below; this is not optional. |
 | Before a milestone seal / after touching numeric outputs | `check_baseline.py check`, plus `semantic_tree_diff.py` if the tree shape moved. |
+
+**Redirect a gate to a FILE; never pipe it through `tail`.** A rare
+intermittent failure carries its diagnosis in pytest's detail, and a pipe throws
+that away while still reporting the pass/fail line — so the run looks fully
+informative and is not. Two of the two bounded failures of the
+`test_stage_data_incremental` stall since its 2026-08-09 containment
+(`t2608071208`) were lost exactly this way, on 2026-08-12 and 2026-08-18, each
+costing another wait for an occurrence nobody can schedule. Write
+`pixi run test-contract > run.log 2>&1` and read the tail of the FILE.
 
 **Why the split lands there.** `test-fast` deselects **55 tests — under 3% of
 the suite — and they cost the large majority of the runtime**. They are exactly
