@@ -26,7 +26,7 @@ cannot be read as a *complete* notebook — only as a confusing one.
 
 Whatever next triggers
 [[t2608132100-re-render-the-workflow-notebooks-when-their-banner-sha-falls-behind]],
-or [[t2608131847a-split-historical-climate-out-of-wf1]]'s fourth notebook,
+or [[t2608181139-give-wf0-its-forcing-selection-evaluation-layer-rules-0-07-0-09]]'s fourth notebook,
 which will need the helper copied into it anyway — and copying the current one
 propagates the wart.
 
