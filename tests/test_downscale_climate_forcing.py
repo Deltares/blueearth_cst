@@ -6,6 +6,11 @@ so none of this was reachable from a test. The conversion moved the body into
 functions; those three are what a test can actually pin without a wflow model,
 a data catalog and a forcing netCDF.
 
+`forcing_window` has since moved to its own light module -- WF3's Snakefile
+needs it at parse time to size batches against the disk, and cannot pay this
+module's `hydromt_wflow` import to get it. It is still rule 3.14's window, so
+its tests stay here; only the import moved.
+
 The end-to-end path stays covered where it always was -- the workflow contract
 tests and a real run -- not here.
 """
@@ -14,9 +19,9 @@ import pytest
 
 from blueearth_cst.experiment.downscale_climate_forcing import (
     forcing_chunksize,
-    forcing_window,
     pet_method_for,
 )
+from blueearth_cst.experiment.forcing_window import forcing_window
 
 
 class TestForcingWindow:
