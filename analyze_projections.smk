@@ -446,12 +446,26 @@ _INDEX = (
 # D12/R14: the catalog and the index must be one observation, not two crawls.
 _res.assert_index_matches_catalog(_CATALOG, _INDEX)
 
+# t2608192107: `members` is an ORDERED PREFERENCE and `member_selection` says
+# what to do with it. Both keys are OPTIONAL, so no existing config has to move
+# -- and a single-member list resolves identically under either policy, which is
+# what makes the new default safe for every config that exists today.
+#
+# Parsed HERE rather than beside `members` at the top of the file because the
+# policy names live on `_res`, which is imported a few lines up.
+member_selection = get_config(my_cfg, "member_selection", default=_res.FIRST_AVAILABLE)
+# A model may name its own preference list, REPLACING the global one. Coalesced
+# because `get_config` returns a key written-but-empty as None rather than {}.
+member_overrides = get_config(my_cfg, "member_overrides", default={}) or {}
+
 COMBINATIONS = _res.resolve(
     _CATALOG,
     clim_project=clim_project,
     models=models,
     scenarios=scenarios,
     members=members,
+    selection=member_selection,
+    overrides=member_overrides,
 )
 
 # The one model-level error (C7): absent from the generated catalog means absent
@@ -464,6 +478,21 @@ if _unknown:
         "The catalog is generated from a live crawl of the store, so a name "
         "absent from it is absent from the store. Check for a typo, or "
         "regenerate with dev/scripts/generate_cmip6_catalog.py."
+    )
+
+# An override names a SPECIFIC realisation the operator wants, so its failure is
+# a configuration error rather than the thin-data skip the same status means for
+# the global preference list -- falling back silently would defeat the point of
+# writing it. Also catches a key naming a model the run does not request, which
+# nothing else would see: `unknown_models` only looks at models that ARE
+# requested, so a typo there would otherwise be a silent no-op.
+_bad_overrides = _res.unresolved_overrides(COMBINATIONS, member_overrides)
+if _bad_overrides:
+    raise WorkflowError(
+        "analyze_projections: member_overrides resolved nothing for "
+        f"{', '.join(_bad_overrides)}. An override asserts a specific "
+        "realisation, so it is not allowed to fall back to the global "
+        "`members:` list.\n" + _res.format_status_report(COMBINATIONS)
     )
 
 # D6: replaces the `ensemble.min_sources` key, which conflated a store property

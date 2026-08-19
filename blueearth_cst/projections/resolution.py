@@ -30,14 +30,31 @@ from __future__ import annotations
 from typing import Iterable, Mapping, NamedTuple, Sequence
 
 #: Resolution outcomes, in the order the ladder tests them (design §5.7).
-#: Every status except ``resolved`` means "no data point", but only the two
-#: flagged in :func:`is_config_error` stop the run.
+#: Every status except ``resolved`` means "no data point", and none of them
+#: stops the run on its own: the two fatal conditions are decided by the caller
+#: from :func:`unknown_models`, :func:`unresolved_overrides`, and "did anything
+#: resolve at all". This module records; the Snakefile raises.
 RESOLVED = "resolved"
 MODEL_NOT_IN_CATALOG = "model_not_in_catalog"
 SCENARIO_NOT_PUBLISHED = "scenario_not_published"
 MEMBER_NOT_PUBLISHED = "member_not_published"
 NO_HISTORICAL_ENTRY = "no_historical_entry"
 REFERENCE_MEMBER_UNPUBLISHED = "reference_member_unpublished"
+#: A member that WOULD have resolved but was not used, because
+#: ``member_selection: first_available`` takes at most one member per model.
+#: Recorded rather than dropped: :func:`resolve` emits one row per REQUESTED
+#: triple, and the skips are what make the composition record auditable.
+MEMBER_SUPERSEDED = "member_superseded"
+
+#: Member-selection policies (board item t2608192107).
+#:
+#: ``first_available`` takes at most ONE member per model — the first in the
+#: preference order that resolves for every requested scenario. ``all`` keeps
+#: every member that resolves, which is what this module did before the policy
+#: existed and what ruling R3′ describes.
+FIRST_AVAILABLE = "first_available"
+ALL_MEMBERS = "all"
+MEMBER_SELECTION_POLICIES = (FIRST_AVAILABLE, ALL_MEMBERS)
 
 
 class Combination(NamedTuple):
@@ -92,6 +109,80 @@ def model_in_catalog(catalog: Mapping, clim_project: str, model: str) -> bool:
     return any(k.startswith(prefix) for k in catalog)
 
 
+def _model_statuses(catalog, clim_project, model, scenarios, preference):
+    """The ladder's verdict for every (scenario, member) of one model.
+
+    Split out of :func:`resolve` because ``first_available`` has to see a whole
+    model before it can emit any of its rows: which member wins is a property of
+    the model across ALL requested scenarios, not of one scenario.
+    """
+    known = model_in_catalog(catalog, clim_project, model)
+    hist_key = entry_key(clim_project, model, "historical")
+    hist_members = published_members(catalog, hist_key)
+    verdicts = {}
+    for scenario in scenarios:
+        scen_key = entry_key(clim_project, model, scenario)
+        scen_members = published_members(catalog, scen_key)
+        for member in preference:
+            if not known:
+                verdicts[scenario, member] = (
+                    MODEL_NOT_IN_CATALOG,
+                    "no catalog entry for this model under any experiment",
+                )
+            elif not scen_members:
+                verdicts[scenario, member] = (
+                    SCENARIO_NOT_PUBLISHED,
+                    f"no entry {scen_key}",
+                )
+            elif member not in scen_members:
+                verdicts[scenario, member] = (
+                    MEMBER_NOT_PUBLISHED,
+                    f"published: {', '.join(scen_members[:6])}"
+                    + (" …" if len(scen_members) > 6 else ""),
+                )
+            elif not hist_members:
+                # Real, not hypothetical: DKRZ/MPI-ESM1-2-HR publishes SSP
+                # members and zero historical members.
+                verdicts[scenario, member] = (
+                    NO_HISTORICAL_ENTRY,
+                    f"no entry {hist_key}; a scenario point cannot be referenced",
+                )
+            elif member not in hist_members:
+                # D7: strict same-member pairing. Pairing r1i1p1f2 future
+                # against r1i1p1f1 historical would difference two runs that
+                # differ in FORCING VARIANT as well as scenario.
+                verdicts[scenario, member] = (
+                    REFERENCE_MEMBER_UNPUBLISHED,
+                    f"historical publishes: {', '.join(hist_members[:6])}"
+                    + (" …" if len(hist_members) > 6 else ""),
+                )
+            else:
+                verdicts[scenario, member] = (RESOLVED, "")
+    return verdicts
+
+
+def _winning_member(verdicts, scenarios, preference):
+    """The first member in ``preference`` that resolves for EVERY scenario.
+
+    Completeness is checked across the whole requested scenario set, and that is
+    the point rather than a strictness. Per-scenario selection would let
+    ``ssp245`` land on ``f1`` while ``ssp370`` lands on ``f2`` for one model,
+    each individually D7-valid — and ``analyze_projections.smk`` builds its
+    historical need set as ``{(dataset, "historical", member)}``, so that model
+    would acquire TWO historical baselines and difference its two scenarios
+    against different references.
+
+    Historical needs no separate test: the ladder already refuses a member the
+    historical entry does not publish (``REFERENCE_MEMBER_UNPUBLISHED``), so a
+    member that resolves for every scenario has a matching reference by
+    construction.
+    """
+    for member in preference:
+        if all(verdicts[scenario, member][0] == RESOLVED for scenario in scenarios):
+            return member
+    return None
+
+
 def resolve(
     catalog: Mapping,
     *,
@@ -99,6 +190,8 @@ def resolve(
     models: Sequence[str],
     scenarios: Sequence[str],
     members: Sequence[str],
+    selection: str = FIRST_AVAILABLE,
+    overrides: Mapping[str, Sequence[str]] | None = None,
 ) -> list[Combination]:
     """Resolve every requested (model, scenario, member) through the ladder.
 
@@ -107,81 +200,102 @@ def resolve(
     auditable, and an enumerated skip is what replaces the run-time
     ``asymmetric hist/clim members`` raise (design D7).
 
-    ``members`` is a requested SET intersected with what each combination
-    publishes; the run's data-point set is the union of those per-combination
-    resolutions (ruling R3′). Differing member counts and missing scenarios are
-    normal outcomes, not errors.
+    ``members`` is an ORDERED PREFERENCE, most-wanted first, and ``selection``
+    says what to do with it:
+
+    * ``first_available`` (default) — at most ONE member per model, the first
+      that resolves for every requested scenario. Every other member that would
+      have resolved is recorded as :data:`MEMBER_SUPERSEDED` rather than
+      dropped, so the report still says why it was not used.
+    * ``all`` — every member that resolves, which is a deliberate multi-member
+      ensemble.
+
+    **This supersedes ruling R3′**, which said ``members`` is a requested SET
+    and the run's data-point set is the union of the per-combination
+    resolutions. Union-of-resolutions is now ``selection="all"``, and it is no
+    longer the default. The reason is not tidiness: a config asking for both
+    ``r1i1p1f1`` and ``r1i1p1f2`` — the only way to reach the eight models that
+    publish solely at ``f2`` — makes CAMS-CSM1-0, EC-Earth3 and NorESM2-LM
+    resolve TWICE, and ``get_change_climate_proj_summary.py`` merges across
+    models and reduces with ``stats="mean"``. Those three would be weighted
+    double in the multi-model ensemble: a silently wrong number.
+
+    ``overrides`` maps a model to its own preference list, REPLACING the global
+    one for that model rather than prepending to it. An override is an assertion
+    about a specific realisation, so a silent fall-back to the global list would
+    defeat the point of writing it; this function records the failure like any
+    other and :func:`unresolved_overrides` is what a caller raises on.
+
+    A single-element ``members`` list resolves identically under both policies,
+    and every tracked config today is single-element — which is why the default
+    can change at all without invalidating a cached slice.
     """
+    if selection not in MEMBER_SELECTION_POLICIES:
+        raise ValueError(
+            f"unknown member_selection {selection!r}; "
+            f"expected one of {', '.join(MEMBER_SELECTION_POLICIES)}"
+        )
+    overrides = overrides or {}
     out: list[Combination] = []
     for model in models:
-        known = model_in_catalog(catalog, clim_project, model)
-        hist_key = entry_key(clim_project, model, "historical")
-        hist_members = published_members(catalog, hist_key)
+        preference = list(overrides.get(model) or members)
+        verdicts = _model_statuses(catalog, clim_project, model, scenarios, preference)
+        winner = (
+            _winning_member(verdicts, scenarios, preference)
+            if selection == FIRST_AVAILABLE
+            else None
+        )
         for scenario in scenarios:
-            scen_key = entry_key(clim_project, model, scenario)
-            scen_members = published_members(catalog, scen_key)
-            for member in members:
-                if not known:
-                    out.append(
-                        Combination(
-                            model,
-                            scenario,
-                            member,
-                            MODEL_NOT_IN_CATALOG,
-                            "no catalog entry for this model under any experiment",
-                        )
+            for member in preference:
+                status, detail = verdicts[scenario, member]
+                if (
+                    selection == FIRST_AVAILABLE
+                    and status == RESOLVED
+                    and member != winner
+                ):
+                    # Two different facts, and the report prints the detail, so
+                    # they are told apart there rather than by a second status.
+                    status, detail = (
+                        MEMBER_SUPERSEDED,
+                        (
+                            f"superseded by {winner}, which resolves for every "
+                            "requested scenario"
+                            if winner
+                            else "no requested member resolves for all of "
+                            + ", ".join(scenarios)
+                        ),
                     )
-                elif not scen_members:
-                    out.append(
-                        Combination(
-                            model,
-                            scenario,
-                            member,
-                            SCENARIO_NOT_PUBLISHED,
-                            f"no entry {scen_key}",
-                        )
-                    )
-                elif member not in scen_members:
-                    out.append(
-                        Combination(
-                            model,
-                            scenario,
-                            member,
-                            MEMBER_NOT_PUBLISHED,
-                            f"published: {', '.join(scen_members[:6])}"
-                            + (" …" if len(scen_members) > 6 else ""),
-                        )
-                    )
-                elif not hist_members:
-                    # Real, not hypothetical: DKRZ/MPI-ESM1-2-HR publishes SSP
-                    # members and zero historical members.
-                    out.append(
-                        Combination(
-                            model,
-                            scenario,
-                            member,
-                            NO_HISTORICAL_ENTRY,
-                            f"no entry {hist_key}; a scenario point cannot be "
-                            "referenced",
-                        )
-                    )
-                elif member not in hist_members:
-                    # D7: strict same-member pairing. Pairing r1i1p1f2 future
-                    # against r1i1p1f1 historical would difference two runs that
-                    # differ in FORCING VARIANT as well as scenario.
-                    out.append(
-                        Combination(
-                            model,
-                            scenario,
-                            member,
-                            REFERENCE_MEMBER_UNPUBLISHED,
-                            f"historical publishes: {', '.join(hist_members[:6])}"
-                            + (" …" if len(hist_members) > 6 else ""),
-                        )
-                    )
-                else:
-                    out.append(Combination(model, scenario, member, RESOLVED))
+                out.append(Combination(model, scenario, member, status, detail))
     return out
+
+
+def unresolved_overrides(
+    combinations: Iterable[Combination],
+    overrides: Mapping[str, Sequence[str]] | None,
+) -> list[str]:
+    """Models whose ``member_overrides`` entry resolved for no scenario.
+
+    An override names a specific realisation the operator wants, so its failure
+    is a CONFIGURATION ERROR rather than the thin-data skip the same status
+    would mean for the global preference list. This reports it; the Snakefile
+    raises, which is where every other fatal condition is decided
+    (:func:`unknown_models`, and the "nothing resolved at all" check).
+
+    Catches both ways an override can be a no-op, because a raise is right for
+    both: the named member resolves for nothing, and the key names a model the
+    run does not request at all (a typo in the model name, which nothing else
+    would report — ``unknown_models`` only sees models that ARE requested).
+    Both reduce to "this model resolved nothing", since a model that is not
+    requested cannot resolve.
+
+    A model whose override resolved for SOME scenarios and not others is not
+    reported: that is the ordinary shape of a model publishing one scenario and
+    not another, and the policy has already decided what to do with it.
+    """
+    if not overrides:
+        return []
+    resolved_models = {c.dataset for c in combinations if c.resolved}
+    return sorted(model for model in overrides if model not in resolved_models)
 
 
 def unknown_models(combinations: Iterable[Combination]) -> list[str]:
