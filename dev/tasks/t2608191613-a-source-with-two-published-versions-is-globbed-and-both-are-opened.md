@@ -1,7 +1,7 @@
 ---
 title: A source with two published versions is globbed, and both are opened
 type: todo-item
-status: backlog
+status: done
 effort: 2
 area: wf2 projections / remote store
 origin: 2026-08-19 stage_cmip6 run
@@ -66,7 +66,51 @@ Over `config/catalogs/cmip6_store_index.json` (crawled 2026-07-29):
 | `pr` and `tas` versions differ — globbed | 116 |
 | **entries with at least one globbed member** | **46 of 289** |
 
-## The decision this needs
+## The decision, made 2026-08-19 — the newest version wins
+
+Owner ruling: **option 1**, and NOT option 3. Option 3 turned out not to be
+expressible at all — see below — so the choice was between resolving in
+`pinned_uri` and leaving 221 combinations unstageable.
+
+`series_identity.pinned_uri` now takes the newest version per variable and
+requires every variable to land on the same location. Measured against the live
+index, and asserted from it:
+
+| member combinations | before | after |
+|---|---|---|
+| pin cleanly | 2205 | **2387** |
+| refused, globbed | 221 | **39** |
+
+The 39 are where `pr`'s newest and `tas`'s newest are *different* locations: one
+URI carries one `{variable}` placeholder that expands inside a single path, so
+it cannot address both. They keep the diagnostic from the section above.
+
+It also refuses to choose between **grid labels** (`gn` vs `gr`). No member in
+today's index pins two, so it changes nothing now; it exists because a plain
+`max()` would make that choice silently the moment one appeared, and picking a
+regridding is not picking a revision.
+
+**`SCHEMA_VERSION` moved 5 -> 6 with it.** The digest carries the pins, never
+the rule applied to them, so a slice built by merging two versions and a slice
+read from the newest are indistinguishable by digest. Sources where the old
+merge FAILED have no cache to worry about; sources where it succeeded — two
+versions differing only in metadata — would otherwise keep serving a cache hit
+for bytes this code no longer produces. Cost is one re-fetch, and `cache_hit`
+treats a schema mismatch as a miss, so it is automatic rather than a deletion
+chore. [[t2608191308]] was already owed and is unaffected in size.
+
+### Why option 3 was not available
+
+"Pin per entry in the catalog" cannot express these pins. The catalog has ONE
+uri per entry with a `{member}` placeholder, but the version varies BY MEMBER:
+`CAS-ESM2-0 historical` records `gn/v20200302` for `r1i1p1f1` and `gn/v20200303`
+for `r2i1p1f1`, both alongside `gn/v20201227`. Measured: **136 of 289 entries**
+have no single `<grid>/<version>` covering every member and variable. Per-member
+pinning already has exactly one home — the store index, read by `pinned_uri` —
+and reaching it needs no re-crawl at all, which was the other thing option 3 was
+believed to cost.
+
+## The decision this needed
 
 `pinned_uri`'s docstring states the current position: the >1-match group "must
 stay globbed so the duplicate-time assertion still sees it" — the ambiguity is

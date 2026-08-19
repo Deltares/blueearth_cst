@@ -115,29 +115,33 @@ AMBIGUOUS_VERSION_PHRASE = "more than one published version"
 def ambiguous_pins(uri, pins_for_member):
     """The per-variable version lists when they cannot name ONE store, else ``{}``.
 
-    Mirrors the refusals in :func:`series_identity.pinned_uri`, but says WHICH
-    of them happened. That function returns ``None`` for four different
-    situations and only two are ambiguity:
+    DELEGATES to :func:`series_identity.pinned_uri` rather than restating its
+    rule, so the two cannot drift apart -- and they would have: since the owner
+    ruling of 2026-08-19 the newest version wins, which resolves 182 of the 221
+    combinations this used to report. A second copy of the logic here would
+    still be naming versions for sources that now pin cleanly.
+
+    Two situations reach ``pinned_uri``'s ``None`` without being ambiguity, and
+    are screened out first:
 
     * the catalog URI does not end in the glob suffix -- it already names one
-      store, so nothing is being chosen. Not ambiguous.
+      store, so nothing is being chosen;
     * the index recorded no pins for this member -- the glob is all there is,
-      and we cannot report versions we never crawled. Not ambiguous *as far as
-      this can tell*: the bucket may still hold several, and that read can
-      still fail. The honest boundary is that we do not claim to know.
-    * ``pr`` and ``tas`` pin different locations -- ambiguous.
-    * one variable pins several versions -- ambiguous.
+      and we cannot report versions we never crawled. The bucket may still hold
+      several and that read can still fail; the honest boundary is that we do
+      not claim to know.
 
-    Returns the pins verbatim in the ambiguous cases so the caller can name
-    every version in its message, which is the whole point: the operator's next
+    What remains is the 39 combinations where ``pr``'s newest and ``tas``'s
+    newest are different locations and one URI cannot express both, plus any
+    member pinning more than one grid label. Returns the pins verbatim so the
+    caller can name every version, which is the whole point: the operator's next
     action is to pick one, and they cannot without seeing the list.
     """
     if not str(uri).endswith(series_identity.STORE_GLOB_SUFFIX):
         return {}
     if not pins_for_member:
         return {}
-    distinct = {tuple(paths) for paths in pins_for_member.values()}
-    if len(distinct) == 1 and len(next(iter(distinct))) == 1:
+    if series_identity.pinned_uri(uri, pins_for_member) is not None:
         return {}
     return {name: list(paths) for name, paths in pins_for_member.items()}
 
