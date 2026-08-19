@@ -1292,7 +1292,7 @@ and then dropped the same day on implementation evidence.
 
 For what each rule reads and writes, rather than what it does:
 
-- `dev/reference/workflows/build_model.md`, `run_stress_test.md` — per-workflow detail.
+- `dev/reference/workflows/model_creation.md`, `climate_experiment.md` — per-workflow detail.
 - `dev/reference/contracts/weather-generator-seam.md`, `hydrological-model-seam.md` — the pinned interchange surfaces.
 - `dev/milestones/r09/wf3-changes-proposal.md` appendix — the WF3 chain step by step, with the declared inputs of each stage.
 - `dev/milestones/r10/rule-naming-design.md` — the verb vocabulary and the rename rationale.

@@ -7,7 +7,7 @@ it writes, and which rule consumes that output.
 Scope split — this file is strictly **rule/DAG level**. The behavioral contract
 (owned config keys, the `precip`/`temp` unit split, `save_grids` semantics, the
 known metadata regression, downstream-consumer semantics) lives in
-`dev/reference/workflows/analyze_projections.md` and is **not** repeated here.
+`dev/reference/workflows/climate_projections.md` and is **not** repeated here.
 
 Grounded in `analyze_projections.smk`,
 `blueearth_cst/projections/*.py`, `blueearth_cst/shared/merge_{logs,benchmarks}.py`,
@@ -337,7 +337,7 @@ proposals.
     extension (`plots/precipitation_anomaly_projections_{n}`, matplotlib appends
     `.png`), while its temp counterpart passes `.png` explicitly.
 
-11. **Doc discrepancy (not fixed here):** `dev/reference/workflows/analyze_projections.md`
+11. **Doc discrepancy (not fixed here):** `dev/reference/workflows/climate_projections.md`
     lists the config snapshot at `{PD}/config/snake_config_analyze_projections.yml`;
     the Snakefile writes `{PD}/config/runs/snake_config_analyze_projections.yml`.
     The Snakefile is authoritative.

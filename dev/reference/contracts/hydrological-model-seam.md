@@ -3,7 +3,7 @@
 > **Genre:** dev-facing interchange contract. **Audience:** a future *swapper* —
 > someone replacing Wflow-SBM with an alternative hydrological engine, or the R6
 > model-flexibility work — read end-to-end. Not an end-user doc (hence `dev/`,
-> not `docs/`; precedent `dev/reference/workflows/run_stress_test.md`).
+> not `docs/`; precedent `dev/reference/workflows/climate_experiment.md`).
 > **Source of record:** `dev/milestones/p32b/interchange-contracts-design.md` (ACCEPTED
 > 2026-07-24, §5.3 / §5.4 / §5.6 / §5.5). Every load-bearing fact below cites a
 > Snakefile line, a script line, or an observed fixture artifact; do not add a
