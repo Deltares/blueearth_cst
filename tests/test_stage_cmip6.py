@@ -244,7 +244,7 @@ def test_stage_one_routes_the_fetch_through_the_workflow_tee(tmp_path, capsys):
 
     def _fake_fetch(**kwargs):
         log_row("gcsfs extended-filesystem switch = 'false'", module="fetch")
-        log_row("fetching entry=cmip6_X/Y_historical_{member}", module="fetch")
+        log_row("fetching cmip6_X/Y_historical_r1i1p1f1", module="fetch")
 
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(sc, "fetch_raw_slice", _fake_fetch)
@@ -273,7 +273,7 @@ def test_stage_one_routes_the_fetch_through_the_workflow_tee(tmp_path, capsys):
     part = Path(sc.slice_log_path(cfg["target_root"], job["key"]))
     assert "extended-filesystem switch" not in out
     assert "extended-filesystem switch" in part.read_text(encoding="utf-8")
-    assert "fetching entry=" in out
+    assert "fetching cmip6_X/Y_historical" in out
 
 
 def test_slice_log_path_puts_the_logs_anchor_where_the_tee_looks_for_it():

@@ -2647,7 +2647,7 @@ _TEE_CONSOLE_MUTED = (
     # WF2's own fetch rows that state a property of the RUN, or a fact the
     # artifact already carries. Same terms as everything above: INFO only, and
     # the row survives in every log part. The row naming WHICH slice a worker is
-    # on -- `fetching entry=<entry> member=<m> window=<a>..<b>` -- is
+    # on -- `fetching <resolved entry name>` -- is
     # deliberately NOT here: with several fetch jobs in flight (Snakemake under
     # `-c 3`, or `stage_cmip6.py` under four workers) it is the only thing that
     # attributes a twenty-minute wait to a source, and a stall nobody can

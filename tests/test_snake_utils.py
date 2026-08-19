@@ -1402,10 +1402,7 @@ def test_tee_keeps_the_fetch_row_that_says_which_slice_is_being_read(tmp_path, c
     stays on the console whatever else from `fetch` is muted for volume.
     """
     log = tmp_path / "rule.log"
-    row = (
-        "fetching entry=cmip6_NCC/NorESM2-MM_ssp245_{member} "
-        "member=r1i1p1f1 window=2015-01-01..2100-12-31"
-    )
+    row = "fetching cmip6_NCC/NorESM2-MM_ssp245_r1i1p1f1"
     with tee_to_log(log, heartbeat_interval=0):
         log_row(row, module="fetch")
     assert "NorESM2-MM_ssp245" in capsys.readouterr().out

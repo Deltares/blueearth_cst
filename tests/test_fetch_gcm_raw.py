@@ -304,7 +304,7 @@ def test_the_pin_is_what_the_template_and_the_pinned_uri_differ_by():
     """`pinned_uri` swaps the trailing `/*/*` for one `<grid>/<version>`.
 
     That string is the whole of what the row reports; everything ahead of it is
-    the catalog entry, which the `fetching entry=` row above already named.
+    the catalog entry, which the `fetching <entry>` row above already named.
     """
     template = (
         "gs://cmip6/CMIP6/ScenarioMIP/NCC/NorESM2-MM/ssp245/{member}/Amon/"

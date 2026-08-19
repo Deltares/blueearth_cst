@@ -112,7 +112,7 @@ def pin_tail(template_uri, pin_uri):
     `<grid_label>/<version>` the store index recorded -- so the pinned URI and
     the entry's own template differ by EXACTLY that string, and everything
     ahead of it (activity, institution, model, experiment, member, table) is
-    already on the `fetching entry=` row printed one line earlier.
+    already on the `fetching <entry>` row printed one line earlier.
 
     Naming the tail rather than the URI takes the row from ~130 characters to
     ~56 and drops nothing a reader could act on: the pin IS the fact the row
@@ -440,8 +440,13 @@ def fetch_raw_slice(
     if series_identity.cache_hit(
         [raw_nc_out], expected_raw_digest, digest_attr="cst_raw_digest"
     ):
+        # Same collapse as the `fetching` row below, and for the same reason:
+        # `entry=` carried the `{member}` placeholder while `member=` carried
+        # its value, so one identity was spelled as two fields. The path stays
+        # -- it is what this row has to say that the name does not, namely
+        # which file on disk was accepted instead of a download.
         log_row(
-            f"raw cache_hit entry={catalog_entry} member={member} ({raw_nc_out})",
+            f"raw cache_hit {resolve_entry_name(catalog_entry, member)} ({raw_nc_out})",
             module="fetch",
         )
         # S8-08(a): a slice cached BEFORE the units fix still claims the
@@ -473,12 +478,21 @@ def fetch_raw_slice(
     # The digest is deliberately NOT echoed here (nor on the cache-hit row
     # above): it is stamped on the slice as `cst_raw_digest`, so the durable
     # copy is the file's own, and a 12-char hex prefix identifies nothing a
-    # reader can act on. What identifies the job is the entry and member.
-    log_row(
-        f"fetching entry={catalog_entry} "
-        f"member={member} window={acquisition_window[0]}..{acquisition_window[1]}",
-        module="fetch",
-    )
+    # reader can act on. What identifies the job is the RESOLVED entry name,
+    # which is one field rather than the two `entry=<...{member}...>
+    # member=<m>` spelled the placeholder and its value separately.
+    #
+    # The window is gone from the announcement. `acquisition_window` takes
+    # exactly TWO values across the whole catalog -- one for `historical` and
+    # one for every `sspNNN` -- so it is a property of the experiment the row
+    # already names, restated on all 161 slices of a staging run. It keeps the
+    # copies that matter: `cst_acquisition_window` on the slice, and
+    # `check_time_axis`, which prints it in full at the one moment it is the
+    # thing that is wrong. Both facts are already pinned --
+    # `test_series_identity.py::test_acquisition_window_is_fixed_per_experiment_class`
+    # for the two values, `test_fetch_gcm_raw.py` for the stamped attribute --
+    # so a change making the window per-model turns those red, next to this.
+    log_row(f"fetching {resolve_entry_name(catalog_entry, member)}", module="fetch")
 
     os.makedirs(os.path.dirname(raw_nc_out) or ".", exist_ok=True)
 
