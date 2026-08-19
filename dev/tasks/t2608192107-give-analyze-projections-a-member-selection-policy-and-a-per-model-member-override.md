@@ -49,12 +49,16 @@ That is the defect this item closes; reaching the f2 models is the feature.
 analyze_projections:
   # ORDERED preference, most-wanted first — not a set.
   members: [r1i1p1f1, r1i1p1f2]
-  # first_available : at most ONE member per (model, scenario) — the first that
-  #                   fully resolves. The new default.
+  # first_available : at most ONE member PER MODEL — the first that resolves
+  #                   for historical AND every requested scenario. New default.
   # all             : every listed member that resolves. Today's behaviour,
   #                   kept for a deliberate multi-member ensemble.
   member_selection: first_available
-  # Optional escape hatch, for naming a specific realisation:
+  # Optional escape hatch, for naming a specific realisation. REPLACES the
+  # global preference list for that model rather than prepending to it, and
+  # HARD-ERRORS if the named member does not resolve — an override is an
+  # assertion about a specific realisation, so falling back silently to the
+  # global list would defeat the point of writing it.
   member_overrides:
     MOHC/UKESM1-0-LL: [r13i1p1f2]
 ```
@@ -70,13 +74,31 @@ Accept the plain-list form unchanged, so no existing config has to move.
    under a **new status** (`MEMBER_SUPERSEDED`, alongside the five in
    `resolution.py:35-40`), never drop them. `format_status_report` then says
    *why* a member was not used, which is the whole reason that report exists.
-2. **"First available" means first that clears the WHOLE ladder, not first
-   published.** D7 pairs a scenario point with the SAME member label's
-   historical (`resolution.py:168`), so a member present in `ssp245` but absent
-   from `historical` must fall through to the next preference rather than
-   resolve and fail later. The ladder already has the two statuses that make
-   this checkable — `MEMBER_NOT_PUBLISHED` and
+2. **Resolve PER MODEL, across all requested scenarios — not per
+   (model, scenario).** "First available" means the first member that clears
+   the whole ladder for `historical` AND every requested scenario, not the
+   first that happens to work for one of them.
+
+   Per-scenario resolution re-opens the very defect this item closes, through a
+   different door: `ssp245` could land on `f1` while `ssp370` lands on `f2` for
+   the same model, each individually D7-valid. But
+   `analyze_projections.smk:522` builds `_needed` as
+   `{(dataset, "historical", member) ...}`, so that model would acquire **two
+   historical baselines** and its two scenarios would be differenced against
+   different references. `references()` says the same thing from the other
+   side — it returns distinct `(model, member)` pairs, and the job arithmetic
+   in its docstring assumes one reference per model.
+
+   D7 is the narrower rule underneath: a scenario point pairs with the SAME
+   member label's historical (`resolution.py:168`), so a member present in
+   `ssp245` but absent from `historical` must fall through to the next
+   preference rather than resolve and fail later. The ladder already carries
+   the statuses that make both checkable — `MEMBER_NOT_PUBLISHED` and
    `REFERENCE_MEMBER_UNPUBLISHED`.
+
+   Consequence worth putting in the config comment: under `first_available` a
+   model resolves at ONE member or not at all. Adding a scenario can therefore
+   change which member a model uses, or drop the model entirely.
 3. **This supersedes ruling R3′**, quoted in `resolve()`'s docstring:
    *"`members` is a requested SET intersected with what each combination
    publishes; the run's data-point set is the union of those per-combination
@@ -102,9 +124,11 @@ Accept the plain-list form unchanged, so no existing config has to move.
       toolbox-wide policy, not a per-basin one. Note the schema is CLOSED, so
       the key and `snake_utils._ADVANCED_SETTINGS_SCHEMA` move together.
 - [ ] Tests: the double-publish case (EC-Earth3 at f1 and f2 → exactly one
-      resolved combination under `first_available`, two under `all`); the
+      resolved member under `first_available`, two under `all`); the
       fall-through case (member in scenario, absent from historical); the
-      unchanged single-member case.
+      **cross-scenario case** — a model whose scenarios would resolve to
+      different members must settle on one, or on none; an override naming an
+      unresolvable member must raise; and the unchanged single-member case.
 - [ ] Migration note — a config key changes meaning. `members:` stops being a
       set and becomes an ordered preference, which is a contract change even
       though every existing config is unaffected.
