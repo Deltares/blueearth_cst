@@ -12,6 +12,13 @@ mode: full
 # Relaxing it has collided three times: `git log -- .git-workflow.yml`.
 worktree_policy: always # concurrent | always
 
+# Persistent neutral worktrees are allocated atomically. Every task gets a
+# fresh process, an unguessable claim, and an explicit write scope. Integration
+# stays owner-approved during the initial rollout.
+session_slots: [session-1, session-2, session-3]
+slot_registry: atomic
+integration_mode: approval
+
 # Isolation branches auto-land after rebase + verification. Feature branches and
 # explicitly held isolation branches still wait for a decision.
 isolation_landing: auto # auto | approval
@@ -29,7 +36,7 @@ worktree_seed:
 
 # Untracked agent config the launcher SYMLINKS (never copies) into each new
 # worktree: it is read, not written, and one shared definition is the point.
-# Without it a worktree session loses the 14 project skills and the 9 personas
+# Without it a worktree session loses the 14 project skills and the 10 personas
 # with no error — the catalog is simply smaller. Rationale: AGENTS.md, worktree
 # section.
 worktree_link:
