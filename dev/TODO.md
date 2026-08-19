@@ -18,6 +18,7 @@
 | [t2608151154](tasks/t2608151154-st0-not-comparable-with-the-surface.md)                                                                     | st_0 is not method-comparable with the stress-test surface                                               | wf3 / scenario generation + reporting       | R12                                            |     | backlog |
 | [t2608161450](tasks/t2608161450-the-chirps-store-does-not-satisfy-the-wg1-seam-contract.md)                                                 | The chirps store does not satisfy the WG-1 seam contract, and nothing reports it                         | wf0 / climate store + interchange contracts | 2026-08-16 wf0 two-source run                  |     | backlog |
 | [t2608191420](tasks/t2608191420-stop-test-stage-data-py-stubbing-geopandas-process-globally.md)                                             | Stop test_stage_data.py stubbing geopandas process-globally                                              | test hygiene                                |                                                |     | backlog |
+| [t2608191546](tasks/t2608191546-promote-t2608182020-s-measured-grid-tables-into-dev-reference-then-close-the-note.md)                       | Promote t2608182020's measured grid tables into dev/reference/, then close the note                      | wf2 projections / dev records               | 2026-08-19 board normalisation                 |     | backlog |
 
 ## Watching
 
