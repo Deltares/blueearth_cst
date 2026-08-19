@@ -115,6 +115,16 @@ venv.bak/
 # mkdocs documentation
 /site
 
+# quarto documentation site (docs/_quarto.yml). Rendered output only. The cache
+# is ignored by the TRACKED `docs/.gitignore`, which quarto writes and maintains
+# itself (`/.quarto/`, `**/*.quarto_ipynb`) -- leave that file to the tool rather
+# than hand-merging its entries up here.
+#
+# `docs/_freeze/` is deliberately NOT ignored: if the notebooks are ever
+# published with results, those stored outputs are the tracked artifact that
+# lets the site build without executing anything.
+docs/_site/
+
 # mypy
 .mypy_cache/
 
