@@ -112,11 +112,20 @@ Two things to know before you run it:
   `run_default/output.csv`, which rule 1.14 declares as `temp()`, so a completed
   run has already removed it. That is expected, not a cascade bug.
 
-Verify by checking the executed notebooks rather than by reading them: no cell
-carries an `error` output, and no cell's captured text contains `Error in rule`
-or `Exiting because a job execution failed`. The `run()` helper returns the
-subprocess exit code and nothing acts on it, so a failed Snakemake call inside a
-notebook otherwise reads as a successful cell.
+Verify by checking the executed notebooks rather than by reading them, on four
+counts:
+
+- no cell carries an `error` output;
+- no cell's captured text contains `Error in rule` or `Exiting because a job
+  execution failed`;
+- every code cell has an execution count, so none was skipped; and
+- every cell that asks for an image carries an `image/png` payload — 5 in
+  *Model building*, 4 in *Climate projections*, 2 in *Climate Stress Test*.
+
+The last two are what catch a cell that ran and produced nothing. `nbconvert`
+exiting 0 proves only that no Python exception escaped a cell, and the `run()`
+helper returns the subprocess exit code with nothing acting on it, so a failed
+Snakemake call inside a notebook otherwise reads as a successful cell.
 
 To read a rendered notebook as a web page. Pass `--output-dir`, or nbconvert
 writes a ~7 MB untracked `.html` beside the notebook, inside the tracked
