@@ -200,6 +200,22 @@ the staging machinery that only tests call stays in `dev/`. **When something in
 `dev/scripts/` acquires a run-path caller, move the shared part rather than
 importing `dev/` from a run** — a user's checkout is not guaranteed to have it.
 
+**`dev/scripts/console.py` is VENDORED — do not edit it here.** It is a
+byte-identical copy of the `console-formatting` skill's module
+(`~/workspace/brain/artifacts/skills/console-formatting/`), and the two
+staging tools (`stage_data.py`, `stage_cmip6.py`) are its only consumers.
+`console.__version__` records which release the copy came from: compare it
+against that skill's `SKILL.md` frontmatter before changing either tool's
+console surface, and read a MISSING `__version__` as older than every version
+that has one. Fix a console defect upstream and re-copy the file; a fix applied
+here makes the marker a lie and is overwritten by the next re-vendor. This is
+why `[tool.ruff.format]` excludes it (`ruff check` still lints it) — formatting
+it would turn every future re-vendor into a diff against our own reformatting
+instead of against upstream. The 2026-08-19 re-vendor found the copy four
+releases behind, which is the failure mode the marker exists to end: nothing
+breaks, so nobody looks, while the repo hand-rolls helpers upstream already
+ships.
+
 ## Key Commands
 
 Run everything inside `pixi shell`, or prefix each command with `pixi run`, so
