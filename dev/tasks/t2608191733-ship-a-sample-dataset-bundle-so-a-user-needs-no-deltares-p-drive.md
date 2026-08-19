@@ -35,12 +35,39 @@ judged against a promise it cannot keep.
 
 ## Progress
 
-- [ ] **Source-completeness audit — do this first, it sizes everything else.**
-      Cross-check every catalog name reachable from `spatial_sources` defaults,
-      `shared.clim_historical`, `analyze_climate.candidate_sources` and the two
-      `config/defaults/*.yml` against what `stage_data.yml` actually stages. The
-      list in that file is what someone staged while iterating, not a proven
-      set — see the waterbody finding below.
+- [x] **Source-completeness audit — DONE 2026-08-19.** Thirteen catalog names
+      are reachable from `spatial_sources` defaults, `shared.clim_historical`,
+      `analyze_climate.candidate_sources` and the two `config/defaults/*.yml`.
+      Nine are staged. The four gaps:
+
+      | name | reached from | gap |
+      |---|---|---|
+      | `hydro_reservoirs` | rule 1.08 `setup_reservoirs_simple_control` | in catalog, **not staged** |
+      | `hydro_lakes` | rule 1.08 `setup_reservoirs_no_control` | in catalog, **not staged** |
+      | `rgi` | rule 1.08 `setup_glaciers` | in catalog, **not staged** |
+      | `jrc` | `wflow_update_waterbodies.yml` `timeseries_fn` | **not a catalog source at all** — see below |
+
+      No gap outside rule 1.08, so the audit does NOT move the size estimate:
+      the three vectors are a few hundred KB and `jrc` stages nothing. **~93 MB
+      stands.** Every spatial, climate and orography source the pipeline reads
+      is already in `stage_data.yml`.
+- [ ] **`timeseries_fn: jrc` is a SECOND offline blocker, and it is not a
+      staging gap.** `jrc` is not a catalog entry — it is a hydromt mode.
+      `hydromt_wflow/workflows/reservoirs.py:343` branches on it and imports
+      `hydroengine` to DOWNLOAD JRC reservoir-surface timeseries; anything else
+      non-None raises `ValueError`. Two consequences:
+      (a) `hydroengine` is **absent from the pixi env**, so reaching that path
+      raises `ImportError` — which rule 1.08 does NOT catch (it catches only
+      `NoDataException` and `FileNotFoundError`), so it would fail the rule
+      rather than skip the method;
+      (b) even installed, it is a **network call**, which the bundle exists to
+      remove.
+      The sample config must therefore set `timeseries_fn: null`. Nobody has hit
+      this because the path is only reached when the basin actually has
+      reservoirs. Note the upstream docstring's type line reads
+      `{'gww', 'hydroengine', None}` while the prose and the code both say
+      `jrc` — the annotation is wrong upstream, so do not "fix" our config to
+      match it.
 - [ ] `dev/scripts/build_sample_bundle.py` — reads `sample_bundle.yml`, drives
       `stage_data.py` and `stage_cmip6.py`, writes the self-locating catalog,
       the pinned crawl products, `BUNDLE.md` and the checksum. **The two stagers

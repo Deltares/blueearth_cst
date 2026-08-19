@@ -124,6 +124,16 @@ spatial:
     reservoirs: hydro_reservoirs
     lakes: hydro_lakes
     glaciers: rgi
+  # `config/defaults/wflow_update_waterbodies.yml` ships `timeseries_fn: jrc`,
+  # and the SAMPLE config must override it to null. `jrc` is not a catalog
+  # source -- it is a hydromt mode. reservoirs.py:343 branches on it and imports
+  # `hydroengine` to DOWNLOAD JRC reservoir-surface timeseries, so it is a
+  # network call, which is exactly what the bundle exists to remove. It also
+  # fails hard rather than skipping: `hydroengine` is absent from the pixi env,
+  # so the path raises ImportError, and rule 1.08 catches only NoDataException
+  # and FileNotFoundError. Reached only when the basin actually has reservoirs,
+  # which is why nobody has hit it.
+  reservoir_timeseries: null
 
 # --- HISTORICAL CLIMATE -----------------------------------------------------
 climate:
