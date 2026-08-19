@@ -908,21 +908,53 @@ def test_pinned_uri_narrows_the_glob_to_the_recorded_store():
     assert "{member}" in si.pinned_uri(uri, pins)
 
 
-def test_pinned_uri_keeps_the_glob_when_pins_cannot_name_one_store():
-    """Each None here is a real shape in config/catalogs/cmip6_store_index.json.
+def test_pinned_uri_takes_the_newest_when_a_variable_records_several():
+    """Owner ruling 2026-08-19: a newer version is a revision, and it wins.
 
-    Counted over the 289-entry index: 33 member combinations diverge per variable
-    and 188 record more than one match. The multi-pin case must stay globbed so the
-    D8 duplicate-time-axis assertion still sees the ambiguity instead of the pin
-    silently choosing one store.
+    This returned None until then, on the reasoning that the ambiguity should
+    stay visible. What it actually produced was a glob that opened every version
+    at once and died inside xarray's combine, so those sources never staged --
+    182 of 2426 member combinations (board item t2608191613).
     """
+    uri = "gs://cmip6/CMIP6/CMIP/CAS/CAS-ESM2-0/historical/{member}/Amon/{variable}/*/*"
+    pins = {
+        "pr": ["gn/v20200302", "gn/v20201227"],
+        "tas": ["gn/v20200302", "gn/v20201227"],
+    }
+    assert si.pinned_uri(uri, pins).endswith("/gn/v20201227")
+
+
+def test_pinned_uri_needs_every_variable_to_land_on_the_same_newest():
+    """One URI, one `{variable}` placeholder -- it expands INSIDE a single path.
+
+    So `pr` newest at v2 and `tas` newest at v3 cannot both be addressed, and
+    the source stays globbed. 39 of 2426 combinations, and what
+    `fetch_gcm_raw.ambiguous_pins` still reports.
+    """
+    uri = "gs://cmip6/CMIP6/CMIP/X/Y/historical/{member}/Amon/{variable}/*/*"
+    assert si.pinned_uri(uri, {"pr": ["gn/v1", "gn/v2"], "tas": ["gn/v3"]}) is None
+
+
+def test_pinned_uri_refuses_to_choose_between_GRID_LABELS():
+    """`gn` vs `gr` is a regridding, not a revision.
+
+    No member in today's index pins two grid labels, so this changes nothing
+    now -- it exists because a plain `max()` would make that choice silently the
+    moment one appeared, and it is not a choice this rule is entitled to make.
+    """
+    uri = "gs://cmip6/CMIP6/CMIP/X/Y/historical/{member}/Amon/{variable}/*/*"
+    assert si.pinned_uri(uri, {"pr": ["gn/v1", "gr/v2"]}) is None
+
+
+def test_pinned_uri_keeps_the_glob_when_pins_cannot_name_one_store():
+    """Each None here is a real shape in config/catalogs/cmip6_store_index.json."""
     uri = (
         "gs://cmip6/CMIP6/CMIP/AS-RCEC/TaiESM1/historical/{member}/Amon/{variable}/*/*"
     )
 
     assert si.pinned_uri(uri, {}) is None  # no pin recorded (best-effort variable)
+    assert si.pinned_uri(uri, {"pr": ["gn/v1"], "tas": []}) is None  # one pins nothing
     assert si.pinned_uri(uri, {"pr": ["gn/v1"], "tas": ["gn/v2"]}) is None  # divergent
-    assert si.pinned_uri(uri, {"pr": ["gn/v1", "gn/v2"]}) is None  # ambiguous (D8)
     # a URI that is not the shape this optimisation understands is left alone
     assert si.pinned_uri("gs://bucket/explicit/path.zarr", {"pr": ["gn/v1"]}) is None
 

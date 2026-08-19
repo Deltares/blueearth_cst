@@ -97,6 +97,15 @@ one above `Total` -- the hard break before the final aggregate. They read
 `console.__version__` against the `console-formatting` skill before assuming
 the older shape is current.
 
+What the FETCH says is not this tool's console surface and is not reimplemented
+here. Each slice runs inside WF2's own `tee_to_log`, so hydromt's records are
+compacted, the mute table drops the rows that state a property of the run, and
+what remains is written to `<target_root>/logs/<key>.log` as well as shown --
+identically to what the same fetch prints under Snakemake. Two consequences
+worth stating: a console fix belongs in `shared/snake_utils.py`, where both
+paths get it, and a slice that failed has a full log part with its traceback in
+it, which the closing report names.
+
 Not part of a run: this is an authoring/staging helper
 (see AGENTS.md, "Three homes for executables").
 """
@@ -105,6 +114,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -117,7 +127,12 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from blueearth_cst.projections import series_identity as _si  # noqa: E402
-from blueearth_cst.projections.fetch_gcm_raw import fetch_raw_slice  # noqa: E402
+from blueearth_cst.projections.fetch_gcm_raw import (  # noqa: E402
+    AMBIGUOUS_VERSION_PHRASE,
+    fetch_raw_slice,
+    resolve_entry_name,
+)
+from blueearth_cst.shared.snake_utils import tee_to_log  # noqa: E402
 
 # `console.py` sits beside this file, and `stage_data.py` reaches it exactly
 # this way. The two staging tools share one console vocabulary, so they share
@@ -333,8 +348,174 @@ def plan(cfg):
 DEFAULT_WORKERS = 4
 
 
+#: Strips ANSI so a row can be classified after `_Tee` has painted it. The tee
+#: colours body text on its way to a live console, so the sink below sees
+#: `\x1b[...m` around the very fields it has to read.
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+#: One row of the toolbox log grammar: `HH:MM:SS - <module> - [LEVEL - ]message`.
+#: The level is present only when it is NOT info (`snake_utils._log_row_text`
+#: renders INFO by omitting it), so an absent `level` group MEANS info and no
+#: wording of a message can fake a raised one.
+_LOG_ROW_RE = re.compile(
+    r"^\d{2}:\d{2}:\d{2} - [^\s-]+ - (?:(?P<level>[A-Z]+) - )?(?P<message>.*)$"
+)
+
+
+#: One console per stream per PROCESS, and the memoization is load-bearing.
+#: `tee_to_log` repoints library log handlers by STREAM IDENTITY: hydromt binds
+#: a StreamHandler the first time a worker parses a catalog, and
+#: `_detach_handlers_bound_to` hands it back to whatever `sys.stdout` was on
+#: entry. A pool worker stages many slices, so a fresh object per slice would
+#: leave that handler pointing at the PREVIOUS slice's -- which the next slice's
+#: identity check cannot match, so hydromt's records bypass the tee entirely and
+#: arrive uncompacted, unmuted and missing from the log.
+#:
+#: Observed exactly that on a 6-slice run before this was memoized: two raw
+#: `2026-08-19 17:29:45,254 - hydromt.data_catalog.sources.data_source - ...`
+#: rows on the console, from the two slices whose worker had already been used.
+_CONSOLE_WRAPPERS = {}
+
+
+def _wrapped_console(name, stream):
+    """This process's `_SliceConsole` for `name`, created once and reused.
+
+    Reused only while it still wraps the SAME underlying stream. A worker
+    restores the real stream after every slice and hands back the identical
+    object, so the cache hits and the handler identity above is preserved; a
+    caller that genuinely swapped the console gets one around the new stream
+    rather than a writer onto the old. `capsys` is the second case, once per
+    test, and without this check the first test to call `stage_one` would own
+    every later test's output.
+    """
+    cached = _CONSOLE_WRAPPERS.get(name)
+    if cached is None or cached.wraps is not stream:
+        cached = _CONSOLE_WRAPPERS[name] = _SliceConsole(stream)
+    return cached
+
+
+class _SliceConsole:
+    """The tee's live sink in a worker. Sorts a row into one of three fates.
+
+    A worker cannot number its own slice -- the counter is assigned by the
+    parent in completion order -- so nothing it prints can join the entry list
+    that is the tool's console. This sorts instead:
+
+    * an **INFO** row is DROPPED. `fetching <entry>`, `pinned gn/v1`,
+      `store calendar=noleap` each say a third time that this slice is being
+      worked on. Dropped from the console only: every row still reaches the
+      slice's own log part in full, because this is the tee's live sink and
+      not its log handle.
+    * a **WARNING or ERROR** row is COLLECTED, stripped of its stamp and module,
+      and returned to the parent, which prints it INDENTED UNDER the slice's
+      entry. `irregular grid, applying the bbox directly` and `more than one
+      version on the store` are findings about one source, and a reader should
+      not have to match a name across two rows to learn which.
+    * **anything else** is PRINTED, live and flushed. A traceback, a library's
+      bare `print`, and above all the heartbeat's `... still running, 4m00s
+      elapsed` -- the only thing on the console during a twenty-minute open, and
+      the one row that must never wait for the slice to finish.
+
+    The trade the middle case makes, stated plainly: a warning no longer appears
+    at the moment it is raised, but when its slice lands. That is up to a couple
+    of minutes later. It buys attribution, which the timestamp never gave --
+    under four workers the previous shape printed a warning between two
+    unrelated entries and left the reader to match names.
+    """
+
+    def __init__(self, stream):
+        self._stream = stream
+        self.notices = []
+
+    @property
+    def wraps(self):
+        """The stream underneath, so `_wrapped_console` can tell it changed."""
+        return self._stream
+
+    def take_notices(self):
+        """The notices collected since the last call, and reset.
+
+        Reset by READING, because the console outlives the slice: one worker
+        stages many, and notices left behind would be reported against whichever
+        slice happened to land next.
+        """
+        collected, self.notices = self.notices, []
+        return collected
+
+    def write(self, text):
+        row = _LOG_ROW_RE.match(_ANSI_RE.sub("", text).rstrip("\n"))
+        if row is None:
+            self._stream.write(text)
+            # Flushed HERE, not left to the stream. A worker is a separate
+            # process whose stdout is block-buffered the moment the run is
+            # captured to a file, so the heartbeat's notice would otherwise
+            # arrive at process exit -- long after the stall it reports.
+            self._stream.flush()
+        elif row.group("level"):
+            self.notices.append(f"{row.group('level')} - {row.group('message')}")
+        return len(text)
+
+    def flush(self):
+        self._stream.flush()
+
+    def isatty(self):
+        # `_Tee` asks, to decide whether a carriage return overwrites. Answer
+        # for the REAL console: this wrapper does not change what a terminal
+        # does with the bytes it forwards.
+        try:
+            return self._stream.isatty()
+        except Exception:
+            return False
+
+
+def slice_log_path(target_root, key):
+    """Where one slice's fetch log lands: ``<target_root>/logs/<key>.log``.
+
+    The ``logs`` component is not decoration. :func:`snake_utils._log_path_parts`
+    anchors on it to split the path into ``(project_root, log_id)``, which is
+    what gives the log its header and shortens every path inside it against
+    ``target_root``; a flat ``<target_root>/<key>.log`` falls into the
+    ``("", basename)`` fallback and loses both. One file per slice, because the
+    workers are separate processes and a shared handle would interleave.
+    """
+    return str(Path(target_root) / "logs" / f"{key}.log")
+
+
+def _drop_entry_name(notices, catalog_entry, member):
+    """Remove this slice's own name from its notices; the entry above carries it.
+
+    `fetch_gcm_raw` names the source in both shapes -- `<entry>: <message>` and
+    `<message>: <entry>` -- and it must, because under Snakemake several fetch
+    jobs interleave on one console and a row that cannot say which source it is
+    about is useless. Here the notice is printed under the entry it belongs to,
+    so the same name would be stated twice on adjacent lines.
+
+    Matched against the RESOLVED entry rather than guessed from the slice key:
+    the key sanitizes `/` to `_` and CMIP6 model names contain both `-` and `_`
+    (`NOAA-GFDL/GFDL-ESM4`), so the sanitizing does not invert. Nothing is
+    stripped unless it matches exactly.
+    """
+    entry = resolve_entry_name(catalog_entry, member)
+    trimmed = []
+    for notice in notices:
+        if notice.endswith(f": {entry}"):
+            notice = notice[: -len(f": {entry}")]
+        else:
+            head, sep, tail = notice.partition(" - ")
+            if sep and tail.startswith(f"{entry}: "):
+                notice = f"{head} - {tail[len(entry) + 2 :]}"
+        trimmed.append(notice)
+    return trimmed
+
+
 def stage_one(cfg, job):
-    """Stage a single slice. Runs in a worker process; returns (key, error, seconds).
+    """Stage one slice in a worker; returns (key, error, seconds, notices).
+
+    `notices` are the WARNING/ERROR rows the fetch raised, stripped of stamp and
+    module by `_SliceConsole` and handed back so the PARENT can print them under
+    this slice's entry. A worker cannot number its own row, so a notice it
+    printed itself would land between two unrelated entries and leave the reader
+    matching names -- which is what it did until 2026-08-19.
 
     Returns rather than raises so one unavailable source cannot end a staging
     run that may have hours of other work in it -- a model missing a member is
@@ -346,31 +527,73 @@ def stage_one(cfg, job):
     reporting: it is dominated by the remote store OPEN (benchmarked at 19 s to
     transfer against a far larger open), so a slow slice means a slow store, not
     a slow machine or a saturated pool.
+
+    The fetch runs inside ``tee_to_log`` -- WF2's own context manager, not a
+    local imitation of it. That is what makes this tool a WRAPPER around the
+    workflow's fetch rather than a second implementation of it: the compaction
+    of hydromt's log format, the console mute table, path shortening, the
+    severity colouring and the silence watchdog are all the pipeline's, so a
+    row reads the same here as it does under Snakemake and only ONE of them has
+    to be maintained. Without it, hydromt's ``StreamHandler`` writes straight
+    past this process at its full ``<date> - <dotted.name> - <module> - INFO -``
+    width, and every fetch row lands on the console beside the entry this tool
+    prints for the same slice.
+
+    ``tee_to_log`` re-raises, so the ``with`` sits INSIDE the ``try``: the
+    traceback is written into the slice's log part on the way out and the
+    return-not-raise contract above is unchanged.
     """
     started = time.perf_counter()
+    notices = []
     units = {
         name: (spec or {}).get("units", "") for name, spec in cfg["variables"].items()
     }
     try:
-        fetch_raw_slice(
-            region_path=cfg["region"],
-            raw_nc_out=job["out"],
-            catalog_path=cfg["catalog"],
-            catalog_entry=catalog_entry_name(
-                cfg["clim_project"], job["model"], job["experiment"]
-            ),
-            member=job["member"],
-            variables=list(cfg["variables"]),
-            variable_units=units,
-            buffer=cfg["buffer_cells"],
-            acquisition_window=tuple(_si.acquisition_window(job["experiment"])),
-            components=digest_components(
-                cfg, job["model"], job["experiment"], job["member"]
-            ),
-        )
+        # Installed BEFORE the tee, so it becomes the `live` sink the tee wraps
+        # and every console-bound row is classified on its way out. Restored in
+        # the `finally` even though this is a worker process about to be reused
+        # by the pool for the next slice -- which is exactly why it matters.
+        real_stdout, real_stderr = sys.stdout, sys.stderr
+        console = _wrapped_console("stdout", real_stdout)
+        errors = _wrapped_console("stderr", real_stderr)
+        console.take_notices()  # discard anything the previous slice left
+        errors.take_notices()
+        sys.stdout, sys.stderr = console, errors
+        try:
+            with tee_to_log(slice_log_path(cfg["target_root"], job["key"])):
+                fetch_raw_slice(
+                    region_path=cfg["region"],
+                    raw_nc_out=job["out"],
+                    catalog_path=cfg["catalog"],
+                    catalog_entry=catalog_entry_name(
+                        cfg["clim_project"], job["model"], job["experiment"]
+                    ),
+                    member=job["member"],
+                    variables=list(cfg["variables"]),
+                    variable_units=units,
+                    buffer=cfg["buffer_cells"],
+                    acquisition_window=tuple(_si.acquisition_window(job["experiment"])),
+                    components=digest_components(
+                        cfg, job["model"], job["experiment"], job["member"]
+                    ),
+                )
+        finally:
+            sys.stdout, sys.stderr = real_stdout, real_stderr
+            notices = _drop_entry_name(
+                console.take_notices() + errors.take_notices(),
+                catalog_entry_name(
+                    cfg["clim_project"], job["model"], job["experiment"]
+                ),
+                job["member"],
+            )
     except Exception as exc:  # noqa: BLE001 -- reported per slice, never fatal
-        return job["key"], f"{type(exc).__name__}: {exc}", time.perf_counter() - started
-    return job["key"], None, time.perf_counter() - started
+        return (
+            job["key"],
+            f"{type(exc).__name__}: {exc}",
+            time.perf_counter() - started,
+            notices,
+        )
+    return job["key"], None, time.perf_counter() - started, notices
 
 
 #: Outcome glyphs and the colour each carries, borrowed from `stage_data.py`'s
@@ -426,12 +649,23 @@ def _format_bytes(size_bytes):
     return f"{value:.1f} TB"
 
 
-def _entry(state_glyph, color, name, detail="", prefix=""):
-    """One outcome row: the glyph at column 4, its detail at column 6.
+def _entry(state_glyph, color, name, detail="", prefix="", reason="", notices=()):
+    """One outcome row, on ONE line: glyph, counter, name, then the detail dim.
 
     The indent ladder is `stage_data.py`'s -- 0 section, 2 subject, 4 entry,
-    6 detail -- so an entry list reads identically in both tools. `prefix` is
-    printed already coloured, and carries the completion counter.
+    6 detail. `detail` used to take the column-6 line of its own, which made a
+    161-slice run 322 rows of which half said only a size; it now trails the
+    name on the same line, dim, so the eye runs down one column of names
+    instead of stepping over a detail row between each. `prefix` is printed
+    already coloured, and carries the completion counter.
+
+    `notices` are the fetch's own WARNING/ERROR rows, printed under the entry
+    they belong to rather than live from a worker that cannot number itself.
+
+    `reason` is the other thing given a line of its own, and only failures
+    pass it: the multi-version message runs to ~380 characters, so inlining it
+    would push the name off the first screen-width and defeat the collapse for
+    every row around it.
 
     The parameter is `state_glyph`, never `glyph`: that name is the imported
     `console.glyph()` fallback, and binding it here would shadow the function
@@ -439,9 +673,19 @@ def _entry(state_glyph, color, name, detail="", prefix=""):
     these lines and gets `UnboundLocalError` on whichever branch is rarest.
     """
     head = f"{prefix} " if prefix else ""
-    print(f"    {color(state_glyph)} {head}{name}")
-    if detail:
-        print(f"      {dim(detail)}")
+    tail = f"  {dim(detail)}" if detail else ""
+    print(f"    {color(state_glyph)} {head}{name}{tail}")
+    for notice in notices or ():
+        # Column 6, the ladder's detail rung -- the same one `reason` uses,
+        # because a notice and a failure's reason are the same kind of thing:
+        # something subordinate to the entry above. The stamp and module are
+        # already gone (`_SliceConsole`); what is left opens with the LEVEL,
+        # which is what makes it scannable now that no colour-coded glyph
+        # introduces it.
+        paint = red if notice.startswith(("ERROR", "FAILURE")) else yellow
+        print(f"      {paint(notice)}")
+    if reason:
+        print(f"      {dim(reason)}")
 
 
 def _row(label, value, note=""):
@@ -504,6 +748,23 @@ def _unreadable(error):
     return "only applies to regular grids" in error
 
 
+def _ambiguous_versions(error):
+    """True when the store index recorded several versions and the glob read both.
+
+    Matched on the PHRASE `fetch_gcm_raw` builds the message from, imported so
+    the two cannot drift apart, and not on the exception type -- what comes back
+    from combining two stores is whatever xarray raised, which has been at least
+    `MergeError` (values disagree) and `OutOfBoundsDatetime` (the two versions
+    cover different spans, so aligning their indexes upcasts the longer one into
+    nanoseconds and it overflows past 2262).
+
+    Reported separately because the action differs from every other bucket: the
+    source EXISTS and is readable, and what is missing is a decision about which
+    published version the assessment uses. See `dev/tasks/t2608191613`.
+    """
+    return AMBIGUOUS_VERSION_PHRASE in error
+
+
 def _unavailable(error):
     """True when the slice does not EXIST rather than having failed to download.
 
@@ -536,8 +797,11 @@ def _print_report(
     present = [k for k in ok if existed[k]]
     unavailable = {k: e for k, e in errors.items() if _unavailable(e)}
     unreadable = {k: e for k, e in errors.items() if _unreadable(e)}
+    ambiguous = {k: e for k, e in errors.items() if _ambiguous_versions(e)}
     broke = {
-        k: e for k, e in errors.items() if not _unavailable(e) and not _unreadable(e)
+        k: e
+        for k, e in errors.items()
+        if not _unavailable(e) and not _unreadable(e) and not _ambiguous_versions(e)
     }
     size = sum(out_by_key[k].stat().st_size for k in ok if out_by_key[k].exists())
 
@@ -593,11 +857,11 @@ def _print_report(
     else:
         print(red(bold(f"FAILED — {len(errors)} slice(s) did not stage; see below.")))
 
-    # Listed BEFORE the failures, and separately, because these never reached
-    # the network: the catalog already knew they do not exist. Nothing was
-    # spent on them, which is the point of pre-filtering.
-    if skipped:
-        _recap("not in the catalog", skipped, SKIPPED_GLYPH, SKIPPED_COLOR)
+    # Catalog refusals are NOT recapped here. They are already stated twice
+    # above -- once in the pill's `skipped` count, once per model in the
+    # parameters block's availability ratio -- and nothing was spent on them,
+    # so a third listing padded the tail of every run with the one outcome
+    # that needs no action.
 
     # The two failure kinds are listed SEPARATELY because they call for
     # different actions: an absent (model, scenario) will never appear however
@@ -626,12 +890,35 @@ def _print_report(
             ),
         )
 
+    # Fourth kind, and the only one whose fix is a DECISION rather than a
+    # repair: the store is there and readable, but the index recorded several
+    # published versions and nobody has said which one this assessment uses.
+    if ambiguous:
+        _recap(
+            "several published versions, none chosen",
+            [(key, ambiguous[key]) for key in sorted(ambiguous)],
+            FAILED_GLYPH,
+            FAILED_COLOR,
+            note=(
+                "pin one version in the catalog to stage these; "
+                "the versions are named on each row"
+            ),
+        )
+
     if broke:
         _recap(
             "could not be downloaded",
             [(key, broke[key]) for key in sorted(broke)],
             FAILED_GLYPH,
             FAILED_COLOR,
+            # The message below is the exception's one line. `tee_to_log`
+            # writes the whole traceback, and every row the fetch printed
+            # before it, into the slice's own log part -- so the note names
+            # where to look rather than making the reader guess.
+            note=(
+                "the fetch log and traceback for each are under "
+                f"{fmt_path(str(Path(cfg['target_root']) / 'logs'))}"
+            ),
         )
 
 
@@ -658,19 +945,6 @@ def _plan_by_model(cfg, jobs, skipped):
     return planned, refused
 
 
-def _print_description():
-    """What the tool does, in one paragraph -- `stage_data.py`'s opening."""
-    print(banner("Description"))
-    print(
-        "Stage CMIP6 slices for one region outside any project: clip the "
-        "remote store to the region polygon and write one netCDF per (model, "
-        "scenario, member), each carrying the digest WF2 computes, so a slice "
-        "dropped into a project's raw cache is a cache hit. Re-runs revalidate "
-        "what is on disk instead of re-fetching it."
-    )
-    print()
-
-
 def _print_parameters(cfg, config_path, jobs, skipped, workers, dry_run):
     """Inputs, the per-model plan, and the flags -- `stage_data.py`'s three blocks."""
     print(banner("Parameters"))
@@ -695,9 +969,11 @@ def _print_parameters(cfg, config_path, jobs, skipped, workers, dry_run):
     width = max((len(m) for m in cfg["models"]), default=0) + 2
     print(bold(f"models ({len(cfg['models'])}):"))
     for model in cfg["models"]:
-        note = f"{planned[model]} slice(s)"
-        if refused[model]:
-            note += f", {refused[model]} not in the catalog"
+        # Stated as a RATIO, not a count plus a refusal: the question here is
+        # how much of what was asked for this model can actually be staged,
+        # and `4/5` answers it at a glance where `4 slice(s), 1 not in the
+        # catalog` made the reader do the addition.
+        note = f"{planned[model]}/{planned[model] + refused[model]} slice(s) available"
         print(f"  {pad(model, width, cyan)}  {dim(note)}")
     print()
 
@@ -735,6 +1011,18 @@ def main(argv=None):
     )
     args = parser.parse_args(argv)
 
+    # The workers flush every row as the tee writes it, while this process's
+    # `print` is BLOCK-buffered the moment stdout is not a terminal -- which is
+    # exactly how a staging run is captured (`stage_cmip6.py > run.log`). The
+    # result is a file where the workers' warnings sit above the banner and
+    # nowhere near the slice rows they belong to; measured on a 6-slice run,
+    # two `irregular grid` warnings landed at lines 4-5 of a 40-line report.
+    # Line buffering costs nothing at this row count and restores true order.
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except (AttributeError, ValueError):
+        pass  # a stream that cannot be reconfigured is not worth failing over
+
     cfg = load_config(args.config)
     if args.region:
         cfg["region"] = args.region
@@ -749,7 +1037,6 @@ def main(argv=None):
     # Resolved BEFORE the parameters block so the flag it prints is the number
     # the pool will actually start, not the number asked for.
     workers = resolve_workers(args.workers, len(jobs))
-    _print_description()
     _print_parameters(cfg, args.config, jobs, skipped, workers, args.dry_run)
 
     if args.dry_run:
@@ -776,7 +1063,7 @@ def main(argv=None):
                 # second column of nothing on a 200-slice ensemble.
                 _entry(WRITTEN_GLYPH, WRITTEN_COLOR, job["key"])
         for key, reason in skipped:
-            _entry(SKIPPED_GLYPH, SKIPPED_COLOR, key, reason)
+            _entry(SKIPPED_GLYPH, SKIPPED_COLOR, key, detail=reason)
         return 0
 
     if not jobs:
@@ -787,6 +1074,13 @@ def main(argv=None):
     os.makedirs(cfg["target_root"], exist_ok=True)
     print(banner("Stage"))
     print(f"  {len(jobs)} slice(s) through {workers} worker(s)")
+    # Named once, here, rather than on every entry: the console below carries
+    # one row per slice and the log path is derivable from the key on all of
+    # them. Said at all because the fetch chatter no longer scrolls past -- a
+    # reader who wants it has to know it was kept somewhere.
+    print(
+        f"  {dim('fetch logs: ' + fmt_path(slice_log_path(cfg['target_root'], '<slice>')))}"
+    )
     print()
 
     # Which outputs were ALREADY there before this run. `fetch_raw_slice`
@@ -802,7 +1096,7 @@ def main(argv=None):
     errors = {}
     wall_started = time.perf_counter()
 
-    def _report(key, error, elapsed):
+    def _report(key, error, elapsed, notices=()):
         """One line per finished slice, in COMPLETION order.
 
         Completion order, not config order: with several workers in flight the
@@ -813,8 +1107,12 @@ def main(argv=None):
         nonlocal done
         done += 1
         seconds[key] = elapsed
+        # Padded OUTSIDE the bracket, not inside it. Right-aligning the count
+        # within `[...]` kept the names in one column but put the gap where a
+        # reader sees it -- `[  1/161]` reads as a typo where `[1/161]  ` reads
+        # as a column. Same total width either way, so the names still line up.
         width = len(str(len(jobs)))
-        prefix = dim(f"[{done:>{width}}/{len(jobs)}]")
+        prefix = dim(f"[{done}/{len(jobs)}]".ljust(2 * width + 3))
         if error:
             errors[key] = error
             # STDOUT, not stderr, and deliberately: a failing slice is one row
@@ -825,8 +1123,10 @@ def main(argv=None):
                 FAILED_GLYPH,
                 FAILED_COLOR,
                 key,
-                f"{error}; elapsed: {_format_elapsed(elapsed)}",
+                _format_elapsed(elapsed),
                 prefix=prefix,
+                reason=error,
+                notices=notices,
             )
             return
         path = out_by_key[key]
@@ -840,9 +1140,13 @@ def main(argv=None):
         # `stage_data.py`'s rule: a cached re-run should not print a column of
         # `elapsed: 0.1s`, so the duration is shown when the slice was actually
         # fetched or when it cost more than about a second.
+        #
+        # Two spaces rather than `; elapsed: ` now that the row is one line: the
+        # label was earning its keep on a detail line of its own, and beside a
+        # size on the same line a bare duration is unambiguous.
         if not existed[key] or elapsed > 1.0:
-            detail += f"; elapsed: {_format_elapsed(elapsed)}"
-        _entry(state_glyph, color, key, detail, prefix=prefix)
+            detail += f"  {_format_elapsed(elapsed)}"
+        _entry(state_glyph, color, key, detail, prefix=prefix, notices=notices)
 
     if workers == 1:
         # Deliberately NOT a one-worker pool: staying in-process keeps
@@ -860,6 +1164,8 @@ def main(argv=None):
                     # return, so `stage_one`'s own handler never ran. Most likely
                     # a killed process (memory) rather than a bad source.
                     key = futures[future]
+                    # No notices: the worker never returned, so whatever it
+                    # collected died with it. The slice's log part still has it.
                     _report(key, f"worker died: {type(exc).__name__}: {exc}", 0.0)
 
     _print_report(

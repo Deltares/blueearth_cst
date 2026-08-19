@@ -36,6 +36,7 @@ Invoked from ``analyze_projections.smk`` via ``script:``; reads
 # catch it (it never executes a script body) -- the other `script:` modules in this
 # repo omit it for the same reason.
 
+import contextlib
 import json
 import os
 
@@ -102,6 +103,215 @@ def is_irregular_grid_error(error):
     `t2608182020`, which carries the measured table).
     """
     return IRREGULAR_GRID_PHRASE in str(error)
+
+
+#: The phrase a multi-version refusal carries, so `dev/scripts/stage_cmip6.py`
+#: can bucket it without matching an exception type. Same contract as
+#: :data:`IRREGULAR_GRID_PHRASE` and for the same reason: the type here is
+#: whatever xarray raised while combining, which is far too general to key on.
+AMBIGUOUS_VERSION_PHRASE = "more than one published version"
+
+
+def ambiguous_pins(uri, pins_for_member):
+    """The per-variable version lists when they cannot name ONE store, else ``{}``.
+
+    DELEGATES to :func:`series_identity.pinned_uri` rather than restating its
+    rule, so the two cannot drift apart -- and they would have: since the owner
+    ruling of 2026-08-19 the newest version wins, which resolves 182 of the 221
+    combinations this used to report. A second copy of the logic here would
+    still be naming versions for sources that now pin cleanly.
+
+    Two situations reach ``pinned_uri``'s ``None`` without being ambiguity, and
+    are screened out first:
+
+    * the catalog URI does not end in the glob suffix -- it already names one
+      store, so nothing is being chosen;
+    * the index recorded no pins for this member -- the glob is all there is,
+      and we cannot report versions we never crawled. The bucket may still hold
+      several and that read can still fail; the honest boundary is that we do
+      not claim to know.
+
+    What remains is the 39 combinations where ``pr``'s newest and ``tas``'s
+    newest are different locations and one URI cannot express both, plus any
+    member pinning more than one grid label. Returns the pins verbatim so the
+    caller can name every version, which is the whole point: the operator's next
+    action is to pick one, and they cannot without seeing the list.
+    """
+    if not str(uri).endswith(series_identity.STORE_GLOB_SUFFIX):
+        return {}
+    if not pins_for_member:
+        return {}
+    if series_identity.pinned_uri(uri, pins_for_member) is not None:
+        return {}
+    return {name: list(paths) for name, paths in pins_for_member.items()}
+
+
+def ambiguous_versions_phrase(ambiguous):
+    """``pr: gn/v1, gn/v2; tas: gn/v1, gn/v2`` -- every version, per variable.
+
+    Sorted by variable so two runs of the same source read identically; the
+    version order inside a variable is the index's own, which is the order the
+    crawl found them and therefore the order the glob would match.
+    """
+    return "; ".join(
+        f"{name}: {', '.join(paths) or 'none'}"
+        for name, paths in sorted(ambiguous.items())
+    )
+
+
+@contextlib.contextmanager
+def explaining_ambiguous_versions(entry, ambiguous):
+    """Re-raise a failed read with the versions the glob opened named in it.
+
+    The store index records more than one published version for ~9% of member
+    combinations (221 of 2426, across 46 of 289 entries). Those fall to the
+    globbed URI, which matches every version, so ``open_mfdataset`` is handed
+    two stores per variable -- and what comes back is ``MergeError: conflicting
+    values for variable 'pr' on objects to be combined``, which names neither
+    the source, nor the versions, nor anything the operator can act on.
+
+    **Wraps the read rather than pre-empting it, and that is deliberate.**
+    Refusing up front would be simpler, but two versions that differ only in
+    metadata merge cleanly and produce a correct slice today -- so a pre-emptive
+    refusal would break sources that currently work, in the name of a better
+    error message. This only changes what a FAILURE says.
+
+    The message states the ambiguity and the original error side by side
+    without claiming one caused the other. A source can be both ambiguous and,
+    say, published on a grid the irregular-grid branch cannot read either, and
+    asserting a cause we have not established would send the operator after the
+    wrong thing.
+
+    A no-op when ``ambiguous`` is empty, so the caller needs no conditional.
+    """
+    try:
+        yield
+    except Exception as exc:
+        if not ambiguous:
+            raise
+        raise RuntimeError(
+            f"{entry}: the store index records {AMBIGUOUS_VERSION_PHRASE}, so the "
+            f"catalog glob opened all of them ({ambiguous_versions_phrase(ambiguous)}). "
+            f"The read then failed with {type(exc).__name__}: {exc}. Pin one version "
+            "to read this source deterministically -- see dev/tasks/t2608191613."
+        ) from exc
+
+
+#: The name our own preprocessor is registered under. NOT `harmonise_dims`:
+#: replacing hydromt's entry would change every catalog in the repo that asks
+#: for it by name (WF3's downscaling, `prepare_climate_data_catalog`), which is
+#: far more than this defect is about.
+WIDE_TIME_PREPROCESS = "harmonise_dims_wide_time"
+
+
+def harmonise_dims_wide_time(ds):
+    """``harmonise_dims`` with the time conversion widened past 2262.
+
+    hydromt's preprocessor ends by converting an object-dtype (``cftime``) time
+    index with ``CFTimeIndex.to_datetimeindex()`` and no ``time_unit``, which
+    defaults to nanoseconds. ``datetime64[ns]`` tops out at
+    ``2262-04-11T23:47:16``, so any store whose axis runs past that raises
+
+        Cannot convert date 2262-04-16 00:00:00 to a date in the standard
+        calendar.  Reason: Cannot cast ... to unit='ns' without overflow.
+
+    That is not a corner case: several ScenarioMIP runs are published as
+    EXTENSIONS TO 2300 under the same `sspNNN` experiment id (CanESM5 and
+    ACCESS-CM2 `ssp585` are two, and CanESM5's is a single pinned version, so it
+    is the store rather than an ambiguous glob). The conversion runs inside the
+    driver, before any time selection, so the job dies on the 200 years it would
+    have discarded one line later.
+
+    Converting the index ourselves at SECOND resolution first leaves hydromt's
+    own `dtype == "O"` test False, so its conversion becomes a no-op and none of
+    its lon/lat harmonisation is reimplemented here -- that function is called
+    verbatim for everything it does well. Seconds reach year 292 277 026 596,
+    which is not a ceiling anyone will meet.
+
+    The axis is cast back to nanoseconds in :func:`fetch_raw_slice`, AFTER the
+    acquisition window has dropped the extension years -- so a slice that
+    already staged is written exactly as before, and this changes only which
+    sources can be read at all.
+
+    xarray already warns that `to_datetimeindex`'s default becomes microseconds
+    in a future release, which would raise the ceiling to year 294 247 and make
+    this wrapper unnecessary. It is not the default on the pinned version.
+    """
+    from hydromt.data_catalog.drivers.preprocessing import harmonise_dims
+
+    index = ds.indexes["time"]
+    if index.dtype == "O":
+        ds = ds.assign_coords(time=index.to_datetimeindex(time_unit="s"))
+    return harmonise_dims(ds)
+
+
+def register_wide_time_preprocess():
+    """Add :func:`harmonise_dims_wide_time` to hydromt's preprocessor registry.
+
+    `preprocess:` is resolved BY NAME out of
+    ``hydromt.data_catalog.drivers.preprocessing.PREPROCESSORS``; the driver's
+    options model takes a string, never a callable, so a registry write is the
+    only way to reach it. This adds an entry to a public module-level dict -- it
+    does not patch a vendored source file, which AGENTS.md forbids.
+
+    Idempotent, and never displaces an existing name.
+    """
+    from hydromt.data_catalog.drivers import preprocessing
+
+    preprocessing.PREPROCESSORS.setdefault(
+        WIDE_TIME_PREPROCESS, harmonise_dims_wide_time
+    )
+    return WIDE_TIME_PREPROCESS
+
+
+def with_wide_time_preprocess(entry_spec):
+    """A copy of ``entry_spec`` whose driver asks for our preprocessor.
+
+    Overridden on the SPEC rather than in the catalog because
+    ``config/catalogs/cmip6_data.yml`` is generated and has no offline mode:
+    changing the name it writes means re-crawling `gs://cmip6`, which re-stamps
+    `crawled_on` on the catalog and the store index together and re-pins every
+    version. That entangles a read fix with every digest in WF2.
+
+    Copies each level it touches, so the catalog entry this was read from is
+    left alone -- a shallow `dict()` would share the nested `driver` mapping and
+    mutate it for every later caller in the process.
+    """
+    spec = dict(entry_spec)
+    driver = dict(spec.get("driver") or {})
+    options = dict(driver.get("options") or {})
+    options["preprocess"] = WIDE_TIME_PREPROCESS
+    driver["options"] = options
+    spec["driver"] = driver
+    return spec
+
+
+def pin_tail(template_uri, pin_uri):
+    """What `pinned_uri` substituted for the catalog URI's trailing glob.
+
+    The generated catalog ends every URI `/{variable}/*/*` and
+    `series_identity.pinned_uri` replaces that `/*/*` with the one
+    `<grid_label>/<version>` the store index recorded -- so the pinned URI and
+    the entry's own template differ by EXACTLY that string, and everything
+    ahead of it (activity, institution, model, experiment, member, table) is
+    already on the `fetching <entry>` row printed one line earlier.
+
+    Naming the tail rather than the URI takes the row from ~130 characters to
+    ~56 and drops nothing a reader could act on: the pin IS the fact the row
+    exists to report. The full URI keeps two durable copies -- hydromt's echo
+    of it in the log part (muted on the console, never dropped), and
+    `cst_source_paths` stamped on the slice itself.
+
+    Falls back to the whole URI whenever the two do not have that relationship,
+    so a catalog whose URIs are not DRS-shaped still says where it read from.
+    """
+    suffix = series_identity.STORE_GLOB_SUFFIX
+    if not template_uri.endswith(suffix):
+        return pin_uri
+    head = template_uri[: -len(suffix)]
+    if not pin_uri.startswith(head + "/"):
+        return pin_uri
+    return pin_uri[len(head) + 1 :]
 
 
 def bbox_index_slice(centers, low, high, buffer, axis="axis", source=""):
@@ -412,8 +622,20 @@ def fetch_raw_slice(
     if series_identity.cache_hit(
         [raw_nc_out], expected_raw_digest, digest_attr="cst_raw_digest"
     ):
+        # `raw cache_hit <entry> (<path>)` said one identity three times: the
+        # file's basename IS the resolved entry name with `/` sanitized to `_`
+        # (`series_identity.series_key`), so the name and the path restated each
+        # other, and `cache_hit` restated the outcome in implementation
+        # vocabulary. The basename alone carries all of it -- and it is the
+        # spelling the `wrote raw` row already uses, so the two outcomes of this
+        # rule now read as a pair.
+        #
+        # "already staged" rather than "already fetched": the file being present
+        # is not what earns this row. `cache_hit` compares the DIGEST, so a
+        # slice on disk whose recipe has moved is not skipped -- it re-fetches
+        # and reports through the `fetching` row below.
         log_row(
-            f"raw cache_hit entry={catalog_entry} member={member} ({raw_nc_out})",
+            f"already staged, skipping {os.path.basename(raw_nc_out)}",
             module="fetch",
         )
         # S8-08(a): a slice cached BEFORE the units fix still claims the
@@ -445,12 +667,21 @@ def fetch_raw_slice(
     # The digest is deliberately NOT echoed here (nor on the cache-hit row
     # above): it is stamped on the slice as `cst_raw_digest`, so the durable
     # copy is the file's own, and a 12-char hex prefix identifies nothing a
-    # reader can act on. What identifies the job is the entry and member.
-    log_row(
-        f"fetching entry={catalog_entry} "
-        f"member={member} window={acquisition_window[0]}..{acquisition_window[1]}",
-        module="fetch",
-    )
+    # reader can act on. What identifies the job is the RESOLVED entry name,
+    # which is one field rather than the two `entry=<...{member}...>
+    # member=<m>` spelled the placeholder and its value separately.
+    #
+    # The window is gone from the announcement. `acquisition_window` takes
+    # exactly TWO values across the whole catalog -- one for `historical` and
+    # one for every `sspNNN` -- so it is a property of the experiment the row
+    # already names, restated on all 161 slices of a staging run. It keeps the
+    # copies that matter: `cst_acquisition_window` on the slice, and
+    # `check_time_axis`, which prints it in full at the one moment it is the
+    # thing that is wrong. Both facts are already pinned --
+    # `test_series_identity.py::test_acquisition_window_is_fixed_per_experiment_class`
+    # for the two values, `test_fetch_gcm_raw.py` for the stamped attribute --
+    # so a change making the window per-model turns those red, next to this.
+    log_row(f"fetching {resolve_entry_name(catalog_entry, member)}", module="fetch")
 
     os.makedirs(os.path.dirname(raw_nc_out) or ".", exist_ok=True)
 
@@ -500,23 +731,48 @@ def fetch_raw_slice(
     # location (per-variable divergence, or >1 match, which is D8's ambiguity and
     # must stay globbed so the duplicate-time assertion still fires).
     entry_spec = series_identity.load_catalog_entry(catalog_path, catalog_entry)
+    # Both branches below register ONE entry from a spec of our own rather than
+    # loading the whole catalog, which is what lets the preprocess override
+    # reach either of them. The glob branch used `DataCatalog(data_libs=...)`
+    # until 2026-08-19; from_dict expands `placeholders:` the same way (the
+    # pinned branch has always relied on that to resolve the member), and it
+    # stops parsing 289 entries to read one.
+    register_wide_time_preprocess()
+    read_spec = with_wide_time_preprocess(entry_spec)
+    pins_for_member = (components.get("pins") or {}).get(member, {})
     pin_uri = series_identity.pinned_uri(
-        str(entry_spec.get("uri", "")),
-        (components.get("pins") or {}).get(member, {}),
+        str(entry_spec.get("uri", "")), pins_for_member
     )
+    # Empty whenever `pinned_uri` succeeded, so the pinned branch carries no
+    # explanation it does not need.
+    ambiguous = ambiguous_pins(str(entry_spec.get("uri", "")), pins_for_member)
     if pin_uri is None:
-        # The URI goes on OUR row in both branches. The console mutes
-        # hydromt's `data_source - Reading <entry> from <uri>` echo, which
-        # repeats this URI at ~175 characters (4 such rows per WF2 run);
-        # that mute is only information-preserving because the glob case
-        # names its URI here rather than relying on the echo.
+        # The GLOB is named in full, and this is the branch where that
+        # matters. The console mutes hydromt's `data_source - Reading <entry>
+        # from <uri>` echo, which repeats the URI at ~175 characters; the
+        # pinned branch above can afford to print only the pin because the
+        # entry it hangs off is a fixed template the previous row already
+        # named, while a glob is precisely the case where WHICH URI was used
+        # is not derivable -- it is the pattern whose match set could change.
         log_row(
             f"no single pin; keeping the URI glob: {entry_spec.get('uri', '')}",
             module="fetch",
         )
-        data_catalog = hydromt.DataCatalog(data_libs=catalog_path)
+        if ambiguous:
+            # Said BEFORE the read, not only when one fails. The glob is about
+            # to open every version, and on the runs where that happens to
+            # merge cleanly this is the only notice that the source was chosen
+            # for the operator rather than by them.
+            log_row(
+                f"more than one version on the store "
+                f"({ambiguous_versions_phrase(ambiguous)}): {entry}",
+                module="fetch",
+                level="WARNING",
+            )
+        data_catalog = hydromt.DataCatalog()
+        data_catalog.from_dict({catalog_entry: read_spec})
     else:
-        pinned_spec = dict(entry_spec)
+        pinned_spec = dict(read_spec)
         pinned_spec["uri"] = pin_uri
         # Registered through hydromt's own dict schema -- same driver, adapter and
         # metadata, only the URI narrowed. from_dict rather than a YAML round-trip:
@@ -524,7 +780,14 @@ def fetch_raw_slice(
         # prepare_climate_data_catalog.py).
         data_catalog = hydromt.DataCatalog()
         data_catalog.from_dict({catalog_entry: pinned_spec})
-        log_row(f"pinned URI (no bucket listing): {pin_uri}", module="fetch")
+        # The TAIL, not the URI: everything ahead of the pin is the entry, and
+        # the row above names the entry. See `pin_tail` for where the full URI
+        # still lives.
+        log_row(
+            f"pinned {pin_tail(str(entry_spec.get('uri', '')), pin_uri)}, "
+            "no bucket listing",
+            module="fetch",
+        )
     # --- the read, with the irregular-grid branch behind it ----------------
     # 27 of 67 CMIP6 models publish Amon on a Gaussian grid, whose latitudes are
     # Legendre roots and so vary by ~1% -- an order above hydromt's 5e-4
@@ -547,45 +810,71 @@ def fetch_raw_slice(
     # The price is a second open on the irregular path (~20 s pinned, against a
     # first open that has already paid the store metadata), on models that
     # previously produced nothing at all.
-    try:
-        data = data_catalog.get_rasterdataset(
-            entry,
-            bbox=bbox,
-            buffer=buffer,
-            time_range=acquisition_window,
-            variables=variables,
-        )
-    except ValueError as exc:
-        if not is_irregular_grid_error(exc):
-            raise
-        log_row(
-            f"{entry}: hydromt refuses this grid as irregular (Gaussian latitudes); "
-            "re-reading unclipped and applying the bbox directly",
-            module="fetch",
-            level="WARNING",
-        )
+    # Only a FAILED read is rewritten, and only when the pins were ambiguous;
+    # a source whose two published versions differ merely in metadata merges
+    # cleanly and still stages. The duplicate-axis face of the same ambiguity
+    # is caught by `check_time_axis` below, which carries its own message.
+    with explaining_ambiguous_versions(entry, ambiguous):
         try:
             data = data_catalog.get_rasterdataset(
                 entry,
+                bbox=bbox,
+                buffer=buffer,
                 time_range=acquisition_window,
                 variables=variables,
             )
-            data = clip_to_bbox(
-                data, bbox, buffer, data.raster.y_dim, data.raster.x_dim, source=entry
+        except ValueError as exc:
+            if not is_irregular_grid_error(exc):
+                raise
+            # The WHY -- Gaussian latitudes against hydromt's 5e-4 regularity
+            # tolerance -- is in `is_irregular_grid_error` and in board item
+            # t2608182020, which carries the measured table of which models. On the
+            # console this row has one job: say that this source took the fallback
+            # read, and which source. The WARNING level is what makes it findable;
+            # 175 characters of explanation on every one of ~27 affected models is
+            # not.
+            log_row(
+                f"irregular grid, applying the bbox directly: {entry}",
+                module="fetch",
+                level="WARNING",
             )
-        except Exception as fallback_exc:
-            # hydromt's own errors name neither the entry nor the member, and
-            # this one is now two reads deep -- say which series died.
-            raise RuntimeError(
-                f"{entry}: the irregular-grid read path failed after hydromt "
-                f"refused the grid ({type(fallback_exc).__name__}: {fallback_exc})"
-            ) from fallback_exc
+            try:
+                data = data_catalog.get_rasterdataset(
+                    entry,
+                    time_range=acquisition_window,
+                    variables=variables,
+                )
+                data = clip_to_bbox(
+                    data,
+                    bbox,
+                    buffer,
+                    data.raster.y_dim,
+                    data.raster.x_dim,
+                    source=entry,
+                )
+            except Exception as fallback_exc:
+                # hydromt's own errors name neither the entry nor the member, and
+                # this one is now two reads deep -- say which series died.
+                raise RuntimeError(
+                    f"{entry}: the irregular-grid read path failed after hydromt "
+                    f"refused the grid ({type(fallback_exc).__name__}: {fallback_exc})"
+                ) from fallback_exc
     # Kept for the empty-window error below: `time_range` is applied by the
     # driver and `.sel` narrows it again, so "the driver returned 1850..2014"
     # is the diagnostic that tells the two apart.
     driver_index = data.indexes.get("time")
     # cmip6/cmip5 cftime calendars are not always honoured by time_range alone.
     data = data.sel(time=slice(*acquisition_window))
+    # Back to nanoseconds now the extension years are gone. `harmonise_dims_
+    # wide_time` decodes at second resolution so a store running to 2300 can be
+    # opened at all; every acquisition window ends in 2100, so by here the axis
+    # fits `datetime64[ns]` again and a slice that already staged is written
+    # byte-for-byte as before. Guarded on the dtype rather than applied blindly:
+    # a store that decoded straight to datetime64 never went through the
+    # widening, and `astype` on an already-ns axis is a no-op worth not doing.
+    time_index = data.indexes.get("time")
+    if time_index is not None and getattr(time_index, "dtype", None) == "datetime64[s]":
+        data = data.assign_coords(time=time_index.astype("datetime64[ns]"))
 
     # D8: the catalog URI globs {grid_label}/{version} and ~6% of pinned stores
     # match more than one. Two concatenated stores give a duplicated time axis,

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 
+import cftime
 import numpy as np
 import pandas as pd
 import pytest
@@ -33,16 +34,25 @@ import xarray as xr
 
 from blueearth_cst.projections import series_identity
 from blueearth_cst.projections.fetch_gcm_raw import (
+    AMBIGUOUS_VERSION_PHRASE,
+    WIDE_TIME_PREPROCESS,
+    ambiguous_pins,
+    ambiguous_versions_phrase,
     bbox_index_slice,
     calendar_pin,
     calendar_store_uri,
     check_time_axis,
     clip_to_bbox,
+    explaining_ambiguous_versions,
+    harmonise_dims_wide_time,
     hns_switch_row,
     is_irregular_grid_error,
+    pin_tail,
     raw_slice_attrs,
+    register_wide_time_preprocess,
     resolve_entry_name,
     stale_units,
+    with_wide_time_preprocess,
 )
 
 # ---------------------------------------------------------------------------
@@ -292,6 +302,56 @@ def test_a_globbed_template_the_pins_cannot_resolve_yields_nothing(pins):
     no single location to address, so the caller records CALENDAR_UNKNOWN
     instead of reading a wildcard URI as if it were a store."""
     assert calendar_store_uri(f"gs://s/{{variable}}{SUFFIX}", "r1", "tas", pins) == ""
+
+
+# ---------------------------------------------------------------------------
+# pin_tail — the console row names the pin, not the URI
+# ---------------------------------------------------------------------------
+
+
+def test_the_pin_is_what_the_template_and_the_pinned_uri_differ_by():
+    """`pinned_uri` swaps the trailing `/*/*` for one `<grid>/<version>`.
+
+    That string is the whole of what the row reports; everything ahead of it is
+    the catalog entry, which the `fetching <entry>` row above already named.
+    """
+    template = (
+        "gs://cmip6/CMIP6/ScenarioMIP/NCC/NorESM2-MM/ssp245/{member}/Amon/"
+        f"{{variable}}{SUFFIX}"
+    )
+    pinned = series_identity.pinned_uri(template, {"tas": ["gn/v20191108"]})
+    assert pin_tail(template, pinned) == "gn/v20191108"
+
+
+def test_the_shortened_row_is_less_than_half_the_length_of_the_uri_one():
+    """The reason this exists: ~130 characters per slice, 161 slices."""
+    template = (
+        "gs://cmip6/CMIP6/ScenarioMIP/NCC/NorESM2-MM/ssp245/{member}/Amon/"
+        f"{{variable}}{SUFFIX}"
+    )
+    pinned = series_identity.pinned_uri(template, {"tas": ["gn/v20191108"]})
+    assert (
+        len(f"pinned {pin_tail(template, pinned)}, no bucket listing")
+        < len(f"pinned URI (no bucket listing): {pinned}") / 2
+    )
+
+
+@pytest.mark.parametrize(
+    "template,pinned",
+    [
+        # not DRS-shaped: no trailing glob to have been substituted
+        ("gs://store/a/b", "gs://store/a/b"),
+        # a pinned URI that is not the template's own tail -- unrelated inputs
+        (f"gs://store/a{SUFFIX}", "s3://elsewhere/x/y"),
+    ],
+)
+def test_an_unrecognized_pair_still_says_where_it_read_from(template, pinned):
+    """Degrades to the whole URI rather than to a misleading fragment.
+
+    A catalog whose URIs this function cannot decompose is a catalog whose rows
+    should get longer, not quieter.
+    """
+    assert pin_tail(template, pinned) == pinned
 
 
 # ---------------------------------------------------------------------------
@@ -595,3 +655,253 @@ def test_an_empty_selection_is_refused_rather_than_returned():
     edge = float((ds["lat"].values[2] + ds["lat"].values[3]) / 2)
     with pytest.raises(RuntimeError, match="selected no cells"):
         clip_to_bbox(ds, (0.0, edge, 1.0, edge), 0, "lat", "lon", source="cmip6_X")
+
+
+# ---------------------------------------------------------------------------
+# harmonise_dims_wide_time — a store running past 2262 can be opened at all
+# ---------------------------------------------------------------------------
+
+
+def _cftime_grid(last_year):
+    """A tiny noleap monthly cube, 2015-01 .. `last_year`-12, 0-360 lons S->N.
+
+    Deliberately in the orientation `harmonise_dims` exists to correct, so a
+    test that passes proves the wrapper still gets hydromt's own work done and
+    not merely that it stopped raising.
+    """
+    times = [
+        cftime.DatetimeNoLeap(y, m, 16)
+        for y in range(2015, last_year + 1)
+        for m in range(1, 13)
+    ]
+    lon = np.array([0.0, 90.0, 200.0, 300.0])
+    lat = np.array([-10.0, 0.0, 10.0])
+    return xr.Dataset(
+        {"pr": (("time", "lat", "lon"), np.zeros((len(times), 3, 4)))},
+        coords={"time": times, "lat": lat, "lon": lon},
+    )
+
+
+def test_a_store_running_to_2300_is_read_instead_of_overflowing():
+    """Several ssp585 runs are published as extensions to 2300.
+
+    `datetime64[ns]` ends at 2262-04-11, so hydromt's own conversion raises on
+    the first monthly midpoint past it -- before any time selection, on data the
+    acquisition window would have discarded two lines later.
+    """
+    ds = _cftime_grid(2300)
+    with pytest.raises(ValueError, match="without overflow"):
+        ds.indexes["time"].to_datetimeindex()  # what harmonise_dims does
+
+    out = harmonise_dims_wide_time(ds)
+    assert out.indexes["time"].dtype == np.dtype("datetime64[s]")
+    assert str(out.indexes["time"][-1]) == "2300-12-16 00:00:00"
+
+
+def test_hydromts_own_harmonisation_still_happens():
+    """The wrapper defers to `harmonise_dims`; it does not reimplement it.
+
+    Longitudes 0-360 become -180-180 and W->E, latitudes become N->S. If this
+    ever fails, the wrapper has started doing hydromt's job badly rather than
+    pre-empting one line of it.
+    """
+    out = harmonise_dims_wide_time(_cftime_grid(2300))
+    assert out["lon"].values.max() <= 180
+    assert np.all(np.diff(out["lon"].values) > 0), "not W->E"
+    assert np.all(np.diff(out["lat"].values) < 0), "not N->S"
+
+
+def test_an_axis_that_already_decoded_to_datetime64_is_left_alone():
+    """Only an object-dtype (cftime) index is widened.
+
+    A standard-calendar store decodes straight to datetime64, and touching it
+    would change the dtype of every slice that stages today.
+    """
+    ds = _cftime_grid(2100)
+    ds = ds.assign_coords(time=ds.indexes["time"].to_datetimeindex(time_unit="ns"))
+    out = harmonise_dims_wide_time(ds)
+    assert out.indexes["time"].dtype == np.dtype("datetime64[ns]")
+
+
+def test_the_window_slice_brings_the_axis_back_inside_nanoseconds():
+    """What `fetch_raw_slice` does after `.sel()`, and why the cast is safe.
+
+    Every acquisition window ends in 2100, so the extension years are gone by
+    then and a slice that already staged is written exactly as before.
+    """
+    out = harmonise_dims_wide_time(_cftime_grid(2300))
+    sliced = out.sel(time=slice("2015-01-01", "2100-12-31"))
+    back = sliced.indexes["time"].astype("datetime64[ns]")
+    assert back.dtype == np.dtype("datetime64[ns]")
+    assert str(back[-1]) == "2100-12-16 00:00:00"
+
+
+# ---------------------------------------------------------------------------
+# the spec override — reached without regenerating the catalog
+# ---------------------------------------------------------------------------
+
+
+def test_the_registry_gains_our_name_and_displaces_nothing():
+    """`preprocess:` is resolved by NAME; the driver takes no callable.
+
+    Registering must never displace `harmonise_dims` itself -- WF3's
+    downscaling and `prepare_climate_data_catalog` ask for that name too, and
+    this defect is not about them.
+    """
+    from hydromt.data_catalog.drivers import preprocessing
+
+    before = preprocessing.PREPROCESSORS["harmonise_dims"]
+    name = register_wide_time_preprocess()
+    register_wide_time_preprocess()  # idempotent
+    assert preprocessing.get_preprocessor(name) is harmonise_dims_wide_time
+    assert preprocessing.PREPROCESSORS["harmonise_dims"] is before
+
+
+def test_the_override_does_not_mutate_the_catalog_entry_it_copied():
+    """A shallow copy would share the nested `driver` mapping.
+
+    `load_catalog_entry` hands back a mapping other callers keep using, so an
+    in-place edit of its options would follow every later read in the process.
+    """
+    entry = {
+        "uri": "gs://cmip6/x/{variable}/*/*",
+        "driver": {
+            "name": "raster_xarray",
+            "options": {"preprocess": "harmonise_dims"},
+        },
+    }
+    spec = with_wide_time_preprocess(entry)
+    assert spec["driver"]["options"]["preprocess"] == WIDE_TIME_PREPROCESS
+    assert entry["driver"]["options"]["preprocess"] == "harmonise_dims"
+    assert spec["uri"] == entry["uri"]
+
+
+@pytest.mark.parametrize("entry", [{}, {"driver": {}}, {"driver": {"options": {}}}])
+def test_a_spec_missing_the_driver_levels_still_gets_the_preprocess(entry):
+    """The generated catalog always writes them, but this must not assume it."""
+    spec = with_wide_time_preprocess(entry)
+    assert spec["driver"]["options"]["preprocess"] == WIDE_TIME_PREPROCESS
+
+
+def test_from_dict_honours_the_override_and_still_expands_the_member():
+    """The whole fix rests on this, and one xfail in the suite invites doubt.
+
+    `test_prepare_climate_data_catalog` records that hydromt 1.3 silently drops
+    `driver.options.preprocess` on `from_dict(...).to_yml(...)`. That is the
+    SERIALIZATION path; this asserts the read path keeps it, which is what the
+    override rides on. The member expansion is asserted in the same breath
+    because the glob branch stopped loading the whole catalog to get it.
+    """
+    import hydromt
+
+    register_wide_time_preprocess()
+    spec = {
+        "data_type": "RasterDataset",
+        "uri": "gs://cmip6/CMIP6/CMIP/X/Y/historical/{member}/Amon/{variable}/gn/v1",
+        "driver": {
+            "name": "raster_xarray",
+            "options": {"preprocess": "harmonise_dims", "consolidated": True},
+            "filesystem": "gcs",
+        },
+        "metadata": {"crs": 4326},
+        "placeholders": {"member": ["r1i1p1f1"]},
+    }
+    catalog = hydromt.DataCatalog()
+    catalog.from_dict(
+        {"cmip6_X/Y_historical_{member}": with_wide_time_preprocess(spec)}
+    )
+
+    assert "cmip6_X/Y_historical_r1i1p1f1" in catalog.sources, "member not expanded"
+    options = catalog.get_source("cmip6_X/Y_historical_r1i1p1f1").driver.options
+    assert options.preprocess == WIDE_TIME_PREPROCESS
+    assert options.get_preprocessor() is harmonise_dims_wide_time
+
+
+# ---------------------------------------------------------------------------
+# ambiguous_pins — which of `pinned_uri`'s four refusals actually happened
+# ---------------------------------------------------------------------------
+
+GLOB = f"gs://cmip6/x/{{member}}/{{variable}}{SUFFIX}"
+
+
+def test_two_versions_of_one_variable_are_ambiguous():
+    """The case that raises `MergeError`: the glob opens both stores."""
+    pins = {"pr": ["gn/v20200302", "gn/v20201227"], "tas": ["gn/v20200302"]}
+    assert ambiguous_pins(GLOB, pins) == pins
+
+
+def test_variables_pinning_different_locations_are_ambiguous():
+    """`pr` and `tas` disagree, so no single store answers for the source."""
+    pins = {"pr": ["gn/v20190429"], "tas": ["gn/v20210317"]}
+    assert ambiguous_pins(GLOB, pins) == pins
+
+
+def test_one_version_each_is_not_ambiguous():
+    """`pinned_uri` will name it, so there is nothing to explain."""
+    assert ambiguous_pins(GLOB, {"pr": ["gn/v1"], "tas": ["gn/v1"]}) == {}
+
+
+def test_a_catalog_uri_that_already_names_one_store_is_not_ambiguous():
+    """Nothing is being chosen -- the URI has no glob suffix to expand.
+
+    `pinned_uri` returns None here too, which is why this cannot key on that.
+    """
+    assert ambiguous_pins("gs://cmip6/x/{variable}/gn/v1", {"pr": ["a", "b"]}) == {}
+
+
+def test_no_recorded_pins_is_not_reported_as_ambiguity():
+    """The bucket may still hold several versions; we simply never crawled them.
+
+    Claiming ambiguity we cannot evidence would put versions in a message that
+    names none, so the honest answer is to say nothing and let the read speak.
+    """
+    assert ambiguous_pins(GLOB, {}) == {}
+
+
+def test_every_version_is_named_and_the_order_is_stable():
+    """The operator's next action is to pick one, which needs the list."""
+    phrase = ambiguous_versions_phrase(
+        {"tas": ["gn/v20191108", "gn/v20210317"], "pr": ["gn/v20191108"]}
+    )
+    assert phrase == "pr: gn/v20191108; tas: gn/v20191108, gn/v20210317"
+
+
+# ---------------------------------------------------------------------------
+# explaining_ambiguous_versions — a FAILED read, rewritten
+# ---------------------------------------------------------------------------
+
+
+def test_a_failed_read_is_re_raised_naming_every_version():
+    """`MergeError: conflicting values for variable 'pr'` names nothing usable.
+
+    Not the source, not the versions, not what to do about it.
+    """
+    pins = {"pr": ["gn/v20200302", "gn/v20201227"], "tas": ["gn/v20200302"]}
+    with pytest.raises(RuntimeError) as caught:
+        with explaining_ambiguous_versions("cmip6_CAS/CAS-ESM2-0_historical", pins):
+            raise ValueError("conflicting values for variable 'pr'")
+    message = str(caught.value)
+    assert "cmip6_CAS/CAS-ESM2-0_historical" in message
+    assert AMBIGUOUS_VERSION_PHRASE in message
+    assert "gn/v20200302, gn/v20201227" in message
+    # the original is quoted, not swallowed -- a cause we have not established
+    # must not be replaced by one we assert
+    assert "ValueError: conflicting values" in message
+    assert isinstance(caught.value.__cause__, ValueError)
+
+
+def test_a_read_that_succeeds_is_untouched():
+    """Two versions differing only in metadata merge cleanly and still stage.
+
+    This wraps a FAILURE; pre-empting the read would break those sources in the
+    name of a better error message.
+    """
+    with explaining_ambiguous_versions("entry", {"pr": ["a", "b"]}):
+        pass  # no exception -- nothing to rewrite
+
+
+def test_an_unambiguous_source_keeps_its_own_error():
+    """No versions to blame, so the original propagates untouched."""
+    with pytest.raises(ValueError, match="something else"):
+        with explaining_ambiguous_versions("entry", {}):
+            raise ValueError("something else")

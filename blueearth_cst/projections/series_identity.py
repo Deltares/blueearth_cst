@@ -50,7 +50,17 @@ from typing import Iterable, Mapping, Sequence
 #: ``cst_series_digest``. Bumping is what makes the existing v1 series re-derive
 #: instead of being silently accepted without the new provenance; it is nearly free
 #: now that a re-reduction reads local disk.
-SCHEMA_VERSION = "5"
+SCHEMA_VERSION = "6"
+#: Bumped 5->6 when the NEWEST published version started winning in
+#: `pinned_uri` (owner ruling 2026-08-19, board item t2608191613). Unlike every
+#: bump below it, no attribute and no digest component changed -- what changed is
+#: the RULE applied to a component. The digest carries the pins, never the
+#: resolution of them, so a slice built by merging two published versions and a
+#: slice read from the newest one are indistinguishable by digest. Most affected
+#: sources never staged at all (the merge raised), but the ones where it
+#: SUCCEEDED -- two versions differing only in metadata -- would go on serving a
+#: cache hit for bytes this code no longer produces. The bump is the only thing
+#: that can tell those apart, and it costs one re-fetch.
 #: Bumped 4->5 for the `buffer_degrees` -> `buffer_cells` rename (t2608182238):
 #: the digest component key and the `cst_buffer_*` attribute both change name, so
 #: the attribute set changed and a reader must notice. The rename moves the digest
@@ -432,34 +442,59 @@ def pinned_uri(uri: str, pins: Mapping[str, Sequence[str]]) -> str | None:
       removes is **hydromt's resolver overhead on a wildcard URI**, not bucket
       latency. Do not describe it as avoiding a slow network listing.
 
-    An earlier version of this docstring called the listing "the dominant cost of a
-    read — ~28 s per source". That mis-attributed a whole fetch job to the listing
-    inside it: the note's 28 s is "fetch 28 s + reduce 31 s **per series**".
-
     The second, non-timing reason to keep this: the job addresses one known store
     instead of resolving a pattern whose match set can change under it.
 
-    Returns ``None`` — meaning "keep the glob" — whenever the pins cannot name one
-    physical location. Measured against the 289-entry index (2 426 member
-    combinations): 2 205 share one pin and take this path, 33 differ per variable,
-    188 record more than one match per variable. The last group is D8's ambiguity
-    and must stay globbed so the duplicate-time assertion still sees it.
+    **The NEWEST version wins (owner ruling, 2026-08-19).** Until then this
+    returned ``None`` — "keep the glob" — whenever a variable recorded more than
+    one published version, on the reasoning that the ambiguity should stay
+    visible rather than be resolved silently. What that produced was not
+    visibility: the glob opened every version at once, and the read died inside
+    xarray's combine with `MergeError: conflicting values for variable 'pr'`, or
+    `OutOfBoundsDatetime` when the versions covered different spans. Those
+    sources simply never staged (board item ``t2608191613``, which carries the
+    measurement). A rule nobody can act on is not a safeguard.
+
+    Measured over the 289-entry index (2426 member combinations): 2205 already
+    pin one version and are untouched; **182 are resolved by taking the newest
+    per variable**; 39 still refuse, because ``pr``'s newest and ``tas``'s newest
+    are different locations and one URI cannot express both — the ``{variable}``
+    placeholder is expanded inside a single path.
+
+    Refuses when the pins name more than one **grid label**, which no member in
+    today's index does. Choosing between ``gn`` and ``gr`` is choosing a
+    regridding, not a revision, and a plain ``max()`` would make that choice
+    silently the moment such a member appeared.
+
+    Refuses when any variable pins nothing, as before: an empty match list is not
+    a location.
 
     This does **not** change the series digest, and must not: the digest is built at
     DAG build from the *catalog* entry, whose URI is the logical template, while the
     pin it also records is the physical identity (D12's own framing). Rewriting the
     URI inside the job spends the pin the digest already carries; it adds no
     component and re-derives nothing.
+
+    Which is exactly why ``SCHEMA_VERSION`` moved to ``"6"`` with this change.
+    The digest carries the pins, not the rule applied to them, so a slice built
+    by merging two versions and a slice read from the newest one are
+    indistinguishable by digest — and the sources where the old merge SUCCEEDED
+    (two versions differing only in metadata) would otherwise keep serving a
+    cache hit for bytes this code would no longer produce. The bump costs one
+    re-fetch and is the only thing that can tell those apart.
     """
     if not pins or not uri.endswith(STORE_GLOB_SUFFIX):
         return None
-    distinct = {tuple(paths) for paths in pins.values()}
-    if len(distinct) != 1:
+    if not all(pins.values()):
         return None
-    (only,) = distinct
-    if len(only) != 1:
+    grids = {path.rsplit("/", 1)[0] for paths in pins.values() for path in paths}
+    if len(grids) != 1:
         return None
-    return uri[: -len(STORE_GLOB_SUFFIX)] + "/" + only[0]
+    newest = {max(paths) for paths in pins.values()}
+    if len(newest) != 1:
+        return None
+    (chosen,) = newest
+    return uri[: -len(STORE_GLOB_SUFFIX)] + "/" + chosen
 
 
 #: Recorded when the store's calendar could not be determined. A sentinel, not an

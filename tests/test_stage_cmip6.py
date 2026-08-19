@@ -21,6 +21,7 @@ Two layers, deliberately:
 
 from __future__ import annotations
 
+import io
 import os
 import sys
 from pathlib import Path
@@ -33,7 +34,9 @@ sys.path.insert(0, os.path.join(str(_REPO_ROOT), "dev", "scripts"))
 
 import stage_cmip6 as sc  # noqa: E402
 
+import blueearth_cst.shared.snake_utils as su  # noqa: E402
 from blueearth_cst.projections import series_identity as _si  # noqa: E402
+from blueearth_cst.shared.snake_utils import log_row  # noqa: E402
 
 FIXTURE = _REPO_ROOT / "test_case" / "test_local"
 RAW_DIR = FIXTURE / "data" / "climate" / "projections" / "cmip6" / "raw"
@@ -197,14 +200,18 @@ def _write_cfg(tmp_path, models, target):
 
 
 @pytest.mark.skipif(not REGION.is_file(), reason="needs the test_local fixture region")
-def test_stage_one_returns_the_error_instead_of_raising():
+def test_stage_one_returns_the_error_instead_of_raising(tmp_path):
     """One unavailable source must not end a run with hours of work in it.
 
     A model the catalog does not carry is an ordinary fact, not a crash, so the
     worker reports it as a value. Uses a deliberately absent model, which fails
     long before any network call.
     """
-    cfg = _cfg() | {"region": str(REGION), "clim_project": "cmip6"}
+    cfg = _cfg() | {
+        "region": str(REGION),
+        "clim_project": "cmip6",
+        "target_root": str(tmp_path),
+    }
     job = {
         "key": "cmip6_NO_SUCH_MODEL_historical_r1i1p1f1",
         "model": "NO/SUCH-MODEL",
@@ -212,10 +219,91 @@ def test_stage_one_returns_the_error_instead_of_raising():
         "member": "r1i1p1f1",
         "out": "unused.nc",
     }
-    key, error, elapsed = sc.stage_one(cfg, job)
+    key, error, elapsed, _notices = sc.stage_one(cfg, job)
     assert key == job["key"]
     assert error, "an absent model must be reported, not silently succeed"
+    # Named, so the test cannot pass on an unrelated failure -- a missing config
+    # key would raise inside the same `try` and satisfy a bare truthiness check.
+    assert "SUCH-MODEL" in error or "KeyError" in error
     assert elapsed >= 0, "every slice reports a duration, failures included"
+    # The failure has a log part, and it holds the traceback `stage_one`
+    # flattened to one line for the console.
+    part = Path(sc.slice_log_path(cfg["target_root"], job["key"]))
+    assert part.is_file(), "a failed slice must leave the log that explains it"
+    assert "Traceback" in part.read_text(encoding="utf-8")
+
+
+def test_stage_one_routes_the_fetch_through_the_workflow_tee(tmp_path, capsys):
+    """The staging tool is a WRAPPER around WF2's fetch, console included.
+
+    What the fetch says goes through `tee_to_log` -- the same context manager
+    the Snakemake rule uses -- so the mute table, the compaction and the log
+    part are the pipeline's rather than a second implementation living in
+    Pinned by driving three rows through a stubbed fetch: one the shared mute
+    table drops, one INFO that only this tool's console filter drops, and one
+    WARNING that must survive both. All three must reach the log part.
+    """
+
+    def _fake_fetch(**kwargs):
+        log_row("gcsfs extended-filesystem switch = 'false'", module="fetch")
+        log_row("fetching cmip6_X/Y_historical_r1i1p1f1", module="fetch")
+        log_row(
+            "irregular grid, applying the bbox directly: cmip6_X/Y_historical_r1i1p1f1",
+            module="fetch",
+            level="WARNING",
+        )
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(sc, "fetch_raw_slice", _fake_fetch)
+    # Stubbed too: it is resolved as an ARGUMENT to the fetch, so a made-up
+    # (model, scenario) fails in the catalog before the stub is ever reached.
+    # The recipe itself is pinned by the fixture case; this test is about where
+    # the fetch's output goes.
+    monkeypatch.setattr(sc, "digest_components", lambda *a, **k: {})
+    try:
+        cfg = _cfg() | {
+            "region": "unused.geojson",
+            "target_root": str(tmp_path),
+        }
+        job = {
+            "key": "cmip6_X_Y_historical_r1i1p1f1",
+            "model": "X/Y",
+            "experiment": "historical",
+            "member": "r1i1p1f1",
+            "out": str(tmp_path / "slice.nc"),
+        }
+        _key, error, _elapsed, notices = sc.stage_one(cfg, job)
+    finally:
+        monkeypatch.undo()
+    assert error is None, error
+    captured = capsys.readouterr()
+    out = captured.out + captured.err
+    logged = Path(sc.slice_log_path(cfg["target_root"], job["key"])).read_text(
+        encoding="utf-8"
+    )
+    # NOTHING the fetch says reaches the console live: the parent prints one
+    # numbered line per slice, and a worker cannot number itself.
+    assert "extended-filesystem switch" not in out
+    assert "fetching cmip6_X/Y_historical" not in out
+    assert "irregular grid" not in out
+    # the WARNING comes back as a notice for the parent to attach, with its
+    # stamp, module and the entry name it repeats all stripped
+    assert notices == ["WARNING - irregular grid, applying the bbox directly"]
+    # the log part is the durable copy of all three rows, entry name included
+    for row in ("extended-filesystem switch", "fetching cmip6_X/Y", "irregular grid"):
+        assert row in logged, row
+
+
+def test_slice_log_path_puts_the_logs_anchor_where_the_tee_looks_for_it():
+    """`_log_path_parts` splits on a `logs` component; a flat name loses that.
+
+    Without the anchor the log gets no project root, so its header and every
+    path inside it stop being relativized against `target_root`.
+    """
+    path = sc.slice_log_path("C:/data/cmip6_slices", "cmip6_X_Y_historical_r1i1p1f1")
+    root, log_id = su._log_path_parts(path)
+    assert Path(root) == Path("C:/data/cmip6_slices")
+    assert log_id == "cmip6_X_Y_historical_r1i1p1f1.log"
 
 
 # --- pre-filtering against the catalog ---------------------------------------
@@ -424,18 +512,178 @@ def test_one_worker_stays_in_process(tmp_path, capsys, monkeypatch):
     assert sc.main(["--config", str(cfg_path), "--workers", "1"]) == 0
     out = capsys.readouterr().out
     assert "workers      1" in out
-    # The four regions `stage_data.py` also prints, in order. Asserted here
-    # rather than in a test of its own because this is the one case that runs
-    # a whole `main` on every checkout, fixture or not.
+    # The regions `stage_data.py` also prints, in order. Asserted here rather
+    # than in a test of its own because this is the one case that runs a whole
+    # `main` on every checkout, fixture or not.
+    #
+    # "Description" is deliberately still in the candidate tuple after the
+    # block was dropped: the assertion is an equality on the whole list, so a
+    # heading that comes BACK fails here rather than passing unnoticed.
     #
     # Matched on the WHOLE LINE: a region heading is bold Title Case with no
     # decoration, and under capture `bold()` is the identity, so the heading is
-    # its bare label. A substring test would hit "Stage" in the description's
-    # own first word.
+    # its bare label. Substring matching would be wrong even now that the
+    # description is gone -- "Stage" occurs in ordinary output text.
     regions = ("Description", "Parameters", "Stage", "Dry Run", "Total")
     assert [line for line in out.splitlines() if line in regions] == [
-        "Description",
         "Parameters",
         "Stage",
         "Total",
     ]
+
+
+# --- the one-line entry row ---------------------------------------------------
+
+
+def test_an_outcome_is_one_line_with_its_detail_trailing_dim(capsys):
+    """161 slices used to print 322 rows, half of them saying only a size."""
+    sc._entry("+", lambda t: t, "cmip6_X_Y_ssp585_r1i1p1f1", "72.3 KB  47.6s", "[8/9]")
+    out = capsys.readouterr().out
+    assert out.count("\n") == 1, out
+    assert "cmip6_X_Y_ssp585_r1i1p1f1" in out and "72.3 KB" in out and "[8/9]" in out
+
+
+def test_a_failure_keeps_its_reason_on_a_line_of_its_own(capsys):
+    """The multi-version message runs to ~380 characters.
+
+    Inlining it would push the name off the first screen-width and defeat the
+    collapse for every row around it.
+    """
+    sc._entry(
+        "x",
+        lambda t: t,
+        "cmip6_CAS_CAS-ESM2-0_historical_r1i1p1f1",
+        "1m02s",
+        "[6/6]",
+        reason="RuntimeError: " + "the store index records " * 12,
+    )
+    lines = [ln for ln in capsys.readouterr().out.split("\n") if ln.strip()]
+    assert len(lines) == 2
+    assert "1m02s" in lines[0] and "cmip6_CAS" in lines[0]
+    assert lines[1].startswith("      ")
+
+
+# --- the worker's console filter ----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        "16:24:31 - fetch - fetching cmip6_NCC/NorESM2-MM_ssp245_r1i1p1f1\n",
+        "16:24:33 - fetch - pinned gn/v20191108, no bucket listing\n",
+        "16:24:33 - fetch - store calendar=noleap (tas)\n",
+        "16:24:33 - data_source - Reading cmip6_X from <cmip6>/a/b\n",
+    ],
+)
+def test_the_workers_info_rows_do_not_reach_the_console(row):
+    """They say the same slice is being worked on, from a process that cannot
+    number it -- and the parent prints one numbered line per slice already."""
+    sink = io.StringIO()
+    sc._SliceConsole(sink).write(row)
+    assert sink.getvalue() == ""
+
+
+@pytest.mark.parametrize(
+    "row,expected",
+    [
+        (
+            "16:25:09 - fetch - WARNING - irregular grid, applying the bbox: x\n",
+            "WARNING - irregular grid, applying the bbox: x",
+        ),
+        (
+            "16:26:41 - fetch - ERROR - something went wrong\n",
+            "ERROR - something went wrong",
+        ),
+    ],
+)
+def test_a_warning_is_collected_rather_than_printed(row, expected):
+    """Collected so the PARENT can print it under the slice it belongs to.
+
+    A worker cannot number its own row, so a warning it printed itself landed
+    between two unrelated entries and left the reader matching names across
+    them. The stamp and module go: the entry above supplies the identity, and
+    the level is what makes the line scannable without a coloured glyph.
+    """
+    sink = io.StringIO()
+    console = sc._SliceConsole(sink)
+    console.write(row)
+    assert sink.getvalue() == "", "a notice must not reach the console live"
+    assert console.take_notices() == [expected]
+    assert console.take_notices() == [], "reading resets, or it follows the next slice"
+
+
+def test_a_painted_info_row_is_still_recognised():
+    """`_Tee` colours body text on its way to a live console, so this sink sees
+    escape codes around the very fields it has to read."""
+    sink = io.StringIO()
+    sc._SliceConsole(sink).write("\x1b[38;5;245m16:24:31 - fetch - fetching x\x1b[0m\n")
+    assert sink.getvalue() == ""
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "   ... cmip6_X_ssp585_r1i1p1f1: still running, 4m00s elapsed\n",
+        "Traceback (most recent call last):\n",
+        "some library printing whatever it likes\n",
+        "\n",
+    ],
+)
+def test_anything_not_positively_an_info_row_is_printed(text):
+    """Same direction of failure as `snake_utils._muted_on_console`: a filter
+    over someone else's output lets an unfamiliar line through rather than
+    eating it. The heartbeat's stall notice is the one that matters."""
+    sink = io.StringIO()
+    sc._SliceConsole(sink).write(text)
+    assert sink.getvalue() == text
+
+
+def test_the_console_wrapper_is_reused_for_every_slice_in_a_worker():
+    """`tee_to_log` repoints library log handlers by STREAM IDENTITY.
+
+    hydromt binds a StreamHandler the first time a worker parses a catalog, and
+    the tee hands it back to whatever `sys.stdout` was on entry. A fresh wrapper
+    per slice would leave it pointing at the previous slice's object, which the
+    next slice's identity check cannot match -- so hydromt's records bypass the
+    tee, arriving uncompacted and unmuted AND missing from the log. Observed on
+    a 6-slice run before this was memoized.
+    """
+    sc._CONSOLE_WRAPPERS.clear()
+    try:
+        console = io.StringIO()
+        first = sc._wrapped_console("stdout", console)
+        # same stream -> same wrapper, which is what keeps hydromt teed
+        assert sc._wrapped_console("stdout", console) is first
+        assert sc._wrapped_console("stderr", console) is not first
+        # a DIFFERENT stream gets a new wrapper, or the first test to call
+        # `stage_one` would own every later test's captured output
+        assert sc._wrapped_console("stdout", io.StringIO()) is not first
+    finally:
+        sc._CONSOLE_WRAPPERS.clear()
+
+
+def test_the_heartbeat_is_flushed_so_it_lands_while_the_stall_is_happening():
+    """A worker is a separate process, block-buffered once the run is captured.
+
+    The heartbeat's `... still running` is the ONLY thing on the console during
+    a twenty-minute open, and a notice that arrives at process exit reports a
+    stall the reader has already sat through. Warnings no longer take this path
+    -- they are collected and attached to their slice -- so what is left here is
+    exactly the text that must not wait.
+    """
+
+    class _Counting(io.StringIO):
+        def __init__(self):
+            super().__init__()
+            self.flushes = 0
+
+        def flush(self):
+            self.flushes += 1
+
+    sink = _Counting()
+    console = sc._SliceConsole(sink)
+    console.write("   ... cmip6_X_ssp585_r1i1p1f1: still running, 4m00s elapsed\n")
+    assert sink.flushes == 1
+    console.write("16:25:09 - fetch - fetching x\n")  # dropped, nothing to flush
+    console.write("16:25:09 - fetch - WARNING - collected, not printed\n")
+    assert sink.flushes == 1
