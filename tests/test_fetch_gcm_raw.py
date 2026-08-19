@@ -33,10 +33,13 @@ import xarray as xr
 
 from blueearth_cst.projections import series_identity
 from blueearth_cst.projections.fetch_gcm_raw import (
+    bbox_index_slice,
     calendar_pin,
     calendar_store_uri,
     check_time_axis,
+    clip_to_bbox,
     hns_switch_row,
+    is_irregular_grid_error,
     raw_slice_attrs,
     resolve_entry_name,
     stale_units,
@@ -411,3 +414,184 @@ def test_every_value_survives_a_netcdf_round_trip(components):
     ds.attrs.update(_attrs(components))
     round_tripped = xr.Dataset.from_dict(ds.to_dict())
     assert round_tripped.attrs == ds.attrs
+
+
+# ---------------------------------------------------------------------------
+# is_irregular_grid_error — the branch's trigger
+# ---------------------------------------------------------------------------
+
+
+def test_hydromts_own_refusal_is_recognised():
+    """The exact message `hydromt/gis/raster.py:443` raises."""
+    assert is_irregular_grid_error(
+        ValueError("The 'raster' accessor only applies to regular grids")
+    )
+
+
+def test_any_other_ValueError_is_not_the_grid_case():
+    """Keyed on the MESSAGE: ValueError is far too common a type to branch on.
+
+    A read that failed for an unrelated reason must propagate, not be retried
+    through a path that assumes the grid was the problem.
+    """
+    assert not is_irregular_grid_error(ValueError("No valid spatial coords found"))
+    assert not is_irregular_grid_error(KeyError("cmip6_X_historical_r1i1p1f1"))
+
+
+# ---------------------------------------------------------------------------
+# bbox_index_slice — the same cells hydromt takes, without needing regularity
+#
+# The parity tests below are the load-bearing ones: they pin the cells-in-index-
+# space reading of `buffer` against hydromt ITSELF rather than against an
+# argument, so a regular and an irregular slice of one region stay comparable.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("buffer", [0, 1, 2])
+@pytest.mark.parametrize(
+    "bbox",
+    [
+        (10.0, 45.0, 12.0, 47.0),
+        (-3.25, -1.5, 2.75, 4.5),  # straddles both origins
+        (0.1, 0.1, 0.2, 0.2),  # smaller than one cell
+    ],
+)
+def test_a_uniform_grid_selects_exactly_the_cells_hydromt_would(bbox, buffer):
+    """The reading of `buffer` is hydromt's, pinned against hydromt.
+
+    `buffer` is CELLS, not degrees, however the config key is spelled. Asserting
+    that in prose would be an argument; asserting it against `.raster.clip_bbox`
+    on a grid hydromt accepts is evidence.
+    """
+    # Imported HERE, not at module scope: it registers the `.raster` accessor
+    # this test compares against, and costs ~4 s that no other test in this file
+    # should pay (the module's own note on why hydromt is a late import).
+    import hydromt  # noqa: F401
+
+    lat = np.arange(60.0, -60.1, -2.5)  # N->S, as `harmonise_dims` leaves it
+    lon = np.arange(-180.0, 180.0, 2.5)
+    ds = xr.Dataset(
+        {"temp": (("lat", "lon"), np.zeros((lat.size, lon.size), dtype="float32"))},
+        coords={"lat": lat, "lon": lon},
+    )
+    ds.raster.set_crs(4326)
+    west, south, east, north = bbox
+
+    expected = ds.raster.clip_bbox(bbox, buffer=buffer)
+    got = ds.isel(
+        {
+            "lat": bbox_index_slice(lat, south, north, buffer, "latitude"),
+            "lon": bbox_index_slice(lon, west, east, buffer, "longitude"),
+        }
+    )
+
+    assert np.array_equal(got["lat"].values, expected["lat"].values)
+    assert np.array_equal(got["lon"].values, expected["lon"].values)
+
+
+def test_a_descending_axis_is_not_read_backwards():
+    """The trap a label-based `sel(lat=slice(south, north))` falls into.
+
+    `harmonise_dims` orients latitude N->S, so a label slice in south-to-north
+    order returns NOTHING — and an empty spatial selection reduces to NaN rather
+    than raising, several rules downstream.
+
+    The bbox avoids a half-index boundary deliberately. `np.round` rounds .5 to
+    even, so a bbox edge landing exactly between two cells resolves differently
+    depending on which way the axis runs — hydromt's own `clip_bbox` behaves the
+    same way, being the code this mirrors. This pins the ordinary case; parity
+    with hydromt is what the uniform-grid test above pins.
+    """
+    lat = np.arange(60.0, -60.1, -2.5)
+    ascending = bbox_index_slice(lat[::-1], 44.0, 47.0, 0, "latitude")
+    descending = bbox_index_slice(lat, 44.0, 47.0, 0, "latitude")
+    assert lat[descending].size > 0
+    assert sorted(lat[descending]) == sorted(lat[::-1][ascending])
+
+
+def test_a_gaussian_axis_is_clipped_where_the_region_actually_is():
+    """The whole point: no regularity is required, and the cells are the right ones.
+
+    A T42-like Gaussian latitude axis, whose spacing varies far above hydromt's
+    5e-4 tolerance.
+    """
+    lat = np.array(
+        [12.7788, 10.0022, 7.2255, 4.4489, 1.6722, -1.1045, -3.8811, -6.6578]
+    )
+    picked = lat[bbox_index_slice(lat, 1.0, 8.0, 0, "latitude")]
+    assert set(np.round(picked, 4)) == {7.2255, 4.4489, 1.6722}
+
+
+def test_a_length_one_axis_keeps_its_single_cell():
+    """The ordinary small-basin path at Amon resolution, not an edge case.
+
+    `midpoint_edges` refuses a length-1 axis (it has no midpoints), so this must
+    be answered before the edge ladder is built.
+    """
+    assert bbox_index_slice(np.array([5.0]), 4.0, 6.0, 1, "latitude") == slice(0, 1)
+
+
+def test_a_region_leaving_the_grids_span_is_refused_not_clamped():
+    """The one case hydromt handles differently, and loudly rather than silently.
+
+    On a grid spanning 360 degrees hydromt shifts longitudes across the 180
+    meridian first; that helper reads `.raster.bounds`, so it cannot run on an
+    irregular grid. Clamping instead would drop the wrapped part of the region.
+    """
+    lon = np.arange(-177.1875, 180.1, 2.8125)
+    with pytest.raises(RuntimeError, match="180 meridian"):
+        bbox_index_slice(lon, -179.9, -178.0, 0, "longitude", source="cmip6_X")
+
+
+def test_a_non_monotonic_axis_is_refused_by_the_shared_geometry_check():
+    """Reuses `grid_weights.check_axis`, so one definition of 'orderable' holds."""
+    with pytest.raises(ValueError, match="not strictly monotonic"):
+        bbox_index_slice(np.array([1.0, 3.0, 2.0]), 1.0, 3.0, 0, "latitude")
+
+
+# ---------------------------------------------------------------------------
+# clip_to_bbox — the branch's clip, on both dims at once
+# ---------------------------------------------------------------------------
+
+
+def _gaussian_ds():
+    lat = np.array([12.7788, 10.0022, 7.2255, 4.4489, 1.6722, -1.1045, -3.8811])
+    lon = np.arange(0.0, 20.0, 2.8125) - 10.0
+    values = np.arange(lat.size * lon.size, dtype="float32").reshape(lat.size, lon.size)
+    return xr.Dataset(
+        {"temp": (("lat", "lon"), values)}, coords={"lat": lat, "lon": lon}
+    )
+
+
+def test_both_dimensions_are_clipped_and_the_values_ride_along():
+    ds = _gaussian_ds()
+    clipped = clip_to_bbox(ds, (-4.0, 1.0, 4.0, 8.0), 0, "lat", "lon")
+    assert clipped.sizes["lat"] < ds.sizes["lat"]
+    assert clipped.sizes["lon"] < ds.sizes["lon"]
+    # the same cells, not merely the same shape
+    assert np.array_equal(
+        clipped["temp"].values,
+        ds.sel(lat=clipped["lat"], lon=clipped["lon"])["temp"].values,
+    )
+
+
+def test_the_buffer_widens_the_selection_by_whole_cells():
+    ds = _gaussian_ds()
+    tight = clip_to_bbox(ds, (-4.0, 1.0, 4.0, 8.0), 0, "lat", "lon")
+    buffered = clip_to_bbox(ds, (-4.0, 1.0, 4.0, 8.0), 1, "lat", "lon")
+    assert buffered.sizes["lat"] == tight.sizes["lat"] + 2
+    assert buffered.sizes["lon"] == tight.sizes["lon"] + 2
+
+
+def test_an_empty_selection_is_refused_rather_than_returned():
+    """A slice with an empty spatial dim reduces to NaN instead of failing.
+
+    Unreachable at WF2's `buffer=1`, which always widens to at least two cells —
+    which is why it is a guard rather than a fallback: it reports instead of
+    inventing a selection hydromt has no equivalent for.
+    """
+    ds = _gaussian_ds()
+    # A degenerate bbox sitting exactly on a cell edge, with no buffer to widen it.
+    edge = float((ds["lat"].values[2] + ds["lat"].values[3]) / 2)
+    with pytest.raises(RuntimeError, match="selected no cells"):
+        clip_to_bbox(ds, (0.0, edge, 1.0, edge), 0, "lat", "lon", source="cmip6_X")
