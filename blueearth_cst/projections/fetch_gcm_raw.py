@@ -204,29 +204,63 @@ def explaining_ambiguous_versions(entry, ambiguous):
 WIDE_TIME_PREPROCESS = "harmonise_dims_wide_time"
 
 
+def seconds_resolution_index(index):
+    """``index`` at second resolution, or ``None`` when that would truncate.
+
+    A datetime64 index is returned coarsened to seconds only when the round trip
+    back to its own unit is exact. CMIP6 ``Amon`` midpoints land on whole
+    seconds -- the stored offsets are whole or half days -- so in practice this
+    always succeeds on the data this pipeline reads; the check is here because
+    the function cannot see the table it was handed, and silently dropping
+    sub-second precision to make a merge work would be the wrong trade.
+
+    Returns ``None`` for a cftime (object) index too: that one is widened by
+    ``to_datetimeindex(time_unit="s")`` instead, which is a conversion rather
+    than a cast.
+    """
+    dtype = getattr(index, "dtype", None)
+    if dtype is None or not str(dtype).startswith("datetime64"):
+        return None
+    coarse = index.astype("datetime64[s]")
+    if not (coarse.astype(dtype) == index).all():
+        return None
+    return coarse
+
+
 def harmonise_dims_wide_time(ds):
-    """``harmonise_dims`` with the time conversion widened past 2262.
+    """``harmonise_dims`` with every time axis met at SECOND resolution.
 
-    hydromt's preprocessor ends by converting an object-dtype (``cftime``) time
-    index with ``CFTimeIndex.to_datetimeindex()`` and no ``time_unit``, which
-    defaults to nanoseconds. ``datetime64[ns]`` tops out at
-    ``2262-04-11T23:47:16``, so any store whose axis runs past that raises
+    Two ways a CMIP6 read overflows `datetime64[ns]`, whose ceiling is
+    ``2262-04-11T23:47:16``. Both are reached by stores published as EXTENSIONS
+    TO 2300 under an `sspNNN` experiment id, and both arrive as
 
-        Cannot convert date 2262-04-16 00:00:00 to a date in the standard
-        calendar.  Reason: Cannot cast ... to unit='ns' without overflow.
+        Cannot cast ... to unit='ns' without overflow
+        OutOfBoundsDatetime: Out of bounds nanosecond timestamp: 2262-04-16
 
-    That is not a corner case: several ScenarioMIP runs are published as
-    EXTENSIONS TO 2300 under the same `sspNNN` experiment id (CanESM5 and
-    ACCESS-CM2 `ssp585` are two, and CanESM5's is a single pinned version, so it
-    is the store rather than an ambiguous glob). The conversion runs inside the
-    driver, before any time selection, so the job dies on the 200 years it would
-    have discarded one line later.
+    **One axis, decoded too narrow.** A non-standard calendar (`noleap`,
+    `360_day`) decodes to a `CFTimeIndex`, and hydromt's `harmonise_dims` ends
+    by converting it with `CFTimeIndex.to_datetimeindex()` and no `time_unit`,
+    which defaults to nanoseconds. Converting it ourselves at second resolution
+    first leaves hydromt's own `dtype == "O"` test False, so its conversion
+    becomes a no-op and none of its lon/lat harmonisation is reimplemented here
+    -- that function is called verbatim for everything it does well.
+    `CCCma/CanESM5 ssp585` is this case.
 
-    Converting the index ourselves at SECOND resolution first leaves hydromt's
-    own `dtype == "O"` test False, so its conversion becomes a no-op and none of
-    its lon/lat harmonisation is reimplemented here -- that function is called
-    verbatim for everything it does well. Seconds reach year 292 277 026 596,
-    which is not a ceiling anyone will meet.
+    **Two axes, meeting at different widths.** This preprocessor runs per FILE
+    inside `open_mfdataset`, and the catalog reads `pr` and `tas` from separate
+    stores. A model may extend one variable to 2300 and stop the other at 2100
+    -- `IPSL/IPSL-CM6A-LR ssp585` publishes exactly that under ONE version
+    (`gr/v20190903`): `pr` runs to 2300 and falls back to cftime, `tas` runs to
+    2100 and decodes to `datetime64[ns]`. Widening only the cftime side left the
+    two at `[s]` and `[ns]`, and merging them aligns their indexes through
+    `pandas.Index.union`, which adopts the FINER unit and overflows on the
+    longer axis. The same union is why two published VERSIONS of different
+    spans fail (`CSIRO-ARCCSS/ACCESS-CM2 ssp585`).
+
+    So every axis is met at seconds, not only the cftime ones: a merge can only
+    be safe if both sides are already wide. :func:`seconds_resolution_index`
+    refuses to coarsen an axis that would lose precision, so this cannot quietly
+    truncate a sub-second time coordinate to make a union succeed.
 
     The axis is cast back to nanoseconds in :func:`fetch_raw_slice`, AFTER the
     acquisition window has dropped the extension years -- so a slice that
@@ -234,14 +268,19 @@ def harmonise_dims_wide_time(ds):
     sources can be read at all.
 
     xarray already warns that `to_datetimeindex`'s default becomes microseconds
-    in a future release, which would raise the ceiling to year 294 247 and make
-    this wrapper unnecessary. It is not the default on the pinned version.
+    in a future release, which would raise the ceiling to year 294 247. That
+    would fix the first case and NOT the second: two axes at `[us]` and `[ns]`
+    still meet at `[ns]`, and a 2300 axis still does not fit there.
     """
     from hydromt.data_catalog.drivers.preprocessing import harmonise_dims
 
     index = ds.indexes["time"]
     if index.dtype == "O":
         ds = ds.assign_coords(time=index.to_datetimeindex(time_unit="s"))
+    else:
+        widened = seconds_resolution_index(index)
+        if widened is not None:
+            ds = ds.assign_coords(time=widened)
     return harmonise_dims(ds)
 
 
@@ -264,23 +303,55 @@ def register_wide_time_preprocess():
     return WIDE_TIME_PREPROCESS
 
 
-def with_wide_time_preprocess(entry_spec):
-    """A copy of ``entry_spec`` whose driver asks for our preprocessor.
+#: Bounds variables the generated catalog does not name. It drops the CF
+#: abbreviation (`time_bnds`, `lat_bnds`, `lon_bnds`) and the `bnds` dimension,
+#: which is what most of CMIP6 publishes -- but the spelling is a modelling
+#: centre's choice, and IPSL writes `time_bounds`. A bounds variable that
+#: survives the read is not merely noise: `pr` and `tas` come from SEPARATE
+#: stores, so when their spans differ their bounds differ too, and the merge
+#: dies with `MergeError: conflicting values for variable 'time_bounds'`.
+#: Observed on `IPSL/IPSL-CM6A-LR ssp585`, whose `pr` runs to 2300 and `tas` to
+#: 2100.
+#:
+#: Added to the spec rather than to the catalog for the same reason the
+#: preprocess is: `cmip6_data.yml` is generated with no offline mode, so
+#: changing what it writes means re-crawling `gs://cmip6` and re-stamping
+#: `crawled_on` on it and the store index together.
+EXTRA_DROP_VARIABLES = ("time_bounds", "lat_bounds", "lon_bounds")
+
+
+def with_read_overrides(entry_spec):
+    """A copy of ``entry_spec`` carrying the read settings the catalog lacks.
+
+    Two of them, both narrow and both about what the driver hands back rather
+    than about which store is read:
+
+    * ``driver.options.preprocess`` becomes :data:`WIDE_TIME_PREPROCESS`, so a
+      time axis running past 2262 can be decoded at all
+      (:func:`harmonise_dims_wide_time`);
+    * ``driver.options.drop_variables`` gains :data:`EXTRA_DROP_VARIABLES`,
+      so a bounds variable the catalog did not know to name cannot break the
+      merge of two variables read from separate stores.
 
     Overridden on the SPEC rather than in the catalog because
     ``config/catalogs/cmip6_data.yml`` is generated and has no offline mode:
-    changing the name it writes means re-crawling `gs://cmip6`, which re-stamps
-    `crawled_on` on the catalog and the store index together and re-pins every
-    version. That entangles a read fix with every digest in WF2.
+    changing the names it writes means re-crawling `gs://cmip6`, which
+    re-stamps `crawled_on` on the catalog and the store index together and
+    re-pins every version. That entangles a read fix with every digest in WF2.
 
     Copies each level it touches, so the catalog entry this was read from is
     left alone -- a shallow `dict()` would share the nested `driver` mapping and
-    mutate it for every later caller in the process.
+    mutate it for every later caller in the process. Existing drops are kept in
+    their own order and nothing is added twice, so a catalog that grows one of
+    these names later does not start listing it in duplicate.
     """
     spec = dict(entry_spec)
     driver = dict(spec.get("driver") or {})
     options = dict(driver.get("options") or {})
     options["preprocess"] = WIDE_TIME_PREPROCESS
+    dropped = list(options.get("drop_variables") or [])
+    dropped += [name for name in EXTRA_DROP_VARIABLES if name not in dropped]
+    options["drop_variables"] = dropped
     driver["options"] = options
     spec["driver"] = driver
     return spec
@@ -738,7 +809,7 @@ def fetch_raw_slice(
     # pinned branch has always relied on that to resolve the member), and it
     # stops parsing 289 entries to read one.
     register_wide_time_preprocess()
-    read_spec = with_wide_time_preprocess(entry_spec)
+    read_spec = with_read_overrides(entry_spec)
     pins_for_member = (components.get("pins") or {}).get(member, {})
     pin_uri = series_identity.pinned_uri(
         str(entry_spec.get("uri", "")), pins_for_member

@@ -51,8 +51,9 @@ from blueearth_cst.projections.fetch_gcm_raw import (
     raw_slice_attrs,
     register_wide_time_preprocess,
     resolve_entry_name,
+    seconds_resolution_index,
     stale_units,
-    with_wide_time_preprocess,
+    with_read_overrides,
 )
 
 # ---------------------------------------------------------------------------
@@ -711,18 +712,6 @@ def test_hydromts_own_harmonisation_still_happens():
     assert np.all(np.diff(out["lat"].values) < 0), "not N->S"
 
 
-def test_an_axis_that_already_decoded_to_datetime64_is_left_alone():
-    """Only an object-dtype (cftime) index is widened.
-
-    A standard-calendar store decodes straight to datetime64, and touching it
-    would change the dtype of every slice that stages today.
-    """
-    ds = _cftime_grid(2100)
-    ds = ds.assign_coords(time=ds.indexes["time"].to_datetimeindex(time_unit="ns"))
-    out = harmonise_dims_wide_time(ds)
-    assert out.indexes["time"].dtype == np.dtype("datetime64[ns]")
-
-
 def test_the_window_slice_brings_the_axis_back_inside_nanoseconds():
     """What `fetch_raw_slice` does after `.sel()`, and why the cast is safe.
 
@@ -770,7 +759,7 @@ def test_the_override_does_not_mutate_the_catalog_entry_it_copied():
             "options": {"preprocess": "harmonise_dims"},
         },
     }
-    spec = with_wide_time_preprocess(entry)
+    spec = with_read_overrides(entry)
     assert spec["driver"]["options"]["preprocess"] == WIDE_TIME_PREPROCESS
     assert entry["driver"]["options"]["preprocess"] == "harmonise_dims"
     assert spec["uri"] == entry["uri"]
@@ -779,7 +768,7 @@ def test_the_override_does_not_mutate_the_catalog_entry_it_copied():
 @pytest.mark.parametrize("entry", [{}, {"driver": {}}, {"driver": {"options": {}}}])
 def test_a_spec_missing_the_driver_levels_still_gets_the_preprocess(entry):
     """The generated catalog always writes them, but this must not assume it."""
-    spec = with_wide_time_preprocess(entry)
+    spec = with_read_overrides(entry)
     assert spec["driver"]["options"]["preprocess"] == WIDE_TIME_PREPROCESS
 
 
@@ -807,9 +796,7 @@ def test_from_dict_honours_the_override_and_still_expands_the_member():
         "placeholders": {"member": ["r1i1p1f1"]},
     }
     catalog = hydromt.DataCatalog()
-    catalog.from_dict(
-        {"cmip6_X/Y_historical_{member}": with_wide_time_preprocess(spec)}
-    )
+    catalog.from_dict({"cmip6_X/Y_historical_{member}": with_read_overrides(spec)})
 
     assert "cmip6_X/Y_historical_r1i1p1f1" in catalog.sources, "member not expanded"
     options = catalog.get_source("cmip6_X/Y_historical_r1i1p1f1").driver.options
@@ -905,3 +892,110 @@ def test_an_unambiguous_source_keeps_its_own_error():
     with pytest.raises(ValueError, match="something else"):
         with explaining_ambiguous_versions("entry", {}):
             raise ValueError("something else")
+
+
+def _datetime64_grid(last_year, name="tas"):
+    """The same cube on a STANDARD calendar, which decodes straight to ns.
+
+    This is the other half of an IPSL-CM6A-LR read: `tas` stops at 2100 and so
+    fits `datetime64[ns]`, while `pr` runs to 2300 and does not.
+    """
+    times = pd.date_range("2015-01-16", f"{last_year}-12-16", freq="MS") + pd.Timedelta(
+        days=15
+    )
+    lon = np.array([0.0, 90.0, 200.0, 300.0])
+    lat = np.array([-10.0, 0.0, 10.0])
+    return xr.Dataset(
+        {name: (("time", "lat", "lon"), np.zeros((len(times), 3, 4)))},
+        coords={"time": times, "lat": lat, "lon": lon},
+    )
+
+
+def test_two_variables_whose_spans_differ_can_still_be_merged():
+    """`IPSL/IPSL-CM6A-LR ssp585`, one pinned version, two stores.
+
+    `pr` runs to 2300 and falls back to cftime; `tas` stops at 2100 and decodes
+    to `datetime64[ns]`. The catalog reads both, and `open_mfdataset` aligns
+    their time axes through `pandas.Index.union`, which adopts the FINER unit.
+    Widening only the cftime side left them at `[s]` and `[ns]`, so the union
+    chose ns and overflowed on pr's post-2262 steps -- staging that source with
+    `OutOfBoundsDatetime: 2262-04-16` even after the first 2262 fix.
+    """
+    pr = harmonise_dims_wide_time(_cftime_grid(2300))
+    tas = harmonise_dims_wide_time(_datetime64_grid(2100))
+    assert pr.indexes["time"].dtype == tas.indexes["time"].dtype, (
+        "both sides must meet at one unit, or the union picks the narrower"
+    )
+    merged = xr.merge([pr, tas], join="outer")
+    assert set(merged.data_vars) == {"pr", "tas"}
+    assert str(merged.indexes["time"][-1]).startswith("2300-12-16")
+
+
+def test_the_merge_overflows_when_only_the_cftime_side_is_widened():
+    """The defect this guards, reproduced against the narrow axis directly.
+
+    Without it a future edit could drop the datetime64 branch and pass every
+    other test in this file -- the single-axis cases never need it.
+    """
+    pr = harmonise_dims_wide_time(_cftime_grid(2300))
+    tas_narrow = _datetime64_grid(2100)  # NOT widened: still ns
+    with pytest.raises(Exception, match="2262|[Oo]ut of bounds|overflow"):
+        xr.merge([pr, tas_narrow], join="outer").indexes["time"].astype(
+            "datetime64[ns]"
+        )
+
+
+def test_a_datetime64_axis_is_widened_rather_than_left_alone():
+    """This asserted the OPPOSITE until the IPSL case.
+
+    Leaving an already-decoded axis at ns was meant to keep every slice that
+    stages today byte-identical -- and it does, because `fetch_raw_slice` casts
+    back to ns after the window slice. What it also did was leave one side of a
+    two-variable merge narrow, which is the whole defect.
+    """
+    out = harmonise_dims_wide_time(_datetime64_grid(2100))
+    assert out.indexes["time"].dtype == np.dtype("datetime64[s]")
+
+
+def test_an_axis_carrying_sub_second_precision_is_left_alone():
+    """Coarsening is refused when it would truncate.
+
+    A merge that only succeeds by dropping precision is not a merge worth
+    having, and this function cannot see which table it was handed.
+    """
+    ds = _datetime64_grid(2020)
+    nudged = ds.indexes["time"] + pd.Timedelta("500ms")
+    assert seconds_resolution_index(nudged) is None
+    out = harmonise_dims_wide_time(ds.assign_coords(time=nudged))
+    # unchanged, whatever unit pandas chose for it -- the point is that this
+    # function did not coarsen it, not that it arrived at any particular width
+    assert out.indexes["time"].dtype == nudged.dtype
+    assert (out.indexes["time"] == nudged).all()
+
+
+def test_seconds_resolution_index_ignores_a_cftime_axis():
+    """That one is CONVERTED, not cast -- `to_datetimeindex` owns it."""
+    assert seconds_resolution_index(_cftime_grid(2100).indexes["time"]) is None
+
+
+def test_the_bounds_spellings_the_catalog_missed_are_dropped():
+    """`pr` and `tas` come from SEPARATE stores, so a surviving bounds variable
+    whose spans differ kills the merge.
+
+    The catalog names the CF abbreviation (`time_bnds`), which is what most of
+    CMIP6 publishes; IPSL writes `time_bounds`, and its `pr` runs to 2300 while
+    its `tas` stops at 2100 -- so the two disagreed and the read died with
+    `MergeError: conflicting values for variable 'time_bounds'`.
+    """
+    entry = {"driver": {"options": {"drop_variables": ["time_bnds", "bnds"]}}}
+    dropped = with_read_overrides(entry)["driver"]["options"]["drop_variables"]
+    assert dropped[:2] == ["time_bnds", "bnds"], "the catalog's own list comes first"
+    for name in ("time_bounds", "lat_bounds", "lon_bounds"):
+        assert name in dropped
+
+
+def test_a_name_the_catalog_already_drops_is_not_listed_twice():
+    """So a catalog that grows one of these later does not duplicate it."""
+    entry = {"driver": {"options": {"drop_variables": ["time_bounds"]}}}
+    dropped = with_read_overrides(entry)["driver"]["options"]["drop_variables"]
+    assert dropped.count("time_bounds") == 1
