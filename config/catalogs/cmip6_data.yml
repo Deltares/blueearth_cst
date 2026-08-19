@@ -5,8 +5,9 @@
 # members that exist in the bucket with both `pr` and `tas` at Amon, so a
 # source name resolving means the store is really there — which is what
 # get_stats_climate_proj.py's `if entry in data_catalog.sources` guard relies
-# on. Consumers of `kin` (rsds) or `press_msl` (psl) may find a listed member
-# lacks those variables; only pr/tas presence is guaranteed.
+# on. Consumers of `temp_min` (tasmin), `temp_max` (tasmax), `kin` (rsds)
+# or `press_msl` (psl) may find a listed member lacks those variables;
+# only pr/tas presence is guaranteed.
 meta:
   version: 2026.07
   generated_by: dev/scripts/generate_cmip6_catalog.py
@@ -33,12 +34,16 @@ cmip6_AS-RCEC/TaiESM1_historical_{member}: &cmip6_amon
   data_adapter:
     unit_add:
       temp: -273.15
+      temp_min: -273.15
+      temp_max: -273.15
     unit_mult:
       precip: 86400
       press_msl: 0.01
     rename:
       pr: precip
       tas: temp
+      tasmin: temp_min
+      tasmax: temp_max
       rsds: kin
       psl: press_msl
   metadata:

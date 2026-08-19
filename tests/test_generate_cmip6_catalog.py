@@ -12,6 +12,7 @@ one-crawl coupling between catalog and index are checkable in CI.
 
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import sys
 from pathlib import Path
@@ -201,3 +202,117 @@ def test_no_index_flag_leaves_the_index_untouched(gen, tmp_path, monkeypatch):
 
     assert out.exists()
     assert not index_out.exists()
+
+
+# --- offline rebuild: re-render the defaults without re-crawling --------------
+
+
+def test_rebuild_round_trips_a_rendered_catalog(gen, tmp_path):
+    """The inventory comes back out of the file exactly as it went in.
+
+    That is the whole promise: re-rendering after a defaults change must move
+    the defaults and NOTHING else -- no uri, no member list, no crawl date.
+    """
+    path = tmp_path / "cmip6_data.yml"
+    path.write_text(gen.render(INVENTORY, crawled_on="2026-07-29"), encoding="utf-8")
+
+    inventory, crawled_on = gen.inventory_from_catalog(path)
+    assert inventory == INVENTORY
+    assert crawled_on == "2026-07-29"
+    assert gen.render(inventory, crawled_on=crawled_on) == path.read_text(
+        encoding="utf-8"
+    )
+
+
+def test_the_triple_is_read_from_the_URI_not_parsed_from_the_key(gen, tmp_path):
+    """`cmip6_NOAA-GFDL/GFDL-ESM4_historical_{member}` cannot be split reliably.
+
+    A model id carries `/`, `-` AND `_`, so splitting the entry key is guesswork
+    -- while the URI's path is positional. This is the case that would break a
+    key-splitting implementation and pass on a tidier name.
+    """
+    awkward = {("CMIP", "NOAA-GFDL/GFDL-ESM4", "historical"): ["r1i1p1f1"]}
+    path = tmp_path / "cmip6_data.yml"
+    path.write_text(gen.render(awkward, crawled_on="2026-07-29"), encoding="utf-8")
+    assert gen.inventory_from_catalog(path)[0] == awkward
+
+
+def test_rebuild_writes_the_catalog_and_leaves_the_index_alone(gen, tmp_path, capsys):
+    """The index records what the CRAWL found, and no crawl was made.
+
+    Rewriting it would restamp an observation nobody remade; leaving it is also
+    what keeps `crawled_on` equal on both, which is the assertion a consumer
+    relies on.
+    """
+    catalog = tmp_path / "cmip6_data.yml"
+    catalog.write_text(gen.render(INVENTORY, crawled_on="2026-07-29"), encoding="utf-8")
+    index = tmp_path / "index.json"
+    index.write_text('{"crawled_on": "2026-07-29"}', encoding="utf-8")
+    before = index.read_text(encoding="utf-8")
+
+    gen._rebuild(argparse.Namespace(out=catalog, index_out=index, dry_run=False))
+
+    assert index.read_text(encoding="utf-8") == before
+    assert "crawled_on 2026-07-29, unchanged" in capsys.readouterr().out
+
+
+def test_rebuild_dry_run_writes_nothing(gen, tmp_path):
+    catalog = tmp_path / "cmip6_data.yml"
+    catalog.write_text(gen.render(INVENTORY, crawled_on="2026-07-29"), encoding="utf-8")
+    before = catalog.read_text(encoding="utf-8")
+    gen._rebuild(
+        argparse.Namespace(out=catalog, index_out=tmp_path / "i.json", dry_run=True)
+    )
+    assert catalog.read_text(encoding="utf-8") == before
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("meta: {}\n", "no meta.crawled_on"),
+        ("meta:\n  crawled_on: 2026-07-29\n", "no entries found"),
+    ],
+)
+def test_rebuild_refuses_a_catalog_it_cannot_reconstruct(gen, tmp_path, text, expected):
+    """Refuses loudly rather than writing a catalog missing entries.
+
+    This overwrites the file it read, so a partial reconstruction would destroy
+    the only copy of what it failed to parse.
+    """
+    path = tmp_path / "cmip6_data.yml"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(SystemExit, match=expected):
+        gen.inventory_from_catalog(path)
+
+
+# --- the variables the defaults block declares --------------------------------
+
+
+def test_tasmin_and_tasmax_are_renamed_and_converted_to_celsius(gen):
+    """`temp_min`/`temp_max` are already the toolbox's names for these.
+
+    `interchange_contracts` declares their units and
+    `extract_historical_climate` extracts them, so WF2 was the one workflow that
+    could not speak them -- and the archived pre-generated catalog carried this
+    exact mapping before the generated one narrowed it to four names.
+    """
+    text = gen.render(INVENTORY, crawled_on="2026-07-29")
+    assert "tasmin: temp_min" in text
+    assert "tasmax: temp_max" in text
+    # K -> degC, the same offset `tas` already carries; without it the values
+    # would be ~273 too high while claiming degC
+    assert text.count("-273.15") == 3
+
+
+def test_the_new_variables_are_best_effort_not_certified(gen):
+    """Adding them to REQUIRED_VARS would DROP every member that lacks them.
+
+    The member list is filtered on `REQUIRED_VARS`, so certifying tasmin/tasmax
+    would shrink the ensemble rather than enrich it. Left out, they inherit the
+    A3 best-effort path: warned at DAG build, stamped, and failing at read
+    rather than skipping at resolution.
+    """
+    assert gen.REQUIRED_VARS == frozenset({"pr", "tas"})
+    text = gen.render(INVENTORY, crawled_on="2026-07-29")
+    assert "only pr/tas presence is guaranteed" in text
+    assert "`temp_min` (tasmin)" in text
