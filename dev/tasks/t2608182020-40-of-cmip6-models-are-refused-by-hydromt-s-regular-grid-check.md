@@ -130,6 +130,10 @@ not a fault (`assert_raw_coverage`), and a different member would cover more.
   `1.0`. Every slice ever fetched used the cell reading, so the branch matches
   it deliberately; correcting the NAME is safe, correcting the SEMANTICS would
   invalidate every cached slice and change every change factor. Its own item.
+  *(Resolved 2026-08-19 by [[t2608182238]]: renamed to `buffer_cells` with the
+  semantics untouched, and `SCHEMA_VERSION` bumped 4->5 so the rename's digest
+  move is a loud refusal rather than a silent re-derive. Correcting the
+  SEMANTICS remains unraised.)*
 - **`CAS/FGOALS-g3`** (`dlat 2.0253 .. 5.1811`, a real variable-resolution grid)
   needed no separate answer after all: the branch requires the axis to be
   ordered, not evenly spaced, so it reads like any Gaussian model. Confirmed in

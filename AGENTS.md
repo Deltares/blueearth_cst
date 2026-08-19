@@ -515,11 +515,37 @@ fine and needs no declaration. The declaration is for the moment a *second* slot
 is claimed while the first is still occupied.
 
 **Occupancy is read from Git, not from a convention.** `git worktree list` is
-the roster: a slot showing `(detached HEAD)` is idle, and one showing a branch
-is occupied. The old gitignored `.lane-claim` marker is retired — it existed
-only because a permanent branch gives Git no liveness signal. `slot-start`
-refuses an occupied or dirty slot, so a crashed session stays visibly occupied
-and is never silently reused.
+the roster: a slot showing a branch is occupied, and `slot-start` refuses an
+occupied or dirty slot, so a crashed session stays visibly occupied and is
+never silently reused.
+
+**But `(detached HEAD)` does NOT prove a slot is idle**, and this file asserted
+that it did until 2026-08-19, when two sessions worked `session-1` at once
+because of it. A session that is live but has not yet branched or written —
+between tasks, exploring, or continuing in a slot someone already parked —
+leaves Git nothing to show. That is not a gap in `slot-start`'s guard: during
+that window the slot genuinely is neither occupied nor dirty, so there is
+nothing for any Git-derived check to see. The retired `.lane-claim` marker was
+removed on the reasoning that a task branch supplies the liveness signal, which
+holds only *after* a branch exists.
+
+Measured cost of the collision: the other session committed onto this session's
+task branch mid-run, and a `test-full` result had to be discarded because the
+tree moved under it. Nothing was lost — its commit rebased cleanly — but a gate
+you must decide whether to believe is the expensive part, exactly as the
+borrowed-primary-checkout warning above says.
+
+So treat the roster as necessary and not sufficient, and use the two checks it
+cannot supply:
+
+- **Read the slot name in the status line.** It renders the worktree root's leaf
+  (`session-1` / `session-2`) beside the branch, so two sessions showing the
+  same slot is visible on every turn without either session cooperating. This is
+  the only check that works when the other session has left no Git trace.
+- **`git diff --stat` before editing.** If a file you did not touch is modified,
+  another session is live here: preserve it and ask before resetting it. Do not
+  read a clean `git status` at claim time as proof the slot is yours — it proves
+  only that nobody had written *yet*.
 
 **Lifecycle.** Claim, work, land, park:
 

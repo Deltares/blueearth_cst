@@ -50,7 +50,15 @@ from typing import Iterable, Mapping, Sequence
 #: ``cst_series_digest``. Bumping is what makes the existing v1 series re-derive
 #: instead of being silently accepted without the new provenance; it is nearly free
 #: now that a re-reduction reads local disk.
-SCHEMA_VERSION = "4"
+SCHEMA_VERSION = "5"
+#: Bumped 4->5 for the `buffer_degrees` -> `buffer_cells` rename (t2608182238):
+#: the digest component key and the `cst_buffer_*` attribute both change name, so
+#: the attribute set changed and a reader must notice. The rename moves the digest
+#: on its own -- key names are canonicalized into the hash -- but that alone would
+#: re-derive SILENTLY, which is the mixed-provenance failure ruled against in
+#: t2608182020. The bump is what makes an existing slice refuse loudly instead.
+#: The buffer's VALUE and the footprint it selects are unchanged: hydromt always
+#: spent it as a cell count, and only the name said otherwise.
 #: Bumped 3->4 at step 5b: the SERIES schema gained `cst_calendar`, propagated
 #: from the raw slice so stage B can weight months without re-reading the store.
 #: The bump is required, not tidiness: the stamping lives in the snakemake body,
@@ -515,7 +523,7 @@ def digest_components(
     entry: Mapping,
     members: Sequence[str],
     pins_by_member: Mapping[str, Mapping[str, Sequence[str]]],
-    buffer_degrees: float,
+    buffer_cells: int,
     variable_spec: object,
     experiment: str,
     reducer_module_hash: str,
@@ -536,6 +544,12 @@ def digest_components(
     has one element and this shape still holds — so the digest recipe does not
     change under that refactor.
 
+    ``buffer_cells`` is a COUNT OF GRID CELLS, not degrees. hydromt spends the
+    ``buffer`` argument as resolution multiplicity (``data_catalog.py:1370`` ->
+    ``clip_bbox``), so the same value buys 0.70 deg on EC-Earth3 and 2.77 deg on
+    CanESM5. It was named ``buffer_degrees`` until t2608182238; the value and the
+    footprint never changed, only the name that lied about them.
+
     Note the region **bounds** are deliberately absent: they are derived from the
     polygon, so they add nothing the content fingerprint does not already carry,
     and they are unavailable at parse time. Bounds are still *recorded* on the
@@ -554,7 +568,7 @@ def digest_components(
             }
             for m in members
         },
-        "buffer_degrees": float(buffer_degrees),
+        "buffer_cells": int(buffer_cells),
         "variable_spec": variable_spec,
         "acquisition_window": list(acquisition_window(experiment)),
         "reducer_module_hash": reducer_module_hash,

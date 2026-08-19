@@ -90,7 +90,7 @@ windowed slice per `(model, experiment, member)` and writes it to local disk.
 
 - **In:** `{CPD}/store_region.geojson` (the model-free delineated polygon).
 - **Params:** `catalog_path`, `catalog_entry`, `member`, `variables`,
-  `variable_units`, `buffer_degrees`, `acquisition_window`,
+  `variable_units`, `buffer_cells`, `acquisition_window`,
   `raw_digest_components`.
 - **Out:** `update({CPD}/raw/{series_key}.nc)` — dims `(time, lat, lon)`, PERSISTENT.
 - **Why the split exists:** measured 2026-07-30 — opening one source ~1142 s,
@@ -107,7 +107,7 @@ recorded on it.
 
 - **In:** `{CPD}/store_region.geojson`, `{CPD}/raw/{series_key}.nc`.
 - **Params:** the identity set (`digest_components`, `acquisition_window`,
-  `store_index`, `buffer_degrees`), plus `variables`, `variable_units`,
+  `store_index`, `buffer_cells`), plus `variables`, `variable_units`,
   `series_nc_out`.
 - **Out:** `update({CPD}/scalar/{series_key}.nc)` — dims
   `(clim_project, model, scenario, member, time)`, PERSISTENT. Same filename as

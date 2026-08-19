@@ -118,12 +118,12 @@ def bbox_index_slice(centers, low, high, buffer, axis="axis", source=""):
 
     Two properties are inherited from hydromt rather than chosen here:
 
-    * ``buffer`` is in CELLS, not degrees. The config key is named
-      ``buffer_degrees`` and hydromt has always read it as
+    * ``buffer`` is in CELLS, not degrees. hydromt has always read it as
       "resolution multiplicity" (``data_catalog.py:1370``), so a regular and an
       irregular slice of the same region must use the same reading or the two
-      would differ silently inside one ensemble. The misleading NAME is a
-      separate finding, and fixing it would invalidate every cached slice.
+      would differ silently inside one ensemble. The config key said
+      ``buffer_degrees`` until t2608182238, which is the misnomer this reading
+      had to work around; it is now ``buffer_cells`` and says what it spends.
     * the direction of the axis is irrelevant. ``harmonise_dims`` orients
       latitude N->S, so a label-based ``slice(south, north)`` would return
       NOTHING -- and nothing downstream catches an empty spatial selection,
@@ -337,7 +337,7 @@ def raw_slice_attrs(
         "cst_calendar": store_calendar,
         "cst_region_bounds": ", ".join(f"{b:.9g}" for b in bbox),
         "cst_region_fingerprint": region_fp,
-        "cst_buffer_degrees": buffer,
+        "cst_buffer_cells": buffer,
         "cst_members": member,
         "cst_source_paths": json.dumps(components.get("pins", {}), sort_keys=True),
         "cst_crs": str((entry_meta.get("metadata", {}) or {}).get("crs", "")),
@@ -684,7 +684,7 @@ if "snakemake" in globals():
             # S8-08(a): see get_stats_climate_proj.py. The adapter converts the
             # values and leaves `units` describing the pre-conversion quantity.
             variable_units=dict(sm.params.variable_units),
-            buffer=sm.params.buffer_degrees,
+            buffer=sm.params.buffer_cells,
             acquisition_window=tuple(sm.params.acquisition_window),
             # NOTE: carries NO reducer hash. See series_identity.raw_components --
             # the Snakefile must keep it that way, or a formula edit re-downloads

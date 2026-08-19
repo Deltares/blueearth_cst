@@ -495,7 +495,7 @@ deliverable.
 | Scalar coordinates | `dataset` (`institution/source_id`, unsanitized), `institution`, `source_id`, `experiment`, `member` |
 | Data variables | one per configured variable, named per the variable spec (`precip`, `temp`), dims `(time,)`, `dtype` float64 |
 | Variable attributes | `units` (canonical, §5.5), `canonical` (`rate` \| `state`), `long_name` |
-| Global attributes | `cst_schema_version`; `cst_series_digest`; `cst_catalog_entry`; `cst_catalog_crawled_on`; `cst_acquisition_window`; `cst_time_first` / `cst_time_last`; `cst_calendar`; `cst_region_bounds`; `cst_region_fingerprint` *(D9)*; `cst_buffer_degrees`; `cst_weighting_scheme`; `cst_geometry_check`; `cst_source_paths` *(D12 — the verified physical store path per variable)*; `cst_crs` *(from the entry's `metadata`)*; `cst_reducer_module_hash` |
+| Global attributes | `cst_schema_version`; `cst_series_digest`; `cst_catalog_entry`; `cst_catalog_crawled_on`; `cst_acquisition_window`; `cst_time_first` / `cst_time_last`; `cst_calendar`; `cst_region_bounds`; `cst_region_fingerprint` *(D9)*; `cst_buffer_cells`; `cst_weighting_scheme`; `cst_geometry_check`; `cst_source_paths` *(D12 — the verified physical store path per variable)*; `cst_crs` *(from the entry's `metadata`)*; `cst_reducer_module_hash` |
 
 - **Naming is stable within v2.0.** `series/{series_key}.nc` with the key grammar
   above. A change to the key grammar or to the attribute set is a
