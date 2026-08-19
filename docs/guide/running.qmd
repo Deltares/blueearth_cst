@@ -1,0 +1,128 @@
+---
+title: "Running the workflows"
+subtitle: "The four entry points, the wrapper, and the flags that matter"
+---
+
+The four `*.smk` files at the repository root are the only entry points. There
+is no package CLI: you invoke Snakemake against a workflow and a config.
+
+| Entry point | id | What it does |
+|---|---|---|
+| `analyze_climate.smk` | wf0 | The basin's historical climate — **model-free** |
+| `build_model.smk` | wf1 | Builds the Wflow-SBM model, runs it on historical forcing |
+| `analyze_projections.smk` | wf2 | CMIP6 change factors — a plausibility overlay |
+| `run_stress_test.smk` | wf3 | The stress test |
+
+Run them in order; `run_stress_test` needs what `build_model` produced.
+
+## Invoking one workflow
+
+```bash
+pixi shell
+snakemake all -c 3 -s build_model.smk --configfile test_case/snake_config_rapid.yml
+```
+
+The flags worth knowing:
+
+| Flag | Effect |
+|---|---|
+| `-s` | which workflow file to run |
+| `--configfile` | the YAML configuration |
+| `-c` | cores; more than 1 enables parallelism |
+| `--dry-run`, `-n` | list what would execute, run nothing |
+| `--unlock` | clear the working-directory lock left by a crash |
+| `--keep-going`, `-k` | keep running independent jobs after a failure |
+| `--notemp` | keep intermediate files Snakemake would delete |
+
+The full option set is in the [Snakemake CLI
+documentation](https://snakemake.readthedocs.io/en/stable/executing/cli.html).
+
+The recommended sequence for any workflow is: render the graph, clear a stale
+lock if there is one, then run.
+
+```bash
+python scripts/plot_workflow_dag.py -s build_model.smk --configfile <config>
+snakemake --unlock -s build_model.smk --configfile <config>
+snakemake all -c 3 -s build_model.smk --configfile <config>
+```
+
+The first command renders a DAG image into `<project_dir>/logs/dag/`, named
+after the run that would produce it (`<project_name>_wf<N>_dag.png`, with the
+stress test carrying its experiment id). It draws the graph and runs nothing;
+it needs Graphviz's `dot`, which the pixi environment provides.
+
+::: {.callout-tip}
+## Dry-run after editing anything structural
+
+`--dry-run` validates the whole dependency graph in seconds. Run it after
+changing a rule, a script signature, or any config key that feeds a rule's
+inputs — it is the difference between finding a broken path now and finding it
+forty minutes into a model build.
+:::
+
+## Running everything the config enables
+
+`scripts/run_workflows.py` reads the `workflows.<name>.enabled` flags and runs
+Snakemake for exactly the enabled workflows, in order:
+
+```bash
+pixi run run-workflows --config test_case/snake_config_rapid.yml
+pixi run run-workflows --config <config> --cores 4 -- --dry-run
+```
+
+What it guarantees:
+
+- It accepts **full-orchestration configs only** — a `workflows:` section with
+  all four subsections, each with an `enabled:` key.
+- A missing section or key is a **hard error naming the absent key**, never a
+  silent default.
+- It **stops at the first nonzero Snakemake exit and returns that code**, so a
+  failed upstream workflow is never followed by a downstream run.
+- `--cores N`, and anything after a `--` sentinel, forwards to every invocation.
+- Every invocation — including a dry run, a no-op, or a failure — writes an
+  immutable manifest under `<project_dir>/config/runs/invocations/`.
+
+It narrates its own run: which project, which config, a numbered sequence of the
+enabled workflows, a line at each workflow's start and finish with its duration,
+and a closing verdict listing what was written. Every line it speaks is bounded
+by a full-width rule that nothing else in the console draws, so you can always
+tell the runner's voice from the workflow's.
+
+::: {.callout-note}
+## Run the pipeline from one checkout
+
+Snakemake keeps its "what is up to date" bookkeeping in a `.snakemake/`
+directory under the *working directory*, and it locks that directory while
+running. Driving one `project_dir` from two checkouts gives you two
+disagreeing sets of bookkeeping and two independent locks over the same output
+files. Pick one checkout for runs and stay in it.
+:::
+
+## Re-running an experiment after a model rebuild
+
+An experiment records the Wflow model it was run against, and the workflow
+**refuses to re-run it if that model has changed** — otherwise new model state
+would be mixed into old results.
+
+Expect this refusal after *any* rebuild, including one that changed nothing
+numeric: the forcing file is not byte-reproducible, because HydroMT varies the
+internal chunk layout between writes while the values stay identical.
+
+Read what the error names before deciding:
+
+- **Only `forcing/inmaps_historical.nc` changed** — the known layout-only case.
+  Delete the experiment's `config/model_reference.yml` and let the next run
+  regenerate it.
+- **Anything else is named** — `staticmaps.nc`, `wflow_sbm.toml`, or the forcing
+  alongside them — the guard has found something real. Do not re-record. Create a
+  new experiment: the recorded one is not re-runnable against different physics
+  or state.
+
+Re-recording the reference is an operator decision, not a chore. It means *"this
+experiment now accepts the rebuilt model."* A re-record that becomes routine is
+how genuine drift eventually gets waved through.
+
+## Next
+
+- [Reading the outputs](outputs.qmd) — what the run wrote, and how to tell
+  whether it is still current.

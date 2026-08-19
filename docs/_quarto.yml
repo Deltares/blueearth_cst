@@ -4,9 +4,11 @@
 # directory that already holds only documentation. Design and phasing:
 # dev/working/2026-08-19_quarto-docs-site/design.md
 #
-# PHASE 1 (scaffold). The site currently publishes the landing page and the
-# setup guide. The user guide and the technical background arrive in phase 2,
-# which is gated on four owner questions (O-1..O-3, O-5) recorded in the design.
+# PHASE 2, in progress. The site publishes the landing page, the setup guide and
+# the user guide. The technical background is still gated on O-3 -- the note's 38
+# figures are absent from the repository, so its chapters would publish as
+# numbered captions under nothing. Its GUI and platform chapters stay unpublished
+# by ruling (O-1c); they remain in the repo as source.
 #
 # Nothing here publishes. There is deliberately no `site-url` and no deploy
 # workflow: the subpath a GitHub Pages project page needs is not known until the
@@ -15,7 +17,10 @@ project:
   type: website
   output-dir: _site
   render:
+    # Globs, not directories. A bare `guide/` matches nothing and renders
+    # nothing -- silently, with a successful exit and a smaller site.
     - "index.qmd"
+    - "guide/*.qmd"
     # The setup guide, rendered where it already lives. These two are NOT moved
     # into a setup/ directory: ten files across pixi.toml, scripts/, dev/ and
     # README.md cite these paths, and a navbar entry does the same job for free.
@@ -40,6 +45,8 @@ website:
   description: "Climate stress testing for water systems — the workflow toolbox"
   navbar:
     left:
+      - text: "User guide"
+        href: guide/quick-start.qmd
       - text: "Setup"
         href: install.md
     right:
@@ -48,7 +55,17 @@ website:
         aria-label: "Source on GitHub"
   sidebar:
     style: floating
-    contents: auto
+    contents:
+      - section: "User guide"
+        contents:
+          - guide/quick-start.qmd
+          - guide/configuration.qmd
+          - guide/running.qmd
+          - guide/outputs.qmd
+      - section: "Setup"
+        contents:
+          - install.md
+          - env_setup_notes.md
   search: true
   page-footer:
     center: "Deltares · World Bank Global Water Practice — GPL-3.0"

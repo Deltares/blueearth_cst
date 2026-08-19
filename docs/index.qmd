@@ -18,10 +18,10 @@ backend and the user interface live in their own repositories.
 ::: {.callout-note}
 ## This site is under construction
 
-Phase 1 of the documentation site publishes the **setup guide**. The user guide
-and the technical background follow. Until then, the
-[repository README](https://github.com/Deltares/blueearth_cst#readme) is the
-fuller reference.
+The **user guide** and the **setup guide** are published. The technical
+background is still being prepared. Until then, the
+[repository README](https://github.com/Deltares/blueearth_cst#readme) carries
+the reference material that has not moved here yet.
 :::
 
 ## Start here
@@ -29,8 +29,9 @@ fuller reference.
 | If you want to… | Go to |
 |---|---|
 | Install the toolbox on your machine | [Setup guide](install.md) |
-| Understand what a stress test computes and why | Technical background *(phase 2)* |
-| Run a basin assessment end to end | User guide *(phase 2)* |
+| Run a basin assessment end to end | [Quick start](guide/quick-start.qmd) |
+| Point the toolbox at your own basin | [Configuring a project](guide/configuration.qmd) |
+| Understand what a stress test computes and why | Technical background *(in preparation)* |
 
 ## What it does, in four steps
 

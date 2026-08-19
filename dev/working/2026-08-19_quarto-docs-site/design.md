@@ -9,6 +9,10 @@ Revisions:
   before drafting; the local-first phasing likewise. Three blocking findings
   surfaced during inventory (§2.3–§2.5) and are carried as owner questions
   O-1..O-3.
+- 2026-08-19 (v1.2): owner rulings taken on O-1, O-2 and O-5; §3 and §10
+  updated to record them. P1 landed (`c7d876e`), P2's user guide landed. One
+  new decision falls out of the rulings — D11, the README reduction waits for
+  the site to have a URL.
 - 2026-08-19 (v1.1, self-review): D5 rewritten — freeze *amortizes* the
   73-minute run, it does not avoid it, and v1 read as if it did. §2.3 records
   that the prose cites the missing figures by number (checked), which makes O-3
@@ -482,14 +486,38 @@ Falsifiable, so a later reader can tell whether this worked:
 
 ## 10. Open questions — owner
 
-**O-1 (blocks P2, §4 chapters 7–8).** The technical note documents the whole
+**O-1 — ANSWERED (c), 2026-08-19: leave the platform chapters unpublished.**
+They stay in the repository as source and never render. §4 therefore publishes
+eight chapters, not ten, and there is no `platform/` directory.
+
+**O-2 — ANSWERED (a), 2026-08-19: execute once locally, commit `docs/_freeze/`.**
+D5 stands as written.
+
+**O-5 — ANSWERED (c), 2026-08-19: plain website, one page per chapter.**
+Section numbering restarts per page and there is no PDF. Worth recording
+plainly: with O-1 and O-5 both answered this way, the PDF that was the deciding
+argument for Quarto over MkDocs (§8) is off the table. Quarto's remaining edge
+here is `freeze` and native `.ipynb` handling — which O-2 just made
+load-bearing, so the choice still holds, but on a different leg than it was
+made on.
+
+**D11 (falls out of the rulings) — the README reduction waits for P4.** D3 has
+the README's Running / Configuration sections reduced to summaries pointing at
+the site. That must not land while the site is local-only: a README pointing at
+a URL that does not exist yet is worse than one that repeats itself. The
+duplication is deliberate and temporary; it clears in the same change that adds
+`site-url`.
+
+---
+
+**O-1 (original wording — blocks P2, §4 chapters 7–8).** The technical note documents the whole
 three-part CST platform, including a 355-line walkthrough of the web GUI. On a
 site for *this repository*, do we: (a) publish it in a separately-labelled
 "wider CST platform" section [recommended]; (b) publish it inline as-is,
 accepting that the site describes software the reader did not install; or
 (c) leave those two chapters unpublished and keep them in the repo as source?
 
-**O-2 (blocks P2, D5).** Notebooks currently ship stripped by policy
+**O-2 (original wording — blocks P2, D5).** Notebooks currently ship stripped by policy
 (`a2596d0`). Do we (a) render them locally once and **commit `docs/_freeze/`**
 so the site shows real figures [recommended — it is scoped, machine-generated
 output whose whole purpose is publication, not notebook state re-entering the
@@ -501,7 +529,7 @@ repository. Can you supply the image set from
 technical background publishes as text only, and every figure reference in the
 prose dangles.
 
-**O-5 (blocks the §4 split, not P1 — D10).** The technical background is a
+**O-5 (original wording — blocks the §4 split, not P1 — D10).** The technical background is a
 report. Do we (a) keep the whole site one `type: website`, accepting that
 chapter numbering restarts per page and there is no PDF; (b) add a `type: book`
 sub-project for `background/`, giving continuous numbering and a typst PDF from
