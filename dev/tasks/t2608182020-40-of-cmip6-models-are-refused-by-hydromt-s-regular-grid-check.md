@@ -1,13 +1,13 @@
 ---
 title: 40% of CMIP6 models are refused by hydromt's regular-grid check
 type: todo-item
-status: active
+status: done
 effort: 2
 area: wf2 projections / remote store
 origin: 2026-08-18 stage_cmip6 run
 queue: 1
 created: 2026-08-18
-updated: 2026-08-18
+updated: 2026-08-19
 ---
 
 > [!note] Overview
@@ -34,9 +34,8 @@ updated: 2026-08-18
       the models this rescues never had a cached slice to begin with
 - [x] Acceptance — CanESM5 (Gaussian) staged end to end, with GFDL-ESM4
       (regular) as the control. See "What landed" below
-- [ ] Re-run the full ensemble once and confirm no model in the 27 still fails.
-      A **spot check is not the measurement**: the branch was verified on one
-      Gaussian model, and 26 others have never been read
+- [x] Re-run the full ensemble — **all 27 read**, every one through the branch.
+      See "The sweep" below
 
 ## What landed
 
@@ -79,6 +78,50 @@ CanESM5 cost 1:25 against the control's 0:22 — the branch pays a second open
 pre-probe of the grid was considered and rejected: it would have to guess which
 variable's store to read and could then DISAGREE with hydromt's own verdict.
 
+## The sweep
+
+Run 2026-08-19 against `test_case/test_local`, one member per model chosen from
+the store index (many of the 27 do not publish `r1i1p1f1`), `historical` except
+for the two models that publish none. 29 models attempted — the probe's 27
+IRREGULAR plus its 2 `error` — and each staged slice was then opened, checked
+for the digest and both variables, and **reduced through the real reducer**
+(`_spatial_dim` + `grid_weights.weighted_spatial_mean`), since a slice that
+fetches and then dies in the reduce stage leaves the model just as absent.
+
+```
+27 slices written, all 27 through the irregular branch
+27 of 27 reduce cleanly: 2x2 to 3x3 cells, 23.5-26.5 degC, 4.4-9.9 mm day-1, no NaN
+ 2 failures, NEITHER of them a grid problem
+```
+
+The two failures, and why neither reopens this item:
+
+- **`MPI-M/ICON-ESM-LR`** — `ValueError: x dimension not found`. An unstructured
+  (ICON) mesh with no x/y axis at all, so there is no bbox to take. Fails before
+  any grid question, loudly, and lands in `stage_cmip6`'s `could not be
+  downloaded` bucket with the reason attached. Its own problem, if anyone wants
+  it: it needs mesh handling, not a clip.
+- **`MIROC/MIROC-ES2H`** — `NoDataException: No data left after temporal
+  slicing`. Its `historical/Amon` store holds **12 months (1850)** and nothing
+  else, under every one of its three members. That is a data-availability fact
+  and it fires before the spatial slice. Asked for a window the store DOES
+  cover, the model reads through the branch normally (2x3 cells, 25.13 degC),
+  so its **grid is fine** — the sweep simply cannot reach it from the pipeline's
+  1950-2014 window.
+
+**The probe undercounted by one.** `UA/MCM-UA-1-0`, which the probe reports as
+`error: No variable named 'lat'`, reads perfectly well: it spells its axes
+`latitude`/`longitude`, which hydromt's `set_spatial_dims` accepts and the
+probe's hardcoded `ds["lat"]` did not. Its grid IS irregular, so it took the
+branch like the rest. `probe_cmip6_grids.py` now tries both spellings — a probe
+stricter than the thing it probes invents refusals, which is the one result a
+diagnostic must not produce. So the branch rescues **28** models, not 27.
+
+One data condition worth knowing, unrelated to the grid:
+`EC-Earth3 r101i1p1f1` covers 1970-2014, giving 540 steps against the other
+models' 780. A store legitimately starting after the window is a data condition,
+not a fault (`assert_raw_coverage`), and a different member would cover more.
+
 ## Not done here, and why
 
 - **The `buffer_degrees` name is wrong.** hydromt has always read `buffer` as
@@ -88,11 +131,12 @@ variable's store to read and could then DISAGREE with hydromt's own verdict.
   it deliberately; correcting the NAME is safe, correcting the SEMANTICS would
   invalidate every cached slice and change every change factor. Its own item.
 - **`CAS/FGOALS-g3`** (`dlat 2.0253 .. 5.1811`, a real variable-resolution grid)
-  needs no separate answer after all: the branch requires the axis to be
-  ordered, not evenly spaced, so it reads like any Gaussian model. Unverified —
-  it is in the 26 the sweep above still has to cover.
-- **The two `error` models** (MPI-M/ICON-ESM-LR, UA/MCM-UA-1-0) carry no `lat`
-  variable and still fail, before any grid question is asked.
+  needed no separate answer after all: the branch requires the axis to be
+  ordered, not evenly spaced, so it reads like any Gaussian model. Confirmed in
+  the sweep — 2x2 cells, 26.37 degC.
+- **`MPI-M/ICON-ESM-LR`** has no x/y axis at all and still fails, before any
+  grid question is asked. `UA/MCM-UA-1-0`, the other model the probe put in that
+  bucket, turned out to READ — see "The sweep".
 
 ## The measurement
 

@@ -61,14 +61,30 @@ for entry, members in idx.items():
                 )
 
 
+def _axis(ds, names):
+    """The first of `names` the store actually carries.
+
+    `lat`/`lon` is the CMIP6 convention but not a rule: UA/MCM-UA-1-0 spells
+    them `latitude`/`longitude`, and hydromt's `set_spatial_dims` accepts that
+    -- so hardcoding `lat` made this probe report `error` for a model the
+    toolbox reads perfectly well (measured 2026-08-19, `t2608182020`). A probe
+    stricter than the thing it is probing produces false refusals, which is the
+    one result a diagnostic must not invent.
+    """
+    for name in names:
+        if name in ds:
+            return name
+    raise KeyError(f"no axis among {names}; store carries {sorted(ds.variables)[:8]}")
+
+
 def check(item):
     model, (scen, uri) = item
     try:
         import xarray as xr
 
         ds = xr.open_zarr(uri, consolidated=True, chunks=None, decode_times=False)
-        lat = np.asarray(ds["lat"].values)
-        lon = np.asarray(ds["lon"].values)
+        lat = np.asarray(ds[_axis(ds, ("lat", "latitude", "y"))].values)
+        lon = np.asarray(ds[_axis(ds, ("lon", "longitude", "x"))].values)
         ds.close()
         dys, dxs = np.diff(lat), np.diff(lon)
         yreg = bool(np.allclose(dys, dys[0], atol=5e-4))
