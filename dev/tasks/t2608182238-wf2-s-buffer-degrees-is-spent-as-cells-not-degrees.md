@@ -71,7 +71,9 @@ SKIPS with a reason naming the refresh. It is skipped rather than failed because
 a digest is only comparable within one schema — the pipeline rejects a stale
 slice on the schema check before consulting any digest, so an inequality there
 would say nothing about the staging tool. Re-run WF2 stage A against
-`test_case/test_local` **from the primary checkout** to restore the check.
+`test_case/test_local` **from the primary checkout** to restore the check —
+tracked as [[t2608191308]], because that test is the only pin on the staging
+tool's cache-compatibility claim and a skip leaves it unchecked, not untested.
 
 ## The trap
 

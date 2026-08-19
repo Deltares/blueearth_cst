@@ -689,12 +689,6 @@ def test_the_buffer_component_is_named_for_the_cells_it_actually_spends():
     what makes the slices cached under the old key refuse LOUDLY instead of
     re-deriving in silence. A revert of either half undoes the other's guarantee.
     """
-    components = _split_components()
-
-    assert "buffer_cells" in components
-    assert "buffer_degrees" not in components
-    assert int(si.SCHEMA_VERSION) >= 5
-
     built = si.digest_components(
         catalog_entry="e",
         entry={},
@@ -705,8 +699,15 @@ def test_the_buffer_component_is_named_for_the_cells_it_actually_spends():
         experiment="ssp245",
         reducer_module_hash="",
     )
+
+    # Asserted against what `digest_components` BUILT, never against a literal
+    # assembled in this file: `_split_components` is a local dict, so pinning it
+    # would stay green through a revert of the product it is standing in for.
+    assert "buffer_cells" in built
+    assert "buffer_degrees" not in built
     assert built["buffer_cells"] == 1
     assert isinstance(built["buffer_cells"], int)
+    assert int(si.SCHEMA_VERSION) >= 5
 
 
 def test_raw_digest_tracks_everything_else():
