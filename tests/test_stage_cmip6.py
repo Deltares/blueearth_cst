@@ -21,6 +21,7 @@ Two layers, deliberately:
 
 from __future__ import annotations
 
+import io
 import os
 import sys
 from pathlib import Path
@@ -238,13 +239,19 @@ def test_stage_one_routes_the_fetch_through_the_workflow_tee(tmp_path, capsys):
     What the fetch says goes through `tee_to_log` -- the same context manager
     the Snakemake rule uses -- so the mute table, the compaction and the log
     part are the pipeline's rather than a second implementation living in
-    `dev/`. Pinned by driving one muted row and one kept row through a stubbed
-    fetch: the muted one must reach the log and not the console.
+    Pinned by driving three rows through a stubbed fetch: one the shared mute
+    table drops, one INFO that only this tool's console filter drops, and one
+    WARNING that must survive both. All three must reach the log part.
     """
 
     def _fake_fetch(**kwargs):
         log_row("gcsfs extended-filesystem switch = 'false'", module="fetch")
         log_row("fetching cmip6_X/Y_historical_r1i1p1f1", module="fetch")
+        log_row(
+            "irregular grid, applying the bbox directly: cmip6_X/Y",
+            module="fetch",
+            level="WARNING",
+        )
 
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(sc, "fetch_raw_slice", _fake_fetch)
@@ -269,11 +276,22 @@ def test_stage_one_routes_the_fetch_through_the_workflow_tee(tmp_path, capsys):
     finally:
         monkeypatch.undo()
     assert error is None, error
-    out = capsys.readouterr().out
-    part = Path(sc.slice_log_path(cfg["target_root"], job["key"]))
+    captured = capsys.readouterr()
+    out = captured.out + captured.err
+    logged = Path(sc.slice_log_path(cfg["target_root"], job["key"])).read_text(
+        encoding="utf-8"
+    )
+    # dropped by the SHARED mute table, in WF2 and here alike
     assert "extended-filesystem switch" not in out
-    assert "extended-filesystem switch" in part.read_text(encoding="utf-8")
-    assert "fetching cmip6_X/Y_historical" in out
+    # dropped by THIS tool's filter only. WF2's console KEEPS this row, because
+    # there the fetch rows are the console; here the parent prints one numbered
+    # line per slice and a worker cannot number itself.
+    assert "fetching cmip6_X/Y_historical" not in out
+    # ...and a WARNING survives both, which is why the filter is not a devnull
+    assert "irregular grid" in out
+    # the log part is the durable copy of all three
+    for row in ("extended-filesystem switch", "fetching cmip6_X/Y", "irregular grid"):
+        assert row in logged, row
 
 
 def test_slice_log_path_puts_the_logs_anchor_where_the_tee_looks_for_it():
@@ -509,3 +527,98 @@ def test_one_worker_stays_in_process(tmp_path, capsys, monkeypatch):
         "Stage",
         "Total",
     ]
+
+
+# --- the one-line entry row ---------------------------------------------------
+
+
+def test_an_outcome_is_one_line_with_its_detail_trailing_dim(capsys):
+    """161 slices used to print 322 rows, half of them saying only a size."""
+    sc._entry("+", lambda t: t, "cmip6_X_Y_ssp585_r1i1p1f1", "72.3 KB  47.6s", "[8/9]")
+    out = capsys.readouterr().out
+    assert out.count("\n") == 1, out
+    assert "cmip6_X_Y_ssp585_r1i1p1f1" in out and "72.3 KB" in out and "[8/9]" in out
+
+
+def test_a_failure_keeps_its_reason_on_a_line_of_its_own(capsys):
+    """The multi-version message runs to ~380 characters.
+
+    Inlining it would push the name off the first screen-width and defeat the
+    collapse for every row around it.
+    """
+    sc._entry(
+        "x",
+        lambda t: t,
+        "cmip6_CAS_CAS-ESM2-0_historical_r1i1p1f1",
+        "1m02s",
+        "[6/6]",
+        reason="RuntimeError: " + "the store index records " * 12,
+    )
+    lines = [ln for ln in capsys.readouterr().out.split("\n") if ln.strip()]
+    assert len(lines) == 2
+    assert "1m02s" in lines[0] and "cmip6_CAS" in lines[0]
+    assert lines[1].startswith("      ")
+
+
+# --- the worker's console filter ----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        "16:24:31 - fetch - fetching cmip6_NCC/NorESM2-MM_ssp245_r1i1p1f1\n",
+        "16:24:33 - fetch - pinned gn/v20191108, no bucket listing\n",
+        "16:24:33 - fetch - store calendar=noleap (tas)\n",
+        "16:24:33 - data_source - Reading cmip6_X from <cmip6>/a/b\n",
+    ],
+)
+def test_the_workers_info_rows_do_not_reach_the_console(row):
+    """They say the same slice is being worked on, from a process that cannot
+    number it -- and the parent prints one numbered line per slice already."""
+    sink = io.StringIO()
+    sc._NonInfoConsole(sink).write(row)
+    assert sink.getvalue() == ""
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        "16:25:09 - fetch - WARNING - irregular grid, applying the bbox directly: x\n",
+        "16:26:41 - fetch - ERROR - something went wrong\n",
+    ],
+)
+def test_a_warning_or_an_error_still_reaches_the_console(row):
+    """These are findings about the SOURCE. A run that reveals them only in a
+    closing recap has hidden them for the twenty minutes when the operator
+    could still have stopped it."""
+    sink = io.StringIO()
+    sc._NonInfoConsole(sink).write(row)
+    assert sink.getvalue() == row
+
+
+def test_a_painted_info_row_is_still_recognised():
+    """`_Tee` colours body text on its way to a live console, so this sink sees
+    escape codes around the very fields it has to read."""
+    sink = io.StringIO()
+    sc._NonInfoConsole(sink).write(
+        "\x1b[38;5;245m16:24:31 - fetch - fetching x\x1b[0m\n"
+    )
+    assert sink.getvalue() == ""
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "   ... cmip6_X_ssp585_r1i1p1f1: still running, 4m00s elapsed\n",
+        "Traceback (most recent call last):\n",
+        "some library printing whatever it likes\n",
+        "\n",
+    ],
+)
+def test_anything_not_positively_an_info_row_is_printed(text):
+    """Same direction of failure as `snake_utils._muted_on_console`: a filter
+    over someone else's output lets an unfamiliar line through rather than
+    eating it. The heartbeat's stall notice is the one that matters."""
+    sink = io.StringIO()
+    sc._NonInfoConsole(sink).write(text)
+    assert sink.getvalue() == text

@@ -114,6 +114,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -346,6 +347,65 @@ def plan(cfg):
 DEFAULT_WORKERS = 4
 
 
+#: Strips ANSI so a row can be classified after `_Tee` has painted it. The tee
+#: colours body text on its way to a live console, so the sink below sees
+#: `\x1b[...m` around the very fields it has to read.
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+#: An INFO row in the toolbox log grammar: `HH:MM:SS - <module> - <message>`,
+#: exactly three fields. A row at any other level carries the level as a fourth
+#: (`snake_utils._log_row_text` renders INFO by OMITTING it), so this cannot
+#: match a WARNING or an ERROR however the message is worded.
+_INFO_ROW_RE = re.compile(r"^\d{2}:\d{2}:\d{2} - [^\s-]+ - (?!(?:[A-Z]+) - ).*$")
+
+
+class _NonInfoConsole:
+    """A live console sink that drops INFO rows and passes everything else.
+
+    `stage_cmip6.py` prints one line per slice from the PARENT, in completion
+    order, with the counter and size the workers cannot know. The workers'
+    own INFO rows -- `fetching <entry>`, `pinned gn/v1, no bucket listing`,
+    `store calendar=noleap` -- say the same slice is being worked on a second
+    and third time, from a process that cannot number it. On a 161-slice run
+    that is several hundred rows around the 161 anyone reads.
+
+    They are not silenced, they are RELOCATED: this is the tee's live sink
+    only, so every row still reaches the slice's own log part in full.
+
+    WARNING and ERROR pass. That is the whole reason this filters rather than
+    writing to `os.devnull`: `irregular grid, applying the bbox directly` and
+    `more than one published version` are findings about the source, and a run
+    that only reveals them in a closing recap has hidden them for the twenty
+    minutes when the operator could still have stopped it.
+
+    **Anything it cannot positively identify as an INFO row is PRINTED** -- a
+    traceback, a library's bare `print`, the heartbeat's `... still running`
+    notice. Same direction of failure as `snake_utils._muted_on_console`: a
+    filter over someone else's output should let an unfamiliar line through
+    rather than eat it.
+    """
+
+    def __init__(self, stream):
+        self._stream = stream
+
+    def write(self, text):
+        if not _INFO_ROW_RE.match(_ANSI_RE.sub("", text).rstrip("\n")):
+            self._stream.write(text)
+        return len(text)
+
+    def flush(self):
+        self._stream.flush()
+
+    def isatty(self):
+        # `_Tee` asks, to decide whether a carriage return overwrites. Answer
+        # for the REAL console: this wrapper does not change what a terminal
+        # does with the bytes it forwards.
+        try:
+            return self._stream.isatty()
+        except Exception:
+            return False
+
+
 def slice_log_path(target_root, key):
     """Where one slice's fetch log lands: ``<target_root>/logs/<key>.log``.
 
@@ -393,23 +453,33 @@ def stage_one(cfg, job):
         name: (spec or {}).get("units", "") for name, spec in cfg["variables"].items()
     }
     try:
-        with tee_to_log(slice_log_path(cfg["target_root"], job["key"])):
-            fetch_raw_slice(
-                region_path=cfg["region"],
-                raw_nc_out=job["out"],
-                catalog_path=cfg["catalog"],
-                catalog_entry=catalog_entry_name(
-                    cfg["clim_project"], job["model"], job["experiment"]
-                ),
-                member=job["member"],
-                variables=list(cfg["variables"]),
-                variable_units=units,
-                buffer=cfg["buffer_cells"],
-                acquisition_window=tuple(_si.acquisition_window(job["experiment"])),
-                components=digest_components(
-                    cfg, job["model"], job["experiment"], job["member"]
-                ),
-            )
+        # Installed BEFORE the tee, so it becomes the `live` sink the tee wraps
+        # and every console-bound row is classified on its way out. Restored in
+        # the `finally` even though this is a worker process about to be reused
+        # by the pool for the next slice -- which is exactly why it matters.
+        real_stdout, real_stderr = sys.stdout, sys.stderr
+        sys.stdout = _NonInfoConsole(real_stdout)
+        sys.stderr = _NonInfoConsole(real_stderr)
+        try:
+            with tee_to_log(slice_log_path(cfg["target_root"], job["key"])):
+                fetch_raw_slice(
+                    region_path=cfg["region"],
+                    raw_nc_out=job["out"],
+                    catalog_path=cfg["catalog"],
+                    catalog_entry=catalog_entry_name(
+                        cfg["clim_project"], job["model"], job["experiment"]
+                    ),
+                    member=job["member"],
+                    variables=list(cfg["variables"]),
+                    variable_units=units,
+                    buffer=cfg["buffer_cells"],
+                    acquisition_window=tuple(_si.acquisition_window(job["experiment"])),
+                    components=digest_components(
+                        cfg, job["model"], job["experiment"], job["member"]
+                    ),
+                )
+        finally:
+            sys.stdout, sys.stderr = real_stdout, real_stderr
     except Exception as exc:  # noqa: BLE001 -- reported per slice, never fatal
         return job["key"], f"{type(exc).__name__}: {exc}", time.perf_counter() - started
     return job["key"], None, time.perf_counter() - started
@@ -468,12 +538,20 @@ def _format_bytes(size_bytes):
     return f"{value:.1f} TB"
 
 
-def _entry(state_glyph, color, name, detail="", prefix=""):
-    """One outcome row: the glyph at column 4, its detail at column 6.
+def _entry(state_glyph, color, name, detail="", prefix="", reason=""):
+    """One outcome row, on ONE line: glyph, counter, name, then the detail dim.
 
     The indent ladder is `stage_data.py`'s -- 0 section, 2 subject, 4 entry,
-    6 detail -- so an entry list reads identically in both tools. `prefix` is
-    printed already coloured, and carries the completion counter.
+    6 detail. `detail` used to take the column-6 line of its own, which made a
+    161-slice run 322 rows of which half said only a size; it now trails the
+    name on the same line, dim, so the eye runs down one column of names
+    instead of stepping over a detail row between each. `prefix` is printed
+    already coloured, and carries the completion counter.
+
+    `reason` is the one thing still given a line of its own, and only failures
+    pass it: the multi-version message runs to ~380 characters, so inlining it
+    would push the name off the first screen-width and defeat the collapse for
+    every row around it.
 
     The parameter is `state_glyph`, never `glyph`: that name is the imported
     `console.glyph()` fallback, and binding it here would shadow the function
@@ -481,9 +559,10 @@ def _entry(state_glyph, color, name, detail="", prefix=""):
     these lines and gets `UnboundLocalError` on whichever branch is rarest.
     """
     head = f"{prefix} " if prefix else ""
-    print(f"    {color(state_glyph)} {head}{name}")
-    if detail:
-        print(f"      {dim(detail)}")
+    tail = f"  {dim(detail)}" if detail else ""
+    print(f"    {color(state_glyph)} {head}{name}{tail}")
+    if reason:
+        print(f"      {dim(reason)}")
 
 
 def _row(label, value, note=""):
@@ -861,7 +940,7 @@ def main(argv=None):
                 # second column of nothing on a 200-slice ensemble.
                 _entry(WRITTEN_GLYPH, WRITTEN_COLOR, job["key"])
         for key, reason in skipped:
-            _entry(SKIPPED_GLYPH, SKIPPED_COLOR, key, reason)
+            _entry(SKIPPED_GLYPH, SKIPPED_COLOR, key, detail=reason)
         return 0
 
     if not jobs:
@@ -917,8 +996,9 @@ def main(argv=None):
                 FAILED_GLYPH,
                 FAILED_COLOR,
                 key,
-                f"{error}; elapsed: {_format_elapsed(elapsed)}",
+                _format_elapsed(elapsed),
                 prefix=prefix,
+                reason=error,
             )
             return
         path = out_by_key[key]
@@ -932,8 +1012,12 @@ def main(argv=None):
         # `stage_data.py`'s rule: a cached re-run should not print a column of
         # `elapsed: 0.1s`, so the duration is shown when the slice was actually
         # fetched or when it cost more than about a second.
+        #
+        # Two spaces rather than `; elapsed: ` now that the row is one line: the
+        # label was earning its keep on a detail line of its own, and beside a
+        # size on the same line a bare duration is unambiguous.
         if not existed[key] or elapsed > 1.0:
-            detail += f"; elapsed: {_format_elapsed(elapsed)}"
+            detail += f"  {_format_elapsed(elapsed)}"
         _entry(state_glyph, color, key, detail, prefix=prefix)
 
     if workers == 1:
