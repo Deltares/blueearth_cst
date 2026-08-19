@@ -2565,6 +2565,28 @@ _ASCII_GLYPH_FALLBACK = str.maketrans(
 )
 
 
+#: hydromt's object-store read echo, in EITHER spelling of the URI.
+#:
+#: The alternation is not belt and braces. ``_Tee.write`` relativizes before it
+#: tests the mute, so by the time the predicate sees the row a
+#: ``gs://cmip6/CMIP6/...`` URI already reads ``<cmip6>/...`` and a scheme-only
+#: pattern (``\w+://``) no longer matches the one store WF2 actually reads. That
+#: is what happened here: the mute landed in the wf1-wf3 console lean, the
+#: ``<cmip6>`` abbreviation landed after it, and the row has been printing ever
+#: since -- invisibly, because the test asserted the raw URI was absent from the
+#: console, which the abbreviation alone makes true.
+#:
+#: The tokens are DERIVED from :data:`_REMOTE_PREFIXES` rather than spelled
+#: again, so a second store added there cannot reintroduce the same gap. Only
+#: those tokens: ``<data>``, ``<repo>`` and the rest are local paths, and
+#: ``Reading merit_hydro_index from <data>/...`` is a row WF1 keeps.
+_REMOTE_READ_ECHO_RE = re.compile(
+    r"^Reading \S+ from (?:\w+://|"
+    + "|".join(re.escape(token) for _, token in _REMOTE_PREFIXES)
+    + ")"
+)
+
+
 #: Body lines muted on the CONSOLE only -- matched on the message, after
 #: :func:`_compact_log_line` has normalized the row.
 #:
@@ -2621,7 +2643,7 @@ _TEE_CONSOLE_MUTED = (
     # 162-175 characters four times per run, the longest rows the workflow
     # produces. A pattern rather than a prefix because the entry name sits
     # between the two fixed parts.
-    ("data_source", re.compile(r"^Reading \S+ from \w+://")),
+    ("data_source", _REMOTE_READ_ECHO_RE),
     # WF2's own fetch rows that state a property of the RUN, or a fact the
     # artifact already carries. Same terms as everything above: INFO only, and
     # the row survives in every log part. The row naming WHICH slice a worker is

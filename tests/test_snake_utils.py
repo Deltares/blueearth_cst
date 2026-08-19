@@ -1343,7 +1343,13 @@ def test_tee_mutes_hydromts_object_store_read_echo(tmp_path, capsys, uri, logged
     )
     with tee_to_log(log, heartbeat_interval=0):
         sys.stdout.write(row)
-    assert uri not in capsys.readouterr().out
+    out = capsys.readouterr().out
+    # Asserted on the ENTRY NAME, not on the URI. `uri not in out` passes for a
+    # `gs://` row that merely got abbreviated to `<cmip6>/`, so it could not tell
+    # a muted row from a printed one -- and for two months it did not: the
+    # `<cmip6>` rewrite runs BEFORE the mute is tested, and defeated the
+    # scheme-only pattern the mute was written as.
+    assert "INM-CM4-8_historical" not in out
     assert logged in log.read_text(encoding="utf-8")
 
 
