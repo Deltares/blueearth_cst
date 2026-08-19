@@ -455,17 +455,21 @@ survive; the task branch lands and is deleted like any other.
 |---|---|---|
 | `session-1` | `.worktrees/blueearth_cst/session-1` | detached at `main` when idle |
 | `session-2` | `.worktrees/blueearth_cst/session-2` | detached at `main` when idle |
+| `session-3` | `.worktrees/blueearth_cst/session-3` | detached at `main` when idle |
 
-Two slots, because several sessions routinely work this repo at once — the same
-reason `worktree_policy: always` is set, and relaxing that has collided three
-times (`git log -- .git-workflow.yml`). The pool is **capacity, not taxonomy**:
-neither slot means anything, and a task takes whichever is idle. Do not name a
-slot after a workflow or a kind of work.
+Three slots since 2026-08-19, up from two, because several sessions routinely
+work this repo at once — the same reason `worktree_policy: always` is set, and
+relaxing that has collided three times (`git log -- .git-workflow.yml`). The
+count is a **dial, not a design**: raise it when tasks queue behind occupied
+slots, at a one-time cost of one `worktree_seed` copy plus one `.pixi` build per
+slot added. The pool is **capacity, not taxonomy**: no slot means anything, and
+a task takes whichever is idle. Do not name a slot after a workflow or a kind of
+work.
 
 **Why slots and not a worktree per task.** `worktree_policy: always` means every
 modifying task builds a worktree, so every task would otherwise pay a full
 `worktree_seed` copy *and* a `.pixi` solve — and this repo's `.pixi` is the
-expensive half. Two slots amortize both into a one-time cost per slot that every
+expensive half. The slots amortize both into a one-time cost per slot that every
 later task reuses. That payoff is independent of concurrency: it arrives on
 purely sequential work too.
 
@@ -484,10 +488,11 @@ The trade is deliberate: lanes made merge order irrelevant **by construction**,
 because two territories cannot collide. A slot has no territory, so that
 guarantee is gone and the declaration below replaces it.
 
-**Declare the expected write set before editing — both slots occupied.** A
+**Declare the expected write set before editing — another slot occupied.** A
 worktree isolates the index and `HEAD`; it does not make two edits to the same
-contract independent. Before claiming the *second* slot, compare what the two
-tasks intend to write:
+contract independent. Before claiming a slot while any other one is occupied,
+compare what your task intends to write against every occupied slot's
+declaration:
 
 - implementation paths and workflow entry points (`*.smk`, `blueearth_cst/**`);
 - shared seams — `blueearth_cst/shared/`, above all `snake_utils.py` (parses
@@ -511,8 +516,8 @@ slots invent competing versions of the same seam.
 
 Because spanning tasks are the ordinary case here (37 of 162 commits), the
 common shape is one task in one slot touching both code and `dev/**` — that is
-fine and needs no declaration. The declaration is for the moment a *second* slot
-is claimed while the first is still occupied.
+fine and needs no declaration. The declaration is for the moment a slot is
+claimed while another one is still occupied.
 
 **Occupancy is read from Git, not from a convention.** `git worktree list` is
 the roster: a slot showing a branch is occupied, and `slot-start` refuses an
@@ -564,18 +569,30 @@ in `dev/tasks/t2608121258-*` is that second case, and it must never be
 overwritten. `slot-park` refuses to park until the branch is an ancestor of
 `main`, so an unlanded slot cannot be quietly recycled.
 
+**Adding a slot.** `slot-create --slot <name> --base main` adds the worktree
+detached, applies `worktree_seed` and `worktree_link`, then runs
+`worktree_provision` — `pixi install` plus `pixi run install`, several minutes
+and a whole `.pixi` prefix on disk. That cost is why the pool is small and
+standing rather than per-task, and `--no-provision` defers it (the slot then
+cannot run WF3 or the fixture layer until the env is built). `slot-start`
+creates a missing slot implicitly, so `slot-create` is only how you pay that
+cost *before* you need the slot instead of while waiting for it. **Add the new
+slot to the table above in the same commit** — the table is the roster of
+record, and a slot that exists on disk but not there is invisible to every
+session that reads this file.
+
 **Routing a task.**
 
 | Situation | Action |
 |---|---|
-| Any modifying task, a slot idle | Claim whichever slot is idle. Neither is reserved for anything. |
-| The other slot is occupied | Compare the two expected write sets first (above). Disjoint → run both. Overlapping → serialize in one slot. |
-| Both slots occupied | Report it. Wait, postpone, or take a transient worktree from `main` for urgent work. |
+| Any modifying task, a slot idle | Claim whichever slot is idle. None of them is reserved for anything. |
+| Another slot is occupied | Compare the expected write sets first (above). Disjoint → run both. Overlapping → serialize in one slot. |
+| All slots occupied | Report it. Wait, postpone, or take a transient worktree from `main` for urgent work. |
 | Tiny, complete, verified | `main` directly, per the ordinary landing choice. |
 
-`todoboard render` regenerates `dev/TODO.md` from the notes, so **two slots must
-not run it concurrently** — they would race on a generated file neither edits by
-hand. Land one slot's board change before rendering in the other.
+`todoboard render` regenerates `dev/TODO.md` from the notes, so **no two slots
+may run it concurrently** — they would race on a generated file neither edits by
+hand. Land one slot's board change before rendering in another.
 
 **Why the pipeline was never split further.** Kept from the lane analysis
 because it still governs how work is scoped: only 8 of 68 package-touching
