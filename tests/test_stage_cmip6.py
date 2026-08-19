@@ -323,9 +323,16 @@ def test_the_worker_pool_round_trips_and_reports_every_failure(tmp_path, capsys)
     code = sc.main(["--config", str(cfg_path), "--workers", "2"])
     out = capsys.readouterr().out
     assert code == 1, "a run where every slice failed must exit nonzero"
-    assert "attempted   2" in out, "both slices must survive the pre-filter"
-    assert "staged      0 of 2" in out
-    assert "could not be downloaded  (2)" in out
+    assert "attempted     2" in out, "both slices must survive the pre-filter"
+    assert "staged        0 of 2" in out
+    assert "could not be downloaded (2):" in out
+    # The restyled frame, pinned: a failing slice reports on STDOUT like every
+    # other entry (it went to stderr until the console surface was aligned with
+    # `stage_data.py`, which interleaved unpredictably out of a worker pool),
+    # and the run states its verdict once.
+    assert "x [1/2] " in out or "x [2/2] " in out, "entries carry the counter"
+    assert "FAILED — 2 slice(s) did not stage" in out
+    assert "written: 0" in out and "failed: 2" in out
 
 
 def test_resolve_workers_caps_at_the_slice_count_and_floors_at_one():
@@ -394,4 +401,20 @@ def test_one_worker_stays_in_process(tmp_path, capsys, monkeypatch):
     cfg_path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
 
     assert sc.main(["--config", str(cfg_path), "--workers", "1"]) == 0
-    assert "workers     1" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "workers      1" in out
+    # The four regions `stage_data.py` also prints, in order. Asserted here
+    # rather than in a test of its own because this is the one case that runs
+    # a whole `main` on every checkout, fixture or not.
+    #
+    # Matched on the WHOLE LINE: a region heading is bold Title Case with no
+    # decoration, and under capture `bold()` is the identity, so the heading is
+    # its bare label. A substring test would hit "Stage" in the description's
+    # own first word.
+    regions = ("Description", "Parameters", "Stage", "Dry Run", "Total")
+    assert [line for line in out.splitlines() if line in regions] == [
+        "Description",
+        "Parameters",
+        "Stage",
+        "Total",
+    ]

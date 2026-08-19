@@ -87,7 +87,20 @@ except ImportError:
 
 # Make `console.py` importable when running from the repo root.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from console import banner, bold, cyan, dim, fmt_path, green, pad, red, yellow
+from console import (
+    banner,
+    bold,
+    cyan,
+    dim,
+    fmt_path,
+    glyph,
+    green,
+    pad,
+    red,
+    rule,
+    section_banner,
+    yellow,
+)
 
 CONFIG_DEFAULT = Path(__file__).resolve().parent / "stage_data.yml"
 
@@ -127,15 +140,17 @@ class RunReport:
         size_bytes: int = 0,
     ) -> None:
         """Print a glyph-prefixed entry line and record it for the TOTAL recap."""
-        glyph_color = {
+        # `state_glyph`, never `glyph`: the latter is the imported
+        # `console.glyph()` fallback, and binding it here would shadow the
+        # function for this whole method.
+        state_glyph, color = {
             WRITTEN: ("+", green),
             EXISTS: ("=", dim),
             SKIPPED: ("-", yellow),
             FAILED: ("x", red),
         }[status]
-        glyph, color = glyph_color
         detail = _entry_detail(detail, size_bytes, status)
-        print(f"    {color(glyph)} {name}")
+        print(f"    {color(state_glyph)} {name}")
         if detail:
             print(f"      {dim(detail)}")
         self.results.append((status, name, detail, size_bytes))
@@ -1663,7 +1678,7 @@ def _stage_dataset(
         return
 
     src, dst = source_root / rel, target_root / rel
-    print(f"  {cyan('▸')} {bold(name)}")
+    print(f"  {cyan(glyph('▸'))} {bold(name)}")
 
     if kind == "raster_glob":
         _stage_raster_glob(entry, name, src, dst, bbox, report)
@@ -1716,7 +1731,7 @@ def stage(cfg: dict, report: RunReport | None = None) -> RunReport:
     if len(bbox) != 4:
         raise ValueError(f"bbox must have 4 values [W S E N], got {bbox}")
 
-    print(banner("STAGE"))
+    print(banner("Stage"))
     print(f"  {len(datasets)} dataset(s)")
     print()
     for entry in datasets:
@@ -1737,7 +1752,7 @@ def load_config(path: Path) -> dict:
 
 
 def _print_description() -> None:
-    print(banner("DESCRIPTION"))
+    print(banner("Description"))
     print(
         "Stage a bbox-clipped subset of a remote data root onto local storage, "
         "mirroring the source tree so an existing data catalog can point to "
@@ -1748,7 +1763,7 @@ def _print_description() -> None:
 
 
 def _print_parameters(cfg: dict, config_path: Path) -> None:
-    print(banner("PARAMETERS"))
+    print(banner("Parameters"))
 
     print(bold("inputs:"))
     rows = [
@@ -1782,20 +1797,21 @@ def _print_parameters(cfg: dict, config_path: Path) -> None:
 def _print_total(report: RunReport) -> None:
     counts = report.counts()
 
-    print(banner("TOTAL"))
+    print(rule())
+    print(section_banner("total"))
     pill = (
         f"{green(f'written: {counts[WRITTEN]}')}"
-        f" {dim('·')} "
+        f" {dim(glyph('·'))} "
         f"{dim(f'existing: {counts[EXISTS]}')}"
-        f" {dim('·')} "
+        f" {dim(glyph('·'))} "
         f"{yellow(f'skipped: {counts[SKIPPED]}')}"
-        f" {dim('·')} "
+        f" {dim(glyph('·'))} "
         f"{red(f'failed: {counts[FAILED]}')}"
     )
     print(pill)
     print(
         f"{dim('elapsed:')} {_format_elapsed(report.elapsed())}"
-        f" {dim('·')} "
+        f" {dim(glyph('·'))} "
         f"{dim('size:')} {_format_bytes(report.total_output_bytes())}"
     )
 
