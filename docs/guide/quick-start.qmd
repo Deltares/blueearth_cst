@@ -9,6 +9,21 @@ your own. Budget roughly an hour of machine time.
 
 If the toolbox is not installed yet, do that first: [Setup guide](../install.md).
 
+::: {.callout-important}
+## Both install steps, not just the first
+
+```bash
+pixi install       # Python stack, R toolchain, Snakemake, Graphviz
+pixi run install   # + the weathergenr weather generator (R) and the Julia environment
+```
+
+`pixi install` alone is **not** enough to run the stress test: the weather
+generator is installed from GitHub by the second command, and a run without it
+fails an hour in with `there is no package called 'weathergenr'`. Julia itself
+is deliberately outside the pixi environment — it is managed by juliaup and must
+already be on your `PATH`.
+:::
+
 ## The shape of a run
 
 Four Snakemake workflows, run in order, sharing one configuration file:
@@ -97,9 +112,8 @@ form the response surface.
 
 - **"Directory cannot be locked"** — a previous run crashed. Clear it:
   `snakemake --unlock -s <workflow>.smk --configfile <config>`.
-- **`there is no package called 'weathergenr'`** — `pixi install` alone is not
-  enough; the R weather generator and the Julia environment come from
-  `pixi run install`.
+- **`there is no package called 'weathergenr'`** — the second install step was
+  skipped; run `pixi run install`.
 - **Julia not found** — Julia is deliberately not in the pixi environment. It is
   managed by juliaup and must be on your `PATH`; see the
   [Setup guide](../install.md).
