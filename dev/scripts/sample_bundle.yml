@@ -55,7 +55,7 @@ bundle:
 # POLYGON (series_identity.raw_digest), so a second basin means a second set of
 # slices and no shared bytes.
 basin:
-  label: sample-basin-gabon
+  label: test-basin
   # Copied verbatim into the sample project config as `shared.basin.region`.
   region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
   resolution: 0.00833
@@ -79,8 +79,8 @@ windows:
   # CHECK: span >= `constraints.min_historical_years` in
   # config/advanced_settings.yml (16 today). Below it, weathergenr is refused.
   historical:
-    start: "2000-01-01"
-    end: "2016-12-31"
+    start: "1970-01-01"
+    end: "2020-12-31"
   # Extra years staged either side of `historical`, so a user can widen the
   # window a little without re-downloading the bundle. Each year of era5 +
   # CHIRPS is roughly 2 MB staged at this bbox; 1 is cheap insurance.
@@ -88,8 +88,8 @@ windows:
   # The wflow RUN period. Must sit inside `historical`. Not the same thing:
   # wf1's wflow time scales with this, the climate store with `historical`.
   simulation:
-    start: "2010-01-01"
-    end: "2016-12-31"
+    start: "1990-01-01"
+    end: "2000-12-31"
 
 # --- SPATIAL SOURCES --------------------------------------------------------
 # Catalog entry names, resolved against config/catalogs/deltares_data.yml. The
@@ -143,9 +143,21 @@ climate:
   # Native variable names kept per source, filtered BEFORE the catalog's
   # rename. Leave null to keep every variable the source carries — larger, but
   # it survives a config that later asks for PET inputs.
+  #
+  # The era5 list is the COMPLETE store contract, not a preference.
+  # `interchange_contracts.py:190` declares the climate store as
+  # precip/temp/temp_min/temp_max/kin/kout/press_msl, and
+  # `extract_historical_climate.py:436` reads exactly that set. PET uses the
+  # `debruin` method (`climate_parity.py:103`), which needs press_msl, kin AND
+  # kout. Native -> store names, through the catalog's rename:
+  #   tp  -> precip      t2m  -> temp   tmin -> temp_min   tmax -> temp_max
+  #   msl -> press_msl   ssrd -> kin    tisr -> kout
+  # Dropping any one of them fails the forcing build, not a figure. The source
+  # also carries d2m/tcwv/u10/v10, which the catalog does not rename and
+  # nothing reads -- 43% of the store's bytes, which this list excludes.
   variables:
-    era5: [tp, t2m, tmin, tmax]
-    chirps: null
+    era5: [tp, t2m, tmin, tmax, msl, ssrd, tisr]
+    chirps: [precipitation]
 
 # --- CMIP6 PROJECTIONS (wf2) ------------------------------------------------
 # Staged as raw slices that drop straight into a project's
@@ -154,17 +166,67 @@ climate:
 # matching slice makes rule 2.04 a no-op. Tiny — ~70 KB per slice.
 projections:
   clim_project: cmip6
-  # Two models, not one: a single-model config never runs the multi-model
-  # ensemble reduction, so the sample would leave that code path unexercised.
-  # A (model, scenario, member) the catalog does not carry is reported and
-  # skipped rather than ending the build — read the plan output, do not assume.
+  # Fifteen models, one per institution. Selected for tropical West/Central
+  # Africa -- the basin is Gabon (9.67E, 0.45N), equatorial Gulf of Guinea, NOT
+  # the Sahel, and the two domains do not share a model ranking.
+  #
+  # There is no canonical "best over Africa" list: rankings move with the
+  # metric, the domain box and the reference dataset. For a PLAUSIBILITY
+  # OVERLAY that matters less than the two structural criteria applied here --
+  # span the response range (low to high sensitivity), and keep the lineages
+  # independent. Three EC-Earth3 variants would be one model counted three
+  # times, which is why each institution appears exactly once.
+  #
+  # Every entry is verified present in the generated catalog with historical +
+  # ssp245/ssp370/ssp585 at r1i1p1f1. A (model, scenario, member) the catalog
+  # does not carry is reported and skipped rather than ending the build -- read
+  # the plan output, do not assume.
+  #
+  # NOT REACHABLE, worth knowing before going looking:
+  #   CNRM-CM6-1, CNRM-ESM2-1, UKESM1-0-LL publish r1i1p1f2 (HadGEM3-GC31-LL is
+  #     f3). The store has them; the single `members:` list below is what
+  #     excludes them. Adding r1i1p1f2 is NOT a safe fix -- CAMS-CSM1-0,
+  #     EC-Earth3 and NorESM2-LM are complete at BOTH f1 and f2, so they would
+  #     stage twice and be double-weighted in the ensemble. Reaching the f2
+  #     models needs a PER-MODEL member override this template does not have.
+  #   MPI-ESM1-2-HR is split across two institution keys -- MPI-M/ carries
+  #     historical only, DKRZ/ carries only the ssps. WF2 pairs a scenario with
+  #     the same key's historical, so neither half resolves. Hence the LR.
+  #   CESM2-WACCM-FV2 is historical-only in the crawl, so it yields no change
+  #     factors.
   models:
+    # --- lower sensitivity ---
     - NOAA-GFDL/GFDL-ESM4
-    - INM/INM-CM4-8
-  scenarios: [ssp245]
+    - INM/INM-CM5-0                  # the low-ECS anchor
+    - MIROC/MIROC6
+    - NCC/NorESM2-MM
+    # --- middle ---
+    - MPI-M/MPI-ESM1-2-LR
+    - MRI/MRI-ESM2-0                 # among the better tropical precipitation
+    - CSIRO/ACCESS-ESM1-5
+    - BCC/BCC-CSM2-MR                # independent lineage, frequently included
+                                     # in African CMIP6 evaluations
+    # --- higher ---
+    - CSIRO-ARCCSS/ACCESS-CM2
+    - EC-Earth-Consortium/EC-Earth3  # finest grid in the set
+    - IPSL/IPSL-CM6A-LR
+    - CMCC/CMCC-ESM2
+    - NCAR/CESM2
+    - NIMS-KMA/KACE-1-0-G            # HadGEM3-derived physics but published at
+                                     # f1 -- the practical way to get that
+                                     # family past the member problem above.
+                                     # NOT lineage-independent from HadGEM3.
+    - CCCma/CanESM5                  # the high-ECS outlier, deliberately kept:
+                                     # an overlay wants its envelope widened,
+                                     # and screening for SKILL is what usually
+                                     # removes this one.
+  scenarios: [ssp245, ssp370, ssp585]
   # Applied to every model. Many models do not publish r1i1p1f1 — 70 of the
   # catalog's 289 entries do not.
-  members: [r1i1p1f1]
+  members: [r1i1p1f1, r1i1p1f2] 
+  
+  # include a switch/single vs multiple members.
+  
   # POST-rename names, as the catalog spells them after its adapter runs — NOT
   # the raw CMIP6 `pr`/`tas`. The digest carries the post-rename names, so the
   # raw spellings here would produce slices the pipeline never matches.
@@ -176,11 +238,24 @@ projections:
   # CHECK: end <= 2014, where the CMIP6 historical experiment stops. A later
   # end is clipped to it, and clipping a range equal to `windows.historical` is
   # what raises the "no longer aligns" warning.
-  historical_year_range: [2000, 2014]
-  # CHECK: must match wf3's forcing window, `run.horizon` +/- `run.run_length`/2.
-  # wf2 and wf3 compute it independently, so nothing reconciles them but this.
+  historical_year_range: [1980, 2010]
+  # CHECK: must be CENTRED on wf3's forcing window (`run.horizon`), NOT equal to
+  # it. The two are independent by design and nothing in the code couples them --
+  # analyze_projections.smk never reads `run_length` or `horizontime_climate`, so
+  # this is an interpretive alignment, not an enforced one.
+  #
+  # They SHOULD differ in length, and the climate one should be longer. A decadal
+  # mean of precipitation change is dominated by internal variability rather than
+  # the forced signal; ~30 years is the WMO climatological normal for that reason.
+  # `run.run_length` is a COMPUTE knob instead -- wflow time is
+  # RLZ_NUM x ST_NUM x run_length -- so a 30-year stress test is expensive in a
+  # way a 30-year change-factor window is not (wf2 reads monthly GCM output and
+  # reduces it to a basin average).
+  #
+  # Here: 2040-2070 centred on 2055, against a stress test at 2055 +/- 5. Same
+  # centre, 31 years of climate averaging behind an 11-year simulation.
   future_horizons:
-    mid: [2046, 2054]
+    mid: [2040, 2070]
   # A COUNT OF GRID CELLS, not degrees — hydromt spends `buffer` as resolution
   # multiplicity, so one unit is 0.70 deg on EC-Earth3 and 2.77 deg on CanESM5.
   # It is a DIGEST COMPONENT: change it and every shipped slice stops matching.
@@ -219,10 +294,10 @@ run:
   # The horizon, not `run_length`, sets how many years weathergenr generates:
   # compute_nr_years anchors at 2010, so the series spans
   # 2010 -> horizon + run_length/2.
-  horizon: 2050
+  horizon: 2055
   # EVEN. forcing_window snaps ceil backwards and round forwards, so 7 and 8
   # both yield the same 9-year window and an odd value only misreports itself.
-  run_length: 8
+  run_length: 10
   # `min`/`max` are expanded to twelve monthly values by the builder. Give a
   # 12-element list instead when the sample should show a seasonal pattern.
   stress_test:
