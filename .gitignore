@@ -171,6 +171,7 @@ tests/test_project
 .claude
 .agents
 .codex
+.github/agents
 
 # Baked toolbox commit, written by the Dockerfile from ARG TOOLBOX_COMMIT.
 # The image carries no .git, so this file is how a deployed run learns its own

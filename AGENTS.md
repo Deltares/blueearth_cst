@@ -24,6 +24,15 @@ an existing project: `docs/migration-workflow-names.md`. wf0 is numbered 0
 rather than renumbering the other three — `W` is a workflow id, not a position
 (`dev/reference/naming.md` §9), so `ls logs/` still sorts in execution order.
 
+## Git task boundary
+
+This repo uses filesystem-backed atomic task lanes. Before any write, invoke
+`git-workflow`: normal tasks start from the primary checkout through
+`task-start`, declare `task-scope` in the fresh child session, then edit, test,
+commit, call `task-ready`, and stop. `git-integrator` independently admits and
+lands READY work; `git-steward` owns routine custody and explicit recovery. A
+lane banner naming another task or `UNCLAIMED TASK LANE` is a stop signal.
+
 ## Background
 
 Method context that changes how code here should be edited (rationale:
@@ -454,19 +463,18 @@ pinned by `tests/test_run_workflows.py`.
 
 ## Workflow
 
-### Session slots — a reusable worktree, claimed one task at a time
+### Atomic task lanes — a reusable worktree, one fresh session per task
 
-This repo keeps **reusable session slots** instead of a worktree per task. A
-slot is a persistent worktree with **no permanent branch**: detached at `main`
-when idle, and checking out one ordinary short-lived task branch while occupied.
-The worktree, its `.pixi` environment, and the 46 MB `worktree_seed` fixture
-survive; the task branch lands and is deleted like any other.
+This repo keeps three persistent worktrees as allocator-managed task lanes. A
+lane is detached at `main` while `EMPTY`; `task-start` atomically claims one,
+checks out a short-lived branch, and launches a fresh agent process carrying
+the claim token. The `.pixi` environment and copied fixtures survive cleanup.
 
 | Slot | Worktree | State |
 |---|---|---|
-| `session-1` | `.worktrees/blueearth_cst/session-1` | detached at `main` when idle |
-| `session-2` | `.worktrees/blueearth_cst/session-2` | detached at `main` when idle |
-| `session-3` | `.worktrees/blueearth_cst/session-3` | detached at `main` when idle |
+| `session-1` | `.worktrees/blueearth_cst/session-1` | allocator managed; detached when `EMPTY` |
+| `session-2` | `.worktrees/blueearth_cst/session-2` | allocator managed; detached when `EMPTY` |
+| `session-3` | `.worktrees/blueearth_cst/session-3` | allocator managed; detached when `EMPTY` |
 
 Three slots since 2026-08-19, up from two, because several sessions routinely
 work this repo at once — the same reason `worktree_policy: always` is set, and
@@ -499,11 +507,9 @@ The trade is deliberate: lanes made merge order irrelevant **by construction**,
 because two territories cannot collide. A slot has no territory, so that
 guarantee is gone and the declaration below replaces it.
 
-**Declare the expected write set before editing — another slot occupied.** A
-worktree isolates the index and `HEAD`; it does not make two edits to the same
-contract independent. Before claiming a slot while any other one is occupied,
-compare what your task intends to write against every occupied slot's
-declaration:
+**Declare the expected write set before editing.** `task-start` begins in
+`CLAIMED`, which is read-only. Inspect first, then run `task-scope --path ...`
+for every path the task may write; this moves the lane to `OCCUPIED`. Include:
 
 - implementation paths and workflow entry points (`*.smk`, `blueearth_cst/**`);
 - shared seams — `blueearth_cst/shared/`, above all `snake_utils.py` (parses
@@ -515,95 +521,67 @@ declaration:
 - mutable state outside the checkout — `project_dir`, `.snakemake` locks, the
   shared Julia depot under `~/.julia`.
 
-State that set in the task brief or board note **before editing**. A `git diff`
-is useful once edits exist but cannot replace the declaration: an untouched file
-may still be the next file both tasks intend to change.
+The registry refuses overlapping path declarations. A `git diff` cannot replace
+scope: an untouched file may still be the next file two tasks intend to change.
 
-Disjoint sets run concurrently. **When the sets overlap, do not run them in
-parallel** — serialize them in one slot, or consolidate into one task. When one
-task must change a shared contract several tasks need, land that contract as the
-smallest valid base change first, then rebase the others onto it. Never let two
-slots invent competing versions of the same seam.
+Declare mutable state outside the checkout with `--resource`, including a
+shared `project_dir`, `.snakemake` lock, Julia depot, or board renderer. When
+paths or resources overlap, serialize the tasks. Land a shared contract as the
+smallest valid base change before allocating dependent work.
 
 Because spanning tasks are the ordinary case here (37 of 162 commits), the
 common shape is one task in one slot touching both code and `dev/**` — that is
 fine and needs no declaration. The declaration is for the moment a slot is
 claimed while another one is still occupied.
 
-**Occupancy is read from Git, not from a convention.** `git worktree list` is
-the roster: a slot showing a branch is occupied, and `slot-start` refuses an
-occupied or dirty slot, so a crashed session stays visibly occupied and is
-never silently reused.
+**Ownership is the non-expiring filesystem claim, not the branch or process
+age.** `lane-banner-hook --current` prints slot, task, branch, state, and scope
+before every prompt. If it names a different task, or reports `UNCLAIMED TASK
+LANE`, stop; do not switch branches or continue the new task in that session.
+Use `task-status` from the primary checkout for the full registry. Recovery is
+an explicit `git-steward` action; never delete registry files manually.
 
-**But `(detached HEAD)` does NOT prove a slot is idle**, and this file asserted
-that it did until 2026-08-19, when two sessions worked `session-1` at once
-because of it. A session that is live but has not yet branched or written —
-between tasks, exploring, or continuing in a slot someone already parked —
-leaves Git nothing to show. That is not a gap in `slot-start`'s guard: during
-that window the slot genuinely is neither occupied nor dirty, so there is
-nothing for any Git-derived check to see. The retired `.lane-claim` marker was
-removed on the reasoning that a task branch supplies the liveness signal, which
-holds only *after* a branch exists.
-
-Measured cost of the collision: the other session committed onto this session's
-task branch mid-run, and a `test-full` result had to be discarded because the
-tree moved under it. Nothing was lost — its commit rebased cleanly — but a gate
-you must decide whether to believe is the expensive part, exactly as the
-borrowed-primary-checkout warning above says.
-
-So treat the roster as necessary and not sufficient, and use the two checks it
-cannot supply:
-
-- **Read the slot name in the status line.** It renders the worktree root's leaf
-  (`session-1` / `session-2`) beside the branch, so two sessions showing the
-  same slot is visible on every turn without either session cooperating. This is
-  the only check that works when the other session has left no Git trace.
-- **`git diff --stat` before editing.** If a file you did not touch is modified,
-  another session is live here: preserve it and ask before resetting it. Do not
-  read a clean `git status` at claim time as proof the slot is yours — it proves
-  only that nobody had written *yet*.
-
-**Lifecycle.** Claim, work, land, park:
+**Lifecycle.** Allocate, scope, implement, freeze, then hand off:
 
 ```bash
-S=~/workspace/brain/artifacts/skills/git-workflow/scripts/worktree-session.py
-git worktree list                     # pick an IDLE slot: "(detached HEAD)"
-python $S slot-start --slot <slot> --task <task> --type <type> --base main -- codex
-# ... work, commit, then land the branch from the PRIMARY checkout ...
-python $S slot-park --slot <slot> --base main
+S=.agents/skills/git-workflow/scripts/worktree-session.py
+python $S task-start --task <task> --type <type> --base main -- codex
+# In the fresh child session, before the first edit:
+python $S task-scope --path <expected-path> [--resource <shared-resource>]
+# ... edit, run the testing-policy check, and commit ...
+python $S task-ready --validation "<checks and result>" [--risk <flag>]
+# Stop. git-integrator independently reviews, integrates, verifies, and cleans.
 ```
 
-`slot-start` also compares each `worktree_seed` against the primary at claim
+`task-start` compares each `worktree_seed` against the primary at allocation
 time: a copy the primary has moved past is refreshed, and a copy that *leads*
 the primary is left untouched and reported — the fixture-drift failure recorded
 in `t2608121258` (closed; see `dev/LOG.md`) is that second case, and it must never be
-overwritten. `slot-park` refuses to park until the branch is an ancestor of
-`main`, so an unlanded slot cannot be quietly recycled.
+overwritten. `integration-complete` proves the task branch is ancestral to
+`main` before parking the worktree and deleting the local branch.
 
 **Adding a slot.** `slot-create --slot <name> --base main` adds the worktree
 detached, applies `worktree_seed` and `worktree_link`, then runs
 `worktree_provision` — `pixi install` plus `pixi run install`, several minutes
 and a whole `.pixi` prefix on disk. That cost is why the pool is small and
 standing rather than per-task, and `--no-provision` defers it (the slot then
-cannot run WF3 or the fixture layer until the env is built). `slot-start`
+cannot run WF3 or the fixture layer until the env is built). `task-start`
 creates a missing slot implicitly, so `slot-create` is only how you pay that
 cost *before* you need the slot instead of while waiting for it. **Add the new
-slot to the table above in the same commit** — the table is the roster of
-record, and a slot that exists on disk but not there is invisible to every
-session that reads this file.
+slot to `session_slots` and the table above in the same commit. Adding capacity
+is an owner decision; normal tasks never select a slot directly.
 
 **Routing a task.**
 
 | Situation | Action |
 |---|---|
-| Any modifying task, a slot idle | Claim whichever slot is idle. None of them is reserved for anything. |
-| Another slot is occupied | Compare the expected write sets first (above). Disjoint → run both. Overlapping → serialize in one slot. |
-| All slots occupied | Report it. Wait, postpone, or take a transient worktree from `main` for urgent work. |
-| Tiny, complete, verified | `main` directly, per the ordinary landing choice. |
+| Any normal modifying task | Run `task-start` from the primary checkout; the allocator chooses the slot and launches a fresh session. |
+| Another lane is active | Declare full paths/resources; the registry permits disjoint work and refuses overlap. |
+| All slots occupied | Report it and wait or postpone; do not reuse a running session or create a parallel branch there. |
+| Primary checkout | Read-only inspection, board reservation, and `git-integrator` integration only. |
 
-`todoboard render` regenerates `dev/TODO.md` from the notes, so **no two slots
-may run it concurrently** — they would race on a generated file neither edits by
-hand. Land one slot's board change before rendering in another.
+`todoboard render` regenerates `dev/TODO.md`; declare
+`--resource todo-board-render` so no two lanes run it concurrently.
 
 **Why the pipeline was never split further.** Kept from the lane analysis
 because it still governs how work is scoped: only 8 of 68 package-touching
