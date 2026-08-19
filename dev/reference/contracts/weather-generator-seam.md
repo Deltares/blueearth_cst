@@ -18,7 +18,7 @@ current occupant, but **this contract is generator-agnostic**: it pins what wf3
 hands *in* to the generator and expects *out* of it, not weathergenr's internals.
 
 **Grounded in** the fixture tree `test_case/test_local` (era5 branch,
-`config/workflows/snake_config_model_test.yml`) inspected with xarray for
+`test_case/snake_config_baseline.yml`) inspected with xarray for
 dims/coords/vars/units/attrs, and the wf3 rules + scripts. **CST-scope
 disclaimer** (`AGENTS.md` Hard Constraints): a contract surface pins only what
 OUR pipeline's producer guarantees or OUR consumer relies on; upstream tool
@@ -436,7 +436,7 @@ enough and avoids re-running the batches that are already up to date:
 
 ```bash
 snakemake -c 3 -s run_stress_test.smk \
-  --configfile config/workflows/snake_config_model_test.yml --notemp \
+  --configfile test_case/snake_config_baseline.yml --notemp \
   test_case/test_local/experiments/experiment/climate/weathergenr/output/rlz_1_st_1.nc \
   test_case/test_local/experiments/experiment/hydrology/wflow/forcing/inmaps_rlz_1_st_1.nc \
   test_case/test_local/experiments/experiment/hydrology/wflow/output/outstates_rlz_1_st_1.nc
@@ -451,7 +451,7 @@ model exists — wf3 needs `models/hydrology/wflow/` artifacts):
 
 ```bash
 snakemake all -c 3 -s run_stress_test.smk \
-  --configfile config/workflows/snake_config_model_test.yml --notemp
+  --configfile test_case/snake_config_baseline.yml --notemp
 ```
 
 `--notemp` tells Snakemake **not** to delete `temp()`-flagged outputs after their

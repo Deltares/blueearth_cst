@@ -12,7 +12,7 @@ known metadata regression, downstream-consumer semantics) lives in
 Grounded in `analyze_projections.smk`,
 `blueearth_cst/projections/*.py`, `blueearth_cst/shared/merge_{logs,benchmarks}.py`,
 `blueearth_cst/model/copy_config_files.py`, and the seed config
-`config/workflows/snake_config_model_test.yml`.
+`test_case/snake_config_baseline.yml`.
 
 Path shorthand used below:
 
