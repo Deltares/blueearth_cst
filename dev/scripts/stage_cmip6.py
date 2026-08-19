@@ -1119,8 +1119,12 @@ def main(argv=None):
         nonlocal done
         done += 1
         seconds[key] = elapsed
+        # Padded OUTSIDE the bracket, not inside it. Right-aligning the count
+        # within `[...]` kept the names in one column but put the gap where a
+        # reader sees it -- `[  1/161]` reads as a typo where `[1/161]  ` reads
+        # as a column. Same total width either way, so the names still line up.
         width = len(str(len(jobs)))
-        prefix = dim(f"[{done:>{width}}/{len(jobs)}]")
+        prefix = dim(f"[{done}/{len(jobs)}]".ljust(2 * width + 3))
         if error:
             errors[key] = error
             # STDOUT, not stderr, and deliberately: a failing slice is one row
