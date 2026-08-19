@@ -6,8 +6,12 @@ implementable design** (G2, 2026-08-08).
 
 This record is the durable artifact; the per-round scratch (`design-v1.md` …
 `design-v4.md`, `status.md`, `ledger.md`, the reviews and briefs) lives in git
-history under `dev/working/design-runs/wf3-experiment-v2/` on branch
-`docs/wf3-redesign`, head `531bcc6`. That branch is **not to be merged** — see
+history under `dev/working/design-runs/wf3-experiment-v2/` at tag
+`archive/wf3-experiment-v2` (commit `531bcc6`, also the head of branch
+`docs/wf3-redesign`). Cite the TAG, not the branch: a branch is a mutable
+pointer and this one exists on no remote, so until the tag was cut on
+2026-08-19 a single branch deletion would have destroyed this record.
+Not to be merged — see
 "Why nothing was promoted" below.
 
 Deliberate difference from the WF2 record this one is modelled on: WF2's run
