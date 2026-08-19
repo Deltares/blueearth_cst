@@ -5,6 +5,16 @@ Closure ledger. One row per board item closed since the board was adopted
 the pre-board ledger — this file is deliberately not backfilled with IDs the
 board never issued.
 
+> **A row is at most three short sentences in plain language: what closed, why,
+> and where anything durable now lives.** A finding worth keeping —
+> a measurement, an owner ruling, a defect class, a tolerance — goes to its own
+> home first (a `reference/` doc, a test, an ADR, a board note) and the row
+> points there. The row is the index, not the storage; full rule and the
+> retrofit procedure in `README.md` § The cap on `LOG.md` rows.
+>
+> Rows written before 2026-08-19 predate the cap and are shortened one at a
+> time, only after grepping that the detail being dropped survives elsewhere.
+
 | Closed | ID | Item | Area |
 | ------ | -- | ---- | ---- |
 | 2026-08-19 | t2608132100 | Re-render the workflow notebooks when their banner sha falls behind — **superseded; the condition it watched cannot occur.** The watch-item's own premise was that the notebooks "commit their rendered outputs and carry a dated `rendered against <sha>` banner", stamped `ca4c9df`. Both halves stopped being true on 2026-08-14, when the 2026-08-13 rot-control ruling (option C) was reversed on measured cost — a notebook's base64 PNGs do not delta-compress, `Model building.ipynb` was 6.43 MB across 82 blob versions, and one rename sweep turned a few hundred KB of text into a 7.1 MB push. Outputs were stripped and the reader-sees-results goal moved to publishing a rendered copy as an Artifact (option D). A watch-item earns its place by naming a Trigger someone can RECOGNISE, and this one's trigger is a banner falling behind: with no banner it can never fire, and leaving it on the board costs each reader the three documents it took to establish that. Rot-control did not vanish with it — it lives in `docs/notebooks/README.md` § Re-rendering, whose check is unchanged | docs / notebooks |

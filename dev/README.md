@@ -16,7 +16,7 @@ it goes and when it may be deleted.
 | `tasks/` | **The board.** One note per open item — `todo-item` (work) or `watch-item` (true, tracked, no action intended). The source of truth |
 | ↳ `origin:` | Which milestone the item fell out of, using `roadmap.md`'s own IDs (`R10`, `P3-3`, `M02b`). Set it only from a **recorded** origin — the source item's ID, or the `followups.md` section it was migrated from. Leave it blank when the lineage would have to be inferred from prose, and say so in the note's `## Refs`: the Origin column is read when prioritising, so a guess there costs more than a gap |
 | `TODO.md` | **Generated** view of `tasks/` — `todoboard render` writes it and the banner says do-not-edit. Never hand-edit it; edit the note |
-| `LOG.md` | Closure ledger. One row per item the board has closed since 2026-08-07 |
+| `LOG.md` | Closure ledger. One row per item the board has closed since 2026-08-07, **capped at three short sentences** — see the cap below |
 | `working/` | Working & handoff notes for **live** work; drained at closure, but see the promotion rule below |
 
 **Stays true** — consulted while working, rewritten rarely and deliberately:
@@ -141,6 +141,46 @@ than merging items away.
 Nothing outside `reviews/` is prunable. `decisions/` is permanent by
 construction, `milestones/` and `tasks/` are identity-indexed records, and
 `reference/` describes the current system.
+
+### The cap on `LOG.md` rows — the same rule, applied before the fact
+
+`LOG.md` is the next register anyone will be tempted to compress, so the rule
+above is written into it up front rather than applied in a panic at 2,000 lines.
+
+**A closure row is at most three short sentences in plain language: what closed,
+why, and where anything durable now lives.** When a closure produced a finding
+worth keeping — a measurement, an owner ruling, a defect class, a tolerance — it
+goes to its own home *first* (a `reference/` doc, a test, an ADR, a board note),
+and the row points there. The row is the index; it is not the storage.
+
+This is the promotion rule pointed forwards. Compressing after the fact needs
+condition 3 checked item by item; capping up front means the lesson is placed
+while the author still knows what it was.
+
+**The cap constrains the ROW, not the work.** A closure whose content *is* the
+finding — `t2608152230` carries the `rtol` `1e-9` → `1e-6` ruling, a 0.0-ulp
+reconstruction, and four false greens found by running a validation plan rather
+than reading it — does not get three sentences by deleting two of those. It gets
+three sentences because they already live somewhere a future reader will
+actually hit. If there is nowhere to put a finding, that is the signal to make a
+home for it, not to lengthen the row.
+
+**Retrofitting is per-row and evidence-first.** Before shortening any existing
+row, grep the detail you intend to drop and confirm it survives elsewhere;
+`git grep` is the check, not memory. Worked example — `t2608132100`'s dropped
+measurements (6.43 MB across 82 blob versions, the 7.1 MB push) survive in
+`reviews/2026-08-13_fao-branch-assessment.md`, `scripts/notebook_outputs.py`,
+`docs/notebooks/README.md` and `tests/test_notebook_outputs.py`, one of them a
+test, so that row is safe to cut from 172 words to 62. A row whose detail
+survives nowhere is not a row to compress; it is a lesson without a home.
+
+Rows written before 2026-08-19 are grandfathered and shortened opportunistically
+under the paragraph above — never in a sweep, which is the mode that loses things.
+
+Why a cap at all: the register took 48 closures in its first twelve days at a
+median of 172 words, which is `followups.md`'s trajectory (2,038 lines, closure
+notes averaging 29 lines) with the same cause — a closure note growing into a
+post-mortem because there was no other place to put one.
 
 ## Milestone records
 
