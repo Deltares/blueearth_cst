@@ -565,7 +565,7 @@ python $S slot-park --slot <slot> --base main
 `slot-start` also compares each `worktree_seed` against the primary at claim
 time: a copy the primary has moved past is refreshed, and a copy that *leads*
 the primary is left untouched and reported — the fixture-drift failure recorded
-in `dev/tasks/t2608121258-*` is that second case, and it must never be
+in `t2608121258` (closed; see `dev/LOG.md`) is that second case, and it must never be
 overwritten. `slot-park` refuses to park until the branch is an ancestor of
 `main`, so an unlanded slot cannot be quietly recycled.
 
