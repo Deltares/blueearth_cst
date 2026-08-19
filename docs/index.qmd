@@ -1,0 +1,69 @@
+---
+title: "BlueEarth Climate Stress Test"
+subtitle: "A workflow toolbox for rapid, bottom-up climate risk assessment of water systems"
+toc: false
+number-sections: false
+---
+
+The **BlueEarth Climate Stress Test (CST)** toolbox stress-tests a river basin
+against climate change without picking a climate scenario first. It perturbs the
+basin's own climate across a temperature × precipitation grid, runs a
+distributed hydrological model for every combination, and reduces the result to
+a response surface showing where the system starts to fail.
+
+This site documents the **workflow toolbox** — the engine that does the
+computation. It is one of three components of the wider CST platform; the web
+backend and the user interface live in their own repositories.
+
+::: {.callout-note}
+## This site is under construction
+
+The **user guide** and the **setup guide** are published. The technical
+background is still being prepared. Until then, the
+[repository README](https://github.com/Deltares/blueearth_cst#readme) carries
+the reference material that has not moved here yet.
+:::
+
+## Start here
+
+| If you want to… | Go to |
+|---|---|
+| Install the toolbox on your machine | [Setup guide](install.md) |
+| Run a basin assessment end to end | [Quick start](guide/quick-start.qmd) |
+| Point the toolbox at your own basin | [Configuring a project](guide/configuration.qmd) |
+| Understand what a stress test computes and why | Technical background *(in preparation)* |
+
+## What it does, in four steps
+
+The toolbox is four Snakemake workflows, run in order and sharing one
+configuration file:
+
+1. **Analyze climate** — characterises the basin's historical climate from one
+   or more gridded datasets, with no model involved. This is the
+   forcing-selection question, and it matters here because the toolbox does no
+   local calibration: the choice of forcing dataset is the dominant lever on
+   everything downstream.
+2. **Build model** — builds a distributed Wflow-SBM model from global datasets
+   via HydroMT and runs it once on historical forcing. Rapid deployment, no
+   local calibration.
+3. **Analyze projections** — reduces CMIP6 output to monthly change factors per
+   model, scenario and horizon. This is a *plausibility overlay*: it situates
+   the perturbation grid in projection space, and never drives a stress-test
+   run.
+4. **Run stress test** — generates stochastic weather realizations, perturbs
+   each across the temperature × precipitation grid, runs the hydrological model
+   for every combination, and reduces the output to the indicators that form the
+   response surface.
+
+## The approach
+
+CST is **bottom-up** stress testing — decision scaling, in the family of methods
+for decision-making under deep uncertainty. Rather than asking *what do the
+climate models say will happen, and what does that do to my system?*, it asks
+*what climate conditions would break my system, and how plausible are they?*
+The second question survives changes in the climate projections; the first does
+not.
+
+That inversion is what makes the toolbox useful for rapid, first-order basin
+assessments built on global data — which is what it is for. It is not a
+substitute for detailed engineering design.

@@ -19,7 +19,7 @@ updated: 2026-08-19
 > which program reads it. The second is the less durable fact: the file would
 > keep its meaning if the engine changed.
 > **Effort** — Large, but by breadth rather than difficulty. 11 tracked files
-> to rename, 208 occurrences across 65 files outside `dev/`, and one glob whose
+> to rename, 221 occurrences across 68 files outside `dev/`, and one glob whose
 > failure mode is silent.
 
 ## The one that will bite
@@ -45,14 +45,22 @@ that lies here.
 
 ```
 11  tracked files named snake_config*   (5 archived, 1 template, 4 test_case, 1 tests fixture)
-208 occurrences in 65 files outside dev/
-877 occurrences repo-wide  (the difference is dev/ records)
+221 occurrences in 68 files outside dev/
+771 occurrences repo-wide  (the difference is dev/ records)
 ```
+
+Re-measured 2026-08-19 after the Quarto documentation site landed, which added
+three more consumers. The repo-wide figure FELL (877 -> 771) while the
+outside-`dev/` figure rose: `dev/` records were pruned in between. Read the
+outside-`dev/` number as the one that sizes the work — the `dev/` share is
+mostly sealed records and history that stays as it is.
 
 Outside `dev/`, the categories are: `.gitignore`, `AGENTS.md`, `README.md`, all
 four `*.smk`, five `blueearth_cst/` modules, `pixi.toml` tasks, four
 `scripts/`, three `docs/` migration guides, the three `docs/notebooks/*.ipynb`,
-and **34 files under `tests/`** (33 test modules plus `conftest.py`).
+**three `docs/guide/*.qmd` pages of the documentation site** (configuration,
+quick-start, running — each shows a `--configfile` command line), and **34 files
+under `tests/`** (33 test modules plus `conftest.py`).
 
 ## Progress
 

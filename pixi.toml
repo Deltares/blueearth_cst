@@ -26,6 +26,8 @@ numpy = "*"
 pandas = ">=2.0.0"
 pytest = "*"        # tests/ — was missing from environment.yml
 pyyaml = "*"        # `import yaml` in many src/ + tests + dev scripts
+quarto = ">=1.9,<2"    # documentation site under docs/ (`pixi run docs-preview`);
+                       # brings its own pandoc + typst, so no LaTeX install is needed
 ruff = ">=0.16,<0.17"  # lint + format; config in pyproject.toml [tool.ruff] (O-15)
 rasterio = "*"      # direct import in dev/scripts/stage_data.py
 scipy = "*"
@@ -211,3 +213,14 @@ env-check = { cmd = "python dev/scripts/check_env.py", description = "Report whe
 # the machine, wrap it: `pixi run --manifest-path <primary>/pixi.toml
 # run-workflows ...`.
 run-workflows = { cmd = "python scripts/run_workflows.py", description = "Run the enabled workflows in fixed order (climate -> model -> projections -> experiment); requires --config" }
+
+# Documentation site. The Quarto project is rooted at `docs/`, so both tasks
+# take that directory rather than the repo root -- the render scope is then a
+# directory that holds only documentation, and the vendored hydromt / wflow
+# guides are excluded by name in `docs/_quarto.yml` rather than the whole repo
+# being excluded by an allow-list nobody maintains.
+#
+# Neither task publishes anything. Deployment to GitHub Pages is deliberately
+# not wired yet -- see dev/working/2026-08-19_quarto-docs-site/design.md P4.
+docs-preview = { cmd = "quarto preview docs", description = "Serve the documentation site locally with live reload (Ctrl-C to stop)" }
+docs-build   = { cmd = "quarto render docs", description = "Render the documentation site to docs/_site (gitignored); the build gate" }

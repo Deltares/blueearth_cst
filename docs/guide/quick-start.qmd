@@ -1,0 +1,125 @@
+---
+title: "Quick start"
+subtitle: "From a fresh install to a finished stress test on the shipped example basin"
+---
+
+This page runs the whole pipeline once, on the example basin that ships with the
+toolbox, so you can see what each stage produces before pointing it at a basin of
+your own. Budget roughly an hour of machine time.
+
+If the toolbox is not installed yet, do that first: [Setup guide](../install.md).
+
+::: {.callout-important}
+## Both install steps, not just the first
+
+```bash
+pixi install       # Python stack, R toolchain, Snakemake, Graphviz
+pixi run install   # + the weathergenr weather generator (R) and the Julia environment
+```
+
+`pixi install` alone is **not** enough to run the stress test: the weather
+generator is installed from GitHub by the second command, and a run without it
+fails an hour in with `there is no package called 'weathergenr'`. Julia itself
+is deliberately outside the pixi environment — it is managed by juliaup and must
+already be on your `PATH`.
+:::
+
+## The shape of a run
+
+Four Snakemake workflows, run in order, sharing one configuration file:
+
+```{mermaid}
+flowchart LR
+    wf0["wf0 · analyze_climate<br/>historical climate"] --> wf1
+    wf1["wf1 · build_model<br/>Wflow-SBM + historical run"] --> wf3
+    wf2["wf2 · analyze_projections<br/>CMIP6 change factors"] -.plausibility overlay.-> wf3
+    wf3["wf3 · run_stress_test<br/>the stress test"]
+```
+
+Only wf1 → wf3 is a hard dependency. **wf0 is optional** for the pipeline: it
+produces the region, vector layers and climate store that wf1 also declares, so
+running it first simply means those already exist when the build asks. Run it
+*alone* when your question is which forcing dataset to use. **wf2 never drives a
+run** — its change factors situate the perturbation grid in projection space,
+nothing more.
+
+## Pick a configuration
+
+Two configurations ship with the toolbox, both under `test_case/`, both
+describing the same basin:
+
+| Config | Use it for |
+|---|---|
+| `test_case/snake_config_rapid.yml` | **the default.** Anything you want to watch *execute* — a first run, a rule you edited, a smoke test |
+| `test_case/snake_config_baseline.yml` | runs whose *numbers* you will quote or compare |
+
+Rapid is cheap, not narrow: it keeps the historical baseline scenario and two
+CMIP6 models, so no code path is skipped — it just runs fewer years and fewer
+members. Start there.
+
+## Run it
+
+From the repository root, inside the pixi environment:
+
+```bash
+pixi shell
+
+snakemake all -c 3 -s analyze_climate.smk     --configfile test_case/snake_config_rapid.yml
+snakemake all -c 3 -s build_model.smk         --configfile test_case/snake_config_rapid.yml
+snakemake all -c 3 -s analyze_projections.smk --configfile test_case/snake_config_rapid.yml --keep-going
+snakemake all -c 3 -s run_stress_test.smk     --configfile test_case/snake_config_rapid.yml
+```
+
+Or let the wrapper run whichever workflows the config enables, in order:
+
+```bash
+pixi run run-workflows --config test_case/snake_config_rapid.yml
+```
+
+::: {.callout-tip}
+## Look before you leap
+
+`--dry-run` (`-n`) lists what *would* execute without running anything. It is
+the cheapest way to confirm the workflow can resolve its inputs, and it costs
+seconds:
+
+```bash
+snakemake all -c 3 -s build_model.smk --configfile test_case/snake_config_rapid.yml --dry-run
+```
+:::
+
+## What you get
+
+Everything lands under the `project_dir` named in the config —
+`test_case/test_rapid` for the rapid config:
+
+```
+test_case/test_rapid/
+  data/spatial/         basin, subbasins, rivers, gauge locations, and their plots
+  data/climate/         the historical climate store, and the CMIP6 slices
+  models/hydrology/     the Wflow-SBM model, its forcing, its run, its evaluation
+  experiments/<name>/   one stress test: weather realizations, runs, results
+  logs/                 one log per workflow
+  benchmarks/           per-rule timings
+  config/runs/          what each run was configured with (see Reading the outputs)
+```
+
+The stress test's payoff is in `experiments/<name>/results/`: the hydrological
+indicators computed for every temperature × precipitation combination, which
+form the response surface.
+
+## When something goes wrong
+
+- **"Directory cannot be locked"** — a previous run crashed. Clear it:
+  `snakemake --unlock -s <workflow>.smk --configfile <config>`.
+- **`there is no package called 'weathergenr'`** — the second install step was
+  skipped; run `pixi run install`.
+- **Julia not found** — Julia is deliberately not in the pixi environment. It is
+  managed by juliaup and must be on your `PATH`; see the
+  [Setup guide](../install.md).
+
+## Next
+
+- [Configuring a project](configuration.qmd) — point the toolbox at your own basin.
+- [Running the workflows](running.qmd) — the flags, the wrapper, and experiments.
+- [Reading the outputs](outputs.qmd) — what a run wrote, and whether it is current.

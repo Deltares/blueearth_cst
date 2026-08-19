@@ -1,0 +1,130 @@
+---
+title: "Reading the outputs"
+subtitle: "What a run wrote, where, and whether it is still current"
+---
+
+Everything a run produces lands under the `project_dir` named in the config.
+Nothing is written back into the toolbox repository.
+
+## The layout
+
+```
+<project_dir>/
+  config/
+    basin_data/                  copies of basin inputs that live outside the repo
+    runs/                        what each run was configured with (below)
+      build_model/
+      analyze_projections/
+      invocations/               one immutable manifest per wrapper invocation
+      journal.jsonl              append-only ledger, two lines per executed run
+  data/
+    spatial/geoms/               region, basins, subbasins, rivers, locations
+    spatial/plots/               the basin map and its companions
+    climate/historical/          the climate store, per source and window
+    climate/projections/cmip6/   the CMIP6 slices and derived change factors
+  models/
+    hydrology/wflow/             the model: config, forcing, staticgeoms,
+                                 run_default (the historical run), evaluation
+  experiments/<name>/            ONE stress test, self-contained:
+    config/                      including the model reference it is bound to
+    climate/weathergenr/         the generated and perturbed weather realizations
+    hydrology/wflow/             the runs across the perturbation grid
+    results/                     the hydrological indicators — the response surface
+  logs/                          one log per workflow
+  benchmarks/                    one benchmark table per workflow
+```
+
+The organising rule: artifacts sit under **who produced them** and **which
+engine** they belong to, so you can tell what made a file from where it sits.
+An experiment is a self-contained partition — two experiments never share a
+directory, and neither can overwrite the other's results.
+
+## Logs and benchmarks
+
+Each workflow writes exactly one log and one benchmark table, both regenerated
+on every run:
+
+| Workflow | Log |
+|---|---|
+| `analyze_climate.smk` | `logs/wf0_analyze_climate.log` |
+| `build_model.smk` | `logs/wf1_build_model.log` |
+| `analyze_projections.smk` | `logs/wf2_analyze_projections.log` |
+| `run_stress_test.smk` | `logs/wf3_run_stress_test_<experiment>.log` |
+
+All four land in the project's own `logs/`, so one run's records sit side by
+side. The stress test is experiment-scoped, so its log and benchmark table carry
+the experiment id in the **filename** — the `experiments/<name>/` subtree holds
+only that experiment's own inputs and products.
+
+While a workflow runs, individual rules log into `logs/_parts/` (one level
+deeper for the stress test, so two experiments can never merge each other's
+parts). A final rule merges the parts into the single log — one
+`== W.NN  rule_name` section per rule — then deletes them. Benchmarks work the
+same way, into `benchmarks/wf<N>_benchmarks.md`.
+
+## Provenance: what a run was configured with
+
+Each workflow writes a **`run_record.yml`**:
+
+- `<project_dir>/config/runs/build_model/run_record.yml`
+- `<project_dir>/config/runs/analyze_projections/run_record.yml`
+- `<exp_dir>/config/run_record.yml`
+
+The record is **current-only** — it describes the most recent run and is
+replaced, not accumulated. It carries the toolbox commit (and whether the
+checkout was dirty), the environment lock-file hashes, the source config's
+digest, the resolved advanced settings, and one entry per referenced external
+input.
+
+A referenced file is **copied into the project only when the toolbox repository
+cannot give it back**. A catalog or template that lives in the checkout, is
+tracked and is unmodified is recorded by its git blob id instead — duplicating
+what version control already holds serves nobody.
+
+### The two digests answer different questions
+
+| Digest | Covers | Use it to ask |
+|---|---|---|
+| `effective_config_sha256` | the settings the workflow was asked to run under | did the *configuration* change? |
+| `configuration_inputs_sha256` | the above, plus the toolbox commit, the lock files, and the bytes of every referenced catalog and template | did this run see the same configuration-side inputs as that one? |
+
+Compare runs with the wide one; the narrow one moves only when settings move.
+Only the keys a workflow actually reads enter its digests, so editing the
+stress-test section does not invalidate the model-build record.
+
+::: {.callout-warning}
+## Neither digest covers scientific data identity
+
+A remote or mutable dataset can change under an unchanged catalog entry without
+moving either digest. Configuration provenance is not data provenance.
+:::
+
+### The journal
+
+`<project_dir>/config/runs/journal.jsonl` is the append-only ledger: two lines
+per run sharing an `invocation_id`, recording start and outcome. One journal per
+project; stress-test lines name their experiment.
+
+It records **executed** runs. A Snakemake invocation that finds everything up to
+date does no work and appends nothing — so a gap in the dates means nothing
+needed doing, not that nobody looked.
+
+## Are these outputs current?
+
+Compare the sidecar written beside the outputs with the workflow's run record:
+
+| Outputs | Sidecar, relative to `project_dir` |
+|---|---|
+| model build | `models/hydrology/wflow/evaluation/run_metadata.json` |
+| stress test | `experiments/<name>/results/run_metadata.json` |
+| projections | `data/climate/projections/<clim_project>/summary/provenance.json` |
+
+A `configuration_inputs_sha256` in the sidecar that differs from the run
+record's means **the outputs predate the recorded configuration**. The journal
+then names the runs on either side.
+
+For the model build specifically,
+`models/hydrology/wflow/hydromt_build_config.yml` records the values HydroMT was
+*actually handed* — which is not the same as the build template, because
+arguments are replaced with the spatial products the earlier stage produced and
+some are derived at call time.
