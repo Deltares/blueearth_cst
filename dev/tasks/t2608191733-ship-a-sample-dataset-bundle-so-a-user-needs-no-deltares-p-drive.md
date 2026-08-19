@@ -43,7 +43,17 @@ judged against a promise it cannot keep.
       set — see the waterbody finding below.
 - [ ] `dev/scripts/build_sample_bundle.py` — reads `sample_bundle.yml`, drives
       `stage_data.py` and `stage_cmip6.py`, writes the self-locating catalog,
-      the pinned crawl products, `BUNDLE.md` and the checksum.
+      the pinned crawl products, `BUNDLE.md` and the checksum. **The two stagers
+      are not peers: stage spatial → derive `region.geojson` → stage CMIP6.**
+      The polygon is delineated by hydromt from `merit_hydro_ihu` +
+      `merit_hydro_index` and the slices are fingerprinted on it, so the other
+      order fingerprints every slice on a polygon the sample config does not
+      produce — a silent full re-fetch for the user.
+- [ ] **Empty-clip fidelity.** `stage_data.py:791` writes NO FILE when a vector
+      clip has zero features, which turns rule 1.08's `ok` (source readable,
+      nothing in this basin) into `skipped` (source absent). The builder must
+      write a valid empty GeoPackage instead, or the sample's sentinel
+      misreports which methods ran.
 - [ ] `scripts/fetch_sample_data.py` — user-facing (three-homes rule: a user
       runs it). Downloads the release asset, **verifies `sample_data.sha256`
       before unpacking**, unpacks to a gitignored top-level `sample_data/`.
@@ -72,7 +82,9 @@ against it. Mirroring to Zenodo later needs no change on this side.
 
 ## Five things that will bite, all verified by reading the code
 
-1. **Today's staged root ships a silently degraded WF1.** Rule 1.08
+1. **Today's staged root ships a silently degraded WF1** — but check the
+   ruling's scope, `rgi` is the exception (see the design note: an equatorial
+   basin's glacier clip is empty, so listing it stages nothing). Rule 1.08
    (`add_reservoirs_lakes_glaciers`) reads `hydro_lakes`, `hydro_reservoirs` and
    `rgi`; none is in `stage_data.yml`.
    `setup_reservoirs_lakes_glaciers.py:121` catches `NoDataException` /
@@ -86,7 +98,11 @@ against it. Mirroring to Zenodo later needs no change on this side.
    includes the store-index pins, and `cmip6_data.yml` /
    `cmip6_store_index.json` are crawl products. Regenerate them without
    rebuilding the bundle and every shipped slice goes stale → ~1142 s per source
-   re-fetch → the offline promise dies with no error. Pin both into the bundle.
+   re-fetch → the offline promise dies with no error. Pin both into the bundle —
+   which works for free, because `analyze_projections.smk:312` derives
+   `STORE_INDEX` as a SIBLING of `data_sources_climate`. There is no second
+   config key; the price is that the pinned index must be named exactly
+   `cmip6_store_index.json` and sit beside the catalog.
 4. **Catalog routing has a silent trap.** Ship the sample catalog inside the
    bundle with **no** `root:`/`roots:` — hydromt falls back to `dirname(yml)`,
    so it can only ever point at the bundle. Do **not** add the sample root to

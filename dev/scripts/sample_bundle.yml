@@ -113,6 +113,13 @@ spatial:
   # Set the whole block to null to stage no waterbodies and accept the degraded
   # run. If you do, say so in the bundle README — do not leave it to be
   # discovered from a sentinel file.
+  #
+  # EMPTY-CLIP FIDELITY. `stage_data.py:791` writes NO FILE when a vector clip
+  # has zero features, which turns rule 1.08's `ok` (source readable, nothing in
+  # this basin) into `skipped` (source absent) — a different provenance record
+  # for the same model. `rgi` on an equatorial basin is exactly that case. The
+  # builder writes a valid EMPTY GeoPackage instead, so the sentinel matches
+  # what a full-source run produces.
   waterbodies:
     reservoirs: hydro_reservoirs
     lakes: hydro_lakes
@@ -192,6 +199,12 @@ projections:
   # re-opens the remote store at ~1142 s, i.e. the offline promise dies with no
   # error message. Pinned copies inside the bundle make the sample config read
   # the crawl its slices were cut from.
+  #
+  # This costs no extra config key: analyze_projections.smk:312 derives
+  # STORE_INDEX as `Path(data_sources_climate).parent / "cmip6_store_index.json"`,
+  # so pointing that one key at the bundle picks the pinned index up for free.
+  # The price is that the filename and location are load-bearing — name it
+  # anything else, or put it elsewhere, and the pipeline sees no index at all.
   pin_catalog: true
 
 # --- RUN SHAPE (does NOT affect bundle bytes) -------------------------------
@@ -226,6 +239,16 @@ run:
     wet_spell_factor: 1.0
 
 # --- WHAT THE BUILDER PRODUCES ----------------------------------------------
+# The two stagers are NOT peers. `basin.region_geojson` is both an input and an
+# output: the polygon is delineated by hydromt from `merit_hydro_ihu` +
+# `merit_hydro_index`, and the CMIP6 slices are fingerprinted on it. So the
+# order is forced —
+#
+#     stage spatial sources  ->  derive region.geojson  ->  stage CMIP6 slices
+#
+# Run it the other way and every slice carries a polygon the sample config does
+# not produce, which is a silent full re-fetch for the user.
+#
 # Listed here so the contract is readable without the code:
 #
 #   sample_data/hydromt/...                       bbox-clipped mirror (stage_data.py)

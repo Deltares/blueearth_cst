@@ -61,12 +61,38 @@ sentinel records `ok` for all three — it was built when the catalog still
 reached the full source. **On today's staged root the sample would silently run
 a degraded WF1, and nothing fails.** Ruled: stage them clipped.
 
+**But the ruling's stated reason does not survive for `rgi`, and the fix is a
+builder requirement.** `stage_data.py:791` returns `SKIPPED, "no overlap"` and
+writes **no file** when a vector clip has zero features. RGI is the glacier
+inventory and the sample basin is equatorial Gabon, so its clip is certainly
+empty — listing `rgi` therefore stages nothing, and rule 1.08 records
+`setup_glaciers skipped` exactly as it would with the source absent. Meanwhile
+the fixture's `ok` means only that hydromt could READ the global file and found
+nothing in the basin; it never meant glaciers were added.
+
+So the bundle collapses two states the full source distinguishes: *the source
+exists and has nothing here* (`ok`) versus *the source is absent* (`skipped`).
+That difference is provenance — the sentinel is the only record of which
+methods ran. **The builder must write a valid empty GeoPackage (correct schema,
+zero features) when a clip is empty**, rather than inheriting `stage_data.py`'s
+no-file behaviour, so the sample reproduces the sentinel a `P:`-drive run
+produces. Without that, ship the ruling with its scope corrected: the reason
+holds for lakes and reservoirs, and `rgi` is listed for schema fidelity only.
+
 **2. Pre-seeding WF2's `raw/` cache is the designed path, not a hack.** Rule
 2.04's output is wrapped in `update(...)` so `Job.prepare()` cannot delete it,
 and `fetch_gcm_raw.py:412` revalidates the digest *before* any network call.
 Verified by reading both; a pre-seeded slice makes the rule a no-op.
 
-**3. The raw digest is coupled to two generated files.** `raw_components`
+**3. The raw digest is coupled to two generated files — and the pin works,
+because the index path is DERIVED.** `analyze_projections.smk:312` sets
+`STORE_INDEX = Path(DATA_SOURCES).parent / "cmip6_store_index.json"`, a sibling
+of whatever `project.data_sources_climate` points at. So pointing that one key
+at the bundle picks up the pinned index for free — there is no second config
+key, and none is needed. The corollary is that the bundle's filename and
+location are load-bearing: the index must be named exactly
+`cmip6_store_index.json` and sit beside the catalog, or
+`_res.assert_index_matches_catalog` sees no index at all. `raw_components`
 includes the store-index pins, and `cmip6_data.yml` / `cmip6_store_index.json`
 are crawl products AGENTS.md tells people to regenerate. Regenerate them
 without rebuilding the bundle and every shipped slice's digest goes stale →
@@ -130,6 +156,19 @@ Three homes, split by invocation model (AGENTS.md), applied:
 - **run config** — `test_case/snake_config_sample.yml`. The `snake_config_`
   prefix is mandatory or the file is silently untracked. See the pending
   rename to `project_config_`.
+
+## The builder has a forced order
+
+`basin.region_geojson` is both an input and an output. The polygon is
+delineated by hydromt from `merit_hydro_ihu` + `merit_hydro_index`, and the
+CMIP6 slices are fingerprinted on it — so the two stagers are **not peers**:
+
+```
+stage spatial sources  ->  derive region.geojson  ->  stage CMIP6 slices
+```
+
+Run them the other way and every slice is fingerprinted on a polygon the sample
+config does not produce, which is a silent full re-fetch for the user.
 
 ## Acceptance test — the only check that proves the claim
 
