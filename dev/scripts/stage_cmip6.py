@@ -857,11 +857,11 @@ def _print_report(
     else:
         print(red(bold(f"FAILED — {len(errors)} slice(s) did not stage; see below.")))
 
-    # Listed BEFORE the failures, and separately, because these never reached
-    # the network: the catalog already knew they do not exist. Nothing was
-    # spent on them, which is the point of pre-filtering.
-    if skipped:
-        _recap("not in the catalog", skipped, SKIPPED_GLYPH, SKIPPED_COLOR)
+    # Catalog refusals are NOT recapped here. They are already stated twice
+    # above -- once in the pill's `skipped` count, once per model in the
+    # parameters block's availability ratio -- and nothing was spent on them,
+    # so a third listing padded the tail of every run with the one outcome
+    # that needs no action.
 
     # The two failure kinds are listed SEPARATELY because they call for
     # different actions: an absent (model, scenario) will never appear however
@@ -945,19 +945,6 @@ def _plan_by_model(cfg, jobs, skipped):
     return planned, refused
 
 
-def _print_description():
-    """What the tool does, in one paragraph -- `stage_data.py`'s opening."""
-    print(banner("Description"))
-    print(
-        "Stage CMIP6 slices for one region outside any project: clip the "
-        "remote store to the region polygon and write one netCDF per (model, "
-        "scenario, member), each carrying the digest WF2 computes, so a slice "
-        "dropped into a project's raw cache is a cache hit. Re-runs revalidate "
-        "what is on disk instead of re-fetching it."
-    )
-    print()
-
-
 def _print_parameters(cfg, config_path, jobs, skipped, workers, dry_run):
     """Inputs, the per-model plan, and the flags -- `stage_data.py`'s three blocks."""
     print(banner("Parameters"))
@@ -982,9 +969,11 @@ def _print_parameters(cfg, config_path, jobs, skipped, workers, dry_run):
     width = max((len(m) for m in cfg["models"]), default=0) + 2
     print(bold(f"models ({len(cfg['models'])}):"))
     for model in cfg["models"]:
-        note = f"{planned[model]} slice(s)"
-        if refused[model]:
-            note += f", {refused[model]} not in the catalog"
+        # Stated as a RATIO, not a count plus a refusal: the question here is
+        # how much of what was asked for this model can actually be staged,
+        # and `4/5` answers it at a glance where `4 slice(s), 1 not in the
+        # catalog` made the reader do the addition.
+        note = f"{planned[model]}/{planned[model] + refused[model]} slice(s) available"
         print(f"  {pad(model, width, cyan)}  {dim(note)}")
     print()
 
@@ -1048,7 +1037,6 @@ def main(argv=None):
     # Resolved BEFORE the parameters block so the flag it prints is the number
     # the pool will actually start, not the number asked for.
     workers = resolve_workers(args.workers, len(jobs))
-    _print_description()
     _print_parameters(cfg, args.config, jobs, skipped, workers, args.dry_run)
 
     if args.dry_run:
