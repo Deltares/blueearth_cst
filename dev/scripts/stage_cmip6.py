@@ -421,15 +421,20 @@ def _format_bytes(size_bytes):
     return f"{value:.1f} TB"
 
 
-def _entry(glyph, color, name, detail="", prefix=""):
+def _entry(state_glyph, color, name, detail="", prefix=""):
     """One outcome row: the glyph at column 4, its detail at column 6.
 
     The indent ladder is `stage_data.py`'s -- 0 section, 2 subject, 4 entry,
     6 detail -- so an entry list reads identically in both tools. `prefix` is
     printed already coloured, and carries the completion counter.
+
+    The parameter is `state_glyph`, never `glyph`: that name is the imported
+    `console.glyph()` fallback, and binding it here would shadow the function
+    for this whole body -- latent until someone adds a `glyph('·')` to one of
+    these lines and gets `UnboundLocalError` on whichever branch is rarest.
     """
     head = f"{prefix} " if prefix else ""
-    print(f"    {color(glyph)} {head}{name}")
+    print(f"    {color(state_glyph)} {head}{name}")
     if detail:
         print(f"      {dim(detail)}")
 
@@ -448,7 +453,7 @@ def _row(label, value, note=""):
         print(f"  {pad(label, _LABEL_WIDTH, dim)}  {value}")
 
 
-def _recap(title, items, glyph, color, note=""):
+def _recap(title, items, state_glyph, color, note=""):
     """A titled failure/refusal list, each reason on its own indented line.
 
     `stage_data.py` keeps its reason on the entry line, which works because a
@@ -463,7 +468,7 @@ def _recap(title, items, glyph, color, note=""):
     print()
     print(f"{bold(title)} ({len(items)}):")
     for key, reason in items:
-        print(f"  {color(glyph)} {key}")
+        print(f"  {color(state_glyph)} {key}")
         if reason:
             print(f"    {dim(reason)}")
     if note:
@@ -820,7 +825,7 @@ def main(argv=None):
             return
         path = out_by_key[key]
         size = path.stat().st_size if path.exists() else 0
-        glyph, color = (
+        state_glyph, color = (
             (EXISTS_GLYPH, EXISTS_COLOR)
             if existed[key]
             else (WRITTEN_GLYPH, WRITTEN_COLOR)
@@ -831,7 +836,7 @@ def main(argv=None):
         # fetched or when it cost more than about a second.
         if not existed[key] or elapsed > 1.0:
             detail += f"; elapsed: {_format_elapsed(elapsed)}"
-        _entry(glyph, color, key, detail, prefix=prefix)
+        _entry(state_glyph, color, key, detail, prefix=prefix)
 
     if workers == 1:
         # Deliberately NOT a one-worker pool: staying in-process keeps

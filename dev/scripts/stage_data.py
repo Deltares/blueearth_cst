@@ -140,15 +140,17 @@ class RunReport:
         size_bytes: int = 0,
     ) -> None:
         """Print a glyph-prefixed entry line and record it for the TOTAL recap."""
-        glyph_color = {
+        # `state_glyph`, never `glyph`: the latter is the imported
+        # `console.glyph()` fallback, and binding it here would shadow the
+        # function for this whole method.
+        state_glyph, color = {
             WRITTEN: ("+", green),
             EXISTS: ("=", dim),
             SKIPPED: ("-", yellow),
             FAILED: ("x", red),
         }[status]
-        glyph, color = glyph_color
         detail = _entry_detail(detail, size_bytes, status)
-        print(f"    {color(glyph)} {name}")
+        print(f"    {color(state_glyph)} {name}")
         if detail:
             print(f"      {dim(detail)}")
         self.results.append((status, name, detail, size_bytes))
