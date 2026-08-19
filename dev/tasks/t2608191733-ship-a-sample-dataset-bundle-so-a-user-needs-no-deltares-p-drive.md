@@ -49,11 +49,16 @@ judged against a promise it cannot keep.
       `merit_hydro_index` and the slices are fingerprinted on it, so the other
       order fingerprints every slice on a polygon the sample config does not
       produce — a silent full re-fetch for the user.
-- [ ] **Empty-clip fidelity.** `stage_data.py:791` writes NO FILE when a vector
-      clip has zero features, which turns rule 1.08's `ok` (source readable,
-      nothing in this basin) into `skipped` (source absent). The builder must
-      write a valid empty GeoPackage instead, or the sample's sentinel
-      misreports which methods ran.
+- [ ] **Empty-clip fidelity — CHECK FIRST, then decide.**
+      `stage_data.py:791` writes NO FILE when a vector clip has zero features,
+      which turns rule 1.08's `ok` (source readable, nothing in this basin)
+      into `skipped` (source absent). The proposed fix is for the builder to
+      write a valid EMPTY GeoPackage instead — but that rests on an assumption
+      nobody has tested: that `hydromt_wflow`'s `setup_glaciers` /
+      `setup_reservoirs_*` return cleanly on a zero-feature layer rather than
+      raising `NoDataException`. If they raise, `skipped` is the honest and
+      unavoidable outcome and the empty-GPKG work buys nothing. Run one method
+      against an empty clipped layer before building to this.
 - [ ] `scripts/fetch_sample_data.py` — user-facing (three-homes rule: a user
       runs it). Downloads the release asset, **verifies `sample_data.sha256`
       before unpacking**, unpacks to a gitignored top-level `sample_data/`.
