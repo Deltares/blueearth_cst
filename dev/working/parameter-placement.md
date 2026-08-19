@@ -155,12 +155,12 @@ M2 is the only one that is unambiguously correct regardless of how §5 resolves.
 
 ## Appendix — parameter sets per file
 
-> Reproduced verbatim in
-> `dev/working/2026-08-12_config-parameter-review.task.md`, so that brief is
-> self-contained. Both are the same 2026-08-12 measurement; the review is
-> instructed to re-measure rather than trust either. If one is corrected,
-> correct both or delete this one — two copies of an inventory is the exact
-> duplication that review's Q3 exists to find.
+> The 2026-08-12 measurement. It was reproduced verbatim in the dual-review
+> brief so that brief could stand alone; the brief was drained on 2026-08-19
+> once its work closed (`t2608130215`, `dev/LOG.md`), which is the "delete one"
+> half of the instruction this note carried — two copies of an inventory being
+> the exact duplication that review's Q3 existed to find. This is now the only
+> copy. Re-measure rather than trust it.
 
 ### `config/advanced_settings.yml` (5)
 `constraints.min_historical_years` · `defaults.julia_threads` ·
