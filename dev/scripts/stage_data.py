@@ -38,6 +38,7 @@ import os
 import re
 import shutil
 import sys
+import threading
 import traceback
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -219,6 +220,35 @@ def _zarr_complete(dst: Path) -> bool:
 
 MANIFEST_VERSION = 2
 DEFAULT_RASTER_GLOB_WORKERS = 4
+
+#: Serialises every netCDF WRITE this module makes (`_clip_netcdf_to_file`).
+#:
+#: `_run_glob` stages a glob across a `ThreadPoolExecutor`, and
+#: `_raster_glob_workers` returns 4 for any glob holding more than five files --
+#: a policy written for rasterio, where threads are safe, and inherited by the
+#: netcdf path, where they are not. HDF5 is not thread-safe and netCDF4-python
+#: funnels through a global lock, so four workers all ending in
+#: `sub.to_netcdf(dst)` open the library concurrently.
+#:
+#: On 2026-08-18 one of them stopped coming back: a worker blocked forever in
+#: `xarray/backends/netCDF4_.py NetCDF4DataStore.open`, and the main thread sat
+#: in `as_completed` behind it, which is the t2608071208 stall that had taken
+#: the Windows CI leg down for 30 minutes. Same family as the CHIRPS deadlock
+#: `b03d965` fixed by making that write synchronous.
+#:
+#: Deliberately narrow: only the WRITE serialises. Reading, clipping and the
+#: whole `raster_glob` path keep their workers, so the parallel staging added
+#: for CMIP6 is untouched. For `netcdf_glob` specifically the write is most of
+#: the work, so that stage is now effectively serial -- which is the trade, and
+#: a slower stage beats one that hangs without a timeout.
+#:
+#: HONEST LIMIT: this is reasoned from the captured stacks, not demonstrated.
+#: The hang would not reproduce on demand -- 180 staged widen passes across
+#: three deliberate attempts, including four concurrent processes, all clean --
+#: so nothing here can be shown to fix it, only to remove the contention the
+#: stacks show. If it recurs, the harness now dumps its own threads and the
+#: next stack will say whether this lock was held.
+_NETCDF_WRITE_LOCK = threading.Lock()
 RASTER_TILE_SIZE = 256
 RASTER_TILE_MIN_SIZE = 16
 
@@ -1076,11 +1106,16 @@ def _clip_netcdf_to_file(
         # time_range misses this file's span (e.g. an out-of-range year in a
         # netcdf_glob). Skip rather than writing an empty time axis.
         return SKIPPED, "no time overlap"
-    if show_progress:
-        with _dask_progress():
+    # One writer at a time -- see `_NETCDF_WRITE_LOCK`. Held across the whole
+    # write rather than around the open, because the hang was observed inside
+    # `NetCDF4DataStore.open` and a lock that the opener does not hold to
+    # completion leaves the same window.
+    with _NETCDF_WRITE_LOCK:
+        if show_progress:
+            with _dask_progress():
+                sub.to_netcdf(dst)
+        else:
             sub.to_netcdf(dst)
-    else:
-        sub.to_netcdf(dst)
     return WRITTEN, ""
 
 
