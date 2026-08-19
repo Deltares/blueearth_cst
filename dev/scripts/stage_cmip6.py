@@ -83,13 +83,19 @@ different actions.
 Console output
 --------------
 The surface is `stage_data.py`'s, through the same vendored `console.py`:
-DESCRIPTION / PARAMETERS / STAGE / TOTAL sections, the `+ = - x` glyph
+Description / Parameters / Stage / Total regions, the `+ = - x` glyph
 vocabulary coloured on the glyph, the 0/2/4/6 indent ladder, and one verdict
 line. The two tools are read by the same person on the same afternoon, so a
 reader should not have to relearn where the counts are. What is NOT borrowed is
 the shape of what this tool has to say: the `[n/total]` completion counter (a
 slice can take twenty minutes, so a silent console is a defect) and the
 three-way failure split above, which `stage_data.py` has no equivalent for.
+
+Headings are bold Title Case with NO decoration, and the only rule drawn is the
+one above `Total` -- the hard break before the final aggregate. They read
+`━━ SECTION ━━` in any copy predating `console.py` 0.10.0; check
+`console.__version__` against the `console-formatting` skill before assuming
+the older shape is current.
 
 Not part of a run: this is an authoring/staging helper
 (see AGENTS.md, "Three homes for executables").
@@ -123,9 +129,12 @@ from console import (  # noqa: E402
     cyan,
     dim,
     fmt_path,
+    glyph,
     green,
     pad,
     red,
+    rule,
+    section_banner,
     yellow,
 )
 
@@ -523,18 +532,19 @@ def _print_report(
     size = sum(out_by_key[k].stat().st_size for k in ok if out_by_key[k].exists())
 
     print()
-    print(banner("TOTAL"))
+    print(rule())
+    print(section_banner("total"))
     # The pill states every outcome ONCE, in `stage_data.py`'s order and
     # colours. A catalog refusal counts as `skipped` there too: nothing was
     # spent on it, which is exactly what the word means in the other tool.
     print(
-        f"{green(f'written: {len(written)}')} {dim('·')} "
-        f"{dim(f'existing: {len(present)}')} {dim('·')} "
-        f"{yellow(f'skipped: {len(skipped)}')} {dim('·')} "
+        f"{green(f'written: {len(written)}')} {dim(glyph('·'))} "
+        f"{dim(f'existing: {len(present)}')} {dim(glyph('·'))} "
+        f"{yellow(f'skipped: {len(skipped)}')} {dim(glyph('·'))} "
         f"{red(f'failed: {len(errors)}')}"
     )
     print(
-        f"{dim('elapsed:')} {_format_elapsed(wall)} {dim('·')} "
+        f"{dim('elapsed:')} {_format_elapsed(wall)} {dim(glyph('·'))} "
         f"{dim('size:')} {_format_bytes(size)}"
     )
 
@@ -638,34 +648,9 @@ def _plan_by_model(cfg, jobs, skipped):
     return planned, refused
 
 
-def _utf8_stdio():
-    """Let the section rules survive a redirect on Windows.
-
-    `console.banner` draws with `━` (U+2501), and Python picks cp1252 for a
-    REDIRECTED stdout on this platform -- so `python stage_cmip6.py > run.log`
-    dies with a UnicodeEncodeError on the first banner, before a single slice
-    is staged. That is not an exotic invocation: AGENTS.md's own advice is to
-    redirect a long gate to a file and read the file.
-
-    `stage_data.py` has the identical latent crash through the same vendored
-    module, which is where the durable fix belongs -- upstream in the
-    `console-formatting` skill's `console.py`, not in one consumer. This is the
-    local guard until then, and `errors="replace"` rather than a hard UTF-8
-    promise so a console that genuinely cannot render the glyph degrades to a
-    substitute instead of taking the run down with it.
-    """
-    for stream in (sys.stdout, sys.stderr):
-        try:
-            stream.reconfigure(encoding="utf-8", errors="replace")
-        except (AttributeError, ValueError):
-            # A capture object or any non-TextIOWrapper stream: nothing to do,
-            # and nothing that would have crashed either.
-            pass
-
-
 def _print_description():
     """What the tool does, in one paragraph -- `stage_data.py`'s opening."""
-    print(banner("DESCRIPTION"))
+    print(banner("Description"))
     print(
         "Stage CMIP6 slices for one region outside any project: clip the "
         "remote store to the region polygon and write one netCDF per (model, "
@@ -678,7 +663,7 @@ def _print_description():
 
 def _print_parameters(cfg, config_path, jobs, skipped, workers, dry_run):
     """Inputs, the per-model plan, and the flags -- `stage_data.py`'s three blocks."""
-    print(banner("PARAMETERS"))
+    print(banner("Parameters"))
 
     print(bold("inputs:"))
     for label, value in (
@@ -748,7 +733,6 @@ def main(argv=None):
     if args.models:
         cfg["models"] = args.models
 
-    _utf8_stdio()
     jobs, skipped = plan(cfg)
     requested = len(cfg["models"]) * len(cfg["scenarios"]) * len(cfg["members"])
     # Resolved BEFORE the parameters block so the flag it prints is the number
@@ -761,7 +745,7 @@ def main(argv=None):
         # The same glyph vocabulary as a real run, so a dry run previews the
         # console it is a dry run of: `+` would be fetched, `=` already there,
         # `-` refused by the catalog.
-        print(banner("DRY RUN"))
+        print(banner("Dry Run"))
         print(
             f"  {len(jobs)} of {requested} slice(s) would be staged into "
             f"{fmt_path(cfg['target_root'])}"
@@ -790,7 +774,7 @@ def main(argv=None):
         return 1
 
     os.makedirs(cfg["target_root"], exist_ok=True)
-    print(banner("STAGE"))
+    print(banner("Stage"))
     print(f"  {len(jobs)} slice(s) through {workers} worker(s)")
     print()
 

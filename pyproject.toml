@@ -152,7 +152,15 @@ quote-style = "double"
 #   *.md            ruff formats fenced Python inside Markdown, which would
 #                   rewrite documents hash-frozen in
 #                   dev/reference/sealed-records.yml. Permanent.
-exclude = ["*.md"]
+#   console.py      VENDORED verbatim from the `console-formatting` skill and
+#                   carrying a `__version__` that says which release it is a
+#                   copy of. Formatting it here would make every re-vendor a
+#                   diff against our own reformatting rather than against
+#                   upstream, so the drift check the marker exists for stops
+#                   working. It passes `ruff check` and stays linted; only the
+#                   formatter is held off. Drop this line if the file ever
+#                   stops being a straight copy.
+exclude = ["*.md", "dev/scripts/console.py"]
 
 
 # ---------------------------------------------------------------------------

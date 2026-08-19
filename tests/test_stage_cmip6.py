@@ -403,12 +403,18 @@ def test_one_worker_stays_in_process(tmp_path, capsys, monkeypatch):
     assert sc.main(["--config", str(cfg_path), "--workers", "1"]) == 0
     out = capsys.readouterr().out
     assert "workers      1" in out
-    # The four sections `stage_data.py` also prints, in order. Asserted here
+    # The four regions `stage_data.py` also prints, in order. Asserted here
     # rather than in a test of its own because this is the one case that runs
     # a whole `main` on every checkout, fixture or not.
-    assert [line for line in out.splitlines() if line.startswith("━━ ")] == [
-        "━━ DESCRIPTION ━━",
-        "━━ PARAMETERS ━━",
-        "━━ STAGE ━━",
-        "━━ TOTAL ━━",
+    #
+    # Matched on the WHOLE LINE: a region heading is bold Title Case with no
+    # decoration, and under capture `bold()` is the identity, so the heading is
+    # its bare label. A substring test would hit "Stage" in the description's
+    # own first word.
+    regions = ("Description", "Parameters", "Stage", "Dry Run", "Total")
+    assert [line for line in out.splitlines() if line in regions] == [
+        "Description",
+        "Parameters",
+        "Stage",
+        "Total",
     ]
