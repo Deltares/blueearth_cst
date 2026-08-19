@@ -622,3 +622,51 @@ def test_anything_not_positively_an_info_row_is_printed(text):
     sink = io.StringIO()
     sc._NonInfoConsole(sink).write(text)
     assert sink.getvalue() == text
+
+
+def test_the_console_wrapper_is_reused_for_every_slice_in_a_worker():
+    """`tee_to_log` repoints library log handlers by STREAM IDENTITY.
+
+    hydromt binds a StreamHandler the first time a worker parses a catalog, and
+    the tee hands it back to whatever `sys.stdout` was on entry. A fresh wrapper
+    per slice would leave it pointing at the previous slice's object, which the
+    next slice's identity check cannot match -- so hydromt's records bypass the
+    tee, arriving uncompacted and unmuted AND missing from the log. Observed on
+    a 6-slice run before this was memoized.
+    """
+    sc._CONSOLE_WRAPPERS.clear()
+    try:
+        console = io.StringIO()
+        first = sc._wrapped_console("stdout", console)
+        # same stream -> same wrapper, which is what keeps hydromt teed
+        assert sc._wrapped_console("stdout", console) is first
+        assert sc._wrapped_console("stderr", console) is not first
+        # a DIFFERENT stream gets a new wrapper, or the first test to call
+        # `stage_one` would own every later test's captured output
+        assert sc._wrapped_console("stdout", io.StringIO()) is not first
+    finally:
+        sc._CONSOLE_WRAPPERS.clear()
+
+
+def test_a_passed_row_is_flushed_so_it_lands_where_it_happened():
+    """A worker is a separate process, block-buffered once the run is captured.
+
+    Without the flush both `irregular grid` warnings of a 6-slice run arrived
+    below the `[6/6]` row they actually preceded by two minutes, which is the
+    one thing a live warning exists to avoid.
+    """
+
+    class _Counting(io.StringIO):
+        def __init__(self):
+            super().__init__()
+            self.flushes = 0
+
+        def flush(self):
+            self.flushes += 1
+
+    sink = _Counting()
+    console = sc._NonInfoConsole(sink)
+    console.write("16:25:09 - fetch - WARNING - irregular grid: x\n")
+    assert sink.flushes == 1
+    console.write("16:25:09 - fetch - fetching x\n")  # dropped, nothing to flush
+    assert sink.flushes == 1

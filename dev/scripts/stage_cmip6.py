@@ -359,6 +359,38 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 _INFO_ROW_RE = re.compile(r"^\d{2}:\d{2}:\d{2} - [^\s-]+ - (?!(?:[A-Z]+) - ).*$")
 
 
+#: One wrapper per stream per PROCESS, and the memoization is load-bearing.
+#: `tee_to_log` repoints library log handlers by STREAM IDENTITY: hydromt binds
+#: a StreamHandler the first time a worker parses a catalog, and
+#: `_detach_handlers_bound_to` hands it back to whatever `sys.stdout` was on
+#: entry. A pool worker stages many slices, so a fresh wrapper per slice would
+#: leave that handler pointing at the PREVIOUS slice's object -- which the next
+#: slice's identity check cannot match, so hydromt's records bypass the tee
+#: entirely and arrive uncompacted, unmuted and missing from the log.
+#:
+#: Observed exactly that on a 6-slice run before this was memoized: two raw
+#: `2026-08-19 17:29:45,254 - hydromt.data_catalog.sources.data_source - ...`
+#: rows on the console, from the two slices whose worker had already been used.
+_CONSOLE_WRAPPERS = {}
+
+
+def _wrapped_console(name, stream):
+    """This process's `_NonInfoConsole` for `name`, created once and reused.
+
+    Reused only while it still wraps the SAME underlying stream. A worker
+    restores the real stream after every slice and hands back the identical
+    object, so the cache hits and the handler identity above is preserved; a
+    caller that genuinely swapped the console gets a wrapper around the new one
+    rather than a writer onto the old. `capsys` is the second case, once per
+    test, and without this check the first test to call `stage_one` would own
+    every later test's output.
+    """
+    cached = _CONSOLE_WRAPPERS.get(name)
+    if cached is None or cached.wraps is not stream:
+        cached = _CONSOLE_WRAPPERS[name] = _NonInfoConsole(stream)
+    return cached
+
+
 class _NonInfoConsole:
     """A live console sink that drops INFO rows and passes everything else.
 
@@ -388,9 +420,22 @@ class _NonInfoConsole:
     def __init__(self, stream):
         self._stream = stream
 
+    @property
+    def wraps(self):
+        """The stream underneath, so `_wrapped_console` can tell it changed."""
+        return self._stream
+
     def write(self, text):
         if not _INFO_ROW_RE.match(_ANSI_RE.sub("", text).rstrip("\n")):
             self._stream.write(text)
+            # Flushed HERE, not left to the stream. A worker is a separate
+            # process whose stdout is block-buffered the moment the run is
+            # captured to a file, so a warning raised at minute two arrived
+            # after every slice row -- measured on a 6-slice run, both
+            # `irregular grid` warnings landed below the `[6/6]` line they
+            # actually preceded by two minutes. Only rows this filter PASSES
+            # reach here, a handful per run, so the flush costs nothing.
+            self._stream.flush()
         return len(text)
 
     def flush(self):
@@ -458,8 +503,8 @@ def stage_one(cfg, job):
         # the `finally` even though this is a worker process about to be reused
         # by the pool for the next slice -- which is exactly why it matters.
         real_stdout, real_stderr = sys.stdout, sys.stderr
-        sys.stdout = _NonInfoConsole(real_stdout)
-        sys.stderr = _NonInfoConsole(real_stderr)
+        sys.stdout = _wrapped_console("stdout", real_stdout)
+        sys.stderr = _wrapped_console("stderr", real_stderr)
         try:
             with tee_to_log(slice_log_path(cfg["target_root"], job["key"])):
                 fetch_raw_slice(
@@ -898,6 +943,18 @@ def main(argv=None):
         ),
     )
     args = parser.parse_args(argv)
+
+    # The workers flush every row as the tee writes it, while this process's
+    # `print` is BLOCK-buffered the moment stdout is not a terminal -- which is
+    # exactly how a staging run is captured (`stage_cmip6.py > run.log`). The
+    # result is a file where the workers' warnings sit above the banner and
+    # nowhere near the slice rows they belong to; measured on a 6-slice run,
+    # two `irregular grid` warnings landed at lines 4-5 of a 40-line report.
+    # Line buffering costs nothing at this row count and restores true order.
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except (AttributeError, ValueError):
+        pass  # a stream that cannot be reconfigured is not worth failing over
 
     cfg = load_config(args.config)
     if args.region:
