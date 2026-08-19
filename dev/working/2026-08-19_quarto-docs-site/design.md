@@ -9,6 +9,13 @@ Revisions:
   before drafting; the local-first phasing likewise. Three blocking findings
   surfaced during inventory (§2.3–§2.5) and are carried as owner questions
   O-1..O-3.
+- 2026-08-19 (v1.1, self-review): D5 rewritten — freeze *amortizes* the
+  73-minute run, it does not avoid it, and v1 read as if it did. §2.3 records
+  that the prose cites the missing figures by number (checked), which makes O-3
+  a blocker rather than a tidy-up. §4 gains the citation sweep the deletion
+  requires, scoped to four live citers. D9 keeps the setup guide unmoved. D10 /
+  O-5 raise the website-vs-book question, which must be answered *before* the
+  §4 split rather than after.
 
 ---
 
@@ -91,8 +98,22 @@ has been since the docx conversion. On GitHub's markdown view a broken `<img>`
 is a small grey placeholder that reads as a rendering quirk; on a published
 documentation site it is 38 visible failures on the most formal document there.
 
+**And the prose depends on them.** Checked, because "38 bare `<img>` tags" and
+"38 figures the text argues from" are different severities: the note says
+things like "provide an alternative approach by focusing on reducing system
+vulnerability … ([Figure 1‑1](#_Ref188269253))" and carries a `<figcaption>` for
+each — *"Figure 2‑3. An overview of hydrological processes in wflow_sbm"*. 129
+lines mention a figure. So stripping the tags does not yield clean text; it
+yields numbered captions under nothing, and cross-references pointing at them.
+
 This is a content blocker, not a tooling one — no generator can render an image
 that is not in the repository. It needs the original docx image extracts (O-3).
+
+Two smaller consequences of the same docx origin, handled in P2: the
+cross-references are raw HTML anchors (`<span id="_Ref188269253">`) which do
+survive into HTML output but should become Quarto cross-references
+(`@fig-…`), and the `<figure>`/`<figcaption>` blocks should become Quarto figure
+syntax so numbering is generated rather than frozen at the docx's.
 
 ### 2.4 Finding: notebook outputs are stripped, not committed
 
@@ -105,10 +126,13 @@ hook, and `tests/test_notebook_outputs.py`.
 The consequence for a site: **rendering the notebooks without executing them
 produces code listings with no figures, no tables, and no results.** That is a
 markedly worse artifact than the notebook is on GitHub, where a reader at least
-knows to run it. Executing them at build time is not available either — a
-render needs the full toolbox, a populated `project_dir`, and CMIP6 access, and
-costs ~73 minutes for a fresh rapid run (measured 2026-08-13). Options and a
-recommendation are in D5 / O-2.
+knows to run it.
+
+Executing them *at build time*, on every render, is not available: a render
+needs the full toolbox, a populated `project_dir`, and CMIP6 access, and costs
+~73 minutes for a fresh rapid run (measured 2026-08-13). What **is** available
+is executing them **once, locally**, and storing the result — which is what D5
+proposes. Options and a recommendation are in D5 / O-2.
 
 Related: the board's `t2608132100` watch-item still describes the *old* policy
 ("commit their rendered outputs and carry a dated `rendered against <sha>`
@@ -168,15 +192,22 @@ artifact of the docx conversion — and Quarto's `number-sections: true` restore
 correct numbering from document order, so the source numbers are stripped rather
 than hand-corrected.
 
-**D5 — Notebooks are published as *walkthroughs*, executed locally, with the
-`_freeze/` artifacts committed — subject to O-2.**
-Quarto's freeze mechanism stores each document's rendered output under
-`docs/_freeze/`, so the site builds anywhere without re-executing. That is the
-only route that gets figures onto the site without a build-time run. It does
-reintroduce committed rendered output, which `a2596d0` deliberately removed —
-which is exactly why it is an owner question and not a decision. The fallback,
-if the answer is no, is D5b: the notebooks stay out of the site and the user
-guide links to them on GitHub with a line saying they must be run to be useful.
+**D5 — Notebooks are published as *walkthroughs*, executed once locally, with
+the `_freeze/` artifacts committed — subject to O-2.**
+State this plainly, because the mechanism is easy to oversell: **freeze does not
+avoid the run, it amortizes it.** Someone renders the three notebooks once, on
+the primary checkout, with execution enabled, data present and Julia on `PATH` —
+the same ~73-minute cost as any real run — and Quarto writes the resulting
+outputs under `docs/_freeze/`. Every render after that, on any machine and in
+CI, reads the stored output and executes nothing. The outputs then live in
+`_freeze/` **instead of** in the tracked `.ipynb`, which is the property that
+keeps `a2596d0`'s intent intact: the notebook a user opens is still clean, and
+the strip hook and its test are untouched.
+
+It is still committed rendered output, which is why it is an owner question and
+not a decision. The fallback, if the answer is no, is D5b: the notebooks stay
+out of the site and the user guide links to them on GitHub with a line saying
+they must be run to be useful.
 
 **D6 — The technical background publishes the method, and quarantines the
 platform — subject to O-1.**
@@ -191,6 +222,26 @@ components live in other repositories. Nothing is deleted.
 This re-locks `pixi.lock` on both platforms — an expected, reviewable diff. The
 typst binary comes with the package, so a PDF of the technical note is available
 later with no LaTeX install (§9; not in scope now).
+
+**D9 — The setup guide is wired, not moved.** `docs/install.md` and
+`docs/env_setup_notes.md` stay exactly where they are and are reached from the
+navbar. There is no `docs/setup/` directory. Reason: those two paths are cited
+from `pixi.toml`, `scripts/run_snake_test.cmd`, `dev/scripts/pixi_activate.bat`,
+`README.md`, `AGENTS.md` and four `dev/` documents — a rename buys nothing a
+navbar entry does not, and costs a ten-file sweep for tidiness.
+
+**D10 — Website now; the book-vs-website question for the technical background
+is answered before the split, not after — see O-5.** In a `type: website`,
+`number-sections` numbers *within each page*, so the ten chapters of §4 each
+restart at 1. That is normal for a site and wrong for the report-shaped artifact
+the note is, and the PDF that argued for Quarto over MkDocs (§8) comes from a
+`type: book`, not from a website page. The usual shape is a website for
+guide + setup plus a book sub-project for the background, published into the
+same output tree. **Verify that nesting works before committing to it** — build
+a throwaway two-chapter book under a website and confirm the parent project
+leaves it alone; nested Quarto projects are a known-awkward area and this design
+does not assert they compose. P1 does not depend on the answer; the §4 split
+does, because reversing it later is a re-split of ten files.
 
 **D8 — Nothing about publishing is built in phases 1–3.** No `site-url`, no
 GitHub Actions workflow, no `.nojekyll`, no `quarto publish`. See §7 P4 for what
@@ -223,6 +274,18 @@ is not kept as a duplicate. Its history stays in git, and the
 `docs/migration-r06.md` precedent says migration maps are not carried for their
 own sake.
 
+**That deletion carries a citation sweep, in the same commit** — the repo's
+standing "grep the old spelling and fix every live reference" rule. Scoped now
+rather than discovered during P2; `git grep -l cst-toolbox-technical-note`
+returns four live citers:
+
+| File | Refs | Fix |
+|---|---|---|
+| `AGENTS.md` | 2 | Background §, "(rationale: … §1)"; and the References list |
+| `dev/milestones/r07/migration_project-layout.md` | 1 | ordinary reference update — **not** in `dev/reference/sealed-records.yml`, checked |
+| `dev/milestones/r07/project-layout-design-review-record.md` | 1 | same |
+| `docs/notebooks/README.md`, `docs/notebooks/Climate Stress Test.ipynb` | 1 each | repoint at the new chapter |
+
 Two mechanical passes apply to every chapter: rewrite the 38 `<img>` tags to
 Quarto figure syntax with captions (blocked on O-3), and drop the `1.` prefixes
 from headings.
@@ -240,10 +303,9 @@ docs/
     configuration.qmd
     running.qmd
     outputs.qmd
-    notebooks.qmd        # renders the three .ipynb, or links out (O-2)
-  setup/
-    install.md           # rendered in place, unchanged
-    env-notes.md         # env_setup_notes.md, rendered in place
+    notebooks.qmd        # links to / embeds the three .ipynb (O-2)
+  install.md             # THE SETUP GUIDE — unmoved, rendered in place (D9)
+  env_setup_notes.md     # unmoved, rendered in place (D9)
   background/            # THE TECHNICAL BACKGROUND (§4 chapters 1-6, 9, 10)
   platform/              # the wider CST platform (§4 chapters 7-8, O-1)
   migrations/            # the two existing migration notes
@@ -263,12 +325,15 @@ project:
   type: website
   output-dir: _site
   render:
-    - "*.qmd"
+    - "index.qmd"
+    - "install.md"            # the setup guide, in place (D9)
+    - "env_setup_notes.md"
     - "guide/"
-    - "setup/"
     - "background/"
     - "platform/"
     - "migrations/"
+    - "notebooks/*.ipynb"     # only if O-2 answers (a); drop the line otherwise
+    - "!notebooks/README.md"  # its content is superseded by guide/notebooks.qmd
     - "!hydromt-user-guide/"
     - "!hydromt-wflow/"
     - "!wflow-user-guide/"
@@ -281,7 +346,7 @@ website:
       - text: "User guide"
         href: guide/quick-start.qmd
       - text: "Setup"
-        href: setup/install.md
+        href: install.md
       - text: "Technical background"
         href: background/index.qmd
     right:
@@ -435,6 +500,16 @@ repository. Can you supply the image set from
 `CST Development Phase Report_CLEAN_Feb14_2025 V2.docx`? Without it the
 technical background publishes as text only, and every figure reference in the
 prose dangles.
+
+**O-5 (blocks the §4 split, not P1 — D10).** The technical background is a
+report. Do we (a) keep the whole site one `type: website`, accepting that
+chapter numbering restarts per page and there is no PDF; (b) add a `type: book`
+sub-project for `background/`, giving continuous numbering and a typst PDF from
+the same source, at the cost of nested-project config that must be verified
+first [recommended, conditional on that verification]; or (c) leave the note as
+one long page with a floating table of contents and generate the PDF from that
+single document — the cheapest option, and it keeps numbering correct, but the
+navigation is a scrollbar?
 
 **O-4 (blocks P4 only).** Is moving or mirroring this repository into the
 `Deltares-research` organisation actually on the table, or is that org simply
