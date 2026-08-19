@@ -99,6 +99,18 @@ for bytes this code no longer produces. Cost is one re-fetch, and `cache_hit`
 treats a schema mismatch as a miss, so it is automatic rather than a deletion
 chore. [[t2608191308]] was already owed and is unaffected in size.
 
+### Verified against the live store, 2026-08-19
+
+`dev/scripts/stage_cmip6.py` over the three models that failed, 6 slices:
+**6 written, 0 failed** (was 4 of 6). `CAS-ESM2-0 historical` and `ACCESS-CM2
+ssp585` — the `MergeError` and the `OutOfBoundsDatetime` — both stage. Every
+slice carries `cst_schema_version = 6`.
+
+One property worth knowing about the artifacts: `cst_source_paths` records the
+CANDIDATE list, not the resolution, so an ambiguous source's slice still shows
+both versions. Which one was read is recoverable from the schema version alone
+(6 means newest-wins), which is a second reason the bump was not optional.
+
 ### Why option 3 was not available
 
 "Pin per entry in the catalog" cannot express these pins. The catalog has ONE
