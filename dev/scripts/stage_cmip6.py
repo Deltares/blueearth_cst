@@ -97,6 +97,15 @@ one above `Total` -- the hard break before the final aggregate. They read
 `console.__version__` against the `console-formatting` skill before assuming
 the older shape is current.
 
+What the FETCH says is not this tool's console surface and is not reimplemented
+here. Each slice runs inside WF2's own `tee_to_log`, so hydromt's records are
+compacted, the mute table drops the rows that state a property of the run, and
+what remains is written to `<target_root>/logs/<key>.log` as well as shown --
+identically to what the same fetch prints under Snakemake. Two consequences
+worth stating: a console fix belongs in `shared/snake_utils.py`, where both
+paths get it, and a slice that failed has a full log part with its traceback in
+it, which the closing report names.
+
 Not part of a run: this is an authoring/staging helper
 (see AGENTS.md, "Three homes for executables").
 """
@@ -118,6 +127,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from blueearth_cst.projections import series_identity as _si  # noqa: E402
 from blueearth_cst.projections.fetch_gcm_raw import fetch_raw_slice  # noqa: E402
+from blueearth_cst.shared.snake_utils import tee_to_log  # noqa: E402
 
 # `console.py` sits beside this file, and `stage_data.py` reaches it exactly
 # this way. The two staging tools share one console vocabulary, so they share
@@ -333,6 +343,19 @@ def plan(cfg):
 DEFAULT_WORKERS = 4
 
 
+def slice_log_path(target_root, key):
+    """Where one slice's fetch log lands: ``<target_root>/logs/<key>.log``.
+
+    The ``logs`` component is not decoration. :func:`snake_utils._log_path_parts`
+    anchors on it to split the path into ``(project_root, log_id)``, which is
+    what gives the log its header and shortens every path inside it against
+    ``target_root``; a flat ``<target_root>/<key>.log`` falls into the
+    ``("", basename)`` fallback and loses both. One file per slice, because the
+    workers are separate processes and a shared handle would interleave.
+    """
+    return str(Path(target_root) / "logs" / f"{key}.log")
+
+
 def stage_one(cfg, job):
     """Stage a single slice. Runs in a worker process; returns (key, error, seconds).
 
@@ -346,28 +369,44 @@ def stage_one(cfg, job):
     reporting: it is dominated by the remote store OPEN (benchmarked at 19 s to
     transfer against a far larger open), so a slow slice means a slow store, not
     a slow machine or a saturated pool.
+
+    The fetch runs inside ``tee_to_log`` -- WF2's own context manager, not a
+    local imitation of it. That is what makes this tool a WRAPPER around the
+    workflow's fetch rather than a second implementation of it: the compaction
+    of hydromt's log format, the console mute table, path shortening, the
+    severity colouring and the silence watchdog are all the pipeline's, so a
+    row reads the same here as it does under Snakemake and only ONE of them has
+    to be maintained. Without it, hydromt's ``StreamHandler`` writes straight
+    past this process at its full ``<date> - <dotted.name> - <module> - INFO -``
+    width, and every fetch row lands on the console beside the entry this tool
+    prints for the same slice.
+
+    ``tee_to_log`` re-raises, so the ``with`` sits INSIDE the ``try``: the
+    traceback is written into the slice's log part on the way out and the
+    return-not-raise contract above is unchanged.
     """
     started = time.perf_counter()
     units = {
         name: (spec or {}).get("units", "") for name, spec in cfg["variables"].items()
     }
     try:
-        fetch_raw_slice(
-            region_path=cfg["region"],
-            raw_nc_out=job["out"],
-            catalog_path=cfg["catalog"],
-            catalog_entry=catalog_entry_name(
-                cfg["clim_project"], job["model"], job["experiment"]
-            ),
-            member=job["member"],
-            variables=list(cfg["variables"]),
-            variable_units=units,
-            buffer=cfg["buffer_cells"],
-            acquisition_window=tuple(_si.acquisition_window(job["experiment"])),
-            components=digest_components(
-                cfg, job["model"], job["experiment"], job["member"]
-            ),
-        )
+        with tee_to_log(slice_log_path(cfg["target_root"], job["key"])):
+            fetch_raw_slice(
+                region_path=cfg["region"],
+                raw_nc_out=job["out"],
+                catalog_path=cfg["catalog"],
+                catalog_entry=catalog_entry_name(
+                    cfg["clim_project"], job["model"], job["experiment"]
+                ),
+                member=job["member"],
+                variables=list(cfg["variables"]),
+                variable_units=units,
+                buffer=cfg["buffer_cells"],
+                acquisition_window=tuple(_si.acquisition_window(job["experiment"])),
+                components=digest_components(
+                    cfg, job["model"], job["experiment"], job["member"]
+                ),
+            )
     except Exception as exc:  # noqa: BLE001 -- reported per slice, never fatal
         return job["key"], f"{type(exc).__name__}: {exc}", time.perf_counter() - started
     return job["key"], None, time.perf_counter() - started
@@ -632,6 +671,14 @@ def _print_report(
             [(key, broke[key]) for key in sorted(broke)],
             FAILED_GLYPH,
             FAILED_COLOR,
+            # The message below is the exception's one line. `tee_to_log`
+            # writes the whole traceback, and every row the fetch printed
+            # before it, into the slice's own log part -- so the note names
+            # where to look rather than making the reader guess.
+            note=(
+                "the fetch log and traceback for each are under "
+                f"{fmt_path(str(Path(cfg['target_root']) / 'logs'))}"
+            ),
         )
 
 
@@ -787,6 +834,13 @@ def main(argv=None):
     os.makedirs(cfg["target_root"], exist_ok=True)
     print(banner("Stage"))
     print(f"  {len(jobs)} slice(s) through {workers} worker(s)")
+    # Named once, here, rather than on every entry: the console below carries
+    # one row per slice and the log path is derivable from the key on all of
+    # them. Said at all because the fetch chatter no longer scrolls past -- a
+    # reader who wants it has to know it was kept somewhere.
+    print(
+        f"  {dim('fetch logs: ' + fmt_path(slice_log_path(cfg['target_root'], '<slice>')))}"
+    )
     print()
 
     # Which outputs were ALREADY there before this run. `fetch_raw_slice`

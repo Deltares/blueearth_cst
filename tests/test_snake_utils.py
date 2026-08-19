@@ -1363,6 +1363,90 @@ def test_tee_keeps_a_local_data_source_read_on_the_console(tmp_path, capsys):
     assert "merit_hydro_index" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize(
+    "message",
+    [
+        "gcsfs extended-filesystem switch = 'false'",
+        "store calendar=noleap (tas)",
+        "wrote raw cmip6_NCC_NorESM2-MM_ssp245_r1i1p1f1.nc (0.07 MB, 1032 steps)",
+    ],
+)
+def test_tee_mutes_the_fetch_rows_that_repeat_the_run_or_the_artifact(
+    tmp_path, capsys, message
+):
+    """WF2's fetch prints these once per slice, and a staging run is 161 slices.
+
+    Driven through `log_row` rather than a hand-written string, because the
+    emitter is half of what is being pinned: `print` splits a row into two
+    writes and `_muted_on_console` refuses a partial chunk, so a row emitted
+    that way could never match however the table is spelled.
+    """
+    log = tmp_path / "rule.log"
+    with tee_to_log(log, heartbeat_interval=0):
+        log_row(message, module="fetch")
+    assert message not in capsys.readouterr().out
+    assert message in log.read_text(encoding="utf-8")
+
+
+def test_tee_keeps_the_fetch_row_that_says_which_slice_is_being_read(tmp_path, capsys):
+    """Several fetch jobs run at once and one store open can take twenty minutes.
+
+    This is the only row that attributes that wait to a source -- under
+    Snakemake's `-c 3` and under `stage_cmip6.py`'s worker pool alike -- so it
+    stays on the console whatever else from `fetch` is muted for volume.
+    """
+    log = tmp_path / "rule.log"
+    row = (
+        "fetching entry=cmip6_NCC/NorESM2-MM_ssp245_{member} "
+        "member=r1i1p1f1 window=2015-01-01..2100-12-31"
+    )
+    with tee_to_log(log, heartbeat_interval=0):
+        log_row(row, module="fetch")
+    assert "NorESM2-MM_ssp245" in capsys.readouterr().out
+
+
+def test_tee_keeps_the_gcsfs_switch_row_that_explains_a_slow_run(tmp_path, capsys):
+    """The muted spelling is the INFO case; every other value is a WARNING.
+
+    `hns_switch_row` is called rather than quoted, so the test fails if the
+    module ever reports an unexpected value at INFO -- which is the one way the
+    volume mute above could start hiding the row that explains a 14x slowdown.
+    """
+    from blueearth_cst.projections.fetch_gcm_raw import hns_switch_row
+
+    message, level = hns_switch_row("true")
+    assert level == "WARNING"
+    log = tmp_path / "rule.log"
+    with tee_to_log(log, heartbeat_interval=0):
+        log_row(message, module="fetch", level=level)
+    out = capsys.readouterr().out
+    assert "WARNING" in out and "14x slower" in out
+
+
+def test_log_row_emits_one_write_so_the_console_mute_can_see_it(monkeypatch):
+    """A row is handed to the stream whole, newline included.
+
+    `print` would send the text and the newline separately, and the mute
+    predicate rejects a chunk that is not exactly one terminated line. That is
+    not a detail of this function: it is what decides whether OUR rows can be
+    muted at all, so it is pinned here rather than only through a tee.
+    """
+    chunks = []
+
+    class _Recorder:
+        def write(self, text):
+            chunks.append(text)
+            return len(text)
+
+        def flush(self):
+            pass
+
+    monkeypatch.setattr(su.sys, "stdout", _Recorder())
+    log_row("one chunk", module="fetch")
+    assert len(chunks) == 1
+    assert chunks[0].endswith("one chunk\n")
+
+
 def test_tee_mute_never_silences_a_warning_or_a_partial_write(tmp_path, capsys):
     """A prefix muted for VOLUME must not be able to hide a raised level.
 

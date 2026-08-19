@@ -33,7 +33,9 @@ sys.path.insert(0, os.path.join(str(_REPO_ROOT), "dev", "scripts"))
 
 import stage_cmip6 as sc  # noqa: E402
 
+import blueearth_cst.shared.snake_utils as su  # noqa: E402
 from blueearth_cst.projections import series_identity as _si  # noqa: E402
+from blueearth_cst.shared.snake_utils import log_row  # noqa: E402
 
 FIXTURE = _REPO_ROOT / "test_case" / "test_local"
 RAW_DIR = FIXTURE / "data" / "climate" / "projections" / "cmip6" / "raw"
@@ -197,14 +199,18 @@ def _write_cfg(tmp_path, models, target):
 
 
 @pytest.mark.skipif(not REGION.is_file(), reason="needs the test_local fixture region")
-def test_stage_one_returns_the_error_instead_of_raising():
+def test_stage_one_returns_the_error_instead_of_raising(tmp_path):
     """One unavailable source must not end a run with hours of work in it.
 
     A model the catalog does not carry is an ordinary fact, not a crash, so the
     worker reports it as a value. Uses a deliberately absent model, which fails
     long before any network call.
     """
-    cfg = _cfg() | {"region": str(REGION), "clim_project": "cmip6"}
+    cfg = _cfg() | {
+        "region": str(REGION),
+        "clim_project": "cmip6",
+        "target_root": str(tmp_path),
+    }
     job = {
         "key": "cmip6_NO_SUCH_MODEL_historical_r1i1p1f1",
         "model": "NO/SUCH-MODEL",
@@ -215,7 +221,71 @@ def test_stage_one_returns_the_error_instead_of_raising():
     key, error, elapsed = sc.stage_one(cfg, job)
     assert key == job["key"]
     assert error, "an absent model must be reported, not silently succeed"
+    # Named, so the test cannot pass on an unrelated failure -- a missing config
+    # key would raise inside the same `try` and satisfy a bare truthiness check.
+    assert "SUCH-MODEL" in error or "KeyError" in error
     assert elapsed >= 0, "every slice reports a duration, failures included"
+    # The failure has a log part, and it holds the traceback `stage_one`
+    # flattened to one line for the console.
+    part = Path(sc.slice_log_path(cfg["target_root"], job["key"]))
+    assert part.is_file(), "a failed slice must leave the log that explains it"
+    assert "Traceback" in part.read_text(encoding="utf-8")
+
+
+def test_stage_one_routes_the_fetch_through_the_workflow_tee(tmp_path, capsys):
+    """The staging tool is a WRAPPER around WF2's fetch, console included.
+
+    What the fetch says goes through `tee_to_log` -- the same context manager
+    the Snakemake rule uses -- so the mute table, the compaction and the log
+    part are the pipeline's rather than a second implementation living in
+    `dev/`. Pinned by driving one muted row and one kept row through a stubbed
+    fetch: the muted one must reach the log and not the console.
+    """
+
+    def _fake_fetch(**kwargs):
+        log_row("gcsfs extended-filesystem switch = 'false'", module="fetch")
+        log_row("fetching entry=cmip6_X/Y_historical_{member}", module="fetch")
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(sc, "fetch_raw_slice", _fake_fetch)
+    # Stubbed too: it is resolved as an ARGUMENT to the fetch, so a made-up
+    # (model, scenario) fails in the catalog before the stub is ever reached.
+    # The recipe itself is pinned by the fixture case; this test is about where
+    # the fetch's output goes.
+    monkeypatch.setattr(sc, "digest_components", lambda *a, **k: {})
+    try:
+        cfg = _cfg() | {
+            "region": "unused.geojson",
+            "target_root": str(tmp_path),
+        }
+        job = {
+            "key": "cmip6_X_Y_historical_r1i1p1f1",
+            "model": "X/Y",
+            "experiment": "historical",
+            "member": "r1i1p1f1",
+            "out": str(tmp_path / "slice.nc"),
+        }
+        _key, error, _elapsed = sc.stage_one(cfg, job)
+    finally:
+        monkeypatch.undo()
+    assert error is None, error
+    out = capsys.readouterr().out
+    part = Path(sc.slice_log_path(cfg["target_root"], job["key"]))
+    assert "extended-filesystem switch" not in out
+    assert "extended-filesystem switch" in part.read_text(encoding="utf-8")
+    assert "fetching entry=" in out
+
+
+def test_slice_log_path_puts_the_logs_anchor_where_the_tee_looks_for_it():
+    """`_log_path_parts` splits on a `logs` component; a flat name loses that.
+
+    Without the anchor the log gets no project root, so its header and every
+    path inside it stop being relativized against `target_root`.
+    """
+    path = sc.slice_log_path("C:/data/cmip6_slices", "cmip6_X_Y_historical_r1i1p1f1")
+    root, log_id = su._log_path_parts(path)
+    assert Path(root) == Path("C:/data/cmip6_slices")
+    assert log_id == "cmip6_X_Y_historical_r1i1p1f1.log"
 
 
 # --- pre-filtering against the catalog ---------------------------------------

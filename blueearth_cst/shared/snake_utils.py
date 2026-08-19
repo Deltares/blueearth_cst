@@ -2586,7 +2586,7 @@ _ASCII_GLYPH_FALLBACK = str.maketrans(
 #: front. What the console loses is a fact it was stating up to eighteen times
 #: and that nobody reads on the eighteenth.
 #:
-#: The rest are hydromt's MODEL-OPEN BOILERPLATE, muted for the same reason and
+#: Most of what follows is hydromt's MODEL-OPEN BOILERPLATE, muted for the same reason and
 #: on the same terms. Every rule that touches the built model reopens it, and
 #: each reopen announces the plugin version, the TOML it read and the Wflow
 #: version it supports -- three rows, eight times in one WF1 build and once per
@@ -2597,6 +2597,11 @@ _ASCII_GLYPH_FALLBACK = str.maketrans(
 #: NOTHING happened. ``No tables found, skip writing.`` is hydromt confirming an
 #: absence on every single write, which is the definition of a row that cannot
 #: distinguish one job from another.
+#:
+#: The ``fetch`` entries at the end are the one group that is OURS rather than a
+#: library's, and they are held to a stricter test because of it: a row we chose
+#: to emit is muted only where a second statement of the same fact reaches the
+#: reader anyway. Each carries its own note below.
 #:
 #: Nothing here is ever a warning or an error -- see the INFO restriction in
 #: :func:`_muted_on_console`, which is what keeps a prefix muted for VOLUME from
@@ -2617,6 +2622,31 @@ _TEE_CONSOLE_MUTED = (
     # produces. A pattern rather than a prefix because the entry name sits
     # between the two fixed parts.
     ("data_source", re.compile(r"^Reading \S+ from \w+://")),
+    # WF2's own fetch rows that state a property of the RUN, or a fact the
+    # artifact already carries. Same terms as everything above: INFO only, and
+    # the row survives in every log part. The row naming WHICH slice a worker is
+    # on -- `fetching entry=<entry> member=<m> window=<a>..<b>` -- is
+    # deliberately NOT here: with several fetch jobs in flight (Snakemake under
+    # `-c 3`, or `stage_cmip6.py` under four workers) it is the only thing that
+    # attributes a twenty-minute wait to a source, and a stall nobody can
+    # attribute is the defect these rows exist to prevent.
+    #
+    # `gcsfs extended-filesystem switch = 'false'` is the value this module
+    # needs, reported once per fetch job -- one identical row per slice, and a
+    # full staging run is 161 of them. The muted spelling PINS `'false'`:
+    # `hns_switch_row` reports every other value at WARNING, which carries a
+    # level field and so cannot match here, which is what keeps the row that
+    # explains a 14x slowdown out of reach of a mute added for volume.
+    ("fetch", "gcsfs extended-filesystem switch = 'false'"),
+    # `store calendar=noleap (tas)` -- a property of the store, stamped on the
+    # slice as `cst_calendar`, so the console copy is the transient one.
+    ("fetch", "store calendar="),
+    # `wrote raw <key>.nc (0.07 MB, 780 steps)` -- the completion row. Under
+    # Snakemake the rule's DONE line already says the job finished, and under
+    # `stage_cmip6.py` the tool's own entry restates the size beside the
+    # elapsed time; either way this row lands next to a second statement of
+    # itself. The size and step count stay in the log part.
+    ("fetch", "wrote raw "),
 )
 
 
@@ -3506,10 +3536,21 @@ def log_row(message, module="cst", level="INFO"):
       swallowed an unfamiliar level would hide exactly the unusual row worth
       seeing.
 
-    Still ``print`` rather than ``logging``, deliberately: the tee captures
+    Still ``sys.stdout`` rather than ``logging``, deliberately: the tee captures
     ``sys.stdout``, so a row that went through a logging handler would bypass
     the mechanism that puts it in the rule's log file. The floor therefore
     belongs INSIDE this function, not in a migration to ``logging``.
+
+    **One ``write`` per row, not ``print``.** ``print`` emits the text and the
+    newline as two calls, and :func:`_muted_on_console` refuses any chunk that
+    is not exactly one newline-terminated line — deliberately, since a tee is
+    handed chunks rather than lines. So a row emitted through ``print`` can
+    never match ``_TEE_CONSOLE_MUTED``, and until this changed the mute table
+    reached hydromt's records (``StreamHandler.emit`` writes ``msg +
+    terminator`` in one call) but not a single row of our own. The visible
+    output is identical either way; what changes is that our rows are now
+    mutable on the same terms as everyone else's. Same defect and same fix as
+    ``add_climate_forcing._run_streaming`` in the wf1-wf3 console lean.
     """
     rank = _LOG_LEVEL_RANK.get(str(level).strip().upper())
     if rank is not None and rank < log_level_floor():
@@ -3526,7 +3567,9 @@ def log_row(message, module="cst", level="INFO"):
     message = _relativize_paths(
         str(message), os.environ.get(_PROJECT_ROOT_ENV, ""), _path_tokens()
     )
-    print(_log_row_text(f"{datetime.now():%H:%M:%S}", module, level, message))
+    sys.stdout.write(
+        _log_row_text(f"{datetime.now():%H:%M:%S}", module, level, message) + "\n"
+    )
 
 
 # Figures written by `save_figure` since the last flush, as
