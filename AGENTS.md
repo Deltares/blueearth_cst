@@ -319,9 +319,20 @@ test suite instead of through a deliberate run. A copy is an independent
 **The agent-config directories are the opposite case, and are SYMLINKED.**
 `.claude/`, `.codex/` and `.agents/` are gitignored per-user state, so no
 worktree gets them either — but they are read, not written, and one shared
-definition is the whole point. `.claude/skills` and `.agents/skills` are
-themselves symlinks into `~/workspace/brain/artifacts/`, which a copy would
-dereference into a private fork that then answers with last week's version.
+definition is the whole point. A copy at any level would dereference into a
+private fork that then answers with last week's version.
+
+**The links are PER SKILL, not per directory**, and this file said otherwise
+until 2026-08-19. What a worktree gets is the three top-level directories as
+links to the primary's (`worktree_link:`). Inside them, `skills/` is an
+ordinary directory whose ENTRIES are one symlink each into
+`~/workspace/brain/artifacts/skills/<name>` — 14 of the brain's 60, a curated
+selection rather than the whole shelf. So a skill is present or absent one
+entry at a time, a missing one is a missing ENTRY rather than a broken
+directory link, and a skill can be reachable without being linked here at all:
+`todo-board` is absent from both `skills/` dirs and still works, because
+`dev/scripts/todoboard.py` searches those two, then the brain path, then
+`~/.claude/skills`.
 
 Their absence does not fail, it **downgrades**: measured 2026-08-11, a worktree
 session resolved only 4 of the 18 project skills — every generic process skill
