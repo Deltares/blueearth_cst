@@ -1,13 +1,13 @@
 ---
 title: Propagate the post-R11 test_local fixture back to the primary checkout
 type: todo-item
-status: backlog
+status: done
 effort: 1
 area: test fixtures
 origin: 2026-08-12 standing-lane split
 queue:
 created: 2026-08-12
-updated: 2026-08-12
+updated: 2026-08-19
 ---
 
 > [!note] Overview
@@ -76,3 +76,28 @@ shortened config, not with `snake_config_model_test.yml`.
       regenerated? `AGENTS.md` already reserves it for integration runs, which
       argues yes — and a worktree run that silently produces a divergent fixture
       is what created this.
+
+## Closed 2026-08-19 — resolved by a WF3 re-run in the primary, unrecorded
+
+Verified in the primary rather than assumed:
+
+| check | result |
+|---|---|
+| `test_case/test_local/.../q_indicators.csv` header | `metric,location,st_id,rlz_id,value` — the post-R11 CR-2 shape, mtime **2026-08-16** |
+| `pytest tests/test_interchange_contracts.py` | **90 passed, 6 skipped, 0 failed** (`test_hm7_integration` among them) |
+| `dev/scripts/check_baseline.py check` | **OK — 7 target(s) match manifest** |
+
+So a WF3 re-run happened in the primary on 08-16 and nobody closed this. The
+symptom is gone and the fixture no longer travels stale into new slots.
+
+**The trap this note documented did NOT materialise, and that is the useful
+part.** It measured that copying the worktree's tree back would fix
+`test_hm7_integration` while breaking the one baseline target the primary passed
+exactly — trading a red for a red and worsening provenance. A RE-RUN in the
+primary is a different operation from a COPY, and it satisfies both at once,
+which is what the table above shows. That answers the note's open question —
+*decide how a regenerated fixture is meant to travel back* — with: it does not
+travel. Regenerate it where the baseline was recorded, which is the primary, and
+let `worktree_seed` carry it outward from there. `slot-start` already refreshes
+a seed the primary has moved past, and deliberately leaves one that LEADS the
+primary untouched, so outward is the only direction that is automatic.
