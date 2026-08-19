@@ -40,6 +40,7 @@ from blueearth_cst.projections.fetch_gcm_raw import (
     clip_to_bbox,
     hns_switch_row,
     is_irregular_grid_error,
+    pin_tail,
     raw_slice_attrs,
     resolve_entry_name,
     stale_units,
@@ -292,6 +293,56 @@ def test_a_globbed_template_the_pins_cannot_resolve_yields_nothing(pins):
     no single location to address, so the caller records CALENDAR_UNKNOWN
     instead of reading a wildcard URI as if it were a store."""
     assert calendar_store_uri(f"gs://s/{{variable}}{SUFFIX}", "r1", "tas", pins) == ""
+
+
+# ---------------------------------------------------------------------------
+# pin_tail — the console row names the pin, not the URI
+# ---------------------------------------------------------------------------
+
+
+def test_the_pin_is_what_the_template_and_the_pinned_uri_differ_by():
+    """`pinned_uri` swaps the trailing `/*/*` for one `<grid>/<version>`.
+
+    That string is the whole of what the row reports; everything ahead of it is
+    the catalog entry, which the `fetching entry=` row above already named.
+    """
+    template = (
+        "gs://cmip6/CMIP6/ScenarioMIP/NCC/NorESM2-MM/ssp245/{member}/Amon/"
+        f"{{variable}}{SUFFIX}"
+    )
+    pinned = series_identity.pinned_uri(template, {"tas": ["gn/v20191108"]})
+    assert pin_tail(template, pinned) == "gn/v20191108"
+
+
+def test_the_shortened_row_is_less_than_half_the_length_of_the_uri_one():
+    """The reason this exists: ~130 characters per slice, 161 slices."""
+    template = (
+        "gs://cmip6/CMIP6/ScenarioMIP/NCC/NorESM2-MM/ssp245/{member}/Amon/"
+        f"{{variable}}{SUFFIX}"
+    )
+    pinned = series_identity.pinned_uri(template, {"tas": ["gn/v20191108"]})
+    assert (
+        len(f"pinned {pin_tail(template, pinned)}, no bucket listing")
+        < len(f"pinned URI (no bucket listing): {pinned}") / 2
+    )
+
+
+@pytest.mark.parametrize(
+    "template,pinned",
+    [
+        # not DRS-shaped: no trailing glob to have been substituted
+        ("gs://store/a/b", "gs://store/a/b"),
+        # a pinned URI that is not the template's own tail -- unrelated inputs
+        (f"gs://store/a{SUFFIX}", "s3://elsewhere/x/y"),
+    ],
+)
+def test_an_unrecognized_pair_still_says_where_it_read_from(template, pinned):
+    """Degrades to the whole URI rather than to a misleading fragment.
+
+    A catalog whose URIs this function cannot decompose is a catalog whose rows
+    should get longer, not quieter.
+    """
+    assert pin_tail(template, pinned) == pinned
 
 
 # ---------------------------------------------------------------------------

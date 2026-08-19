@@ -104,6 +104,34 @@ def is_irregular_grid_error(error):
     return IRREGULAR_GRID_PHRASE in str(error)
 
 
+def pin_tail(template_uri, pin_uri):
+    """What `pinned_uri` substituted for the catalog URI's trailing glob.
+
+    The generated catalog ends every URI `/{variable}/*/*` and
+    `series_identity.pinned_uri` replaces that `/*/*` with the one
+    `<grid_label>/<version>` the store index recorded -- so the pinned URI and
+    the entry's own template differ by EXACTLY that string, and everything
+    ahead of it (activity, institution, model, experiment, member, table) is
+    already on the `fetching entry=` row printed one line earlier.
+
+    Naming the tail rather than the URI takes the row from ~130 characters to
+    ~56 and drops nothing a reader could act on: the pin IS the fact the row
+    exists to report. The full URI keeps two durable copies -- hydromt's echo
+    of it in the log part (muted on the console, never dropped), and
+    `cst_source_paths` stamped on the slice itself.
+
+    Falls back to the whole URI whenever the two do not have that relationship,
+    so a catalog whose URIs are not DRS-shaped still says where it read from.
+    """
+    suffix = series_identity.STORE_GLOB_SUFFIX
+    if not template_uri.endswith(suffix):
+        return pin_uri
+    head = template_uri[: -len(suffix)]
+    if not pin_uri.startswith(head + "/"):
+        return pin_uri
+    return pin_uri[len(head) + 1 :]
+
+
 def bbox_index_slice(centers, low, high, buffer, axis="axis", source=""):
     """The index range ``.raster.clip_bbox`` would take, without needing regularity.
 
@@ -505,11 +533,13 @@ def fetch_raw_slice(
         (components.get("pins") or {}).get(member, {}),
     )
     if pin_uri is None:
-        # The URI goes on OUR row in both branches. The console mutes
-        # hydromt's `data_source - Reading <entry> from <uri>` echo, which
-        # repeats this URI at ~175 characters (4 such rows per WF2 run);
-        # that mute is only information-preserving because the glob case
-        # names its URI here rather than relying on the echo.
+        # The GLOB is named in full, and this is the branch where that
+        # matters. The console mutes hydromt's `data_source - Reading <entry>
+        # from <uri>` echo, which repeats the URI at ~175 characters; the
+        # pinned branch above can afford to print only the pin because the
+        # entry it hangs off is a fixed template the previous row already
+        # named, while a glob is precisely the case where WHICH URI was used
+        # is not derivable -- it is the pattern whose match set could change.
         log_row(
             f"no single pin; keeping the URI glob: {entry_spec.get('uri', '')}",
             module="fetch",
@@ -524,7 +554,14 @@ def fetch_raw_slice(
         # prepare_climate_data_catalog.py).
         data_catalog = hydromt.DataCatalog()
         data_catalog.from_dict({catalog_entry: pinned_spec})
-        log_row(f"pinned URI (no bucket listing): {pin_uri}", module="fetch")
+        # The TAIL, not the URI: everything ahead of the pin is the entry, and
+        # the row above names the entry. See `pin_tail` for where the full URI
+        # still lives.
+        log_row(
+            f"pinned {pin_tail(str(entry_spec.get('uri', '')), pin_uri)}, "
+            "no bucket listing",
+            module="fetch",
+        )
     # --- the read, with the irregular-grid branch behind it ----------------
     # 27 of 67 CMIP6 models publish Amon on a Gaussian grid, whose latitudes are
     # Legendre roots and so vary by ~1% -- an order above hydromt's 5e-4
