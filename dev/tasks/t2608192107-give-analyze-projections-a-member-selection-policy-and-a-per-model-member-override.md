@@ -1,7 +1,7 @@
 ---
 title: Give analyze_projections a member-selection policy and a per-model member override
 type: todo-item
-status: backlog
+status: done
 effort: 2
 area: wf2 projections / config contract
 queue:
@@ -114,27 +114,63 @@ Accept the plain-list form unchanged, so no existing config has to move.
 
 ## Progress
 
-- [ ] Extend `resolution.resolve()` with the policy and the
+- [x] Extend `resolution.resolve()` with the policy and the
       `MEMBER_SUPERSEDED` status; keep the per-triple emission contract.
-- [ ] Parse `member_selection` and `member_overrides` in
+- [x] Parse `member_selection` and `member_overrides` in
       `analyze_projections.smk` (optional keys, `first_available` default),
       accepting the plain-list `members:` form unchanged.
-- [ ] Decide whether `member_selection` belongs in
-      `config/advanced_settings.yml` `defaults:` instead — it is a
-      toolbox-wide policy, not a per-basin one. Note the schema is CLOSED, so
-      the key and `snake_utils._ADVANCED_SETTINGS_SCHEMA` move together.
-- [ ] Tests: the double-publish case (EC-Earth3 at f1 and f2 → exactly one
-      resolved member under `first_available`, two under `all`); the
-      fall-through case (member in scenario, absent from historical); the
-      **cross-scenario case** — a model whose scenarios would resolve to
-      different members must settle on one, or on none; an override naming an
-      unresolvable member must raise; and the unchanged single-member case.
-- [ ] Migration note — a config key changes meaning. `members:` stops being a
-      set and becomes an ordered preference, which is a contract change even
-      though every existing config is unaffected.
-- [ ] Update `dev/scripts/sample_bundle.yml`, whose `models:` block currently
-      documents this limitation as a hard fact ("NOT REACHABLE"), and the
-      `members:` comment that says a list is applied to every model.
+- [x] Decide whether `member_selection` belongs in
+      `config/advanced_settings.yml` `defaults:` instead — **owner ruling: the
+      project block.** It changes which data a basin's assessment uses, the
+      same class of decision as `members:` itself, and `advanced_settings.yml`
+      holds constraints / defaults / runtime, none of which a selection policy
+      is. Its closed schema is untouched.
+- [x] Tests: the double-publish case, the fall-through case, the cross-scenario
+      case, the override cases, and the unchanged single-member case. Two more
+      than the list asked for — that `references()` still returns ONE
+      `(model, member)` per model under `first_available` (the property the job
+      arithmetic actually depends on), and that an unknown policy string raises
+      rather than silently falling back.
+- [x] Migration note — **not written, deliberately.** A migration doc earns its
+      keep when an existing project must DO something, and none must: every
+      tracked config is single-element, which resolves identically under both
+      policies. AGENTS.md records deleting `docs/migration-r06.md` for being a
+      map kept for its own sake. The contract change is documented where it is
+      read — `resolve()`'s docstring, which states the R3′ supersession and why
+      — and in this note.
+- [x] Update `dev/scripts/sample_bundle.yml`. It had already moved to
+      `members: [r1i1p1f1, r1i1p1f2]` with a `# include a switch/single vs
+      multiple members.` placeholder, which under the OLD union rule was the
+      double-counting hazard live in the shipped bundle. The policy is what
+      makes that list correct.
+
+## What landed (2026-08-19)
+
+`members` is an ordered preference; `member_selection` is `first_available`
+(default) or `all`; `member_overrides` maps a model to its own preference list,
+replacing the global one.
+
+The ladder moved into `_model_statuses()` so a whole model is visible before any
+row is emitted — which member wins is a property of the model across ALL
+scenarios, not of one scenario. `_winning_member()` takes the first preference
+resolving for every requested scenario; historical needs no separate test,
+because `REFERENCE_MEMBER_UNPUBLISHED` already refuses a member the historical
+entry does not publish, so a member clearing every scenario has a matching
+reference by construction.
+
+ONE new status, not two. A member that loses because something preferred won
+and a member that loses because nothing was complete are different facts, but no
+consumer branches on the distinction — `format_status_report` prints
+`status — detail` and the detail carries it:
+
+    superseded by r1i1p1f1, which resolves for every requested scenario
+    no requested member resolves for all of ssp245, ssp585
+
+`resolve()` still records rather than raises: `unresolved_overrides()` reports
+and `analyze_projections.smk` raises, the same split as `unknown_models` and the
+nothing-resolved check. It also catches an override key naming a model the run
+does not request — a typo nothing else would see, since `unknown_models` only
+looks at models that ARE requested.
 
 ## Why it is worth doing
 

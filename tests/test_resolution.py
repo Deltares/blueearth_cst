@@ -71,6 +71,10 @@ def test_requested_members_are_intersected_not_required():
 
     ssp585 publishes only r1i1p1f1 here, so requesting both members yields one
     resolved point and one normal skip -- not an error.
+
+    Names `selection="all"` explicitly since t2608192107: R3′ is no longer the
+    default, and this test is about R3′ rather than about whatever the default
+    happens to be.
     """
     combos = res.resolve(
         FULL,
@@ -78,6 +82,7 @@ def test_requested_members_are_intersected_not_required():
         models=["AAA/M1"],
         scenarios=["ssp585"],
         members=["r1i1p1f1", "r2i1p1f1"],
+        selection=res.ALL_MEMBERS,
     )
     got = _statuses(combos)
     assert got[("AAA/M1", "ssp585", "r1i1p1f1")] == res.RESOLVED
@@ -85,16 +90,27 @@ def test_requested_members_are_intersected_not_required():
 
 
 def test_one_row_per_REQUESTED_combination_not_per_resolved():
-    """The skips are the point -- they are what makes composition.csv auditable."""
-    combos = res.resolve(
-        FULL,
+    """The skips are the point -- they are what makes composition.csv auditable.
+
+    Asserted under BOTH policies since t2608192107, because that is exactly what
+    the emission contract claims: the row count follows the REQUEST, and only
+    the statuses follow the policy. `first_available` resolves one fewer here --
+    r2i1p1f1 is complete for ssp245 and would have resolved under `all` -- and
+    it is recorded as superseded rather than dropped.
+    """
+    kwargs = dict(
         clim_project=CP,
         models=["AAA/M1"],
         scenarios=["ssp245", "ssp585"],
         members=["r1i1p1f1", "r2i1p1f1"],
     )
-    assert len(combos) == 4  # 1 model x 2 scenarios x 2 members
-    assert sum(c.resolved for c in combos) == 3
+    every = res.resolve(FULL, selection=res.ALL_MEMBERS, **kwargs)
+    first = res.resolve(FULL, selection=res.FIRST_AVAILABLE, **kwargs)
+
+    assert len(every) == len(first) == 4  # 1 model x 2 scenarios x 2 members
+    assert sum(c.resolved for c in every) == 3
+    assert sum(c.resolved for c in first) == 2
+    assert sum(c.status == res.MEMBER_SUPERSEDED for c in first) == 1
 
 
 # --------------------------------------------------------------------------
@@ -210,12 +226,20 @@ def test_references_are_DISTINCT_across_scenarios():
 
 
 def test_references_split_by_member():
+    """Under `all`, two members of one model are two distinct references.
+
+    Names the policy explicitly since t2608192107: this is the multi-member
+    ensemble case, and `first_available` deliberately produces ONE reference per
+    model -- see `test_a_model_settles_on_ONE_member_across_every_scenario`,
+    which is the property the job arithmetic depends on.
+    """
     combos = res.resolve(
         FULL,
         clim_project=CP,
         models=["AAA/M1"],
         scenarios=["ssp245"],
         members=["r1i1p1f1", "r2i1p1f1"],
+        selection=res.ALL_MEMBERS,
     )
     assert res.references(combos) == [
         ("AAA/M1", "r1i1p1f1"),
@@ -346,3 +370,280 @@ def test_crawl_dates_compare_across_yaml_date_and_json_string():
 
     with pytest.raises(RuntimeError, match="different crawls"):
         res.assert_index_matches_catalog(catalog, {"crawled_on": "2026-08-01"})
+
+
+# --- member selection: first_available vs all (t2608192107) -------------------
+
+#: `AAA/M1` is complete at BOTH forcing variants -- the shape that makes
+#: `members: [r1i1p1f1, r1i1p1f2]` double-count. Measured on the real store for
+#: CAMS-CSM1-0, EC-Earth3 and NorESM2-LM.
+BOTH_VARIANTS = _catalog(
+    {
+        ("AAA/M1", "historical"): ["r1i1p1f1", "r1i1p1f2"],
+        ("AAA/M1", "ssp245"): ["r1i1p1f1", "r1i1p1f2"],
+        ("AAA/M1", "ssp585"): ["r1i1p1f1", "r1i1p1f2"],
+    }
+)
+
+#: `BBB/M2` publishes ONLY the f2 variant -- the eight models a config asking
+#: for f1 alone cannot reach at all (CNRM-CM6-1, UKESM1-0-LL, MIROC-ES2L, ...).
+ONLY_F2 = _catalog(
+    {
+        ("BBB/M2", "historical"): ["r1i1p1f2"],
+        ("BBB/M2", "ssp245"): ["r1i1p1f2"],
+        ("BBB/M2", "ssp585"): ["r1i1p1f2"],
+    }
+)
+
+
+def _resolved(combos):
+    return {(c.dataset, c.scenario, c.member) for c in combos if c.resolved}
+
+
+def test_a_model_complete_at_both_variants_resolves_ONCE():
+    """The defect this policy closes, not the feature it adds.
+
+    CAMS-CSM1-0, EC-Earth3 and NorESM2-LM are complete at f1 AND f2, so under
+    the old union rule a config reaching for f2 made those three contribute two
+    data points where every other model contributes one --
+    `get_change_climate_proj_summary.py` merges across models and reduces with
+    `stats="mean"`, so they were weighted double in the ensemble.
+    """
+    combos = res.resolve(
+        BOTH_VARIANTS,
+        clim_project=CP,
+        models=["AAA/M1"],
+        scenarios=["ssp245"],
+        members=["r1i1p1f1", "r1i1p1f2"],
+    )
+    assert _resolved(combos) == {("AAA/M1", "ssp245", "r1i1p1f1")}
+
+
+def test_the_passed_over_member_is_RECORDED_not_dropped():
+    """One Combination per REQUESTED triple, which is what makes the record
+    auditable -- the report has to be able to say why f2 was not used."""
+    combos = res.resolve(
+        BOTH_VARIANTS,
+        clim_project=CP,
+        models=["AAA/M1"],
+        scenarios=["ssp245"],
+        members=["r1i1p1f1", "r1i1p1f2"],
+    )
+    assert len(combos) == 2
+    superseded = [c for c in combos if c.status == res.MEMBER_SUPERSEDED]
+    assert [c.member for c in superseded] == ["r1i1p1f2"]
+    assert "superseded by r1i1p1f1" in superseded[0].detail
+    assert res.format_status_report(combos).count("r1i1p1f2") == 1
+
+
+def test_all_keeps_todays_union_behaviour():
+    """R3′ is not deleted, it is demoted to an opt-in for a deliberate
+    multi-member ensemble."""
+    combos = res.resolve(
+        BOTH_VARIANTS,
+        clim_project=CP,
+        models=["AAA/M1"],
+        scenarios=["ssp245"],
+        members=["r1i1p1f1", "r1i1p1f2"],
+        selection=res.ALL_MEMBERS,
+    )
+    assert _resolved(combos) == {
+        ("AAA/M1", "ssp245", "r1i1p1f1"),
+        ("AAA/M1", "ssp245", "r1i1p1f2"),
+    }
+
+
+def test_a_model_published_only_at_f2_is_reached_by_the_preference_list():
+    """The feature half: eight models are unreachable while `members` is a flat
+    list applied to every model."""
+    combos = res.resolve(
+        ONLY_F2,
+        clim_project=CP,
+        models=["BBB/M2"],
+        scenarios=["ssp245"],
+        members=["r1i1p1f1", "r1i1p1f2"],
+    )
+    assert _resolved(combos) == {("BBB/M2", "ssp245", "r1i1p1f2")}
+
+
+def test_a_member_missing_from_historical_falls_through_to_the_next():
+    """D7 pairs a scenario point with the SAME member's historical.
+
+    So a member the scenario publishes but historical does not must not win --
+    it would resolve here and fail at reduce time, which is the run-time raise
+    D7 exists to replace.
+    """
+    catalog = _catalog(
+        {
+            ("CCC/M3", "historical"): ["r1i1p1f2"],
+            ("CCC/M3", "ssp245"): ["r1i1p1f1", "r1i1p1f2"],
+        }
+    )
+    combos = res.resolve(
+        catalog,
+        clim_project=CP,
+        models=["CCC/M3"],
+        scenarios=["ssp245"],
+        members=["r1i1p1f1", "r1i1p1f2"],
+    )
+    assert _resolved(combos) == {("CCC/M3", "ssp245", "r1i1p1f2")}
+    losers = {c.member: c.status for c in combos if not c.resolved}
+    assert losers == {"r1i1p1f1": res.REFERENCE_MEMBER_UNPUBLISHED}
+
+
+def test_a_model_settles_on_ONE_member_across_every_scenario():
+    """The constraint that makes this per-MODEL rather than per-(model, scenario).
+
+    Here f1 covers ssp245 only and f2 covers both. Choosing per scenario would
+    give ssp245->f1 and ssp585->f2, each individually D7-valid -- and
+    `analyze_projections.smk` builds its historical need set as
+    `{(dataset, "historical", member)}`, so the model would acquire TWO
+    historical baselines and difference its scenarios against different
+    references.
+    """
+    catalog = _catalog(
+        {
+            ("DDD/M4", "historical"): ["r1i1p1f1", "r1i1p1f2"],
+            ("DDD/M4", "ssp245"): ["r1i1p1f1", "r1i1p1f2"],
+            ("DDD/M4", "ssp585"): ["r1i1p1f2"],
+        }
+    )
+    combos = res.resolve(
+        catalog,
+        clim_project=CP,
+        models=["DDD/M4"],
+        scenarios=["ssp245", "ssp585"],
+        members=["r1i1p1f1", "r1i1p1f2"],
+    )
+    assert _resolved(combos) == {
+        ("DDD/M4", "ssp245", "r1i1p1f2"),
+        ("DDD/M4", "ssp585", "r1i1p1f2"),
+    }
+    # and the job arithmetic downstream still gets ONE reference for the model
+    assert res.references(combos) == [("DDD/M4", "r1i1p1f2")]
+
+
+def test_a_model_with_no_complete_member_resolves_nowhere():
+    """f1 covers only ssp245, f2 only ssp585: neither clears the whole set.
+
+    Recorded, not dropped -- and the detail says nothing superseded them.
+    """
+    catalog = _catalog(
+        {
+            ("EEE/M5", "historical"): ["r1i1p1f1", "r1i1p1f2"],
+            ("EEE/M5", "ssp245"): ["r1i1p1f1"],
+            ("EEE/M5", "ssp585"): ["r1i1p1f2"],
+        }
+    )
+    combos = res.resolve(
+        catalog,
+        clim_project=CP,
+        models=["EEE/M5"],
+        scenarios=["ssp245", "ssp585"],
+        members=["r1i1p1f1", "r1i1p1f2"],
+    )
+    assert _resolved(combos) == set()
+    superseded = [c for c in combos if c.status == res.MEMBER_SUPERSEDED]
+    assert len(superseded) == 2
+    assert all("no requested member resolves" in c.detail for c in superseded)
+
+
+def test_a_single_member_list_resolves_identically_under_both_policies():
+    """Why the default can change at all: every tracked config is one member,
+    so flipping it invalidates no cached slice."""
+    kwargs = dict(
+        clim_project=CP,
+        models=["AAA/M1"],
+        scenarios=["ssp245", "ssp585"],
+        members=["r1i1p1f1"],
+    )
+    first = res.resolve(BOTH_VARIANTS, selection=res.FIRST_AVAILABLE, **kwargs)
+    every = res.resolve(BOTH_VARIANTS, selection=res.ALL_MEMBERS, **kwargs)
+    assert first == every
+
+
+# --- per-model overrides ------------------------------------------------------
+
+
+def test_an_override_replaces_the_global_preference_for_that_model():
+    """REPLACES rather than prepends: naming a realisation is an assertion about
+    which one, and a fall-back to the global list would defeat it."""
+    catalog = _catalog(
+        {
+            ("FFF/M6", "historical"): ["r1i1p1f1", "r13i1p1f2"],
+            ("FFF/M6", "ssp245"): ["r1i1p1f1", "r13i1p1f2"],
+        }
+    )
+    combos = res.resolve(
+        catalog,
+        clim_project=CP,
+        models=["FFF/M6"],
+        scenarios=["ssp245"],
+        members=["r1i1p1f1"],
+        overrides={"FFF/M6": ["r13i1p1f2"]},
+    )
+    assert _resolved(combos) == {("FFF/M6", "ssp245", "r13i1p1f2")}
+    assert {c.member for c in combos} == {"r13i1p1f2"}, "the global list is not tried"
+
+
+def test_an_override_that_resolves_nothing_is_reported_for_the_caller_to_raise():
+    """`resolve` records; the Snakefile decides what is fatal -- the same split
+    as `unknown_models` and the nothing-resolved check."""
+    catalog = _catalog(
+        {
+            ("GGG/M7", "historical"): ["r1i1p1f1"],
+            ("GGG/M7", "ssp245"): ["r1i1p1f1"],
+        }
+    )
+    overrides = {"GGG/M7": ["r9i9p9f9"]}
+    combos = res.resolve(
+        catalog,
+        clim_project=CP,
+        models=["GGG/M7"],
+        scenarios=["ssp245"],
+        members=["r1i1p1f1"],
+        overrides=overrides,
+    )
+    assert _resolved(combos) == set()
+    assert res.unresolved_overrides(combos, overrides) == ["GGG/M7"]
+
+
+def test_an_override_naming_a_model_the_run_does_not_request_is_reported():
+    """A typo in the model key would otherwise be a silent no-op: nothing else
+    sees it, because `unknown_models` only looks at models that ARE requested."""
+    combos = res.resolve(
+        BOTH_VARIANTS,
+        clim_project=CP,
+        models=["AAA/M1"],
+        scenarios=["ssp245"],
+        members=["r1i1p1f1"],
+        overrides={"AAA/M1-typo": ["r1i1p1f1"]},
+    )
+    assert res.unresolved_overrides(combos, {"AAA/M1-typo": ["r1i1p1f1"]}) == [
+        "AAA/M1-typo"
+    ]
+
+
+def test_no_overrides_reports_nothing():
+    combos = res.resolve(
+        BOTH_VARIANTS,
+        clim_project=CP,
+        models=["AAA/M1"],
+        scenarios=["ssp245"],
+        members=["r1i1p1f1"],
+    )
+    assert res.unresolved_overrides(combos, None) == []
+    assert res.unresolved_overrides(combos, {}) == []
+
+
+def test_an_unknown_policy_is_refused_at_the_call():
+    """A typo in `member_selection` must not silently fall back to a policy."""
+    with pytest.raises(ValueError, match="unknown member_selection"):
+        res.resolve(
+            BOTH_VARIANTS,
+            clim_project=CP,
+            models=["AAA/M1"],
+            scenarios=["ssp245"],
+            members=["r1i1p1f1"],
+            selection="firstavailable",
+        )

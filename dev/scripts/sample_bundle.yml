@@ -192,13 +192,15 @@ projections:
   # does not carry is reported and skipped rather than ending the build -- read
   # the plan output, do not assume.
   #
+  # REACHABLE SINCE t2608192107, and worth knowing why: CNRM-CM6-1,
+  #   CNRM-ESM2-1 and UKESM1-0-LL publish r1i1p1f2 (HadGEM3-GC31-LL is f3), so
+  #   a single-member list excluded them. `members:` is now an ordered
+  #   PREFERENCE and `member_selection: first_available` takes at most one
+  #   member per model, so listing f1 then f2 reaches them WITHOUT
+  #   double-counting CAMS-CSM1-0, EC-Earth3 and NorESM2-LM -- which are
+  #   complete at both variants and would otherwise stage twice.
+  #
   # NOT REACHABLE, worth knowing before going looking:
-  #   CNRM-CM6-1, CNRM-ESM2-1, UKESM1-0-LL publish r1i1p1f2 (HadGEM3-GC31-LL is
-  #     f3). The store has them; the single `members:` list below is what
-  #     excludes them. Adding r1i1p1f2 is NOT a safe fix -- CAMS-CSM1-0,
-  #     EC-Earth3 and NorESM2-LM are complete at BOTH f1 and f2, so they would
-  #     stage twice and be double-weighted in the ensemble. Reaching the f2
-  #     models needs a PER-MODEL member override this template does not have.
   #   MPI-ESM1-2-HR is split across two institution keys -- MPI-M/ carries
   #     historical only, DKRZ/ carries only the ssps. WF2 pairs a scenario with
   #     the same key's historical, so neither half resolves. Hence the LR.
@@ -231,12 +233,21 @@ projections:
                                      # and screening for SKILL is what usually
                                      # removes this one.
   scenarios: [ssp245, ssp370, ssp585]
-  # Applied to every model. Many models do not publish r1i1p1f1 — 70 of the
-  # catalog's 289 entries do not.
-  members: [r1i1p1f1, r1i1p1f2] 
-  
-  # include a switch/single vs multiple members.
-  
+  # ORDERED PREFERENCE, most-wanted first -- not a set. 70 of the catalog's 289
+  # entries do not publish r1i1p1f1, so f2 is the fallback that reaches them.
+  members: [r1i1p1f1, r1i1p1f2]
+  # first_available: at most ONE member per model, the first that resolves for
+  #   historical AND every scenario above. This is what makes the two-element
+  #   list safe -- under `all` the models complete at both variants would
+  #   contribute two data points to a mean that assumes one per model.
+  # A model resolves at one member or at none, so adding a scenario can change
+  # which member a model uses, or drop the model.
+  member_selection: first_available
+  # Optional, and an ASSERTION: it replaces the preference above for that model
+  # and fails the build if the named member does not resolve.
+  # member_overrides:
+  #   MOHC/UKESM1-0-LL: [r13i1p1f2]
+
   # POST-rename names, as the catalog spells them after its adapter runs — NOT
   # the raw CMIP6 `pr`/`tas`. The digest carries the post-rename names, so the
   # raw spellings here would produce slices the pipeline never matches.
