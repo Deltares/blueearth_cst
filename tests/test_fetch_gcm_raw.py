@@ -34,12 +34,16 @@ import xarray as xr
 
 from blueearth_cst.projections import series_identity
 from blueearth_cst.projections.fetch_gcm_raw import (
+    AMBIGUOUS_VERSION_PHRASE,
     WIDE_TIME_PREPROCESS,
+    ambiguous_pins,
+    ambiguous_versions_phrase,
     bbox_index_slice,
     calendar_pin,
     calendar_store_uri,
     check_time_axis,
     clip_to_bbox,
+    explaining_ambiguous_versions,
     harmonise_dims_wide_time,
     hns_switch_row,
     is_irregular_grid_error,
@@ -811,3 +815,93 @@ def test_from_dict_honours_the_override_and_still_expands_the_member():
     options = catalog.get_source("cmip6_X/Y_historical_r1i1p1f1").driver.options
     assert options.preprocess == WIDE_TIME_PREPROCESS
     assert options.get_preprocessor() is harmonise_dims_wide_time
+
+
+# ---------------------------------------------------------------------------
+# ambiguous_pins — which of `pinned_uri`'s four refusals actually happened
+# ---------------------------------------------------------------------------
+
+GLOB = f"gs://cmip6/x/{{member}}/{{variable}}{SUFFIX}"
+
+
+def test_two_versions_of_one_variable_are_ambiguous():
+    """The case that raises `MergeError`: the glob opens both stores."""
+    pins = {"pr": ["gn/v20200302", "gn/v20201227"], "tas": ["gn/v20200302"]}
+    assert ambiguous_pins(GLOB, pins) == pins
+
+
+def test_variables_pinning_different_locations_are_ambiguous():
+    """`pr` and `tas` disagree, so no single store answers for the source."""
+    pins = {"pr": ["gn/v20190429"], "tas": ["gn/v20210317"]}
+    assert ambiguous_pins(GLOB, pins) == pins
+
+
+def test_one_version_each_is_not_ambiguous():
+    """`pinned_uri` will name it, so there is nothing to explain."""
+    assert ambiguous_pins(GLOB, {"pr": ["gn/v1"], "tas": ["gn/v1"]}) == {}
+
+
+def test_a_catalog_uri_that_already_names_one_store_is_not_ambiguous():
+    """Nothing is being chosen -- the URI has no glob suffix to expand.
+
+    `pinned_uri` returns None here too, which is why this cannot key on that.
+    """
+    assert ambiguous_pins("gs://cmip6/x/{variable}/gn/v1", {"pr": ["a", "b"]}) == {}
+
+
+def test_no_recorded_pins_is_not_reported_as_ambiguity():
+    """The bucket may still hold several versions; we simply never crawled them.
+
+    Claiming ambiguity we cannot evidence would put versions in a message that
+    names none, so the honest answer is to say nothing and let the read speak.
+    """
+    assert ambiguous_pins(GLOB, {}) == {}
+
+
+def test_every_version_is_named_and_the_order_is_stable():
+    """The operator's next action is to pick one, which needs the list."""
+    phrase = ambiguous_versions_phrase(
+        {"tas": ["gn/v20191108", "gn/v20210317"], "pr": ["gn/v20191108"]}
+    )
+    assert phrase == "pr: gn/v20191108; tas: gn/v20191108, gn/v20210317"
+
+
+# ---------------------------------------------------------------------------
+# explaining_ambiguous_versions — a FAILED read, rewritten
+# ---------------------------------------------------------------------------
+
+
+def test_a_failed_read_is_re_raised_naming_every_version():
+    """`MergeError: conflicting values for variable 'pr'` names nothing usable.
+
+    Not the source, not the versions, not what to do about it.
+    """
+    pins = {"pr": ["gn/v20200302", "gn/v20201227"], "tas": ["gn/v20200302"]}
+    with pytest.raises(RuntimeError) as caught:
+        with explaining_ambiguous_versions("cmip6_CAS/CAS-ESM2-0_historical", pins):
+            raise ValueError("conflicting values for variable 'pr'")
+    message = str(caught.value)
+    assert "cmip6_CAS/CAS-ESM2-0_historical" in message
+    assert AMBIGUOUS_VERSION_PHRASE in message
+    assert "gn/v20200302, gn/v20201227" in message
+    # the original is quoted, not swallowed -- a cause we have not established
+    # must not be replaced by one we assert
+    assert "ValueError: conflicting values" in message
+    assert isinstance(caught.value.__cause__, ValueError)
+
+
+def test_a_read_that_succeeds_is_untouched():
+    """Two versions differing only in metadata merge cleanly and still stage.
+
+    This wraps a FAILURE; pre-empting the read would break those sources in the
+    name of a better error message.
+    """
+    with explaining_ambiguous_versions("entry", {"pr": ["a", "b"]}):
+        pass  # no exception -- nothing to rewrite
+
+
+def test_an_unambiguous_source_keeps_its_own_error():
+    """No versions to blame, so the original propagates untouched."""
+    with pytest.raises(ValueError, match="something else"):
+        with explaining_ambiguous_versions("entry", {}):
+            raise ValueError("something else")

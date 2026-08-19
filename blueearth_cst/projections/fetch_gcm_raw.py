@@ -36,6 +36,7 @@ Invoked from ``analyze_projections.smk`` via ``script:``; reads
 # catch it (it never executes a script body) -- the other `script:` modules in this
 # repo omit it for the same reason.
 
+import contextlib
 import json
 import os
 
@@ -102,6 +103,94 @@ def is_irregular_grid_error(error):
     `t2608182020`, which carries the measured table).
     """
     return IRREGULAR_GRID_PHRASE in str(error)
+
+
+#: The phrase a multi-version refusal carries, so `dev/scripts/stage_cmip6.py`
+#: can bucket it without matching an exception type. Same contract as
+#: :data:`IRREGULAR_GRID_PHRASE` and for the same reason: the type here is
+#: whatever xarray raised while combining, which is far too general to key on.
+AMBIGUOUS_VERSION_PHRASE = "more than one published version"
+
+
+def ambiguous_pins(uri, pins_for_member):
+    """The per-variable version lists when they cannot name ONE store, else ``{}``.
+
+    Mirrors the refusals in :func:`series_identity.pinned_uri`, but says WHICH
+    of them happened. That function returns ``None`` for four different
+    situations and only two are ambiguity:
+
+    * the catalog URI does not end in the glob suffix -- it already names one
+      store, so nothing is being chosen. Not ambiguous.
+    * the index recorded no pins for this member -- the glob is all there is,
+      and we cannot report versions we never crawled. Not ambiguous *as far as
+      this can tell*: the bucket may still hold several, and that read can
+      still fail. The honest boundary is that we do not claim to know.
+    * ``pr`` and ``tas`` pin different locations -- ambiguous.
+    * one variable pins several versions -- ambiguous.
+
+    Returns the pins verbatim in the ambiguous cases so the caller can name
+    every version in its message, which is the whole point: the operator's next
+    action is to pick one, and they cannot without seeing the list.
+    """
+    if not str(uri).endswith(series_identity.STORE_GLOB_SUFFIX):
+        return {}
+    if not pins_for_member:
+        return {}
+    distinct = {tuple(paths) for paths in pins_for_member.values()}
+    if len(distinct) == 1 and len(next(iter(distinct))) == 1:
+        return {}
+    return {name: list(paths) for name, paths in pins_for_member.items()}
+
+
+def ambiguous_versions_phrase(ambiguous):
+    """``pr: gn/v1, gn/v2; tas: gn/v1, gn/v2`` -- every version, per variable.
+
+    Sorted by variable so two runs of the same source read identically; the
+    version order inside a variable is the index's own, which is the order the
+    crawl found them and therefore the order the glob would match.
+    """
+    return "; ".join(
+        f"{name}: {', '.join(paths) or 'none'}"
+        for name, paths in sorted(ambiguous.items())
+    )
+
+
+@contextlib.contextmanager
+def explaining_ambiguous_versions(entry, ambiguous):
+    """Re-raise a failed read with the versions the glob opened named in it.
+
+    The store index records more than one published version for ~9% of member
+    combinations (221 of 2426, across 46 of 289 entries). Those fall to the
+    globbed URI, which matches every version, so ``open_mfdataset`` is handed
+    two stores per variable -- and what comes back is ``MergeError: conflicting
+    values for variable 'pr' on objects to be combined``, which names neither
+    the source, nor the versions, nor anything the operator can act on.
+
+    **Wraps the read rather than pre-empting it, and that is deliberate.**
+    Refusing up front would be simpler, but two versions that differ only in
+    metadata merge cleanly and produce a correct slice today -- so a pre-emptive
+    refusal would break sources that currently work, in the name of a better
+    error message. This only changes what a FAILURE says.
+
+    The message states the ambiguity and the original error side by side
+    without claiming one caused the other. A source can be both ambiguous and,
+    say, published on a grid the irregular-grid branch cannot read either, and
+    asserting a cause we have not established would send the operator after the
+    wrong thing.
+
+    A no-op when ``ambiguous`` is empty, so the caller needs no conditional.
+    """
+    try:
+        yield
+    except Exception as exc:
+        if not ambiguous:
+            raise
+        raise RuntimeError(
+            f"{entry}: the store index records {AMBIGUOUS_VERSION_PHRASE}, so the "
+            f"catalog glob opened all of them ({ambiguous_versions_phrase(ambiguous)}). "
+            f"The read then failed with {type(exc).__name__}: {exc}. Pin one version "
+            "to read this source deterministically -- see dev/tasks/t2608191613."
+        ) from exc
 
 
 #: The name our own preprocessor is registered under. NOT `harmonise_dims`:
@@ -646,10 +735,13 @@ def fetch_raw_slice(
     # stops parsing 289 entries to read one.
     register_wide_time_preprocess()
     read_spec = with_wide_time_preprocess(entry_spec)
+    pins_for_member = (components.get("pins") or {}).get(member, {})
     pin_uri = series_identity.pinned_uri(
-        str(entry_spec.get("uri", "")),
-        (components.get("pins") or {}).get(member, {}),
+        str(entry_spec.get("uri", "")), pins_for_member
     )
+    # Empty whenever `pinned_uri` succeeded, so the pinned branch carries no
+    # explanation it does not need.
+    ambiguous = ambiguous_pins(str(entry_spec.get("uri", "")), pins_for_member)
     if pin_uri is None:
         # The GLOB is named in full, and this is the branch where that
         # matters. The console mutes hydromt's `data_source - Reading <entry>
@@ -662,6 +754,17 @@ def fetch_raw_slice(
             f"no single pin; keeping the URI glob: {entry_spec.get('uri', '')}",
             module="fetch",
         )
+        if ambiguous:
+            # Said BEFORE the read, not only when one fails. The glob is about
+            # to open every version, and on the runs where that happens to
+            # merge cleanly this is the only notice that the source was chosen
+            # for the operator rather than by them.
+            log_row(
+                f"{AMBIGUOUS_VERSION_PHRASE} on the store index "
+                f"({ambiguous_versions_phrase(ambiguous)})",
+                module="fetch",
+                level="WARNING",
+            )
         data_catalog = hydromt.DataCatalog()
         data_catalog.from_dict({catalog_entry: read_spec})
     else:
@@ -703,45 +806,55 @@ def fetch_raw_slice(
     # The price is a second open on the irregular path (~20 s pinned, against a
     # first open that has already paid the store metadata), on models that
     # previously produced nothing at all.
-    try:
-        data = data_catalog.get_rasterdataset(
-            entry,
-            bbox=bbox,
-            buffer=buffer,
-            time_range=acquisition_window,
-            variables=variables,
-        )
-    except ValueError as exc:
-        if not is_irregular_grid_error(exc):
-            raise
-        # The WHY -- Gaussian latitudes against hydromt's 5e-4 regularity
-        # tolerance -- is in `is_irregular_grid_error` and in board item
-        # t2608182020, which carries the measured table of which models. On the
-        # console this row has one job: say that this source took the fallback
-        # read, and which source. The WARNING level is what makes it findable;
-        # 175 characters of explanation on every one of ~27 affected models is
-        # not.
-        log_row(
-            f"irregular grid, applying the bbox directly: {entry}",
-            module="fetch",
-            level="WARNING",
-        )
+    # Only a FAILED read is rewritten, and only when the pins were ambiguous;
+    # a source whose two published versions differ merely in metadata merges
+    # cleanly and still stages. The duplicate-axis face of the same ambiguity
+    # is caught by `check_time_axis` below, which carries its own message.
+    with explaining_ambiguous_versions(entry, ambiguous):
         try:
             data = data_catalog.get_rasterdataset(
                 entry,
+                bbox=bbox,
+                buffer=buffer,
                 time_range=acquisition_window,
                 variables=variables,
             )
-            data = clip_to_bbox(
-                data, bbox, buffer, data.raster.y_dim, data.raster.x_dim, source=entry
+        except ValueError as exc:
+            if not is_irregular_grid_error(exc):
+                raise
+            # The WHY -- Gaussian latitudes against hydromt's 5e-4 regularity
+            # tolerance -- is in `is_irregular_grid_error` and in board item
+            # t2608182020, which carries the measured table of which models. On the
+            # console this row has one job: say that this source took the fallback
+            # read, and which source. The WARNING level is what makes it findable;
+            # 175 characters of explanation on every one of ~27 affected models is
+            # not.
+            log_row(
+                f"irregular grid, applying the bbox directly: {entry}",
+                module="fetch",
+                level="WARNING",
             )
-        except Exception as fallback_exc:
-            # hydromt's own errors name neither the entry nor the member, and
-            # this one is now two reads deep -- say which series died.
-            raise RuntimeError(
-                f"{entry}: the irregular-grid read path failed after hydromt "
-                f"refused the grid ({type(fallback_exc).__name__}: {fallback_exc})"
-            ) from fallback_exc
+            try:
+                data = data_catalog.get_rasterdataset(
+                    entry,
+                    time_range=acquisition_window,
+                    variables=variables,
+                )
+                data = clip_to_bbox(
+                    data,
+                    bbox,
+                    buffer,
+                    data.raster.y_dim,
+                    data.raster.x_dim,
+                    source=entry,
+                )
+            except Exception as fallback_exc:
+                # hydromt's own errors name neither the entry nor the member, and
+                # this one is now two reads deep -- say which series died.
+                raise RuntimeError(
+                    f"{entry}: the irregular-grid read path failed after hydromt "
+                    f"refused the grid ({type(fallback_exc).__name__}: {fallback_exc})"
+                ) from fallback_exc
     # Kept for the empty-window error below: `time_range` is applied by the
     # driver and `.sel` narrows it again, so "the driver returned 1850..2014"
     # is the diagnostic that tells the two apart.

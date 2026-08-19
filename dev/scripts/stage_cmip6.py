@@ -126,7 +126,10 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from blueearth_cst.projections import series_identity as _si  # noqa: E402
-from blueearth_cst.projections.fetch_gcm_raw import fetch_raw_slice  # noqa: E402
+from blueearth_cst.projections.fetch_gcm_raw import (  # noqa: E402
+    AMBIGUOUS_VERSION_PHRASE,
+    fetch_raw_slice,
+)
 from blueearth_cst.shared.snake_utils import tee_to_log  # noqa: E402
 
 # `console.py` sits beside this file, and `stage_data.py` reaches it exactly
@@ -543,6 +546,23 @@ def _unreadable(error):
     return "only applies to regular grids" in error
 
 
+def _ambiguous_versions(error):
+    """True when the store index recorded several versions and the glob read both.
+
+    Matched on the PHRASE `fetch_gcm_raw` builds the message from, imported so
+    the two cannot drift apart, and not on the exception type -- what comes back
+    from combining two stores is whatever xarray raised, which has been at least
+    `MergeError` (values disagree) and `OutOfBoundsDatetime` (the two versions
+    cover different spans, so aligning their indexes upcasts the longer one into
+    nanoseconds and it overflows past 2262).
+
+    Reported separately because the action differs from every other bucket: the
+    source EXISTS and is readable, and what is missing is a decision about which
+    published version the assessment uses. See `dev/tasks/t2608191613`.
+    """
+    return AMBIGUOUS_VERSION_PHRASE in error
+
+
 def _unavailable(error):
     """True when the slice does not EXIST rather than having failed to download.
 
@@ -575,8 +595,11 @@ def _print_report(
     present = [k for k in ok if existed[k]]
     unavailable = {k: e for k, e in errors.items() if _unavailable(e)}
     unreadable = {k: e for k, e in errors.items() if _unreadable(e)}
+    ambiguous = {k: e for k, e in errors.items() if _ambiguous_versions(e)}
     broke = {
-        k: e for k, e in errors.items() if not _unavailable(e) and not _unreadable(e)
+        k: e
+        for k, e in errors.items()
+        if not _unavailable(e) and not _unreadable(e) and not _ambiguous_versions(e)
     }
     size = sum(out_by_key[k].stat().st_size for k in ok if out_by_key[k].exists())
 
@@ -662,6 +685,21 @@ def _print_report(
             note=(
                 "hydromt's raster accessor refused the grid AND "
                 "fetch_raw_slice's irregular-grid branch did not engage"
+            ),
+        )
+
+    # Fourth kind, and the only one whose fix is a DECISION rather than a
+    # repair: the store is there and readable, but the index recorded several
+    # published versions and nobody has said which one this assessment uses.
+    if ambiguous:
+        _recap(
+            "several published versions, none chosen",
+            [(key, ambiguous[key]) for key in sorted(ambiguous)],
+            FAILED_GLYPH,
+            FAILED_COLOR,
+            note=(
+                "pin one version in the catalog to stage these; "
+                "the versions are named on each row"
             ),
         )
 

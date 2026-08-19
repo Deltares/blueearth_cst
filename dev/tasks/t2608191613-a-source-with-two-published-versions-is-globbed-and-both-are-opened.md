@@ -34,10 +34,26 @@ Observed on `cmip6_CAS/CAS-ESM2-0_historical_{member}`, whose `r1i1p1f1` records
 
 `fetch_gcm_raw.check_time_axis` carries a guard for exactly this ambiguity (D8,
 "the catalog glob matched more than one store"), but it never runs here: the
-merge raises first, inside the driver. Where the two versions happen to agree on
-values the merge succeeds instead and the guard does fire, on a duplicated time
-axis — so this defect has two faces and only one of them is currently reported
-in our own vocabulary.
+merge raises first, inside the driver.
+
+**Three faces, not one**, which is why the bucket is matched on a phrase we
+build rather than on an exception type:
+
+1. `MergeError: conflicting values for variable 'pr'` — the two versions
+   disagree on values. Observed on `CAS/CAS-ESM2-0 historical r1i1p1f1`.
+2. `OutOfBoundsDatetime: Out of bounds nanosecond timestamp: 2262-04-16` — the
+   two versions cover DIFFERENT SPANS, so aligning their indexes goes through
+   `pandas.Index.union`, which upcasts to the finer resolution (`ns`) and
+   overflows on the one that runs past 2262. Observed on
+   `CSIRO-ARCCSS/ACCESS-CM2 ssp585 r1i1p1f1`. This face looks like the 2262
+   defect fixed in `423af1f` and is not: a single 2300 store stages fine
+   (`CCCma/CanESM5 ssp585`, verified 2026-08-19), because there is no union.
+3. A duplicated time axis, where the values agree well enough to combine. D8's
+   own guard catches this one and says so clearly.
+
+And a fourth outcome that is not a failure at all: two versions differing only
+in metadata merge cleanly and produce a correct slice. That is why the
+diagnostic below wraps a FAILED read instead of refusing up front.
 
 ## Measured
 
@@ -71,6 +87,20 @@ Three ways out, none of them free:
    generated with no offline mode, so it means a re-crawl.
 
 Option 2 is the cheap half of 1 and does not foreclose it.
+
+## What landed (2026-08-19) — option 2 only
+
+`fetch_gcm_raw.ambiguous_pins` says which of `pinned_uri`'s four refusals
+actually happened (a catalog URI with no glob suffix, and a member with no
+recorded pins, are NOT ambiguity), and
+`explaining_ambiguous_versions` re-raises a failed read naming every version
+per variable. A WARNING row also announces the ambiguity BEFORE the read, so
+the fourth outcome above — a clean merge nobody chose — is no longer silent.
+`stage_cmip6.py` buckets these into their own recap section, "several published
+versions, none chosen", because the fix is a decision rather than a repair.
+
+**No version is chosen and no source that stages today stops staging.** The
+decision below is still open; only the diagnosis improved.
 
 ## Related
 
