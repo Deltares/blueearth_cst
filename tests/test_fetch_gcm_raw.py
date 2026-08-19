@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 
+import cftime
 import numpy as np
 import pandas as pd
 import pytest
@@ -33,17 +34,21 @@ import xarray as xr
 
 from blueearth_cst.projections import series_identity
 from blueearth_cst.projections.fetch_gcm_raw import (
+    WIDE_TIME_PREPROCESS,
     bbox_index_slice,
     calendar_pin,
     calendar_store_uri,
     check_time_axis,
     clip_to_bbox,
+    harmonise_dims_wide_time,
     hns_switch_row,
     is_irregular_grid_error,
     pin_tail,
     raw_slice_attrs,
+    register_wide_time_preprocess,
     resolve_entry_name,
     stale_units,
+    with_wide_time_preprocess,
 )
 
 # ---------------------------------------------------------------------------
@@ -646,3 +651,163 @@ def test_an_empty_selection_is_refused_rather_than_returned():
     edge = float((ds["lat"].values[2] + ds["lat"].values[3]) / 2)
     with pytest.raises(RuntimeError, match="selected no cells"):
         clip_to_bbox(ds, (0.0, edge, 1.0, edge), 0, "lat", "lon", source="cmip6_X")
+
+
+# ---------------------------------------------------------------------------
+# harmonise_dims_wide_time — a store running past 2262 can be opened at all
+# ---------------------------------------------------------------------------
+
+
+def _cftime_grid(last_year):
+    """A tiny noleap monthly cube, 2015-01 .. `last_year`-12, 0-360 lons S->N.
+
+    Deliberately in the orientation `harmonise_dims` exists to correct, so a
+    test that passes proves the wrapper still gets hydromt's own work done and
+    not merely that it stopped raising.
+    """
+    times = [
+        cftime.DatetimeNoLeap(y, m, 16)
+        for y in range(2015, last_year + 1)
+        for m in range(1, 13)
+    ]
+    lon = np.array([0.0, 90.0, 200.0, 300.0])
+    lat = np.array([-10.0, 0.0, 10.0])
+    return xr.Dataset(
+        {"pr": (("time", "lat", "lon"), np.zeros((len(times), 3, 4)))},
+        coords={"time": times, "lat": lat, "lon": lon},
+    )
+
+
+def test_a_store_running_to_2300_is_read_instead_of_overflowing():
+    """Several ssp585 runs are published as extensions to 2300.
+
+    `datetime64[ns]` ends at 2262-04-11, so hydromt's own conversion raises on
+    the first monthly midpoint past it -- before any time selection, on data the
+    acquisition window would have discarded two lines later.
+    """
+    ds = _cftime_grid(2300)
+    with pytest.raises(ValueError, match="without overflow"):
+        ds.indexes["time"].to_datetimeindex()  # what harmonise_dims does
+
+    out = harmonise_dims_wide_time(ds)
+    assert out.indexes["time"].dtype == np.dtype("datetime64[s]")
+    assert str(out.indexes["time"][-1]) == "2300-12-16 00:00:00"
+
+
+def test_hydromts_own_harmonisation_still_happens():
+    """The wrapper defers to `harmonise_dims`; it does not reimplement it.
+
+    Longitudes 0-360 become -180-180 and W->E, latitudes become N->S. If this
+    ever fails, the wrapper has started doing hydromt's job badly rather than
+    pre-empting one line of it.
+    """
+    out = harmonise_dims_wide_time(_cftime_grid(2300))
+    assert out["lon"].values.max() <= 180
+    assert np.all(np.diff(out["lon"].values) > 0), "not W->E"
+    assert np.all(np.diff(out["lat"].values) < 0), "not N->S"
+
+
+def test_an_axis_that_already_decoded_to_datetime64_is_left_alone():
+    """Only an object-dtype (cftime) index is widened.
+
+    A standard-calendar store decodes straight to datetime64, and touching it
+    would change the dtype of every slice that stages today.
+    """
+    ds = _cftime_grid(2100)
+    ds = ds.assign_coords(time=ds.indexes["time"].to_datetimeindex(time_unit="ns"))
+    out = harmonise_dims_wide_time(ds)
+    assert out.indexes["time"].dtype == np.dtype("datetime64[ns]")
+
+
+def test_the_window_slice_brings_the_axis_back_inside_nanoseconds():
+    """What `fetch_raw_slice` does after `.sel()`, and why the cast is safe.
+
+    Every acquisition window ends in 2100, so the extension years are gone by
+    then and a slice that already staged is written exactly as before.
+    """
+    out = harmonise_dims_wide_time(_cftime_grid(2300))
+    sliced = out.sel(time=slice("2015-01-01", "2100-12-31"))
+    back = sliced.indexes["time"].astype("datetime64[ns]")
+    assert back.dtype == np.dtype("datetime64[ns]")
+    assert str(back[-1]) == "2100-12-16 00:00:00"
+
+
+# ---------------------------------------------------------------------------
+# the spec override — reached without regenerating the catalog
+# ---------------------------------------------------------------------------
+
+
+def test_the_registry_gains_our_name_and_displaces_nothing():
+    """`preprocess:` is resolved by NAME; the driver takes no callable.
+
+    Registering must never displace `harmonise_dims` itself -- WF3's
+    downscaling and `prepare_climate_data_catalog` ask for that name too, and
+    this defect is not about them.
+    """
+    from hydromt.data_catalog.drivers import preprocessing
+
+    before = preprocessing.PREPROCESSORS["harmonise_dims"]
+    name = register_wide_time_preprocess()
+    register_wide_time_preprocess()  # idempotent
+    assert preprocessing.get_preprocessor(name) is harmonise_dims_wide_time
+    assert preprocessing.PREPROCESSORS["harmonise_dims"] is before
+
+
+def test_the_override_does_not_mutate_the_catalog_entry_it_copied():
+    """A shallow copy would share the nested `driver` mapping.
+
+    `load_catalog_entry` hands back a mapping other callers keep using, so an
+    in-place edit of its options would follow every later read in the process.
+    """
+    entry = {
+        "uri": "gs://cmip6/x/{variable}/*/*",
+        "driver": {
+            "name": "raster_xarray",
+            "options": {"preprocess": "harmonise_dims"},
+        },
+    }
+    spec = with_wide_time_preprocess(entry)
+    assert spec["driver"]["options"]["preprocess"] == WIDE_TIME_PREPROCESS
+    assert entry["driver"]["options"]["preprocess"] == "harmonise_dims"
+    assert spec["uri"] == entry["uri"]
+
+
+@pytest.mark.parametrize("entry", [{}, {"driver": {}}, {"driver": {"options": {}}}])
+def test_a_spec_missing_the_driver_levels_still_gets_the_preprocess(entry):
+    """The generated catalog always writes them, but this must not assume it."""
+    spec = with_wide_time_preprocess(entry)
+    assert spec["driver"]["options"]["preprocess"] == WIDE_TIME_PREPROCESS
+
+
+def test_from_dict_honours_the_override_and_still_expands_the_member():
+    """The whole fix rests on this, and one xfail in the suite invites doubt.
+
+    `test_prepare_climate_data_catalog` records that hydromt 1.3 silently drops
+    `driver.options.preprocess` on `from_dict(...).to_yml(...)`. That is the
+    SERIALIZATION path; this asserts the read path keeps it, which is what the
+    override rides on. The member expansion is asserted in the same breath
+    because the glob branch stopped loading the whole catalog to get it.
+    """
+    import hydromt
+
+    register_wide_time_preprocess()
+    spec = {
+        "data_type": "RasterDataset",
+        "uri": "gs://cmip6/CMIP6/CMIP/X/Y/historical/{member}/Amon/{variable}/gn/v1",
+        "driver": {
+            "name": "raster_xarray",
+            "options": {"preprocess": "harmonise_dims", "consolidated": True},
+            "filesystem": "gcs",
+        },
+        "metadata": {"crs": 4326},
+        "placeholders": {"member": ["r1i1p1f1"]},
+    }
+    catalog = hydromt.DataCatalog()
+    catalog.from_dict(
+        {"cmip6_X/Y_historical_{member}": with_wide_time_preprocess(spec)}
+    )
+
+    assert "cmip6_X/Y_historical_r1i1p1f1" in catalog.sources, "member not expanded"
+    options = catalog.get_source("cmip6_X/Y_historical_r1i1p1f1").driver.options
+    assert options.preprocess == WIDE_TIME_PREPROCESS
+    assert options.get_preprocessor() is harmonise_dims_wide_time

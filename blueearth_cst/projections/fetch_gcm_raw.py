@@ -104,6 +104,95 @@ def is_irregular_grid_error(error):
     return IRREGULAR_GRID_PHRASE in str(error)
 
 
+#: The name our own preprocessor is registered under. NOT `harmonise_dims`:
+#: replacing hydromt's entry would change every catalog in the repo that asks
+#: for it by name (WF3's downscaling, `prepare_climate_data_catalog`), which is
+#: far more than this defect is about.
+WIDE_TIME_PREPROCESS = "harmonise_dims_wide_time"
+
+
+def harmonise_dims_wide_time(ds):
+    """``harmonise_dims`` with the time conversion widened past 2262.
+
+    hydromt's preprocessor ends by converting an object-dtype (``cftime``) time
+    index with ``CFTimeIndex.to_datetimeindex()`` and no ``time_unit``, which
+    defaults to nanoseconds. ``datetime64[ns]`` tops out at
+    ``2262-04-11T23:47:16``, so any store whose axis runs past that raises
+
+        Cannot convert date 2262-04-16 00:00:00 to a date in the standard
+        calendar.  Reason: Cannot cast ... to unit='ns' without overflow.
+
+    That is not a corner case: several ScenarioMIP runs are published as
+    EXTENSIONS TO 2300 under the same `sspNNN` experiment id (CanESM5 and
+    ACCESS-CM2 `ssp585` are two, and CanESM5's is a single pinned version, so it
+    is the store rather than an ambiguous glob). The conversion runs inside the
+    driver, before any time selection, so the job dies on the 200 years it would
+    have discarded one line later.
+
+    Converting the index ourselves at SECOND resolution first leaves hydromt's
+    own `dtype == "O"` test False, so its conversion becomes a no-op and none of
+    its lon/lat harmonisation is reimplemented here -- that function is called
+    verbatim for everything it does well. Seconds reach year 292 277 026 596,
+    which is not a ceiling anyone will meet.
+
+    The axis is cast back to nanoseconds in :func:`fetch_raw_slice`, AFTER the
+    acquisition window has dropped the extension years -- so a slice that
+    already staged is written exactly as before, and this changes only which
+    sources can be read at all.
+
+    xarray already warns that `to_datetimeindex`'s default becomes microseconds
+    in a future release, which would raise the ceiling to year 294 247 and make
+    this wrapper unnecessary. It is not the default on the pinned version.
+    """
+    from hydromt.data_catalog.drivers.preprocessing import harmonise_dims
+
+    index = ds.indexes["time"]
+    if index.dtype == "O":
+        ds = ds.assign_coords(time=index.to_datetimeindex(time_unit="s"))
+    return harmonise_dims(ds)
+
+
+def register_wide_time_preprocess():
+    """Add :func:`harmonise_dims_wide_time` to hydromt's preprocessor registry.
+
+    `preprocess:` is resolved BY NAME out of
+    ``hydromt.data_catalog.drivers.preprocessing.PREPROCESSORS``; the driver's
+    options model takes a string, never a callable, so a registry write is the
+    only way to reach it. This adds an entry to a public module-level dict -- it
+    does not patch a vendored source file, which AGENTS.md forbids.
+
+    Idempotent, and never displaces an existing name.
+    """
+    from hydromt.data_catalog.drivers import preprocessing
+
+    preprocessing.PREPROCESSORS.setdefault(
+        WIDE_TIME_PREPROCESS, harmonise_dims_wide_time
+    )
+    return WIDE_TIME_PREPROCESS
+
+
+def with_wide_time_preprocess(entry_spec):
+    """A copy of ``entry_spec`` whose driver asks for our preprocessor.
+
+    Overridden on the SPEC rather than in the catalog because
+    ``config/catalogs/cmip6_data.yml`` is generated and has no offline mode:
+    changing the name it writes means re-crawling `gs://cmip6`, which re-stamps
+    `crawled_on` on the catalog and the store index together and re-pins every
+    version. That entangles a read fix with every digest in WF2.
+
+    Copies each level it touches, so the catalog entry this was read from is
+    left alone -- a shallow `dict()` would share the nested `driver` mapping and
+    mutate it for every later caller in the process.
+    """
+    spec = dict(entry_spec)
+    driver = dict(spec.get("driver") or {})
+    options = dict(driver.get("options") or {})
+    options["preprocess"] = WIDE_TIME_PREPROCESS
+    driver["options"] = options
+    spec["driver"] = driver
+    return spec
+
+
 def pin_tail(template_uri, pin_uri):
     """What `pinned_uri` substituted for the catalog URI's trailing glob.
 
@@ -440,13 +529,20 @@ def fetch_raw_slice(
     if series_identity.cache_hit(
         [raw_nc_out], expected_raw_digest, digest_attr="cst_raw_digest"
     ):
-        # Same collapse as the `fetching` row below, and for the same reason:
-        # `entry=` carried the `{member}` placeholder while `member=` carried
-        # its value, so one identity was spelled as two fields. The path stays
-        # -- it is what this row has to say that the name does not, namely
-        # which file on disk was accepted instead of a download.
+        # `raw cache_hit <entry> (<path>)` said one identity three times: the
+        # file's basename IS the resolved entry name with `/` sanitized to `_`
+        # (`series_identity.series_key`), so the name and the path restated each
+        # other, and `cache_hit` restated the outcome in implementation
+        # vocabulary. The basename alone carries all of it -- and it is the
+        # spelling the `wrote raw` row already uses, so the two outcomes of this
+        # rule now read as a pair.
+        #
+        # "already staged" rather than "already fetched": the file being present
+        # is not what earns this row. `cache_hit` compares the DIGEST, so a
+        # slice on disk whose recipe has moved is not skipped -- it re-fetches
+        # and reports through the `fetching` row below.
         log_row(
-            f"raw cache_hit {resolve_entry_name(catalog_entry, member)} ({raw_nc_out})",
+            f"already staged, skipping {os.path.basename(raw_nc_out)}",
             module="fetch",
         )
         # S8-08(a): a slice cached BEFORE the units fix still claims the
@@ -542,6 +638,14 @@ def fetch_raw_slice(
     # location (per-variable divergence, or >1 match, which is D8's ambiguity and
     # must stay globbed so the duplicate-time assertion still fires).
     entry_spec = series_identity.load_catalog_entry(catalog_path, catalog_entry)
+    # Both branches below register ONE entry from a spec of our own rather than
+    # loading the whole catalog, which is what lets the preprocess override
+    # reach either of them. The glob branch used `DataCatalog(data_libs=...)`
+    # until 2026-08-19; from_dict expands `placeholders:` the same way (the
+    # pinned branch has always relied on that to resolve the member), and it
+    # stops parsing 289 entries to read one.
+    register_wide_time_preprocess()
+    read_spec = with_wide_time_preprocess(entry_spec)
     pin_uri = series_identity.pinned_uri(
         str(entry_spec.get("uri", "")),
         (components.get("pins") or {}).get(member, {}),
@@ -558,9 +662,10 @@ def fetch_raw_slice(
             f"no single pin; keeping the URI glob: {entry_spec.get('uri', '')}",
             module="fetch",
         )
-        data_catalog = hydromt.DataCatalog(data_libs=catalog_path)
+        data_catalog = hydromt.DataCatalog()
+        data_catalog.from_dict({catalog_entry: read_spec})
     else:
-        pinned_spec = dict(entry_spec)
+        pinned_spec = dict(read_spec)
         pinned_spec["uri"] = pin_uri
         # Registered through hydromt's own dict schema -- same driver, adapter and
         # metadata, only the URI narrowed. from_dict rather than a YAML round-trip:
@@ -609,9 +714,15 @@ def fetch_raw_slice(
     except ValueError as exc:
         if not is_irregular_grid_error(exc):
             raise
+        # The WHY -- Gaussian latitudes against hydromt's 5e-4 regularity
+        # tolerance -- is in `is_irregular_grid_error` and in board item
+        # t2608182020, which carries the measured table of which models. On the
+        # console this row has one job: say that this source took the fallback
+        # read, and which source. The WARNING level is what makes it findable;
+        # 175 characters of explanation on every one of ~27 affected models is
+        # not.
         log_row(
-            f"{entry}: hydromt refuses this grid as irregular (Gaussian latitudes); "
-            "re-reading unclipped and applying the bbox directly",
+            f"irregular grid, applying the bbox directly: {entry}",
             module="fetch",
             level="WARNING",
         )
@@ -637,6 +748,16 @@ def fetch_raw_slice(
     driver_index = data.indexes.get("time")
     # cmip6/cmip5 cftime calendars are not always honoured by time_range alone.
     data = data.sel(time=slice(*acquisition_window))
+    # Back to nanoseconds now the extension years are gone. `harmonise_dims_
+    # wide_time` decodes at second resolution so a store running to 2300 can be
+    # opened at all; every acquisition window ends in 2100, so by here the axis
+    # fits `datetime64[ns]` again and a slice that already staged is written
+    # byte-for-byte as before. Guarded on the dtype rather than applied blindly:
+    # a store that decoded straight to datetime64 never went through the
+    # widening, and `astype` on an already-ns axis is a no-op worth not doing.
+    time_index = data.indexes.get("time")
+    if time_index is not None and getattr(time_index, "dtype", None) == "datetime64[s]":
+        data = data.assign_coords(time=time_index.astype("datetime64[ns]"))
 
     # D8: the catalog URI globs {grid_label}/{version} and ~6% of pinned stores
     # match more than one. Two concatenated stores give a duplicated time axis,
