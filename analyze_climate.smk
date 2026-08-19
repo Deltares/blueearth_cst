@@ -20,7 +20,7 @@ from blueearth_cst.climate_analysis.climate_figures import source_climate_vars, 
 from blueearth_cst.climate_analysis.compare_sources import comparison_outputs
 
 # --- figure filenames ---------------------------------------------------------
-# WF0's figures follow `dev/working/wf0-figure-filename-rule.md`:
+# WF0's figures follow `dev/reference/wf0-figure-filename-rule.md`:
 #   <dataset_scope>_<variable>_<plot_context>_<spatial_scope>.png
 # built by `climate_analysis.figure_naming`, never spelled here. The wflow
 # FORCING family (rule 1.13) keeps its own names -- the rule stages WF0 first.

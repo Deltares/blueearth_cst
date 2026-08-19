@@ -16,7 +16,7 @@ from blueearth_cst.spatial.config import parse_spatial_config
 from blueearth_cst.climate_analysis.climate_figures import figure_names, source_climate_vars, source_figure_names
 
 # The source family follows the WF0 filename grammar
-# (`dev/working/wf0-figure-filename-rule.md`); rule 1.05 writes the same files
+# (`dev/reference/wf0-figure-filename-rule.md`); rule 1.05 writes the same files
 # to the same directory wf0's 0.05 does, so the two must name them alike. Kept
 # beside wf0's declaration rather than imported from it — a Snakefile does not
 # import another Snakefile — so any change is made in both places deliberately.
@@ -1213,7 +1213,7 @@ rule plot_climate_source:
     input:
         **_source_plot_inputs,
     output:
-        # The WF0 filename grammar (`dev/working/wf0-figure-filename-rule.md`),
+        # The WF0 filename grammar (`dev/reference/wf0-figure-filename-rule.md`),
         # NOT because this is WF0 but because it is the same FAMILY: this rule
         # and wf0's 0.05 write the same files to the same `<store>/plots/`, so a
         # rename in one is a rename in both or the two workflows disagree about

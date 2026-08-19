@@ -1,6 +1,6 @@
 """The WF0 figure filename grammar, pinned against the rule that defines it.
 
-``dev/working/wf0-figure-filename-rule.md`` is the agreement; this module is
+``dev/reference/wf0-figure-filename-rule.md`` is the agreement; this module is
 what keeps the code on it. The examples in its "Examples" section are asserted
 VERBATIM below, so a drift in either direction shows up as a failure naming the
 exact string that moved.

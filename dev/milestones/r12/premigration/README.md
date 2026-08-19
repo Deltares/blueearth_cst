@@ -1,6 +1,6 @@
 # Pre-migration artifacts — the WF3 stress-test lookup
 
-Recorded at **step 0** of `dev/working/wf3-stress-test-lookup-task-brief.md`
+Recorded at **step 0** of `dev/milestones/r12/stress-test-lookup-task-brief.md`
 (board item `t2608152230`), from `test_case/snake_config_baseline.yml` in the
 primary checkout, on 2026-08-16 at `ed436c7`.
 

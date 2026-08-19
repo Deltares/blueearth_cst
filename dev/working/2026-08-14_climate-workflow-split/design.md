@@ -1,8 +1,17 @@
 # Design — a fourth workflow for historical climate, and one name for each of the four
 
-Status: DRAFT v1, for owner review. This is the design pass named by
-`dev/tasks/t2608131847a-split-historical-climate-out-of-wf1.md`'s first Progress
-line. Repository: `blueearth_cst` (BlueEarth Climate Stress Test).
+Status: **IMPLEMENTED, 2026-08-14** — the split and the rename both shipped.
+`analyze_climate.smk` exists and runs, `run_workflows.py` orders WF0 first, and
+the user-facing migration map is `docs/migration-workflow-names.md`, which cites
+§4 and §5.8 of this file for the design rationale and the owner rulings. The
+originating board note `t2608131847a` closed 2026-08-18 for the split; its
+evaluation layer continues as `t2608181139` (`dev/LOG.md`).
+
+The header below read "DRAFT v1, for owner review" until 2026-08-19, four days
+after the design shipped and while a user-facing document was already citing it
+as the authority. It was written as a draft and never restamped.
+
+Repository: `blueearth_cst` (BlueEarth Climate Stress Test).
 Author: Claude, 2026-08-14. Supersedes: none.
 
 Revisions:

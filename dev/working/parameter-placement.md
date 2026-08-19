@@ -6,9 +6,15 @@
 > direction, deliberately subordinate and not to be applied. The misfits in §6
 > are recommendations awaiting an owner ruling.
 >
-> Nothing in the repo points at this while it lives here — AGENTS.md carries no
-> reference to it by design. It moves to `dev/reference/` and gains an AGENTS.md
-> pointer only once the problem statement is accepted and a direction is chosen.
+> AGENTS.md carries no reference to it, by design. It moves to `dev/reference/`
+> and gains an AGENTS.md pointer only once the problem statement is accepted and
+> a direction is chosen.
+>
+> One thing in the repo does point here, and this paragraph used to deny it:
+> `run_stress_test.smk` cites **M1** (§6) for why `project.static_dir` was not
+> deleted outright. That citation is to a *proposal*, not a rule — but it is why
+> this file cannot be drained from `working/` without being promoted first (the
+> promotion rule, `dev/README.md`).
 >
 > The INVENTORY (§1–§3, and the appendix) is **measured** and stands on its own
 > whatever is decided.
