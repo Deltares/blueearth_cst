@@ -39,7 +39,7 @@ worked example, not a greenfield design.
 implemented and landed on this branch as `dc40a22`, then reverted on 2026-08-11
 at the owner's direction: the figure design should be ruled on before any
 producer, Snakefile, report, test or output-contract change lands. The work is
-respecified as a prototype in `dev/wf2-plot-standardization-task-brief.md` —
+respecified as a prototype in `dev/working/wf2-plot-standardization-task-brief.md` —
 a renderer under `dev/scripts/` plus an Artifact, no code integration. The two
 WF2 boxes below stay open until that ruling comes back, and the reverted commit
 is where a future integration starts rather than a blank page.
@@ -176,7 +176,7 @@ the seeded fixture, which is the divergence hazard [[t2608121258]] records.
 - `dev/decisions/0006-retire-subcatchment-climate-plots.md`,
   `dev/decisions/0007-draw-basin-area-from-the-spatial-foundation.md` — the two
   rulings taken during the map sweep. 0007's cost is tracked as [[t2608091730]].
-- `dev/wf2-plot-standardization-task-brief.md` — the WF2 projection figures,
+- `dev/working/wf2-plot-standardization-task-brief.md` — the WF2 projection figures,
   respecified as a prototype-only design question after `dc40a22` was reverted.
 - `dev/scripts/preview_plots.py`, `dev/scripts/preview_basin_map.py` — render a
   family without a workflow run. The figure gate is: render it, publish the PNG

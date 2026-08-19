@@ -4,7 +4,7 @@
 This is a **prototype**, not a preview of what the toolbox ships. It exists so
 the figure design can be judged from images before any producer, Snakefile,
 report, test or output-contract change lands. Brief:
-``dev/wf2-plot-standardization-task-brief.md``.
+``dev/working/wf2-plot-standardization-task-brief.md``.
 
     # what is present, and what would be drawn from it?
     pixi run python dev/scripts/preview_wf2_projection_plots.py --list
