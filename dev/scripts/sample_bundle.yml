@@ -1,0 +1,256 @@
+# Recipe for the SHIPPED SAMPLE DATASET — the single source of truth.
+#
+# The bundle exists so a user with no Deltares `P:` access and no cloud
+# credentials can run all four workflows. Note the honest promise: `pixi
+# install`, `pixi run install` (weathergenr via remotes) and juliaup all need
+# the network. What the bundle buys is NO CREDENTIALS AND NO `P:` DRIVE — one
+# anonymous download, then every pipeline run is offline.
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# The sample's parameters otherwise have to agree across three files that know
+# nothing about each other:
+#
+#   dev/scripts/stage_data.yml    bbox + per-dataset time_range
+#   dev/scripts/stage_cmip6.yml   region + models/scenarios/members/variables
+#   test_case/snake_config_*.yml  the window, models and horizons a RUN reads
+#
+# Nothing checks that they agree, and every disagreement fails late and
+# quietly: a `historical_window` reaching past the staged meteo years fails
+# deep inside hydromt; a `models:` entry with no staged slice re-opens the
+# remote store at ~1142 s and simply hangs for a user who has no network.
+# Edit THIS file; the builder derives the other three from it and refuses when
+# a cross-check below cannot hold.
+#
+# The builder (`dev/scripts/build_sample_bundle.py`) is NOT WRITTEN YET — see
+# the board item "ship a sample dataset bundle". This file is its input
+# contract, authored first so the parameters can be reviewed before any bytes
+# are staged.
+#
+# WHAT IS AND IS NOT A BUNDLE KNOB
+# --------------------------------
+# Sections `basin`, `windows`, `spatial`, `climate` and `projections` decide
+# what lands in the bundle — change one and the bytes change. Section `run`
+# does not: it shapes the sample RUN (weather generator, perturbation grid,
+# wflow), all of which is computed locally from data already in the bundle.
+# The split is explicit so a reviewer can see which edits are free.
+
+bundle:
+  name: blueearth-cst-sample-data
+  # Bump on any change above the `run:` section. The version is stamped into
+  # the bundle manifest and into `deltares_data_sample.yml`'s `meta.version`.
+  version: v1
+  # GitHub Release tag the archive is attached to. Release assets are MUTABLE
+  # and deletable, so the tag is not the provenance — `sample_data.sha256`,
+  # tracked in the repo, is. The fetcher verifies before unpacking.
+  release_tag: sample-data-v1
+  repo: tanerumit/blueearth_cst
+  # Where `scripts/fetch_sample_data.py` unpacks it, relative to the repo root.
+  # Gitignored. NOT under `test_case/`, whose un-ignore patterns are already
+  # three deep and would need a fourth to keep 50 MB of binaries out of git.
+  unpack_to: sample_data
+
+# --- BASIN ------------------------------------------------------------------
+# One basin, deliberately. The CMIP6 slices are fingerprinted on the region
+# POLYGON (series_identity.raw_digest), so a second basin means a second set of
+# slices and no shared bytes.
+basin:
+  label: sample-basin-gabon
+  # Copied verbatim into the sample project config as `shared.basin.region`.
+  region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
+  resolution: 0.00833
+  # The polygon the CMIP6 slices are clipped and fingerprinted against. It must
+  # be the region.geojson a run of THIS config produces, or every slice misses
+  # cache and re-fetches from the network — the one thing the bundle exists to
+  # prevent. The builder derives it by running the wf1 region step, and refuses
+  # if a supplied file disagrees.
+  region_geojson: sample_data/basin/region.geojson
+  # west, south, east, north. Pad generously: a small region tweak should not
+  # force a re-stage. Spatial extent is NOT the cost driver — sources are
+  # stored in coarse spatial chunks, so a tight bbox still reads whole chunks.
+  # `windows.historical` is the lever.
+  bbox: [8.5, -0.5, 11.0, 1.5]
+
+# --- TIME WINDOWS -----------------------------------------------------------
+# The section worth reading twice: three windows, and each cross-check below
+# has a failure mode that is silent.
+windows:
+  # Drives BOTH the staged meteo time_range AND `shared.historical_window`.
+  # CHECK: span >= `constraints.min_historical_years` in
+  # config/advanced_settings.yml (16 today). Below it, weathergenr is refused.
+  historical:
+    start: "2000-01-01"
+    end: "2016-12-31"
+  # Extra years staged either side of `historical`, so a user can widen the
+  # window a little without re-downloading the bundle. Each year of era5 +
+  # CHIRPS is roughly 2 MB staged at this bbox; 1 is cheap insurance.
+  stage_pad_years: 1
+  # The wflow RUN period. Must sit inside `historical`. Not the same thing:
+  # wf1's wflow time scales with this, the climate store with `historical`.
+  simulation:
+    start: "2010-01-01"
+    end: "2016-12-31"
+
+# --- SPATIAL SOURCES --------------------------------------------------------
+# Catalog entry names, resolved against config/catalogs/deltares_data.yml. The
+# builder stages each one bbox-clipped AND writes the same names into the
+# sample project config's `shared.basin.spatial_sources`, so the two cannot
+# drift apart.
+spatial:
+  hydrography: merit_hydro_ihu
+  basin_index: merit_hydro_index
+  rivers: rivers_lin2019_v1
+  lulc: vito
+  lai: modis_lai
+  soil: soilgrids
+  # Read by rule 1.08 (add_reservoirs_lakes_glaciers). INCLUDE THESE. They are
+  # absent from today's staged root, and `setup_reservoirs_lakes_glaciers.py`
+  # catches NoDataException/FileNotFoundError and records `status: skipped` —
+  # so a bundle without them ships a silently degraded WF1 whose sentinel
+  # disagrees with the `test_local` fixture, which records `ok` for all three.
+  # They are vector; a bbox clip is a few hundred KB.
+  #
+  # Set the whole block to null to stage no waterbodies and accept the degraded
+  # run. If you do, say so in the bundle README — do not leave it to be
+  # discovered from a sentinel file.
+  waterbodies:
+    reservoirs: hydro_reservoirs
+    lakes: hydro_lakes
+    glaciers: rgi
+
+# --- HISTORICAL CLIMATE -----------------------------------------------------
+climate:
+  # `shared.clim_historical`. era5 | chirps | chirps_global — the wf0
+  # raw-climate path (`analyze_climate.smk` _SUPPORTED_SOURCES) refuses
+  # anything else at DAG-parse time, so an unsupported name here fails before a
+  # byte is staged.
+  primary: era5
+  # Extra sources, so wf0 is a COMPARISON rather than a single-source figure
+  # set. chirps is precip-only: the branch takes temp/radiation/pressure from
+  # era5 and lapse-corrects onto the CHIRPS grid, so `orography` below is
+  # required whenever this list is non-empty.
+  candidates: [chirps]
+  # Elevation for the temperature lapse correction (hydromt derives elevtn
+  # from z). Static, one time step, ~100 KB.
+  orography: era5_orography
+  # Native variable names kept per source, filtered BEFORE the catalog's
+  # rename. Leave null to keep every variable the source carries — larger, but
+  # it survives a config that later asks for PET inputs.
+  variables:
+    era5: [tp, t2m, tmin, tmax]
+    chirps: null
+
+# --- CMIP6 PROJECTIONS (wf2) ------------------------------------------------
+# Staged as raw slices that drop straight into a project's
+# `data/climate/projections/<clim_project>/raw/`. Each is digest-stamped, and
+# `fetch_gcm_raw.py` revalidates the digest BEFORE touching the network, so a
+# matching slice makes rule 2.04 a no-op. Tiny — ~70 KB per slice.
+projections:
+  clim_project: cmip6
+  # Two models, not one: a single-model config never runs the multi-model
+  # ensemble reduction, so the sample would leave that code path unexercised.
+  # A (model, scenario, member) the catalog does not carry is reported and
+  # skipped rather than ending the build — read the plan output, do not assume.
+  models:
+    - NOAA-GFDL/GFDL-ESM4
+    - INM/INM-CM4-8
+  scenarios: [ssp245]
+  # Applied to every model. Many models do not publish r1i1p1f1 — 70 of the
+  # catalog's 289 entries do not.
+  members: [r1i1p1f1]
+  # POST-rename names, as the catalog spells them after its adapter runs — NOT
+  # the raw CMIP6 `pr`/`tas`. The digest carries the post-rename names, so the
+  # raw spellings here would produce slices the pipeline never matches.
+  # `units` label the STORED values; they do not convert, and are not a digest
+  # component.
+  variables:
+    precip: {units: kg m-2 s-1, canonical: rate, target_units: mm/day, change: relative}
+    temp: {units: K, canonical: state, target_units: degC, change: absolute}
+  # CHECK: end <= 2014, where the CMIP6 historical experiment stops. A later
+  # end is clipped to it, and clipping a range equal to `windows.historical` is
+  # what raises the "no longer aligns" warning.
+  historical_year_range: [2000, 2014]
+  # CHECK: must match wf3's forcing window, `run.horizon` +/- `run.run_length`/2.
+  # wf2 and wf3 compute it independently, so nothing reconciles them but this.
+  future_horizons:
+    mid: [2046, 2054]
+  # A COUNT OF GRID CELLS, not degrees — hydromt spends `buffer` as resolution
+  # multiplicity, so one unit is 0.70 deg on EC-Earth3 and 2.77 deg on CanESM5.
+  # It is a DIGEST COMPONENT: change it and every shipped slice stops matching.
+  # Must equal REGION_BUFFER_CELLS in analyze_projections.smk.
+  #
+  # NOTE: the tracked `dev/scripts/stage_cmip6.yml` still spells this
+  # `buffer_degrees`, from before the t2608182238 rename. `stage_cmip6.py`
+  # reads `buffer_cells` and ignores unknown keys, so that line is silently
+  # inert today and only agrees by coincidence of value. Fix it when the
+  # builder lands.
+  buffer_cells: 1
+  # PIN THE CRAWL PRODUCTS INTO THE BUNDLE. `raw_components` includes the
+  # store-index pins, and both files are regenerated by
+  # dev/scripts/generate_cmip6_catalog.py. Regenerate them without rebuilding
+  # the bundle and every shipped slice's digest goes stale — each one then
+  # re-opens the remote store at ~1142 s, i.e. the offline promise dies with no
+  # error message. Pinned copies inside the bundle make the sample config read
+  # the crawl its slices were cut from.
+  pin_catalog: true
+
+# --- RUN SHAPE (does NOT affect bundle bytes) -------------------------------
+# Everything below is computed locally from data already in the bundle. Change
+# it freely without re-staging or re-releasing; `bundle.version` need not move.
+run:
+  experiment_name: experiment_sample
+  realizations_num: 2
+  # `st_0`, the unperturbed baseline, is what the two class-C month indicators
+  # are DERIVED FROM — `false` drops 2 of 11 q metrics with nothing reporting it.
+  run_historical: true
+  # The horizon, not `run_length`, sets how many years weathergenr generates:
+  # compute_nr_years anchors at 2010, so the series spans
+  # 2010 -> horizon + run_length/2.
+  horizon: 2050
+  # EVEN. forcing_window snaps ceil backwards and round forwards, so 7 and 8
+  # both yield the same 9-year window and an odd value only misreports itself.
+  run_length: 8
+  # `min`/`max` are expanded to twelve monthly values by the builder. Give a
+  # 12-element list instead when the sample should show a seasonal pattern.
+  stress_test:
+    temp:
+      step_num: 1
+      transient_change: true
+      mean: {min: 0.0, max: 3.0}
+    precip:
+      step_num: 1
+      transient_change: true
+      mean: {min: 0.7, max: 1.3}
+      variance: {min: 1.0, max: 1.0}
+    dry_spell_factor: 1.0
+    wet_spell_factor: 1.0
+
+# --- WHAT THE BUILDER PRODUCES ----------------------------------------------
+# Listed here so the contract is readable without the code:
+#
+#   sample_data/hydromt/...                       bbox-clipped mirror (stage_data.py)
+#   sample_data/hydromt/deltares_data_sample.yml  catalog with NO `root:`/`roots:`
+#                                                 -> hydromt resolves the root to
+#                                                    the file's own directory, so it
+#                                                    can only ever point at the
+#                                                    bundle, on any OS, wherever the
+#                                                    user unpacked it
+#   sample_data/cmip6/raw/*.nc                    digest-stamped slices (stage_cmip6.py)
+#   sample_data/cmip6/cmip6_data.yml              pinned crawl products, equal
+#   sample_data/cmip6/cmip6_store_index.json        `crawled_on` (a consumer asserts it)
+#   sample_data/basin/region.geojson              the fingerprinted polygon
+#   sample_data/BUNDLE.md                         provenance, licences, what was cut
+#   sample_data.sha256                            TRACKED in the repo, not in the bundle
+#   test_case/snake_config_sample.yml             the run config, derived from this file
+#
+# The sample run config MUST keep the `snake_config_` prefix: .gitignore
+# un-ignores `test_case/*` only through `!test_case/snake_config_*.yml`, so a
+# name outside that glob is silently untracked — `git status` reports the old
+# path as deleted and never lists the new one. That prefix is itself queued for
+# a rename to `project_config_`; see the board.
+#
+# DO NOT add `sample_data/hydromt` to the shipped `deltares_data.yml`'s
+# `roots:` list. hydromt's `_determine_catalog_root` takes the FIRST path that
+# exists, so any user who has the bundle would silently get this clipped
+# Gabon-extent tree for their own basin. Wrong-extent data, nothing reporting
+# it. The sample config selects the sample catalog explicitly instead.
