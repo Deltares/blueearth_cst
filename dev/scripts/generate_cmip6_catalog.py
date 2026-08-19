@@ -40,6 +40,7 @@ from pathlib import Path
 os.environ.setdefault("GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT", "false")
 
 import gcsfs  # noqa: E402  (must follow the env var above)
+import yaml  # noqa: E402
 
 # Experiments the toolbox exposes: CMIP historical + the eight ScenarioMIP SSPs.
 EXPERIMENTS = {
@@ -82,12 +83,16 @@ DEFAULTS_BLOCK = """  data_type: RasterDataset
   data_adapter:
     unit_add:
       temp: -273.15
+      temp_min: -273.15
+      temp_max: -273.15
     unit_mult:
       precip: 86400
       press_msl: 0.01
     rename:
       pr: precip
       tas: temp
+      tasmin: temp_min
+      tasmax: temp_max
       rsds: kin
       psl: press_msl
   metadata:
@@ -219,6 +224,56 @@ def pin_stores(
     return {"sources": sources, "multi_match_count": multi}
 
 
+def inventory_from_catalog(
+    path: Path,
+) -> tuple[dict[tuple[str, str, str], list[str]], str]:
+    """Reconstruct ``crawl()``'s inventory from a catalog already on disk.
+
+    Lets the catalog be re-rendered when only :data:`DEFAULTS_BLOCK` changed --
+    a new rename, a new drop -- WITHOUT going back to the store. That is not a
+    convenience: a fresh crawl re-pins every version, so a run made to add two
+    variable names would also move whichever of the 289 entries a modelling
+    centre has republished since, re-fetching slices for a reason nobody asked
+    for. Rebuilding preserves every uri and member list byte for byte, and keeps
+    ``crawled_on``, so the catalog and the store index remain ONE observation
+    and `assert_index_matches_catalog` still holds.
+
+    The (activity, model, experiment) triple is read out of the URI, never
+    parsed from the entry KEY: the key is ``cmip6_<model>_<experiment>_{member}``
+    and a model id contains both ``/`` and ``-`` and ``_``
+    (``NOAA-GFDL/GFDL-ESM4``), so splitting it is guesswork. The URI's path is
+    positional and therefore exact.
+
+    Returns the inventory in the catalog's own order, plus its ``crawled_on``.
+    """
+    catalog = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    meta = catalog.get("meta") or {}
+    crawled_on = str(meta.get("crawled_on") or "")
+    if not crawled_on:
+        raise SystemExit(f"{path}: no meta.crawled_on; cannot rebuild from it")
+
+    inventory: dict[tuple[str, str, str], list[str]] = {}
+    for key, entry in catalog.items():
+        if key == "meta" or not isinstance(entry, dict):
+            continue
+        uri = str(entry.get("uri") or "")
+        marker = "/CMIP6/"
+        if marker not in uri:
+            raise SystemExit(f"{path}: entry {key!r} has no CMIP6 path in its uri")
+        # <activity>/<institution>/<source_id>/<experiment>/{member}/<table>/...
+        parts = uri.split(marker, 1)[1].split("/")
+        if len(parts) < 4:
+            raise SystemExit(f"{path}: entry {key!r} has a short uri: {uri}")
+        activity, institution, source_id, experiment = parts[:4]
+        members = list((entry.get("placeholders") or {}).get("member") or [])
+        if not members:
+            raise SystemExit(f"{path}: entry {key!r} lists no members")
+        inventory[activity, f"{institution}/{source_id}", experiment] = members
+    if not inventory:
+        raise SystemExit(f"{path}: no entries found; nothing to rebuild")
+    return inventory, crawled_on
+
+
 def render(inventory: dict[tuple[str, str, str], list[str]], crawled_on: str) -> str:
     total = sum(len(v) for v in inventory.values())
     lines = [
@@ -229,8 +284,9 @@ def render(inventory: dict[tuple[str, str, str], list[str]], crawled_on: str) ->
         "# members that exist in the bucket with both `pr` and `tas` at Amon, so a",
         "# source name resolving means the store is really there — which is what",
         "# get_stats_climate_proj.py's `if entry in data_catalog.sources` guard relies",
-        "# on. Consumers of `kin` (rsds) or `press_msl` (psl) may find a listed member",
-        "# lacks those variables; only pr/tas presence is guaranteed.",
+        "# on. Consumers of `temp_min` (tasmin), `temp_max` (tasmax), `kin` (rsds)",
+        "# or `press_msl` (psl) may find a listed member lacks those variables;",
+        "# only pr/tas presence is guaranteed.",
         "meta:",
         f"  version: {crawled_on[:7].replace('-', '.')}",
         "  generated_by: dev/scripts/generate_cmip6_catalog.py",
@@ -262,6 +318,29 @@ def render(inventory: dict[tuple[str, str, str], list[str]], crawled_on: str) ->
     return "\n".join(lines) + "\n"
 
 
+def _rebuild(args) -> None:
+    """Re-render the catalog from itself; touch neither the store nor the index.
+
+    The index is deliberately NOT rewritten. It records what the crawl found --
+    versions, pins, certified variables -- and none of that changed, so
+    rewriting it would restamp an observation that was not remade. Because
+    `crawled_on` is carried over from the catalog, the two stay equal and
+    `assert_index_matches_catalog` keeps passing.
+    """
+    inventory, crawled_on = inventory_from_catalog(args.out)
+    text = render(inventory, crawled_on=crawled_on)
+    print(
+        f"rebuilt {len(inventory)} entries / "
+        f"{sum(len(v) for v in inventory.values())} sources from {args.out} "
+        f"(crawled_on {crawled_on}, unchanged)"
+    )
+    if args.dry_run:
+        return
+    args.out.write_text(text, encoding="utf-8")
+    print(f"wrote {args.out}")
+    print(f"NOTE: {args.index_out} was NOT touched; it records the same crawl.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -284,8 +363,22 @@ def main() -> None:
         action="store_true",
         help="skip the store-index pass (catalog only; leaves any existing index STALE)",
     )
+    parser.add_argument(
+        "--rebuild-from-existing",
+        action="store_true",
+        help=(
+            "re-render the catalog from the one already on disk instead of "
+            "crawling: use when only the shared defaults changed (a rename, a "
+            "drop). Every uri, member list and `crawled_on` is preserved, so no "
+            "version is re-pinned and the store index stays in step -- which a "
+            "fresh crawl cannot promise"
+        ),
+    )
     parser.add_argument("--dry-run", action="store_true", help="report, write nothing")
     args = parser.parse_args()
+
+    if args.rebuild_from_existing:
+        return _rebuild(args)
 
     # One crawl date for both artifacts: the equal-`crawled_on` assertion is what
     # lets a consumer treat catalog and index as one observation (design R14).
