@@ -68,7 +68,10 @@ judged against a promise it cannot keep.
       `{'gww', 'hydroengine', None}` while the prose and the code both say
       `jrc` — the annotation is wrong upstream, so do not "fix" our config to
       match it.
-- [ ] `dev/scripts/build_sample_bundle.py` — reads `sample_bundle.yml`, drives
+- [ ] `dev/scripts/build_sample_bundle.py` — **briefed**:
+      `dev/working/2026-08-19_shipped-sample-dataset/build-sample-bundle.task.md`
+      carries the scope, the two gates and the six falsifiable acceptance
+      criteria. Reads `sample_bundle.yml`, drives
       `stage_data.py` and `stage_cmip6.py`, writes the self-locating catalog,
       the pinned crawl products, `BUNDLE.md` and the checksum. **The two stagers
       are not peers: stage spatial → derive `region.geojson` → stage CMIP6.**
@@ -170,6 +173,8 @@ sample catalog, and Docker as the primary channel.
 - `dev/working/2026-08-19_shipped-sample-dataset/design.md` — the scope, the
   rulings, and the evidence behind each finding above.
 - `dev/scripts/sample_bundle.yml` — the parameter template this item builds from.
+- `dev/working/2026-08-19_shipped-sample-dataset/build-sample-bundle.task.md` —
+  the builder's assignment brief.
 - [[t2608191733a-rename-snake-config-yml-to-project-config-yml-repo-wide]] —
   decides whether the sample config lands as `snake_config_sample.yml` or
   `project_config_sample.yml`. Land the rename FIRST if both are wanted; adding
