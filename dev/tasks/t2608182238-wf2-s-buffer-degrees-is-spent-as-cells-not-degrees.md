@@ -1,13 +1,13 @@
 ---
 title: WF2's buffer_degrees is spent as CELLS, not degrees
 type: todo-item
-status: backlog
+status: done
 effort: 1
 area: wf2 projections
 origin: 2026-08-18 t2608182020 design
 queue:
 created: 2026-08-18
-updated: 2026-08-18
+updated: 2026-08-19
 ---
 
 > [!note] Overview
@@ -24,10 +24,54 @@ updated: 2026-08-18
 
 ## Progress
 
-- [ ] **Rule the cache invalidation before touching any of the sites.** The two
-      fixes fail differently and neither is free (see The trap); pick one
-      deliberately and record which, so the choice is not made by omission.
-- [ ] Apply it across the sites listed below, in one change.
+- [x] **Rule the cache invalidation before touching any of the sites.** Ruled by
+      the owner on 2026-08-19: **rename the key, and bump `SCHEMA_VERSION` 4->5
+      to make the invalidation loud.** See The ruling.
+- [x] Apply it across the sites listed below, in one change.
+
+## The ruling
+
+`buffer_degrees` -> `buffer_cells`, semantics untouched, `SCHEMA_VERSION` 4->5.
+
+**Why cells and not degrees.** Three places already committed to the cell
+reading before this note existed: the constant's own comment records that it
+replaced a bare `buffer = 1`; `fetch_gcm_raw.bbox_index_slice` states that
+`buffer` is in CELLS and that the irregular path must read it the same way or
+the two would differ inside one ensemble; and t2608182020's branch had to
+reproduce the one-cell buffer rather than 1.0 deg. So the NAME was the defect
+and the value was never wrong. Making it truly degrees is a change to the
+sampling footprint — a scientific decision with its own justification, not a
+naming fix — and it is not effort-1, since hydromt spends `buffer` as
+resolution multiplicity and degrees would need `ceil(deg/res)` per grid or a
+self-expanded bbox with `buffer=0`, coherently on both the regular and the
+irregular path. Raise it separately if the ~4x ensemble spread is unwanted.
+
+**Why the bump, when the rename already moves the digest.** It moves it
+*silently*: key names are canonicalized into the `sort_keys` JSON that is
+hashed, so every raw and series digest changes and every cached slice simply
+re-derives with nothing said. `SCHEMA_VERSION` is the repo's declared
+invalidation lever (`cache_hit` refuses an unknown version by name, telling the
+operator to delete the slice), and its own docstring scopes it to "the attribute
+set, the digest recipe, or the key grammar" — this change is all three. The bump
+converts a silent re-derive into a loud refusal.
+
+**Third option rejected:** renaming the identifiers while freezing the digest
+component key at `buffer_degrees` would have preserved every cached slice, at
+the cost of a provenance record and a cache key that disagree about the field's
+name — and it sidesteps the ruling rather than making it.
+
+**Accepted cost, measured:** 9 raw + 9 scalar slices in `test_case/test_local`
+(632 KB) and 4 + 4 in `test_case/test_rapid` re-fetch from `gs://cmip6`. No
+number moves: the footprint is identical, so `dev/baseline/manifest.json` — which
+covers the change-factor CSVs, not the netCDFs — must re-record identical.
+
+**Follow-on, not yet done:** the `test_local` fixture still carries schema-4
+slices, so `test_stage_cmip6.py::test_the_tool_reproduces_a_digest_wf2_itself_wrote`
+SKIPS with a reason naming the refresh. It is skipped rather than failed because
+a digest is only comparable within one schema — the pipeline rejects a stale
+slice on the schema check before consulting any digest, so an inequality there
+would say nothing about the staging tool. Re-run WF2 stage A against
+`test_case/test_local` **from the primary checkout** to restore the check.
 
 ## The trap
 

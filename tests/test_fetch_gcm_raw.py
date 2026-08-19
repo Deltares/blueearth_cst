@@ -402,7 +402,7 @@ def test_a_missing_or_null_entry_identity_gives_an_empty_crs_not_a_crash(broken)
 def test_the_member_and_buffer_ride_along_unmodified(components):
     attrs = _attrs(components, buffer=0)
     assert attrs["cst_members"] == "r1i1p1f1"
-    assert attrs["cst_buffer_degrees"] == 0
+    assert attrs["cst_buffer_cells"] == 0
 
 
 def test_every_value_survives_a_netcdf_round_trip(components):

@@ -72,5 +72,11 @@ def test_schema_version_was_bumped_to_invalidate_the_false_calendars():
     DAG build is deliberately network-free -- so `cache_hit`'s schema check is what
     forces slices written with the false calendar to be re-fetched. If this ever
     reverts to "2", every one of those slices silently becomes valid again.
+
+    Asserted as a FLOOR, not equality: the invariant this test owns is "at least
+    the calendar bump", and later bumps for unrelated reasons (5 for the
+    `buffer_degrees` -> `buffer_cells` rename, t2608182238) invalidate strictly
+    more. Equality made every future bump edit this test, which teaches the next
+    author to retune the tripwire rather than read it.
     """
-    assert SCHEMA_VERSION == "4"
+    assert int(SCHEMA_VERSION) >= 4

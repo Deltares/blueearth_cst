@@ -396,10 +396,17 @@ STAGE_B_HASH = _si.kernel_hash(
 )
 
 
-#: WF2's spatial buffer around the region bbox, in degrees. Previously a bare
+#: WF2's spatial buffer around the region bbox, in GRID CELLS. Previously a bare
 #: `buffer = 1` inside the script; named here because it is a digest component
 #: (design §5.3 item 4) and a documented sampling choice, not an accident.
-REGION_BUFFER_DEGREES = 1.0
+#:
+#: It read `REGION_BUFFER_DEGREES = 1.0` until t2608182238, which was a misnomer
+#: the whole time: hydromt spends `buffer` as resolution multiplicity, so one
+#: unit is 0.70 deg on EC-Earth3 and 2.77 deg on CanESM5. The bare `1` this
+#: replaced was already a cell count. The rename changed no footprint and no
+#: number -- see `series_identity.SCHEMA_VERSION`, bumped 4->5 so the slices
+#: cached under the old key refuse loudly rather than re-deriving in silence.
+REGION_BUFFER_CELLS = 1
 
 # --- series keys (migration step 3; design §5.2, §5.3) ------------------------
 # One stage-A rule fans out over {series_key} instead of two rules fanning out
@@ -591,7 +598,7 @@ def series_digest_components(model, experiment, member):
         entry=entry,
         members=[member],
         pins_by_member={member: _si.load_pins(STORE_INDEX, catalog_entry, member)},
-        buffer_degrees=REGION_BUFFER_DEGREES,
+        buffer_cells=REGION_BUFFER_CELLS,
         # The digest carries the SOURCE NAMES only -- what was actually fetched
         # and reduced. `canonical`, `units` and `change` are deliberately NOT in
         # the cache key: they cannot change a cached byte, they are read by stage
@@ -850,7 +857,7 @@ rule fetch_gcm_slice:
         # `kg m-2 s-1` over mm/day. Not a digest component -- it labels the values,
         # it does not change them.
         variable_units = {v.source: v.units for v in VARIABLE_SPEC.values()},
-        buffer_degrees = REGION_BUFFER_DEGREES,
+        buffer_cells = REGION_BUFFER_CELLS,
         acquisition_window = lambda wildcards: list(_si.acquisition_window(SERIES[wildcards.series_key][1])),
         raw_digest_components = lambda wildcards: _si.raw_components(
             series_digest_components(*SERIES[wildcards.series_key])
@@ -902,7 +909,7 @@ rule reduce_gcm_series:
         digest_components = lambda wildcards: series_digest_components(*SERIES[wildcards.series_key]),
         acquisition_window = lambda wildcards: list(_si.acquisition_window(SERIES[wildcards.series_key][1])),
         store_index = STORE_INDEX,
-        buffer_degrees = REGION_BUFFER_DEGREES,
+        buffer_cells = REGION_BUFFER_CELLS,
     log:
         LOG_PARTS_DIR + "/2.05_reduce_gcm_series/{series_key}.log",
     benchmark:

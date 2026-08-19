@@ -41,7 +41,7 @@ All knobs live in a YAML file (default: ``dev/scripts/stage_cmip6.yml``)::
     catalog: config/catalogs/cmip6_data.yml
     store_index: config/catalogs/cmip6_store_index.json
     clim_project: cmip6
-    buffer_degrees: 1.0
+    buffer_cells: 1
     models:    [NOAA-GFDL/GFDL-ESM4, INM/INM-CM4-8]
     scenarios: [historical, ssp245]
     members:   [r1i1p1f1]
@@ -140,12 +140,17 @@ from console import (  # noqa: E402
 
 CONFIG_DEFAULT = Path(__file__).resolve().parent / "stage_cmip6.yml"
 
-#: Mirrors `analyze_projections.smk:402`'s REGION_BUFFER_DEGREES. Duplicated
-#: rather than imported because a Snakefile is not an importable module. It IS a
-#: digest component, so a value differing from the pipeline's yields slices the
-#: pipeline will not accept -- which `tests/test_stage_cmip6.py`'s fixture case
-#: catches, since it recomputes against files WF2 actually wrote.
-DEFAULT_BUFFER_DEGREES = 1.0
+#: Mirrors `analyze_projections.smk`'s REGION_BUFFER_CELLS. Duplicated rather
+#: than imported because a Snakefile is not an importable module. It IS a digest
+#: component, so a value differing from the pipeline's yields slices the pipeline
+#: will not accept -- which `tests/test_stage_cmip6.py`'s fixture case catches,
+#: since it recomputes against files WF2 actually wrote.
+#:
+#: A COUNT OF GRID CELLS, not degrees: hydromt spends `buffer` as resolution
+#: multiplicity. Named `DEFAULT_BUFFER_DEGREES` until t2608182238; the value is
+#: unchanged, so no slice this tool already staged is wrong -- but they were
+#: written under schema 4 and the pipeline now demands 5, so they re-stage.
+DEFAULT_BUFFER_CELLS = 1
 
 #: Mirrors the `clim_project` config key. Only `cmip6` has a generated catalog
 #: today, but the grammar below is the Snakefile's, not a cmip6 literal.
@@ -193,7 +198,7 @@ def digest_components(cfg, model, experiment, member):
             pins_by_member={
                 member: _si.load_pins(cfg["store_index"], entry_name, member)
             },
-            buffer_degrees=cfg["buffer_degrees"],
+            buffer_cells=cfg["buffer_cells"],
             variable_spec=list(cfg["variables"]),
             experiment=experiment,
             reducer_module_hash="",
@@ -211,7 +216,7 @@ def load_config(path):
             raise SystemExit(f"{path}: '{key}' is required and missing or empty")
 
     cfg.setdefault("clim_project", DEFAULT_CLIM_PROJECT)
-    cfg.setdefault("buffer_degrees", DEFAULT_BUFFER_DEGREES)
+    cfg.setdefault("buffer_cells", DEFAULT_BUFFER_CELLS)
     cfg.setdefault("catalog", str(_REPO_ROOT / "config/catalogs/cmip6_data.yml"))
     cfg.setdefault(
         "store_index", str(_REPO_ROOT / "config/catalogs/cmip6_store_index.json")
@@ -357,7 +362,7 @@ def stage_one(cfg, job):
             member=job["member"],
             variables=list(cfg["variables"]),
             variable_units=units,
-            buffer=cfg["buffer_degrees"],
+            buffer=cfg["buffer_cells"],
             acquisition_window=tuple(_si.acquisition_window(job["experiment"])),
             components=digest_components(
                 cfg, job["model"], job["experiment"], job["member"]
@@ -697,7 +702,7 @@ def _print_parameters(cfg, config_path, jobs, skipped, workers, dry_run):
     print()
 
     print(bold("flags:"))
-    _row("buffer", cfg["buffer_degrees"], "degrees around the region polygon")
+    _row("buffer", cfg["buffer_cells"], "grid cells around the region polygon")
     _row("variables", ", ".join(cfg["variables"]), "post-rename names, not pr/tas")
     _row("workers", workers, "slices staged at once")
     if dry_run:
@@ -740,6 +745,7 @@ def main(argv=None):
 
     jobs, skipped = plan(cfg)
     requested = len(cfg["models"]) * len(cfg["scenarios"]) * len(cfg["members"])
+
     # Resolved BEFORE the parameters block so the flag it prints is the number
     # the pool will actually start, not the number asked for.
     workers = resolve_workers(args.workers, len(jobs))

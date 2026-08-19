@@ -103,7 +103,7 @@ def _components(catalog_path, members=("r1i1p1f1",), **overrides):
         pins_by_member={
             "r1i1p1f1": {"pr": ["gr1/v20180701"], "tas": ["gr1/v20180701"]}
         },
-        buffer_degrees=1.0,
+        buffer_cells=1,
         variable_spec=["precip", "temp"],
         experiment="ssp245",
         reducer_module_hash="deadbeef",
@@ -658,7 +658,7 @@ def _split_components(reducer_hash="deadbeef"):
         "members": ["r1i1p1f1"],
         "entry_identity": {"r1i1p1f1": {"driver": {"name": "raster_xarray"}}},
         "pins": {"r1i1p1f1": {"pr": ["gr1/v20190603"], "tas": ["gr1/v20190603"]}},
-        "buffer_degrees": 1.0,
+        "buffer_cells": 1,
         "variable_spec": ["precip", "temp"],
         "acquisition_window": ["2015-01-01", "2100-12-31"],
         "reducer_module_hash": reducer_hash,
@@ -680,6 +680,35 @@ def test_raw_digest_ignores_the_reducer_but_series_digest_does_not():
     assert si.series_digest(before, REGION_FP) != si.series_digest(after, REGION_FP)
 
 
+def test_the_buffer_component_is_named_for_the_cells_it_actually_spends():
+    """The key name is IN the hash, so reverting it re-validates stale slices.
+
+    hydromt spends `buffer` as resolution multiplicity, never degrees, so the
+    component was renamed `buffer_degrees` -> `buffer_cells` (t2608182238). The
+    rename is what moved every raw and series digest; `SCHEMA_VERSION` 4->5 is
+    what makes the slices cached under the old key refuse LOUDLY instead of
+    re-deriving in silence. A revert of either half undoes the other's guarantee.
+    """
+    components = _split_components()
+
+    assert "buffer_cells" in components
+    assert "buffer_degrees" not in components
+    assert int(si.SCHEMA_VERSION) >= 5
+
+    built = si.digest_components(
+        catalog_entry="e",
+        entry={},
+        members=["r1i1p1f1"],
+        pins_by_member={},
+        buffer_cells=1,
+        variable_spec=["precip"],
+        experiment="ssp245",
+        reducer_module_hash="",
+    )
+    assert built["buffer_cells"] == 1
+    assert isinstance(built["buffer_cells"], int)
+
+
 def test_raw_digest_tracks_everything_else():
     """Anything that changes the downloaded bytes must change the raw digest."""
     base = _split_components()
@@ -689,7 +718,7 @@ def test_raw_digest_tracks_everything_else():
         ("catalog_entry", "cmip6_INM/INM-CM5-0_ssp245_{member}"),
         ("members", ["r2i1p1f1"]),
         ("pins", {"r1i1p1f1": {"pr": ["gr1/v20200101"], "tas": ["gr1/v20190603"]}}),
-        ("buffer_degrees", 2.0),
+        ("buffer_cells", 2),
         ("variable_spec", ["precip"]),
         ("acquisition_window", ["1950-01-01", "2014-12-31"]),
         ("entry_identity", {"r1i1p1f1": {"driver": {"name": "zarr"}}}),

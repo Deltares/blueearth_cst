@@ -51,7 +51,7 @@ def _cfg():
         "clim_project": "cmip6",
         "catalog": str(_REPO_ROOT / "config/catalogs/cmip6_data.yml"),
         "store_index": str(_REPO_ROOT / "config/catalogs/cmip6_store_index.json"),
-        "buffer_degrees": sc.DEFAULT_BUFFER_DEGREES,
+        "buffer_cells": sc.DEFAULT_BUFFER_CELLS,
         "variables": SEED_VARIABLES,
     }
 
@@ -122,6 +122,16 @@ def test_the_tool_reproduces_a_digest_wf2_itself_wrote():
     asserted. It reads `cst_raw_digest` off files produced by a real WF2 run
     and rebuilds it from the tool's own recipe; the two must agree exactly, or
     a staged slice would be re-fetched instead of reused.
+
+    Slices recorded under an OLDER `cst_schema_version` are passed over, not
+    failed. A digest is only comparable within one schema: the pipeline itself
+    rejects such a slice on the schema check (`cache_hit`) and re-fetches it
+    before any digest is consulted, so an inequality here would say nothing
+    about the tool's recipe. Skipping keeps a deliberate bump — 4->5 renamed the
+    `buffer_degrees` component to `buffer_cells` (t2608182238) — from reading as
+    a defect in this tool until the fixture is re-run. The whole-fixture skip
+    below is what stops that concession from hiding a real break: once a run
+    refreshes the tree, every slice is current and every slice is checked again.
     """
     xr = pytest.importorskip("xarray")
 
@@ -130,11 +140,16 @@ def test_the_tool_reproduces_a_digest_wf2_itself_wrote():
 
     region_fp = _si.region_fingerprint(str(REGION))
     checked = 0
+    stale = 0
     for path in slices:
         with xr.open_dataset(path) as ds:
             written = ds.attrs.get("cst_raw_digest")
+            schema = ds.attrs.get("cst_schema_version")
             variables = {name: {"units": ""} for name in ds.data_vars}
         if not written:
+            continue
+        if schema != _si.SCHEMA_VERSION:
+            stale += 1
             continue
         # stem: cmip6_<model with _ for />_<experiment>_<member>
         stem = path.stem[len("cmip6_") :]
@@ -152,6 +167,12 @@ def test_the_tool_reproduces_a_digest_wf2_itself_wrote():
         )
         checked += 1
 
+    if not checked and stale:
+        pytest.skip(
+            f"every one of the fixture's {stale} raw slice(s) predates schema "
+            f"{_si.SCHEMA_VERSION}; re-run WF2 stage A against "
+            "test_case/test_local to restore this check"
+        )
     assert checked, "no slice carried a cst_raw_digest; nothing was verified"
 
 

@@ -6,16 +6,18 @@
 # will re-fetch rather than reuse. A project writes its own at
 # <project_dir>/data/spatial/geoms/region.geojson.
 
-# The polygon the store is clipped to, plus `buffer_degrees` around its bounds.
+# The polygon the store is clipped to, plus `buffer_cells` around its bounds.
 region: test_case/test_local/data/spatial/geoms/region.geojson
 
 # Where the slices land. Anywhere you like — outside the repo is the point.
 target_root: C:/data/cmip6_slices
 
-# Degrees added around the region bounds before reading. MUST match the
-# pipeline's REGION_BUFFER_DEGREES (analyze_projections.smk:402) for the digest
+# GRID CELLS added around the region bounds before reading — hydromt spends
+# `buffer` as resolution multiplicity, so this is resolution-dependent by
+# design (one cell is 0.70 deg on EC-Earth3, 2.77 deg on CanESM5). MUST match
+# the pipeline's REGION_BUFFER_CELLS (analyze_projections.smk) for the digest
 # to agree; it is a digest component, not a convenience.
-buffer_degrees: 1.0
+buffer_cells: 1
 
 # The generated catalog and its store index. Both are crawl products and carry
 # an equal `crawled_on`; never hand-edit either. Defaults point at the repo's

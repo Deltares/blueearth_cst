@@ -185,7 +185,7 @@ if __name__ == "__main__":
             digest_components = dict(sm.params.digest_components)
             acquisition_window = tuple(sm.params.acquisition_window)
             store_index = sm.params.store_index
-            buffer = float(sm.params.buffer_degrees)
+            buffer = int(sm.params.buffer_cells)
 
             # Time tuple for timeseries.
             # cmip6 now comes from the DECLARED acquisition contract in params
@@ -376,7 +376,7 @@ if __name__ == "__main__":
                     "cst_acquisition_window": " / ".join(acquisition_window),
                     "cst_region_bounds": ", ".join(f"{b:.9g}" for b in bbox),
                     "cst_region_fingerprint": region_fp,
-                    "cst_buffer_degrees": buffer,
+                    "cst_buffer_cells": buffer,
                     "cst_reducer_module_hash": digest_components.get(
                         "reducer_module_hash", ""
                     ),
