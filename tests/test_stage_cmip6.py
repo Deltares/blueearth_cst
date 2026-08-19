@@ -219,7 +219,7 @@ def test_stage_one_returns_the_error_instead_of_raising(tmp_path):
         "member": "r1i1p1f1",
         "out": "unused.nc",
     }
-    key, error, elapsed = sc.stage_one(cfg, job)
+    key, error, elapsed, _notices = sc.stage_one(cfg, job)
     assert key == job["key"]
     assert error, "an absent model must be reported, not silently succeed"
     # Named, so the test cannot pass on an unrelated failure -- a missing config
@@ -248,7 +248,7 @@ def test_stage_one_routes_the_fetch_through_the_workflow_tee(tmp_path, capsys):
         log_row("gcsfs extended-filesystem switch = 'false'", module="fetch")
         log_row("fetching cmip6_X/Y_historical_r1i1p1f1", module="fetch")
         log_row(
-            "irregular grid, applying the bbox directly: cmip6_X/Y",
+            "irregular grid, applying the bbox directly: cmip6_X/Y_historical_r1i1p1f1",
             module="fetch",
             level="WARNING",
         )
@@ -272,7 +272,7 @@ def test_stage_one_routes_the_fetch_through_the_workflow_tee(tmp_path, capsys):
             "member": "r1i1p1f1",
             "out": str(tmp_path / "slice.nc"),
         }
-        _key, error, _elapsed = sc.stage_one(cfg, job)
+        _key, error, _elapsed, notices = sc.stage_one(cfg, job)
     finally:
         monkeypatch.undo()
     assert error is None, error
@@ -281,15 +281,15 @@ def test_stage_one_routes_the_fetch_through_the_workflow_tee(tmp_path, capsys):
     logged = Path(sc.slice_log_path(cfg["target_root"], job["key"])).read_text(
         encoding="utf-8"
     )
-    # dropped by the SHARED mute table, in WF2 and here alike
+    # NOTHING the fetch says reaches the console live: the parent prints one
+    # numbered line per slice, and a worker cannot number itself.
     assert "extended-filesystem switch" not in out
-    # dropped by THIS tool's filter only. WF2's console KEEPS this row, because
-    # there the fetch rows are the console; here the parent prints one numbered
-    # line per slice and a worker cannot number itself.
     assert "fetching cmip6_X/Y_historical" not in out
-    # ...and a WARNING survives both, which is why the filter is not a devnull
-    assert "irregular grid" in out
-    # the log part is the durable copy of all three
+    assert "irregular grid" not in out
+    # the WARNING comes back as a notice for the parent to attach, with its
+    # stamp, module and the entry name it repeats all stripped
+    assert notices == ["WARNING - irregular grid, applying the bbox directly"]
+    # the log part is the durable copy of all three rows, entry name included
     for row in ("extended-filesystem switch", "fetching cmip6_X/Y", "irregular grid"):
         assert row in logged, row
 
@@ -576,33 +576,44 @@ def test_the_workers_info_rows_do_not_reach_the_console(row):
     """They say the same slice is being worked on, from a process that cannot
     number it -- and the parent prints one numbered line per slice already."""
     sink = io.StringIO()
-    sc._NonInfoConsole(sink).write(row)
+    sc._SliceConsole(sink).write(row)
     assert sink.getvalue() == ""
 
 
 @pytest.mark.parametrize(
-    "row",
+    "row,expected",
     [
-        "16:25:09 - fetch - WARNING - irregular grid, applying the bbox directly: x\n",
-        "16:26:41 - fetch - ERROR - something went wrong\n",
+        (
+            "16:25:09 - fetch - WARNING - irregular grid, applying the bbox: x\n",
+            "WARNING - irregular grid, applying the bbox: x",
+        ),
+        (
+            "16:26:41 - fetch - ERROR - something went wrong\n",
+            "ERROR - something went wrong",
+        ),
     ],
 )
-def test_a_warning_or_an_error_still_reaches_the_console(row):
-    """These are findings about the SOURCE. A run that reveals them only in a
-    closing recap has hidden them for the twenty minutes when the operator
-    could still have stopped it."""
+def test_a_warning_is_collected_rather_than_printed(row, expected):
+    """Collected so the PARENT can print it under the slice it belongs to.
+
+    A worker cannot number its own row, so a warning it printed itself landed
+    between two unrelated entries and left the reader matching names across
+    them. The stamp and module go: the entry above supplies the identity, and
+    the level is what makes the line scannable without a coloured glyph.
+    """
     sink = io.StringIO()
-    sc._NonInfoConsole(sink).write(row)
-    assert sink.getvalue() == row
+    console = sc._SliceConsole(sink)
+    console.write(row)
+    assert sink.getvalue() == "", "a notice must not reach the console live"
+    assert console.take_notices() == [expected]
+    assert console.take_notices() == [], "reading resets, or it follows the next slice"
 
 
 def test_a_painted_info_row_is_still_recognised():
     """`_Tee` colours body text on its way to a live console, so this sink sees
     escape codes around the very fields it has to read."""
     sink = io.StringIO()
-    sc._NonInfoConsole(sink).write(
-        "\x1b[38;5;245m16:24:31 - fetch - fetching x\x1b[0m\n"
-    )
+    sc._SliceConsole(sink).write("\x1b[38;5;245m16:24:31 - fetch - fetching x\x1b[0m\n")
     assert sink.getvalue() == ""
 
 
@@ -620,7 +631,7 @@ def test_anything_not_positively_an_info_row_is_printed(text):
     over someone else's output lets an unfamiliar line through rather than
     eating it. The heartbeat's stall notice is the one that matters."""
     sink = io.StringIO()
-    sc._NonInfoConsole(sink).write(text)
+    sc._SliceConsole(sink).write(text)
     assert sink.getvalue() == text
 
 
@@ -648,12 +659,14 @@ def test_the_console_wrapper_is_reused_for_every_slice_in_a_worker():
         sc._CONSOLE_WRAPPERS.clear()
 
 
-def test_a_passed_row_is_flushed_so_it_lands_where_it_happened():
+def test_the_heartbeat_is_flushed_so_it_lands_while_the_stall_is_happening():
     """A worker is a separate process, block-buffered once the run is captured.
 
-    Without the flush both `irregular grid` warnings of a 6-slice run arrived
-    below the `[6/6]` row they actually preceded by two minutes, which is the
-    one thing a live warning exists to avoid.
+    The heartbeat's `... still running` is the ONLY thing on the console during
+    a twenty-minute open, and a notice that arrives at process exit reports a
+    stall the reader has already sat through. Warnings no longer take this path
+    -- they are collected and attached to their slice -- so what is left here is
+    exactly the text that must not wait.
     """
 
     class _Counting(io.StringIO):
@@ -665,8 +678,9 @@ def test_a_passed_row_is_flushed_so_it_lands_where_it_happened():
             self.flushes += 1
 
     sink = _Counting()
-    console = sc._NonInfoConsole(sink)
-    console.write("16:25:09 - fetch - WARNING - irregular grid: x\n")
+    console = sc._SliceConsole(sink)
+    console.write("   ... cmip6_X_ssp585_r1i1p1f1: still running, 4m00s elapsed\n")
     assert sink.flushes == 1
     console.write("16:25:09 - fetch - fetching x\n")  # dropped, nothing to flush
+    console.write("16:25:09 - fetch - WARNING - collected, not printed\n")
     assert sink.flushes == 1

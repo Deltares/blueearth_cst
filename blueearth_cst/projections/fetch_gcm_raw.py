@@ -764,8 +764,8 @@ def fetch_raw_slice(
             # merge cleanly this is the only notice that the source was chosen
             # for the operator rather than by them.
             log_row(
-                f"{AMBIGUOUS_VERSION_PHRASE} on the store index "
-                f"({ambiguous_versions_phrase(ambiguous)})",
+                f"more than one version on the store "
+                f"({ambiguous_versions_phrase(ambiguous)}): {entry}",
                 module="fetch",
                 level="WARNING",
             )
