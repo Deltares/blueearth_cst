@@ -23,7 +23,6 @@
 | [t2608191733](tasks/t2608191733-ship-a-sample-dataset-bundle-so-a-user-needs-no-deltares-p-drive.md)                                        | Ship a sample dataset bundle so a user needs no Deltares P: drive                                        | distribution / sample data                  |                                                |     | backlog |
 | [t2608191733a](tasks/t2608191733a-rename-snake-config-yml-to-project-config-yml-repo-wide.md)                                               | Rename snake_config_*.yml to project_config_*.yml repo-wide                                              | config / naming                             |                                                |     | backlog |
 | [t2608192107](tasks/t2608192107-give-analyze-projections-a-member-selection-policy-and-a-per-model-member-override.md)                      | Give analyze_projections a member-selection policy and a per-model member override                       | wf2 projections / config contract           |                                                |     | backlog |
-| [t2608192113](tasks/t2608192113-refresh-test-local-s-wf2-slices-to-schema-6-so-the-digest-check-stops-skipping.md)                          | Refresh test_local's WF2 slices to schema 6, so the digest check stops skipping                          | wf2 projections / test fixtures             |                                                |     | backlog |
 
 ## Watching
 
