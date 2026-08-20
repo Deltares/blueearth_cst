@@ -20,6 +20,7 @@
 | [t2608191733](tasks/t2608191733-ship-a-sample-dataset-bundle-so-a-user-needs-no-deltares-p-drive.md)                                        | Ship a sample dataset bundle so a user needs no Deltares P: drive                                        | distribution / sample data                  |                                                |     | backlog |
 | [t2608191733a](tasks/t2608191733a-rename-snake-config-yml-to-project-config-yml-repo-wide.md)                                               | Rename snake_config_*.yml to project_config_*.yml repo-wide                                              | config / naming                             |                                                |     | backlog |
 | [t2608202307](tasks/t2608202307-snakefile-parse-imports-the-heavy-stack-via-script-modules.md)                                              | Snakefile parse imports the heavy stack via script modules                                               | performance / workflow parse                | test-runtime profiling (2026-08-20)            |     | backlog |
+| [t2608202331](tasks/t2608202331-real-time-scanning-makes-every-python-import-7x-slower.md)                                                  | Real-time scanning makes every Python import ~7x slower                                                  | environment / dev machine                   | test-runtime profiling (2026-08-20)            |     | backlog |
 
 ## Watching
 
