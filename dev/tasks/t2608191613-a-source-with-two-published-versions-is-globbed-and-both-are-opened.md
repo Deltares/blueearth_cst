@@ -5,9 +5,9 @@ status: done
 effort: 2
 area: wf2 projections / remote store
 origin: 2026-08-19 stage_cmip6 run
-queue: 3
+queue: 2
 created: 2026-08-19
-updated: 2026-08-19
+updated: 2026-08-20
 ---
 
 > [!note] Overview
