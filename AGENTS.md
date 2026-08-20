@@ -80,9 +80,7 @@ Use `test_case/*_linux.yml` + `config/catalogs/*_linux.yml` on Linux — data-ca
 - [Python] `script:` modules read `snakemake.input/output/params`, not `sys.argv`. [R] `Rscript --vanilla` scripts take positional args via `commandArgs(trailingOnly=TRUE)`.
 - netCDF (`.nc`) is the interchange format across R/Python/Julia. Wrap intermediate per-realization netCDFs in `temp(...)` — omitting it explodes disk usage on large `RLZ_NUM × ST_NUM` runs.
 
-## Workflow
-
-### Validation ladder — match the check to the blast radius
+## Validation ladder — match the check to the blast radius
 
 A task branch is isolated from `main` and cheap to revert, so spend validation time by blast radius. **Re-running the full suite after each incremental edit is the failure mode to avoid.** Measured costs and rationale: `dev/reference/validation-ladder.md`.
 
