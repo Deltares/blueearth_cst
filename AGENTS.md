@@ -103,11 +103,7 @@ A task branch is isolated from `main` and cheap to revert, so spend validation t
 
 **Run WF1 with `--notemp` when the run feeds `check_baseline.py`.** Rule 1.14 declares wflow's `run_default/output.csv` as `temp()`, and that file is the manifest's wf1 discharge target, so without the flag the gate fails "target missing" and reads as a defect. The rounded `output_q.csv` is not a substitute.
 
-### Figures are terminal artifacts
-
-No rule consumes a `.png`/`.pdf` under `project_dir`, so a figure change cannot propagate into a number. Do not run the validation suite or the baseline for a figure-only change. The gate is: (1) the changed module's unit tests, (2) the figure renders without an exception, (3) the rendered PNG is published as an Artifact — a self-contained HTML page with the image embedded as a base64 `data:` URI — for the owner to inspect in a browser. Never byte-compare renders or scrub timestamps to force reproducible bytes. Render the layer-rich `test_case/basin_map_fixture`, not `test_local`, whose single outlet leaves most layers absent from the image. For the basin map, `dev/scripts/preview_basin_map.py` drives it against a model already on disk with no WF1 run; anything assembled from those tunables must be derived in a function, since a module constant snapshots its inputs at import.
-
-**The trap:** "I changed it for a figure" is not the same as "it is a figure-only change". A shared helper edited in service of a plot (`shared/snake_utils.py`, `shared/plot_utils.py`, `shared/cartographic_map.py`) is *a contract surface with other callers* and takes the normal ladder above. `cartographic_map.py` is drawn through by rules 1.12 and 1.13, so a change there is never figure-local.
+**Figures are terminal artifacts** — no rule consumes a `.png`/`.pdf`, so verify a figure-only change by rendering it and publishing the PNG as an Artifact for visual inspection, never with the baseline or the full suite. But a shared helper edited in service of a plot (`shared/plot_utils.py`, `shared/cartographic_map.py`, which rules 1.12 and 1.13 both draw through) is *a contract surface with other callers* and takes the normal ladder above.
 
 ## Hard Constraints
 
@@ -121,7 +117,7 @@ No rule consumes a `.png`/`.pdf` under `project_dir`, so a figure change cannot 
 - `README.md` — the pipeline and how the four workflows fit together; start here.
 - `docs/cst-toolbox-technical-note-2025.md` — read before changing *what* a workflow computes.
 - `dev/reference/task-lanes.md` — read before running the pipeline or the fixture-dependent tests from a worktree: seeding, per-worktree pixi envs, and why a worktree gate under-reports.
-- `dev/reference/validation-ladder.md` — read when deciding whether a gate is affordable, or when a gate behaves unexpectedly.
+- `dev/reference/validation-ladder.md` — read when deciding whether a gate is affordable, when a gate behaves unexpectedly, or before verifying a figure change; it carries the full figure gate.
 - `dev/reference/repo-layout.md` — read when adding a file and unsure where it goes.
 - `dev/reference/naming.md` — read when naming a new identifier, file, or rule.
 - `dev/reference/workflows/rule-index.md` — read when editing or adding a rule.

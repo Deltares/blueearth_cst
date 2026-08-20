@@ -77,3 +77,9 @@ gh api "repos/tanerumit/blueearth_cst/actions/runs/<id>/jobs" \
 ```
 
 Do **not** filter by `head_sha=<short sha>` — that parameter needs the full 40-character value and silently matches nothing otherwise, which reads as "the run has not started yet" and polls forever.
+
+## Figures are terminal artifacts — the full gate
+
+No rule consumes a `.png`/`.pdf` under `project_dir`, so a figure change cannot propagate into a number. Do not run the validation suite or the baseline for a figure-only change. The gate is: (1) the changed module's unit tests, (2) the figure renders without an exception, (3) the rendered PNG is published as an Artifact — a self-contained HTML page with the image embedded as a base64 `data:` URI — for the owner to inspect in a browser. Never byte-compare renders or scrub timestamps to force reproducible bytes. Render the layer-rich `test_case/basin_map_fixture`, not `test_local`, whose single outlet leaves most layers absent from the image. For the basin map, `dev/scripts/preview_basin_map.py` drives it against a model already on disk with no WF1 run; anything assembled from those tunables must be derived in a function, since a module constant snapshots its inputs at import.
+
+**The trap:** "I changed it for a figure" is not the same as "it is a figure-only change". A shared helper edited in service of a plot (`shared/snake_utils.py`, `shared/plot_utils.py`, `shared/cartographic_map.py`) is *a contract surface with other callers* and takes the normal ladder above. `cartographic_map.py` is drawn through by rules 1.12 and 1.13, so a change there is never figure-local.
