@@ -1,15 +1,10 @@
 # AGENTS.md
 
-> **Canonical.** Single source of truth for every runtime. Codex reads this file
-> directly; `CLAUDE.md` is a thin entry point that imports it (`@AGENTS.md`).
-> Author repo instructions here, never only in `CLAUDE.md`.
+> **Canonical.** Single source of truth for every runtime. Codex reads this file directly; `CLAUDE.md` is a thin entry point that imports it (`@AGENTS.md`). Author repo instructions here, never only in `CLAUDE.md`.
 
 ## Overview
 
-BlueEarth Climate Stress Test — a multi-language (Python + R + Julia) scientific
-workflow toolbox stitched together by Snakemake. The four `*.smk` files at the
-repo root are the only entry points; there is no package CLI. Narrative:
-`README.md`.
+BlueEarth Climate Stress Test — a multi-language (Python + R + Julia) scientific workflow toolbox stitched together by Snakemake. The four `*.smk` files at the repo root are the only entry points; there is no package CLI. Narrative: `README.md`.
 
 | entry point | id | does |
 |---|---|---|
@@ -18,84 +13,35 @@ repo root are the only entry points; there is no package CLI. Narrative:
 | `analyze_projections.smk` | wf2 | CMIP6 change factors — a plausibility overlay |
 | `run_stress_test.smk` | wf3 | the stress test |
 
-wf1 -> wf2/wf3 is ordered; wf3 needs wf1 artifacts. wf0 is outside that chain --
-it only pre-builds region and climate artifacts wf1 also declares, so run it
-first or not at all, and run it ALONE when the question is which forcing dataset
-to use. The `workflows.<name>` config keys carry the pre-2026-08-14 file names
-(`docs/migration-workflow-names.md`).
+wf1 -> wf2/wf3 is ordered; wf3 needs wf1 artifacts. wf0 is outside that chain -- it only pre-builds region and climate artifacts wf1 also declares, so run it first or not at all, and run it ALONE when the question is which forcing dataset to use. The `workflows.<name>` config keys carry the pre-2026-08-14 file names (`docs/migration-workflow-names.md`).
 
 ## Git task boundary
 
-Filesystem-backed atomic task lanes. **Before any write, invoke `git-workflow`:**
-`task-start` from the primary checkout, `task-scope` in the fresh child session,
-then edit, test, commit, `task-ready`, and stop. `git-integrator` admits and lands
-READY work; `git-steward` owns recovery. A lane banner naming another task or
-`UNCLAIMED TASK LANE` is a stop signal. Procedure, slot table and scope rules:
-`dev/reference/task-lanes.md`.
+Filesystem-backed atomic task lanes. **Before any write, invoke `git-workflow`:** `task-start` from the primary checkout, `task-scope` in the fresh child session, then edit, test, commit, `task-ready`, and stop. `git-integrator` admits and lands READY work; `git-steward` owns recovery. A lane banner naming another task or `UNCLAIMED TASK LANE` is a stop signal. Procedure, slot table and scope rules: `dev/reference/task-lanes.md`.
 
 ## Background
 
-Method context that changes how code here should be edited (rationale:
-`docs/cst-toolbox-technical-note-2025.md` §1):
+Method context that changes how code here should be edited (rationale: `docs/cst-toolbox-technical-note-2025.md` §1):
 
-- CST is bottom-up stress testing (decision-scaling / DMDU): it perturbs local
-  climate over a temperature × precipitation grid rather than running selected GCM
-  scenarios. Stress-test scenarios come from the stochastic weather generator —
-  never couple the experiment workflow to CMIP scenarios.
-- CMIP6 output (wf2) is a plausibility overlay only. Its change factors situate the
-  perturbation grid in projection space; they never drive a stress-test run.
-- wf0 characterises historical climate without a model — the forcing-selection
-  question, which matters because CST does no local calibration, so forcing choice
-  is the dominant lever on the historical run. wf1 builds Wflow-SBM from global data
-  via hydromt and runs it once. wf2 computes monthly change factors per (model,
-  scenario, horizon). wf3 generates `RLZ_NUM` realizations, perturbs each across
-  `ST_NUM` temp/precip combinations (`st_0` = unperturbed baseline), runs Wflow, and
-  reduces to the indicators forming the response surface.
-- This repo is the workflow engine of a three-part platform (workflows + CST-API +
-  CST-frontend). No web/API code belongs here.
-- CST targets rapid, first-order basin assessments on global data. Prefer
-  robustness and automation over site-specific sophistication.
+- CST is bottom-up stress testing (decision-scaling / DMDU): it perturbs local climate over a temperature × precipitation grid rather than running selected GCM scenarios. Stress-test scenarios come from the stochastic weather generator — never couple the experiment workflow to CMIP scenarios.
+- CMIP6 output (wf2) is a plausibility overlay only. Its change factors situate the perturbation grid in projection space; they never drive a stress-test run.
+- wf0 characterises historical climate without a model — the forcing-selection question, which matters because CST does no local calibration, so forcing choice is the dominant lever on the historical run. wf1 builds Wflow-SBM from global data via hydromt and runs it once. wf2 computes monthly change factors per (model, scenario, horizon). wf3 generates `RLZ_NUM` realizations, perturbs each across `ST_NUM` temp/precip combinations (`st_0` = unperturbed baseline), runs Wflow, and reduces to the indicators forming the response surface.
+- This repo is the workflow engine of a three-part platform (workflows + CST-API + CST-frontend). No web/API code belongs here.
+- CST targets rapid, first-order basin assessments on global data. Prefer robustness and automation over site-specific sophistication.
 
 ## Repo Map
 
 Self-explanatory except for these. Full detail: `dev/reference/repo-layout.md`.
 
-- `blueearth_cst/` — modules invoked from Snakemake `script:` (Python) or
-  `Rscript --vanilla` `shell:` bodies (R); none is a standalone CLI. Split by stage
-  (`model/`, `projections/`, `climate_analysis/`, `experiment/`), plus `shared/` for
-  cross-cutting helpers and `weathergen/` for the R weather generator.
-- `config/` — four bins plus `advanced_settings.yml`, which `snake_utils` reads once
-  for every project and is not a `--configfile` target (closed schema: add a key
-  to the file and to `_ADVANCED_SETTINGS_SCHEMA` together). There is **no
-  `workflows/` bin** — every `--configfile` target lives beside the project it
-  writes into, under `test_case/`. The two-tier split: `config/defaults/` is read by
-  rules, so changing one changes a run; `config/templates/` is only scaffolds you
-  copy. `catalogs/` holds the hydromt `-d` targets, of which `cmip6_data.yml` and
-  `cmip6_store_index.json` are generated — never hand-edit them. **Keep the
-  `snake_config_` prefix on any new seed config**; a name outside that glob is
-  silently untracked. Real basin data lives in the project folder, referenced by
-  absolute path, never in this repository.
-- `dev/` — planning, audits, conventions, roadmap, baseline manifest, dev helpers.
-  Not shipped. **Open work lives on the todo-board**: one note per item under
-  `dev/tasks/`, closures in `dev/LOG.md`, and `dev/TODO.md` is generated
-  (`python dev/scripts/todoboard.py render` — edit the note, not `TODO.md`).
-- `docs/` — user-facing reference, including the vendored hydromt / wflow guides.
-  Configs are not mirrored here; `config/` is the single source.
-- Outputs land under `project_dir`. Production `project_dir` lives **outside the
-  repository tree**; the untracked `test_case/test_local` is a dev-only exemption.
+- `blueearth_cst/` — modules invoked from Snakemake `script:` (Python) or `Rscript --vanilla` `shell:` bodies (R); none is a standalone CLI. Split by stage (`model/`, `projections/`, `climate_analysis/`, `experiment/`), plus `shared/` for cross-cutting helpers and `weathergen/` for the R weather generator.
+- `config/` — four bins plus `advanced_settings.yml`, which `snake_utils` reads once for every project and is not a `--configfile` target (closed schema: add a key to the file and to `_ADVANCED_SETTINGS_SCHEMA` together). There is **no `workflows/` bin** — every `--configfile` target lives beside the project it writes into, under `test_case/`. The two-tier split: `config/defaults/` is read by rules, so changing one changes a run; `config/templates/` is only scaffolds you copy. `catalogs/` holds the hydromt `-d` targets, of which `cmip6_data.yml` and `cmip6_store_index.json` are generated — never hand-edit them. **Keep the `snake_config_` prefix on any new seed config**; a name outside that glob is silently untracked. Real basin data lives in the project folder, referenced by absolute path, never in this repository.
+- `dev/` — planning, audits, conventions, roadmap, baseline manifest, dev helpers. Not shipped. **Open work lives on the todo-board**: one note per item under `dev/tasks/`, closures in `dev/LOG.md`, and `dev/TODO.md` is generated (`python dev/scripts/todoboard.py render` — edit the note, not `TODO.md`).
+- `docs/` — user-facing reference, including the vendored hydromt / wflow guides. Configs are not mirrored here; `config/` is the single source.
+- Outputs land under `project_dir`. Production `project_dir` lives **outside the repository tree**; the untracked `test_case/test_local` is a dev-only exemption.
 
-**Three homes for executables, split by INVOCATION MODEL** — not by audience:
-`blueearth_cst/` is executed by Snakemake, `scripts/` is what a user runs to execute
-the pipeline, `dev/scripts/` inspects or maintains the repository and is never part
-of a run. `dev/scripts/` also holds libraries `tests/` imports, so an import error
-there fails CI on a bare checkout. **When something in `dev/scripts/` acquires a
-run-path caller, move the shared part into the shipped package** rather than
-importing `dev/` from a run.
+**Three homes for executables, split by INVOCATION MODEL** — not by audience: `blueearth_cst/` is executed by Snakemake, `scripts/` is what a user runs to execute the pipeline, `dev/scripts/` inspects or maintains the repository and is never part of a run. `dev/scripts/` also holds libraries `tests/` imports, so an import error there fails CI on a bare checkout. **When something in `dev/scripts/` acquires a run-path caller, move the shared part into the shipped package** rather than importing `dev/` from a run.
 
-`dev/scripts/console.py` is VENDORED: fix console defects in the
-`console-formatting` skill upstream and re-copy, never here. The agent-config
-directories (`.claude/`, `.codex/`, `.agents/`) are gitignored per-user state,
-symlinked per skill into worktrees; their absence downgrades rather than fails.
+`dev/scripts/console.py` is VENDORED: fix console defects in the `console-formatting` skill upstream and re-copy, never here. The agent-config directories (`.claude/`, `.codex/`, `.agents/`) are gitignored per-user state, symlinked per skill into worktrees; their absence downgrades rather than fails.
 
 ## Key Commands
 
@@ -122,71 +68,35 @@ pytest tests/test_cli.py    # cheapest sanity check: dry-runs all four entry poi
 pytest tests/               # full suite (test_build_model.py is slow)
 ```
 
-Inspection helpers, all report-only until `--delete`: `pixi run tree-check`,
-`dev/scripts/prune_series_cache.py`, `dev/scripts/prune_climate_store.py`. DAG
-render: `scripts/plot_workflow_dag.py -s <smk> --configfile <cfg>`.
+Inspection helpers, all report-only until `--delete`: `pixi run tree-check`, `dev/scripts/prune_series_cache.py`, `dev/scripts/prune_climate_store.py`. DAG render: `scripts/plot_workflow_dag.py -s <smk> --configfile <cfg>`.
 
-Use `test_case/*_linux.yml` + `config/catalogs/*_linux.yml` on Linux — data-catalog
-paths differ from Windows. `profiles/default/config.yaml` auto-loads from the repo
-root and sets `quiet: reason`; drop it when you need to see *why* a job re-ran.
+Use `test_case/*_linux.yml` + `config/catalogs/*_linux.yml` on Linux — data-catalog paths differ from Windows. `profiles/default/config.yaml` auto-loads from the repo root and sets `quiet: reason`; drop it when you need to see *why* a job re-ran.
 
 ### Worktrees
 
-**Run the pipeline from the PRIMARY checkout, not a task worktree.** Snakemake
-keeps its up-to-date state in `.snakemake/` under the *working directory*, so one
-`project_dir` driven from two checkouts gets two stores that disagree and two locks
-writing the same outputs. Worktrees are for editing code and running `pytest`.
+**Run the pipeline from the PRIMARY checkout, not a task worktree.** Snakemake keeps its up-to-date state in `.snakemake/` under the *working directory*, so one `project_dir` driven from two checkouts gets two stores that disagree and two locks writing the same outputs. Worktrees are for editing code and running `pytest`.
 
-Each worktree builds its own pixi env, so run `pixi run install` there before WF3 —
-`pixi install` alone omits `weathergenr`. A worktree also carries no `test_case/`,
-and the fixture-dependent test layer then **skips instead of failing**, producing a
-clean-looking gate that cannot catch the tree-shape changes it exists to catch.
-Seed it by copy, never a link. Do not borrow the primary checkout to run a branch's
-gate — nothing reserves it. Seed lists, copy commands and rationale:
-`dev/reference/task-lanes.md`.
+Each worktree builds its own pixi env, so run `pixi run install` there before WF3 — `pixi install` alone omits `weathergenr`. A worktree also carries no `test_case/`, and the fixture-dependent test layer then **skips instead of failing**, producing a clean-looking gate that cannot catch the tree-shape changes it exists to catch. Seed it by copy, never a link. Do not borrow the primary checkout to run a branch's gate — nothing reserves it. Seed lists, copy commands and rationale: `dev/reference/task-lanes.md`.
 
-The repo root carries **no cache directory of any kind**, and
-`tests/test_cache_dir_hygiene.py` fails if one appears. `ruff check --isolated` is
-the one invocation that still writes one — run it as
-`RUFF_CACHE_DIR=.tmp/ruff_cache ruff check --isolated`.
+The repo root carries **no cache directory of any kind**, and `tests/test_cache_dir_hygiene.py` fails if one appears. `ruff check --isolated` is the one invocation that still writes one — run it as `RUFF_CACHE_DIR=.tmp/ruff_cache ruff check --isolated`.
 
 ## Conventions
 
-- Name new identifiers and files per `dev/reference/naming.md`. Existing names are
-  grandfathered; rename a contract surface only with a migration note.
-- Snakefiles are config-driven: each parses one `--configfile` YAML via a shared
-  `get_config(config, key, default, optional)` helper. A new config key must mirror
-  that contract (raise on missing required, return the default for optional).
-- Each Snakefile takes the `--configfile` path from `workflow.configfiles[0]` and
-  forwards it as `config_path` to downstream R scripts — keep that forwarding.
-- Register new data sources in a `config/catalogs/*_data*.yml` catalog and pass it
-  to hydromt via `-d`. Never hardcode data paths in a Snakefile.
-- `dev/` vs `docs/`: design notes and one-off probes under `dev/` (planning, not
-  shipped); install and usage docs under `docs/`.
-- **Keep configuration references current.** When a path, filename, config key or
-  command moves, grep the old spelling and fix every live reference in the same
-  commit — `docs/`, `README.md`, this file, code comments. A stale path in a
-  document someone reads to do their job is a defect, not a record. The one
-  exception is `dev/` milestone and review records, which are valuable *because*
-  they are unedited; those carry a `> SUPERSEDED …` banner and an entry in
-  `dev/reference/sealed-records.yml`, which `tests/test_sealed_records.py` freezes.
-  **That registry is the entire list** — read it rather than guessing from age.
-- No silent caps: a tool that bounds its own coverage (top-N, sampling, no-retry)
-  must report what it dropped.
-- [Python] `script:` modules read `snakemake.input/output/params`, not `sys.argv`.
-  [R] `Rscript --vanilla` scripts take positional args via `commandArgs(trailingOnly=TRUE)`.
-- netCDF (`.nc`) is the interchange format across R/Python/Julia. Wrap intermediate
-  per-realization netCDFs in `temp(...)` — omitting it explodes disk usage on large
-  `RLZ_NUM × ST_NUM` runs.
+- Name new identifiers and files per `dev/reference/naming.md`. Existing names are grandfathered; rename a contract surface only with a migration note.
+- Snakefiles are config-driven: each parses one `--configfile` YAML via a shared `get_config(config, key, default, optional)` helper. A new config key must mirror that contract (raise on missing required, return the default for optional).
+- Each Snakefile takes the `--configfile` path from `workflow.configfiles[0]` and forwards it as `config_path` to downstream R scripts — keep that forwarding.
+- Register new data sources in a `config/catalogs/*_data*.yml` catalog and pass it to hydromt via `-d`. Never hardcode data paths in a Snakefile.
+- `dev/` vs `docs/`: design notes and one-off probes under `dev/` (planning, not shipped); install and usage docs under `docs/`.
+- **Keep configuration references current.** When a path, filename, config key or command moves, grep the old spelling and fix every live reference in the same commit — `docs/`, `README.md`, this file, code comments. A stale path in a document someone reads to do their job is a defect, not a record. The one exception is `dev/` milestone and review records, which are valuable *because* they are unedited; those carry a `> SUPERSEDED …` banner and an entry in `dev/reference/sealed-records.yml`, which `tests/test_sealed_records.py` freezes. **That registry is the entire list** — read it rather than guessing from age.
+- No silent caps: a tool that bounds its own coverage (top-N, sampling, no-retry) must report what it dropped.
+- [Python] `script:` modules read `snakemake.input/output/params`, not `sys.argv`. [R] `Rscript --vanilla` scripts take positional args via `commandArgs(trailingOnly=TRUE)`.
+- netCDF (`.nc`) is the interchange format across R/Python/Julia. Wrap intermediate per-realization netCDFs in `temp(...)` — omitting it explodes disk usage on large `RLZ_NUM × ST_NUM` runs.
 
 ## Workflow
 
 ### Validation ladder — match the check to the blast radius
 
-A task branch is isolated from `main` and cheap to revert, so spend validation time
-by blast radius. **Re-running the full suite after each incremental edit is the
-failure mode to avoid.** Measured costs and rationale:
-`dev/reference/validation-ladder.md`.
+A task branch is isolated from `main` and cheap to revert, so spend validation time by blast radius. **Re-running the full suite after each incremental edit is the failure mode to avoid.** Measured costs and rationale: `dev/reference/validation-ladder.md`.
 
 | When | Run |
 |---|---|
@@ -197,81 +107,36 @@ failure mode to avoid.** Measured costs and rationale:
 | **After a push** | **Read the run it triggered.** A green local suite is no evidence about the ubuntu leg. |
 | Before a milestone seal / after touching numeric outputs | `check_baseline.py check`, plus `semantic_tree_diff.py` if the tree shape moved. |
 
-**Redirect a gate to a FILE; never pipe it through `tail`** — a pipe discards the
-diagnosis of an intermittent failure while still printing the pass/fail line, so
-the run looks informative and is not. Write `pixi run test-contract > run.log 2>&1`
-and read the tail of the file.
+**Redirect a gate to a FILE; never pipe it through `tail`** — a pipe discards the diagnosis of an intermittent failure while still printing the pass/fail line, so the run looks informative and is not. Write `pixi run test-contract > run.log 2>&1` and read the tail of the file.
 
-**Reading CI:** `gh` resolves to the `upstream` (Deltares) remote in this clone and
-exits 0 printing nothing, which reads as "CI has never run". Fix it once per clone
-with `gh repo set-default tanerumit/blueearth_cst`, and install the ruff pre-push
-hook the same way: `git config core.hooksPath .githooks`.
+**Reading CI:** `gh` resolves to the `upstream` (Deltares) remote in this clone and exits 0 printing nothing, which reads as "CI has never run". Fix it once per clone with `gh repo set-default tanerumit/blueearth_cst`, and install the ruff pre-push hook the same way: `git config core.hooksPath .githooks`.
 
-**Which config to run:** default to `snake_config_rapid.yml` (`test_case/test_rapid`)
-for anything you want to watch EXECUTE — a rule you edited, a DAG check, a WF3
-smoke run, a figure render. Use `snake_config_baseline.yml` (`test_case/test_local`)
-when the run's NUMBERS are the point; the baseline is recorded from it and nothing
-else, so never point `check_baseline.py` at the rapid tree.
-`snake_config_wf2_fast.yml` is WF2 code iteration only. Rapid is CHEAP, not NARROW —
-a config that gives up coverage must say which.
+**Which config to run:** default to `snake_config_rapid.yml` (`test_case/test_rapid`) for anything you want to watch EXECUTE — a rule you edited, a DAG check, a WF3 smoke run, a figure render. Use `snake_config_baseline.yml` (`test_case/test_local`) when the run's NUMBERS are the point; the baseline is recorded from it and nothing else, so never point `check_baseline.py` at the rapid tree. `snake_config_wf2_fast.yml` is WF2 code iteration only. Rapid is CHEAP, not NARROW — a config that gives up coverage must say which.
 
-**Run WF1 with `--notemp` when the run feeds `check_baseline.py`.** Rule 1.14
-declares wflow's `run_default/output.csv` as `temp()`, and that file is the
-manifest's wf1 discharge target, so without the flag the gate fails "target
-missing" and reads as a defect. The rounded `output_q.csv` is not a substitute.
+**Run WF1 with `--notemp` when the run feeds `check_baseline.py`.** Rule 1.14 declares wflow's `run_default/output.csv` as `temp()`, and that file is the manifest's wf1 discharge target, so without the flag the gate fails "target missing" and reads as a defect. The rounded `output_q.csv` is not a substitute.
 
 ### Figures are terminal artifacts
 
-No rule consumes a `.png`/`.pdf` under `project_dir`, so a figure change cannot
-propagate into a number. Do not run the validation suite or the baseline for a
-figure-only change. The gate is: (1) the changed module's unit tests, (2) the figure
-renders without an exception, (3) the rendered PNG is published as an Artifact —
-a self-contained HTML page with the image embedded as a base64 `data:` URI — for the
-owner to inspect in a browser. Never byte-compare renders or scrub timestamps to
-force reproducible bytes. Render the layer-rich `test_case/basin_map_fixture`, not
-`test_local`, whose single outlet leaves most layers absent from the image. For the
-basin map, `dev/scripts/preview_basin_map.py` drives it against a model already on
-disk with no WF1 run; anything assembled from those tunables must be derived in a
-function, since a module constant snapshots its inputs at import.
+No rule consumes a `.png`/`.pdf` under `project_dir`, so a figure change cannot propagate into a number. Do not run the validation suite or the baseline for a figure-only change. The gate is: (1) the changed module's unit tests, (2) the figure renders without an exception, (3) the rendered PNG is published as an Artifact — a self-contained HTML page with the image embedded as a base64 `data:` URI — for the owner to inspect in a browser. Never byte-compare renders or scrub timestamps to force reproducible bytes. Render the layer-rich `test_case/basin_map_fixture`, not `test_local`, whose single outlet leaves most layers absent from the image. For the basin map, `dev/scripts/preview_basin_map.py` drives it against a model already on disk with no WF1 run; anything assembled from those tunables must be derived in a function, since a module constant snapshots its inputs at import.
 
-**The trap:** "I changed it for a figure" is not the same as "it is a figure-only
-change". A shared helper edited in service of a plot (`shared/snake_utils.py`,
-`shared/plot_utils.py`, `shared/cartographic_map.py`) is *a contract surface with
-other callers* and takes the normal ladder above. `cartographic_map.py` is drawn
-through by rules 1.12 and 1.13, so a change there is never figure-local.
+**The trap:** "I changed it for a figure" is not the same as "it is a figure-only change". A shared helper edited in service of a plot (`shared/snake_utils.py`, `shared/plot_utils.py`, `shared/cartographic_map.py`) is *a contract surface with other callers* and takes the normal ladder above. `cartographic_map.py` is drawn through by rules 1.12 and 1.13, so a change there is never figure-local.
 
 ## Hard Constraints
 
-- **IMPORTANT: Julia is not in the pixi env** — it is juliaup-managed and must
-  already be on `PATH` (conda-forge has no win-64 Julia build). Do not add it via pixi.
-- Do not commit run outputs written under `project_dir`, or hand-edit `pixi.lock`
-  or `Manifest.toml`.
-- **IMPORTANT: stay within CST's automation scope** — this repo is the workflow
-  engine only. Define config and setup (`config/defaults/wflow_build_model.yml`,
-  data catalogs, `setup_*` blocks, `wflow_sbm.toml`-affecting steps) using
-  hydromt / hydromt_wflow / Wflow conventions verbatim: CSDMS Standard Names, their
-  YAML schema, their catalog format. Do not re-engineer how hydromt handles data,
-  how `setup_*` methods work internally, or how Wflow parameterizes physics.
-  Verification may *read* upstream docs to validate our config but must never patch
-  upstream; a genuine hydromt/wflow bug is flagged upstream or worked around in our
-  own code, never inside a vendored package.
+- **IMPORTANT: Julia is not in the pixi env** — it is juliaup-managed and must already be on `PATH` (conda-forge has no win-64 Julia build). Do not add it via pixi.
+- Do not commit run outputs written under `project_dir`, or hand-edit `pixi.lock` or `Manifest.toml`.
+- **IMPORTANT: stay within CST's automation scope** — this repo is the workflow engine only. Define config and setup (`config/defaults/wflow_build_model.yml`, data catalogs, `setup_*` blocks, `wflow_sbm.toml`-affecting steps) using hydromt / hydromt_wflow / Wflow conventions verbatim: CSDMS Standard Names, their YAML schema, their catalog format. Do not re-engineer how hydromt handles data, how `setup_*` methods work internally, or how Wflow parameterizes physics. Verification may *read* upstream docs to validate our config but must never patch upstream; a genuine hydromt/wflow bug is flagged upstream or worked around in our own code, never inside a vendored package.
 
 ## References
 
 - `README.md` — the pipeline and how the four workflows fit together; start here.
-- `docs/cst-toolbox-technical-note-2025.md` — read before changing *what* a
-  workflow computes.
+- `docs/cst-toolbox-technical-note-2025.md` — read before changing *what* a workflow computes.
 - `dev/reference/task-lanes.md` — read before allocating, scoping, or landing a task.
-- `dev/reference/validation-ladder.md` — read when deciding whether a gate is
-  affordable, or when a gate behaves unexpectedly.
+- `dev/reference/validation-ladder.md` — read when deciding whether a gate is affordable, or when a gate behaves unexpectedly.
 - `dev/reference/repo-layout.md` — read when adding a file and unsure where it goes.
 - `dev/reference/naming.md` — read when naming a new identifier, file, or rule.
 - `dev/reference/workflows/rule-index.md` — read when editing or adding a rule.
-- `docs/install.md`, `docs/env_setup_notes.md` — read when pixi / R / Julia setup or
-  env activation misbehaves.
-- `docs/hydromt-user-guide/00-index.md`, `docs/hydromt-architecture.md` — read when
-  editing model-build config, data catalogs, or region setup.
-- `docs/hydromt-wflow/getting-started.md`, `user-guide.md`, `api.md` — read when a
-  build/update/clip step touches the hydromt_wflow plugin (`api.md` for signatures).
-- `docs/wflow-user-guide/00-index.md` — read when editing `wflow_sbm.toml`, warm
-  states, or Wflow run config.
+- `docs/install.md`, `docs/env_setup_notes.md` — read when pixi / R / Julia setup or env activation misbehaves.
+- `docs/hydromt-user-guide/00-index.md`, `docs/hydromt-architecture.md` — read when editing model-build config, data catalogs, or region setup.
+- `docs/hydromt-wflow/getting-started.md`, `user-guide.md`, `api.md` — read when a build/update/clip step touches the hydromt_wflow plugin (`api.md` for signatures).
+- `docs/wflow-user-guide/00-index.md` — read when editing `wflow_sbm.toml`, warm states, or Wflow run config.

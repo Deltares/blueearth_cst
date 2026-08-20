@@ -1,11 +1,8 @@
 # dev/reference/
 
-Rules the code must obey, and the durable descriptions of how it is put
-together. Consulted while working; rewritten rarely and deliberately.
+Rules the code must obey, and the durable descriptions of how it is put together. Consulted while working; rewritten rarely and deliberately.
 
-This is the **stays-true** tier. What happened lives in `../milestones/`,
-`../decisions/`, and `../tasks/`; what is happening lives in `../TODO.md` and
-`../working/`; snapshots that decay live in `../reviews/`.
+This is the **stays-true** tier. What happened lives in `../milestones/`, `../decisions/`, and `../tasks/`; what is happening lives in `../TODO.md` and `../working/`; snapshots that decay live in `../reviews/`.
 
 | Path | Holds |
 |---|---|
@@ -22,10 +19,7 @@ This is the **stays-true** tier. What happened lives in `../milestones/`,
 
 ## Two things to know before editing
 
-- **These paths are cited from shipped code.** Measured, not assumed —
-  `git grep -n "dev/reference/" -- ':!dev/'` is the check, and it is the only
-  one there is, since a path in a comment resolves nowhere and no test fails
-  when it rots:
+- **These paths are cited from shipped code.** Measured, not assumed — `git grep -n "dev/reference/" -- ':!dev/'` is the check, and it is the only one there is, since a path in a comment resolves nowhere and no test fails when it rots:
 
   | Path | Cited from |
   |---|---|
@@ -40,13 +34,7 @@ This is the **stays-true** tier. What happened lives in `../milestones/`,
   | `sealed-records.yml` | `AGENTS.md`, `pyproject.toml` |
   | `git-conventions.md` | `README.md` |
 
-  Renaming a file here means updating those citations in the same commit.
-- **`workflows/` is not `.github/workflows/`.** This one holds prose contracts;
-  that one holds CI definitions. A third, `config/workflows/`, was retired on
-  2026-08-10 (`7f776c4`) — every `--configfile` target now sits beside the
-  project it writes into, under `test_case/`.
+Renaming a file here means updating those citations in the same commit.
+- **`workflows/` is not `.github/workflows/`.** This one holds prose contracts; that one holds CI definitions. A third, `config/workflows/`, was retired on 2026-08-10 (`7f776c4`) — every `--configfile` target now sits beside the project it writes into, under `test_case/`.
 
-Everything here moved from the `dev/` root on 2026-08-02 — a path change only,
-no file renamed, split, or edited beyond the prefix. `conventions/` was
-flattened into this folder (it held two files); `contracts/` and `workflows/`
-kept their folders because each is a coherent multi-file unit.
+Everything here moved from the `dev/` root on 2026-08-02 — a path change only, no file renamed, split, or edited beyond the prefix. `conventions/` was flattened into this folder (it held two files); `contracts/` and `workflows/` kept their folders because each is a coherent multi-file unit.
