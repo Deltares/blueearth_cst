@@ -1,14 +1,12 @@
 # Git conventions — branches, tags, and commits
 
-Two things: an inventory of the repo's **durable** refs and what each one is
-for, then the conventions that govern new branches, tags, and commit messages.
-Transient branches (`exp/*`, `feat/*`, `pr/*`) don't belong in the inventory.
+Two things: an inventory of the repo's **durable** refs and what each one is for, then the conventions
+that govern new branches, tags, and commit messages. Transient branches don't belong in the inventory.
 
-The conventions below moved here from `dev/roadmap.md` on 2026-08-02 — this
-file used to point *back* at the roadmap for them, which meant the rules and
-the inventory lived apart. `roadmap.md` is now the phase narrative only.
+Branch and worktree *lifecycle* — how a branch is created, claimed, and landed — is owned by the
+`git-workflow` skill, not this file.
 
-Inventory last updated: 2026-08-04.
+Verify the inventory against `git tag` and `git branch -a` rather than trusting its age.
 
 ## Durable branches
 
@@ -66,7 +64,6 @@ Tags are permanent rollback points; they never move.
 | `r08-wf2-projections` | 2026-07-31 | Phase 5 seal: WF2 v2.0 GCM projections analysis; all seven §8 migration steps implemented. User migration note in `docs/migration-r08-wf2.md`. |
 | `r09-project-tree` | 2026-08-07 | Phase 6 seal: generated project tree — six semantic roots, fan-out members keyed by filename, result tables renamed, pointer-derived model fingerprint with a drift guard, experiment freezing. Landing gate nine of nine; closing record `dev/milestones/r09/closing-record.md`. Work completed 2026-08-05; sealed two days later, which is why the seal is now a named step in the roadmap's cross-cutting principles. |
 | `r10-rule-naming` | 2026-08-07 | Phase 7 seal: rule identifiers on one `<verb>_<noun>` scheme — twelve renames, `W.NN` renumbered to follow the DAG, `LOG_RULES` made a conformance test, and ADR 0003 §8–12's spatial-units split. Gates: suite 1526 from the primary, a full three-workflow run, `check_baseline` 8/8 after it, `tree-check` 186/0. Script modules deliberately not renamed. |
-
 | `r11-wf3-artifacts` | 2026-08-08 | Phase 8 seal (R11 of R11–R12): WF3 result tables wide→long with one table per output variable, `cst_`→`st_` member identification with zero-padded ids, the stress-test design table and `st_id`, and `aggregate_rlz` retired as a hard error. Gates: suite 1707 from the primary, a full three-workflow run, exactly one baseline re-record with `check` green after it, `tree-check` 221/0. **The run found three defects nothing else could** — two metrics silently absent, a design table recording perturbations never applied, and a test that had asserted nothing since R9; see `dev/milestones/r11/phase-3-run-report.md`. |
 | `archive/outputs-figures` | 2026-07-26 | Archive of `feat/outputs-figures` before deletion. Superseded by `refactor/plot-map-params` for the `plot_map.py` redesign: both were cut from `75eb4d6` and rewrote the same module independently, so they are alternatives, not composable. Preserved rather than merged because it also carries a `dev/baseline/manifest.json` predating the `ea5ac59` re-record, and merging would silently revert the baseline. |
 | `archive/wf3-experiment-v2` | 2026-08-19 | The `wf3-experiment-v2` design run (2026-08-01→04), 14,855 lines of scratch at `531bcc6`, also the head of `docs/wf3-redesign`. G2 ratified it as an **architectural input, not an implementable spec**; R12's stress-test-lookup is what was built. Cut retroactively because the commit was reachable only from a branch that exists on no remote, while ten documents cited it — the citable home of a 14,855-line record was one `git branch -D` from gone. Durable record: `dev/reference/workflows/wf3-experiment-v2-design-review-record.md`. |
@@ -75,9 +72,6 @@ Tags are permanent rollback points; they never move.
 `r05-experiment`, `p31-experiments`, `p32a-climate-analysis`, and
 `p32b-interchange-contracts` are **lightweight** tags; every other tag above is
 annotated and carries a message.
-
-Planned (cut at seal): `r09-project-tree` (Phase 6),
-`r10-rule-naming` (Phase 7).
 
 ## Using a checkpoint tag (e.g. `pre-r01`)
 
@@ -93,53 +87,49 @@ under `project_dir` (the baseline manifest covers those).
 
 ## Maintenance
 
-Update this file (and its date) whenever a durable branch or tag is created,
-sealed, or retired. Local tags/branches reach `origin` only on explicit push
+Update this file whenever a durable branch or tag is created, sealed, or retired. Local tags/branches reach `origin` only on explicit push
 (`git push origin <tag>` / `--tags`).
 
 ---
 ## Branching and tagging conventions
 
-| Branch type   | Pattern                       | Purpose                                                                  |
-| ------------- | ----------------------------- | ------------------------------------------------------------------------ |
-| Frozen base   | `base/<start-point>`          | Historical starting point of the fork (e.g. `base/v0.1.0-alpha`).        |
-| Phase 1 milestone | `milestone/<NN>-<topic>`  | Sealed; pattern preserved on existing branches (`milestone/02c-tests`).  |
-| Phase 2 milestone | `milestone/r<NN>-<topic>` | Active; example `milestone/r01-contracts`, `milestone/r03-model-builder`. |
-| Phase 3 sub-milestone | `milestone/p3<N><letter?>-<topic>` | Sealed; pattern preserved on existing branches (`milestone/p32a-climate-analysis`). |
-| Experiment    | `exp/r<NN>-<topic>`           | Messy trial branch off a Phase 2 milestone.                              |
-| Feature       | `feat/r<NN>-<topic>`          | Cleaner implementation off a Phase 2 milestone, intended to be merged in. |
-| Pull request  | `pr/<NN>-<topic>`             | Clean branch prepared for upstream review.                               |
+**Branches are `<type>/<slug>`** — the Conventional Commits type, then a short kebab-case description
+of the work: `fix/fixture-digest-drift-attribution`, `docs/config-modularization`,
+`refactor/wf0-rule-label-constants`. No milestone number in the name; the branch is short-lived and its
+milestone, if any, is recorded on the board item and in the commit.
 
-**Tags.** Phase 1 tags use `m##-<topic>` and stay frozen
-(`m01-replication`, `m02-pixi`, `m02b-upgrades`, `m02c-tests`). Phase 2
-onward use `r##-<topic>`; Phase 3's sub-milestones use `p3#-<topic>`.
-The tags themselves are inventoried in § Tags above — that table is the
-single list, so don't restate it here; a second copy is what went stale
-last time. Tags are permanent rollback points; milestone branches stay
-alive after their tag for late patches or PR prep.
+Historical patterns preserved on existing refs, not used for new work:
 
-**Stacked, not parallel.** Each milestone branches from the previous
-milestone's tip (not from `base/`). Phase 2 starts from the
-`m02c-tests` tag. R1, R2 are pre-workflow contracts and conventions
-that R3-R5 inherit; R6 is the cross-cutting structural refactor.
-Once a milestone has merged, `main`'s tip *is* the previous milestone's
-tip, so later milestones are cut from `main` — verify rather than assume
-(`git log --oneline main..milestone/<previous>` must be empty). R9 was
-cut this way on 2026-08-04, with R7 and R8 both confirmed empty.
+| Pattern | Was |
+|---|---|
+| `base/<start-point>` | Frozen historical starting point of the fork |
+| `milestone/<NN>-<topic>`, `milestone/r<NN>-<topic>`, `milestone/p3<N><letter?>-<topic>` | Sealed phase markers, one per milestone |
+| `lane/<territory>` | The two standing territory lanes, retired in favour of allocator-managed session slots |
+
+**Creating and landing a branch is the `git-workflow` skill's contract**, not this file's: a task claims
+a session slot, works on its own branch, and the integrator lands it. Do not cut a branch by hand in the
+primary checkout.
+
+**Tags.** Phase 1 tags use `m##-<topic>`; Phase 2 onward `r##-<topic>`; Phase 3 sub-milestones
+`p3#-<topic>`; archived design runs and deleted branches `archive/<topic>`. The § Tags table above is
+the single list — do not restate it elsewhere, because a second copy is what went stale last time. Tags
+are permanent rollback points and never move. A milestone branch stays alive after its tag.
+
+Not every piece of work takes a tag or a milestone branch. Both are for a deliberate seal; ordinary work
+lands on `main` and is found through `dev/LOG.md`.
 
 **Remotes.**
-- `origin` — your fork (`github.com/tanerumit/blueearth_cst`).
-- `upstream` — the original Deltares repo
-  (`github.com/Deltares/blueearth_cst`), fetch-only.
 
-The branch `upstream-deltares` (formerly `main`) freezes the upstream
-Deltares state the fork tracked at renaming time; never commit to it.
-`main` is the moving trunk and the GitHub default branch.
+- `origin` — the fork (`github.com/tanerumit/blueearth_cst`), where CI runs.
+- `upstream` — the original Deltares repo (`github.com/Deltares/blueearth_cst`), fetch-only.
 
-**PRs back to upstream** go from `pr/<NN>-<topic>` branches, not
-directly from milestone branches. One PR per milestone is the default;
-only stack PRs when maintainers explicitly agree to review them in
-series.
+`gh` resolves to `upstream` until told otherwise — see `dev/reference/validation-ladder.md`.
+
+The branch `upstream-deltares` freezes the upstream Deltares state the fork tracked at renaming time;
+never commit to it. `main` is the moving trunk and the GitHub default.
+
+**PRs back to upstream** go from a dedicated branch, not from `main`. One PR per milestone is the
+default; only stack PRs when maintainers explicitly agree to review them in series.
 
 ---
 
@@ -169,49 +159,55 @@ still hashes to what was sealed. Skipping the question is how
 
 ## Commit strategy
 
-Branch and tag naming live in "Branching and tagging conventions"
-above. This section covers commit messages only.
+Branch and tag naming live in § Branching and tagging conventions above. This section is commit messages
+only.
 
-**Subject format.** `<prefix>: <imperative subject, ≤72 chars>`. The
-`<prefix>` matches the milestone the commit belongs to:
+**Subject format — Conventional Commits.** `<type>(<scope>): <imperative subject>`, subject ≤72 chars,
+no trailing period. Append `!` before the colon for a breaking change (`refactor(workflows)!:`).
 
-- Phase 1 (sealed): `m01:`, `m02:`, `m02b:`, `m02c:` — historical
-  prefix on existing commits, do not rewrite.
-- Phase 2 (active): `r01:`, `r02:`, `r03:`, `r04:`, `r05:`, `r06:`.
-- Phase 3 (active): `p31:` (P3-1 experiment structure), `p32a:` (P3-2a
-  model-independent climate analysis), `p32b:` (P3-2b model-swap
-  interchange contracts), `p33:` (P3-3 performance passes).
-- Repo housekeeping that doesn't belong to a milestone: `chore:`
-  (e.g. updating this roadmap, `.gitignore`, fixing typos in
-  unrelated docs).
+| Type | For |
+|---|---|
+| `feat` | new capability |
+| `fix` | a defect corrected |
+| `docs` | documentation, including `dev/` records and the board |
+| `refactor` | behaviour-preserving restructuring |
+| `test` | tests only |
+| `chore` | housekeeping — env, ignore rules, tooling |
+| `perf` | a measured performance change |
+| `style` | formatting only, no code change |
 
-Examples:
+The scope is the area touched, lowercase: a workflow (`wf0`, `wf2`, `wf3`), a subsystem (`console`,
+`stage`, `climate`, `plotting`, `runner`), or a documentation surface (`board`, `dev`, `ref`, `agents`,
+`tests`). Omit it when the change is genuinely repo-wide.
 
-- `r01: migrate test config + 3 Snakefiles to sectioned schema`
-- `r02: add dev/reference/naming.md + CLAUDE.md pointer`
-- `r03: collapse get_config into src/snake_utils.py`
-- `r04: fix calendar handling in get_stats_climate_proj.py`
-- `r05: extract stress-test grid into tested helper`
-- `chore(dev): split roadmap into phase-1 / phase-2 sections`
+Examples, all from this repo's history:
 
-**Body.** Optional. Include only when the *why* isn't obvious from
-the diff. Wrap at ~72 chars. Don't restate what the diff shows.
+- `fix(wf2): refuse to attribute drift against a mismatched fixture`
+- `refactor(tests): read LOG_RULES from the parsed workflow, and retire the second parser`
+- `docs(ref): state the rules in naming.md, drop the archaeology`
+- `chore(board): close t2608201134, and record the ruling`
+- `refactor(workflows)!: rename the workflows.<name> config keys and every derived path`
 
-**Granularity.** One logical change per commit. If the subject needs
-the word "and", split it.
+**Body.** Optional. Include only when the *why* is not obvious from the diff. Do not restate what the
+diff shows.
+
+**Granularity.** One logical change per commit. If the subject needs the word "and" to join two
+unrelated changes, split it.
+
+**Scope every commit by explicit pathspec** to the files the task authored. A bare `git commit -a`
+sweeps whatever else is dirty in the checkout, which is how another session's half-finished work lands
+in an unrelated commit.
 
 **Never commit.**
+
 - Outputs under `project_dir/`.
 - Files matching `*_local.yml` or other local-only configs.
 - Secrets, credentials, large binary fixtures.
 - Generated baselines other than `dev/baseline/manifest.json` itself.
+- Hand-edited `pixi.lock` or `Manifest.toml`.
 
-If any of these slip in, update `.gitignore` first, then remove from
-history if the commit hasn't been pushed.
+If any of these slip in, update `.gitignore` first, then remove from history if the commit has not been
+pushed.
 
-**Merges and tags.** Default merge-commit messages are fine — don't
-hand-craft them. Tag messages should restate the milestone goal in
-one line (e.g. `r03-model-builder: model creation workflow + scripts
-cleaned`).
-
----
+**Merges and tags.** Default merge-commit messages are fine — do not hand-craft them. A tag message
+restates the milestone goal in one line.
