@@ -225,7 +225,7 @@ def test_every_workflow_registers_all_three_lifecycle_handlers(snakefile_name):
 def test_the_sidecar_rules_take_letter_suffixes():
     """`1.16`/`3.17` were already taken, and renumbering is forbidden.
 
-    naming.md §8b: DO NOT RENUMBER TO INSERT A RULE. The design proposed the
+    naming.md §9: DO NOT RENUMBER TO INSERT A RULE. The design proposed the
     taken numbers, so this pins the correction rather than leaving it to a
     reader to rediscover that gather_benchmarks owns them.
     """

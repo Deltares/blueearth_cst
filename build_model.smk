@@ -1033,7 +1033,7 @@ rule plot_wflow_evaluation:
 # 1.15b write_run_metadata — the staleness sidecar (design §5.8).
 #
 # `1.15b`, not `1.16`: that number is gather_benchmarks and `dev/reference/
-# naming.md` §8b forbids renumbering to insert a rule. Placed BEFORE the two
+# naming.md` §9 forbids renumbering to insert a rule. Placed BEFORE the two
 # gather rules so its log part -- if it ever grows one -- is still gathered.
 #
 # It takes the metrics table as input rather than writing into it: that table
