@@ -1,10 +1,7 @@
-# Rule index — WF1, WF2 and WF3
+# Rule index — every Snakemake rule
 
-Every rule in `build_model.smk`, `analyze_projections.smk` and `run_stress_test.smk`:
-what each one does, what it writes, and how they connect.
-
-> **WF0 (`analyze_climate.smk`) is not covered here.** Its ten numbered rules are
-> documented only by the comment headers in the Snakefile itself.
+Every rule in `analyze_climate.smk`, `build_model.smk`, `analyze_projections.smk`
+and `run_stress_test.smk`: what each one does, what it writes, and how they connect.
 
 Each workflow gets a diagram, a one-line summary table, then one section per rule.
 **Does** is the rule's job; **Writes** transcribes its `output:` block, so the claim can be
@@ -168,6 +165,161 @@ Paths are relative to `project_dir`, with these shorthands:
 | `<exp>/` | `experiments/<experiment_name>/` |
 | `<wg>/` | `<exp>/climate/weathergenr/` |
 | `<runs>/` | `<exp>/hydrology/wflow/` |
+
+---
+
+# WF0 — historical climate (`analyze_climate.smk`)
+
+Characterises the basin's historical climate from one or more candidate gridded
+datasets. **Builds no model** — that is the point: it answers which forcing
+dataset a basin should use, before wf1 commits to one.
+
+Ten numbered rules, but not ten rule blocks. `0.04` and `0.05` are declared
+inside `for _source in CANDIDATE_SOURCES:` and carry a per-source `name:`
+(`extract_historical_climate_<source>`), so their count is a runtime fact.
+`0.06` is declared only when more than one candidate source is configured.
+
+`0.07`–`0.09` are RESERVED, not missing: the station-sampling, observation
+comparison and Budyko rules land there. Do not renumber the gathers to close the
+gap.
+
+```
+                    config + data catalogs
+                              │
+      0.01 snapshot_config ───┤
+                              ▼
+                    0.02 delineate_region ──► region.geojson
+                              │
+              ┌───────────────┴───────────────┐
+              ▼                               ▼
+    0.04 extract_historical_climate   0.03 delineate_spatial_units
+      (per source; SHARED store,       (SHARED vectors, = 1.03/2.03/3.04)
+       = WF1 1.04)                              │
+              │                                 │
+              ▼                                 │
+    0.04b derive_climate_levels                 │
+      (one shared scale, pooled                 │
+       across every source)                     │
+              │                                 │
+              ▼                                 ▼
+    0.05 plot_climate_source ◄───────── (subbasin polygons)
+      (per source)                              │
+              │                                 │
+              └───────────────┬─────────────────┘
+                              ▼
+                    0.06 compare_climate_sources
+                     (only when >1 candidate)
+                              │
+                              ▼
+                0.10 gather_benchmarks · 0.11 gather_logs
+```
+
+| Banner | Rule | Fan-out |
+| --- | --- | --- |
+| 0.00 | `all` | — |
+| 0.01 | `snapshot_config` | — |
+| 0.02 | `delineate_region` | — (shared) |
+| 0.03 | `delineate_spatial_units` | — (shared) |
+| 0.04 | `extract_historical_climate_<source>` | per candidate source |
+| 0.04b | `derive_climate_levels` | — |
+| 0.05 | `plot_climate_source_<source>` | per candidate source |
+| 0.06 | `compare_climate_sources` | — (only when >1 source) |
+| 0.10 | `gather_benchmarks` | — (gather) |
+| 0.11 | `gather_logs` | — (gather) |
+
+## WF0 rule detail
+
+#### 0.00 · `all`
+
+**Does.** Target aggregator — declares the WF0 target set (the terminals, plus
+the config snapshot, the merged log and the benchmark table).
+
+**Writes.** Nothing of its own.
+
+#### 0.01 · `snapshot_config`
+
+**Does.** Copies the config and the files it references into the project, and
+writes the run record.
+
+**Writes.** `config/runs/snake_config_analyze_climate.yml` · the run record.
+
+#### 0.02 · `delineate_region`
+
+**Does.** Derives the one project region artifact from hydrography and an
+outlet (ADR 0006). Declared from the shared `region_rule` helper, so WF1, WF2
+and WF3 declare the same artifact rather than each deriving its own.
+
+**Writes.** `<spatial>/geoms/region.geojson` (the helper's declared outputs).
+
+#### 0.03 · `delineate_spatial_units`
+
+**Does.** Derives the shared vector foundation — basins, subbasins, rivers,
+locations and the location registry (ADR 0006 §8). Shared with 1.03 / 2.03 /
+3.04 from one helper.
+
+**Writes.** The helper's declared vector outputs under `<spatial>/geoms/`.
+
+#### 0.04 · `extract_historical_climate_<source>` — per candidate source
+
+**Does.** Clips a global climate dataset to the basin and writes that source's
+store. One rule per candidate source rather than one wildcard rule: the sources
+do not share an output set, so a wildcard rule could not cover both families.
+Rule 1.04 declares the same artifact for the primary source.
+
+**Writes.** That source's store outputs, including `climate_nc` and
+`basin_cells` — the cells that source's own grid contributes to the basin,
+which is the domain later averages reduce over.
+
+**Log.** A directory part, `logs/_parts/0.04_extract_historical_climate/<source>.log`,
+because the fan-out width belongs to the rule that owns it.
+
+#### 0.04b · `derive_climate_levels`
+
+**Does.** Pools what every per-source figure would plot and derives one shared
+scale, so separate figures can be read against each other. Numbered `0.04b`
+rather than renumbering: a letter suffix is the insert convention.
+
+**Writes.** `data/climate/historical/climate_levels.json` — one file for the
+whole workflow, not one per source.
+
+#### 0.05 · `plot_climate_source_<source>` — per candidate source
+
+**Does.** Renders the canonical figure set for one source, pinned to 0.04b's
+shared scale.
+
+**Writes.** The basin-level figures declared file by file, plus the
+per-subbasin set as a `directory(...)` — its members are named for delineation
+ids, which are not knowable at parse time.
+
+#### 0.06 · `compare_climate_sources` — only when >1 candidate source
+
+**Does.** Puts every candidate on one axis — one annual and one monthly figure
+per variable — plus a summary table of what each source is (resolution,
+extracted window, reference) and what it delivers. This is the rule that stops
+asking the reader to do the comparing.
+
+**Writes.** The comparison figures and table, plus the per-subbasin comparison
+set as a `directory(...)`.
+
+**Not an input: `climate_levels.json`.** The shared scale exists so *separate*
+figures can be read against each other; every figure here already carries every
+source on one axis, so the edge would buy nothing and would re-fire this rule
+whenever the scale moved.
+
+#### 0.10 · `gather_benchmarks`
+
+**Does.** Merges the WF0 benchmark parts into one table.
+
+**Writes.** `benchmarks/wf0_benchmarks.md`.
+
+#### 0.11 · `gather_logs`
+
+**Does.** Merges every WF0 log part into one workflow log, then deletes the
+parts. `LOG_RULES` is the merge order and is asserted in rule-number order by
+`tests/test_log_rules_contract.py`, so a new logging rule must be registered
+there.
+
+**Writes.** `logs/wf0_analyze_climate.log`.
 
 ---
 
