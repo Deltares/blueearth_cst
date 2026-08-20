@@ -14,6 +14,9 @@ This is the **stays-true** tier. What happened lives in `../milestones/`,
 | `indicator-glossary.md` | Every spelling of every WF3 output variable — config label, CSDMS name, csv code, token, table, metric — plus the metric vocabulary. **Derived** from the code's dicts and checked against them by `tests/test_indicator_glossary.py` |
 | `agent-activation.md` | How roles and skills become available to Claude Code and Codex here, and why the two runtimes differ |
 | `git-conventions.md` | Durable-ref inventory, plus the branching, tagging, and commit-message conventions |
+| `repo-layout.md` | The long form of `AGENTS.md` § Repo Map — the `.gitignore` pattern for `test_case/`, basemap provenance, the `console.py` re-vendor rules, and what a bare-checkout CI run cannot cover. Split out 2026-08-20 |
+| `task-lanes.md` | The long form of `AGENTS.md` § Git task boundary and § Worktrees — slot mechanics, scope declaration, the lifecycle, and worktree seeding with the measurements behind each rule. Split out 2026-08-20 |
+| `validation-ladder.md` | The long form of `AGENTS.md` § Validation ladder — why the fast/full split lands at the `workflow_contract` and `process_isolation` markers, which config to run, and how to read a CI run. Split out 2026-08-20 |
 | `contracts/` | The two substitution seams — hydrological model, weather generator — pinned as machine-checked contracts (P3-2b) |
 | `workflows/` | Per-workflow contract docs for wf1 / wf2 / wf3, plus the WF2 v2.0 design, the CMIP6 member inventories, and `wf2-cmip6-store-readability.md` — which CMIP6 stores this toolbox can read (grid geometry, published-version multiplicity), promoted from two board items on 2026-08-20 |
 
@@ -31,6 +34,9 @@ This is the **stays-true** tier. What happened lives in `../milestones/`,
   | `wf0-figure-filename-rule.md` | `analyze_climate.smk`, `build_model.smk`, `climate_analysis/figure_naming.py`, `climate_analysis/climate_figures.py`, `tests/test_figure_naming.py` |
   | `indicator-glossary.md` | `experiment/export_wflow_results.py`, `shared/indicator_tables.py`, `tests/test_indicator_glossary.py` |
   | `workflows/` | the three `*.smk` (rule-index), `model/write_outlet_index.py`, `shared/indicator_tables.py`, `config/templates/README.md`, two `docs/migration-*.md`; `wf2-cmip6-store-readability.md` from `projections/fetch_gcm_raw.py`, `projections/series_identity.py`, `tests/test_series_identity.py`, `dev/scripts/probe_cmip6_grids.py`, `dev/scripts/stage_cmip6.py` |
+  | `repo-layout.md` | `AGENTS.md` |
+  | `task-lanes.md` | `AGENTS.md` |
+  | `validation-ladder.md` | `AGENTS.md` |
   | `sealed-records.yml` | `AGENTS.md`, `pyproject.toml` |
   | `git-conventions.md` | `README.md` |
 
