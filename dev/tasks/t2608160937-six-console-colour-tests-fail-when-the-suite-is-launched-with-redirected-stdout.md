@@ -57,3 +57,23 @@ test_severity_never_reaches_the_log_file
 Read the Trigger's "these six" as "these painting cases, whatever the count" —
 the number is what someone compares a red run against, and it will drift again
 every time the module gains a case.
+
+## Re-confirmed 2026-08-20 — and the collision that makes it structural
+
+Reproduced again on `main` at `5363f53`: the same seven, same positions, under a
+detached launch. Plain-launch runs in the same session stayed green, including
+the whole module, so the 2026-08-17 measurement holds rather than widens.
+
+**The part worth acting on is the collision, not the failure.** A long run must
+be launched detached, because a backgrounded task is reaped ~78 s in — and a
+detached launch is exactly what makes these seven fail. `test-full` takes ~10
+minutes, so **any `test-full` long enough to need detaching carries these seven
+by construction**: the recommended way to run the authoritative gate is
+guaranteed to produce seven false failures, and the launch that avoids them
+cannot survive the run's own length.
+
+So the Trigger has fired, in the narrower detached-launch form. It stays a
+watch-item because the fix is unknown and the gate is still readable by someone
+who knows to discount these seven — but a reader who does not will discount a
+REAL failure alongside them. That is the cost now on the table, and it is what
+would justify promoting this to work.
