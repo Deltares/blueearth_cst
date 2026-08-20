@@ -11,9 +11,9 @@ This is the **stays-true** tier. What happened lives in `../milestones/`, `../de
 | `indicator-glossary.md` | Every spelling of every WF3 output variable — config label, CSDMS name, csv code, token, table, metric — plus the metric vocabulary. **Derived** from the code's dicts and checked against them by `tests/test_indicator_glossary.py` |
 | `agent-activation.md` | How roles and skills become available to Claude Code and Codex here, and why the two runtimes differ |
 | `git-conventions.md` | Durable-ref inventory, plus the branching, tagging, and commit-message conventions |
-| `repo-layout.md` | The long form of `AGENTS.md` § Repo Map — the `.gitignore` pattern for `test_case/`, basemap provenance, the `console.py` re-vendor rules, and what a bare-checkout CI run cannot cover. Split out 2026-08-20 |
-| `task-lanes.md` | **Parked, deliberately unreferenced.** Holds the lane mechanics (slots, scope declaration, lifecycle) that belong in the `git-workflow` skill, plus the CST-specific worktree facts that do not. Kept as raw material for a skill revision; cite nothing from it meanwhile. Split out 2026-08-20, unlinked the same day |
-| `validation-ladder.md` | The long form of `AGENTS.md` § Validation ladder — why the fast/full split lands at the `workflow_contract` and `process_isolation` markers, which config to run, and how to read a CI run. Split out 2026-08-20 |
+| `repo-layout.md` | The parts of the tree `AGENTS.md` § Repo Map does not cover: the `config/` bins, the `test_case/` tracking rules, what a bare-checkout CI run cannot gate, and the three-homes split |
+| `task-lanes.md` | **Parked, deliberately unreferenced.** Lane mechanics that belong in the `git-workflow` skill, plus CST-specific worktree rules that do not. Raw material for a skill revision; cite nothing from it |
+| `validation-ladder.md` | How the test tiers are drawn, which `--configfile` a run takes, and how to read a CI run |
 | `contracts/` | The two substitution seams — hydrological model, weather generator — pinned as machine-checked contracts (P3-2b) |
 | `workflows/` | Per-workflow contract docs for wf1 / wf2 / wf3, plus the WF2 v2.0 design, the CMIP6 member inventories, and `wf2-cmip6-store-readability.md` — which CMIP6 stores this toolbox can read (grid geometry, published-version multiplicity), promoted from two board items on 2026-08-20 |
 
