@@ -1,22 +1,18 @@
-# Rule index — every Snakemake rule, all three workflows
+# Rule index — WF1, WF2 and WF3
 
-One page listing every rule in `build_model.smk`,
-`analyze_projections.smk` and `run_stress_test.smk`, what each
-one does, what it writes, and how they connect.
+Every rule in `build_model.smk`, `analyze_projections.smk` and `run_stress_test.smk`:
+what each one does, what it writes, and how they connect.
 
-> **This page describes what is on disk.** The R10 step-6 sweep landed
-> 2026-08-06: the twelve renames (`dev/milestones/r10/rule-naming-design.md`,
-> record `dev/milestones/r10/migration_rule-names.md`) and the positional
-> renumber (`dev/followups-archive.md` `[R10-5]`).
->
-> **Any `W.NN` written before that date means a different rule.** Translate
-> with [What changed](#what-changed) — it is the permanent translation table,
-> not a transitional note — before reading a rule number in `dev/milestones/`,
-> `DEVLOG.md`, `dev/decisions/` or a dated migration record.
+> **WF0 (`analyze_climate.smk`) is not covered here.** Its eleven rules (`0.00`–`0.11`)
+> are documented only by the comment headers in the Snakefile itself.
 
-Each workflow gets a diagram, a one-line summary table, then one section per
-rule. **Does** is the rule's job; **Writes** transcribes its `output:` block —
-so the claim can be checked against the Snakefile rather than believed.
+Each workflow gets a diagram, a one-line summary table, then one section per rule.
+**Does** is the rule's job; **Writes** transcribes its `output:` block, so the claim can be
+checked against the Snakefile rather than believed.
+
+Rule numbers are reused, so any `W.NN` written before 2026-08-06 names a different
+rule — translate through [What changed](#what-changed) before reading one in
+`dev/milestones/`, `dev/decisions/`, `dev/LOG.md` or a dated migration record.
 
 ## On the numbers
 
@@ -25,13 +21,6 @@ then model build, then run, then records. Numbering is contiguous within each
 workflow and every dependency points from a lower number to a higher one, so a
 rule can never depend on something numbered after it.
 
-That is a change of policy, ruled 2026-08-06. The number used to be a *stable
-identifier assigned at rule creation*, which left it uncorrelated with order —
-gaps at 1.07/2.05/2.08/2.09/3.05, WF2 defined out of numeric order, letter
-suffixes stacked five deep beside 3.01, and `gather_benchmarks` sitting at 2.10
-beside siblings at 1.14 and 3.12. See [What changed](#what-changed) for what
-this costs.
-
 **"Every dependency low→high" is checked against `input:`, `ancient()`
 included.** `ancient()` suppresses the timestamp rerun-trigger; it does not
 remove the DAG edge. Two rules move further than a reader of the previous map
@@ -39,30 +28,19 @@ would expect for exactly this reason — see the note under the WF1 table.
 
 **Going forward: do not renumber to insert a rule.** Use a letter suffix
 (`1.09b`) until the next deliberate sweep. Renumbering is a migration, not an
-edit — see `[R10-5]`.
+edit.
 
 ## What changed
 
-The only place this page names the old numbers and names. Everything after this
-section is the target state.
+The only place this page names old numbers and names. Everything after it is the current state.
 
-### Renumbering (`[R10-5]`)
+### Renumbering
 
 Read this table before interpreting any `W.NN` in a document written before
-2026-08-06. **47 identifiers**: 18 in WF1, 10 in WF2, 19 in WF3. The `was`
+2026-08-06. 47 declarations: 18 in WF1, 10 in WF2, 19 in WF3. The `was`
 column carries the old name too wherever the rename and the renumber coincide,
 so one lookup answers both.
 
-(An earlier draft of this table published 45. It reconciles as −1 for
-`evaluate_wflow_run`, which `[R10-2]`'s drop means never exists, and +3 for the
-`delineate_spatial_units` rule `[R10-6]` §8 added to each workflow.
-
-`rule-naming-design.md` says **34**, and both numbers are right: it counts
-distinct *identifiers*, this page counts *declarations*. Seven rules are
-declared in more than one workflow — `all`, `snapshot_config`,
-`delineate_region`, `delineate_spatial_units`, `gather_logs` and
-`gather_benchmarks` three times each, `extract_historical_climate` twice — which
-is 13 declarations beyond their first. 47 − 13 = 34.)
 
 **WF1** — `build_model.smk`
 
@@ -149,22 +127,7 @@ is 13 declarations beyond their first. 47 − 13 = 34.)
 > that belongs beside `delineate_region` sorted five letters away from it. It is
 > now `3.04`, adjacent to `3.03` in all three workflows.
 
-> **The cost, stated plainly: numbers are REUSED, so old references now resolve
-> to the wrong rule.** New 1.07 is `build_wflow_model`; old 1.07 was
-> `setup_runtime`, the rule `[R10-1]` merged away. New 1.11 is
-> `write_outlet_index`; old 1.11 was `plot_results`. New 3.05 is
-> `write_model_reference`; old 3.05 was the deleted `prepare_weagen_config_st`.
-> Sharpest of all, new 3.10 is `prepare_weathergen_config` where old 3.10 was
-> `run_wflow` — a stale reference to "3.10" now points from the model run to a
-> config-assembly rule. Under the previous policy a retired number stayed a gap
-> and a stale reference was merely dangling — obvious. Now it silently resolves
-> to a different rule.
->
-> Every `W.NN` in `dev/milestones/`, `DEVLOG.md`, `dev/decisions/` and the
-> Snakefile comments predates this table and must be read **as of its date**.
-> That is the price of positional numbers, and it was accepted knowingly.
-
-### Twelve renames (R10)
+### Twelve renames
 
 | rule | was |
 |---|---|
@@ -180,41 +143,6 @@ is 13 declarations beyond their first. 47 − 13 = 34.)
 | `generate_weather_realizations` | `generate_weather_realization` |
 | `perturb_climate_realization` | `generate_climate_stress_test` |
 | `write_climate_data_catalog` | `climate_data_catalog` |
-
-### One structural change
-
-| | change | why |
-|---|---|---|
-| `[R10-1]` | **`setup_runtime` merges into `add_climate_forcing`** (old 1.07 into old 1.08, now 1.10) | it wrote a hydromt forcing build recipe whose only consumer was the next rule. Two rules, one job — and a recipe that never leaves the pair needs no name of its own, so the naming problem disappears with the rule instead of being renamed around |
-
-**A second one was accepted and then dropped.** `[R10-2]` would have split
-`plot_results` into a metrics rule and a figure rule, so that a figure-only
-change became visible as one to Snakemake. Implementation found the seam was not
-there: the metrics are one call *inside* the figure loop, downstream of a model
-open, a gauge-name resolution, a merge, an alignment and the climate-parity
-transform, so the "metrics half" is ~5 lines and the "figure half" is the
-module. Dropped 2026-08-06 — the harm it fixed is a wasted re-run, not a wrong
-number. **The verb `evaluate_` was withdrawn with it**, and 1.15 keeps the name
-`plot_wflow_evaluation`, which was always the figure half's. What stays true is
-recorded in `[R10-2]`: the DAG still cannot express the figure-vs-data
-distinction the `AGENTS.md` validation ladder turns on. That is a known accepted
-gap, not an open task.
-
-**The rule set gained one member since the design was written**, from a
-different item: `[R10-6]` §8 split the vector half out of `prepare_spatial_maps`
-into `delineate_spatial_units`, declared in all three workflows from one shared
-helper — 1.03 / 2.03 / 3.04 here. A structural change, but not one of this
-milestone's; it is listed so the identifier count reconciles.
-
-**Two merges were considered and rejected**, recorded in `[R10-3]` so they are not
-re-raised: `write_outlet_index` into `declare_wflow_outputs` (would *add* a DAG
-edge) and the paired `gather_*` rules (both delete the parts they consume, so
-merging creates a partial-failure path that silently degrades the merged log).
-
-**Three rules kept names the audit questioned.** `prepare_spatial_maps` (names one
-of nine outputs — but the alternative read less clearly), `derive_change_factors`
-(also renders a figure and writes a report) and `write_outlet_index`. Reasoning in
-`rule-naming-design.md` amendment 2.
 
 ## Conventions
 
@@ -410,7 +338,7 @@ differ per invoking workflow.
 `<spatial>/location_registry.csv` · `<spatial>/hydrography.nc`.
 
 `hydrography.nc` is the **seam intermediate** (§8a), not a product: the whole
-hydrography grid stack used to cross the vector/raster boundary in memory, and
+whole hydrography grid stack crosses the vector/raster boundary in memory, and
 re-deriving it in 1.06 would make WF1 read the hydrography twice with two grids
 that can drift. It is deliberately absent from `spatial_catalog.yml`.
 
@@ -506,7 +434,7 @@ in between, so this copy is what catches corruption from that step.
 
 #### 1.10 · `add_climate_forcing`
 
-**Does.** Two steps that used to be two rules. First assembles the hydromt
+**Does.** Two steps in one rule. First assembles the hydromt
 recipe: a `steps:` YAML holding `setup_config` (`time.starttime`,
 `time.endtime`, `time.timestepsecs`, `input.path_forcing`),
 `setup_precip_forcing` and `setup_temp_pet_forcing`, with the PET method and
@@ -572,7 +500,7 @@ both gather rules. **Do not prune it as stray output** — `check_baseline.py`'s
 own module docstring records that it is fingerprinted beyond `rule all` for this
 reason.
 
-**Not merged into 1.09, and `[R10-3]` records why**: its inputs are
+**Not merged into 1.09**: its inputs are
 `outlets.geojson` and the registry, so it runs in parallel with the waterbody
 and output-declaration rules. Merging would serialise a cheap pandas join behind
 a hydromt `r+` mutation — it *adds* an edge.
@@ -600,7 +528,7 @@ ADR 0007 already retired this rule's `staticmaps.nc` read, and with it the
 `.model_final` sentinel edge that existed to stop a concurrent `-c 3` run
 aborting below Python on an unlocked HDF5 read. It opens no model file at all.
 
-**Writes.** `data/spatial/plots/`, **PNG only** since 2026-08-10. The vector
+**Writes.** `data/spatial/plots/`, **PNG only**. The vector
 deliverable was dropped across the whole figure set because nothing in the
 toolbox or the platform read it; 600 dpi at 180 mm carries the figure everywhere
 it is used, and not serialising each one twice halves the rule's render time.
@@ -652,25 +580,22 @@ One rule, both products.
 `hydrograph_<id>`, `signatures_peaks_<id>`, `signatures_lows_<id>` and
 `performance_<id>`, one PNG each. Their count is a product of the model
 build (outlets and subcatchments), not of config, so they cannot be enumerated
-at parse time — and since 2026-08-10 neither can their NAMES, because a wflow_id
+at parse time — and neither can their NAMES, because a wflow_id
 is assigned by rule 1.03. Only the hydrograph is drawn without observations; the
 other three need them, and the two extremes sheets additionally need a run
 longer than a year.
 
-**Why no figure is declared** — `hydro_wflow_1.png` was, until 2026-08-10, and
-it worked only because `plot_results.py` forced the first outlet's label to that
-literal counter. Every other artifact of a run names a point by its `wflow_id`,
-so the figures do too, and the metrics table takes over as this rule's terminal
-in `WF1_TERMINALS`. The rename also closed two defects the old key hid: an
+**Why no figure is declared** — figures name a point by its `wflow_id`, as every
+other artifact of a run does, so no single figure filename is predictable at parse
+time. The metrics table is this rule's terminal in `WF1_TERMINALS` instead. The rename also closed two defects the old key hid: an
 outlet and a gauge on one cell were plotted twice under two names, and an
 observation at the basin outlet matched nothing at all, because observations are
 keyed by `wflow_id` while the outlet series is keyed by its subcatchment id.
 `plot_results.resolve_stations` is where both are now handled.
 
-**Why the metrics and the figures share a rule** — `[R10-2]` proposed splitting
-them, since `performance_metrics.csv` is baseline-covered data while the figures
-are excluded from the baseline, and the DAG cannot express that distinction. The
-split was **dropped**: the metrics are one `compute_metrics` call *inside* the
+**Why the metrics and the figures share a rule** — `performance_metrics.csv` is
+baseline-covered data while the figures are excluded, and the DAG cannot express
+that distinction; splitting anyway is not affordable, because the metrics are one `compute_metrics` call *inside* the
 figure loop, downstream of the model open, the gauge-name resolution, the merge,
 the alignment and the climate-parity transform. Splitting means either
 duplicating the parity work or adding a declared intermediate, and the harm it
@@ -810,7 +735,7 @@ plots, the merged log and the benchmark table.
 #### 2.02 · `delineate_region`
 
 **Does.** As WF1 1.02 — the same one project region artifact, from the same
-shared spec. Since ADR 0003 this is why a projections-only run no longer triggers
+shared spec (ADR 0003), which is why a projections-only run does not trigger
 a full climate extraction just to learn a basin outline.
 
 **Writes.** `<spatial>/geoms/region.geojson`.
@@ -880,8 +805,7 @@ a real input, opened and read. The annual table stays an **ordering edge only**.
 
 **Writes.** Eight PNGs under `<proj>/plots/`, named
 `<clim_project>_{precip,temp}_{annual,monthly}_{absolute,change}.png`. All eight
-are declared; five used to be written but undeclared, and so were invisible to
-Snakemake.
+are declared, so none is invisible to Snakemake.
 
 #### 2.08 · `gather_benchmarks`
 
@@ -1247,46 +1171,29 @@ files across several subdirectories. A clean full run leaves one.
 **Writes.** `logs/wf3_run_stress_test_<experiment>.log`, merging
 `logs/_parts/<experiment>/3.*`.
 
-> Both are **project-scoped** since 2026-08-11, keyed by experiment in the
-> filename, so all three workflows' run records sit in one `logs/` and one
-> `benchmarks/`. The experiment subtree no longer has either directory. The
+> Both are **project-scoped**, keyed by experiment in the filename, so every
+> workflow's run records sit in one `logs/` and one `benchmarks/`. The
 > scratch `_parts/` stay experiment-scoped one level down — WF3 part names are
 > rule numbers, identical across experiments, so a shared part dir would let one
 > experiment's stranded part be merged into another's log.
 
 ---
 
-## Consolidations — all four decided
+## Do not merge these rules
 
-The name audit raised four structural candidates. All were ruled on 2026-08-06;
-none is an R10 item. **One landed. The other three did not** — S1 was accepted
-and then dropped the same day on implementation evidence.
+Each pairing looks mergeable and is not. Stated so the case is not re-raised.
 
-| # | candidate | verdict |
-|---|---|---|
-| M1 | merge the forcing-recipe rule into `add_climate_forcing` | **accepted and landed** — `[R10-1]` |
-| S1 | split `plot_results` into metrics + figures | **accepted, then DROPPED** — `[R10-2]`. The seam it assumed is not there: the metrics are one call inside the figure loop, downstream of the model open, the merge, the alignment and the parity transform. Splitting costs either a duplicated parity transform or a new declared artifact; the harm it fixes is a wasted re-run. `evaluate_` was withdrawn as a verb with it. See 1.15 |
-| M2 | merge `write_outlet_index` into `declare_wflow_outputs` | **rejected.** Paired thematically, not structurally: `write_outlet_index` reads only `outlets.geojson` and `location_registry.csv`, so it runs in parallel with the waterbody and output-declaration rules. Merging would serialise a cheap pandas join behind a hydromt `r+` mutation — it *adds* an edge |
-| M3 | merge `gather_benchmarks` + `gather_logs` per workflow | **rejected.** Both merge functions call `_remove_parts` — they delete the parts they consumed. In one rule, a failure in the second half strands the first half's already-deleted parts and the re-run degrades that artifact to "no part from this run". Today either succeeding independently means its output survives the other's failure |
+| Pairing | Why it stays split |
+|---|---|
+| `write_outlet_index` into `declare_wflow_outputs` | Paired thematically, not structurally. `write_outlet_index` reads only `outlets.geojson` and `location_registry.csv`, so it runs in parallel with the waterbody and output-declaration rules. Merging serialises a cheap pandas join behind a hydromt `r+` mutation — it *adds* an edge |
+| `gather_benchmarks` with `gather_logs` | Both merge functions call `_remove_parts`, deleting the parts they consumed. In one rule, a failure in the second half strands the first half's already-deleted parts, and the re-run degrades that artifact to "no part from this run". Split, either one succeeding means its output survives the other's failure |
+| `write_model_reference` with `check_model_reference` | The `ancient()` / `temp()` asymmetry *is* the guard. See 3.06 |
+| `plot_wflow_evaluation` into a metrics rule and a figure rule | The seam is not there: the metrics are one call inside the figure loop, downstream of the model open, the merge, the alignment and the parity transform. Splitting costs either a duplicated parity transform or a new declared artifact. See 1.15 |
 
-**Also do not merge `write_model_reference` and `check_model_reference`** — the
-`ancient()` / `temp()` asymmetry *is* the guard. See 3.06's section.
+**Two rules for judging any such candidate:**
 
-**Two general lessons**, both earned by designs that looked right on paper:
-
-1. Two rules being small, adjacent and thematically similar is not an argument
-   for merging them. Check what each actually **depends on**, and whether either
-   **destroys its own inputs**. (M2 and M3.)
-2. **A function boundary is not a data boundary**, and this is the lesson both
-   splits taught — one by surviving it, one by not. `[R10-6]` §8 read as
-   "vectors, then thematic rasters" until the whole hydrography grid turned out
-   to cross the seam in memory; it landed anyway, by promoting that grid to a
-   declared seam intermediate (`hydrography.nc`). `[R10-2]` read as "metrics,
-   then figures" until the metrics proved to be one call inside the figure loop,
-   downstream of a model open, a gauge-name resolution, a merge, an alignment
-   and a parity transform; there was no equivalent intermediate worth its price,
-   and it was dropped. Before splitting a rule, list what the second half would
-   have to **reload or recompute** — not which functions it would call.
+1. Two rules being small, adjacent and thematically similar is not an argument for merging them. Check what each actually **depends on**, and whether either **destroys its own inputs**.
+2. **A function boundary is not a data boundary.** Before splitting a rule, list what the second half would have to **reload or recompute** — not which functions it would call. A split is affordable only when that list is short or the intermediate is worth declaring.
 
 ## Where the rules meet the artifacts
 
