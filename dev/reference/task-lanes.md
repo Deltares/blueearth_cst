@@ -1,6 +1,6 @@
 # Atomic task lanes and worktrees
 
-The stop-signal rules live in `AGENTS.md` § Git task boundary and § Worktrees; this file is the long form they point to — slot mechanics, scope declaration, the lifecycle, and the worktree seeding rules with their measurements. Lifted from `AGENTS.md` @ 46f9df2 during the 2026-08-20 slim-down, unedited except for this header and the section heading that joins the two source blocks.
+The worktree rules live in `AGENTS.md` § Worktrees; the lane conventions are owned by the `git-workflow` skill. This file is the long form behind both — slot mechanics, scope declaration, the lifecycle, and the worktree seeding rules with their measurements. Lifted from `AGENTS.md` @ 46f9df2 during the 2026-08-20 slim-down, unedited except for this header and the section heading that joins the two source blocks.
 
 ### Atomic task lanes — a reusable worktree, one fresh session per task
 

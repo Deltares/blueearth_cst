@@ -15,10 +15,6 @@ BlueEarth Climate Stress Test — a multi-language (Python + R + Julia) scientif
 
 wf1 -> wf2/wf3 is ordered; wf3 needs wf1 artifacts. wf0 is outside that chain -- it only pre-builds region and climate artifacts wf1 also declares, so run it first or not at all, and run it ALONE when the question is which forcing dataset to use. The `workflows.<name>` config keys carry the pre-2026-08-14 file names (`docs/migration-workflow-names.md`).
 
-## Git task boundary
-
-Filesystem-backed atomic task lanes. **Before any write, invoke `git-workflow`:** `task-start` from the primary checkout, `task-scope` in the fresh child session, then edit, test, commit, `task-ready`, and stop. `git-integrator` admits and lands READY work; `git-steward` owns recovery. A lane banner naming another task or `UNCLAIMED TASK LANE` is a stop signal. Procedure, slot table and scope rules: `dev/reference/task-lanes.md`.
-
 ## Background
 
 Method context that changes how code here should be edited (rationale: `docs/cst-toolbox-technical-note-2025.md` §1):
