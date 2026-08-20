@@ -1,23 +1,30 @@
 # Controls the git-workflow skill's ceremony for THIS repo.
 # Schema: ~/workspace/brain/artifacts/skills/git-workflow/references/configuration.md
 #
-#   full — branch risky/multi-session work; auto-commit verified work.  (current)
-#   lite — trunk only (no feature branches); auto-commit verified work.
-mode: full
+#   full — branch risky/multi-session work; auto-commit verified work.
+#   lite — trunk only (no feature branches); auto-commit verified work.  (current)
+mode: lite
 
-# Every modifying task starts in its own branch + linked worktree; this primary
-# checkout is reserved for integration. Set because several sessions routinely
-# work this repo at once. Agent-honored, enforced by the launcher and the
-# PreToolUse guard — skill: references/worktree-enforcement.md.
-# Relaxing it has collided three times: `git log -- .git-workflow.yml`.
-worktree_policy: always # concurrent | always
+# `concurrent` builds a worktree only when another session is already working
+# this repo; `always` builds one for every modifying task. Agent-honored, and
+# enforced by the launcher and the PreToolUse guard.
+worktree_policy: concurrent # concurrent | always
 
 # Persistent neutral worktrees are allocated atomically. Every task gets a
 # fresh process, an unguessable claim, and an explicit write scope. Integration
 # stays owner-approved during the initial rollout.
+
+#slot_registry: advisory — legacy, caller-selected slot allocation using slot-start.
+#slot_registry: atomic — task-start allocates a slot and enforces claims, scope, readiness,
+#  integration, and cleanup transitions.
+#integration_mode: approval — every READY task waits for your approval before git-integrator runs.
+#integration_mode: hybrid — low-risk READY tasks may dispatch automatically; scientific,
+#  numerical, configuration, dependency, API, migration, release, or
+#  destructive changes still wait for approval.
+
 session_slots: [session-1, session-2, session-3]
-slot_registry: atomic
-integration_mode: approval
+slot_registry: atomic             # advisory | atomic
+integration_mode: hybrid        # approval | hybrid
 
 # Isolation branches auto-land after rebase + verification. Feature branches and
 # explicitly held isolation branches still wait for a decision.
@@ -29,7 +36,7 @@ auto_push: false # true | false
 
 # Untracked trees the launcher COPIES (never links) into each new worktree.
 # Without them the fixture-dependent tests skip and the suite reports a false
-# green. Rationale: AGENTS.md, worktree section.
+# green. Rationale: dev/reference/task-lanes.md.
 worktree_seed:
   - test_case/test_local          # 46 MB; named by 18 of the 25 fixture references
   - test_case/basin_map_fixture   # 248 KB; only dev/scripts/preview_basin_map.py
@@ -37,8 +44,8 @@ worktree_seed:
 # Untracked agent config the launcher SYMLINKS (never copies) into each new
 # worktree: it is read, not written, and one shared definition is the point.
 # Without it a worktree session loses the 14 project skills and the 10 personas
-# with no error — the catalog is simply smaller. Rationale: AGENTS.md, worktree
-# section.
+# with no error — the catalog is simply smaller. Rationale:
+# dev/reference/task-lanes.md.
 worktree_link:
   - .claude   # skills/ + agents/, symlinks into ~/workspace/brain/artifacts
   - .codex    # Codex personas (regular files, no brain fallback)

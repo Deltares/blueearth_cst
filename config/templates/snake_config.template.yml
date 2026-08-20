@@ -127,10 +127,77 @@ workflows:
     #   NCC/NorCPM1  NCC/NorESM2-LM  NCC/NorESM2-MM  NIMS-KMA/KACE-1-0-G
     #   NIMS-KMA/UKESM1-0-LL  NOAA-GFDL/GFDL-CM4  NOAA-GFDL/GFDL-ESM4  NUIST/NESM3
     #   SNU/SAM0-UNICON  THU/CIESM  UA/MCM-UA-1-0
-    models:
-      - NOAA-GFDL/GFDL-ESM4
-      - INM/INM-CM5-0
-      - CMCC/CMCC-ESM2
+    models: [
+        "AS-RCEC/TaiESM1",
+        "AWI/AWI-CM-1-1-MR",
+        "AWI/AWI-ESM-1-1-LR",
+        "BCC/BCC-CSM2-MR",
+        "BCC/BCC-ESM1",
+        "CAMS/CAMS-CSM1-0",
+        "CAS/CAS-ESM2-0",
+        "CAS/FGOALS-f3-L",
+        "CAS/FGOALS-g3",
+        "CCCR-IITM/IITM-ESM",
+        "CCCma/CanESM5",
+        "CCCma/CanESM5-CanOE",
+        "CMCC/CMCC-CM2-HR4",
+        "CMCC/CMCC-CM2-SR5",
+        "CMCC/CMCC-ESM2",
+        "CNRM-CERFACS/CNRM-CM6-1",
+        "CNRM-CERFACS/CNRM-CM6-1-HR",
+        "CNRM-CERFACS/CNRM-ESM2-1",
+        "CSIRO/ACCESS-ESM1-5",
+        "CSIRO-ARCCSS/ACCESS-CM2",
+        "E3SM-Project/E3SM-1-0",
+        "E3SM-Project/E3SM-1-1",
+        "E3SM-Project/E3SM-1-1-ECA",
+        "EC-Earth-Consortium/EC-Earth3",
+        "EC-Earth-Consortium/EC-Earth3-AerChem",
+        "EC-Earth-Consortium/EC-Earth3-CC",
+        "EC-Earth-Consortium/EC-Earth3-Veg",
+        "EC-Earth-Consortium/EC-Earth3-Veg-LR",
+        "FIO-QLNM/FIO-ESM-2-0",
+        "HAMMOZ-Consortium/MPI-ESM-1-2-HAM",
+        "INM/INM-CM4-8",
+        "INM/INM-CM5-0",
+        "IPSL/IPSL-CM5A2-INCA",
+        "IPSL/IPSL-CM6A-LR",
+        "IPSL/IPSL-CM6A-LR-INCA",
+        "KIOST/KIOST-ESM",
+        "MIROC/MIROC-ES2H",
+        "MIROC/MIROC-ES2L",
+        "MIROC/MIROC6",
+        "MOHC/HadGEM3-GC31-LL",
+        "MOHC/HadGEM3-GC31-MM",
+        "MOHC/UKESM1-0-LL",
+        "MPI-M/ICON-ESM-LR",
+        "MPI-M/MPI-ESM1-2-HR",
+        "MPI-M/MPI-ESM1-2-LR",
+        "MRI/MRI-ESM2-0",
+        "NASA-GISS/GISS-E2-1-G",
+        "NASA-GISS/GISS-E2-1-G-CC",
+        "NASA-GISS/GISS-E2-1-H",
+        "NASA-GISS/GISS-E2-2-H",
+        "NCAR/CESM2",
+        "NCAR/CESM2-FV2",
+        "NCAR/CESM2-WACCM",
+        "NCAR/CESM2-WACCM-FV2",
+        "NCC/NorCPM1",
+        "NCC/NorESM2-LM",
+        "NCC/NorESM2-MM",
+        "NIMS-KMA/KACE-1-0-G",
+        "NIMS-KMA/UKESM1-0-LL",
+        "NOAA-GFDL/GFDL-CM4",
+        "NOAA-GFDL/GFDL-ESM4",
+        "NUIST/NESM3",
+        "SNU/SAM0-UNICON",
+        "THU/CIESM",
+        "UA/MCM-UA-1-0"
+    ]
+        
+    #  - NOAA-GFDL/GFDL-ESM4
+    #  - INM/INM-CM5-0
+    #  - CMCC/CMCC-ESM2
     # list — any of: ssp119, ssp126, ssp245, ssp370, ssp434, ssp460,
     #                ssp534-over, ssp585
     scenarios: [ssp245, ssp585]
@@ -178,23 +245,8 @@ workflows:
       # why they sit beside `temp:`/`precip:` rather than under them.
       dry_spell_factor: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
       wet_spell_factor: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-    # How many Wflow members share one Julia session (rule 3.15). All three are
-    # OPTIONAL -- unset, B is derived from `-c N`, then clamped by
-    # `batch_size_max` and by the disk the batch would fill.
-    #
-    # B trades throughput against two costs. Peak transient disk is
-    # `p x B x (forcing + state)` -- both temp() classes are held for a whole
-    # batch, with p batches in flight -- and failure isolation is DEGRADED to
-    # the batch, so one bad member takes its B-1 batch-mates down with it.
-    #
-    #batch_size: 4                                        # integer; wins outright, unclamped
-    #batch_size_max: 8                                    # integer; the blast-radius clamp
-    #
-    # Absolute cap on that peak footprint, in GB. Unset, the cap is a share of
-    # whatever is free (`defaults.batch_disk_headroom_fraction` in
-    # config/advanced_settings.yml). Set it when the free space is not yours to
-    # spend -- a shared volume, or a disk something else is also filling.
-    #disk_headroom_gb: 40                                 # number
+    #batch_size: 4                                        # integer
+    #batch_size_max: 8                                    # integer
 
 # How results are DESCRIBED, not how they are produced. Everything under here is
 # post-processing: it sits outside configuration identity, so editing a caption
