@@ -77,7 +77,6 @@ Use `test_case/*_linux.yml` + `config/catalogs/*_linux.yml` on Linux — data-ca
 - `dev/` vs `docs/`: design notes and one-off probes under `dev/` (planning, not shipped); install and usage docs under `docs/`.
 - **Keep configuration references current.** When a path, filename, config key or command moves, grep the old spelling and fix every live reference in the same commit — `docs/`, `README.md`, this file, code comments. A stale path in a document someone reads to do their job is a defect, not a record. The one exception is `dev/` milestone and review records, which are valuable *because* they are unedited; those carry a `> SUPERSEDED …` banner and an entry in `dev/reference/sealed-records.yml`, which `tests/test_sealed_records.py` freezes. **That registry is the entire list** — read it rather than guessing from age.
 - No silent caps: a tool that bounds its own coverage (top-N, sampling, no-retry) must report what it dropped.
-- The repo root carries **no cache directory of any kind**, and `tests/test_cache_dir_hygiene.py` fails if one appears. `ruff check --isolated` is the one invocation that still writes one — run it as `RUFF_CACHE_DIR=.tmp/ruff_cache ruff check --isolated`.
 - [Python] `script:` modules read `snakemake.input/output/params`, not `sys.argv`. [R] `Rscript --vanilla` scripts take positional args via `commandArgs(trailingOnly=TRUE)`.
 - netCDF (`.nc`) is the interchange format across R/Python/Julia. Wrap intermediate per-realization netCDFs in `temp(...)` — omitting it explodes disk usage on large `RLZ_NUM × ST_NUM` runs.
 
@@ -114,6 +113,7 @@ No rule consumes a `.png`/`.pdf` under `project_dir`, so a figure change cannot 
 
 - **IMPORTANT: Julia is not in the pixi env** — it is juliaup-managed and must already be on `PATH` (conda-forge has no win-64 Julia build). Do not add it via pixi.
 - Do not commit run outputs written under `project_dir`, or hand-edit `pixi.lock` or `Manifest.toml`.
+- The repo root carries **no cache directory of any kind**, and `tests/test_cache_dir_hygiene.py` fails if one appears. `ruff check --isolated` is the one invocation that still writes one — run it as `RUFF_CACHE_DIR=.tmp/ruff_cache ruff check --isolated`.
 - **IMPORTANT: stay within CST's automation scope** — this repo is the workflow engine only. Define config and setup (`config/defaults/wflow_build_model.yml`, data catalogs, `setup_*` blocks, `wflow_sbm.toml`-affecting steps) using hydromt / hydromt_wflow / Wflow conventions verbatim: CSDMS Standard Names, their YAML schema, their catalog format. Do not re-engineer how hydromt handles data, how `setup_*` methods work internally, or how Wflow parameterizes physics. Verification may *read* upstream docs to validate our config but must never patch upstream; a genuine hydromt/wflow bug is flagged upstream or worked around in our own code, never inside a vendored package.
 
 ## References
