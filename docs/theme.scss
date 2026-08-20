@@ -1,11 +1,13 @@
 /*-----------------------------------------------------------------------------
   BlueEarth CST documentation site — brand layer.
 
-  Applied over BOTH bootswatch bases (`cosmo` in light, `darkly` in dark), so
-  everything here must be legible on a light AND a dark background. That is why
-  this file sets only the accent colours, the type scale and a few rules — never
-  `$body-bg` or `$body-color`, which each base owns and which would break the
-  other mode.
+  Applied over `cosmo`. The site is light-only by ruling (2026-08-21); a dark
+  base was wired first and removed.
+
+  This file still sets only the accent colours, the type scale and a few rules —
+  never `$body-bg` or `$body-color`. Those belong to the base, and leaving them
+  alone is what keeps re-adding a dark mode a two-line edit in `_quarto.yml`
+  rather than a rewrite of this file. Keep it that way.
 
   !! THE THREE BRAND COLOURS BELOW ARE APPROXIMATIONS !!
   They were chosen to sit in the right family, not copied from the Deltares
@@ -24,8 +26,9 @@ $deltares-teal:  #00a0aa !default;  // accent, callout rules
 $primary:        $deltares-blue !default;
 $link-color:     $deltares-blue !default;
 
-// A dark navbar in both modes. It is the one surface that should not invert:
-// the site's identity should not change shape when a reader flips the toggle.
+// A dark navbar against the light page: the one surface that carries the
+// brand rather than receding, and the anchor the rest of the palette reads
+// against.
 $navbar-bg:      $deltares-navy !default;
 $navbar-fg:      #ffffff !default;
 
@@ -48,7 +51,7 @@ $toc-font-size:          0.875rem !default;
   font-weight: 600;
 }
 
-// Section headings carry a hairline in the accent, which reads on both bases.
+// Section headings carry a hairline in the accent.
 #quarto-document-content h2,
 #quarto-document-content .h2 {
   border-bottom: 1px solid rgba($deltares-teal, 0.35);

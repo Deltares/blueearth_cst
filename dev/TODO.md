@@ -25,6 +25,7 @@
 | [t2608202351a](tasks/t2608202351a-notebooks-on-the-site-via-committed-freeze.md)                                                            | Put the three pipeline notebooks on the site via a committed docs/_freeze/                               | docs / site                                 | quarto-docs-site (2026-08-19)                  |     | backlog |
 | [t2608202351b](tasks/t2608202351b-site-phase-3-polish.md)                                                                                   | Finish the site's phase-3 polish — landing page, cross-links, theme, 404                                 | docs / site                                 | quarto-docs-site (2026-08-19)                  |     | active  |
 | [t2608202352](tasks/t2608202352-publish-the-docs-site-to-github-pages.md)                                                                   | Publish the docs site to GitHub Pages, and reduce the README onto it                                     | docs / site                                 | quarto-docs-site (2026-08-19)                  |     | blocked |
+| [t2608210010](tasks/t2608210010-official-deltares-brand-colours-in-theme-scss.md)                                                           | Replace the docs site's approximate brand colours with the official Deltares values                      | docs / site                                 | quarto-docs-site (2026-08-19)                  |     | blocked |
 
 ## Watching
 

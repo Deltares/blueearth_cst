@@ -88,12 +88,11 @@ website:
 
 format:
   html:
-    # One brand layer over two bootswatch bases, so the reader gets a
-    # light/dark toggle and the accent colours stay the site's own. theme.scss
-    # therefore must not set $body-bg or $body-color -- see its header.
-    theme:
-      light: [cosmo, theme.scss]
-      dark: [darkly, theme.scss]
+    # Light only, by ruling (2026-08-21). A dark base was wired first and
+    # removed: the site should present one look rather than one the reader has
+    # to choose. Re-adding it is a two-line change back to a `light:`/`dark:`
+    # pair, which is why theme.scss still keeps its hands off $body-bg.
+    theme: [cosmo, theme.scss]
     toc: true
     toc-depth: 3
     number-sections: true

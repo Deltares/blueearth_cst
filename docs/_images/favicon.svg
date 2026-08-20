@@ -1,8 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="BlueEarth CST">
   <!-- Favicon for the BlueEarth CST documentation site.
        Hand-authored, no external asset, and deliberately reduced to two shapes:
-       at 16px anything finer collapses into noise. The colours mirror
-       theme.scss's approximate brand palette - update both together. -->
+       at 16px anything finer collapses into noise.
+
+       THE THREE COLOURS BELOW ARE DUPLICATED FROM theme.scss AND ARE
+       APPROXIMATIONS. This is hand-authored SVG and cannot read SCSS, so it is
+       the one place the palette exists twice. Change both together - t2608210010
+       carries the step. -->
   <rect width="64" height="64" rx="12" fill="#0a2e4d"/>
   <!-- A droplet over a horizon line: water, and the basin it falls on. -->
   <path d="M32 12c7.5 9.5 12 16 12 21.5a12 12 0 0 1-24 0C20 28 24.5 21.5 32 12z" fill="#0b7ebb"/>
