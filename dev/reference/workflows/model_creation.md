@@ -44,7 +44,7 @@ and `blueearth_cst/spatial/`.
 
 - `project.project_dir` — output root
   (`basin_dir = {project_dir}/models/hydrology/wflow`,
-  `spatial_dir = {project_dir}/data/spatial`; R9 P2).
+  `spatial_dir = {project_dir}/data/spatial`).
 - `project.static_dir` — location of the build/update config templates.
 - `project.data_sources` — hydromt data-catalog YAML (passed to `hydromt build/update -d`).
 
@@ -133,13 +133,13 @@ waterbodies, outputs, runtime, and forcing.
 - `{basin_dir}/plots/basin_area.png` (the model)
 - `{basin_dir}/forcing/plots/forcing_precip_map.png` (model inputs)
 - `{project_dir}/data/climate/historical/<key>/plots/source_{precip,temp,pet}.png`
-  (R07 B4 — source-grid figures from the shared store; produced with no model)
+  (source-grid figures from the shared store; produced with no model)
 - `{project_dir}/config/runs/snake_config_build_model.yml` (verbatim snake-config snapshot)
 - `{project_dir}/data/spatial/spatial_catalog.yml` (representative target for the
   complete rule-1.02 spatial product)
 
-*R07 retired the project-level `plots/` tree: figures now attach to what they
-DEPICT (P1), so they sit beside the subtree whose artifacts they show.*
+*There is no project-level `plots/` tree: a figure attaches to what it DEPICTS,
+beside the subtree whose artifacts it shows.*
 
 **Downstream-contract artifacts** (produced by intermediate rules; consumed by
 workflows 2/3; not in this `rule all`):
@@ -152,9 +152,9 @@ workflows 2/3; not in this `rule all`):
 *`{basin_dir}/run_default/output.csv` was listed here and is not a
 downstream-contract artifact: `dev/scripts/cross_workflow_inputs.py` stages only
 the TOML, `.outputs_configured` and `region.geojson`, so no WF2/WF3 rule ever
-consumed it. Since 2026-08-10 rule 1.14 declares it `temp()` and a successful
-run does not leave it at all — the readable per-variable tables (rule 1.14b)
-are what `run_default/` holds. Removed 2026-08-10.*
+consumed it. Rule 1.14 declares it `temp()`, so a successful run does not leave
+it at all — the readable per-variable tables (rule 1.14b) are what
+`run_default/` holds.*
 
 **Spatial-foundation contract** (`blueearth-cst-spatial-v1`):
 
@@ -250,5 +250,5 @@ one column; synthetic automatic outlets are optional.
 
 The baseline discharge reader uses `staticgeoms/outlet_index.csv` to select
 the deterministic `wflow_1`/`subcatchment_id` outlet when registry gauges add
-multiple `Q_*` columns to raw `output.csv`; it no longer assumes discharge is
-the only Q column.
+multiple `Q_*` columns to raw `output.csv`. Do not assume discharge is the only
+Q column.

@@ -201,9 +201,9 @@ lists exactly the members that exist. The first entry carries a YAML anchor and
 the rest pull the driver/adapter/metadata block in with a merge key, so the file
 is ~3 900 lines rather than ~10 000.
 
-Verified on regeneration: all 69 previously declared sources resolve under the
-new catalog with byte-identical URIs, so existing configs are unaffected
-(`pytest tests/test_cli.py`: 9 passed).
+All 69 declared sources resolve with byte-identical URIs, so a config written
+against the catalog keeps working across a regeneration. Re-check with
+`pytest tests/test_cli.py` after regenerating.
 
 **Member selection is a config-side decision, and a global list cannot be
 optimal.** `analyze_projections.smk` reads one `members:` list and passes
