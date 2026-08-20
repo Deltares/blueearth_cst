@@ -9,6 +9,10 @@ The ladder table lives in `AGENTS.md` § Validation ladder. This file holds what
 
 Run the whole cheap tier rather than hand-picking relevant files: selecting by judgment saves little and misses cross-module regressions.
 
+`test-fast` runs its workers in parallel (`-n auto --dist loadfile`). Keep `loadfile`: it puts every test in a file on one worker, which is what contains module-level state — a test that stubs a library process-globally stays confined to its own file. `--dist load` distributes per test and would break that. The floor is the per-worker import cost, so adding cores past a point buys nothing.
+
+`test-contract` stays serial. Those tests share a `project_dir` and take `.snakemake` locks, so parallelising them needs each group proved independent first.
+
 **`test-fast` is the local gate, including before a push.** CI runs the unmarked `pytest tests/` on ubuntu and windows from the push itself, so a local `test-full` re-proves on one platform what CI is about to check on two, for roughly ten times the wall-clock of the cheap tier. What it buys is knowing before the push rather than a quarter of an hour after it — worth paying only when a bad push is expensive to undo.
 
 Reach for `test-full` locally when a change touched `blueearth_cst/shared/` or a `script:` signature, and before a milestone seal. Those are the cases where meeting a failure on two platforms at once costs more than the wait.

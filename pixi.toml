@@ -25,6 +25,8 @@ netcdf4 = "*"       # direct import in check_baseline + inspect scripts
 numpy = "*"
 pandas = ">=2.0.0"
 pytest = "*"        # tests/ — was missing from environment.yml
+pytest-xdist = "*" # parallel test workers; `test-fast` is subprocess-light
+                   # and finely divisible, so -n auto is most of its cost
 pyyaml = "*"        # `import yaml` in many src/ + tests + dev scripts
 quarto = ">=1.9,<2"    # documentation site under docs/ (`pixi run docs-preview`);
                        # brings its own pandoc + typst, so no LaTeX install is needed
@@ -146,7 +148,7 @@ install       = { depends-on = ["install-rdeps", "install-julia"], description =
 
 # Pytest tiers. The unfiltered task remains the authoritative default suite;
 # integration-marked end-to-end runs stay opt-in via --run-integration.
-test-fast = { cmd = "pytest tests/ -m \"not workflow_contract and not process_isolation\"", description = "Run the fast non-integration suite without workflow/process contracts" }
+test-fast = { cmd = "pytest tests/ -m \"not workflow_contract and not process_isolation\" -n auto --dist loadfile", description = "Run the fast non-integration suite in parallel; loadfile keeps a file's tests on one worker" }
 test-contract = { cmd = "pytest tests/ -m \"workflow_contract or process_isolation\"", description = "Run the expensive workflow and fresh-process contract tier" }
 test-full = { cmd = "pytest tests/", description = "Run the authoritative full non-integration suite" }
 
