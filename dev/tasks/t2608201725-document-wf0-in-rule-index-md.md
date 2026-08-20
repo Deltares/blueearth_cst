@@ -31,7 +31,7 @@ Rule ids as the Snakefile declares them today:
 
 `0.00 all` · `0.01 snapshot_config` · `0.02 delineate_region` · `0.03 delineate_spatial_units` · `0.04 extract_historical_climate` · `0.04b derive_climate_levels` · `0.05 plot_climate_source` · `0.06 compare_climate_sources` · `0.10 gather_benchmarks` · `0.11 gather_logs`
 
-**Ten numbered rules, but not ten rule blocks.** Only seven are top-level `rule <name>:` statements. `0.04` and `0.05` are ANONYMOUS `rule:` blocks generated inside `for _source in CANDIDATE_SOURCES:`, and `0.06` is declared in that same loop scope — so the rule count at runtime scales with the number of candidate sources, and two of them have no static identifier at all. The WF1/WF2/WF3 sections assume one named rule per entry; decide how the section represents a loop-generated family before transcribing.
+**Ten numbered rules, but not ten rule blocks.** Only seven are top-level `rule <name>:` statements. `0.04` and `0.05` are bare `rule:` blocks generated inside `for _source in CANDIDATE_SOURCES:`, each setting a per-source `name:`, and `0.06` is declared in that same loop scope — so the rule count at runtime scales with the number of candidate sources, and two of them have no static identifier at all. The WF1/WF2/WF3 sections assume one named rule per entry; decide how the section represents a loop-generated family before transcribing.
 
 `0.07`–`0.09` are RESERVED, not missing — `analyze_climate.smk:210` says so, and [[t2608181139]] is the item that fills them.
 
