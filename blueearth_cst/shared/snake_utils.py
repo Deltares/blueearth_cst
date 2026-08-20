@@ -3936,6 +3936,149 @@ def rule_id(number):
     return f"Rule {number}:"
 
 
+@dataclass(frozen=True)
+class RuleIdentity:
+    """One rule's identity, so its label is written once instead of four times.
+
+    A rule spells the same label in four places -- ``message:`` via
+    :func:`rule_banner`, the ``log:`` path, the ``benchmark:`` path, and its
+    entry in ``LOG_RULES`` -- and a fan-out rule spells it a fifth time in
+    ``name:``. Keeping them in step by hand is how stale and unlisted labels
+    kept appearing (`[R10-8]`, and three rules added without their label).
+
+    Built through :class:`RuleRegistry`, never directly: the registry is what
+    puts the label in ``LOG_RULES``, and an identity created outside one would
+    write parts nothing merges.
+
+    **The number lives in the VALUE, not in the constant's name.** Call the
+    constant after the rule (``DELINEATE_REGION``), so a RENUMBER is a one-line
+    edit. That is the direction history argues for -- renumbers are the routine
+    event here and rule renames are rare -- and naming the constant
+    ``RULE_0_02`` would invert it.
+
+    ``part`` is the FAN-OUT argument, and it is a parse-time value, not a
+    wildcard. WF0 generates one rule per candidate source in a Python loop, so
+    the source is baked into the rule's name and into a per-label directory of
+    parts. That is a different mechanism from :func:`rule_banner`'s ``context``,
+    which resolves ``{wildcards.*}`` per JOB for a single wildcard rule; pass
+    ``context`` through for that case and leave ``part`` unset.
+    """
+
+    number: str
+    name: str
+    log_parts_dir: str
+    benchmark_parts_dir: str
+    summary: str | None = None
+    logged: bool = True
+
+    @property
+    def label(self) -> str:
+        """``<W.NN>_<name>`` -- the LOG_RULES entry and the parts directory."""
+        return f"{self.number}_{self.name}"
+
+    def job_name(self, part=None) -> str:
+        """The rule's own ``name:``. A fan-out rule suffixes the part."""
+        return self.name if part is None else f"{self.name}_{part}"
+
+    def banner(self, part=None, context=None) -> str:
+        """The ``message:`` string, with this rule's summary applied."""
+        return rule_banner(
+            self.number, self.job_name(part), context=context, summary=self.summary
+        )
+
+    def log(self, part=None) -> str:
+        """The ``log:`` path -- flat for one job, under the label for a fan-out.
+
+        Raises for a banner-only rule rather than returning a path. A part
+        written under a label ``LOG_RULES`` does not carry is the `[R10-8]`
+        defect: its section never reaches the merged log and its files are never
+        cleaned up, and neither raises at run time. Refusing here turns that into
+        a PARSE-time error, which is earlier than
+        ``tests/test_log_rules_contract.py`` can catch it.
+        """
+        if not self.logged:
+            raise ValueError(
+                f"rule {self.label} was registered as banner-only, so a log part "
+                "under its label would be merged by nothing. Register it with "
+                "`registry.logged(...)` if it should write one."
+            )
+        return f"{self.log_parts_dir}/{self._stem(part)}.log"
+
+    def benchmark(self, part=None) -> str:
+        """The ``benchmark:`` path, in the same two shapes as :meth:`log`.
+
+        Not gated on ``logged``: the two are independent, and WF0's and WF3's
+        ``gather_benchmarks`` writes a log part and no benchmark -- deliberately,
+        since a rule that gathers benchmarks should not benchmark itself.
+        """
+        return f"{self.benchmark_parts_dir}/{self._stem(part)}.tsv"
+
+    def _stem(self, part):
+        return self.label if part is None else f"{self.label}/{part}"
+
+
+class RuleRegistry:
+    """Mints :class:`RuleIdentity` objects and accumulates ``LOG_RULES``.
+
+    ``LOG_RULES`` is the MERGE ORDER for ``merge_logs``, and this builds it in
+    declaration order. That is safe rather than fragile: the contract test
+    asserts the list reads in rule-number order, so declaring out of order fails
+    loudly instead of quietly reordering a merged log. It is strictly stronger
+    than the hand-maintained literal it replaces, which could be reordered
+    independently of the rules it names.
+
+    A conditionally-declared rule needs no special handling and no
+    ``LOG_RULES.append`` beside it -- registering inside the ``if`` is what puts
+    the label in the list. Removing that append is not a tidy-up: reading it
+    required parsing Snakefile source text, which cannot see a statement, and
+    that blindness is what had grown a second parser in the test suite.
+
+    Usage in a Snakefile::
+
+        RULES = RuleRegistry(LOG_PARTS_DIR, f"{project_dir}/benchmarks/_parts")
+        LOG_RULES = RULES.log_rules          # the SAME list, not a copy
+        DELINEATE_REGION = RULES.logged("0.02", "delineate_region")
+        SNAPSHOT_CONFIG = RULES.banner_only("0.01", "snapshot_config")
+
+    ``LOG_RULES`` may be aliased before every rule is registered, because it is
+    the registry's own mutable list. A consumer that SNAPSHOTS it -- ``list()``,
+    ``sorted()``, a comprehension -- must come after the last registration.
+    """
+
+    def __init__(self, log_parts_dir, benchmark_parts_dir):
+        self.log_parts_dir = str(log_parts_dir)
+        self.benchmark_parts_dir = str(benchmark_parts_dir)
+        self.log_rules = []
+
+    def _make(self, number, name, summary, logged):
+        return RuleIdentity(
+            number=number,
+            name=name,
+            log_parts_dir=self.log_parts_dir,
+            benchmark_parts_dir=self.benchmark_parts_dir,
+            summary=summary,
+            logged=logged,
+        )
+
+    def logged(self, number, name, *, summary=None) -> RuleIdentity:
+        """Register a rule that writes a log part, and record its label."""
+        identity = self._make(number, name, summary, True)
+        self.log_rules.append(identity.label)
+        return identity
+
+    def banner_only(self, number, name, *, summary=None) -> RuleIdentity:
+        """A rule with a banner and no log part -- bookkeeping and terminal rules.
+
+        Not in ``LOG_RULES``, so ``merge_logs`` never looks for its section.
+        Registering one of these by mistake shows up as an orphaned label in
+        ``test_every_declared_label_has_a_producing_rule``; failing to register a
+        rule that DOES log shows up in ``test_every_logging_rule_is_declared``.
+        Both directions are covered, which is why this is two methods rather
+        than a boolean nobody would read at the call site.
+        """
+        return self._make(number, name, summary, False)
+
+
 def rule_banner(number, name, context=None, summary=None):
     """Return a rule's ``message:`` string: a numbered console banner.
 

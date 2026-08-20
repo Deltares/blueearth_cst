@@ -3004,3 +3004,98 @@ def test_severity_never_reaches_the_log_file(tmp_path):
     assert log.read_text(encoding="utf-8") == (
         "13:42:17 - fetch - WARNING: retrying\n13:42:18 - fetch - ERROR: gave up\n"
     )
+
+
+# --- rule identity (t2608071213) ---------------------------------------------
+
+
+def _registry():
+    return su.RuleRegistry("PROJ/logs/_parts", "PROJ/benchmarks/_parts")
+
+
+def test_a_logged_rule_registers_its_label_in_declaration_order():
+    """`LOG_RULES` IS the merge order, so the registry must build it in order."""
+    reg = _registry()
+    reg.logged("0.02", "delineate_region")
+    reg.logged("0.03", "delineate_spatial_units")
+    assert reg.log_rules == ["0.02_delineate_region", "0.03_delineate_spatial_units"]
+
+
+def test_log_rules_is_the_live_list_a_snakefile_aliases():
+    """A Snakefile does `LOG_RULES = RULES.log_rules` BEFORE the last rule.
+
+    It must stay the same object, or a conditionally-registered rule would be
+    missing from what `gather_logs` merges.
+    """
+    reg = _registry()
+    alias = reg.log_rules
+    reg.logged("0.06", "compare_climate_sources")
+    assert alias == ["0.06_compare_climate_sources"]
+    assert alias is reg.log_rules
+
+
+def test_a_banner_only_rule_is_not_in_log_rules():
+    """snapshot_config and gather_logs write no part; nothing must merge one."""
+    reg = _registry()
+    reg.banner_only("0.01", "snapshot_config")
+    assert reg.log_rules == []
+
+
+def test_asking_a_banner_only_rule_for_a_log_path_raises():
+    """The [R10-8] defect, refused at PARSE time instead of by a test.
+
+    A part written under a label `LOG_RULES` does not carry is merged by nothing
+    and cleaned up by nothing, and neither failure raises at run time.
+    """
+    identity = _registry().banner_only("0.01", "snapshot_config")
+    with pytest.raises(ValueError, match="banner-only"):
+        identity.log()
+
+
+def test_a_flat_rule_spells_its_paths_from_one_label():
+    reg = _registry()
+    r = reg.logged("0.02", "delineate_region")
+    assert r.label == "0.02_delineate_region"
+    assert r.job_name() == "delineate_region"
+    assert r.log() == "PROJ/logs/_parts/0.02_delineate_region.log"
+    assert r.benchmark() == "PROJ/benchmarks/_parts/0.02_delineate_region.tsv"
+
+
+def test_a_fan_out_rule_suffixes_its_NAME_and_nests_its_PARTS():
+    """The divergence the label derivation exists for.
+
+    A parse-time fan-out names each generated rule for its part, while every
+    part lands in ONE directory named for the singular label -- which is what
+    keeps `LOG_RULES` singular and lets `merge_logs` list the directory.
+    """
+    r = _registry().logged("0.04", "extract_historical_climate")
+    assert r.label == "0.04_extract_historical_climate"
+    assert r.job_name("chirps") == "extract_historical_climate_chirps"
+    assert (
+        r.log("chirps") == "PROJ/logs/_parts/0.04_extract_historical_climate/chirps.log"
+    )
+    assert r.benchmark("era5") == (
+        "PROJ/benchmarks/_parts/0.04_extract_historical_climate/era5.tsv"
+    )
+
+
+def test_the_banner_carries_the_rules_summary_and_the_fanned_name():
+    reg = _registry()
+    plain = reg.logged("0.02", "delineate_region")
+    assert plain.banner() == su.rule_banner("0.02", "delineate_region")
+    described = reg.logged("0.04b", "derive_climate_levels", summary="one scale")
+    assert described.banner() == su.rule_banner(
+        "0.04b", "derive_climate_levels", summary="one scale"
+    )
+    fanned = reg.logged("0.05", "plot_climate_source")
+    assert fanned.banner("chirps") == su.rule_banner(
+        "0.05", "plot_climate_source_chirps"
+    )
+
+
+def test_benchmark_is_available_to_a_banner_only_rule():
+    """log and benchmark are independent -- gather_benchmarks logs and does not
+    benchmark itself, and the inverse must stay expressible too."""
+    assert _registry().banner_only("0.10", "x").benchmark() == (
+        "PROJ/benchmarks/_parts/0.10_x.tsv"
+    )
