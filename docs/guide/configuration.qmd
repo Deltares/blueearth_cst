@@ -148,3 +148,15 @@ It reserves the directory atomically and writes the key back into your config,
 leaving comments and layout intact. An existing value is never overwritten: the
 experiment directory is what a completed run's outputs are addressed by, so
 renaming it would strand them. Clear the key by hand to go back to the default.
+
+## Next
+
+- [Running the workflows](running.qmd) — the four entry points, the wrapper, and
+  the flags that matter.
+- [Reading the outputs](outputs.qmd) — what the run wrote, and whether it is
+  still current.
+
+If a config you already had stopped parsing after an upgrade, the change and its
+fix are in the migration notes:
+[workflow names](../migration-workflow-names.md) and
+[workflow 2](../migration-r08-wf2.md).

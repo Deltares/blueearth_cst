@@ -7,7 +7,7 @@ area: docs / site
 origin: quarto-docs-site (2026-08-19)
 queue:
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-08-21
 ---
 
 > [!note] Overview
@@ -23,6 +23,8 @@ updated: 2026-08-20
 - [ ] `.nojekyll` at the site root
 - [ ] CI must not execute anything — the committed `_freeze/` from [[t2608202351a]], or its absence, is what makes that safe
 - [ ] Reduce the README's Running / Configuration sections to summaries linking the site (D11)
+- [ ] Re-check `404.html`'s links after setting `site-url` (see below)
+- [ ] Sweep for hardcoded `github.com/<org>/blueearth_cst` URLs if O-4 moves the repository — `_quarto.yml`, `index.qmd`, `404.qmd` carry one each
 - [ ] Walk the deployed site for broken asset and link paths — the failure this whole item exists to sequence
 
 ## Blocker — the URL is not knowable yet
@@ -40,6 +42,24 @@ The subpath is why the answer is load-bearing rather than cosmetic. A wrong or
 absent `site-url` breaks absolute links and assets **only once deployed**, and
 local preview shows nothing wrong — so this cannot be got right by guessing and
 checking locally.
+
+## The 404 page is the concrete case of the missing `site-url` — measured 2026-08-21
+
+`docs/404.qmd` landed in [[t2608202351b]], and rendering it showed exactly how
+the missing `site-url` bites. Quarto rewrites a 404 page's links to be
+**root-absolute**, because a 404 is served from an arbitrary depth and relative
+links would resolve against the wrong directory:
+
+    href="/guide/configuration.html"
+    href="/env_setup_notes.html"
+
+Correct at a domain root, wrong on a project-page subpath, where they must read
+`/blueearth_cst/guide/...`. Quarto derives that prefix from `site-url` and has
+no other source for it.
+
+So this is not a general "check the links after deploying" — it is a specific
+page that is *known* to be wrong until `site-url` is set, and which local
+preview will keep showing as fine. Verify it deliberately.
 
 ## Why the README reduction is a step here and not its own item
 

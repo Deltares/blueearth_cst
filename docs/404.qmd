@@ -1,0 +1,33 @@
+---
+title: "Page not found"
+subtitle: "That address does not exist on this site"
+toc: false
+number-sections: false
+page-layout: article
+---
+
+The page you asked for is not here. The likeliest reasons, in order:
+
+- **The site is still being built out.** The technical background is written but
+  not yet published — its figures are missing from the repository. Until it
+  lands, that material is in `docs/cst-toolbox-technical-note-2025.md` in the
+  repository.
+- **A page moved.** The user guide was reorganised when this site was created;
+  a link from an older document may point at a path that no longer exists.
+- **The address is for the repository, not the site.** Anything under `dev/`,
+  the vendored HydroMT and Wflow guides, and the notebooks are deliberately not
+  published here.
+
+## Where you probably meant to go
+
+| Looking for | Go to |
+|---|---|
+| Installing the toolbox | [Setup guide](install.md) |
+| Running the pipeline the first time | [Quick start](guide/quick-start.qmd) |
+| Pointing it at your own basin | [Configuring a project](guide/configuration.qmd) |
+| The workflows and their flags | [Running the workflows](guide/running.qmd) |
+| What a run wrote | [Reading the outputs](guide/outputs.qmd) |
+| Fixing a config the toolbox now refuses | [Migration notes](migration-workflow-names.md) |
+| Anything else | [the repository](https://github.com/tanerumit/blueearth_cst) |
+
+Or use the search box in the navigation bar.

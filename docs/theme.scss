@@ -1,0 +1,68 @@
+/*-----------------------------------------------------------------------------
+  BlueEarth CST documentation site — brand layer.
+
+  Applied over BOTH bootswatch bases (`cosmo` in light, `darkly` in dark), so
+  everything here must be legible on a light AND a dark background. That is why
+  this file sets only the accent colours, the type scale and a few rules — never
+  `$body-bg` or `$body-color`, which each base owns and which would break the
+  other mode.
+
+  !! THE THREE BRAND COLOURS BELOW ARE APPROXIMATIONS !!
+  They were chosen to sit in the right family, not copied from the Deltares
+  brand guide. Replace them with the official values when you have them; nothing
+  else in this file needs to change when you do.
+-----------------------------------------------------------------------------*/
+
+/*-- scss:defaults --*/
+
+// --- Brand palette (APPROXIMATE — see header) --------------------------------
+$deltares-navy:  #0a2e4d !default;  // navbar, footer
+$deltares-blue:  #0b7ebb !default;  // primary, links
+$deltares-teal:  #00a0aa !default;  // accent, callout rules
+
+// --- Bootstrap semantic mapping ----------------------------------------------
+$primary:        $deltares-blue !default;
+$link-color:     $deltares-blue !default;
+
+// A dark navbar in both modes. It is the one surface that should not invert:
+// the site's identity should not change shape when a reader flips the toggle.
+$navbar-bg:      $deltares-navy !default;
+$navbar-fg:      #ffffff !default;
+
+// --- Typography ---------------------------------------------------------------
+// A system stack, deliberately: the site must render identically offline, and a
+// webfont is a network dependency the published page would silently acquire.
+$font-family-sans-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                         "Helvetica Neue", Arial, sans-serif !default;
+$font-family-monospace:  "Cascadia Mono", "SFMono-Regular", Consolas,
+                         "Liberation Mono", Menlo, monospace !default;
+$font-size-root:         16px !default;
+$toc-font-size:          0.875rem !default;
+
+/*-- scss:rules --*/
+
+// Sidebar: mark the active page with the brand accent rather than weight alone.
+.sidebar-navigation .sidebar-item-container .active,
+.sidebar-navigation .sidebar-item-container .show > .menu-text {
+  color: $deltares-blue;
+  font-weight: 600;
+}
+
+// Section headings carry a hairline in the accent, which reads on both bases.
+#quarto-document-content h2,
+#quarto-document-content .h2 {
+  border-bottom: 1px solid rgba($deltares-teal, 0.35);
+  padding-bottom: 0.25rem;
+}
+
+// Tables are load-bearing in this guide (flag tables, layout tables, digest
+// comparisons), so give the header row the brand tint instead of leaving it
+// indistinguishable from the first data row.
+#quarto-document-content table > thead {
+  border-bottom: 2px solid rgba($deltares-blue, 0.5);
+}
+
+// The footer sits under the navbar's colour so the page is bracketed.
+.nav-footer {
+  border-top: 3px solid $deltares-teal;
+}

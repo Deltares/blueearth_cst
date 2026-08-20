@@ -20,7 +20,7 @@ backend and the user interface live in their own repositories.
 
 The **user guide** and the **setup guide** are published. The technical
 background is still being prepared. Until then, the
-[repository README](https://github.com/Deltares/blueearth_cst#readme) carries
+[repository README](https://github.com/tanerumit/blueearth_cst#readme) carries
 the reference material that has not moved here yet.
 :::
 

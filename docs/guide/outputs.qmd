@@ -128,3 +128,16 @@ For the model build specifically,
 *actually handed* — which is not the same as the build template, because
 arguments are replaced with the spatial products the earlier stage produced and
 some are derived at call time.
+
+## Next
+
+This is the last page of the user guide. From here:
+
+- [Configuring a project](configuration.qmd) — to point the toolbox at a second
+  basin, or to change what a run computes.
+- [Running the workflows](running.qmd) — for re-running an experiment after a
+  model rebuild, which is the case this page's provenance section exists to
+  settle.
+- The **technical background** — what a stress test computes and why — is
+  written but not yet published here; until it is, read
+  `docs/cst-toolbox-technical-note-2025.md` in the repository.

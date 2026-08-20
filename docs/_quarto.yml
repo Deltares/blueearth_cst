@@ -4,11 +4,12 @@
 # directory that already holds only documentation. Design and phasing:
 # dev/working/2026-08-19_quarto-docs-site/design.md
 #
-# PHASE 2, in progress. The site publishes the landing page, the setup guide and
-# the user guide. The technical background is still gated on O-3 -- the note's 38
-# figures are absent from the repository, so its chapters would publish as
-# numbered captions under nothing. Its GUI and platform chapters stay unpublished
-# by ruling (O-1c); they remain in the repo as source.
+# PHASE 3, in progress (t2608202351b). The site publishes the landing page, the
+# setup guide, the user guide and the two migration notes. The technical
+# background is still gated on O-3 -- the note's 38 figures are absent from the
+# repository, so its chapters would publish as numbered captions under nothing
+# (t2608202351). Its GUI and platform chapters stay unpublished by ruling
+# (O-1c); they remain in the repo as source.
 #
 # Nothing here publishes. There is deliberately no `site-url` and no deploy
 # workflow: the subpath a GitHub Pages project page needs is not known until the
@@ -21,11 +22,20 @@ project:
     # nothing -- silently, with a successful exit and a smaller site.
     - "index.qmd"
     - "guide/*.qmd"
+    # Explicit, like everything else here: quarto special-cases a 404.qmd only
+    # when it is rendered, and this project enumerates its render targets.
+    - "404.qmd"
     # The setup guide, rendered where it already lives. These two are NOT moved
     # into a setup/ directory: ten files across pixi.toml, scripts/, dev/ and
     # README.md cite these paths, and a navbar entry does the same job for free.
     - "install.md"
     - "env_setup_notes.md"
+
+    # Migration notes. Both tell a user how to repair a config the toolbox now
+    # refuses, which is site material and not a development record -- so they
+    # render even though their sibling notes under dev/ never will.
+    - "migration-workflow-names.md"
+    - "migration-r08-wf2.md"
 
     # Vendored upstream Deltares documentation. Held here so an agent can read
     # it offline; republishing it would put a second, staler copy of hydromt's
@@ -37,12 +47,14 @@ project:
 
     # Not in the render list at all, and left that way on purpose:
     #   notebooks/  -- their outputs are stripped by policy (commit a2596d0), so
-    #                  a no-execute render publishes code with no results. O-2.
-    #   migrations  -- the two migration notes join in phase 2.
+    #                  a no-execute render publishes code with no results. The
+    #                  ruling O-2(a) reverses this via a committed docs/_freeze/,
+    #                  which is filed but not yet done -- t2608202351a.
 
 website:
   title: "BlueEarth CST"
   description: "Climate stress testing for water systems — the workflow toolbox"
+  favicon: _images/favicon.svg
   navbar:
     left:
       - text: "User guide"
@@ -51,7 +63,7 @@ website:
         href: install.md
     right:
       - icon: github
-        href: https://github.com/Deltares/blueearth_cst
+        href: https://github.com/tanerumit/blueearth_cst
         aria-label: "Source on GitHub"
   sidebar:
     style: floating
@@ -66,13 +78,22 @@ website:
         contents:
           - install.md
           - env_setup_notes.md
+      - section: "Migration notes"
+        contents:
+          - migration-workflow-names.md
+          - migration-r08-wf2.md
   search: true
   page-footer:
     center: "Deltares · World Bank Global Water Practice — GPL-3.0"
 
 format:
   html:
-    theme: cosmo
+    # One brand layer over two bootswatch bases, so the reader gets a
+    # light/dark toggle and the accent colours stay the site's own. theme.scss
+    # therefore must not set $body-bg or $body-color -- see its header.
+    theme:
+      light: [cosmo, theme.scss]
+      dark: [darkly, theme.scss]
     toc: true
     toc-depth: 3
     number-sections: true
