@@ -24,7 +24,6 @@ or the network.
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 import numpy as np
@@ -759,15 +758,23 @@ def test_rule_takes_each_store_and_its_basin_cells(two_source_config):
 
 
 def test_the_appended_log_label_matches_the_rule(two_source_config):
-    """Both halves of the conditional LOG_RULES entry, pinned together.
+    """The rule's own log label, still pinned here; the LIST is not.
 
-    ``test_log_rules_contract`` reads the LOG_RULES *literal* and parses on the
-    single-source fixture, so neither half is visible to it.
+    The second half of this test -- a regex over `analyze_climate.smk` matching
+    `LOG_RULES.append("0.06_compare_climate_sources")` -- is GONE, and the
+    reason is the one this module's sibling states as a rule: two modules
+    asserting one property by different parsers is how they come to disagree
+    (`[R10-10]`). That regex existed only because
+    `test_log_rules_contract` read the LOG_RULES *literal*, which a parse-time
+    `.append` is invisible to by construction.
+
+    It reads `workflow.globals` now and is parametrized over a two-source
+    config, so it sees the appended label and checks BOTH directions of the
+    contract against it -- orphaned and unlisted -- where this regex could only
+    confirm a hardcoded string appeared somewhere in the file. Verified by
+    falsification: renaming the appended label fails exactly the two
+    `analyze_climate.smk-two_source` cases there.
     """
     rule = _rule(_parse_workflow(two_source_config), "compare_climate_sources")
     label = Path(str(rule.log[0])).name[: -len(".log")]
     assert label == "0.06_compare_climate_sources"
-    text = (SNAKEDIR / "analyze_climate.smk").read_text(encoding="utf-8")
-    assert re.search(
-        r"LOG_RULES\.append\(\s*[\"']0\.06_compare_climate_sources[\"']\s*\)", text
-    ), "the rule's log label must be appended to LOG_RULES for a multi-source run"
