@@ -58,34 +58,22 @@ Read the Trigger's "these six" as "these painting cases, whatever the count" —
 the number is what someone compares a red run against, and it will drift again
 every time the module gains a case.
 
-## Re-confirmed 2026-08-20, and the interaction that makes it structural
+## Re-confirmed 2026-08-20 — and the collision that makes it structural
 
-Reproduced again on `main` at `5363f53` during an unrelated integration: the
-same seven, in the same positions, on BOTH sides of a branch-vs-`main`
-comparison launched identically -- so they cancelled and did not affect that
-verdict. Four plain-launch runs in the same session were green, including the
-whole module (270 passed) and a `> file 2>&1` redirect, which is the 2026-08-17
-measurement holding rather than widening.
+Reproduced again on `main` at `5363f53`: the same seven, same positions, under a
+detached launch. Plain-launch runs in the same session stayed green, including
+the whole module, so the 2026-08-17 measurement holds rather than widens.
 
-**The part worth acting on is not the failure, it is the collision.** This
-repo's own guidance says to launch a long run detached, because a backgrounded
-Bash task is reaped ~78 s in -- and a detached launch is exactly what makes
-these seven fail. `test-full` takes ~10 minutes. So **any `test-full` long
-enough to need detaching carries these seven by construction**: the recommended
-way to run the authoritative gate is guaranteed to produce seven false
-failures, and the only way to get a clean one is a launch method that cannot
-survive the run's own length.
+**The part worth acting on is the collision, not the failure.** A long run must
+be launched detached, because a backgrounded task is reaped ~78 s in — and a
+detached launch is exactly what makes these seven fail. `test-full` takes ~10
+minutes, so **any `test-full` long enough to need detaching carries these seven
+by construction**: the recommended way to run the authoritative gate is
+guaranteed to produce seven false failures, and the launch that avoids them
+cannot survive the run's own length.
 
-An agent hit precisely that on 2026-08-20 and read it as cross-module state
-pollution under full-suite ordering -- a wrong mechanism reached honestly,
-because the standalone re-runs it used to refute it were themselves
-plain-launch and therefore green. That is the trap: the refutation changes the
-launch method at the same time as the scope, so it looks like evidence for
-ordering.
-
-The Trigger's "someone scripts test-full into a non-tty runner" has therefore
-fired, in the narrower detached-launch form recorded above. It stays a
-watch-item because the fix is still unknown and the gate is still readable by
-someone who knows to discount these seven -- but a reader who does not know
-will discount a REAL failure alongside them, which is the cost now on the
-table.
+So the Trigger has fired, in the narrower detached-launch form. It stays a
+watch-item because the fix is unknown and the gate is still readable by someone
+who knows to discount these seven — but a reader who does not will discount a
+REAL failure alongside them. That is the cost now on the table, and it is what
+would justify promoting this to work.
