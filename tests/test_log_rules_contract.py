@@ -36,7 +36,6 @@ from __future__ import annotations
 
 import functools
 import re
-import tempfile
 from pathlib import Path, PurePosixPath
 
 import pytest
@@ -167,43 +166,49 @@ def _labels_with_producers(workflow) -> set[str]:
     return labels
 
 
-@functools.lru_cache(maxsize=None)
-def _config_for(variant: str) -> Path:
-    """The config a case is parsed under.
+@pytest.fixture(scope="session")
+def config_paths(tmp_path_factory) -> dict[str, Path]:
+    """The config each case is parsed under, keyed by variant.
 
     ``two_source`` is the fixture config with one candidate source added, which
-    is what brings rule 0.06 into existence. Built once and cached: it is read
-    by every test in the module and nothing mutates it.
+    is what brings rule 0.06 -- and its appended label -- into existence.
+
+    Built through ``tmp_path_factory`` rather than ``tempfile.mkdtemp`` so
+    pytest owns the cleanup. A cached module-level builder would orphan one
+    directory per pytest process, outside the repo's own ``.tmp/``; session
+    scope gets the same build-once reuse with nothing left behind.
     """
-    if variant == "default":
-        return CONFIG_FN
-    assert variant == "two_source", f"unknown config variant {variant!r}"
     import yaml
 
     cfg = yaml.safe_load(CONFIG_FN.read_text(encoding="utf-8"))
     cfg["workflows"]["analyze_climate"]["candidate_sources"] = ["chirps"]
-    path = Path(tempfile.mkdtemp(prefix="log_rules_")) / "snake_config_two_sources.yml"
+    path = tmp_path_factory.mktemp("log_rules") / "snake_config_two_sources.yml"
     path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
-    return path
+    return {"default": CONFIG_FN, "two_source": path}
 
 
 @functools.lru_cache(maxsize=None)
-def _case(snakefile: str, variant: str) -> tuple[tuple[str, ...], frozenset[str]]:
+def _case(snakefile: str, config_path: Path) -> tuple[tuple[str, ...], frozenset[str]]:
     """Both sides of the contract, from ONE parse of ONE configuration.
 
     Cached because parsing a Snakefile is the expensive part and four tests ask
     the same question of each case. It also guarantees the declared and produced
     sides can never come from different parses.
+
+    Keyed on the config PATH, not the variant name, so the key names the thing
+    actually parsed. Safe to cache across a session because nothing in this
+    suite writes to a ``.smk`` -- verified, since a cache over a mutable source
+    file would serve the first parse forever.
     """
-    workflow = _parse_workflow(snakefile, _config_for(variant))
+    workflow = _parse_workflow(snakefile, config_path)
     declared = tuple(_declared_log_rules(workflow, snakefile))
     return declared, frozenset(_labels_with_producers(workflow))
 
 
 @pytest.mark.parametrize(("snakefile", "variant"), CASES, ids=CASE_IDS)
-def test_every_declared_label_has_a_producing_rule(snakefile, variant):
+def test_every_declared_label_has_a_producing_rule(snakefile, variant, config_paths):
     """No label may outlive the rule that wrote it (the [R10-8] defect)."""
-    declared, produced = _case(snakefile, variant)
+    declared, produced = _case(snakefile, config_paths[variant])
     orphaned = sorted(set(declared) - produced)
     assert not orphaned, (
         f"{snakefile}: LOG_RULES names labels no rule writes: {orphaned}. "
@@ -213,9 +218,9 @@ def test_every_declared_label_has_a_producing_rule(snakefile, variant):
 
 
 @pytest.mark.parametrize(("snakefile", "variant"), CASES, ids=CASE_IDS)
-def test_every_logging_rule_is_declared(snakefile, variant):
+def test_every_logging_rule_is_declared(snakefile, variant, config_paths):
     """No rule may write parts merge_logs will never look for."""
-    declared, produced = _case(snakefile, variant)
+    declared, produced = _case(snakefile, config_paths[variant])
     unlisted = sorted(produced - set(declared))
     assert not unlisted, (
         f"{snakefile}: rules write log parts under labels LOG_RULES omits: "
@@ -225,15 +230,15 @@ def test_every_logging_rule_is_declared(snakefile, variant):
 
 
 @pytest.mark.parametrize(("snakefile", "variant"), CASES, ids=CASE_IDS)
-def test_declared_labels_are_unique(snakefile, variant):
+def test_declared_labels_are_unique(snakefile, variant, config_paths):
     """A repeated label would merge the same section twice."""
-    declared, _ = _case(snakefile, variant)
+    declared, _ = _case(snakefile, config_paths[variant])
     duplicates = sorted({label for label in declared if declared.count(label) > 1})
     assert not duplicates, f"{snakefile}: duplicate LOG_RULES entries: {duplicates}"
 
 
 @pytest.mark.parametrize(("snakefile", "variant"), CASES, ids=CASE_IDS)
-def test_declared_labels_read_in_rule_number_order(snakefile, variant):
+def test_declared_labels_read_in_rule_number_order(snakefile, variant, config_paths):
     """``LOG_RULES`` is the MERGE order, so it must read as the workflow does.
 
     Deferred until `[R10-5]` and added with it, which is the whole point of the
@@ -256,7 +261,7 @@ def test_declared_labels_read_in_rule_number_order(snakefile, variant):
     contradicts both the rule map and the benchmark table, so following one run
     means knowing the list rather than reading the file.
     """
-    declared, _ = _case(snakefile, variant)
+    declared, _ = _case(snakefile, config_paths[variant])
     declared = list(declared)
     assert declared == sorted(declared), (
         f"{snakefile}: LOG_RULES is not in rule-number order.\n"
