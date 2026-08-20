@@ -731,16 +731,19 @@ def _unreadable(error):
     latitude axis, which hydromt's `.raster` accessor refuses with
     `ValueError: The 'raster' accessor only applies to regular grids` -- is now
     handled inside `fetch_raw_slice`, which re-reads unclipped and applies the
-    bbox itself (board item `t2608182020`). That was 27 of 67 models, including
-    CanESM5 and every EC-Earth3 variant.
+    bbox itself (`dev/reference/workflows/wf2-cmip6-store-readability.md`
+    section 1). That was 27 of 67 models, including CanESM5 and every
+    EC-Earth3 variant.
 
     Kept rather than deleted because it classifies a phrase, not a cause: a
     slice reaching this bucket now means the branch did NOT engage, which is
     worth seeing separately from an ordinary download failure. What still fails
     outright is a grid the branch cannot read either -- 2-D/curvilinear
-    coordinates, or a store with no `lat` variable at all (MPI-M/ICON-ESM-LR,
-    UA/MCM-UA-1-0) -- and those raise their own messages, so they land in
-    `broke` with the reason attached.
+    coordinates, or a store with no x/y axis at all (MPI-M/ICON-ESM-LR, an
+    unstructured ICON mesh) -- and those raise their own messages, so they
+    land in `broke` with the reason attached. UA/MCM-UA-1-0 is NOT one of
+    them: it spells its axes `latitude`/`longitude`, which hydromt accepts,
+    and it reads through the branch like any other irregular model.
 
     Matched on the accessor's own phrase rather than the exception type,
     because ValueError is far too common to key on alone.
@@ -760,7 +763,8 @@ def _ambiguous_versions(error):
 
     Reported separately because the action differs from every other bucket: the
     source EXISTS and is readable, and what is missing is a decision about which
-    published version the assessment uses. See `dev/tasks/t2608191613`.
+    published version the assessment uses. See
+    `dev/reference/workflows/wf2-cmip6-store-readability.md` section 2.
     """
     return AMBIGUOUS_VERSION_PHRASE in error
 

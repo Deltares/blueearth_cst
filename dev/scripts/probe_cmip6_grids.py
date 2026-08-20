@@ -9,8 +9,9 @@ therefore invisible to WF2 -- silently absent from an ensemble rather than
 reported.
 
 Measured 2026-08-18: 27 of 67 models, including CanESM5, every EC-Earth3
-variant, MPI-ESM1-2-HR/LR, CNRM-CM6-1, MIROC6 and MRI-ESM2-0. Board item
-`t2608182020` carries the full table and the options.
+variant, MPI-ESM1-2-HR/LR, CNRM-CM6-1, MIROC6 and MRI-ESM2-0.
+`dev/reference/workflows/wf2-cmip6-store-readability.md` section 1
+carries the full table, the staged-readability sweep, and the options.
 
 CHEAP ON PURPOSE: reads only the `lat`/`lon` coordinates of one `Amon/tas`
 store per model -- consolidated metadata plus two small arrays -- rather than
@@ -67,7 +68,8 @@ def _axis(ds, names):
     `lat`/`lon` is the CMIP6 convention but not a rule: UA/MCM-UA-1-0 spells
     them `latitude`/`longitude`, and hydromt's `set_spatial_dims` accepts that
     -- so hardcoding `lat` made this probe report `error` for a model the
-    toolbox reads perfectly well (measured 2026-08-19, `t2608182020`). A probe
+    toolbox reads perfectly well (measured 2026-08-19; see
+    `dev/reference/workflows/wf2-cmip6-store-readability.md`). A probe
     stricter than the thing it is probing produces false refusals, which is the
     one result a diagnostic must not invent.
     """
