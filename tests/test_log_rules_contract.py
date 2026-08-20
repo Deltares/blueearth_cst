@@ -34,7 +34,7 @@ disagree. Do not re-add a second parser — extend this one.
 
 from __future__ import annotations
 
-import ast
+import functools
 import re
 from pathlib import Path, PurePosixPath
 
@@ -54,39 +54,54 @@ WORKFLOWS = [
 #: The directory every per-rule log part lives under, in all four workflows.
 PARTS_DIR_NAME = "_parts"
 
+#: (snakefile, config variant) pairs. A workflow whose RULE SET depends on its
+#: config appears MORE THAN ONCE, because the contract is a property of a parsed
+#: workflow rather than of a file. WF0 is the only one today: rule 0.06 and its
+#: appended label both exist only for a multi-source run, and that pair is
+#: precisely what the old source-text parser could not see.
+CASES = [(snakefile, "default") for snakefile in WORKFLOWS] + [
+    ("analyze_climate.smk", "two_source")
+]
 
-#: The ``LOG_RULES = [ ... ]`` block, closing bracket anchored at column 0.
-_LOG_RULES_BLOCK = re.compile(r"^LOG_RULES\s*=\s*(\[.*?^\])", re.MULTILINE | re.DOTALL)
+#: Readable ids, so a failure names the configuration and not just an index.
+CASE_IDS = [f"{snakefile}-{variant}" for snakefile, variant in CASES]
+
 
 #: A label starts with its rule number -- `3.12_perturb_climate_realization`.
 #: The same `<W.NN>` grammar `merge_logs._RULE_NUMBER` recognises.
 _LABEL_PREFIX = re.compile(r"^\d+\.\d+[a-z]?_")
 
 
-def _declared_log_rules(snakefile: str) -> list[str]:
-    """Read the ``LOG_RULES`` literal out of a Snakefile without executing it.
+def _declared_log_rules(workflow, snakefile: str) -> list[str]:
+    """``LOG_RULES`` as the parsed workflow actually holds it.
 
-    A Snakefile is **not valid Python** — ``rule all:`` is Snakemake grammar, so
-    ``ast.parse`` over the whole file raises ``SyntaxError``. The list itself is
-    a plain literal of string constants in all three files, so the block is
-    lifted out textually and only that is parsed. Comments inside the block are
-    fine: ``literal_eval`` tokenizes them away.
+    Read from ``workflow.globals`` rather than from the source text, and the
+    difference is not stylistic. ``analyze_climate.smk`` APPENDS
+    ``0.06_compare_climate_sources`` at parse time when a run has candidate
+    sources, so the list literal is five entries while a multi-source run merges
+    six. A source-text parser cannot see that by construction: it reads the
+    literal, and the append is a statement.
 
-    Reading the source rather than the executed workflow's globals also keeps
-    this independent of where a given Snakemake version stashes a Snakefile's
-    module namespace.
+    That blindness is what forced a SECOND parser into existence --
+    ``test_compare_climate_sources`` matched the ``.append(...)`` call with its
+    own regex, exactly the duplication this module's docstring forbids. Reading
+    the executed globals lets one parser cover both halves, so that regex is
+    gone and the rule stated above holds again.
+
+    It also makes both sides of every comparison below describe the SAME
+    configuration. Previously the declared side came from source text and the
+    produced side from a parsed workflow, so under a config-dependent rule set
+    they were answers to different questions.
     """
-    text = (SNAKEDIR / snakefile).read_text(encoding="utf-8")
-    match = _LOG_RULES_BLOCK.search(text)
-    assert match, f"{snakefile}: no module-level LOG_RULES list literal"
-    value = ast.literal_eval(match.group(1))
-    assert all(isinstance(item, str) for item in value), (
-        f"{snakefile}: LOG_RULES must be a list of string literals"
+    value = workflow.globals.get("LOG_RULES")
+    assert value is not None, f"{snakefile}: no module-level LOG_RULES"
+    assert isinstance(value, list) and all(isinstance(i, str) for i in value), (
+        f"{snakefile}: LOG_RULES must be a list of strings"
     )
     return list(value)
 
 
-def _parse_workflow(snakefile: str):
+def _parse_workflow(snakefile: str, config_path: Path = CONFIG_FN):
     """Parse a Snakefile in-process and return its ``Workflow``.
 
     Same entry point and the same private-accessor caveat as
@@ -99,7 +114,7 @@ def _parse_workflow(snakefile: str):
     with api.SnakemakeApi() as sa:
         wf_api = sa.workflow(
             resource_settings=api.ResourceSettings(cores=1),
-            config_settings=api.ConfigSettings(configfiles=[CONFIG_FN]),
+            config_settings=api.ConfigSettings(configfiles=[config_path]),
             storage_settings=api.StorageSettings(),
             workflow_settings=api.WorkflowSettings(),
             snakefile=SNAKEDIR / snakefile,
@@ -141,9 +156,8 @@ def _label_from_log_path(log_path: str) -> str:
     )
 
 
-def _labels_with_producers(snakefile: str) -> set[str]:
+def _labels_with_producers(workflow) -> set[str]:
     """Every log label some rule in this workflow actually writes."""
-    workflow = _parse_workflow(snakefile)
     labels = set()
     for rule in workflow.rules:
         for log_path in getattr(rule, "log", []) or []:
@@ -152,12 +166,50 @@ def _labels_with_producers(snakefile: str) -> set[str]:
     return labels
 
 
-@pytest.mark.parametrize("snakefile", WORKFLOWS)
-def test_every_declared_label_has_a_producing_rule(snakefile):
+@pytest.fixture(scope="session")
+def config_paths(tmp_path_factory) -> dict[str, Path]:
+    """The config each case is parsed under, keyed by variant.
+
+    ``two_source`` is the fixture config with one candidate source added, which
+    is what brings rule 0.06 -- and its appended label -- into existence.
+
+    Built through ``tmp_path_factory`` rather than ``tempfile.mkdtemp`` so
+    pytest owns the cleanup. A cached module-level builder would orphan one
+    directory per pytest process, outside the repo's own ``.tmp/``; session
+    scope gets the same build-once reuse with nothing left behind.
+    """
+    import yaml
+
+    cfg = yaml.safe_load(CONFIG_FN.read_text(encoding="utf-8"))
+    cfg["workflows"]["analyze_climate"]["candidate_sources"] = ["chirps"]
+    path = tmp_path_factory.mktemp("log_rules") / "snake_config_two_sources.yml"
+    path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    return {"default": CONFIG_FN, "two_source": path}
+
+
+@functools.lru_cache(maxsize=None)
+def _case(snakefile: str, config_path: Path) -> tuple[tuple[str, ...], frozenset[str]]:
+    """Both sides of the contract, from ONE parse of ONE configuration.
+
+    Cached because parsing a Snakefile is the expensive part and four tests ask
+    the same question of each case. It also guarantees the declared and produced
+    sides can never come from different parses.
+
+    Keyed on the config PATH, not the variant name, so the key names the thing
+    actually parsed. Safe to cache across a session because nothing in this
+    suite writes to a ``.smk`` -- verified, since a cache over a mutable source
+    file would serve the first parse forever.
+    """
+    workflow = _parse_workflow(snakefile, config_path)
+    declared = tuple(_declared_log_rules(workflow, snakefile))
+    return declared, frozenset(_labels_with_producers(workflow))
+
+
+@pytest.mark.parametrize(("snakefile", "variant"), CASES, ids=CASE_IDS)
+def test_every_declared_label_has_a_producing_rule(snakefile, variant, config_paths):
     """No label may outlive the rule that wrote it (the [R10-8] defect)."""
-    declared = set(_declared_log_rules(snakefile))
-    produced = _labels_with_producers(snakefile)
-    orphaned = sorted(declared - produced)
+    declared, produced = _case(snakefile, config_paths[variant])
+    orphaned = sorted(set(declared) - produced)
     assert not orphaned, (
         f"{snakefile}: LOG_RULES names labels no rule writes: {orphaned}. "
         "Each contributes an empty 'no part from this run' section to every "
@@ -165,12 +217,11 @@ def test_every_declared_label_has_a_producing_rule(snakefile):
     )
 
 
-@pytest.mark.parametrize("snakefile", WORKFLOWS)
-def test_every_logging_rule_is_declared(snakefile):
+@pytest.mark.parametrize(("snakefile", "variant"), CASES, ids=CASE_IDS)
+def test_every_logging_rule_is_declared(snakefile, variant, config_paths):
     """No rule may write parts merge_logs will never look for."""
-    declared = set(_declared_log_rules(snakefile))
-    produced = _labels_with_producers(snakefile)
-    unlisted = sorted(produced - declared)
+    declared, produced = _case(snakefile, config_paths[variant])
+    unlisted = sorted(produced - set(declared))
     assert not unlisted, (
         f"{snakefile}: rules write log parts under labels LOG_RULES omits: "
         f"{unlisted}. Their sections vanish from the merged log and their part "
@@ -178,16 +229,16 @@ def test_every_logging_rule_is_declared(snakefile):
     )
 
 
-@pytest.mark.parametrize("snakefile", WORKFLOWS)
-def test_declared_labels_are_unique(snakefile):
+@pytest.mark.parametrize(("snakefile", "variant"), CASES, ids=CASE_IDS)
+def test_declared_labels_are_unique(snakefile, variant, config_paths):
     """A repeated label would merge the same section twice."""
-    declared = _declared_log_rules(snakefile)
+    declared, _ = _case(snakefile, config_paths[variant])
     duplicates = sorted({label for label in declared if declared.count(label) > 1})
     assert not duplicates, f"{snakefile}: duplicate LOG_RULES entries: {duplicates}"
 
 
-@pytest.mark.parametrize("snakefile", WORKFLOWS)
-def test_declared_labels_read_in_rule_number_order(snakefile):
+@pytest.mark.parametrize(("snakefile", "variant"), CASES, ids=CASE_IDS)
+def test_declared_labels_read_in_rule_number_order(snakefile, variant, config_paths):
     """``LOG_RULES`` is the MERGE order, so it must read as the workflow does.
 
     Deferred until `[R10-5]` and added with it, which is the whole point of the
@@ -210,7 +261,8 @@ def test_declared_labels_read_in_rule_number_order(snakefile):
     contradicts both the rule map and the benchmark table, so following one run
     means knowing the list rather than reading the file.
     """
-    declared = _declared_log_rules(snakefile)
+    declared, _ = _case(snakefile, config_paths[variant])
+    declared = list(declared)
     assert declared == sorted(declared), (
         f"{snakefile}: LOG_RULES is not in rule-number order.\n"
         f"  got:      {declared}\n"
