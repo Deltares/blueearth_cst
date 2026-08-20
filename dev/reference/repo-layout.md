@@ -73,13 +73,7 @@ Outputs land under `project_dir`, set in the config. Production `project_dir` li
 
 ## Three homes for executables
 
-Split by invocation model, not by audience:
-
-| Tree | Invoked by |
-|---|---|
-| `blueearth_cst/` | Snakemake |
-| `scripts/` | a user, to run the pipeline |
-| `dev/scripts/` | a maintainer, inspecting the repo; never part of a run |
+The split itself is stated in `AGENTS.md` § Repo Map, which is what shipped modules cite by name.
 
 `dev/scripts/` is not only executables. It also holds libraries `tests/` imports via `sys.path` — `semantic_tree_diff.py` (tree comparators and the project-tree inventory) and `cross_workflow_inputs.py` (stages the wf1 leaves WF2/WF3 need on disk). A bare-checkout CI run imports both, so an import-time error there fails the suite on both legs. Treat them as contract surfaces with test consumers.
 

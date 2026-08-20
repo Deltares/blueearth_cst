@@ -13,7 +13,7 @@ BlueEarth Climate Stress Test — a multi-language (Python + R + Julia) scientif
 | `analyze_projections.smk` | wf2 | CMIP6 change factors — a plausibility overlay |
 | `run_stress_test.smk` | wf3 | the stress test |
 
-wf1 -> wf2/wf3 is ordered; wf3 needs wf1 artifacts. wf0 is outside that chain -- it only pre-builds region and climate artifacts wf1 also declares, so run it first or not at all, and run it ALONE when the question is which forcing dataset to use. The `workflows.<name>` config keys carry the pre-2026-08-14 file names (`docs/migration-workflow-names.md`).
+wf1 -> wf2/wf3 is ordered; wf3 needs wf1 artifacts. wf0 is outside that chain -- it only pre-builds region and climate artifacts wf1 also declares, so run it first or not at all, and run it ALONE when the question is which forcing dataset to use. The `workflows.<name>` config keys do not match the file names (`docs/migration-workflow-names.md`).
 
 ## Background
 
@@ -101,7 +101,7 @@ A task branch is isolated from `main` and cheap to revert, so spend validation t
 
 **Run WF1 with `--notemp` when the run feeds `check_baseline.py`.** Rule 1.14 declares wflow's `run_default/output.csv` as `temp()`, and that file is the manifest's wf1 discharge target, so without the flag the gate fails "target missing" and reads as a defect. The rounded `output_q.csv` is not a substitute.
 
-**Figures are terminal artifacts** — no rule consumes a `.png`/`.pdf`, so verify a figure-only change by rendering it and publishing the PNG as an Artifact for visual inspection, never with the baseline, the full suite, or a byte comparison of the render. But a shared helper edited in service of a plot (`shared/plot_utils.py`, `shared/cartographic_map.py`, which rules 1.12 and 1.13 both draw through) is *a contract surface with other callers* and takes the normal ladder above.
+**Figures are terminal artifacts** — no rule consumes a `.png`/`.pdf`, so verify a figure-only change by rendering it and publishing the PNG as an Artifact for visual inspection, never with the baseline, the full suite, or a byte comparison of the render. But a shared helper edited in service of a plot (`shared/plot_style.py`, `shared/cartographic_map.py`, which rules 1.12 and 1.13 both draw through) is *a contract surface with other callers* and takes the normal ladder above.
 
 ## Hard Constraints
 
