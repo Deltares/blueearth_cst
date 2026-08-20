@@ -68,14 +68,6 @@ Inspection helpers, all report-only until `--delete`: `pixi run tree-check`, `de
 
 Use `test_case/*_linux.yml` + `config/catalogs/*_linux.yml` on Linux — data-catalog paths differ from Windows. `profiles/default/config.yaml` auto-loads from the repo root and sets `quiet: reason`; drop it when you need to see *why* a job re-ran.
 
-### Worktrees
-
-**Run the pipeline from the PRIMARY checkout, not a task worktree.** Snakemake keeps its up-to-date state in `.snakemake/` under the *working directory*, so one `project_dir` driven from two checkouts gets two stores that disagree and two locks writing the same outputs. Worktrees are for editing code and running `pytest`.
-
-Each worktree builds its own pixi env, so run `pixi run install` there before WF3 — `pixi install` alone omits `weathergenr`. A worktree also carries no `test_case/`, and the fixture-dependent test layer then **skips instead of failing**, producing a clean-looking gate that cannot catch the tree-shape changes it exists to catch. Seed it by copy, never a link. Do not borrow the primary checkout to run a branch's gate — nothing reserves it. Seed lists, copy commands and rationale: `dev/reference/task-lanes.md`.
-
-The repo root carries **no cache directory of any kind**, and `tests/test_cache_dir_hygiene.py` fails if one appears. `ruff check --isolated` is the one invocation that still writes one — run it as `RUFF_CACHE_DIR=.tmp/ruff_cache ruff check --isolated`.
-
 ## Conventions
 
 - Name new identifiers and files per `dev/reference/naming.md`. Existing names are grandfathered; rename a contract surface only with a migration note.
@@ -85,6 +77,7 @@ The repo root carries **no cache directory of any kind**, and `tests/test_cache_
 - `dev/` vs `docs/`: design notes and one-off probes under `dev/` (planning, not shipped); install and usage docs under `docs/`.
 - **Keep configuration references current.** When a path, filename, config key or command moves, grep the old spelling and fix every live reference in the same commit — `docs/`, `README.md`, this file, code comments. A stale path in a document someone reads to do their job is a defect, not a record. The one exception is `dev/` milestone and review records, which are valuable *because* they are unedited; those carry a `> SUPERSEDED …` banner and an entry in `dev/reference/sealed-records.yml`, which `tests/test_sealed_records.py` freezes. **That registry is the entire list** — read it rather than guessing from age.
 - No silent caps: a tool that bounds its own coverage (top-N, sampling, no-retry) must report what it dropped.
+- The repo root carries **no cache directory of any kind**, and `tests/test_cache_dir_hygiene.py` fails if one appears. `ruff check --isolated` is the one invocation that still writes one — run it as `RUFF_CACHE_DIR=.tmp/ruff_cache ruff check --isolated`.
 - [Python] `script:` modules read `snakemake.input/output/params`, not `sys.argv`. [R] `Rscript --vanilla` scripts take positional args via `commandArgs(trailingOnly=TRUE)`.
 - netCDF (`.nc`) is the interchange format across R/Python/Julia. Wrap intermediate per-realization netCDFs in `temp(...)` — omitting it explodes disk usage on large `RLZ_NUM × ST_NUM` runs.
 
@@ -127,7 +120,7 @@ No rule consumes a `.png`/`.pdf` under `project_dir`, so a figure change cannot 
 
 - `README.md` — the pipeline and how the four workflows fit together; start here.
 - `docs/cst-toolbox-technical-note-2025.md` — read before changing *what* a workflow computes.
-- `dev/reference/task-lanes.md` — read before allocating, scoping, or landing a task.
+- `dev/reference/task-lanes.md` — read before running the pipeline or the fixture-dependent tests from a worktree: seeding, per-worktree pixi envs, and why a worktree gate under-reports.
 - `dev/reference/validation-ladder.md` — read when deciding whether a gate is affordable, or when a gate behaves unexpectedly.
 - `dev/reference/repo-layout.md` — read when adding a file and unsure where it goes.
 - `dev/reference/naming.md` — read when naming a new identifier, file, or rule.
