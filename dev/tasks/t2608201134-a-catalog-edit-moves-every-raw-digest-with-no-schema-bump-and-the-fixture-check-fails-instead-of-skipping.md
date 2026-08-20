@@ -1,7 +1,7 @@
 ---
 title: A catalog edit moves every raw digest with no schema bump, and the fixture check fails instead of skipping
 type: todo-item
-status: backlog
+status: active
 effort: 1
 area: wf2 projections / test fixtures
 origin: 2026-08-20 board-closure gate
@@ -17,4 +17,38 @@ updated: 2026-08-20
 
 ## Progress
 
-- [ ] <first step>
+- [x] Owner ruling: refresh the fixture AND teach the check which component
+      drifted. Widening the skip alone was rejected -- a skip that broad stops
+      testing the claim the test exists for.
+- [x] Establish whether a new attribute owes a `SCHEMA_VERSION` bump. **It does
+      not**, and this is asserted rather than argued: `cache_hit` compares the
+      schema version and the digest attribute and nothing else, so a purely
+      diagnostic `cst_*` key cannot move a cache decision. Pinned by
+      `test_a_diagnostic_attribute_does_not_change_a_cache_decision`.
+- [x] Raw slices stamp `cst_entry_identity_digest`; the check uses it to tell a
+      stale artifact (skip, naming the reason) from a broken recipe (fail).
+      Landed on `fix/fixture-digest-drift-attribution`.
+- [x] Both branches proved empirically against the worktree's disposable
+      fixture copy, then the copy restored byte-identical to the primary's:
+      a recorded digest that disagrees with the live catalog SKIPS with
+      "9 were built from a catalog entry that has since changed"; a recorded
+      digest that AGREES while the raw digest still differs FAILS, so the
+      recipe-break case is not swallowed.
+- [ ] **Re-run WF2 stage A from the PRIMARY** against
+      `test_case/snake_config_baseline.yml`, so the nine slices gain the
+      attribute and current digests. Must follow the merge -- a run can only
+      write an attribute the code already emits, which is why this task's two
+      halves cannot be done in one lane.
+- [ ] `check_baseline.py check` afterwards. Not ceremony: the catalog edit that
+      caused this added `rename` and `unit_add` entries, exactly the kind that
+      could move a change-factor value, and those CSVs are baseline targets.
+- [ ] Confirm the real check goes green (9 checked, 0 skipped), then close.
+
+## Not covered
+
+`test_rapid`'s slices (4 + 4) are stale on the same mechanism. No test reads
+them, so this is a note rather than a gate; they refresh on the next rapid run.
+
+The series tier does not stamp the attribute. It has no equivalent
+reproduction test reading `cst_series_digest`, so it would be symmetry without
+a consumer -- add it when one appears.

@@ -135,6 +135,21 @@ def test_the_tool_reproduces_a_digest_wf2_itself_wrote():
     a defect in this tool until the fixture is re-run. The whole-fixture skip
     below is what stops that concession from hiding a real break: once a run
     refreshes the tree, every slice is current and every slice is checked again.
+
+    Slices whose `cst_entry_identity_digest` no longer matches the live catalog
+    are passed over on the same reasoning, and this second case is why that
+    attribute exists. A schema bump is not the only way to strand a fixture: a
+    catalog edit moves `entry_identity`, and therefore every raw digest, while
+    `cst_schema_version` sits still — so the skip above cannot see it and the
+    suite goes red until someone re-runs WF2. That is a stale artifact, not a
+    broken recipe, and t2608201134 records the occurrence that proved it
+    (`b0963e9` added tasmin/tasmax to `cmip6_data.yml` 72 minutes after this
+    fixture was written). What still FAILS is a mismatch the recorded
+    provenance cannot account for: same schema, same catalog entry, different
+    digest. That is the recipe breaking, which is what this test is for.
+
+    A slice predating the attribute has nothing to compare and falls through to
+    the assertion, which is the behaviour this test had before.
     """
     xr = pytest.importorskip("xarray")
 
@@ -144,10 +159,12 @@ def test_the_tool_reproduces_a_digest_wf2_itself_wrote():
     region_fp = _si.region_fingerprint(str(REGION))
     checked = 0
     stale = 0
+    recatalogued = 0
     for path in slices:
         with xr.open_dataset(path) as ds:
             written = ds.attrs.get("cst_raw_digest")
             schema = ds.attrs.get("cst_schema_version")
+            recorded_entry = ds.attrs.get("cst_entry_identity_digest")
             variables = {name: {"units": ""} for name in ds.data_vars}
         if not written:
             continue
@@ -161,22 +178,156 @@ def test_the_tool_reproduces_a_digest_wf2_itself_wrote():
         model = model_us.replace("_", "/", 1)
 
         cfg = _cfg() | {"variables": variables}
-        recomputed = _si.raw_digest(
-            sc.digest_components(cfg, model, experiment, member), region_fp
+        components = sc.digest_components(cfg, model, experiment, member)
+        # The member reaching `entry_identity_digest` comes from the FILENAME
+        # here and from the fetch call in `_write_raw_attrs`. If those ever
+        # disagree -- a member label containing an underscore, a change to
+        # `series_key`'s grammar -- the digest below falls back to the
+        # empty-mapping hash, never matches, and EVERY slice takes the skip
+        # branch: this check would go green by skipping, which is the one
+        # outcome the attribution must not buy. Refuse instead.
+        known_members = components.get("entry_identity") or {}
+        assert member in known_members, (
+            f"{path.name}: member {member!r} parsed from the filename is not one "
+            f"the components carry ({sorted(known_members)}); attribution would "
+            "silently skip every slice"
         )
+        recomputed = _si.raw_digest(components, region_fp)
+        if recomputed != written and recorded_entry:
+            # The catalog entry this slice was built from is not the one on disk
+            # now, so the digest SHOULD differ and the artifact is simply stale.
+            # Only claim that when the recorded provenance says so.
+            if recorded_entry != _si.entry_identity_digest(components, member):
+                recatalogued += 1
+                continue
         assert recomputed == written, (
             f"{path.name}: the tool's recipe no longer reproduces the digest WF2 "
             f"wrote — a staged slice would be re-fetched, not reused"
         )
         checked += 1
 
-    if not checked and stale:
+    if not checked and (stale or recatalogued):
+        why = []
+        if stale:
+            why.append(f"{stale} predate schema {_si.SCHEMA_VERSION}")
+        if recatalogued:
+            why.append(
+                f"{recatalogued} were built from a catalog entry that has since "
+                "changed, so their digests moved with it"
+            )
         pytest.skip(
-            f"every one of the fixture's {stale} raw slice(s) predates schema "
-            f"{_si.SCHEMA_VERSION}; re-run WF2 stage A against "
-            "test_case/test_local to restore this check"
+            f"none of the fixture's {len(slices)} raw slice(s) is comparable: "
+            + "; ".join(why)
+            + ". Re-run WF2 stage A against test_case/test_local to restore "
+            "this check"
         )
     assert checked, "no slice carried a cst_raw_digest; nothing was verified"
+
+
+# --- entry-identity attribution (t2608201134) --------------------------------
+
+
+def _components(rename):
+    """Minimal digest components carrying one member's catalog entry."""
+    return {
+        "entry_identity": {
+            "r1i1p1f1": {
+                "uri": "gs://cmip6/.../{variable}/gn/v1".replace("{variable}", "tas"),
+                "driver": "zarr",
+                "data_adapter": {"rename": dict(rename)},
+                "metadata": {"crs": 4326},
+            }
+        }
+    }
+
+
+def test_entry_identity_digest_moves_when_the_catalog_entry_moves():
+    """The attribute has to notice the edit that stranded the fixture.
+
+    `b0963e9` added `tasmin`/`tasmax` to the catalog's rename map, which moved
+    `entry_identity` and so every raw digest. An attribute that did not move
+    with it could not tell a stale artifact from a broken recipe, which is its
+    only job.
+    """
+    before = _components({"pr": "precip", "tas": "temp"})
+    after = _components({"pr": "precip", "tas": "temp", "tasmin": "temp_min"})
+    assert _si.entry_identity_digest(before, "r1i1p1f1") != _si.entry_identity_digest(
+        after, "r1i1p1f1"
+    )
+
+
+def test_entry_identity_digest_ignores_mapping_order():
+    """Canonical, like every other digest here -- order is not an edit."""
+    a = _components({"pr": "precip", "tas": "temp"})
+    b = _components({"tas": "temp", "pr": "precip"})
+    assert _si.entry_identity_digest(a, "r1i1p1f1") == _si.entry_identity_digest(
+        b, "r1i1p1f1"
+    )
+
+
+def test_entry_identity_digest_is_absent_for_an_unknown_member():
+    """A member the components do not carry hashes the empty mapping.
+
+    Not an error: `digest_components` is built for the members a run asked for,
+    and a reader passing another one should get a value that simply never
+    matches rather than an exception inside a diagnostic path.
+    """
+    assert _si.entry_identity_digest(_components({"pr": "precip"}), "r9i9p9f9") == (
+        _si.entry_identity_digest({"entry_identity": {}}, "r1i1p1f1")
+    )
+
+
+def test_the_stamped_attribute_survives_the_real_writer(tmp_path):
+    """`_write_raw_attrs` emits the key, and `write_netcdf_atomic` round-trips it.
+
+    The reader was proved by setting attributes directly; that says nothing
+    about whether the producer's value reaches disk intact. netCDF coerces --
+    `cst_buffer_cells` comes back as `np.int64` -- so require a `str` in and a
+    `str` out, since a non-string here would be discovered during a WF2 run
+    rather than in the suite.
+    """
+    xr = pytest.importorskip("xarray")
+
+    components = _components({"pr": "precip", "tas": "temp"})
+    expected = _si.entry_identity_digest(components, "r1i1p1f1")
+    assert isinstance(expected, str)
+
+    ds = xr.Dataset({"temp": ("time", [1.0, 2.0])})
+    ds.attrs = {
+        "cst_schema_version": _si.SCHEMA_VERSION,
+        "cst_raw_digest": "deadbeef",
+        "cst_entry_identity_digest": expected,
+    }
+    path = tmp_path / "slice.nc"
+    _si.write_netcdf_atomic(ds, path)
+
+    with xr.open_dataset(path) as back:
+        got = back.attrs["cst_entry_identity_digest"]
+    assert isinstance(got, str)
+    assert got == expected
+
+
+def test_a_diagnostic_attribute_does_not_change_a_cache_decision(tmp_path):
+    """The falsifier for "no SCHEMA_VERSION bump is owed".
+
+    `cache_hit` compares the schema version and the digest attribute and nothing
+    else, so stamping an extra `cst_*` key must leave an otherwise-current slice
+    a HIT. If this ever fails, adding the attribute became a contract change and
+    the bump is owed after all.
+    """
+    xr = pytest.importorskip("xarray")
+
+    path = tmp_path / "slice.nc"
+    ds = xr.Dataset({"temp": ("time", [1.0, 2.0])})
+    ds.attrs = {
+        "cst_schema_version": _si.SCHEMA_VERSION,
+        "cst_raw_digest": "deadbeef",
+        "cst_entry_identity_digest": "an attribute cache_hit has never heard of",
+    }
+    ds.to_netcdf(path)
+
+    assert _si.cache_hit([path], "deadbeef", digest_attr="cst_raw_digest")
+    assert not _si.cache_hit([path], "a different digest", digest_attr="cst_raw_digest")
 
 
 # --- the parallel machinery --------------------------------------------------

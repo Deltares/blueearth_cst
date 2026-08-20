@@ -639,6 +639,39 @@ def raw_digest(components: Mapping, region_fingerprint_hex: str) -> str:
     return series_digest(raw_components(components), region_fingerprint_hex)
 
 
+def entry_identity_digest(components: Mapping, member: str) -> str:
+    """sha256 of one member's ``entry_identity`` -- stamped for DIAGNOSIS only.
+
+    NOT a digest component, and deliberately not one: ``entry_identity`` already
+    reaches :func:`raw_digest` through ``digest_components``, so hashing it a
+    second time would change nothing about identity. What this buys is
+    ATTRIBUTION.
+
+    ``entry_identity`` is the one raw-digest component a slice neither records
+    nor lets a reader reconstruct. Every other component has its own ``cst_*``
+    attribute, and ``variable_spec`` comes back off the slice's own
+    ``data_vars`` -- so when a recomputed digest disagrees with the recorded
+    one, this is the only thing that separates a catalog edit (the artifact is
+    stale; re-derive it) from a broken recipe (a real defect). Without it the
+    failure can only name a pair of hashes.
+
+    Measured need, 2026-08-20: `b0963e9` added ``tasmin``/``tasmax`` to
+    ``cmip6_data.yml``'s ``rename`` and ``unit_add`` maps 72 minutes after
+    `test_case/test_local` was written, moving every raw digest with no
+    ``SCHEMA_VERSION`` change, and the resulting red suite said only that two
+    hashes differed (board item t2608201134).
+
+    **No ``SCHEMA_VERSION`` bump is owed for adding this.** :func:`cache_hit`
+    compares the schema version and the digest attribute and nothing else, so a
+    purely diagnostic attribute cannot move a cache decision. A slice written
+    before this attribute existed simply lacks it, and the reader falls back to
+    the undifferentiated failure it would have got anyway.
+    """
+    payload = (components.get("entry_identity") or {}).get(member, {})
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def series_digest(components: Mapping, region_fingerprint_hex: str) -> str:
     """The full series digest: parse-time components + the polygon's content.
 
