@@ -101,7 +101,7 @@ A task branch is isolated from `main` and cheap to revert, so spend validation t
 
 **Run WF1 with `--notemp` when the run feeds `check_baseline.py`.** Rule 1.14 declares wflow's `run_default/output.csv` as `temp()`, and that file is the manifest's wf1 discharge target, so without the flag the gate fails "target missing" and reads as a defect. The rounded `output_q.csv` is not a substitute.
 
-**Figures are terminal artifacts** — no rule consumes a `.png`/`.pdf`, so verify a figure-only change by rendering it and publishing the PNG as an Artifact for visual inspection, never with the baseline or the full suite. But a shared helper edited in service of a plot (`shared/plot_utils.py`, `shared/cartographic_map.py`, which rules 1.12 and 1.13 both draw through) is *a contract surface with other callers* and takes the normal ladder above.
+**Figures are terminal artifacts** — no rule consumes a `.png`/`.pdf`, so verify a figure-only change by rendering it and publishing the PNG as an Artifact for visual inspection, never with the baseline, the full suite, or a byte comparison of the render. But a shared helper edited in service of a plot (`shared/plot_utils.py`, `shared/cartographic_map.py`, which rules 1.12 and 1.13 both draw through) is *a contract surface with other callers* and takes the normal ladder above.
 
 ## Hard Constraints
 
@@ -114,7 +114,7 @@ A task branch is isolated from `main` and cheap to revert, so spend validation t
 
 - `README.md` — the pipeline and how the four workflows fit together; start here.
 - `docs/cst-toolbox-technical-note-2025.md` — the original 2025 note; read for method background and design rationale before changing *what* a workflow computes. Its only edit since is a two-line path sweep, so the method framing still holds, but pipeline details, paths and artifact names in it are often superseded — trust the code and `dev/reference/` where they disagree.
-- `dev/reference/validation-ladder.md` — read when deciding whether a gate is affordable, when a gate behaves unexpectedly, or before verifying a figure change; it carries the full figure gate.
+- `dev/reference/validation-ladder.md` — read when deciding whether a gate is affordable, or when a gate behaves unexpectedly.
 - `dev/reference/repo-layout.md` — read when adding a file and unsure where it goes.
 - `dev/reference/naming.md` — read when naming a new identifier, file, or rule.
 - `dev/reference/workflows/rule-index.md` — read when editing or adding a rule.
