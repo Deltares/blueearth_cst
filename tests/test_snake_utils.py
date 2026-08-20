@@ -36,6 +36,23 @@ from blueearth_cst.shared.snake_utils import (  # noqa: E402
 )
 
 
+@pytest.fixture(autouse=True)
+def _no_ambient_no_color(monkeypatch):
+    """Clear ``NO_COLOR`` for every test in this module.
+
+    The painting tests hand the console handler a fake TTY stream, but that is
+    only half of what decides colour: ``_ConsoleHandler`` also consults
+    ``NO_COLOR``, which it honours per the no-color.org convention. Leaving that
+    half ambient made the result depend on which shell launched pytest --
+    ``NO_COLOR=1`` in the environment turned seven painting assertions red with
+    no code change, and the same commit passed from a shell without it.
+
+    A test that wants the variable set uses ``monkeypatch.setenv`` and overrides
+    this, which runs after the fixture.
+    """
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
+
 def test_missing_required_raises():
     with pytest.raises(ValueError):
         get_config({}, "absent", optional=False)
@@ -2513,6 +2530,21 @@ def test_console_paints_a_start_and_a_finish_in_two_different_tiers():
         opener = f"\033[{code}m"
         assert line.startswith(opener) and line.endswith("\033[0m"), line
         assert "\033" not in line[len(opener) : -4], line
+
+
+def test_console_honours_no_color_even_on_a_tty(monkeypatch):
+    """``NO_COLOR`` suppresses painting on a stream that reports as a terminal.
+
+    The convention (no-color.org) is honoured by ``_ConsoleHandler``, and this
+    is the only test that says so. Without it the variable is invisible: the
+    painting tests below assert the opposite branch, so a regression that
+    stopped honouring ``NO_COLOR`` would leave the suite green while a user who
+    set it still got escapes.
+    """
+    monkeypatch.setenv("NO_COLOR", "1")
+    out = _emit(_colour_handler(), _console_record("Building DAG of jobs..."))
+    assert out == "Building DAG of jobs..." + "\n", repr(out)
+    assert "\033" not in out
 
 
 def test_console_paints_an_informational_snakemake_line_in_the_body_tier():
