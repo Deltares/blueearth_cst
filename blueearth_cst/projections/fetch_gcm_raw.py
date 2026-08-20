@@ -602,7 +602,10 @@ def raw_slice_attrs(
     """The ``cst_*`` block stamped on a raw slice -- the seam with the reduce stage.
 
     ``series_identity.assert_raw_identity`` reads these back, which is what lets
-    the reduce stage make ZERO remote calls. Two keys are deliberately ABSENT:
+    the reduce stage make ZERO remote calls. One key here is DIAGNOSTIC rather
+    than part of the seam -- ``cst_entry_identity_digest`` exists so a digest
+    mismatch can name the component that moved -- and two keys are deliberately
+    ABSENT:
     ``cst_series_digest`` and ``cst_reducer_module_hash``. A raw slice is
     pre-reduction and must not claim an identity that implies arithmetic was
     applied -- and ``cst_raw_digest`` excluding the reducer hash is exactly what
@@ -624,6 +627,12 @@ def raw_slice_attrs(
         "cst_members": member,
         "cst_source_paths": json.dumps(components.get("pins", {}), sort_keys=True),
         "cst_crs": str((entry_meta.get("metadata", {}) or {}).get("crs", "")),
+        # Diagnostic, not identity. See `series_identity.entry_identity_digest`
+        # for why this is the one component worth stamping separately and why
+        # adding it owes no SCHEMA_VERSION bump.
+        "cst_entry_identity_digest": series_identity.entry_identity_digest(
+            components, member
+        ),
     }
 
 
