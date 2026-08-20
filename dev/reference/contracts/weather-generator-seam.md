@@ -194,10 +194,9 @@ consumer reads while keeping the divergence honestly on the record.
   **one file** since C29.
 - **producer:** rule 3.10 `prepare_weathergen_config`
   (`blueearth_cst/experiment/prepare_weagen_config.py`).
-- **consumer:** rules 3.11 and 3.12 (both R side), which now read the same file.
-- **removed at C29 (2026-08-05):** the per-member
-  `_work/weathergen_config_rlz_<n>_cst_<m>.yml` and its producer rule 3.05
-  `prepare_weagen_config_st`. Nothing in that file varied except the output
+- **consumer:** rules 3.11 and 3.12 (both R side), which read the same file.
+- **one config, not one per member (C29).** Do not reintroduce a per-member
+  `weathergen_config_*.yml`: nothing in it varied except the output
   filename — split into prefix and suffix because `weathergenr::write_netcdf`
   takes them separately — and Snakemake already knew it as rule 3.12's own
   declared output, so it is passed as the 4th CLI argument and split in R. Its
@@ -231,8 +230,7 @@ WG-3 is the *current* generator's contract, not a universal one.
   R07 B5 dissolved `realization_<n>/`; the index stays in the file name.
 - **producer:** rule 3.11 (st_0) / rule 3.12 (st_m).
 - **consumer:** rule 3.14 `downscale_climate_realization` (rule 3.13
-  `write_climate_data_catalog` consumed the whole set until 2026-08-18; 3.14
-  now reads only its own member).
+  `write_climate_data_catalog` is retired; 3.14 reads only its own member).
 - **shape:** the **generator OUTPUT contract** — a raster netCDF the hydromt
   catalog reads: `(time, lat, lon)` daily grid with **at least `precip`, `temp`**
   (+ `pet` if present) on an EPSG:4326 grid carrying a `spatial_ref` CRS
@@ -245,9 +243,8 @@ WG-3 is the *current* generator's contract, not a universal one.
   `{precip, temp}` variable set, the `spatial_ref` CRS descriptor, the
   DAG-globbed naming pattern.
 - **deliberately unpinned:** exact variable superset, internal attrs.
-- **`crs` / `category`: asserted-IF-PRESENT, NOT required — corrected 2026-07-25
-  by the first `--notemp` capture.** This contract was written expecting them as
-  netCDF **global attrs**; the real artifact carries **empty global attrs**. Its
+- **`crs` / `category`: asserted-IF-PRESENT, NOT required.** Do not require them
+  as netCDF **global attrs** — the real artifact carries **empty global attrs**. Its
   CRS travels the CF/rioxarray way — the `spatial_ref` coordinate's `crs_wkt`,
   ending `ID["EPSG",4326]` — and `crs: 4326` / `category: meteo` are supplied by
   the generated **data catalog** (WG-5's `metadata.crs` / `metadata.category`),
@@ -263,13 +260,12 @@ WG-3 is the *current* generator's contract, not a universal one.
 ## WG-5 — hydromt climate data catalog (side channel)
 
 - **path pattern:** `<runs>/config/rlz_<n>_st_<m>.yml` — ONE per member,
-  `temp()`, beside that member's TOML. It was a single
-  `<exp>/config/catalogs/data_catalog_run_stress_test.yml` naming every member
-  until 2026-08-18; the entries differed only in `uri`, and the rule that built
-  it fanned in over the whole sweep.
+  `temp()`, beside that member's TOML. One catalog per member, not one aggregate
+  file naming every member: the entries differ only in `uri`, so an aggregate
+  forces its producer to fan in over the whole sweep.
 - **producer:** rule 3.14 `downscale_climate_realization`, calling
   `blueearth_cst/climate_analysis/prepare_climate_data_catalog.py` (rule 3.13
-  `write_climate_data_catalog` was removed with the aggregate file).
+  `write_climate_data_catalog` is retired).
 - **consumer:** rule 3.14 `downscale_climate_realization` (as the `-d` catalog).
 - **shape (pinned-as-reliance — hydromt data-catalog schema, OUR emitted
   subset):** one entry per `rlz_<n>_st_<m>` (**including `st_0`**), each
@@ -303,8 +299,7 @@ real artifact.
 
 - **path pattern:** `<exp>/hydrology/wflow/forcing/inmaps_rlz_<n>_st_<m>.nc`.
   This is wflow-GRID forcing, so R07 B5 files it on the hydrology side, not
-  under `climate/weathergenr/output/`; R9 P2 dissolved the `rlz_<n>/` level, so
-  both indices are back in the file name.
+  under `climate/weathergenr/output/`. Both indices are in the file name.
 - **producer:** rule 3.14 `downscale_climate_realization`
   (`blueearth_cst/experiment/downscale_climate_forcing.py`).
 - **consumer:** rule 3.15 `run_wflow`.
@@ -325,11 +320,11 @@ real artifact.
 
 ---
 
-## Considered and excluded (non-interchange artifacts)
+## Excluded — not interchange artifacts
 
-Three persisted fixture artifacts were examined and **deliberately excluded** as
-non-interchange (no downstream DAG-tracked consumer), so their absence from the
-inventory is intentional, not an oversight (design §5.2, risk-5 / arch-7):
+These persisted artifacts are **deliberately outside the contract**: none has a
+downstream DAG-tracked consumer, so their absence from the inventory is
+intentional. Do not add them to a substitute engine's obligations.
 
 - `experiments/<exp>/climate/weathergenr/output/{sim_dates.csv, resampled_dates.csv}` —
   weathergenr-internal run diagnostics. Verified: neither name appears as a
@@ -340,9 +335,8 @@ inventory is intentional, not an oversight (design §5.2, risk-5 / arch-7):
   has no DAG-tracked consumer is the extraction's `region_*` attributes,
   which record the same fact inside the data. Retired with ADR 0003: the
   per-store-key `data/climate/historical/<key>/store_region.geojson`.
-  *(The pre-R07 `data/climate/historical/wf1_raw/extract_historical.nc`, rule 1.04
-  `extract_climate_grid_wf1`, was retired by B1: wf1's model-parity plots now
-  read WG-1 itself.)*
+  wf1's model-parity plots read WG-1 itself, so no separate wf1 extraction
+  exists.
 
 The completeness audit (both rule graphs walked) otherwise **confirms**
 WG-1..WG-6 cover every interchange handoff at this seam; pipeline-internal
@@ -392,7 +386,7 @@ executes on **every** checkout, fixture or not.
 | `validate_wg2` | WG-2 | `<exp>/config/stress_test_lookup.csv` | **yes** (persists) |
 | `validate_wg3` | WG-3 | `<exp>/climate/weathergenr/config/weathergen_config.yml` (the per-member config is gone — C29) | **yes** (persists) |
 | `validate_wg4` | WG-4 | `<exp>/climate/weathergenr/output/rlz_<n>_st_<m>.nc` | **captured 2026-07-25** — `temp()` content, absent until a `--notemp` capture; green on the real artifact **after** the `crs`/`category` correction; synthetic-proven every suite |
-| `validate_wg5` | WG-5 | `<runs>/config/rlz_<n>_st_<m>.yml` | `temp()` since 2026-08-18 — absent until a `--notemp` capture, then every member's file is checked; synthetic-proven every suite |
+| `validate_wg5` | WG-5 | `<runs>/config/rlz_<n>_st_<m>.yml` | `temp()` — absent until a `--notemp` capture, then every member's file is checked; synthetic-proven every suite |
 | `validate_wg5_catalog_grid` (relational) | WG-5 entry-key grid vs intended `rlz × cst` (incl. `st_0`) | the UNION of `<runs>/config/rlz_<n>_st_<m>.yml` + the run's config snapshot | `temp()` since 2026-08-18 — the union of the per-member files is the set the aggregate catalog used to hold, so the validator is unchanged; needs a `--notemp` capture |
 | `validate_wg6` | WG-6 | `<exp>/hydrology/wflow/forcing/inmaps_rlz_<n>_st_<m>.nc` | **captured 2026-07-25** — `temp()` content, absent until a `--notemp` capture; green on the real artifact unchanged; synthetic-proven every suite |
 
@@ -421,14 +415,12 @@ Layer-2 integration cases (`test_wg4_integration`, `test_wg6_integration`) carry
 NC's presence. Their logic is proven on **every** checkout by their Layer-1
 synthetic pass/fail pairs regardless.
 
-**The capture WAS RUN 2026-07-25** (the P3-2b milestone deferred it as
-out-of-scope for a contracts-only milestone; it was executed later as the
-Post-R6/OQ-4 lift). **Outcome: 2 of the 3 validators passed on the real artifacts
-unchanged; WG-4 FAILED and the contract — not the pipeline — was wrong.** See the
-WG-4 `crs`/`category` note above: it demanded catalog metadata as netCDF global
-attrs, and the real artifact carries none. Corrected to asserted-if-present. This
-is precisely the class of error only a capture can find, which is the argument for
-having run it. The procedure below is the repeatable lift.
+**Run the capture when a validator changes; do not assume it will pass.** A
+`temp()` validator is proven only against synthetic fixtures until a capture puts
+it in front of the real artifact, and that is the one check that can show the
+CONTRACT wrong rather than the pipeline — as the WG-4 `crs`/`category` clause
+above records, where the contract demanded catalog metadata as netCDF global
+attrs the artifact does not carry.
 
 **Cheaper targeted form.** The full-sweep command below works, but only three
 artifact paths are actually needed (`rlz_1_st_1`), so naming them as targets is
@@ -442,7 +434,7 @@ snakemake -c 3 -s run_stress_test.smk \
   test_case/test_local/experiments/experiment/hydrology/wflow/output/outstates_rlz_1_st_1.nc
 ```
 
-Measured 2026-07-25: **19 jobs, 247.7 s**. Note the `temp()` cascade — asking for
+Expect roughly twenty jobs and a few minutes. Note the `temp()` cascade — asking for
 one intermediate re-runs 3.11 (which emits **all** realizations) and therefore all
 twelve 3.12 jobs plus `run_wflow_batch_0`; there is no cheaper single-cst path.
 
@@ -475,13 +467,10 @@ temp validators' *on-disk* integration checks flip from skip-until-captured to
 green. The guards resolve to the real-artifact path automatically once the files
 exist.
 
-**Correction (2026-07-25):** this section used to promise "**no test code or
-validator changes**". That held for WG-6 and HM-6b but **not** for WG-4, whose
-`crs`/`category` global-attr requirement did not survive contact with the real
-artifact (above). The honest statement: the *guards* need no change, but a
-capture can — and here did — reveal that a validator encoded an assumption the
-artifact never satisfied. Budget for that when running a capture; a first-contact
-failure is a likely outcome, not a surprise.
+**Budget for a first-contact failure.** The skip *guards* need no change to run a
+capture, but the capture itself can reveal that a validator encoded an assumption
+the artifact never satisfied. Treat that as a likely outcome rather than a
+surprise, and be ready to correct the contract instead of the pipeline.
 
 **Restore** the default temp-deleted fixture state with
 `snakemake --delete-temp-output` (verified 2026-07-25 to return the tree to a

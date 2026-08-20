@@ -75,7 +75,7 @@ Rendered one subsection per artifact.
   forcing); wf3 twin `<exp>/hydrology/wflow/forcing/inmaps_rlz_<n>_st_<m>.nc`
   (= WG-6 on the weather-generator seam). R07 B5 files the wf3 twin on the
   HYDROLOGY side because it is model-grid forcing, symmetric with the wf1
-  path above; R9 P2 flattened the `rlz_<n>/` level out of it.
+  path above.
 - **producer → consumer:** rule 1.10 `add_climate_forcing` (hydromt update) → rule 1.14
   `run_wflow`; wf3 rule 3.14 → rule 3.15.
 - **dims:** `(time, latitude, longitude)` on the **model grid** (`float64`
@@ -198,7 +198,7 @@ item `t2608071203` (R9-1) records the full measurement and the options weighed.
     `land_surface_water__potential_evaporation_volume_flux`,
     `atmosphere_air__temperature`) and the **VALUES are the forcing netCDF
     variable names** `precip` / `pet` / `temp`. The tie to HM-2 is on the **RHS
-    values** (design arch-6, direction corrected).
+    values**.
   - `[output.csv].column` entries `{header, map, parameter}` — drives HM-5 column
     identity.
   - `[model].cold_start__flag` (section verified against both the base and
@@ -211,9 +211,8 @@ item `t2608071203` (R9-1) records the full measurement and the options weighed.
 ## HM-5 — per-run discharge CSV (output.csv)
 
 - **path pattern:** wf1 `models/hydrology/wflow/run_default/output.csv`; wf3
-  `<exp>/hydrology/wflow/output/rlz_<n>_st_<m>.csv` — R9 P2 dissolved the
-  `rlz_<n>/` level and moved the realization index back into the file name, so
-  one member is one filename in three flat directories (`config/`, `forcing/`,
+  `<exp>/hydrology/wflow/output/rlz_<n>_st_<m>.csv` — the realization index is
+  in the file name, so one member is one filename in three flat directories (`config/`, `forcing/`,
   `output/`). This is the inverse of R07 B5.
 - **producer:** rule 1.14 / rule 3.15 `run_wflow`.
 - **consumers:** wf1 rule 1.15 plots; wf3 rule 3.16 `derive_wflow_indicators`.
@@ -244,7 +243,7 @@ item `t2608071203` (R9-1) records the full measurement and the options weighed.
   and a requested variable with no matching column raises `MissingOutputColumnError`
   rather than emptying its table. See also the `validate_hm7` note below: it has
   a "no rows" check that would have caught this, but is never invoked at run time.
-- **temp() lifecycle:** SPLIT since 2026-08-10. wf1 `output.csv` **is** `temp()`
+- **temp() lifecycle:** SPLIT between wf1 and wf3. wf1 `output.csv` **is** `temp()`
   (rule 1.14): it is an intermediate feeding rule 1.14b's derived per-variable
   tables and rule 1.15's metrics, and Snakemake drops it once both have run. A
   swapper must therefore treat the wf1 artifact as existing only *within* the
@@ -276,7 +275,7 @@ item `t2608071203` (R9-1) records the full measurement and the options weighed.
 ## HM-6b — wf3 warm state (temp, skip-until-captured)
 
 - **path pattern:** `<exp>/hydrology/wflow/output/outstates_rlz_<n>_st_<m>.nc`
-  (flattened with HM-5 at R9 P2).
+  (flat, alongside HM-5).
 - **producer → consumer:** rule 3.15 `run_wflow` → **(nothing in-repo)**.
 - **THIN — "named output sink, unconsumed" (corrects the intake's chaining
   hint).** Verified: the per-cst TOML keeps `cold_start__flag = true` and
@@ -304,9 +303,9 @@ item `t2608071203` (R9-1) records the full measurement and the options weighed.
   `workflows.build_model.wflow_outvars`** (R11 CR-2). `basin_indicators.csv` is
   gone; its contents are now per-variable tables. The set is config-dependent, so
   the DAG derives it — see the token vocabulary below.
-- **producer:** rule 3.16 `derive_wflow_indicators` (renamed from
-  `export_wflow_results` at R9 P3; the *module* it runs keeps the old name, so
-  the `export_wflow_results.py:NN` citations below are current).
+- **producer:** rule 3.16 `derive_wflow_indicators`. The *module* it runs is
+  `export_wflow_results.py`, so the `export_wflow_results.py:NN` citations below
+  name the right file.
 - **consumer:** CST-API / GUI (terminal in-repo).
 - **pinned surface:** every table carries **exactly seven columns, in this order**:
 
@@ -318,8 +317,7 @@ item `t2608071203` (R9-1) records the full measurement and the options weighed.
   then the number — so the two id columns sit adjacent instead of being split
   around the perturbation axes. `rlz_id` matches the `rlz_` member token the run
   filenames already carry (`rlz_1_st_0.csv`) and `RLZ_NUM`. Same seven columns,
-  same fixity: a reorder and one rename, not a shape change. (The count said
-  "six" here until that ruling, having gone stale when C28 added `st_id`.)
+  same fixity: a reorder and one rename, not a shape change.
 
   The header does not grow with the gauge count — locations are ROWS. `metric` is
   a composite `<token>_<statistic>`, so a result file is self-contained once it
@@ -562,7 +560,7 @@ item `t2608071203` (R9-1) records the full measurement and the options weighed.
   default) sharpens the asymmetry rather than reducing it. Overlay treatment is
   deferred; the constraint and this caveat are not.
 
-- **`st_id` (C28, R11 P2).** Spelled here exactly as WG-2 spells it — zero-padded
+- **`st_id` (C28).** Spelled here exactly as WG-2 spells it — zero-padded
   TEXT at the member filename's width, so the two are ONE token — because it is
   the join key between this table and the lookup. **Read it as a string** in
   both: `pd.read_csv` with no `dtype` returns `01` as `1` and the join silently
@@ -603,15 +601,15 @@ item `t2608071203` (R9-1) records the full measurement and the options weighed.
   the surface is drawn.
 
   C28's second obligation — the writer refusing a design table carrying an axis
-  the header cannot express — retires with the axis columns: the header expresses
-  no axis, so a third perturbation parameter no longer needs a results column.
+  the header cannot express — does not apply: the header expresses no axis, so a
+  third perturbation parameter needs no results column.
   The **contract** barrier stands: a new column in the lookup requires a C28
   ruling, refused today by `prepare_cst_parameters._KNOWN_AXES`.
 
 - **temp() lifecycle:** not `temp()` (`rule all`, manifested).
-- **removed at R9 P3:** the `RT_*.csv` response tables. They were non-manifest
-  side products with no in-repo consumer, written via `params` rather than
-  declared and therefore invisible to `--dry-run`. Nothing replaces them.
+- **no `RT_*.csv` response tables.** Do not reintroduce them: they were
+  non-manifest side products with no in-repo consumer, written via `params`
+  rather than declared, and therefore invisible to `--dry-run`.
 - **validator:** `validate_hm7`; the gauge-column tie to HM-4/HM-5 by the
   relational `validate_hm_gauge_column_identity`. The **cache-drift check retires
   with the cache** — with one artifact there is no second derivation to disagree
@@ -620,10 +618,9 @@ item `t2608071203` (R9-1) records the full measurement and the options weighed.
 
   1. **Completeness, both directions, kept and re-pointed at the lookup.** Every
      `st_id` in the lookup appears in every indicator table, and every non-zero
-     `st_id` in a table appears in the lookup. This half was added because its
-     absence hid a defect (R11 P3): a seed config with `run_historical: false`
-     dropped the `st_0` baseline and with it two of eleven metrics — 180 rows —
-     with the validator green.
+     `st_id` in a table appears in the lookup. Both directions are required: a
+     seed config with `run_historical: false` drops the `st_0` baseline and with
+     it two of the eleven metrics, which a one-directional check passes green.
   2. **The `st_0` partition.** `st_0` rows are expected in the tables and
      expected **absent** from the lookup; either violated is a divergence. Two
      identical all-zero rows would otherwise be indistinguishable from an
@@ -684,16 +681,17 @@ reliance; the fixture TOML declares no `basavg` column, so that branch is
 
 ---
 
-## Considered and corrected — the warm-state finding (design §5.3, C4)
+## Why HM-6 is a sink, not a chaining contract (C4)
 
-The intake's seam inventory hinted at "per-cst run chaining" via
-`instates`/`outstates`. The fixture + TOML diff (`wflow_sbm_rlz_1_st_1.toml` vs
-base `wflow_sbm.toml`) shows `cold_start__flag = true` in **both**, rule 3.15
-declares only a `forcing_path` + `toml_path` input (no `instates`), and the
-`path_input` the rewrite sets (`downscale_climate_forcing.py:79`) points at a
-**non-existent** `models/hydrology/wflow/instate/instates.nc` that cold-start never
-reads. So HM-6a / HM-6b are contracted as an **unconsumed named sink**, not a
-chaining invariant (a chaining contract would be fiction).
+Warm states are contracted as an **unconsumed named sink**. Do not read
+`instates` / `outstates` as per-member run chaining, and do not implement a
+substitute engine as if they were — a chaining contract here would be fiction.
+
+The evidence, checkable against the fixture: `cold_start__flag = true` in both
+`wflow_sbm_rlz_1_st_1.toml` and the base `wflow_sbm.toml`; rule 3.15 declares
+only `forcing_path` and `toml_path` as inputs, with no `instates`; and the
+`path_input` set by `downscale_climate_forcing.py:79` points at a non-existent
+`models/hydrology/wflow/instate/instates.nc` that a cold start never reads.
 
 ---
 
@@ -746,7 +744,7 @@ executes on **every** checkout, fixture or not. HM-2 unit attrs are asserted
 | `validate_hm2` | HM-2 (+ WG-6 twin) | `models/hydrology/wflow/forcing/inmaps_historical.nc`; wf3 twin `<exp>/hydrology/wflow/forcing/inmaps_rlz_<n>_st_<m>.nc` | **yes** for wf1 `inmaps_historical.nc`; wf3 twin (WG-6) `temp()` → skip-until-captured |
 | `validate_hm3` | HM-3 | `models/hydrology/wflow/staticgeoms/{region.geojson, outlets.geojson, outlet_index.csv}` | **yes** (persists) |
 | `validate_hm4` | HM-4 | `models/hydrology/wflow/wflow_sbm.toml`; `<exp>/hydrology/wflow/config/rlz_<n>_st_<m>.toml` | **yes** (both base + per-cst TOMLs persist) |
-| `validate_hm5` | HM-5 | wf1 `run_default/output.csv`; wf3 `<exp>/hydrology/wflow/output/rlz_<n>_st_<m>.csv` | wf1 `output.csv` is `temp()` since 2026-08-10 → skip-until-captured, or run with `--notemp`; **yes** for the wf3 per-cst CSVs (NOT `temp()`) |
+| `validate_hm5` | HM-5 | wf1 `run_default/output.csv`; wf3 `<exp>/hydrology/wflow/output/rlz_<n>_st_<m>.csv` | wf1 `output.csv` is `temp()` → skip-until-captured, or run with `--notemp`; **yes** for the wf3 per-cst CSVs (NOT `temp()`) |
 | `validate_hm_gauge_column_identity` (relational) | HM-4 → HM-5 → HM-7 gauge-column identity | per-cst TOMLs + the per-cst run CSVs + `q_indicators.csv` | **yes** (all inputs persist) |
 | *(HM-6a)* | HM-6a | `models/hydrology/wflow/run_default/outstate/outstates.nc` | **no validator** — existence pinned transitively via HM-4's `[state].path_output` |
 | `validate_hm6b` | HM-6b | `<exp>/hydrology/wflow/output/outstates_rlz_<n>_st_<m>.nc` | **no** — `temp()` content absent; skip-until-captured on disk, synthetic-proven every suite |
