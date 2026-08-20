@@ -19,6 +19,7 @@
 | [t2608191420](tasks/t2608191420-stop-test-stage-data-py-stubbing-geopandas-process-globally.md)                                             | Stop test_stage_data.py stubbing geopandas process-globally                                              | test hygiene                                |                                                |     | backlog |
 | [t2608191733](tasks/t2608191733-ship-a-sample-dataset-bundle-so-a-user-needs-no-deltares-p-drive.md)                                        | Ship a sample dataset bundle so a user needs no Deltares P: drive                                        | distribution / sample data                  |                                                |     | backlog |
 | [t2608191733a](tasks/t2608191733a-rename-snake-config-yml-to-project-config-yml-repo-wide.md)                                               | Rename snake_config_*.yml to project_config_*.yml repo-wide                                              | config / naming                             |                                                |     | backlog |
+| [t2608201725](tasks/t2608201725-document-wf0-in-rule-index-md.md)                                                                           | Document WF0 in rule-index.md                                                                            | wf0 / dev records                           | reference-doc cleanup (2026-08-20)             |     | backlog |
 
 ## Watching
 

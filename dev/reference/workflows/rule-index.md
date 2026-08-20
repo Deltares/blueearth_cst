@@ -3,8 +3,8 @@
 Every rule in `build_model.smk`, `analyze_projections.smk` and `run_stress_test.smk`:
 what each one does, what it writes, and how they connect.
 
-> **WF0 (`analyze_climate.smk`) is not covered here.** Its eleven rules (`0.00`–`0.11`)
-> are documented only by the comment headers in the Snakefile itself.
+> **WF0 (`analyze_climate.smk`) is not covered here.** Its ten numbered rules are
+> documented only by the comment headers in the Snakefile itself.
 
 Each workflow gets a diagram, a one-line summary table, then one section per rule.
 **Does** is the rule's job; **Writes** transcribes its `output:` block, so the claim can be
