@@ -6,10 +6,12 @@
 # findings was reproducible locally in about a second. That is the class this
 # hook exists to stop.
 #
-# Why not the test suite. It takes ~6 minutes, and a 6-minute pre-push hook gets
-# bypassed with --no-verify until the bypass is the habit -- at which point the
-# hook reads as coverage while providing none. `pytest tests/` stays a
-# before-merge step, per the validation ladder in AGENTS.md.
+# Why not the test suite. Even the cheap tier (`pixi run test-fast`) runs for
+# minutes, and a multi-minute pre-push hook gets bypassed with --no-verify until
+# the bypass is the habit -- at which point the hook reads as coverage while
+# providing none. The bare `pytest tests/` is an order of magnitude slower again,
+# because the marked contract tier spawns a process per test. Both stay manual
+# steps, per the validation ladder in AGENTS.md.
 #
 # What this CANNOT catch: anything platform-specific. The failure that replaced
 # the lint one was four tests asserting Windows path spelling, green on the

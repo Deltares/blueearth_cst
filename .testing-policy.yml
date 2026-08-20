@@ -1,9 +1,10 @@
 # Default verification posture for this repo, read by the `testing-policy` skill.
 # Schema: ~/workspace/brain/artifacts/skills/testing-policy/references/configuration.md
 #
-# rapid — targeted checks per task; the full suite is reserved for the release
-# events the skill names, which here means pushing `main` to `origin`.
-# The per-gate commands and their measured costs: AGENTS.md, validation ladder.
+# rapid — targeted checks per task; the full suite is reserved for a milestone
+# seal or a change touching `shared/`, since CI runs the whole suite on both
+# platforms from every push and the local gate is `test-fast`.
+# The per-gate commands: AGENTS.md, validation ladder.
 scope: rapid
 
 # `numerical:` is left at its default. A change that moves a number escalates

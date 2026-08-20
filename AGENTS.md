@@ -88,9 +88,10 @@ A task branch is isolated from `main` and cheap to revert, so spend validation t
 |---|---|
 | While iterating | Only the tests covering the file you changed. Nothing else. |
 | Before a commit | `pytest tests/test_cli.py` if a Snakefile, a `script:` signature, or a rule's declared input changed — the only place a malformed `config/defaults/*.yml` surfaces. If you wrote Python, `pixi run lint` and `pixi run format-check`. |
-| Before merging the branch | `pixi run test-fast` once. Skip it for a docs-, `dev/`- or config-scaffold-only branch. Run `test-full` here instead when the branch touched a Snakefile, a `script:` signature, or `shared/`. |
-| **Before pushing to `origin`** | `pixi run test-full` — the authoritative gate, and the only one that runs the `workflow_contract` and `process_isolation` tiers. |
-| **After a push** | **Read the run it triggered.** A green local suite is no evidence about the ubuntu leg. |
+| Before merging the branch | `pixi run test-fast` once. Skip it for a docs-, `dev/`- or config-scaffold-only branch. |
+| **Before pushing to `origin`** | `pixi run test-fast` — the local gate. CI runs the whole suite on both platforms from the push, so running `test-full` here mostly re-proves what CI is about to check anyway, at roughly ten times the wall-clock. |
+| **After a push** | **Read the run it triggered.** This is what makes the line above safe, and a green local suite is no evidence about the ubuntu leg. |
+| When a change touched `shared/` or a `script:` signature, or before a milestone seal | `pixi run test-full` — the `workflow_contract` and `process_isolation` tiers, which are the ones you would rather not first meet on two platforms at once. |
 | Before a milestone seal / after touching numeric outputs | `check_baseline.py check`, plus `semantic_tree_diff.py` if the tree shape moved. |
 
 **Redirect a gate to a FILE; never pipe it through `tail`** — a pipe discards the diagnosis of an intermittent failure while still printing the pass/fail line, so the run looks informative and is not. Write `pixi run test-contract > run.log 2>&1` and read the tail of the file.

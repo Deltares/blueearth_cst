@@ -4,11 +4,16 @@ The ladder table lives in `AGENTS.md` § Validation ladder. This file holds what
 
 ## Tiering
 
-`test-fast` deselects the `workflow_contract` and `process_isolation` markers — 55 tests, most of the suite's runtime. Run the whole cheap tier rather than hand-picking relevant files: selecting by judgment saves little and misses cross-module regressions.
+`test-fast` deselects the `workflow_contract` and `process_isolation` markers. Those tests each spawn a fresh Python process and build a Snakemake DAG, so they cost around fifty times what an ordinary test costs: they are roughly 2% of the suite and the large majority of its runtime. Count them with
+`pytest tests/ -m "workflow_contract or process_isolation" --collect-only -q` rather than trusting a number written here — it drifts every time a rule gains a contract test.
 
-Run `test-full` at the merge, not only at the push, when a branch touched a Snakefile, a `script:` signature, or `blueearth_cst/shared/`.
+Run the whole cheap tier rather than hand-picking relevant files: selecting by judgment saves little and misses cross-module regressions.
 
-Between merges and the next push, a `workflow_contract` regression can sit on local `main` across several branches, so bisect across all of them.
+**`test-fast` is the local gate, including before a push.** CI runs the unmarked `pytest tests/` on ubuntu and windows from the push itself, so a local `test-full` re-proves on one platform what CI is about to check on two, for roughly ten times the wall-clock of the cheap tier. What it buys is knowing before the push rather than a quarter of an hour after it — worth paying only when a bad push is expensive to undo.
+
+Reach for `test-full` locally when a change touched `blueearth_cst/shared/` or a `script:` signature, and before a milestone seal. Those are the cases where meeting a failure on two platforms at once costs more than the wait.
+
+Between merges and the next push, a `workflow_contract` regression can sit on local `main` across several branches, so bisect across all of them. Reading the CI run after each push is what bounds that window.
 
 State gate costs as orders of magnitude, never in seconds. The marker names and the test count are durable; the clock is not.
 
