@@ -179,6 +179,19 @@ def test_the_tool_reproduces_a_digest_wf2_itself_wrote():
 
         cfg = _cfg() | {"variables": variables}
         components = sc.digest_components(cfg, model, experiment, member)
+        # The member reaching `entry_identity_digest` comes from the FILENAME
+        # here and from the fetch call in `_write_raw_attrs`. If those ever
+        # disagree -- a member label containing an underscore, a change to
+        # `series_key`'s grammar -- the digest below falls back to the
+        # empty-mapping hash, never matches, and EVERY slice takes the skip
+        # branch: this check would go green by skipping, which is the one
+        # outcome the attribution must not buy. Refuse instead.
+        known_members = components.get("entry_identity") or {}
+        assert member in known_members, (
+            f"{path.name}: member {member!r} parsed from the filename is not one "
+            f"the components carry ({sorted(known_members)}); attribution would "
+            "silently skip every slice"
+        )
         recomputed = _si.raw_digest(components, region_fp)
         if recomputed != written and recorded_entry:
             # The catalog entry this slice was built from is not the one on disk
@@ -262,6 +275,36 @@ def test_entry_identity_digest_is_absent_for_an_unknown_member():
     assert _si.entry_identity_digest(_components({"pr": "precip"}), "r9i9p9f9") == (
         _si.entry_identity_digest({"entry_identity": {}}, "r1i1p1f1")
     )
+
+
+def test_the_stamped_attribute_survives_the_real_writer(tmp_path):
+    """`_write_raw_attrs` emits the key, and `write_netcdf_atomic` round-trips it.
+
+    The reader was proved by setting attributes directly; that says nothing
+    about whether the producer's value reaches disk intact. netCDF coerces --
+    `cst_buffer_cells` comes back as `np.int64` -- so require a `str` in and a
+    `str` out, since a non-string here would be discovered during a WF2 run
+    rather than in the suite.
+    """
+    xr = pytest.importorskip("xarray")
+
+    components = _components({"pr": "precip", "tas": "temp"})
+    expected = _si.entry_identity_digest(components, "r1i1p1f1")
+    assert isinstance(expected, str)
+
+    ds = xr.Dataset({"temp": ("time", [1.0, 2.0])})
+    ds.attrs = {
+        "cst_schema_version": _si.SCHEMA_VERSION,
+        "cst_raw_digest": "deadbeef",
+        "cst_entry_identity_digest": expected,
+    }
+    path = tmp_path / "slice.nc"
+    _si.write_netcdf_atomic(ds, path)
+
+    with xr.open_dataset(path) as back:
+        got = back.attrs["cst_entry_identity_digest"]
+    assert isinstance(got, str)
+    assert got == expected
 
 
 def test_a_diagnostic_attribute_does_not_change_a_cache_decision(tmp_path):
