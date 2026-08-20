@@ -15,7 +15,7 @@ This is the **stays-true** tier. What happened lives in `../milestones/`,
 | `agent-activation.md` | How roles and skills become available to Claude Code and Codex here, and why the two runtimes differ |
 | `git-conventions.md` | Durable-ref inventory, plus the branching, tagging, and commit-message conventions |
 | `contracts/` | The two substitution seams — hydrological model, weather generator — pinned as machine-checked contracts (P3-2b) |
-| `workflows/` | Per-workflow contract docs for wf1 / wf2 / wf3, plus the WF2 v2.0 design and CMIP6 member inventories |
+| `workflows/` | Per-workflow contract docs for wf1 / wf2 / wf3, plus the WF2 v2.0 design, the CMIP6 member inventories, and `wf2-cmip6-store-readability.md` — which CMIP6 stores this toolbox can read (grid geometry, published-version multiplicity), promoted from two board items on 2026-08-20 |
 
 ## Two things to know before editing
 
@@ -30,7 +30,7 @@ This is the **stays-true** tier. What happened lives in `../milestones/`,
   | `contracts/` | `shared/interchange_contracts.py`, `indicator_tables.py`, `spatial_geoms_parity.py`, `surface_axes.py`, `snake_utils.py`, `tests/test_interchange_contracts.py`, `docs/notebooks/Climate Stress Test.ipynb` |
   | `wf0-figure-filename-rule.md` | `analyze_climate.smk`, `build_model.smk`, `climate_analysis/figure_naming.py`, `climate_analysis/climate_figures.py`, `tests/test_figure_naming.py` |
   | `indicator-glossary.md` | `experiment/export_wflow_results.py`, `shared/indicator_tables.py`, `tests/test_indicator_glossary.py` |
-  | `workflows/` | the three `*.smk` (rule-index), `model/write_outlet_index.py`, `shared/indicator_tables.py`, `config/templates/README.md`, two `docs/migration-*.md` |
+  | `workflows/` | the three `*.smk` (rule-index), `model/write_outlet_index.py`, `shared/indicator_tables.py`, `config/templates/README.md`, two `docs/migration-*.md`; `wf2-cmip6-store-readability.md` from `projections/fetch_gcm_raw.py`, `projections/series_identity.py`, `tests/test_series_identity.py`, `dev/scripts/probe_cmip6_grids.py`, `dev/scripts/stage_cmip6.py` |
   | `sealed-records.yml` | `AGENTS.md`, `pyproject.toml` |
   | `git-conventions.md` | `README.md` |
 

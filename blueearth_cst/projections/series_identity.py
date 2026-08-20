@@ -52,7 +52,8 @@ from typing import Iterable, Mapping, Sequence
 #: now that a re-reduction reads local disk.
 SCHEMA_VERSION = "6"
 #: Bumped 5->6 when the NEWEST published version started winning in
-#: `pinned_uri` (owner ruling 2026-08-19, board item t2608191613). Unlike every
+#: `pinned_uri` (owner ruling 2026-08-19; the before/after counts are in
+#: dev/reference/workflows/wf2-cmip6-store-readability.md, section 2). Unlike every
 #: bump below it, no attribute and no digest component changed -- what changed is
 #: the RULE applied to a component. The digest carries the pins, never the
 #: resolution of them, so a slice built by merging two published versions and a
@@ -452,8 +453,9 @@ def pinned_uri(uri: str, pins: Mapping[str, Sequence[str]]) -> str | None:
     visibility: the glob opened every version at once, and the read died inside
     xarray's combine with `MergeError: conflicting values for variable 'pr'`, or
     `OutOfBoundsDatetime` when the versions covered different spans. Those
-    sources simply never staged (board item ``t2608191613``, which carries the
-    measurement). A rule nobody can act on is not a safeguard.
+    sources simply never staged; section 2 of
+    ``dev/reference/workflows/wf2-cmip6-store-readability.md`` carries the
+    measurement. A rule nobody can act on is not a safeguard.
 
     Measured over the 289-entry index (2426 member combinations): 2205 already
     pin one version and are untouched; **182 are resolved by taking the newest
