@@ -48,7 +48,6 @@ Artifact. The deliverable is a **design decision**, not a merged output contract
   blueearth_cst/shared/plot_style.py        (read and reuse; do not edit)
   dev/scripts/check_baseline.py
   dev/reference/workflows/rule-index.md
-  dev/reference/workflows/wf2_climate_projections_overview.md
   tests/**
   ```
 

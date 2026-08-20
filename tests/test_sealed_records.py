@@ -91,6 +91,27 @@ def test_registry_entry_is_complete(record):
 
 
 @pytest.mark.parametrize("record", RECORDS, ids=IDS)
+def test_current_truth_resolves(record):
+    """`current_truth` names where a reader should go instead, so it must exist.
+
+    Completeness was checked but resolution was not, so a target could be
+    renamed out from under the registry and nothing failed: `climate_experiment`
+    pointed at `Snakefile_climate_experiment` for months after the workflow
+    files were renamed. A pointer that leads nowhere is worse than none, because
+    it reads as a live route.
+
+    Only path-shaped values are checked; a plain-prose `current_truth` ("the
+    code itself") is left alone.
+    """
+    target = record["current_truth"]
+    if "/" not in target and not target.endswith((".md", ".smk", ".py", ".yml")):
+        pytest.skip(f"{record['path']}: `current_truth` is prose, not a path")
+    assert (REPO / target).exists(), (
+        f"{record['path']}: `current_truth` -> {target} is not on disk"
+    )
+
+
+@pytest.mark.parametrize("record", RECORDS, ids=IDS)
 def test_sealed_record_exists(record):
     """A registered record that has been moved or deleted is a broken seal."""
     assert (REPO / record["path"]).is_file(), (

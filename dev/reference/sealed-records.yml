@@ -40,14 +40,14 @@ sealed_records:
   - path: dev/reference/workflows/climate_projections.md
     sealed: 2026-07-31
     superseded_by: R8 WF2 rework
-    current_truth: dev/reference/workflows/wf2_climate_projections_overview.md
+    current_truth: dev/reference/workflows/rule-index.md
     why: the baseline the R4 commits were checked against
     sha256: 203c94cc4b0bc1d61c279c285e8c16381f2819987ed6a46116ac2105228e67dd
 
   - path: dev/reference/workflows/climate_experiment.md
     sealed: 2026-08-05
     superseded_by: P3-1, R7 and R9
-    current_truth: Snakefile_climate_experiment
+    current_truth: dev/reference/workflows/rule-index.md
     why: the baseline the R5 commits were checked against
     sha256: 93d7d07efa2821277cb4b9c0ee22adf1c580df274a2233add3f569071c231c2d
 
