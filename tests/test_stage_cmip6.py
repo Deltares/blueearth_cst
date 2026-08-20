@@ -557,6 +557,7 @@ def _local_catalog(tmp_path):
     return path
 
 
+@pytest.mark.process_isolation
 @pytest.mark.skipif(not REGION.is_file(), reason="needs the test_local fixture region")
 def test_the_worker_pool_round_trips_and_reports_every_failure(tmp_path, capsys):
     """Exercise the ProcessPoolExecutor path itself, with no network.
