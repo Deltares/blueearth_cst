@@ -22,7 +22,7 @@
 #     git push --no-verify
 #
 # Expect the FIRST push from a new worktree to be slow. Every worktree builds
-# its own pixi env (dev/reference/task-lanes.md), so `pixi run` here installs it
+# its own pixi env, so `pixi run` here installs it
 # rather than reusing the primary's -- minutes, inside a hook, with no progress
 # output. Run `pixi install` in a new worktree before pushing from it.
 

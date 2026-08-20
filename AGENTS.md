@@ -114,7 +114,6 @@ A task branch is isolated from `main` and cheap to revert, so spend validation t
 
 - `README.md` — the pipeline and how the four workflows fit together; start here.
 - `docs/cst-toolbox-technical-note-2025.md` — the original 2025 note; read for method background and design rationale before changing *what* a workflow computes. Its only edit since is a two-line path sweep, so the method framing still holds, but pipeline details, paths and artifact names in it are often superseded — trust the code and `dev/reference/` where they disagree.
-- `dev/reference/task-lanes.md` — read before running the pipeline or the fixture-dependent tests from a worktree: seeding, per-worktree pixi envs, and why a worktree gate under-reports.
 - `dev/reference/validation-ladder.md` — read when deciding whether a gate is affordable, when a gate behaves unexpectedly, or before verifying a figure change; it carries the full figure gate.
 - `dev/reference/repo-layout.md` — read when adding a file and unsure where it goes.
 - `dev/reference/naming.md` — read when naming a new identifier, file, or rule.
