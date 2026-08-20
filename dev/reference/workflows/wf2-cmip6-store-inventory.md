@@ -13,7 +13,7 @@ Method:   anonymous gcsfs directory listing of
 ```
 
 Companion documents: `wf2_analyze_projections_overview.md` (rule-level map of WF2
-today), `wf2-climate-analysis-v2-design.md` (the rework this feeds).
+today), `../../milestones/r08/wf2-climate-analysis-v2-design.md` (the rework this feeds).
 
 ---
 

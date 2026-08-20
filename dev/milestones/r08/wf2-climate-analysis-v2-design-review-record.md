@@ -1,7 +1,7 @@
 # WF2 v2.0 design — consolidated review record
 
 Audit trail for the `design-review-loop` run `wf2-climate-analysis-v2`, which
-produced `dev/reference/workflows/wf2-climate-analysis-v2-design.md` (ACCEPTED 2026-07-29).
+produced `dev/milestones/r08/wf2-climate-analysis-v2-design.md` (ACCEPTED 2026-07-29).
 
 This record is the durable artifact; the per-round scratch (`design-v1.md` …
 `design-v4.md`, `status.md`, the briefs and transcripts) lives in git history

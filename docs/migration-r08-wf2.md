@@ -4,7 +4,7 @@ Workflow 2 was restructured in milestone R8. **Three config changes are breaking
 and fail loudly at DAG build; everything else is additive or a value change you
 should know about.
 
-Design rationale: `dev/reference/workflows/wf2-climate-analysis-v2-design.md`.
+Design rationale: `dev/milestones/r08/wf2-climate-analysis-v2-design.md`.
 Step-by-step evidence: the falsifier notes under `dev/milestones/r08/`.
 
 ---

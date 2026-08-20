@@ -15,7 +15,7 @@ This is the **stays-true** tier. What happened lives in `../milestones/`, `../de
 | `task-lanes.md` | **Parked, deliberately unreferenced.** Lane mechanics that belong in the `git-workflow` skill, plus CST-specific worktree rules that do not. Raw material for a skill revision; cite nothing from it |
 | `validation-ladder.md` | How the test tiers are drawn, which `--configfile` a run takes, and how to read a CI run |
 | `contracts/` | The two substitution seams — hydrological model, weather generator — pinned as machine-checked contracts (P3-2b) |
-| `workflows/` | Per-workflow contract docs for wf1 / wf2 / wf3, plus the WF2 v2.0 design, the CMIP6 member inventories, and `wf2-cmip6-store-readability.md` — which CMIP6 stores this toolbox can read (grid geometry, published-version multiplicity), promoted from two board items on 2026-08-20 |
+| `workflows/` | Per-workflow contract docs for wf1 / wf2 / wf3, plus the CMIP6 member inventories, and `wf2-cmip6-store-readability.md` — which CMIP6 stores this toolbox can read (grid geometry, published-version multiplicity), promoted from two board items on 2026-08-20 |
 
 ## Two things to know before editing
 

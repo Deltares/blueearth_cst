@@ -1022,8 +1022,8 @@ cross-vendor rounds, **28 findings across 4 versions, all dispositioned, one
 partially rejected by owner ruling**. The external cap was reached with round 2
 unconverged, so the owner arbitrated all nine surviving findings — the final
 version's changes therefore carry no external verdict, which the design states on
-its face. Accepted design: `dev/reference/workflows/wf2-climate-analysis-v2-design.md`;
-audit trail: `dev/reference/workflows/wf2-climate-analysis-v2-design-review-record.md`;
+its face. Accepted design: `dev/milestones/r08/wf2-climate-analysis-v2-design.md`;
+audit trail: `dev/milestones/r08/wf2-climate-analysis-v2-design-review-record.md`;
 current-state map: `dev/reference/workflows/wf2_analyze_projections_overview.md`; store
 inventory: `dev/reference/workflows/wf2-cmip6-store-inventory.md`.
 
@@ -1466,7 +1466,7 @@ Takes `docs/wf3-redesign` as an **input, not a starting point**.
 **The G2 prerequisite is discharged.** Ratified 2026-08-08 as an *architectural
 input, not an implementable spec*, with the risk-7 part-3 rejection ratified and
 `ext1-2`'s standing objection carried rather than resolved. Full record:
-`dev/reference/workflows/wf3-experiment-v2-design-review-record.md`; the
+`dev/milestones/r12/wf3-experiment-v2-design-review-record.md`; the
 assessment behind it: `dev/milestones/r12/g2-assessment.md`.
 
 Why nothing was promoted: the run's process was sound and its output is

@@ -51,7 +51,7 @@ Companion documents:
 - `dev/milestones/p32a/climate-analysis-design.md` — the sealed milestone that created
   `blueearth_cst/climate_analysis/` and the model-free climate store this design
   builds on.
-- `dev/reference/workflows/wf2-climate-analysis-v2-design-review-record.md` — the
+- `dev/milestones/r08/wf2-climate-analysis-v2-design-review-record.md` — the
   consolidated audit trail of the review that produced this document: the
   intake, every owner ruling (R1–R5, A1–A3), both verbatim external rounds and
   the internal lens review, the aggregation indexes, and the final 28-row
