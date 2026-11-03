@@ -1,0 +1,42 @@
+# generate_scenarios (wf3) -- baseline set
+
+n_realizations: 2
+
+# Nine years around 2050, inside the `mid` horizon of analyze_projections.
+#
+# `t2608222155`: the window was seventeen years around 2078 until 2026-09-07.
+# The END year is the expensive one — `compute_nr_years` anchors the generated
+# series at 2010 and spans 2010 -> `simulation_window.end` (`C-67`), so 2086
+# generated 76 years to reach a 17-year simulation. Measured saving is 4-8% of
+# the run; the levers that matter are elsewhere (see the note). The manifest is
+# NOT re-recorded here — these values ride the next re-record, because a gate
+# spent to save a minute repays after 10 to 25 gates.
+#
+# What is deliberately NOT cut, per the ladder's "cheap, not narrow" rule: the
+# 2 x 3 grid (three precip levels are the only thing exercising the
+# rectilinearity spacing check in `shared/surface_axes.py`), `n_realizations: 2`
+# (one runs no across-realization reduction), and the 17-year historical window.
+simulation_window:
+  start: 2046
+  end: 2054
+
+climate_perturbations:
+  temp:
+    n_levels: 2
+    trajectory: transient
+    mean:
+      min: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      max: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0]
+  precip:
+    n_levels: 3
+    trajectory: transient
+    mean:
+      min: [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7]
+      max: [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+    variance:
+      min: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      max: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+  spell_factors:
+    dry: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    wet: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+seed: 123

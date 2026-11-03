@@ -1,0 +1,26 @@
+---
+title: "WF2 — Analyze projections"
+format: html
+---
+
+Read the [technical manual](../../technical-manual/workflow-analyze-projections.md) for this reference.
+
+## Rules {#rules}
+
+See the [current reference](../../technical-manual/workflow-rule-reference.md#analyze-projections).
+
+## Rule flow {#rule-flow}
+
+See the [current reference](../../technical-manual/workflow-analyze-projections.md#rule-flow).
+
+## Configuration {#configuration}
+
+See the [current reference](../../technical-manual/workflow-analyze-projections.md#configuration).
+
+## Inputs {#inputs}
+
+See the [current reference](../../technical-manual/workflow-analyze-projections.md#inputs).
+
+## Outputs {#outputs}
+
+See the [current reference](../../technical-manual/workflow-analyze-projections.md#outputs).

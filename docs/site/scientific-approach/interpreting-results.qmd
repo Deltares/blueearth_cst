@@ -1,0 +1,26 @@
+---
+title: "Interpreting the results"
+format: html
+bibliography: references.bib
+link-citations: true
+---
+
+Climate projections can be overlaid in the same stressor space after vulnerabilities have been mapped.
+Their position helps assess whether concerning conditions are consistent with available climate evidence.
+Reference periods, seasons and spatial scales must be comparable for that overlay to be meaningful.
+The fraction of projections in a vulnerable region is not automatically a probability of future failure;
+such an interpretation requires additional assumptions about the ensemble and its sampling [@brown2012].
+
+Repeating the experiment for alternative infrastructure designs or operating policies shows how each
+option changes the vulnerable region.
+This supports the search for **robust** options that perform acceptably across a range of futures.
+It also helps identify where additional information, monitoring or a more detailed assessment could
+change a decision [@fowler2024].
+
+The findings remain conditional on the chosen stressors, ranges, models and performance criteria.
+A temperature–precipitation surface cannot reveal the effects of changing drought persistence or demand
+unless these are represented in the experiment.
+Weather generation must be checked against the characteristics that matter to the system, and model
+performance under unfamiliar conditions remains uncertain.
+A stress test therefore provides evidence about sensitivities, failure conditions and adaptation options;
+it does not predict a unique future or establish safety against every possible stress [@fowler2024].

@@ -1,0 +1,54 @@
+{
+  "project_dir": "test_case/test_local",
+  "recorded_by": {
+    "branch": "main",
+    "commit": "9182b0b574610fd9095e2e7ae66e10e7b1e3251b",
+    "dirty": true
+  },
+  "targets": {
+    "test_case/test_local/config/runs/analyze_projections/run_record.yml": {
+      "sha256": "47bdd5c0defd746687538b403cd2c9dc4dd103c10727b2f028cf26dd9b27dc24",
+      "template": "{project_dir}/config/runs/analyze_projections/run_record.yml",
+      "type": "run_record"
+    },
+    "test_case/test_local/config/runs/build_model/run_record.yml": {
+      "sha256": "1326e3bf0f3ca37954a0ecfd4faf059e1640436dad6405b9f9c1beabd2865376",
+      "template": "{project_dir}/config/runs/build_model/run_record.yml",
+      "type": "run_record"
+    },
+    "test_case/test_local/data/climate/projections/cmip6/summary/cmip6_change_factors_annual.csv": {
+      "sha256": "1e61f97e0b40dfeffebcd99d8c16432b07672580534d4c87931baf41eb8a22ba",
+      "size_bytes": 4547,
+      "template": "{clim_project_dir}/summary/{clim_project}_change_factors_annual.csv",
+      "type": "csv"
+    },
+    "test_case/test_local/data/climate/projections/cmip6/summary/cmip6_change_factors_monthly.csv": {
+      "sha256": "bab48eab58765aea009908df110476d6ef691d8ce57114291d5efa7a968f9a76",
+      "size_bytes": 53925,
+      "template": "{clim_project_dir}/summary/{clim_project}_change_factors_monthly.csv",
+      "type": "csv"
+    },
+    "test_case/test_local/experiments/experiment/results/metric_sets/c01120833dc5/q_indicators.csv": {
+      "columns": [
+        "metric",
+        "location",
+        "run_group_id",
+        "value"
+      ],
+      "n_groups": 44,
+      "n_rows": 560,
+      "ref_table": "indicator_ref/817f2af741db97c1.csv",
+      "template": "{metric_set_dir}/q_indicators.csv",
+      "type": "indicator"
+    },
+    "test_case/test_local/models/hydrology/wflow/run_default/output.csv": {
+      "column": "Q_101",
+      "mean_ref": 10.58012255,
+      "n_rows": 6209,
+      "ref_series": "discharge_ref/f13fd7fe5d8fb804.csv",
+      "template": "{project_dir}/models/hydrology/wflow/run_default/output.csv",
+      "type": "discharge"
+    }
+  },
+  "version": 3
+}

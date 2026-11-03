@@ -1,0 +1,351 @@
+---
+title: "Use \"forcing-year-*.nc\" if forcing files are split in time"
+source: "https://deltares.github.io/Wflow.jl/stable/user_guide/toml_file.html"
+reference: "Wflow.jl team. (n.d.). *Use \"forcing-year-*.nc\" if forcing files are split in time*. Wflow documentation. Retrieved May 25, 2026, from sources/tools/wflow/wflow-user-guide/03-toml-file.md"
+topic: tools
+type: documentation
+promoted: 2026-05-25
+tags:
+  - tools
+  - wflow
+accessed: 2026-05-25
+---
+
+All model configuration and settings are passed through the.toml file, which contains all relevant settings, information about the model configuration, simulation period, input files, and parameters. The settings are provided in a TOML file. The settings file is structured in several sections, which are explained below.
+
+## General
+
+The file paths provided in this file are relative to the location of the TOML file, or to `dir_input` and `dir_output` if they are specified. To indicate that a wflow model [runs from Delft-FEWS](../user_guide/fews.html), the `fews_run__flag` setting needs to be set at `true`.
+
+```toml
+dir_input = "data/input"      # optional, default is the path of the TOML
+dir_output = "data/output"    # optional, default is the path of the TOML
+fews_run__flag = false              # optional, default value is false
+```
+
+## Time info
+
+Time information is optional. When omitted, wflow will perform computations for each timestamp in the forcing netCDF file, except for the first forcing timestamp, which is considered equal to the initial conditions of the wflow model (state time). If you wish to calculate a subset of this time range, or a different timestep, you can specify a `starttime`, `endtime` and `timestepsecs`. The `starttime` is defined as the model state time. In the TOML file settings below, the `starttime` is 2000-01-01T00:00:00 (state time) and the first update (and output) of the wflow model is at 2000-01-02T00:00:00. The `time_units` optional information is used by the `writer` of the model, for model output in netCDF format. The `calendar` option allows you to calculate in one of the different [CF conventions calendars](http://cfconventions.org/cf-conventions/cf-conventions.html#calendar) provided by the [CFTime.jl package](https://juliageo.org/CFTime.jl/latest/), such as `"360_day"`. This is useful if you want to calculate climate scenarios which are sometimes provided in these alternative calendars.
+
+```toml
+[time]                                          # optional entry
+calendar = "standard"                           # optional, this is the default value
+starttime = 2000-01-01T00:00:00                 # optional, default from forcing netCDF
+endtime = 2000-02-01T00:00:00                   # optional, default from forcing netCDF
+time_units = "days since 1900-01-01 00:00:00"   # optional, this is the default value
+timestepsecs = 86400                            # optional, default from forcing netCDF
+```
+
+## Logging
+
+Wflow prints logging messages at various levels such as debug, info, and error. These messages are sent to both the terminal and a log file. Note that logging to a file is only part of the `Wflow.run(tomlpath::AbstractString)` method. If you want to debug an issue, it can be helpful to set `loglevel = "debug"` in the TOML. To avoid flooding the screen, debug messages are only sent to the log file. The following settings will affect the logging:
+
+```toml
+[logging]               # optional entry
+silent = false          # optional, default is "false"
+loglevel = "debug"      # optional, default is "info"
+path_log = "log.txt"    # optional, default is "log.txt"
+```
+
+`silent` avoids logging to the terminal, and only writes to the log file. `loglevel` controls which levels are filtered out; for instance, the default setting `"info"` does not print any debug-level messages. Note that for finer control, you can also pass an integer log level. For details, see Julia’s [Logging](https://docs.julialang.org/en/v1/stdlib/Logging/#Log-event-structure) documentation. `path_log` sets the desired output path for the log file. For information on `fews_run__flag`, see [Run from Delft-FEWS](../user_guide/fews.html).
+
+## Model section
+
+Model-specific settings can be included in the model section of the TOML file.
+
+```toml
+[model]
+type = "sbm"                                    # one of ("sbm" or "sbm_gwf")
+snow_gravitational_transport__flag = true         # include lateral snow transport in the model, default is false
+snow__flag = true                               # include snow modelling, default is false
+cold_start__flag = true                         # cold (cold_start__flag = true) or warm state (cold_start__flag = false), default is true
+reservoir__flag = true                          # include reservoir modelling, default is false
+kinematic_wave__adaptive_time_step_flag = true  # enable kinematic wave adaptive (internal) timestepping in the model, default is false
+soil_layer__thickness = [100, 300, 800]         # specific SBM soil model setting: for each soil layer, a thickness [mm] is specified
+river_streamorder__min_count = 5                # minimum stream order to delineate subbasins for river domain, default is 6 (for multi-threading computing purposes)
+land_streamorder__min_count = 4                 # minimum stream order to delineate subbasins for land domain, default is 5 (for multi-threading computing purposes)
+```
+
+A complete overview of the model settings for the different model types is available [here](../model_docs/model_settings.html).
+
+## State options
+
+The `state` section in the TOML file provides information about the location of input and output states of the model. This section is mostly relevant if the model needs to start with a “warm” state (i.e. based on the results of a previous simulation). The example below shows how to save the output states of the current simulation, so it can be used to initialize another model in the future. Details on the settings required to start a model with a warm state can be found in the [additional model options](../user_guide/warm_states.html). If it is not required to store the outstates of the current simulation, the entire `state` section can be removed.
+
+## Input section
+
+The `input` section of the TOML file contains information about the input forcing and model parameters files (in netCDF format). `input.forcing` lists the mapping of forcing parameter standard names to the external netCDF variable names. `input.static` lists the mapping of static parameter standard names to the external netCDF variable names. In `input.cyclic`, it is possible to provide cyclic parameters to the model (minimum time step of 1 day). In the example below, the model parameter standard name `vegetation__leaf_area_index` is mapped to the external netCDF variable “LAI”. Cyclic time inputs of parameters can be different (e.g., daily or monthly). The `time` dimension name of these cylic input parameters in the model parameter netCDF file should start with “time”. If a model parameter is not mapped, a default value will be used, if available.
+
+Forcing parameters should be available in `input.path_forcing` file and both static and cyclic parameters in `input.path_static` netcdf file. The main `input` section also lists variables describing the different modelling domains or masks (for example subbasin, river or reservoir) as well as the flow directions. Additional locations to save outputs for should also be listed here (e.g. gauges).
+
+```toml
+[input]
+# Use "forcing-year-*.nc" if forcing files are split in time
+path_forcing = "forcing-moselle.nc"
+path_static = "staticmaps-moselle.nc"
+
+# Flow direction and modelling domains
+basin__local_drain_direction = "wflow_ldd"
+river_location__mask = "wflow_river"
+reservoir_area__count = "wflow_reservoirareas"
+reservoir_location__count = "wflow_reservoirlocs"
+subbasin_location__count = "wflow_subcatch"
+
+# Ouput locations: these are not directly part of the model
+river_gauge__count = "wflow_gauges_grdc"
+
+# Map forcing parameter standard names that vary over time to variable names in the forcing netCDF file
+[input.forcing]
+atmosphere_water__precipitation_volume_flux = "precip"
+land_surface_water__potential_evaporation_volume_flux = "pet"
+atmosphere_air__temperature = "temp"
+
+# Map static parameter standard names to variable names in the static netCDF file
+[input.static]
+atmosphere_air__snowfall_temperature_threshold = "TT"
+atmosphere_air__snowfall_temperature_interval = "TTI"
+
+land_water_covered__area_fraction = "WaterFrac"
+
+snowpack__melting_temperature_threshold = "TTM"
+snowpack__degree_day_coefficient = "Cfmax"
+snowpack__liquid_water_holding_capacity =  "WHC"
+
+soil_surface_water__vertical_saturated_hydraulic_conductivity = "KsatVer"
+soil_layer_water__brooks_corey_exponent = "c"
+soil_surface_water__infiltration_reduction_parameter = "cf_soil"
+soil_water__vertical_saturated_hydraulic_conductivity_scale_parameter = "f"
+compacted_soil_surface_water__infiltration_capacity = "InfiltCapPath"
+soil_water__residual_volume_fraction = "thetaR"
+soil_water__saturated_volume_fraction = "thetaS"
+soil_water_saturated_zone_bottom__max_leakage_volume_flux = "MaxLeakage"
+compacted_soil__area_fraction = "PathFrac"
+soil_wet_root__sigmoid_function_shape_parameter = "rootdistpar"
+soil__thickness = "SoilThickness"
+
+vegetation_canopy_water__mean_evaporation_to_mean_precipitation_ratio = "EoverR"
+vegetation_canopy__light_extinction_coefficient = "Kext"
+vegetation__specific_leaf_storage = "Sl"
+vegetation_wood_water__storage_capacity = "Swood"
+vegetation_root__depth = "RootingDepth"
+
+river__length = "wflow_riverlength"
+river_water_flow__manning_n_parameter = "N_River"
+river__slope = "RiverSlope"
+river__width = "wflow_riverwidth"
+river_bank_water__depth = "RiverDepth"
+river_bank_water__elevation = "RiverZ"
+
+land_surface_water_flow__manning_n_parameter = "N"
+land_surface__slope = "Slope"
+
+reservoir_surface__area = "reservoir_area"
+reservoir_water_demand__required_downstream_volume_flow_rate = "ResDemand"
+reservoir_water_release_below_spillway__max_volume_flow_rate = "ResMaxRelease"
+reservoir_water__max_volume = "ResMaxVolume"
+reservoir_water__target_full_volume_fraction = "ResTargetFullFrac"
+reservoir_water__target_min_volume_fraction = "ResTargetMinFrac"
+reservoir_water_surface__initial_elevation = "waterlevel_reservoir"
+reservoir_water__rating_curve_type_count = "outflowfunc"
+reservoir_water__storage_curve_type_count = "storfunc"
+
+subsurface_water__horizontal_to_vertical_saturated_hydraulic_conductivity_ratio = "KsatHorFrac"
+
+# Map cyclic parameter standard names to variable names in the static netCDF file
+[input.cyclic]
+vegetation__leaf_area_index = "LAI"
+```
+
+## Output netCDF section
+
+### Grid data
+
+This optional section of the TOML file specifies the output netCDF file for writing gridded model output. It includes a mapping between model variable standard names and external netCDF variables.
+
+To limit the size of the resulting netCDF file, file compression can be enabled. Compression increases computational time but can significantly reduce the size of the netCDF file. Set the `compressionlevel` variable to a value between `0` and `9`. A setting of `0` means no compression, while values between 1 and 9 indicate increasing levels of compression (1: least compression, minimal run-time impact, 9: highest compression, maximum run-time impact). If file size is a concern, we recommend using a value of `1`, as higher compression levels generally have a limited effect on file size.
+
+```toml
+[output.netcdf_grid]
+path = "output_moselle.nc"          # Location of the output file
+compressionlevel = 1                # Compression level (default 0)
+
+# Mapping of standard model variable names to external netCDF variables
+[output.netcdf_grid.variables]
+soil_water_saturated_zone__depth = "satwaterdepth"
+soil_surface__temperature = "tsoil"
+soil_layer_water_unsaturated_zone__depth = "ustorelayerdepth"
+snowpack_dry_snow__leq_depth = "snow"
+snowpack_liquid_water__depth = "snowwater"
+river_water__depth = "h_av_river"
+river_water__volume_flow_rate = "q_av_river"
+reservoir_water__volume = "storage_reservoir"
+subsurface_water__volume_flow_rate  = "ssf"
+land_surface_water__volume_flow_rate = "q_av_land"
+land_surface_water__depth = "h_av_land"
+```
+
+### Scalar data
+
+In addition to gridded data, scalar data can also be written to a netCDF file. Below is an example that shows how to write scalar data to the file “output\_scalar\_moselle.nc”. For each netCDF variable, a `name` (external variable name) and a `parameter` (model parameter standard name) are required. A `reducer` can be specified to apply to the model output. See more details in the [Output CSV section](#output-csv-section) section. If a `map` (from the `input` section) is provided to extract data for specific locations (e.g. `river_gauge__count`) or areas (e.g. `subbasin_location__count`), the netCDF location names are extracted from these maps. For a specific location (grid cell) a `location` is required. For layered model parameters and variables that have an extra `layer` dimension and are part of the `SBM` `soil` model, an internal layer index can be specified (an example is provided below). If multiple layers are desired, this can be specified in separate `[[output.netcdf_scalar.variable]]` entries. Note that the additional dimension should be specified when wflow is integrated with Delft-FEWS, for netCDF scalar data an extra dimension is not allowed by the `importNetcdfActivity` of the Delft-FEWS General Adapter. In the section [Output CSV section](#output-csv-section), similar functionality is available for CSV. For integration with Delft-FEWS, it is recommended to write scalar data to netCDF format, as the General Adapter of Delft-FEWS can directly ingest data from netCDF files. For more information, see [Run from Delft-FEWS](../user_guide/fews.html).
+
+```toml
+[input]
+river_gauge__count = "wflow_gauges_grdc"
+
+[output.netcdf_scalar]
+path = "output_scalar_moselle.nc"    # Location of the results
+
+# Extract the values of "river_water__volume_flow_rate" using the gauges map,
+# and assign it with the name 'Q' as a variable in the netCDF file
+[[output.netcdf_scalar.variable]]
+name = "Q"
+map = "river_gauge__count"
+parameter = "river_water__volume_flow_rate"
+
+# Using coordinates to extract temperature
+[[output.netcdf_scalar.variable]]
+coordinate.x = 6.255
+coordinate.y = 50.012
+name = "temp_coord"
+location = "temp_bycoord"
+parameter = "atmosphere_air__temperature"
+
+# Using indices to extract temperature
+[[output.netcdf_scalar.variable]]
+location = "temp_byindex"
+name = "temp_index"
+index.x = 100
+index.y = 264
+parameter = "atmosphere_air__temperature"
+
+# Using coordinates and layer to extract volumetric water content
+[[output.netcdf_scalar.variable]]
+coordinate.x = 6.255
+coordinate.y = 50.012
+name = "vwc_layer2_bycoord"
+location = "vwc_bycoord"
+parameter = "soil_layer_water__volume_fraction"
+layer = 2
+```
+
+## Output CSV section
+
+Model output can also be written to a CSV file. Below is an example that writes model output to the file “output\_moselle.csv”. For each CSV column, a `header` and `parameter` (model parameter standard name) are required. A `reducer` can be specified to apply to the model output, with the following available reducers:
+
+- maximum
+- minimum
+- mean
+- median
+- sum
+- first
+- last
+- only
+
+with `only` as the default. To extract data for a specific location (grid cell), the `index` of the vector, the coordinates `coordinate.x` and `coordinate.y`, or the x and y indices of the 2D array (`index.x` and `index.y`) can be provided. Additionally, a `map` (from the `input` section) can be provided to extract data for certain locations (e.g. `river_gauge__count`) or areas (e.g. `subbasin_location__count`). In this case, a single entry can lead to multiple columns in the CSV file, which will be of the form `header_id`, e.g. `Q_20`, for a gauge with integer ID \\(20\\). For layered model parameters and variables that have an extra dimension `layer` and are part of the `SBM` `soil` model an internal layer index (see also example below) should be specified.
+
+The double brackets in `[[output.csv.column]]` follow TOML syntax, indicating that it is part of a list. You can specify as many entries as you want.
+
+```toml
+[input]
+# Modelling domains
+subbasin_location__count = "wflow_subcatch"
+# Ouput locations: these are not directly part of the model
+river_gauge__count = "wflow_gauges_grdc"
+
+[output.csv]
+path = "output_moselle.csv"
+
+[[output.csv.column]]
+header = "Q"
+parameter = "river_water__volume_flow_rate"
+reducer = "maximum"
+
+[[output.csv.column]]
+header = "storage"
+index = 1
+parameter = "reservoir_water__volume"
+
+[[output.csv.column]]
+coordinate.x = 6.255
+coordinate.y = 50.012
+header = "temp_bycoord"
+parameter = "atmosphere_air__temperature"
+
+[[output.csv.column]]
+coordinate.x = 6.255
+coordinate.y = 50.012
+header = "vwc_layer2_bycoord"
+parameter = "land.soil.variables.vwc"
+layer = 2
+
+[[output.csv.column]]
+header = "temp_byindex"
+index.x = 100
+index.y = 264
+parameter = "atmosphere_air__temperature"
+
+[[output.csv.column]]
+header = "Q"
+map = "river_gauge__count"
+parameter = "river_water__volume_flow_rate"
+
+[[output.csv.column]]
+header = "recharge"
+map = "subbasin_location__count"
+parameter = "soil_water_saturated_zone_top__net_recharge_volume_flux"
+reducer = "mean"
+```
+
+## Modify parameters
+
+It is possible to modify model parameters and forcing through the TOML file. Two options to modify input parameters are available:
+
+- Set an input parameter (static) to a uniform value.
+- Modify an input parameter (cyclic and static) or forcing variable using a `scale` factor and `offset`.
+
+For example, to set the input parameter `snowpack__degree_day_coefficient` to an uniform value of \\(2.5\\):
+
+```toml
+[input.static]
+snowpack__liquid_water_holding_capacity =  "WHC"
+snowpack__degree_day_coefficient.value = 2.5
+```
+
+For input parameters with an extra dimension (e.g. `layer`), one uniform value can be provided or a list of values that matches the length of the additional dimension. For example, a list of values can be provided for input parameter `soil_layer_water__brooks_corey_exponent` as follows:
+
+```toml
+[input.static]
+snowpack__liquid_water_holding_capacity =  "WHC"
+land_water_covered__area_fraction = "WaterFrac"
+soil_layer_water__brooks_corey_exponent.value = [10.5, 11.25, 9.5, 7.0]
+```
+
+To change the forcing variable `atmosphere_water__precipitation_volume_flux` with a `scale` factor of \\(1.5\\) and an `offset` of \\(0.5\\):
+
+```toml
+[input.forcing.atmosphere_water__precipitation_volume_flux]
+netcdf_variable_name = "P"
+scale = 1.5
+offset = 0.5
+```
+
+For input parameters with an extra dimension, it is also possible to modify multiple indices simultaneously with different `scale` and `offset` values. In the example below, the external netCDF variable `c` is modified at `layer` index \\(1\\) and \\(2\\), with a `scale` factor of \\(2.0\\) and \\(1.5\\) respectively, and an `offset` of \\(0.0\\) for both indices:
+
+```toml
+[input.static.soil_layer_water__brooks_corey_exponent]
+netcdf_variable_name = "c"
+scale = [2.0, 1.5]
+offset = [0.0, 0.0]
+layer = [1, 2]
+```
+
+## Fixed forcing values
+
+It is possible to set fixed values for forcing parameters through the TOML file. For example, to set `atmosphere_air__temperature` to a fixed value of \\(\\SI{10}{\\degree C}\\):
+
+```toml
+[input.forcing]
+atmosphere_water__precipitation_volume_flux = "precip"
+land_surface_water__potential_evaporation_volume_flux = "pet"
+atmosphere_air__temperature.value = 10
+```

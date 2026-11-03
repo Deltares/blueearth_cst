@@ -1,0 +1,26 @@
+---
+title: "Climate Stress Testing (CST) Toolbox"
+format: html
+subtitle: "Automated bottom-up climate vulnerability assessments at basin-level"
+toc: false
+number-sections: false
+---
+
+The toolbox helps users understand climate vulnerability and assess the robustness of water systems under
+an uncertain future. It combines global data, hydrological modelling and weather generation to explore
+how river basins respond to a broad range of temperature and precipitation changes.
+
+Results, interpreted alongside climate projections, support first-order screening, helping users identify
+vulnerabilities, explore adaptation needs and prioritize further investigation.
+
+## Start here
+
+1. [Install](guide/install.qmd) and check external-data access.
+2. [Run the example](guide/quick-start.md) and find its output tables.
+3. Follow [Creating a project](guide/new-case.qmd) to set up your own assessment.
+4. [Run or resume workflows](guide/running.md) and [interpret the outputs](guide/outputs.md).
+
+The [User Guide](guide/quick-start.qmd) explains how to run an assessment and inspect its results.
+The [Technical Manual](technical-manual/overview.qmd) describes the methods, data, configuration and
+interpretation of toolbox results. [Methodology](scientific-approach/overview.qmd) explains the
+bottom-up assessment approach and how climate stress testing informs water-system decisions.

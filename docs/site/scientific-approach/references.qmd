@@ -1,0 +1,11 @@
+---
+title: "References"
+format: html
+bibliography: references.bib
+link-citations: true
+nocite: "@*"
+suppress-bibliography: false
+---
+
+::: {#refs}
+:::

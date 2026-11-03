@@ -1,0 +1,91 @@
+# =============================================================================
+#  RAPID -- the default config for running the workflows end to end
+# =============================================================================
+#
+# Cheap where the cost is, complete where a code path would otherwise be
+# skipped. Use `project_config_baseline.yml` for any run whose numbers you
+# will read; this one is for watching the workflows execute.
+#
+#   - 17 years of record: one more than the 16-year minimum.
+#   - stress test simulated over 2046-2054: the weather generator produces
+#     series from 2010 to the last simulated year, so a nearer window means a
+#     shorter series.
+#   - 2 models x 1 scenario: two models, so the multi-model summary still runs.
+#   - 2 x 2 perturbation levels plus the baseline: the smallest grid that
+#     still has a surface.
+#
+# Paths resolve beside their declaring YAML; toolbox: names bundled resources.
+
+schema_version: 3
+
+
+# -----------------------------------------------------------------------------
+#  PROJECT
+# -----------------------------------------------------------------------------
+
+project:
+  project_dir: test_rapid
+  # Catalog order is precedence order. Use the Deltares P-drive base catalog,
+  # then replace only `era5` with the faster P-drive Zarr source. ERA5 requests
+  # must end by 2023-02-01.
+  catalog:
+  - toolbox:config/catalogs/deltares_data_pdrive.yml
+  - toolbox:config/catalogs/deltares_era5_daily_zarr.yml
+
+
+# -----------------------------------------------------------------------------
+#  BASIN
+# -----------------------------------------------------------------------------
+
+basin:
+  region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
+  resolution: 0.00833
+  output_locations: test_data/output_locations.csv
+  sources:
+    rivers: hydro_rivers_lin
+    lulc: globcover
+
+
+# -----------------------------------------------------------------------------
+#  CLIMATE
+# -----------------------------------------------------------------------------
+
+climate:
+  # Two sources, so analyze_climate compares them.
+  sources:
+  - era5
+  - chirps
+  selected: era5
+  window:
+    start: 2000
+    end: 2016
+
+
+# -----------------------------------------------------------------------------
+#  MODEL
+# -----------------------------------------------------------------------------
+
+model:
+  outvars: ['river discharge', 'actual evapotranspiration', 'groundwater recharge']
+
+
+# -----------------------------------------------------------------------------
+#  WORKFLOWS
+# -----------------------------------------------------------------------------
+
+workflows:
+  analyze_climate:
+    enabled: true
+    config_path: project_config_rapid_analyze_climate.yml
+  build_model:
+    enabled: true
+    config_path: project_config_rapid_build_model.yml
+  analyze_projections:
+    enabled: true
+    config_path: project_config_rapid_analyze_projections.yml
+  generate_scenarios:
+    enabled: true
+    config_path: project_config_rapid_generate_scenarios.yml
+  simulate_system:
+    enabled: true
+    config_path: project_config_rapid_simulate_system.yml

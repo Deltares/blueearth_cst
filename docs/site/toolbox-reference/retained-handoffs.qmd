@@ -1,0 +1,10 @@
+---
+title: "Retained scenario and simulation handoffs"
+format: html
+---
+
+Read the [technical manual](../../technical-manual/retained-handoffs.md) for this reference.
+
+## Startup input checks {#startup-input-checks}
+
+See the [current reference](../../technical-manual/retained-handoffs.md#startup-input-checks).

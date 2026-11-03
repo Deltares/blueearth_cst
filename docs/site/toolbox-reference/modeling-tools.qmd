@@ -1,0 +1,6 @@
+---
+title: "Modeling Tools"
+format: html
+---
+
+Read [component responsibilities](../../technical-manual/overview.md#components) in the technical manual.

@@ -1,0 +1,92 @@
+# Expanded original (Option A), with blue and Terracotta first for comparisons.
+# Order defines the default categorical cycle. Quote hex values: # starts a comment.
+default_cycle:
+  original_blue: "#0D38E0"
+  terracotta: "#CC593D"
+  original_green: "#00B389"
+  amber: "#D99A19"
+  violet: "#8054B3"
+  rose: "#BE5084"
+  cyan: "#169CC4"
+  slate: "#66768A"
+
+# References to default_cycle names keep comparison colours consistent.
+datasets:
+  era5: original_blue
+  chirps: terracotta
+evaluation:
+  observed: original_blue
+  simulated: terracotta
+
+# IPCC AR6 scenario colours, preserved independently of the categorical cycle.
+scenarios:
+  ssp119: "#00a9cf"
+  ssp126: "#003466"
+  ssp434: "#2274ae"
+  ssp245: "#f69320"
+  ssp534-over: "#92397a"
+  ssp460: "#b0724e"
+  ssp370: "#df0000"
+  ssp370-lowNTCF: "#e61d25"
+  ssp585: "#980002"
+
+# Matplotlib colormap names. Classification and normalization stay in Python.
+climate_maps:
+  precip: Blues
+  temp: YlOrRd
+  temp_crossing_freezing: RdBu_r
+  pet: Oranges
+precip_anomaly: BrBG
+
+# Current WF0/WF1 historical display-reference maps use these reviewed ramps.
+# Precipitation and PET share the water-quantity ramp; preserve their endpoints.
+historical_maps:
+  temp:
+    colors: ["#ffffcc", "#ffe895", "#fec45f", "#fd953f", "#fa4a29"]
+    under: "#fffbe6"
+    over: "#a50f15"
+  precip_pet:
+    colors: ["#deebf7", "#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c"]
+    under: "#f7fbff"
+    over: "#041f4a"
+
+neutral:
+  ink: "#17303c"
+  muted: "#536875"
+  axis: "#82939b"
+  grid: "#e6edef"
+  boundary: "#c6d2d8"
+  missing: "#a0a0a0"
+  qa: "#882255"
+  caveat: "0.35"
+  evaluation_neutral: "#1a1a1a"
+  evaluation_grid: "#dcdcdc"
+  evaluation_reference: "0.55"
+
+elevation: ["#f6f2ea", "#e3d5ba", "#c9aa7d", "#a07f52", "#6f5533", "#46351f"]
+# River colour per stream-order step, lowest order first; widths are style.yml maps.river_order_widths.
+river_order: ["#a6cee3", "#74add1", "#4f94cd", "#2c7bb6", "#1f5fa3", "#0f4c8a", "#08306b"]
+waterbodies:
+  lakes: ["#a8d0e6", "#3d5a6c"]
+  reservoirs: ["#2c6fad", "#173d5e"]
+  glaciers: ["#d9d9d9", "#8c8c8c"]
+
+map_features:
+  river: "#2c6fad"
+  # Purple, so locations never read as part of the blue river network.
+  gauge: "#6a3d9a"
+  outlet: "#000000"
+  basin_outline: "#000000"
+  subcatchment: "0.15"
+  graticule: "0.4"
+  marker_edge: "#ffffff"
+  halo: "#ffffff"
+  unclassified: "#bdbdbd"
+  missing: "#a0a0a0"     # cells with no data, keyed "No data" on every map
+  locator_ocean: "#eef2f5"
+  locator_land: "#dcdcd8"
+  locator_coast: "0.55"
+  locator_border: "0.7"
+  locator_city: "0.35"
+  locator_basin: "#c0392b"
+  locator_basin_edge: "#7d2318"

@@ -1,0 +1,9 @@
+# Bundled WF4 indicator set: the existing default suite for the selected
+# response variables. The preset delegates to the registry, so this file never
+# duplicates the definition list.
+schema_version: 1
+id: default
+title: Default indicators
+description: Existing WF4 indicator suite for the selected response variables.
+selection:
+  preset: current_default

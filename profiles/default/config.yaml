@@ -1,0 +1,46 @@
+# Workflow profile — auto-loaded by Snakemake when running from the repo root
+# (`--workflow-profile` defaults to `profiles/default` if present, so no flag
+# is needed). Applies to every `*.smk` entry point.
+#
+# It cannot live under `config/`: discovery looks only at the literal
+# `profiles/default`, relative to the run directory and then to the Snakefile's
+# own directory (`snakemake/cli.py`, `workflow_profile_candidates`), and
+# `$SNAKEMAKE_PROFILE` addresses the *global* profile rather than this one.
+# Anywhere else needs an explicit `--workflow-profile` at every call site.
+#
+# wf4 and the all-workflow runner are covered too: both shell out to the
+# `snakemake` CLI with cwd at the repo root, so the same discovery applies.
+#
+# quiet: reason  — suppress the verbose per-job "Reason:" block (missing/updated
+# input paths). Drop this (or run `--quiet` without `reason`) when you need to
+# debug *why* a job re-ran.
+#
+# No other `quiet:` category is set, and none can be: every one that removes a
+# preamble line also starves the handler that draws our console, because
+# `--quiet` filters at the RECORD level before handlers run. Measured route by
+# route on 2026-09-18 — see `dev/tasks/t2609181302-*`.
+#
+# The rest of the console grammar is NOT set here, and cannot be: the noisiest
+# lines are not separately filterable. `--quiet progress` would take the
+# progress counter and the finish line together, and the bare
+# `[Thu Aug 13 23:26:41 2026]` above every job is part of another record's
+# formatted string rather than a record of its own. Snakefile `onstart` calls
+# `install_console_style()` (blueearth_cst/shared/snake_utils.py), which
+# replaces Snakemake's terminal handler outright and renders one line per job
+# start and end. Anything that function does not recognize still prints in
+# Snakemake's own style, and `.snakemake/log/*.snakemake.log` keeps the full
+# verbose record either way.
+quiet:
+  - reason
+
+# show-failed-logs: true — print the failing job's log file CONTENT, not just
+# its path. Snakemake's default on failure is "check log file(s) for error
+# details" and nothing more, which is one manual `cat` away from the answer
+# every single time.
+#
+# It shows the right file here because both logging paths write to the path
+# Snakemake would name: `shell:` rules go through run_logged.py "{log}", and
+# `script:` rules through tee_to_log(snakemake.log[0]). A rule whose real
+# diagnostics went somewhere other than its declared `log:` would print an
+# empty or misleading block instead — none currently does.
+show-failed-logs: true

@@ -1,0 +1,25 @@
+# Shared metadata for generated complete manuals; canonical prose stays in its source files.
+execute:
+  enabled: false
+engine: markdown
+toc: true
+toc-depth: 3
+number-sections: false
+format:
+  html:
+    theme: cosmo
+    embed-resources: true
+    code-copy: true
+    code-overflow: wrap
+  typst:
+    toc-indent: 0em
+    include-before-body:
+      - text: |
+          #set par(justify: false)
+          #set align(left)
+    papersize: a4
+    fontsize: 11pt
+    margin:
+      x: 20mm
+      y: 18mm
+    keep-typ: true

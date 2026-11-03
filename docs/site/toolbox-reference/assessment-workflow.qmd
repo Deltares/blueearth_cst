@@ -1,0 +1,15 @@
+---
+title: "Assessment workflow"
+format: html
+---
+
+Read the [workflow overview](../../technical-manual/scientific-workflows.md) for this reference.
+
+## Historical reference and model setup {#historical-reference-and-model-setup}
+
+See [historical climate analysis](../../technical-manual/workflow-analyze-climate.md) and
+[model building](../../technical-manual/workflow-build-model.md).
+
+## Projection context and stress-test experiment {#projection-context-and-stress-test-experiment}
+
+See [how the workflows connect](../../technical-manual/scientific-workflows.md#how-the-workflows-connect).

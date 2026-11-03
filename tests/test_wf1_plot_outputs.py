@@ -1,0 +1,309 @@
+"""R07 O-24 / O-08: wf1's figure outputs are declared, and the sentinel is read.
+
+* ``test_delete_all_output_removes_the_declared_plot_outputs`` — O-24. Before
+  R07, rule 1.13 wrote three PNGs and declared one, and rule 1.11 wrote
+  ``performance_indicators.csv`` and declared
+  none of them; undeclared outputs survive ``--delete-all-output`` and are
+  invisible to the baseline.
+
+  That claim USED to be scoped to configs without extra gauges, because the
+  per-station sheets stayed undeclared: their count is the model's
+  outlet/subcatchment count, a build product unknown at parse time. Since
+  2026-08-18 (t2608071206) rule 1.15 declares the ``plots/stations/`` bin as a
+  ``directory()``, so they are reachable too and the scope caveat is gone. The
+  control file below moved with it — it has to be something still genuinely
+  undeclared, or the assertion stops discriminating.
+
+  (The docstring named a third family, ``clim_{station}_{period}.png``. It has
+  not existed since ADR 0006 removed it on 2026-08-09.)
+
+* ``test_delete_all_output_removes_a_basavg_figure`` — the half of O-24 that
+  IS derivable. ``plot_basavg``'s PNGs are a pure function of
+  ``wflow_outvars``, so rule 1.11 declares them (2026-08-01); this proves the
+  derivation reaches ``--delete-all-output`` for a config that has one, and the
+  seed config (``wflow_outvars: ["river discharge"]``) still declares none.
+
+* ``test_gauges_layer_name_*`` — O-08. An unquoted ``output_locations: None``
+  is YAML for the Python **string** ``"None"``. The pre-R07 guard tested only
+  ``is not None`` and derived the layer name ``gauges_None``, which can never
+  exist in ``geoms`` — so the gauges were dropped silently rather than
+  deliberately. The shipped configs moved to a real ``null`` in 2026-08, but the
+  string stays tolerated for project configs still carrying it, so both
+  spellings must keep resolving to "unset".
+"""
+
+from __future__ import annotations
+
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from blueearth_cst.climate_analysis.climate_figures import (
+    figure_names as _figure_names,
+)
+from blueearth_cst.shared.config_composition import load_composed_config  # noqa: E402
+from tests.conftest import write_config  # noqa: E402
+
+#: A model's staticgeoms layers, spelled as hydromt_wflow actually writes them
+#: (`output_locations.csv` -> `gauges_output-locations`, note the HYPHEN).
+_GAUGES_LAYER = "gauges_output-locations"
+_GEOMS = {"basins", "rivers", "outlets", _GAUGES_LAYER}
+
+pytestmark = pytest.mark.usefixtures("isolated_snakemake")
+
+
+TESTDIR = Path(__file__).resolve().parent
+SNAKEDIR = TESTDIR.parent
+CONFIG_FN = TESTDIR / "project_config_fixture.yml"
+
+
+#: The config-invariant subset O-24 declares, project-root-relative. The
+#: forcing entries come from climate_figures rather than being restated, so a
+#: change to the canonical set cannot leave this list quietly behind.
+DECLARED_PLOT_OUTPUTS = (
+    # No per-station FIGURE is declared: they are keyed by wflow_id, which is
+    # a product of the model build and so unknowable at parse time. The
+    # indicators table is rule 1.15's config-invariant artifact.
+    "models/hydrology/wflow/evaluation/performance_indicators.csv",
+    # Rule 1.12's basin map. PNG only since 2026-08-10; the vector deliverable
+    # was dropped because nothing read it.
+    "data/spatial/plots/elevation_basin.png",
+    "data/spatial/plots/figure_titles.md",
+    "data/spatial/plots/_engine/figure_titles.json",
+    "models/hydrology/wflow/forcing/plots/figure_titles.md",
+    "models/hydrology/wflow/forcing/plots/_engine/figure_titles.json",
+    "models/hydrology/wflow/forcing/plots/figure_captions.md",
+    "models/hydrology/wflow/forcing/plots/_engine/figure_captions.json",
+) + tuple(
+    f"models/hydrology/wflow/forcing/plots/{name}" for name in _figure_names("forcing")
+)
+
+
+# --------------------------------------------------------------------------- #
+# O-24 — the declarations are real
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture()
+def fabricated_project(tmp_path):
+    """A project_dir pre-filled with every declared wf1 figure output."""
+    cfg = load_composed_config(CONFIG_FN)
+    project_dir = tmp_path / "proj"
+    project_dir.mkdir()
+    cfg["project"]["project_dir"] = project_dir.as_posix()
+    # Repo-relative leaves (templates, catalog) keep working: snakemake runs
+    # with cwd=SNAKEDIR.
+    cfg_path = write_config(tmp_path, cfg, stem="project_config_fabricated")
+
+    expected = [project_dir / rel for rel in DECLARED_PLOT_OUTPUTS]
+    # A per-station sheet inside the directory() bin rule 1.15 declares. Named
+    # for a wflow_id, which is why the FILE could never be declared and the BIN
+    # is (t2608071206). It belongs in `expected` -- the point of the change is
+    # that --delete-all-output now reaches it.
+    expected.append(
+        project_dir
+        / "models/hydrology/wflow/evaluation/plots/stations/hydrograph_1010.png"
+    )
+    # Knowingly UNDECLARED (config-dependent): it must survive, which is what
+    # makes the assertion below a discriminating check rather than a tautology
+    # about an emptied directory.
+    # A stray directly in plots/ -- that directory is NOT declared, only the
+    # basavg files and the stations/ bin inside it are, so this survives.
+    # It used to be `signatures_wflow_1.png`, which the stations/ bin now
+    # covers; leaving it there would have made the control a tautology.
+    undeclared = (
+        project_dir / "models/hydrology/wflow/evaluation/plots/legacy_leftover.png"
+    )
+    for path in [*expected, undeclared]:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"placeholder")
+    return cfg_path, expected, undeclared
+
+
+@pytest.mark.skipif(shutil.which("snakemake") is None, reason="snakemake not on PATH")
+@pytest.mark.workflow_contract
+def test_delete_all_output_removes_the_declared_plot_outputs(fabricated_project):
+    cfg_path, expected, undeclared = fabricated_project
+    assert all(p.is_file() for p in expected)
+
+    result = subprocess.run(
+        "snakemake all --delete-all-output --workflow-profile none -c 1 "
+        f'-s build_model.smk --configfile "{cfg_path}"',
+        shell=True,
+        capture_output=True,
+        text=True,
+        cwd=str(SNAKEDIR),
+    )
+    combined = (result.stdout or "") + (result.stderr or "")
+    assert result.returncode == 0, combined[-4000:]
+
+    still_there = [p.as_posix() for p in expected if p.exists()]
+    assert not still_there, (
+        "these declared outputs survived --delete-all-output:\n"
+        + "\n".join(still_there)
+    )
+    assert undeclared.is_file(), (
+        "the knowingly-undeclared control file was removed too — the assertion "
+        "above no longer discriminates declared from undeclared outputs"
+    )
+
+
+#: The standard annual and seasonal basin products declared by rule 1.15.
+_BASAVG_RELS = (
+    "models/hydrology/wflow/evaluation/plots/wflow_aet_annual_ts_basin_avg.png",
+    "models/hydrology/wflow/evaluation/plots/wflow_aet_monthly_clim_band_basin_avg.png",
+    "models/hydrology/wflow/evaluation/plots/wflow_temp_annual_ts_basin_avg.png",
+    "models/hydrology/wflow/evaluation/plots/wflow_temp_monthly_clim_band_basin_avg.png",
+)
+
+
+@pytest.fixture(params=[False, True], ids=["basin-only", "with-subbasins"])
+def project_with_basavg_outvar(tmp_path, request):
+    """A project whose wflow_outvars asks for a basin-average output.
+
+    The seed config is discharge-only, so nothing in the suite would otherwise
+    exercise the basin derivation and optional runtime-dependent subbasin bin.
+    """
+    cfg = load_composed_config(CONFIG_FN)
+    project_dir = tmp_path / "proj"
+    project_dir.mkdir()
+    cfg["project"]["project_dir"] = project_dir.as_posix()
+    # `shared`, not `workflows.build_model`: the key was hoisted by R13 D-9.7
+    # because WF3 reads it too, and a copy planted in a workflow file is now a
+    # parse error rather than an override.
+    cfg["model"]["outvars"] = [
+        "river discharge",
+        "actual evapotranspiration",
+        "temperature",
+    ]
+    cfg["workflows"]["build_model"]["evaluation"] = {"subbasin_plots": request.param}
+    cfg_path = write_config(tmp_path, cfg, stem="project_config_basavg")
+
+    basin_figures = [project_dir / rel for rel in _BASAVG_RELS]
+    basavg = basin_figures[0]
+    basavg.parent.mkdir(parents=True, exist_ok=True)
+    for figure in basin_figures:
+        figure.write_bytes(b"placeholder")
+    if request.param:
+        optional = basavg.parent / "subbasins/wflow_aet_annual_ts_subbasin_101.png"
+        optional.parent.mkdir(parents=True, exist_ok=True)
+        optional.write_bytes(b"placeholder")
+        basin_figures.append(optional)
+    captions = [
+        basavg.parent / "figure_titles.md",
+        basavg.parent / "_engine/figure_titles.json",
+        basavg.parent / "figure_captions.md",
+        basavg.parent / "_engine/figure_captions.json",
+    ]
+    for caption in captions:
+        caption.parent.mkdir(parents=True, exist_ok=True)
+        caption.write_bytes(b"placeholder")
+    # Same control as the fixture above: an undeclared sibling must survive.
+    # A stray directly in plots/ -- that directory is NOT declared, only the
+    # basavg files and the stations/ bin inside it are, so this survives.
+    # It used to be `signatures_wflow_1.png`, which the stations/ bin now
+    # covers; leaving it there would have made the control a tautology.
+    undeclared = (
+        project_dir / "models/hydrology/wflow/evaluation/plots/legacy_leftover.png"
+    )
+    undeclared.write_bytes(b"placeholder")
+    return cfg_path, basin_figures, captions, undeclared
+
+
+@pytest.mark.skipif(shutil.which("snakemake") is None, reason="snakemake not on PATH")
+@pytest.mark.workflow_contract
+def test_delete_all_output_removes_a_basavg_figure(project_with_basavg_outvar):
+    cfg_path, basin_figures, captions, undeclared = project_with_basavg_outvar
+
+    result = subprocess.run(
+        "snakemake all --delete-all-output --workflow-profile none -c 1 "
+        f'-s build_model.smk --configfile "{cfg_path}"',
+        shell=True,
+        capture_output=True,
+        text=True,
+        cwd=str(SNAKEDIR),
+    )
+    combined = (result.stdout or "") + (result.stderr or "")
+    assert result.returncode == 0, combined[-4000:]
+    assert all(not figure.exists() for figure in basin_figures)
+    assert all(not caption.exists() for caption in captions), (
+        "Basin-average captions survived --delete-all-output"
+    )
+    assert undeclared.is_file(), (
+        "the undeclared control file was removed too — the assertion above no "
+        "longer discriminates declared from undeclared outputs"
+    )
+
+
+def test_river_discharge_alone_derives_no_basavg_figure():
+    """The exclusions are load-bearing, so pin them without a snakemake run.
+
+    'river discharge' never gets a basavg column (rule 1.05 filters it out of
+    the basin-average setup), and 'precipitation' gets one that plot_results
+    drops before plotting — so neither may contribute a declared output.
+    """
+    source = (SNAKEDIR / "build_model.smk").read_text(encoding="utf-8")
+    # Read the derivation out of the Snakefile rather than restating it here,
+    # so a change to the exclusion tuple is caught instead of duplicated.
+    namespace = {}
+    for line in source.splitlines():
+        if line.startswith("_WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT"):
+            exec(line, namespace)  # noqa: S102 - a literal tuple from our own tree
+            break
+    excluded = namespace["_WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT"]
+    assert set(excluded) == {"river discharge", "precipitation"}
+    assert [v for v in ["river discharge"] if v not in excluded] == []
+    assert [
+        v for v in ["river discharge", "actual evapotranspiration"] if v not in excluded
+    ] == ["actual evapotranspiration"]
+
+
+# --------------------------------------------------------------------------- #
+# O-08 — the "None" sentinel
+# --------------------------------------------------------------------------- #
+
+
+def test_gauges_layer_name_rejects_both_unset_spellings():
+    from blueearth_cst.shared.gauges import gauges_layer_name
+
+    assert gauges_layer_name(_GEOMS, None) is None
+    assert gauges_layer_name(_GEOMS, "None") is None
+
+
+def test_gauges_layer_name_resolves_a_real_layer():
+    """Resolved against the model, NOT derived from the filename.
+
+    This asserted ``gauges_output_locations`` until 2026-08-01 — the underscore
+    spelling hydromt never produces. The test agreed with the code and both were
+    wrong, which is why the real basin found the bug and the suite did not.
+    ``tests/test_gauges.py`` owns the resolution rules; this keeps the O-08
+    entry point covered from here.
+    """
+    from blueearth_cst.shared.gauges import gauges_layer_name
+
+    assert gauges_layer_name(_GEOMS, "d/output_locations.csv") == _GAUGES_LAYER
+    assert gauges_layer_name(_GEOMS, Path("d/output_locations.csv")) == _GAUGES_LAYER
+
+
+def test_the_shipped_sentinel_yields_no_layer():
+    """Whatever spelling the shipped config uses, it must resolve to "unset".
+
+    Was pinned to the STRING "None" until 2026-08; the shipped configs now use a
+    real YAML null and the string survives only as a tolerated legacy spelling
+    (tests/test_cli.py owns both halves of that). What matters HERE is narrower
+    and does not care which spelling won: the value the config actually carries
+    must not produce a layer name. If someone reverts the O-08 guard, this fires
+    for the string; if a real null ever stopped short-circuiting, it fires for
+    that.
+    """
+    from blueearth_cst.shared.gauges import gauges_layer_name
+
+    cfg = load_composed_config(CONFIG_FN)
+    sentinel = cfg["basin"]["output_locations"]
+    assert sentinel in (None, "None"), (
+        f"unexpected gauge_points sentinel {sentinel!r} — if the config now "
+        f"names a real file this test needs rethinking, not relaxing"
+    )
+    assert gauges_layer_name(_GEOMS, sentinel) is None

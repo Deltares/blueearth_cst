@@ -1,0 +1,18 @@
+# Declarative P4B content inventory; P5 owns publisher support and rendered verification.
+schema_version: 1
+path_base: repository-root
+destination: indicator-extension.md
+include_mode: complete-source
+link_base: source-directory
+sources:
+  - {anchor: indicator-module, path: blueearth_cst/indicators/README.md}
+  - {anchor: indicator-default, path: blueearth_cst/indicators/sets/default/README.md}
+  - {anchor: indicator-flow-regime, path: blueearth_cst/indicators/sets/flow_regime/README.md}
+  - {anchor: indicator-eflow-erfa, path: blueearth_cst/indicators/sets/eflow_erfa/README.md}
+  - {anchor: indicator-crop-water, path: blueearth_cst/indicators/sets/crop_water/README.md}
+  - {anchor: indicator-flood-risk, path: blueearth_cst/indicators/sets/flood_risk/README.md}
+external_evidence:
+  - path: tests/data/eflow-erfa-r-oracle.md
+    availability: repository-only; not included in the offline manual
+  - path: tests/test_indicators_module.py
+    availability: repository-only; not included in the offline manual

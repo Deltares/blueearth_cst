@@ -1,0 +1,10 @@
+---
+title: "Toolbox reference"
+format: html
+---
+
+Read the [technical manual](../../technical-manual/overview.md) for this reference.
+
+## Sections {#sections}
+
+See the [current reference](../../technical-manual/overview.md#sections).

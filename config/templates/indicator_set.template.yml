@@ -1,0 +1,66 @@
+# =============================================================================
+#  indicator set -- a named selection of registered WF4 indicators
+# =============================================================================
+#
+# Select it from the WF4 file through indicator_sets and
+# indicator_set_definitions. The id must equal the name selected there.
+# A set chooses registered calculations; it never defines arithmetic, units,
+# calendars, missingness or grain. This example illustrates reuse only; it is
+# not an approved second scientific set.
+# Trusted local calculations additionally accept calculation.set; see the
+# authoring contract in blueearth_cst/indicators/README.md. YAML cannot load Python.
+
+# Identify the indicator set schema. Options: 1.
+schema_version: 1
+# Identify this selectable indicator set. Input: set ID matching WF4 registration.
+id: example_subset
+# Label this set for readers. Input: descriptive text.
+title: Example discharge subset
+# Explain this set's scope and purpose. Input: descriptive text.
+description: Illustrative reuse, not an approved second scientific set.
+# Choose indicators included in this set. Input: selection mapping.
+selection:
+  # List registered or authored indicator entries. Input: list of indicator mappings.
+  indicators:
+    # A registered definition id (see dev/reference/toolbox-indicator-glossary.md).
+    # Reuse a registered indicator definition. Input: registered definition ID.
+    - definition: q_annual_mean
+    # Reuse a registered indicator definition. Input: registered definition ID.
+    - definition: q_mean_annual_7day_min
+    # An authored entry names one registered calculation under its own indicator
+    # key; its numbers equal that definition's (shown as equivalent_definition).
+    # Identify the authored indicator. Input: unique indicator ID.
+    #- id: high_flow_p95
+    # Label the indicator for readers. Input: descriptive text.
+    #  title: Mean annual 95th-percentile discharge
+    # Explain the indicator's interpretation. Input: descriptive text.
+    #  description: Water-year 0.95 non-exceedance quantile, a HIGH flow.
+    # Cite supporting indicator references. Input: list of reference strings.
+    #  references: []
+    # Configure the registered indicator calculation. Input: mapping.
+    #  calculation:
+    # Select a registered calculation method. Input: versioned method ID.
+    #    method: annual_summary/1
+    # Supply method-specific calculation arguments. Input: mapping accepted by the method.
+    #    parameters:
+    # Select the retained response variable. Input: registered response variable name.
+    #      variable: q
+    # Select the annual summary statistic. Input: registered statistic name.
+    #      statistic: p95
+    # A genuinely new local callable needs no equivalent_definition:
+    # Identify the authored indicator. Input: unique indicator ID.
+    #- id: retained_mean
+    # Label the indicator for readers. Input: descriptive text.
+    #  title: Whole-period mean
+    # Explain the indicator's interpretation. Input: descriptive text.
+    #  description: Daily sample weighting, without annual block weighting.
+    # Cite supporting indicator references. Input: list of reference strings.
+    #  references: []
+    # Configure the registered indicator calculation. Input: mapping.
+    #  calculation:
+    # Select the trusted local calculation set. Input: registered calculation set name.
+    #    set: flow_regime
+    # Select a registered calculation method. Input: versioned method ID.
+    #    method: full_period_mean/1
+    # Supply method-specific calculation arguments. Input: mapping accepted by the method.
+    #    parameters: {}

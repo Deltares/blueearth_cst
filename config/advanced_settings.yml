@@ -1,0 +1,266 @@
+# Current guidance: dev/reference/toolbox-spatial-foundation.md
+# Advanced settings — toolbox-wide knobs a normal project never touches.
+#
+# NOT a `--configfile` target. The three Snakefiles are driven by a project's
+# own `project_config_*.yml` (the shipped examples live beside the project they
+# write into, under `test_case/`); THIS file is read
+# once by `blueearth_cst/shared/snake_utils.py` and applies to every project
+# and every workflow. Editing it changes the toolbox, not a run.
+#
+# Three sections, and the split is the point:
+#
+#   constraints/ — hard limits. No project config can relax one; a value that
+#                  violates a constraint is rejected before any rule executes.
+#                  Change one only with a reason you would write down.
+#   defaults/    — starting values a project config MAY override. The key that
+#                  overrides each one is named in its comment.
+#   runtime/     — external toolchain pins. Not limits and not overridable:
+#                  they must match the environment the workflows actually run
+#                  in, so changing one here without changing it there breaks
+#                  the run rather than tuning it.
+#
+# Unknown sections and unknown keys are REJECTED, so a typo fails loudly at
+# parse time rather than silently keeping the built-in value.
+#
+# Adding a setting: put it in the right section here, add it to the schema in
+# `blueearth_cst/shared/advanced_settings.py` (`_ADVANCED_SETTINGS_SCHEMA`), and
+# give it a test in `tests/test_advanced_settings.py`. The schema is what makes the rejection
+# above possible, so the two must stay in step.
+
+constraints:
+
+  # Minimum historical window, in whole calendar years.
+  #
+  # Set by the most demanding consumer: weathergenr's wavelet decomposition
+  # needs at least this many ANNUAL observations (`wavelet_cwt.R`), so a
+  # shorter observed record cannot support a climate stress test — and a
+  # project that cannot support one is misconfigured for what this toolbox is
+  # for, whatever workflow happens to be running.
+  #
+  # Enforced in two places, against two different facts: the window a config
+  # REQUESTS (workflow 1, at parse time) and the span the staged source
+  # ACTUALLY delivers (the shared climate-store producer, so workflows 2 and 3
+  # too). Lowering it does not make weathergenr work on less data; it only
+  # moves the failure later and makes it harder to read.
+  min_historical_years: 16
+
+  # How many structurally flagged months make the MONTHLY relative product
+  # undefined for a combination, rather than merely caveated.
+  #
+  # A basin with a genuine dry season produces about one season of flagged
+  # months as its NORMAL state. More than that and the product is undefined
+  # for over a quarter of the year, which a reader should be told at
+  # combination level rather than by counting footnotes.
+  #
+  # A `constraints:` entry and not a `defaults:` one, so unlike its
+  # neighbours below there is no overriding project key to name here: this
+  # is the point at which a result stops being reportable, which is a
+  # property of the method rather than of a project (`C-65`, D-10.6/D-10.7).
+  # It was `analyze_projections.relative_change.max_flagged_months` until
+  # R14; a project that set it non-default is told so by the migration.
+  max_flagged_months: 3
+
+defaults:
+
+  # The share of FREE disk that WF3's batched Wflow runs may hold in transient
+  # `temp()` files at their peak. Overridable per project via
+  # `compute.disk_headroom_gb` in the run_stress_test file, which states an ABSOLUTE
+  # budget instead — the two answer different questions, so they differ in unit
+  # deliberately: this one is a policy ("never eat more than a quarter of what
+  # is free"), the project key is a budget ("you may use 40 GB").
+  #
+  # Rule 3.15 runs B members per Julia session and holds 3.14's forcing NCs
+  # for the whole batch, with p batches in flight within the `-c N` CPU budget.
+  # Peak transient disk is `p x B x forcing` (WF3 writes no final states),
+  # so B is a disk knob as much as a throughput
+  # one. P3-3 design §6.1 calls this the BINDING constraint on large
+  # `RLZ_NUM x ST_NUM` runs.
+  #
+  # A share rather than a constant because the only honest default is one that
+  # adapts to the machine: a figure generous enough for a workstation is wrong
+  # on a laptop, and vice versa. It only ever LOWERS B, and only when the whole
+  # sweep would not fit anyway; it can never raise it past the parallelism
+  # ceiling or `batch_size_max`.
+  #
+  # Applied only when WF1's model is on disk to measure against — a fresh
+  # project falls back to the previous behaviour rather than failing, since a
+  # safety cap must not become a new way for a run to break.
+  batch_disk_headroom_fraction: 0.25
+
+  # Randomization seed for every stochastic step. Overridable per project via
+  # `seed:` in the run_stress_test file, which also accepts `auto`.
+  #
+  # Today there is exactly ONE consumer: weathergenr, which uses it for both
+  # realization generation and the perturbation step (C34/F15 — one seed, so
+  # the two halves of an experiment cannot have different reproducibility
+  # guarantees). It lives here rather than in the weather generator's own
+  # config so that a second stochastic step, in any workflow, reads the same
+  # key instead of introducing a second seed that can drift from this one.
+  #
+  # `seed: auto` derives the seed from the experiment name, so it
+  # differs between experiments and is identical on every re-run of one. A
+  # seed that changed per INVOCATION would rewrite rule 3.10's output every
+  # time and re-run all of WF3 — the same trap
+  # `resolve_default_experiment_name` documents for dated experiment names.
+  #
+  # Keep this numeric. `dev/baseline/manifest.json` is recorded from a run
+  # that used it, so changing it here invalidates every baseline comparison;
+  # prefer the per-project override, exactly as for julia_threads above.
+  seed: 123
+
+  # First month of the water (hydrological) year, as a three-letter name.
+  # Overridable per project via `climate.water_year_start`.
+  #
+  # Every workflow that reduces to an ANNUAL value reads it: WF2's change
+  # factors, WF3's weather generation, WF3's hydrological indicators and WF1's
+  # climate figures. It is one key because these are one physical idea — before
+  # 2026-08-12 they were four independent behaviours that agreed only by
+  # accident, and two of them could not be configured at all.
+  #
+  # `Jan` is the calendar year and is what every recorded result used, so it is
+  # value-neutral: a January water year ends in December, which is exactly the
+  # aggregation the code did before. A non-Jan value MOVES annual extremes, by
+  # design — that is the point of a water year for a basin whose flood season
+  # crosses New Year — and therefore invalidates a baseline recorded under Jan.
+  water_year_start: Jan
+
+  # Catalog ENTRY NAMES the model-free basin delineation reads. Overridable per
+  # project via `basin.sources.hydrography` and `basin.sources.basin_index`.
+  #
+  # Equal to the shipped `config/defaults/wflow_build_model.yml` `setup_basemaps`
+  # values, so a project that declares neither key keeps building the same basin
+  # — and rule 3.00b's guard digest stays byte-identical, since the digest
+  # serializes the config dict as it stands.
+  #
+  # They are a PAIR: the index is the spatial lookup for the hydrography it was
+  # built from, so changing one without the other asks a catalog for a basin the
+  # other cannot find. Whatever you set here must be registered in the data
+  # catalog passed to hydromt with `-d`.
+  hydrography: merit_hydro_ihu
+  basin_index: merit_hydro_index
+
+  # Ceiling on automatically-derived subbasins, PER PARENT BASIN.
+  # Overridable per project via `basin.delineation.max_subbasins`.
+  #
+  # Eleven, not twelve or twenty: twelve is the practical limit for a qualitative
+  # colour ramp a reader can tell apart (ColorBrewer `Set3` and `Paired` both stop
+  # there), so 11 keeps ONE basin's subbasin map legible with a legend entry per
+  # unit. The argument holds per basin only — a three-basin project reaches 33
+  # units and exceeds any qualitative ramp regardless, which is the figure's
+  # problem to solve rather than this default's.
+  #
+  # The HARD cap is a different number and is not here: `Bnnn-Snn` gives two
+  # digits of local subbasin number, so 99 is a limit no config may relax and
+  # lives beside the identifier format it comes from
+  # (`spatial/config.MAX_LOCAL_SUBBASIN_NUMBER`).
+  max_subbasins: 11
+
+  # How far, in metres, a gauge may be moved onto the derived river network.
+  # Overridable per project via `basin.delineation.snap_tolerance_m`.
+  #
+  # A tolerance rather than a limit: a gauge coordinate and a globally-derived
+  # flow network disagree by roughly a cell, and refusing to snap leaves the
+  # gauge on a hillslope draining nothing. 10 km is generous at MERIT-IHU's
+  # ~1 km resolution, which is the trade this default takes — a gauge silently
+  # snapped to the WRONG tributary is worse than one that fails to snap, so
+  # lower it on a basin with braided or closely-spaced channels.
+  snap_tolerance_m: 10000.0
+
+  # Monthly spell-length coefficients the stress test applies when a project
+  # names none. Overridable per project via `stress_test.spell_factors.dry` and
+  # `.wet` in the run_stress_test file, each taking its own list of 12.
+  #
+  # Twelve 1.0s is the IDENTITY for both factors — no spell-length adjustment —
+  # which is why "absent" can default at all here, where `transient_change`
+  # refuses instead. Twelve entries, one per calendar month, always: weathergenr
+  # indexes them by month, so a shorter list would be recycled by R rather than
+  # rejected and would perturb the wrong months in silence.
+  spell_factor: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+  # The statistics WF2 emits per change factor when a project names none.
+  # Overridable per project via `stats` in the analyze_projections file.
+  #
+  # Three, not the eight an earlier revision shipped. The dropped five were `var`
+  # and four tail quantiles computed over a ~20-year window, which makes `q_90`
+  # "effectively the second-highest of 20 values" (R8 design §5.6) — a number the
+  # window cannot support, presented as though it could. A project that opts back
+  # into a quantile gets it LABELLED with its effective sample size (`q_90[n=20]`),
+  # so the weakness travels with the value instead of being left in a footnote.
+  #
+  # Any xarray reduction name, or `q_<percentile>`; the set is open because the
+  # percentile is.
+  change_factor_stats: [mean, median, std]
+
+runtime:
+
+  # Wflow.jl `--threads`. A TOOLBOX setting with no per-project override;
+  # this is the only place it is set.
+  # It sits under `runtime:` rather than `defaults:` because `defaults:` is for
+  # values a project could have overridden, and there is no longer such a
+  # thing for this one.
+  #
+  # Wflow parallelizes over grid CELLS, so raising this pays on a large basin
+  # and costs time on a small one. Only WF1's single historical run reads it;
+  # WF4's batches take their threads from `batching:` below.
+  #
+  # 4 is one leg of the frozen resource triple `(-c 3, --threads 4, B=1)` that
+  # every recorded performance baseline was measured at
+  # (dev/records/milestones/p33/performance-baseline.md §5.6). Changing it here
+  # silently invalidates those comparisons.
+  julia_threads: 4
+
+  # The juliaup version selector every workflow Julia invocation carries
+  # (`julia +<version> ...`). Julia is deliberately NOT in the pixi env —
+  # conda-forge has no win-64 build — so it is juliaup-managed, must already be
+  # on PATH, and the `+` prefix is how the shim picks a toolchain. Install it
+  # with `juliaup add <version>`.
+  #
+  # THREE files declare this version and they must agree. This one is the
+  # human-facing declaration and the only one the workflows read; the other two
+  # cannot read YAML, so equality is enforced by
+  # `tests/test_julia_runtime.py` rather than by single-sourcing:
+  #
+  #   pixi.toml        `install-julia` task — instantiates the Julia env.
+  #                    Hand-edit it to match.
+  #   Manifest.toml    `julia_version` — machine-generated, records what the
+  #                    lock was actually resolved against. Do not hand-edit;
+  #                    re-run `pixi run install-julia` to regenerate.
+  #
+  # `Project.toml`'s `julia = "~1.11"` compat bound is deliberately looser (a
+  # range; it documents why 1.12.x is excluded). It is only checked for shape
+  # and for admitting this pin — the tilde is what does the excluding.
+  #
+  # Must be a QUOTED three-part string. Unquoted `1.11` is a YAML float, and a
+  # two-part selector lets juliaup resolve a different patch than the manifest
+  # was built against.
+  julia_version: "1.11.7"
+
+batching:
+
+  # WF4 runs its retained members in batches, one Julia session per batch.
+  # Three things set the wall time: threads per batch, batches running at once,
+  # and how many members share a batch (a cold start costs several warm
+  # members). Measured 2026-09-25 on the baseline basin (257 active cells,
+  # 9 years, 12 logical CPUs): 1 thread beat 2 and 4, and two batches at once
+  # ran at full speed each while three or more slowed every member down --
+  # 124 s for 12 members against ~304 s at 4 threads one batch at a time
+  # (t2609242342). Run `scripts/calibrate_batching.py` to measure a basin and
+  # machine of your own.
+  #
+  # `auto` picks by the model's active cell count. Only the SMALL regime is
+  # measured; the LARGE values are a provisional guess -- threads should pay on
+  # a big grid -- until calibrated. A project overrides either per run with
+  # `compute.julia_threads` / `compute.max_parallel_batches`.
+  threads: auto
+  max_parallel: auto
+  small_basin_cells: 5000
+  small_threads: 1
+  small_max_parallel: 2
+  large_threads: 4
+  large_max_parallel: 1
+
+  # Per-batch memory estimate, which caps batches at once to what fits in 80%
+  # of available memory. 1.3 GB was measured per batch on the baseline basin;
+  # the per-cell term is a provisional guess, not a measurement.
+  memory_per_batch_gb: 1.5
+  memory_per_cell_kb: 20.0

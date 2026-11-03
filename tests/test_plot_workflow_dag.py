@@ -1,0 +1,316 @@
+"""Contract tests for scripts/plot_workflow_dag.py.
+
+Covers the two derivations the tool exists for -- WHERE the graph is written and
+WHAT it is called -- plus the graphviz-missing message. No real snakemake or
+graphviz runs; the subprocess boundary is monkeypatched.
+"""
+
+import os
+import sys
+
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+import plot_workflow_dag as pwd  # noqa: E402
+
+
+class FakeResult:
+    def __init__(self, returncode=0, stdout="", stderr=""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+def _write_r01_cfg(path, project_dir, experiment=None):
+    """A project config; `experiment` adds the key WF4's DAG scope reads.
+
+    Optional on purpose -- both WF4 branches are exercised below: the
+    experiment scope, and the fallback when the key is absent.
+
+    When `experiment` is given the config is written SPLIT, because that is
+    where the key lives since R13 and the tool has to compose to see it. This
+    fixture is the one that would go quiet if it did not: a raw read finds a
+    two-key stanza, the name comes back None, and every WF4 render loses the
+    experiment id from its filename with nothing reporting it.
+    """
+    # `C-05` stamps the version and `C-07` deleted `static_dir`. The three
+    # kind sections are here because `CONFIG_PROJECTION` names them: a config
+    # missing one does not compose, so a fixture that carried only `project:`
+    # and `workflows:` stopped being a project config when `shared:` dissolved.
+    text = (
+        f"schema_version: 2\n"
+        f"project:\n  project_dir: {project_dir}\n"
+        "basin:\n  region: \"{'subbasin': [9.7, 0.4], 'uparea': 100}\"\n"
+        "climate:\n  selected: era5\n  sources: [era5]\n"
+        "  window: {start: 2000, end: 2020}\n"
+        "model:\n  outvars: [river discharge]\n"
+    )
+    if experiment is not None:
+        settings = path.parent / f"{path.stem}_simulate_system.yml"
+        settings.write_text(
+            f"experiment_name: {experiment}\noperation: simulate-and-indicators\n",
+            encoding="utf-8",
+        )
+        text += (
+            "workflows:\n"
+            "  simulate_system:\n"
+            "    enabled: true\n"
+            f"    config_path: {settings.name}\n"
+        )
+    path.write_text(text, encoding="utf-8")
+
+
+# --- workflow number -------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "snakefile, number",
+    [
+        ("build_model.smk", 1),
+        ("analyze_projections.smk", 2),
+        ("generate_scenarios.smk", 3),
+        ("simulate_system.smk", 4),
+    ],
+)
+def test_workflow_number_covers_all_three(snakefile, number):
+    assert pwd.workflow_number(pwd.Path(snakefile)) == number
+
+
+def test_workflow_number_is_by_basename_not_full_path():
+    assert pwd.workflow_number(pwd.Path("/some/repo/build_model.smk")) == 1
+
+
+def test_unknown_snakefile_names_the_valid_ones():
+    with pytest.raises(pwd.DagPlotError) as excinfo:
+        pwd.workflow_number(pwd.Path("nope.smk"))
+    assert "build_model.smk" in str(excinfo.value)
+
+
+# --- project_dir / project_name derivation ---------------------------------
+
+
+# `C:/...` is only ABSOLUTE on Windows. On POSIX it is an ordinary relative
+# path, so `read_project` correctly joins it onto the repo root and the assert
+# below compares a joined path against a bare one -- the test asserts the
+# platform, not the function. The relative-path case immediately after covers
+# the same code on both legs.
+#
+# Red on the ubuntu leg for three CI runs before anyone looked (t2608071205);
+# t2608071221 tracks Linux being unexercised, and this is one of four skips to
+# revisit when a real Linux run becomes available.
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="`C:/...` is only absolute on Windows; revisit under t2608071221",
+)
+def test_absolute_project_dir_is_used_verbatim(tmp_path):
+    cfg = tmp_path / "cfg.yml"
+    _write_r01_cfg(cfg, "C:/TESTS/CST/gabon_0108")
+    project_dir, name, _ = pwd.read_project(cfg)
+    assert project_dir == pwd.Path("C:/TESTS/CST/gabon_0108")
+    assert name == "gabon_0108"
+
+
+def test_relative_project_dir_resolves_against_the_repo_root(tmp_path):
+    """Snakemake runs with cwd=REPO_ROOT, so the plot must land where its
+    outputs do -- not next to the config or the caller's cwd."""
+    cfg = tmp_path / "cfg.yml"
+    _write_r01_cfg(cfg, "test_case/test_local")
+    project_dir, name, _ = pwd.read_project(cfg)
+    assert project_dir == pwd.REPO_ROOT / "test_case" / "test_local"
+    assert name == "test_local"
+
+
+def test_legacy_flat_config_uses_top_level_keys(tmp_path):
+    """The single-workflow projections configs have no `project:` section but
+    do carry an explicit project_name, which wins over the basename."""
+    cfg = tmp_path / "cfg.yml"
+    cfg.write_text(
+        "project_name: Gabon\nproject_dir: test_case/gabon\n", encoding="utf-8"
+    )
+    project_dir, name, _ = pwd.read_project(cfg)
+    assert project_dir == pwd.REPO_ROOT / "test_case" / "gabon"
+    assert name == "Gabon"
+
+
+def test_explicit_project_name_wins_in_the_r01_schema(tmp_path):
+    cfg = tmp_path / "cfg.yml"
+    cfg.write_text(
+        "project_name: Gabon\nproject:\n  project_dir: C:/TESTS/CST/gabon_0108\n",
+        encoding="utf-8",
+    )
+    _, name, _ = pwd.read_project(cfg)
+    assert name == "Gabon"
+
+
+def test_missing_project_dir_is_a_hard_error(tmp_path):
+    cfg = tmp_path / "cfg.yml"
+    cfg.write_text("project:\n  static_dir: config\n", encoding="utf-8")
+    with pytest.raises(pwd.DagPlotError, match="no project_dir"):
+        pwd.read_project(cfg)
+
+
+def test_missing_config_file_is_a_hard_error(tmp_path):
+    with pytest.raises(pwd.DagPlotError, match="not found"):
+        pwd.read_project(tmp_path / "absent.yml")
+
+
+# --- end-to-end output path ------------------------------------------------
+
+
+def test_output_lands_in_logs_dag_named_project_wfN(tmp_path, monkeypatch, capsys):
+    cfg = tmp_path / "cfg.yml"
+    project_dir = tmp_path / "gabon_0108"
+    _write_r01_cfg(cfg, project_dir.as_posix())
+
+    rendered = {}
+
+    def fake_run(cmd, cwd=None, input=None, **kwargs):
+        if cmd[0] == "dot-stub":
+            rendered["argv"] = cmd
+            rendered["dot"] = input
+            return FakeResult()
+        assert cwd == pwd.REPO_ROOT, "snakemake must run from the repo root"
+        return FakeResult(stdout="digraph snakemake_dag {\n}\n")
+
+    monkeypatch.setattr(pwd.subprocess, "run", fake_run)
+    monkeypatch.setattr(pwd.shutil, "which", lambda _: "dot-stub")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "plot_workflow_dag.py",
+            "-s",
+            "build_model.smk",
+            "--configfile",
+            str(cfg),
+        ],
+    )
+
+    assert pwd.main() == 0
+    expected = project_dir / "logs" / "dag" / "gabon_0108_wf1_dag.png"
+    assert rendered["argv"] == ["dot-stub", "-Tpng", "-o", str(expected)]
+    assert rendered["dot"].startswith("digraph")
+    assert capsys.readouterr().out.strip() == str(expected)
+    # render() creates the subdir; the project root stays free of the plot.
+    assert expected.parent.is_dir()
+    assert not list(project_dir.glob("*.png"))
+
+
+def test_rulegraph_mode_and_format_reach_the_filename(tmp_path, monkeypatch):
+    cfg = tmp_path / "cfg.yml"
+    project_dir = tmp_path / "gabon_0108"
+    _write_r01_cfg(cfg, project_dir.as_posix(), experiment="experiment")
+
+    seen = {}
+
+    def fake_run(cmd, cwd=None, input=None, **kwargs):
+        if cmd[0] == "dot-stub":
+            seen["out"] = cmd[-1]
+            return FakeResult()
+        seen["snakemake"] = cmd
+        return FakeResult(stdout="digraph x {}")
+
+    monkeypatch.setattr(pwd.subprocess, "run", fake_run)
+    monkeypatch.setattr(pwd.shutil, "which", lambda _: "dot-stub")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "plot_workflow_dag.py",
+            "-s",
+            "simulate_system.smk",
+            "--configfile",
+            str(cfg),
+            "--mode",
+            "rulegraph",
+            "--format",
+            "svg",
+        ],
+    )
+
+    assert pwd.main() == 0
+    assert "--rulegraph" in seen["snakemake"]
+    assert seen["out"] == str(
+        project_dir / "logs" / "dag" / "gabon_0108_wf4_experiment_01_rulegraph.svg"
+    )
+
+
+def test_missing_graphviz_reports_how_to_get_it(monkeypatch):
+    monkeypatch.setattr(pwd.shutil, "which", lambda _: None)
+    with pytest.raises(pwd.DagPlotError, match="pixi"):
+        pwd.render("digraph x {}", pwd.Path("out.png"), "png")
+
+
+def test_snakemake_failure_surfaces_its_stderr(monkeypatch):
+    monkeypatch.setattr(
+        pwd.subprocess,
+        "run",
+        lambda *a, **k: FakeResult(returncode=1, stderr="MissingInputException: boom"),
+    )
+    with pytest.raises(pwd.DagPlotError, match="MissingInputException"):
+        pwd.build_graph(
+            "dag", pwd.Path("build_model.smk"), pwd.Path("cfg.yml"), "all", []
+        )
+
+
+# --- R9 P2 commit 4: the render sits at the PRODUCING RUN's scope (P7) ------
+
+
+def _rel(number, cfg, name="test"):
+    return pwd.plot_relpath(number, name, cfg, "dag", "png")
+
+
+def test_every_render_lands_in_the_projects_own_logs_dag():
+    """One directory for all three workflows since 2026-08-11."""
+    cfg = {"workflows": {"simulate_system": {"experiment_name": "e"}}}
+    for number in (0, 1, 2, 3, 4):
+        assert _rel(number, cfg).parent == pwd.Path("logs") / "dag"
+
+
+def test_wf1_and_wf2_renders_are_named_for_the_project_alone():
+    cfg = {"workflows": {"simulate_system": {"experiment_name": "e"}}}
+    assert _rel(1, cfg).name == "test_wf1_dag.png"
+    assert _rel(2, cfg).name == "test_wf2_dag.png"
+
+
+def test_wf4_render_carries_its_experiment_in_the_name():
+    """WF4's DAG describes ONE experiment's run, and its records are now keyed
+    by name rather than by directory -- as the merged log and benchmark table
+    are. Without the id, two experiments in one project overwrite one file."""
+    cfg = {"workflows": {"simulate_system": {"experiment_name": "gabon_dry"}}}
+    assert _rel(4, cfg).name == "test_wf4_gabon_dry_01_dag.png"
+    other = {"workflows": {"simulate_system": {"experiment_name": "gabon_wet"}}}
+    assert _rel(4, cfg) != _rel(4, other)
+
+
+def test_the_mode_and_format_reach_the_filename():
+    cfg = {"workflows": {"simulate_system": {"experiment_name": "gabon_dry"}}}
+    assert (
+        pwd.plot_relpath(4, "test", cfg, "rulegraph", "svg").name
+        == "test_wf4_gabon_dry_01_rulegraph.svg"
+    )
+    assert pwd.plot_relpath(1, "test", cfg, "rulegraph", "svg").name == (
+        "test_wf1_rulegraph.svg"
+    )
+
+
+@pytest.mark.parametrize(
+    "cfg",
+    [
+        {},
+        {"workflows": None},
+        {"workflows": {"simulate_system": None}},
+        {"workflows": {"simulate_system": {}}},
+    ],
+)
+def test_wf4_uses_numbered_default_without_an_experiment_name(cfg):
+    """A convenience render must not fail a user's command over a missing
+    optional key -- including the several ways YAML spells "absent"."""
+    assert _rel(4, cfg) == pwd.Path("logs") / "dag" / "test_wf4_stress_test_01_dag.png"
+
+
+def test_the_render_never_lands_under_the_editable_config_root():
+    """The P4 property the move exists for, asserted directly."""
+    cfg = {"workflows": {"simulate_system": {"experiment_name": "e"}}}
+    for number in (0, 1, 2, 3, 4):
+        assert "config" not in _rel(number, cfg).parts

@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 651" width="960" height="651" role="img" aria-labelledby="toolbox-conceptual-overview-title toolbox-conceptual-overview-desc" font-family="'Segoe UI', Arial, sans-serif" id="toolbox-conceptual-overview-root">
+<title id="toolbox-conceptual-overview-title">Toolbox conceptual overview</title>
+<desc id="toolbox-conceptual-overview-desc">A shared basin-region step feeds four processes that can each start first; the evaluated model and perturbed stochastic weather converge on hydrological simulation and indicator calculation, and projections only give context to analyst-led vulnerability mapping.</desc>
+<defs>
+      <style>#toolbox-conceptual-overview-root { font-family: 'Segoe UI', Arial, sans-serif; }
+      #toolbox-conceptual-overview-root .diagram-container { width: 100%; overflow-x: auto; }
+      @media print {
+#toolbox-conceptual-overview-root .diagram-container { overflow-x: visible; }
+}</style>
+<marker id="toolbox-conceptual-overview-toolbox-conceptual-overview-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto-start-reverse"><path d="M0 0 L8 3 L0 6 Z" fill="#4f555e"/></marker>
+<marker id="toolbox-conceptual-overview-toolbox-conceptual-overview-arrow-uses" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto-start-reverse"><path d="M0 0 L9 4 L0 8 Z" fill="#4f555e"/></marker>
+</defs>
+<rect width="960" height="651" fill="#ffffff"/>
+<g fill="#292d34">
+<g id="processes-side" transform="translate(0 0)">
+<g id="connectors" fill="none" stroke="#4f555e" stroke-width="1.5">
+<path d="M260 72 H284" marker-end="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow)"/>
+<path d="M372 72 H396" marker-end="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow)"/>
+<path d="M171 140 V176" marker-end="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow)"/>
+<path d="M359 140 V176" marker-end="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow)"/>
+<path d="M529 140 V176" marker-end="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow)"/>
+<path d="M246 214 H284" stroke-dasharray="5 4" marker-end="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow)"/>
+<path d="M68 140 V318 Q68 326 76 326 H96" marker-end="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow)"/>
+<path d="M359 252 V288" marker-end="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow)"/>
+<path d="M529 252 V288" marker-end="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow)"/>
+<path d="M359 364 V400" marker-end="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow)"/>
+<path d="M529 364 V400" marker-end="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow)"/>
+<path d="M444 444 V480" marker-end="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow)"/>
+<path d="M444 524 V560" marker-end="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow)"/>
+<path d="M171 364 V578 Q171 586 179 586 H284" stroke-dasharray="5 4" marker-end="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow)"/>
+</g>
+<g id="processes-panel" data-box="panel">
+<rect x="40" y="40" width="588" height="587" rx="8" fill="none" stroke="#c6c9cd" stroke-width="1.4"/>
+<g id="chip-configuration" data-box="chip">
+<rect x="56" y="56" width="204" height="32" rx="4" fill="#ffffff" stroke="#4f555e" stroke-width="1.5"/>
+<text x="158.0" y="78" font-size="16" text-anchor="middle">Configuration + catalogs</text>
+</g>
+<g id="chip-runners" data-box="chip">
+<rect x="284" y="56" width="88" height="32" rx="4" fill="#ffffff" stroke="#4f555e" stroke-width="1.5"/>
+<text x="328.0" y="78" font-size="16" text-anchor="middle">Runners</text>
+</g>
+<g id="chip-snakemake" data-box="chip">
+<rect x="396" y="56" width="112" height="32" rx="4" fill="#ffffff" stroke="#4f555e" stroke-width="1.5"/>
+<text x="452.0" y="78" font-size="16" text-anchor="middle">Snakemake</text>
+</g>
+<text x="56" y="614" font-size="14" fill="#555b64">Python · R · Julia</text>
+<g id="shared-region" data-box="shared">
+<rect x="64" y="104" width="540" height="36" rx="4" fill="#f6f6f4" stroke="#4f555e" stroke-width="1.5"/>
+<text x="334" y="128" font-size="16" text-anchor="middle">Delineate river basin</text>
+</g>
+<g id="analyze-historical-climate" data-box="process">
+<rect x="96" y="176" width="150" height="76" rx="6" fill="#ffffff" stroke="#4f555e" stroke-width="1.5"/>
+<text x="171.0" y="199.0" font-size="16" text-anchor="middle">Analyze</text>
+<text x="171.0" y="220.0" font-size="16" text-anchor="middle">historical</text>
+<text x="171.0" y="241.0" font-size="16" text-anchor="middle">climate</text>
+</g>
+<g id="build-hydrological-model" data-box="process">
+<rect x="284" y="176" width="150" height="76" rx="6" fill="#ffffff" stroke="#4f555e" stroke-width="1.5"/>
+<text x="359.0" y="199.0" font-size="16" text-anchor="middle">Build</text>
+<text x="359.0" y="220.0" font-size="16" text-anchor="middle">hydrological</text>
+<text x="359.0" y="241.0" font-size="16" text-anchor="middle">model</text>
+</g>
+<g id="generate-historical-weather" data-box="process">
+<rect x="454" y="176" width="150" height="76" rx="6" fill="#ffffff" stroke="#4f555e" stroke-width="1.5"/>
+<text x="529.0" y="199.0" font-size="16" text-anchor="middle">Generate</text>
+<text x="529.0" y="220.0" font-size="16" text-anchor="middle">historical</text>
+<text x="529.0" y="241.0" font-size="16" text-anchor="middle">weather</text>
+</g>
+<g id="analyze-climate-projections" data-box="process">
+<rect x="96" y="288" width="150" height="76" rx="6" fill="#ffffff" stroke="#4f555e" stroke-width="1.5"/>
+<text x="171.0" y="311.0" font-size="16" text-anchor="middle">Analyze</text>
+<text x="171.0" y="332.0" font-size="16" text-anchor="middle">climate</text>
+<text x="171.0" y="353.0" font-size="16" text-anchor="middle">projections</text>
+</g>
+<g id="simulate-and-evaluate-model" data-box="process">
+<rect x="284" y="288" width="150" height="76" rx="6" fill="#ffffff" stroke="#4f555e" stroke-width="1.5"/>
+<text x="359.0" y="311.0" font-size="16" text-anchor="middle">Simulate and</text>
+<text x="359.0" y="332.0" font-size="16" text-anchor="middle">evaluate</text>
+<text x="359.0" y="353.0" font-size="16" text-anchor="middle">model</text>
+</g>
+<g id="apply-climate-perturbations" data-box="process">
+<rect x="454" y="288" width="150" height="76" rx="6" fill="#ffffff" stroke="#4f555e" stroke-width="1.5"/>
+<text x="529.0" y="321.5" font-size="16" text-anchor="middle">Apply climate</text>
+<text x="529.0" y="342.5" font-size="16" text-anchor="middle">perturbations</text>
+</g>
+<g id="simulate-hydrological-response" data-box="process">
+<rect x="284" y="400" width="320" height="44" rx="6" fill="#ffffff" stroke="#4f555e" stroke-width="1.5"/>
+<text x="444.0" y="428.0" font-size="16" text-anchor="middle">Simulate hydrological response</text>
+</g>
+<g id="calculate-indicators" data-box="process">
+<rect x="284" y="480" width="320" height="44" rx="6" fill="#ffffff" stroke="#4f555e" stroke-width="1.5"/>
+<text x="444.0" y="508.0" font-size="16" text-anchor="middle">Derive performance indicators</text>
+</g>
+<g id="map-climate-vulnerability" data-box="process">
+<rect x="284" y="560" width="320" height="52" rx="6" fill="#ffffff" stroke="#4f555e" stroke-width="1.5"/>
+<text x="444.0" y="592.0" font-size="16" text-anchor="middle">Map climate vulnerability and risk</text>
+</g>
+</g>
+</g>
+<g id="tools-panel" data-box="panel">
+<rect x="688" y="40" width="232" height="196" rx="8" fill="none" stroke="#c6c9cd" stroke-width="1.4"/>
+<text x="704" y="66" font-size="14" fill="#555b64">Model adapters</text>
+<text x="704" y="87" font-size="16">HydroMT</text>
+<text x="704" y="112" font-size="14" fill="#555b64">Scenario generators</text>
+<text x="704" y="133" font-size="16">weathergenr</text>
+<text x="704" y="158" font-size="14" fill="#555b64">System simulation</text>
+<text x="704" y="179" font-size="16">Wflow-SBM</text>
+<text x="704" y="204" font-size="14" fill="#555b64">Extension modules</text>
+<text x="704" y="225" font-size="16">Indicators, plotting</text>
+</g>
+<g id="global-datasets-panel" data-box="panel">
+<rect x="688" y="271" width="232" height="242" rx="8" fill="#eceff3" stroke="#8a9099" stroke-width="1.4"/>
+<text x="704" y="297" font-size="14" fill="#555b64">Terrain and rivers</text>
+<text x="704" y="318" font-size="16">MERIT Hydro</text>
+<text x="704" y="343" font-size="14" fill="#555b64">Land surface</text>
+<text x="704" y="364" font-size="16">SoilGrids, MODIS LAI</text>
+<text x="704" y="389" font-size="14" fill="#555b64">Water bodies</text>
+<text x="704" y="410" font-size="16">HydroLAKES, GRanD, RGI</text>
+<text x="704" y="435" font-size="14" fill="#555b64">Meteorology</text>
+<text x="704" y="456" font-size="16">ERA5, CHIRPS</text>
+<text x="704" y="481" font-size="14" fill="#555b64">Climate projections</text>
+<text x="704" y="502" font-size="16">CMIP6</text>
+</g>
+<g id="local-data-panel" data-box="panel">
+<rect x="688" y="548" width="232" height="79" rx="8" fill="#eceff3" stroke="#8a9099" stroke-width="1.4"/>
+<text x="704" y="574" font-size="14" fill="#555b64">Streamflow gauges</text>
+<text x="704" y="595" font-size="16">Gauge locations</text>
+<text x="704" y="616" font-size="16">Discharge records</text>
+</g>
+<g id="connectors-uses" data-connectors="1" fill="none" stroke="#4f555e">
+<path d="M632 138 H684" stroke-width="2.4" stroke-dasharray="0.1 5" stroke-linecap="round" marker-start="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow-uses)" marker-end="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow-uses)"/>
+<path d="M632 392 H684" stroke-width="2.4" stroke-dasharray="0.1 5" stroke-linecap="round" marker-start="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow-uses)" marker-end="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow-uses)"/>
+<path d="M632 587 H684" stroke-width="2.4" stroke-dasharray="0.1 5" stroke-linecap="round" marker-start="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow-uses)" marker-end="url(#toolbox-conceptual-overview-toolbox-conceptual-overview-arrow-uses)"/>
+</g>
+<text x="40" y="30" font-size="16" font-weight="700" fill="#292d34" letter-spacing="1.4">WORKFLOW STEPS</text>
+<text x="688" y="30" font-size="16" font-weight="700" fill="#292d34" letter-spacing="1.4">TOOLS</text>
+<text x="688" y="261" font-size="16" font-weight="700" fill="#292d34" letter-spacing="1.4">GLOBAL DATASETS</text>
+<text x="688" y="538" font-size="16" font-weight="700" fill="#292d34" letter-spacing="1.4">LOCAL DATA</text>
+</g>
+</svg>

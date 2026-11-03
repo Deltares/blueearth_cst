@@ -1,0 +1,6 @@
+/.quarto/
+**/*.quarto_ipynb
+/site/.quarto/
+/site/_site/
+/site/index_files/
+/site/.gitignore

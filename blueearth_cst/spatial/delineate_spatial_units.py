@@ -1,0 +1,106 @@
+# Current guidance: dev/reference/toolbox-spatial-foundation.md
+"""Delineate the shared vector foundation once per project.
+
+The shared ``spatial_units_rule`` declaration produces vector layers, the
+location registry and the hydrography grid seam from the catalog, project
+region and optional gauge points. Model-free consumers obtain these products
+without resampling the thematic land/soil layers needed only by WF1.
+"""
+
+# NO `from __future__ import annotations` here, deliberately: Snakemake's
+# `script:` directive executes this module through a generated wrapper that
+# PREPENDS its own preamble, and a future import is then no longer the first
+# statement. Every other `script:` module in this repo omits it for the reason
+# spelled out in `delineate_region.py`.
+import gc
+import os
+from pathlib import Path
+from typing import Optional, Sequence, Union
+
+from hydromt import DataCatalog
+
+from blueearth_cst.spatial.products import (
+    prepare_spatial_units,
+    write_spatial_units,
+)
+
+
+def _catalog_paths(value):
+    """Normalize one or several Snakemake catalog inputs."""
+    if isinstance(value, (str, os.PathLike)):
+        return [os.fspath(value)]
+    return [os.fspath(item) for item in value]
+
+
+def run_delineate_spatial_units(
+    data_catalogs: Union[str, os.PathLike, Sequence[object]],
+    region_fn: Union[str, os.PathLike],
+    output_dir: Union[str, os.PathLike],
+    *,
+    hydrography: str,
+    resolution: float,
+    river_uparea_km2: float,
+    rivers_source: str,
+    gauge_points_path: Optional[str],
+    gauge_snap_tolerance_m: float,
+    max_subbasins_per_basin: int,
+) -> None:
+    """Build and write the vector foundation plus the hydrography grid seam.
+
+    Every keyword is a ``shared.basin`` field resolved by
+    ``parse_spatial_config`` in the declaring Snakefile — spelled out one by
+    one because the spatial contract requires the rule's params to be a pure function
+    of ``project`` + ``shared.basin``. In particular the deprecated
+    ``workflows.build_model.output_locations`` fallback CANNOT feed this
+    rule: the five projections-only configs carry no ``workflows.build_model``
+    section at all, so a params payload that depended on one would differ per
+    invoking workflow — the input/params asymmetry ``ext1-02`` forbade for the
+    climate store. ``shared.basin.gauge_points`` is the only source here.
+    """
+    catalog = DataCatalog(data_libs=_catalog_paths(data_catalogs))
+    units = prepare_spatial_units(
+        catalog,
+        region_fn,
+        hydrography=hydrography,
+        resolution=resolution,
+        river_uparea_km2=river_uparea_km2,
+        rivers_source=rivers_source,
+        gauge_points_path=gauge_points_path,
+        gauge_snap_tolerance_m=gauge_snap_tolerance_m,
+        max_subbasins_per_basin=max_subbasins_per_basin,
+    )
+    try:
+        write_spatial_units(units, output_dir)
+    finally:
+        # Rasterio/GDAL-backed lazy arrays otherwise survive until interpreter
+        # shutdown on Windows and can emit a large benign sys.excepthook cascade.
+        #
+        # `del catalog` is not decoration: this collect ran with `catalog` still
+        # BOUND until 2026-08-11, so the object holding the GDAL handles was
+        # still reachable and the collector could not claim it — the comment
+        # above promised a mitigation the code could not deliver.
+        # `tee_to_log` now collects again on the way out, which covers whatever
+        # is released after this point; this one still runs first, so the
+        # handles go while the rule is at its healthiest.
+        units.maps.close()
+        del catalog
+        gc.collect()
+
+
+if __name__ == "__main__" and "snakemake" in globals():
+    sm = globals()["snakemake"]
+    from blueearth_cst.shared.snake_utils import tee_to_log
+
+    with tee_to_log(sm.log[0]):
+        run_delineate_spatial_units(
+            sm.input.data_catalogs,
+            sm.input.region_geojson,
+            Path(sm.output.location_registry).parent,
+            hydrography=sm.params.hydrography,
+            resolution=sm.params.resolution,
+            river_uparea_km2=sm.params.river_uparea_km2,
+            rivers_source=sm.params.rivers_source,
+            gauge_points_path=getattr(sm.input, "gauge_points", None),
+            gauge_snap_tolerance_m=sm.params.gauge_snap_tolerance_m,
+            max_subbasins_per_basin=sm.params.max_subbasins_per_basin,
+        )
