@@ -1,0 +1,37 @@
+<mxfile host="Electron">
+  <diagram id="shape-of-a-run" name="Workflow overview">
+    <mxGraphModel grid="0" gridSize="4" guides="1" tooltips="1" connect="1" arrows="1" fold="0" page="0" pageScale="1" pageWidth="1280" pageHeight="800" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="model" parent="1" style="rounded=1;absoluteArcSize=1;arcSize=12;html=1;whiteSpace=wrap;align=center;verticalAlign=middle;spacing=16;fontFamily=Segoe UI;fontSize=16;fontColor=#292d34;fillColor=#ffffff;strokeColor=#4f555e;strokeWidth=1.5;fontStyle=0;" value="Build hydrological models" vertex="1">
+          <mxGeometry height="140" width="196" x="244" y="24" as="geometry" />
+        </mxCell>
+        <mxCell id="baseline" parent="1" style="rounded=1;absoluteArcSize=1;arcSize=12;html=1;whiteSpace=wrap;align=center;verticalAlign=middle;spacing=16;fontFamily=Segoe UI;fontSize=16;fontColor=#292d34;fillColor=#ffffff;strokeColor=#4f555e;strokeWidth=1.5;fontStyle=0;" value="Analyze historical climate" vertex="1">
+          <mxGeometry height="140" width="196" x="24" y="24" as="geometry" />
+        </mxCell>
+        <mxCell id="scenarios" parent="1" style="rounded=1;absoluteArcSize=1;arcSize=12;html=1;whiteSpace=wrap;align=center;verticalAlign=middle;spacing=16;fontFamily=Segoe UI;fontSize=16;fontColor=#292d34;fillColor=#ffffff;strokeColor=#4f555e;strokeWidth=1.5;fontStyle=0;" value="Generate climate scenarios" vertex="1">
+          <mxGeometry height="140" width="196" x="684" y="24" as="geometry" />
+        </mxCell>
+        <mxCell id="projections" parent="1" style="rounded=1;absoluteArcSize=1;arcSize=12;html=1;whiteSpace=wrap;align=center;verticalAlign=middle;spacing=16;fontFamily=Segoe UI;fontSize=16;fontColor=#292d34;fillColor=#ffffff;strokeColor=#4f555e;strokeWidth=1.5;fontStyle=0;" value="Assess climate projections" vertex="1">
+          <mxGeometry height="140" width="196" x="464" y="24" as="geometry" />
+        </mxCell>
+        <mxCell id="simulation" parent="1" style="rounded=1;absoluteArcSize=1;arcSize=12;html=1;whiteSpace=wrap;align=center;verticalAlign=middle;spacing=16;fontFamily=Segoe UI;fontSize=16;fontColor=#292d34;fillColor=#ffffff;strokeColor=#4f555e;strokeWidth=1.5;fontStyle=0;" value="Simulate responses and calculate indicators" vertex="1">
+          <mxGeometry height="140" width="196" x="904" y="24" as="geometry" />
+        </mxCell>
+        <mxCell id="edge5" edge="1" parent="1" source="baseline" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#4f555e;strokeWidth=1.5;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;jumpStyle=arc;jumpSize=8;" target="model">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge8" edge="1" parent="1" source="scenarios" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#4f555e;strokeWidth=1.5;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;jumpStyle=arc;jumpSize=8;" target="simulation">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="G4JKxq1QZWnhsOl5U7Tv-2" edge="1" parent="1" source="model" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#4f555e;strokeWidth=1.5;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;jumpStyle=arc;jumpSize=8;" target="projections">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="G4JKxq1QZWnhsOl5U7Tv-3" edge="1" parent="1" source="projections" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#4f555e;strokeWidth=1.5;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;jumpStyle=arc;jumpSize=8;" target="scenarios">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

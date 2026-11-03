@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 576" role="img" aria-labelledby="workflow-wf4-title workflow-wf4-desc">
+<title id="workflow-wf4-title">Simulation and indicators</title>
+<desc id="workflow-wf4-desc">Scientific processing steps for hydrological simulation; the accompanying page explains inputs, choices, products and conditional calculations.</desc>
+<defs><marker id="workflow-wf4-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#4f555e"/></marker></defs>
+<rect width="800" height="576" fill="#fff"/>
+<g fill="none" stroke="#4f555e" stroke-width="1.5" marker-end="url(#workflow-wf4-arrow)">
+<path d="M240 104 V140"/>
+<path d="M240 204 V240"/>
+<path d="M240 304 V340"/>
+<path d="M240 404 V440"/>
+<path d="M480 372 H472 Q464 372 464 380 V444 Q464 452 456 452 H440"/>
+<path d="M440 484 H480"/>
+</g>
+<g>
+<rect x="40" y="40" width="400" height="64" fill="#f6f6f4" stroke="#4f555e" stroke-width="1.5" rx="6" stroke-dasharray="6 4"/>
+<text x="240" y="67" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Select weather scenarios and calculations</text>
+<text x="240" y="87" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Completed scenarios and assessment choices</text>
+</g>
+<g>
+<rect x="40" y="140" width="400" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="240" y="167" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Check model and save simulation settings</text>
+<text x="240" y="187" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Model, selected scenarios and run period</text>
+</g>
+<g>
+<rect x="40" y="240" width="400" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="240" y="267" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Prepare forcing and run Wflow batches</text>
+<text x="240" y="287" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">New simulation only; per-run NetCDF and TOML</text>
+</g>
+<g>
+<rect x="40" y="340" width="400" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="240" y="367" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Save simulated daily time series</text>
+<text x="240" y="387" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Wflow CSV outputs and variable information</text>
+</g>
+<g>
+<rect x="40" y="440" width="400" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="240" y="467" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Calculate assessment indicators</text>
+<text x="240" y="487" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Indicator tables and contributing realizations</text>
+</g>
+<g>
+<rect x="480" y="340" width="280" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="620" y="367" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Saved simulation time series</text>
+<text x="620" y="387" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Reuse for new indicator calculations</text>
+</g>
+<g>
+<rect x="480" y="440" width="280" height="64" fill="#f6f6f4" stroke="#4f555e" stroke-width="1.5" rx="6" stroke-dasharray="6 4"/>
+<text x="620" y="467" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Prepare named indicator results</text>
+<text x="620" y="487" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Tables, units and data availability</text>
+</g>
+<line x1="40" y1="528" x2="760" y2="528" stroke="#aaa"/>
+<text x="40" y="552" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Dashed boxes: preparation by the launch command. Indicators can use saved simulations.</text>
+</svg>

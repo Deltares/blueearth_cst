@@ -1,0 +1,10 @@
+case,panel_count,width_3_mm,width_2_mm,max_width_mm,expected_columns,expected_rows
+three-fit,3,250,170,270,3,1
+three-fallback,3,250,170,180,2,2
+four-fallback,4,250,170,180,2,2
+five-fallback,5,250,170,180,2,3
+six-fallback,6,250,170,180,2,3
+nine-fallback,9,250,170,180,2,5
+nine-wide,9,250,170,270,3,3
+exact-boundary,4,250,180,180,2,2
+no-fit,4,250,181,180,0,0

@@ -1,0 +1,29 @@
+# Source-only rapid E2E bundle. Override --src/--dst for another machine.
+# Keep adapters in the pinned catalogs unchanged; point their roots at the
+# staged hydromt directory in the local E2E test.
+source_root: P:/wflow_global/hydromt
+target_root: C:/data/blueearth-cst-e2e/rapid-v3/hydromt
+bbox: [8.5, -0.5, 11.0, 1.5]
+datasets:
+  - {name: merit_hydro_ihu, type: raster_glob, path: topography/merit_hydro_ihu/30sec, pattern: '*.tif'}
+  - {name: merit_hydro_index, type: vector, path: topography/merit_hydro/basin_index.fgb}
+  - {name: hydro_rivers_lin, type: vector, path: hydrography/rivers_lin2019/rivers_ge30m.fgb}
+  - {name: globcover, type: raster, path: landuse/globcover/GLOBCOVER_L4_200901_200912_V2.3.tif}
+  - {name: modis_lai, type: raster_glob, path: landuse/modis/MODIS_MCD15A3H_LAI, pattern: '*.tif'}
+  - {name: soilgrids, type: raster_glob, path: soil/soilgrids_v1.0, pattern: '*_250m_ll.tif'}
+  - {name: hydro_lakes, type: vector, path: hydrography/lakes/lake-db.fgb, allow_empty: true}
+  - {name: hydro_reservoirs, type: vector, path: hydrography/reservoirs/reservoir-db.fgb, allow_empty: true}
+  - {name: rgi, type: vector, path: hydrography/rgi/rgi.fgb, allow_empty: true}
+  - name: era5_daily
+    type: zarr
+    path: meteo/era5_daily.zarr
+    time_range: ['2000-01-01', '2016-12-31']
+    variables: [tp, t2m, tmin, tmax, ssrd, tisr, msl]
+  - name: chirps
+    type: netcdf_glob
+    path: meteo/chirps_africa_daily_v2.0
+    pattern: 'CHIRPS_rainfall_*.nc'
+    # The pinned catalog adds one day; native 1999-12-31 supplies 2000-01-01.
+    time_range: ['1999-12-31', '2016-12-31']
+    variables: [precipitation]
+  - {name: era5_orography, type: netcdf, path: meteo/era5/meta/era5_orography_2018.nc}

@@ -1,0 +1,12 @@
+engine:
+  build_config: config/defaults/wflow_build_model.yml
+  waterbodies_config: config/defaults/wflow_update_waterbodies.yml
+# Both observation inputs are optional; `null` means "not provided".
+#
+# O-04: these once pointed at tests/data/observations/, a tree that has
+# never existed. The suite passed anyway -- empirical proof that both
+# consumers guard on file EXISTENCE, not on the value. Made honest here
+# rather than left as an accidental pass.
+observations:
+
+simulation_window: {start: 2000, end: 2020}

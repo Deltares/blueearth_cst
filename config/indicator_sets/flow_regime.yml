@@ -1,0 +1,8 @@
+schema_version: 1
+id: flow_regime
+title: Flow regime indicators
+description: >-
+  Matched flow-regime aliases, whole-period mean, optional rolling discharge
+  extremes and daily rates of rise and fall. Recharge requires retained gwr.
+selection:
+  registry: flow_regime

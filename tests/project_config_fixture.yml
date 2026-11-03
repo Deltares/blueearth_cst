@@ -1,0 +1,55 @@
+# Test config for blueearth_cst — R01 sectioned schema.
+# Used by tests/test_cli.py (Snakefile dry-runs) and any pytest cases
+# that load a real config via tests/conftest.py.
+
+project:
+  project_dir: tests/test_project
+  catalog: tests/data/tests_data_catalog.yml
+workflows:
+  # WF0 — the basin's historical climate, WITHOUT building a hydrology model.
+  # Every key below is optional; with none set this draws the canonical figure
+  # set for `shared.clim_historical` and nothing else, which is exactly what
+  # WF1 already produces. `candidate_sources` is what makes it a comparison.
+  analyze_climate:
+    enabled: true
+  build_model:
+    enabled: true
+    config_path: project_config_fixture_build_model.yml
+
+  analyze_projections:
+    enabled: true
+    config_path: project_config_fixture_analyze_projections.yml
+
+  generate_scenarios:
+    enabled: true
+    config_path: project_config_fixture_generate_scenarios.yml
+  simulate_system:
+    enabled: true
+    config_path: project_config_fixture_simulate_system.yml
+basin:
+  region: "{'subbasin': [9.738, 0.4212], 'uparea': 70}"
+  resolution: 0.0062475
+  delineation:
+    max_subbasins: 11
+  output_locations:
+model:
+  outvars:
+  - river discharge
+  - precipitation
+  - overland flow
+  - actual evapotranspiration
+  - groundwater recharge
+  - snow
+
+climate:
+  selected: era5
+  window:
+    # >= snake_utils.MIN_HISTORICAL_YEARS (16), or every dry-run test in this
+    # suite reds at parse time. Was 2015..2020 (6 years) until 2026-08-01, when
+    # the floor became a hard error; nothing here asserts the window's value,
+    # only that the DAG builds, so widening it is inert for these tests.
+    start: 2000
+    end: 2020
+  sources:
+  - era5
+schema_version: 2

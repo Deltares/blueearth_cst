@@ -1,0 +1,32 @@
+# WF0 diagnostics; shared sources/window belong in the project file.
+# Subbasin plots are optional. Basin maps still show subbasin boundaries.
+# Generate individual subbasin climate figures. Options: true | false.
+subbasin_figures: false
+
+# Optional settings (omitted periods use climate.window):
+# Custom completeness must also be set in the project's climate.map_reference.
+# Shared maps require matching tolerances and at most 27 missing days per month.
+# Historical climate diagnostic settings. Input: mapping.
+#diagnostics:
+# Select reference water years. Input: inclusive year mapping.
+#  reference_period:
+# First reference water year. Input: integer year, <= end.
+#    start: 2000
+# Last reference water year. Input: integer year, >= start.
+#    end: 2016
+# Select comparison water years. Input: inclusive year mapping.
+#  comparison_period:
+# First comparison water year. Input: integer year, <= end.
+#    start: 2000
+# Last comparison water year. Input: integer year, >= start.
+#    end: 2016
+# Allow missing days per month. Input: integer, 0–27; match climate.map_reference.
+#  max_missing_days_month: 3
+# Allow missing days per year. Input: nonnegative integer; match climate.map_reference.
+#  max_missing_days_year: 15
+# Minimum precipitation defining a wet day. Input: positive millimetres/day.
+#  wet_day_threshold_mm: 1.0
+# Fit standardized precipitation index distribution. Options: gamma | pearson3.
+#  spi_distribution: gamma
+# Supply temperature for precipitation–temperature diagnostics. Input: declared temperature source name.
+#  pt_temperature_source: era5

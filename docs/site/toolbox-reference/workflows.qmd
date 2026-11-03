@@ -1,0 +1,6 @@
+---
+title: "Workflows"
+format: html
+---
+
+Read the [workflow overview](../../technical-manual/scientific-workflows.md) for this reference.

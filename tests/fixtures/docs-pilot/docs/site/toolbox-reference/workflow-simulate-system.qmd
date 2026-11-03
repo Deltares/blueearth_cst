@@ -1,0 +1,11 @@
+---
+title: "Simulation configuration — compatibility fixture"
+format: html
+engine: markdown
+execute:
+  enabled: false
+---
+
+## Configuration {#configuration}
+
+See the [canonical indicator-request configuration](../../technical-manual/indicator-requests.md#configuration).

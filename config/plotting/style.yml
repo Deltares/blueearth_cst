@@ -1,0 +1,54 @@
+# Shared appearance preferences. Physical lengths are mm; fonts/lines are pt.
+page:
+  figure_width_mm: 180.0
+  raster_dpi: 600
+  pdf_fonttype: 42
+typography:
+  base: 8.0
+  tick: 7.0
+  legend: 6.5
+  title: 9.0
+  caveat: 6.0
+  family: null
+charts:
+  widths: {col1: 88.0, panel: 120.0, mid: 140.0, full: 180.0}
+  heights: {single: 80.0, stack2: 110.0, side2: 86.0, row3: 80.0, grid4: 142.0}
+  padding: {x: 4.0, y: 3.0}
+  fonts: {label: 7, tick: 6, note: 6}
+  lines: {line: 1.2, mean: 1.5, ref: 0.8, edge: 0.6, range: 0.8, iqr: 3.0, stem: 1.6, boundary: 0.9}
+  markers: {line: 3.0, point: 4.5, scatter: 16}
+  band_alpha: 0.18
+  label_box: {facecolor: white, edgecolor: none, alpha: 0.88, pad: 1.2}
+  dataset_marker: o
+  fallback_markers: [s, "^", D, v, P, X]
+  rcparams:
+    font.family: DejaVu Sans
+    mathtext.fontset: dejavusans
+    axes.titleweight: normal
+    axes.titlelocation: left
+    axes.spines.top: true
+    axes.spines.right: true
+    axes.axisbelow: true
+    xtick.major.size: 2.5
+    ytick.major.size: 2.5
+    legend.frameon: false
+    legend.handlelength: 2.0
+    figure.facecolor: white
+    savefig.facecolor: white
+maps:
+  # Stream-order steps, lowest order first; colours are colors.yml river_order.
+  river_order_widths: [0.57, 0.85, 1.19, 1.70, 2.41, 3.26, 4.54]
+  river_width: 0.6           # rivers without an order attribute
+  river_halo_width: 0.8      # white halo added to each river's width
+  basin_outline_width: 0.9
+  divide_width: 0.7
+  divide_dash: [6, 2.5]
+  location_marker: D
+  location_size: 6.0         # marker size in pt
+  location_label_size: 5.5
+  location_label_wrap: 14    # labels longer than this many characters wrap to two lines
+  scale_bar_segments: 4
+evaluation:
+  observed_dash: [0, [3, 1.6]]
+  line_width: 0.7
+  heights: {hydrograph: 148.0, extremes: 122.0, performance: 118.0}

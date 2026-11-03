@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "source_revision": "Local source candidate based on 856bc47c; source-hashes.json identifies consumed files",
+  "repository_url": "https://github.com/tanerumit/blueearth_cst/blob/856bc47c0d20e84acd34554e3f72cdc97dff8538/",
+  "format": "docs/publication/format.yml",
+  "asset": "docs/guide/assets/workflow-overview.png",
+  "appendix_manifest": "docs/technical-manual/local-source-appendix.yml",
+  "publications": [
+    {
+      "id": "user-guide",
+      "title": "BlueEarth CST User Guide",
+      "chapters": [
+        "docs/guide/install.md",
+        "docs/guide/quick-start.md",
+        "docs/guide/new-case.md",
+        "docs/guide/running.md",
+        "docs/guide/outputs.md",
+        "docs/guide/troubleshooting.md",
+        "docs/guide/notebooks.md"
+      ],
+      "include_appendices": false
+    },
+    {
+      "id": "technical-manual",
+      "title": "BlueEarth CST Technical Manual",
+      "chapters": [
+        "docs/technical-manual/overview.md",
+        "docs/technical-manual/modeling-and-analysis.md",
+        "docs/technical-manual/model-preparation.md",
+        "docs/technical-manual/hydrological-simulation.md",
+        "docs/technical-manual/weather-generation.md",
+        "docs/technical-manual/indicator-calculations.md",
+        "docs/technical-manual/data-requirements.md",
+        "docs/technical-manual/spatial-datasets.md",
+        "docs/technical-manual/historical-meteorological-data.md",
+        "docs/technical-manual/climate-projection-data.md",
+        "docs/technical-manual/data-catalogs-and-access.md",
+        "docs/technical-manual/catalog-deltares.md",
+        "docs/technical-manual/catalog-climate-projections.md",
+        "docs/technical-manual/data-formats-and-conventions.md",
+        "docs/technical-manual/scientific-workflows.md",
+        "docs/technical-manual/shared-configuration.md",
+        "docs/technical-manual/workflow-analyze-climate.md",
+        "docs/technical-manual/workflow-build-model.md",
+        "docs/technical-manual/workflow-analyze-projections.md",
+        "docs/technical-manual/workflow-generate-scenarios.md",
+        "docs/technical-manual/workflow-simulate-system.md",
+        "docs/technical-manual/workflow-rule-reference.md",
+        "docs/technical-manual/configuration-and-execution.md",
+        "docs/technical-manual/results-and-interpretation.md",
+        "docs/technical-manual/configuration.md",
+        "docs/technical-manual/input-formats.md",
+        "docs/technical-manual/indicator-requests.md",
+        "docs/technical-manual/retained-handoffs.md",
+        "docs/technical-manual/execution-and-provenance.md",
+        "docs/technical-manual/runtime-and-resources.md",
+        "docs/technical-manual/results-transfer.md",
+        "docs/technical-manual/indicator-extension.md"
+      ],
+      "include_appendices": false
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+# =============================================================================
+#  analyze_projections (wf2) -- CMIP6 change factors
+# =============================================================================
+#
+# Shows where climate projections fall on the stress-test grid. It does not
+# drive the stress test. Keep this next to the project file.
+
+
+# -----------------------------------------------------------------------------
+#  ENSEMBLE
+# -----------------------------------------------------------------------------
+
+# Locate available climate projections. Input: generated CMIP6 catalog YAML path.
+catalog: toolbox:config/catalogs/cmip6_data.yml
+# Identify the climate projection ensemble. Options: cmip6.
+ensemble: cmip6
+
+# Models as Institution/Source. The full list of 65: config/templates/README.md.
+# Select climate models to compare. Input: list of catalog Institution/Source identifiers.
+models:
+  - NOAA-GFDL/GFDL-ESM4
+  - INM/INM-CM5-0
+  - CMCC/CMCC-ESM2
+# Select projection experiments. Input: list of catalog SSP identifiers.
+scenarios: [ssp245, ssp585]
+
+# Ensemble member labels, in order of preference. A label a model does not
+# have is skipped; four labels reach nearly every model.
+# Choose ensemble members by availability. Input: mapping.
+members:
+  # Rank preferred ensemble member labels. Input: ordered list of rXiXpXfX labels.
+  preference: [r1i1p1f1, r1i1p1f2, r1i1p1f3, r1i1p2f1]
+  # Select one or all available preferred members. Options: first_available | all.
+  #selection: first_available
+  # Override member selection for individual models. Input: model-to-member mapping.
+  #overrides: {}
+
+
+# -----------------------------------------------------------------------------
+#  VARIABLES
+# -----------------------------------------------------------------------------
+
+# Leave the value empty to use the built-in definition (precip: relative
+# change in mm/day; temp: absolute change in degC). For any other variable:
+# Custom definitions specify source, canonical, units and change below.
+# Define projection variables and change conventions. Input: variable-to-definition mapping.
+variables:
+  # Calculate relative precipitation change. Input: null for built-in definition, or mapping.
+  precip:
+  # Calculate absolute temperature change. Input: null for built-in definition, or mapping.
+  temp:
+  # Define another projection variable. Input: mapping.
+  #'custom_variable':
+  # Select the catalog's renamed variable. Input: post-rename variable name, such as temp.
+  #  source: temp
+  # Specify the physical quantity type. Options: rate | state.
+  #  canonical: state
+  # Set canonical measurement units. Input: supported unit string.
+  #  units: degC
+  # Choose change calculation convention. Options: relative | absolute.
+  #  change: absolute
+
+
+# -----------------------------------------------------------------------------
+#  WINDOWS
+# -----------------------------------------------------------------------------
+
+# Calendar years, inclusive. CMIP6 historical runs end in 2014; a later end
+# is cut back to 2014.
+# Select historical reference calendar years. Input: inclusive year mapping.
+reference_window:
+  # First historical reference calendar year. Input: integer year, <= end.
+  start: 1985
+  # Last historical reference calendar year. Input: integer year; clipped to 2014.
+  end: 2014
+
+# One entry per horizon. `name` labels the outputs.
+# Select future projection horizons. Input: list of named calendar-year windows.
+future_windows:
+  # First future horizon calendar year. Input: integer year, <= end.
+  - start: 2030
+    # Last future horizon calendar year. Input: integer year, >= start.
+    end: 2060
+    # Label this horizon in outputs. Input: unique name string.
+    name: near
+  # First future horizon calendar year. Input: integer year, <= end.
+  - start: 2070
+    # Last future horizon calendar year. Input: integer year, >= start.
+    end: 2100
+    # Label this horizon in outputs. Input: unique name string.
+    name: far
+
+
+# -----------------------------------------------------------------------------
+#  REPORTING
+# -----------------------------------------------------------------------------
+
+# Select ensemble statistics to report. Input: list of supported statistic names.
+#stats: [mean, median, std]

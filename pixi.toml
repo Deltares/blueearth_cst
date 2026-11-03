@@ -1,71 +1,241 @@
-[project]
-authors = ["Sam Vente <savente93@proton.me>"]
-channels = ["conda-forge", "r"]
-description = "Add a short description here"
-name = "cst"
+[workspace]
+name = "blueearth-cst"
+description = "BlueEarth Climate Stress Test toolbox"
+authors = ["Umit Taner <tanerumit@gmail.com>"]
+channels = ["conda-forge"]
 platforms = ["win-64", "linux-64"]
-version = "0.1.0"
 
-[tasks]
-model-creation = { cmd = ["snakemake","all","-c","1","-s","Snakefile_model_creation","--configfile","config/snake_config_model_test.yml"]}
-climate-projections = {cmd = ["snakemake","all","-c","1","-s","Snakefile_climate_projections","--configfile","config/snake_config_model_test.yml","--keep-going"]}
-climate-experiment = {cmd = ["snakemake","all","-c","1","-s","Snakefile_climate_experiment","--configfile","config/snake_config_model_test.yml"]}
-
-docker-build = {cmd = ["docker", "build", "-t", "cst-workflow:$CST_WORKFLOW_VERSION"], env = {CST_WORKFLOW_VERSION="0.0.1"}}
-docker-push = {cmd = [" docker push https://containers.deltares.nl/CST/cst_workflows:$CST_WORKFLOW_TAG"], env = {CST_WORKFLOW_TAG = "latest"}, depends-on = ["docker-tag"]}
-docker-publish = {depends-on = ["docker-push"]}
-docker-tag = {cmd = ["docker", "tag", "cst-workflow:0.0.1", "https://containers.deltares.nl/CST/cst_workflows:$CST_WORKFLOW_TAG"], env = {CST_WORKFLOW_TAG = "latest"}, depends-on = ["docker-build"]}
-
-[target.win-64.dependencies]
-rtools = "*"
-
+# Python + scientific stack — mirrors environment.yml.
 [dependencies]
-cartopy = "*"
-datrie = "*"
+python = ">=3.12,<3.13"
+pip = "*"
+dask = "*"          # used directly via dask.diagnostics in extract/get_stats scripts
 dvc = "*"
-descartes = "*"
-flit = ">=3.2"
 gcsfs = ">=2023.12.1"
 gdal = ">=3.1"
 geopandas = ">=0.10"
-graphviz = "*"
-hydromt = ">=0.9.4,<1.0"
-hydromt_wflow = ">=0.4.1,<0.6"
-jupyter = "*"
+graphviz = "*"      # snakemake DAG renderer
+hydromt = ">=1.3,<2"
+hydromt_wflow = ">=1.0,<2"
+jupyter = "*"       # examples notebooks
 matplotlib = "*"
+netcdf4 = "*"       # direct import in extract_historical_climate (chunk cache) + check_baseline/inspect scripts
 numpy = "*"
 pandas = ">=2.0.0"
-pip = "*"
-python = ">=3.9,<3.12"
-r-base = "*"
-r-essentials = "*"
-r-akima = "*"
-r-patchwork = "*"
-r-doparallel = "*"
-r-devtools = "*"
-r-dplyr = "*"
-r-e1071 = "*"
-r-fitdistrplus = "*"
-r-forecast = "*"
-r-ggplot2 = "*"
-r-mass = "*"
-r-ncdf4 = "*"
-r-scales = "*"
-r-sf = "*"
-r-tibble = "*"
-r-tidyr = "*"
-"r-r.utils" = "*"
-r-yaml = "*"
-rpy2 = "*"
+py-spy = ">=0.4.2,<0.5" # optional diagnostics for running Python processes
+pytest = "*"        # tests/ — was missing from environment.yml
+pytest-xdist = "*" # parallel test workers; `test-fast` is subprocess-light
+                   # and finely divisible, so -n auto is most of its cost
+pyyaml = "*"        # `import yaml` in many src/ + tests + dev scripts
+quarto = ">=1.9,<2"    # documentation site under docs/ (`pixi run docs-preview`);
+                       # brings its own pandoc + typst, so no LaTeX install is needed
+ruff = ">=0.16,<0.17"  # lint + format; config in pyproject.toml [tool.ruff] (O-15)
+rasterio = "*"      # direct import in dev/scripts/stage_data.py
 scipy = "*"
 seaborn = "*"
 shapely = ">=2.0.0"
-tabulate = "==0.8.10"
-xarray = "<=2024.3.0"
+tabulate = "*"
+xarray = "*"
 xclim = "*"
 zarr = "*"
 
+# R toolchain — weathergenr itself is handled separately (see [tasks]).
+r-base = "4.4.*"        # pinned to 4.4: conda-forge's r45 r-waveslim build is broken on win-64
+                        # (mingw "32 bit pseudo relocation out of range" crashes library(weathergenr));
+                        # the r44 build loads fine. Pin is intentionally global (not win-64-only) to keep
+                        # R at one version across platforms for reproducibility parity — linux-64 is
+                        # unaffected by the bug but rides the same 4.4 for consistency. Revisit when
+                        # conda-forge fixes the r45 Fortran build (see dev/tasks/).
+r-remotes = ">=2.5.0,<3" # weathergenr install from GitHub (conda-forge r-pak is broken on win-64)
+r-devtools = "*"        # dev convenience / local install fallback
+r-doparallel = "*"
+r-dplyr = "*"
+r-e1071 = "*"
+r-fitdistrplus = "*"
+r-foreach = "*"
+r-forecast = "*"
+r-ggplot2 = "*"
+r-ncdf4 = "*"
+r-patchwork = "*"
+r-rlang = "*"
+r-scales = "*"
+r-tibble = "*"
+r-tidyr = "*"
+r-waveslim = "*"
+r-yaml = "*"
+
+# pip-only packages (not on conda-forge or simpler from PyPI)
 [pypi-dependencies]
 hydroengine = "*"
 gwwapi = "*"
 snakemake = "*"
+# Headless review of figure-comparison pages. The wheel bundles its driver and
+# drives the installed Chrome/Edge (channel=...), so no browser download.
+playwright = "*"
+# GF15 return-level estimator (accepted adapter design D7). Pinned to the exact
+# wheel the qualification was run against: conda-forge ships a same-version
+# repack, which D7 does not qualify, so this must resolve from PyPI.
+lmoments3 = "==1.0.8"
+
+# Env activation. Applied on every `pixi shell` / `pixi run`, so these no longer
+# have to be re-created by hand after each env rebuild (see docs/site/setup/env-setup-notes.md).
+[activation.env]
+# HDF5 takes an flock-style lock by default; the Deltares P: SMB share rejects
+# it, so netCDF4 reads fail mid-op. Disabling locking is also safe/recommended
+# on network filesystems generally, hence set cross-platform.
+HDF5_USE_FILE_LOCKING = "FALSE"
+
+# gcsfs >= 2026.4 turns its experimental ExtendedGcsFileSystem ON BY DEFAULT
+# (gcsfs/__init__.py:18 reads this var with default "true"). That class calls
+# get_storage_layout on the storage-control plane for every filesystem operation;
+# under token="anon" the control client runs its own ADC lookup, finds no
+# credentials, raises -- and the resulting UNKNOWN is deliberately NOT cached
+# (extended_gcsfs.py:155), so each listing during a `/*/*` glob repeats it.
+# Measured on gs://cmip6: one store open 57.7 s with this set, >836 s without
+# (dev/records/milestones/r08/2026-07-30_wf2-fetch-reduce-benchmark.md 3.1).
+# Declared here, not per module: the var is read at gcsfs IMPORT time, so a
+# module-level os.environ line is only correct while nobody reorders imports --
+# see the `# noqa: E402` holding that invariant up in
+# dev/scripts/generate_cmip6_catalog.py. Activation removes the ordering surface
+# for every process in the env (snakemake jobs, dev probes, pytest).
+GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT = "false"
+
+# Unset SSL_CERT_DIR, which conda-forge's openssl activation
+# (etc/conda/activate.d/openssl_activate-win.*) otherwise points at
+# `<env>/Library/ssl/certs` -- a directory the win-64 build ships EMPTY (one
+# `.keep`). Nothing verifies from it: the CAs come from SSL_CERT_FILE, the
+# `cacert.pem` sitting beside it, which activation sets in the same breath.
+#
+# The symptom is one warning per nested invocation:
+#
+#     WARN ignoring `SSL_CERT_DIR`: no certificates found in ...\ssl\certs
+#
+# pixi checks an INHERITED SSL_CERT_DIR and warns when it holds no certs. A
+# bare `pixi run` never trips it -- activation happens after the check. What
+# trips it is nesting: `pixi run snakemake` exports the empty dir, and every
+# `pixi run` a rule makes inside that inherits it. Unsetting at the outer layer
+# is therefore the fix for the whole chain, not a cosmetic mute.
+#
+# Verified with the var genuinely unset: 156 CAs load from SSL_CERT_FILE, HTTPS
+# to pypi.org returns 200, and an anonymous gcsfs listing of gs://cmip6 -- the
+# TLS path WF2 actually depends on -- succeeds.
+#
+# One case this does NOT cover, deliberately: a shell that already exports
+# SSL_CERT_DIR wins over this, because pixi keeps an inherited value. The usual
+# source is a SHELL PROFILE that re-exports it -- and when it does so from a
+# prompt hook, it re-applies after every command, so it outlives activation and
+# no repo-level setting can win. Check the parent shell before this file.
+# Fixing that belongs to whoever set it, not to this project.
+SSL_CERT_DIR = ""
+
+# Windows-only: recreate the ffi.dll / cairo.dll aliases graphviz needs.
+[target.win-64.activation]
+scripts = ["dev/scripts/pixi_activate.bat"]
+
+# Single-command install for a fresh clone:
+#     pixi install         # native deps from pixi.toml
+#     pixi run install     # R + Julia layers wired below
+[tasks]
+# SSL_CERT_FILE is cleared for this task only, so R's libcurl (Schannel on
+# Windows) falls back to the OS trust store for the GitHub tarball download.
+# SSL_CERT_DIR is cleared here too, and that is now belt-and-braces --
+# [activation.env] above unsets it for the whole env. Kept so the task stays
+# correct on its own terms if that ever changes.
+install-rdeps = { cmd = "Rscript --vanilla dev/scripts/install_weathergenr.R", description = "Install verified weathergenr 2.1.0 commit via remotes (idempotent; lands in .libPaths()[1])", env = { SSL_CERT_DIR = "", SSL_CERT_FILE = "" } }
+# SSL_CERT_FILE is cleared for this task only, so Julia falls back to its
+# bundled CA (share/julia/cert.pem) -- NetworkOptions treats empty as unset.
+# SSL_CERT_DIR matters more here than anywhere: Julia forwards it to libcurl as
+# CAPATH, and Julia's Windows libcurl uses the Schannel backend, which does NOT
+# support CAPATH -> `curl_easy_setopt: 4` (CURLE_NOT_BUILT_IN) on every Pkg
+# download. [activation.env] above now unsets it env-wide; this clearing stays
+# so the task cannot regress if that line is ever removed.
+install-julia = { cmd = "julia +1.11.7 --project=. -e 'using Pkg; Pkg.instantiate()'", description = "Instantiate the Julia env from Manifest.toml (needs juliaup-managed Julia 1.11.7 on PATH: `juliaup add 1.11.7`; conda-forge has no win-64 julia build)", env = { SSL_CERT_DIR = "", SSL_CERT_FILE = "" } }
+install       = { depends-on = ["install-rdeps", "install-julia"], description = "Install weathergenr + instantiate Julia env on top of pixi install" }
+
+# Pytest tiers. The unfiltered task remains the authoritative default suite;
+# integration-marked end-to-end runs stay opt-in via --run-integration, and
+# test-e2e is that opt-in (local only: it needs the data mirror, Julia,
+# weathergenr and network; the validation ladder says when to run it).
+test-fast = { cmd = "pytest tests/ -m \"not workflow_contract and not process_isolation\" -n auto --dist loadfile", description = "Run the fast non-integration suite in parallel; loadfile keeps a file's tests on one worker" }
+test-contract = { cmd = "pytest tests/ -m \"workflow_contract or process_isolation\"", description = "Run the expensive workflow and fresh-process contract tier" }
+test-full = { cmd = "pytest tests/", description = "Run the authoritative full non-integration suite" }
+test-e2e = { cmd = "pytest tests/test_workflow_end_to_end.py::test_all_five_workflows_run_end_to_end_from_a_fresh_root --run-integration -rs", description = "Run all five workflows end to end through scripts/run_workflows.py in a fresh temporary project root (rapid config; needs the data mirror, Julia, weathergenr and network; tens of minutes)" }
+test-e2e-local = { cmd = "pytest tests/test_workflow_end_to_end.py::test_all_five_workflows_run_from_local_inputs --run-integration -rs", description = "Run all five workflows from a sealed local source bundle in a fresh temporary project root; requires BLUEEARTH_CST_E2E_BUNDLE, Julia and weathergenr" }
+
+# Editor-facing tasks. These exist so an IDE task file stays a one-line
+# `pixi run <name>` shim instead of duplicating the command: every editor's task
+# format uses its own schema and variable syntax, but all of them can invoke
+# pixi, so the command itself is defined once here and every editor -- and the
+# bare CLI -- runs the identical thing. No IDE task file is tracked; this is why
+# a command belongs here rather than in one. Invoking the
+# env's interpreter directly instead would drop [activation.env] above
+# (HDF5_USE_FILE_LOCKING, GCSFS_EXPERIMENTAL_ZB_HNS_SUPPORT) and, on win-64, the
+# graphviz alias script.
+test-cli = { cmd = "pytest tests/test_cli.py", description = "Dry-run all five workflow entry points -- the cheapest sanity check after editing a rule or script signature" }
+lint = { cmd = "ruff check .", description = "Lint the repo with the [tool.ruff] config in pyproject.toml" }
+format = { cmd = "ruff format .", description = "Format the repo -- scope and exclusions in [tool.ruff.format]" }
+format-check = { cmd = "ruff format --check .", description = "Fail if anything in the formatter's scope is unformatted; the CI gate" }
+
+# DAG validation, one per workflow. `--configfile` is pinned to the tracked test
+# config so the task is runnable from a fresh clone; pass a different one on the
+# CLI when working against another project config (see test_case/ for the shipped examples).
+dag-wf0 = { cmd = "snakemake all -c 3 -s analyze_climate.smk --configfile test_case/project_config_baseline.yml --dry-run", description = "Dry-run wf0 (historical climate analysis) to validate the DAG" }
+dag-wf1 = { cmd = "snakemake all -c 3 -s build_model.smk --configfile test_case/project_config_baseline.yml --dry-run", description = "Dry-run wf1 (model creation) to validate the DAG" }
+dag-wf2 = { cmd = "snakemake all -c 3 -s analyze_projections.smk --configfile test_case/project_config_baseline.yml --dry-run", description = "Dry-run wf2 (climate projections) to validate the DAG" }
+dag-wf3 = { cmd = "snakemake all -c 3 -s generate_scenarios.smk --configfile test_case/project_config_rapid.yml --dry-run", description = "Dry-run scenario generation" }
+dag-wf4 = { cmd = "python scripts/simulate_system.py --config test_case/project_config_rapid.yml --target all --dry-run", description = "Dry-run system simulation against a ready collection" }
+
+# Project-tree inspection (R09). Same shape as the dag-* tasks: `--config` is
+# pinned to the tracked test config so the task runs from a fresh clone, and a
+# `--config` passed on the CLI wins (argparse takes the last occurrence, as
+# snakemake does above).
+#
+# A relative `project_dir` resolves against the CURRENT DIRECTORY, the way
+# Snakemake resolves it -- so when the tree sits beside a DIFFERENT checkout
+# from the one this task runs in (the observed-tier runbook has the workflows
+# run in the primary checkout while the comparator lives in a task worktree),
+# pass `--project-dir` with an absolute path. See
+# dev/records/milestones/r09/observed-tier-runbook.md.
+tree-check = { cmd = "python dev/scripts/snapshot_project_tree.py --config test_case/project_config_baseline.yml", description = "Snapshot a project_dir as a path list and check every path against the R09 path map (add --out to record it; nothing is written otherwise)" }
+
+# `pixi install` does not install everything a run needs -- weathergenr comes
+# from `pixi run install` (remotes), as does the Julia env, and a console script
+# can be missing while pixi reports success. Isolated runtimes need the second
+# layer separately; unprovisioned source/artifact sessions can instead borrow
+# a compatible runtime (docs/site/setup/install.md). `--all` walks every Git
+# worktree and reports local environments, not borrowing eligibility.
+# Read-only, exits non-zero when a local environment is incomplete or absent.
+env-check = { cmd = "python dev/scripts/check_env.py", description = "Report whether this checkout's env can run the workflows (--all: every worktree)" }
+
+# The runner over the five workflow entry points, reachable without spelling out its path:
+#     pixi run run-workflows --config test_case/project_config_rapid.yml
+#     pixi run run-workflows --config <cfg> --cores 4 -- --dry-run
+#
+# `--config` is deliberately NOT pinned, unlike dag-* and tree-check above.
+# Those are dry-run or read-only, so a bare invocation is harmless; this one
+# starts a REAL run that writes into `project_dir` and finalizes an invocation
+# manifest, and a bare `pixi run run-workflows` must not launch one against
+# whichever config happened to be pinned here.
+#
+# Pixi executes a task at the MANIFEST ROOT no matter where it was invoked from,
+# which is what makes this work from any subdirectory -- and also means a
+# relative `--config` resolves against the repo root, not the caller's cwd.
+# From elsewhere, pass an absolute path; the runner reports the path it tried.
+#
+# It runs in THIS checkout. An explicitly selected lending manifest's named
+# tasks likewise run in THAT checkout, so do not use them to check a session's
+# source. The development-only session_runtime.py helper uses executable mode.
+run-workflows = { cmd = "python scripts/run_workflows.py", description = "Run the enabled workflows in fixed order (climate -> model -> projections -> experiment); requires --config" }
+
+create-case = { cmd = "python scripts/create_case.py", description = "Create an external case from the cases repository template; requires case slug, --cases-root, outlet coordinates, and --purpose" }
+
+# Documentation site. The Quarto project is rooted at `docs/`, so both tasks
+# take that directory rather than the repo root -- the render scope is then a
+# directory that holds only documentation, and the vendored hydromt / wflow
+# guides are excluded by name in `docs/site/_quarto.yml` rather than the whole repo
+# being excluded by an allow-list nobody maintains.
+#
+# Neither task publishes anything. Deployment to GitHub Pages is deliberately
+# not wired yet; see docs/README.md for the documentation entry point.
+docs-preview = { cmd = "quarto preview docs/site", description = "Serve the documentation site locally with live reload (Ctrl-C to stop)" }
+docs-build   = { cmd = "quarto render docs/site", description = "Render the documentation site to docs/site/_site (gitignored); the build gate" }

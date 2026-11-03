@@ -1,0 +1,125 @@
+---
+title: specific for rating curve type 2 and 3 (weir flow)
+source: "https://deltares.github.io/Wflow.jl/stable/user_guide/model_config.html"
+reference: "Wflow.jl team. (n.d.). *specific for rating curve type 2 and 3 (weir flow)*. Wflow documentation. Retrieved May 25, 2026, from sources/tools/wflow/wflow-user-guide/05-model-config.md"
+topic: tools
+type: documentation
+promoted: 2026-05-25
+tags:
+  - tools
+  - wflow
+accessed: 2026-05-25
+---
+
+## Enabling snow and glacier processes
+
+```toml
+[model]
+snow__flag = true
+snow_gravitational_transport__flag = true
+glacier__flag = true
+
+[input.static]
+atmosphere_air__snowfall_temperature_threshold = "TT"
+atmosphere_air__snowfall_temperature_interval = "TTI"
+snowpack__melting_temperature_threshold = "TTM"
+snowpack__degree-day_coefficient = "Cfmax"
+snowpack__liquid_water_holding_capacity =  "WHC"
+glacier_surface__area_fraction = "wflow_glacierfrac"
+glacier_ice__degree_day_coefficient = "G_Cfmax"
+glacier_ice__melting_temperature_threshold = "G_TT"
+glacier_firn_accumulation__snowpack_dry_snow_leq_depth_fraction = "G_SIfrac"
+glacier_ice__initial_leq_depth = "wflow_glacierstore" # initial glacier liquid-water equivalent depth
+
+[state.variables]
+snowpack_dry_snow__leq_depth = "snow"
+snowpack_liquid_water__depth = "snowwater"
+glacier_ice__leq_depth = "glacierstore"
+```
+
+## Enabling reservoirs
+
+```toml
+[model]
+reservoir__flag = true
+
+[input]
+reservoir_area__count = "wflow_reservoirareas"
+reservoir_location__count = "wflow_reservoirlocs"
+
+[input.static]
+reservoir_surface__area = "ResSimpleArea"
+# specific for rating curve type 2 and 3 (weir flow)
+reservoir_water__rating_curve_coefficient = "reservoir_b"
+reservoir_water__rating_curve_exponent = "reservoir_e"
+reservoir_water_flow_threshold_level__elevation = "reservoir_threshold"
+# specific for rating curve type 4 (simple reservoir operational parameters)
+reservoir_water_demand__required_downstream_volume_flow_rate = "ResDemand"
+reservoir_water_release_below_spillway__max_volume_flow_rate = "ResMaxRelease"
+reservoir_water__max_volume = "ResMaxVolume"
+reservoir_water__target_full_volume_fraction = "ResTargetFullFrac"
+reservoir_water__target_min_volume_fraction = "ResTargetMinFrac"
+reservoir_water__rating_curve_type_count = "outflowfunc" # rating curve type
+reservoir_water__storage_curve_type_count  = "storfunc"
+reservoir_water_surface__initial_elevation = "resevoir_waterlevel"
+
+[state.variables]
+reservoir_water_surface__elevation = "waterlevel_reservoir"
+```
+
+## Enabling floodplain routing
+
+As part of the local inertial model for river flow.
+
+### 1D floodplains
+
+### 2D floodplains
+
+```toml
+[model]
+river_routing = "local_inertial"
+land_routing = "local_inertial"
+
+[input.static]
+river_bank_water__elevation = "RiverZ"
+land_surface_water_flow__ground_elevation = "FloodplainZ"
+
+[state.variables]
+land_surface_water__depth = "h_land"
+land_surface_water__x_component_of_instantaneous_volume_flow_rate = "qx_land"
+land_surface_water__y_component_of_instantaneous_volume_flow_rate = "qy_land"
+```
+
+## Enabling water demand and allocation
+
+The model types `sbm` and `sbm_gwf` support water demand and allocation computations, in combination with the kinematic wave and local inertial runoff routing scheme for river and overland flow.
+
+```toml
+# example of water demand and allocation input parameters as cyclic data
+[model.water_demand]
+domestic__flag = true     # optional, default is "false"
+industry__flag = true     # optional, default is "false"
+livestock__flag = true    # optional, default is "false"
+paddy__flag = true        # optional, default is "false"
+nonpaddy__flag = true     # optional, default is "false"
+
+[input.cyclic]
+domestic__gross_water_demand_volume_flux = "dom_gross"
+domestic__net_water_demand_volume_flux = "dom_net"
+industry__gross_water_demand_volume_flux = "ind_gross"
+industry__net_water_demand_volume_flux = "ind_net"
+livestock__gross_water_demand_volume_flux = "lsk_gross"
+livestock__net_water_demand_volume_flux = "lsk_net"
+irrigated_paddy__irrigation_trigger_flag = "irrigation_trigger"
+irrigated_non_paddy__irrigation_trigger_flag = "irrigation_trigger"
+
+[input.static]
+land_water_allocation_area__count = "allocation_areas"
+land_surface_water__withdrawal_fraction = "SurfaceWaterFrac"
+irrigated_paddy_area__count = "paddy_irrigation_areas"
+irrigated_non_paddy_area__count = "nonpaddy_irrigation_areas"
+
+# required if paddy is set to "true"
+[state.variables]
+paddy_surface_water__depth = "h_paddy"
+```

@@ -1,0 +1,6 @@
+# simulate_system (wf4) -- baseline linux set. A twin of the non-linux file;
+# see the header of `project_config_baseline_linux.yml`.
+
+experiment_name: experiment
+operations: [simulations, indicators]
+indicator_sets: [default]
