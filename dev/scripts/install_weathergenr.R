@@ -32,7 +32,7 @@
 # by immutable commit rather than depending on a moving branch or missing tag.
 
 required_version <- "2.1.0"
-required_sha <- "b023e65e5237f681cb96178754488bba84afb2ae"
+required_sha <- "a2f97631ab0d43c9d2ffa76f622dcd697ec6554f"
 
 # Read DESCRIPTION without loading the package, so post-install verification
 # cannot report metadata from a previously loaded namespace.
