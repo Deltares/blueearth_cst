@@ -44,7 +44,7 @@ and non-facet canvas dimensions. Faceted diagnostics use measured stored dimensi
 comparison HTML identify colors and summary meanings; they remain outside the exported plot objects.
 
 CST installs `weathergenr` version 2.1.0 from published commit
-`b023e65e5237f681cb96178754488bba84afb2ae`. The planned `v2.1.0` tag is not published;
+`a2f97631ab0d43c9d2ffa76f622dcd697ec6554f`. The planned `v2.1.0` tag is not published;
 the installer uses this immutable commit and verifies both `Version` and `RemoteSha` before
 accepting an existing installation. Run `pixi run install-rdeps` after updating the toolbox.
 The R package source pin is maintained by `dev/scripts/install_weathergenr.R`, outside `pixi.lock`.
