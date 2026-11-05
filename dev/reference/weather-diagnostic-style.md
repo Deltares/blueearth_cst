@@ -13,7 +13,8 @@ No YAML parser, CST path, or CST dependency is introduced upstream.
 - Use 7 pt labels/headings and 6 pt tick labels from shared chart tokens, with DejaVu Sans where
   configured. Explicit partial-theme entries win. Fonts and marks retain physical sizes across grids.
 - Facets use white, left-aligned lettered headings, horizontal major gridlines and darker borders.
-  A single panel omits its heading and letter. Follow [the panel contract](panel-layout-contract.md).
+  A single panel omits its heading and letter. Follow
+  [the panel contract](../../blueearth_cst/plotting/docs/panel-layout.md).
 - Comparison medians use gray-filled, black-outlined 1.9 mm circles (fill alpha 0.30, stroke 0.30 mm).
   Gray ranges use 0.80 mm and alpha 0.85; the blue 1:1 guide is 0.30 mm behind the data. Each panel
   repeats its observed x-axis title. Medians are not renamed as means.
@@ -24,6 +25,29 @@ No YAML parser, CST path, or CST dependency is introduced upstream.
   Axis labels are `Serial year` and `mm day⁻¹`; the first data value is not forced to zero.
 - Monthly cycles use the same trace/observation weights, separate precipitation/temperature units
   in the panel headings, and a `Month` title below each panel. No ensemble mean is added.
+
+## Panel layout in CST
+
+The weather profile sets 70 × 70 mm plotting rectangles, preferred columns `[3, 2]` and a
+180 mm maximum complete width in `config/plotting/weathergenr.yml`. The CST adapter in
+`blueearth_cst/weathergen/plot_style.R` passes these settings and the raster DPI from
+`config/plotting/style.yml` to `weathergenr::style_weather_plot()`. The generic
+[panel contract](../../blueearth_cst/plotting/docs/panel-layout.md) governs candidate measurement,
+fit, dimensions and comparison across renderers. These presentation settings do not enter scientific
+configuration identity.
+
+Upstream `weathergenr::arrange_weather_panels()` accepts single-panel ggplots and stores layout
+measurements on the returned patchwork. `weathergenr::export_weather_plot()` uses those dimensions
+when width and height are omitted. The CST adapter passes explicit dimensions for non-faceted plots
+and stored dimensions for faceted plots. Upstream owns these R APIs; CST provides configuration
+translation, not a standalone general ggplot2 adapter.
+The R and Python implementations do not call each other's runtime.
+
+Default R layout retains repeated y-axis titles. The compact weather profile keeps the y-axis title
+only in the first column and retains tick values. Captions remain outside the exported PNGs; the
+gallery carries their colour and summary explanations. Weather diagnostics use this measured layout;
+Python adoption currently consists of isolated conformance renders, with no automatic migration of
+existing production figure families.
 
 ## Preserved figure exceptions
 

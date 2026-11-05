@@ -2,10 +2,8 @@
 
 Last updated: 2026-11-05
 
-Use this reference for branch names, checkpoint tags and commit messages in this repository.
-`.git-workflow.yml` owns the working trunk and session settings; the development workflow
-(`private/dev-task-and-session-workflow.md`, private-checkout-only citation) owns repository
-synchronization. The [validation ladder](dev-validation.md) owns checks before landing or publishing.
+Use this reference for current branch names, checkpoint tags and commit messages in this repository.
+The [validation ladder](dev-validation.md) describes checks before landing or publishing.
 
 ## Branches and remotes
 
@@ -15,15 +13,14 @@ Name task branches `<type>/<slug>`, using a Conventional Commit type and a short
 when applicable, with the task and commit.
 
 The configured working trunk is `dev`. `main` is the PR-based public branch. `origin` fetches from and
-pushes to the Deltares repository; there is no configured `upstream` remote. Check `.git-workflow.yml`,
-`git branch -a` and `git remote -v` when the current checkout matters. Use the managed session workflow
-for branch creation and landing; do not create a task branch in the primary checkout by hand.
+pushes to the Deltares repository; there is no configured `upstream` remote. Check `git branch -a`,
+`git remote -v` and `git status --short` when the current checkout matters. Work on a task branch in an
+isolated checkout and land verified changes on `dev`; the primary checkout is the integration point.
 
 Existing historical refs may use `base/<start-point>`, `milestone/<NN>-<topic>`,
 `milestone/r<NN>-<topic>`, `milestone/p3<N><letter?>-<topic>` or `lane/<territory>`. These are not
-patterns for new task branches. The historical ref inventory
-(`../records/milestones/git-ref-inventory.md`, private-checkout-only citation) records their earlier
-context.
+patterns for new task branches. Use `git branch -a` to inspect surviving branches; Git history and
+tags retain the earlier context.
 
 ## Tags and checkpoints
 
@@ -42,8 +39,8 @@ git diff pre-r01 -- <path>
 
 `git restore --source pre-r01 -- <path>` replaces that working file with its tagged version. Check the
 diff before using it and preserve any work you still need. `git reset --hard pre-r01` discards the
-current branch's later commits and working changes. Follow `git-workflow`'s destructive recovery
-procedure before using it.
+current branch's later commits and working changes. Check the target branch and preserve needed work
+before using that destructive command.
 
 For a milestone seal, follow
 [record lifecycle](dev-record-lifecycle.md#milestone-records-and-historical-recovery) to preserve
@@ -83,9 +80,9 @@ the final staged diff and effective author and committer identity before committ
 
 Do not commit run outputs under `project_dir/`, local-only configs such as `*_local.yml`, secrets,
 credentials, large binary fixtures or generated baselines other than `dev/baseline/manifest.json`.
-Never hand-edit `pixi.lock` or `Manifest.toml`. The public omission rules in `dev/sync-policy.json` and
-installed hooks provide additional checks; keep the hooks enabled. If an unwanted file enters an
-unpublished commit, remove it from unpublished history and update `.gitignore` where appropriate.
+Never hand-edit `pixi.lock` or `Manifest.toml`. Check `git status --short` and `git diff --cached`
+before committing, and keep installed hooks enabled. If an unwanted file enters an unpublished commit,
+remove it from unpublished history and update `.gitignore` where appropriate.
 
 Default merge-commit messages are sufficient. An annotated development tag message states the
 milestone goal in one line.

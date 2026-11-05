@@ -1,6 +1,6 @@
 # Documentation revision guidance
 
-Last updated: 2026-11-01
+Last updated: 2026-11-05
 
 This living guide records the editorial preferences agreed during the homepage and quick-start review.
 Apply them when revising other pages, adapting the level of detail to each page's purpose.
@@ -32,6 +32,13 @@ source ownership, authoring conventions and verification.
   without a new decision. This preference does not itself retire publication tooling or old artifacts.
 
 ## Make pages easy to read on screen
+
+- Public documentation must stand alone in the public repository. Avoid links or path-only citations to
+  private-checkout records, including labels such as "private-checkout-only citation". Use public source,
+  configuration, tests or published references to support current guidance. Preserve any necessary
+  explanation in the public document; keep private history in its existing private home. If a claim
+  depends on unavailable evidence, qualify it rather than presenting that evidence as publicly accessible.
+  Apply this rule as each page is revised.
 
 - Keep website figures unnumbered. Refer directly to nearby illustrations with wording such as
   "the diagram below". Retain useful explanatory captions where needed; the top-down/bottom-up

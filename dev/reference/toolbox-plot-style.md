@@ -68,8 +68,9 @@ plotting jobs.
 WF1 evaluation also refreshes indicators written by its combined evaluation/plotting job.
 WF3's R adapter reads shared tokens and weather-only overrides at render time, outside scientific
 configuration identity. The [reviewed weather profile](weather-diagnostic-style.md) owns its colours,
-marks, typography and figure exceptions. The [physical panel contract](panel-layout-contract.md) owns
-measured diagnostic-grid geometry shared by the R and Python adapters. Figures retain their existing
+marks, typography and figure exceptions. The
+[physical panel contract](../../blueearth_cst/plotting/docs/panel-layout.md) owns measured
+diagnostic-grid geometry shared by the R and Python adapters. Figures retain their existing
 filenames under `evaluation/plots/`; project annotation modes remain Python-only. See the weather
 profile's delivery section for the verified upstream implementation and pending tagged dependency.
 The historical map-reference producer also tracks the YAML as a display dependency so cached map colours

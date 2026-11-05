@@ -43,7 +43,7 @@ before writing. Update that document for revisions; do not create a separate fil
 |---|---|
 | Scientific figure appearance, export or review practice | [toolbox-plot-style.md](toolbox-plot-style.md) |
 | Reviewed WF3 weather diagnostics and figure exceptions | [weather-diagnostic-style.md](weather-diagnostic-style.md) |
-| Measured R/Python diagnostic-grid geometry | [panel-layout-contract.md](panel-layout-contract.md) |
+| Measured ggplot2/Matplotlib panel geometry | [panel-layout.md][panel-layout] |
 | WF0 diagnostic figure filename grammar | [wf0-figure-naming.md](wf0-figure-naming.md) |
 | A reusable report or comparison interface | [templates/README.md](../templates/README.md) |
 
@@ -80,6 +80,7 @@ Use this lookup to reach the relevant topic owners; a workflow does not need its
 [rules2]: ../../analyze_projections.smk
 [rules3]: ../../generate_scenarios.smk
 [rules4]: ../../simulate_system.smk
+[panel-layout]: ../../blueearth_cst/plotting/docs/panel-layout.md
 
 ## How to maintain this collection
 
