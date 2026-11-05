@@ -1,0 +1,102 @@
+# =============================================================================
+#  simulate_system (wf4) -- simulations and indicators from a ready collection
+# =============================================================================
+#
+# Runs the model on a ready climate collection and reduces its responses.
+# The routine collection selection comes from the project generation plan. Keep this
+# next to the project file.
+
+
+# -----------------------------------------------------------------------------
+#  EXPERIMENT
+# -----------------------------------------------------------------------------
+
+# Default family: stress_test, initially stress_test_01. Plain reruns retain the
+# highest allocated number; --new-experiment creates the next one. A custom base
+# selects its own numbered family; an exact numbered name pins that experiment.
+# Select experiment family or exact experiment. Input: name string.
+#experiment_name: my_experiment
+
+# What to run, in any order: simulations, indicators, or both (the default).
+# Indicators alone read the retained responses and never start Wflow.
+# Select simulation and indicator operations. Input: list containing simulations and/or indicators.
+operations: [simulations, indicators]
+
+# Include each realization's unperturbed member in WF4 (default: true).
+# False skips its forcing preparation and simulation; WF3 retains it for ancestry.
+# Indicators needing unperturbed reference runs require true.
+# Run each realization's unperturbed reference member. Options: true | false.
+include_unperturbed: true
+
+
+# -----------------------------------------------------------------------------
+#  INDICATOR SETS
+# -----------------------------------------------------------------------------
+
+# Named sets, each published to results/indicator_sets/<set-id>/ with an
+# indicators.csv dictionary. `default` is bundled; omitted means [default].
+# Add eflow-erfa for 70 discharge median/IQR indicators: [default, eflow-erfa].
+# Crop-water also needs retained P, PET, AET, recharge and Q. Configure it inline:
+#indicator_sets:
+#  - set: crop-water
+#    'summer_low_flow_days':
+#      thresholds:
+#        baseline_quantile: {}
+#    'summer_longest_dry_spell':
+#      dry_day_mm: 2.0
+#    'winter_longest_dry_spell':
+#      enabled: false
+#  - set: flow_regime
+#    'q_mean_annual_90day_min':
+#      enabled: false
+# Omitted indicators/parameters inherit defaults. enabled defaults to true.
+# Historical Qcrit uses this project's WF1 model; omitted years (or all)
+# uses all historical calendar years. Q90 exceedance, summer and linear are defaults.
+# Preparation follows WF1 at the WF4 boundary; a combined dry-run may leave it pending.
+# See blueearth_cst/indicators/sets/crop_water/README.md for the complete rule.
+# Select named indicator sets to calculate. Input: list of IDs or inline mappings.
+indicator_sets:
+  # Select the registered indicator set. Input: installed set ID.
+  - set: default
+
+# Custom sets: set id -> file. A relative config_path resolves against THIS
+# file; absolute paths are allowed. Copy config/templates/indicator_set.template.yml.
+# An explicit file may replace a bundled set other than `default`.
+# Register custom indicator set definitions. Input: set-ID-to-definition mapping.
+#indicator_set_definitions:
+# Define a custom indicator set. Input: configuration path mapping.
+#  'example_subset':
+# Locate the indicator set definition. Input: YAML path relative to this file or absolute.
+#    config_path: indicator_sets/example_subset.yml
+
+# Calculate part of a selected set; omitted means all of its indicators.
+# Narrow selected sets to individual indicators. Input: set-ID-to-choice mapping.
+#indicator_selection:
+# Keep or drop named indicators of one set. Input: {include: [...]} or {exclude: [...]}.
+#  'crop-water':
+# Drop indicators by published name. Input: nonempty list of indicator names.
+#    exclude: [summer_low_flow_days]
+
+# strict refuses an indicator lacking an input; partial publishes it as unavailable.
+# Choose how missing indicator inputs are handled. Options: strict | partial.
+#indicator_evaluation: strict
+
+# -----------------------------------------------------------------------------
+#  COMPUTE
+# -----------------------------------------------------------------------------
+
+# How model runs are grouped. Left unset, the toolbox picks by basin size
+# (advanced_settings `batching`); `scripts/calibrate_batching.py` measures
+# your own basin and machine and prints the values to put here.
+# Override automatic simulation resource allocation. Input: mapping.
+#compute:
+# Julia threads assigned to each batch. Input: positive integer.
+#  julia_threads: 1
+# Limit concurrently running simulation batches. Input: positive integer.
+#  max_parallel_batches: 2
+# Cap simulation runs per batch. Input: positive integer.
+#  batch_size_max: 8
+# Fix batch size instead of automatic sizing. Input: positive integer.
+#  batch_size: 4
+# Reserve free disk space during simulations. Input: nonnegative gigabytes.
+#  disk_headroom_gb: 40

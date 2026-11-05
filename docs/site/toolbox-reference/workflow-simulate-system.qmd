@@ -1,0 +1,34 @@
+---
+title: "WF4 — Simulate system"
+format: html
+---
+
+Read the [technical manual](../../technical-manual/workflow-simulate-system.md) for this reference.
+
+## Rules {#rules}
+
+See the [current reference](../../technical-manual/workflow-rule-reference.md#simulate-system).
+
+## Rule flow {#rule-flow}
+
+See the [current reference](../../technical-manual/workflow-simulate-system.md#rule-flow).
+
+## Configuration {#configuration}
+
+See the [current reference](../../technical-manual/workflow-simulate-system.md#configuration).
+
+## Inputs {#inputs}
+
+See the [current reference](../../technical-manual/workflow-simulate-system.md#inputs).
+
+## Outputs {#outputs}
+
+See the [current reference](../../technical-manual/workflow-simulate-system.md#outputs).
+
+## Local calculation sets {#local-calculation-sets}
+
+See the [current reference](../../technical-manual/workflow-simulate-system.md#interpretation).
+
+## Integrity and numerical rechecking {#integrity-and-numerical-rechecking}
+
+See the [current reference](../../technical-manual/workflow-simulate-system.md#interpretation).

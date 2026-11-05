@@ -1,0 +1,440 @@
+# Current guidance: dev/reference/toolbox-spatial-foundation.md
+"""Scaffold a dummy `project_dir` tree from the Snakefiles, without running anything.
+
+Layout review tool. `snakemake --summary` builds the DAG and prints every
+**declared** output plus its log path; this script parses that, optionally
+rewrites paths through a rename map, and materializes the result as empty files
+(with small placeholders where the file's *shape* is the thing under review —
+logs and benchmark reports). Nothing is computed and no workflow runs.
+
+The destination must be new or empty unless ``--keep`` is supplied. Existing
+files are preserved with ``--keep``; the tool never deletes a destination tree.
+A failed workflow summary stops the command with a nonzero exit status. Any
+staged prerequisite placeholders remain for inspection; no success is reported.
+
+Two gaps are covered deliberately rather than pretended away:
+
+- `--summary` sees only declared outputs. Undeclared artifacts (``signatures_*.png``,
+  wflow's own ``run_default/`` files, weathergenr's R-written outputs) come from
+  an explicit overlay file, ``scaffold_extras.yml``, so what is guessed stays
+  reviewable. Dry-runs being blind to ``params:``-string paths and R ``shell:``
+  bodies is a known property of this repo (``dev/records/milestones/r07/project-layout-design.md``).
+- WF2/WF3 declare wf1 leaves as `ancient(...)` cross-workflow inputs that
+  Snakemake will not satisfy on its own. They are staged into the scratch tree
+  first, exactly as ``tests/test_cli.py``'s ``config_with_staged_region`` does.
+
+Usage
+-----
+    pixi run python dev/scripts/scaffold_project_tree.py --print-tree
+    pixi run python dev/scripts/scaffold_project_tree.py \
+        --rename-map .tmp/dev-scratch/proposed_layout.yml --print-tree
+
+The rename map is a YAML file of prefix rewrites applied to project-relative
+paths, longest prefix first::
+
+    renames:
+      - from: hydrology_model/forcing/plots/
+        to:   hydrology_model/plots/
+      - from: logs/1.10_plot_results.log
+        to:   logs/_parts/1.13_plot_results.log
+
+It doubles as the migration checklist once a layout is agreed.
+"""
+
+from __future__ import annotations
+
+import argparse
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+import cross_workflow_inputs
+import yaml
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_CONFIG = REPO_ROOT / "test_case/project_config_baseline.yml"
+DEFAULT_EXTRAS = Path(__file__).resolve().parent / "scaffold_extras.yml"
+DEFAULT_OUT = REPO_ROOT / ".tmp/scaffold"
+
+SNAKEFILES = {
+    0: "analyze_climate.smk",
+    1: "build_model.smk",
+    2: "analyze_projections.smk",
+    3: "generate_scenarios.smk",
+    4: "simulate_system.smk",
+}
+
+_LOG_PLACEHOLDER = """\
+# BlueEarth-CST | project: {project} | <date>
+# project dir: {project_dir}
+# log: {name} | started <hh:mm:ss>
+
+<scaffold placeholder — no run output>
+"""
+
+_BENCHMARK_PLACEHOLDER = """\
+# scaffold placeholder — no run output
+
+| rule | s | h:m:s |
+|:-----|--:|:------|
+| <rule> | 0.00 | 0:00:00 |
+| **TOTAL** | 0.00 | 0:00:00 |
+"""
+
+
+def _scratch_config(config_path: Path, project_dir: Path, dest: Path) -> Path:
+    """Write a copy of ``config_path`` whose project_dir points at the scratch tree."""
+    cfg = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    cfg["project"]["project_dir"] = project_dir.as_posix()
+    for stanza in (cfg.get("workflows") or {}).values():
+        if stanza.get("config_path"):
+            stanza["config_path"] = (
+                config_path.resolve().parent / stanza["config_path"]
+            ).as_posix()
+    dest.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    return dest
+
+
+def _stage_cross_workflow_inputs(project_dir: Path, config_path: Path) -> None:
+    """Stage the wf1 leaves WF2/WF3 declare and Snakemake will not satisfy.
+
+    The leaf set itself lives in `cross_workflow_inputs`, shared with the two
+    test fixtures that stage the same contract; it used to be three hand-kept
+    copies and they drifted (R9 P5 F3, and this file was the worst of them).
+
+    NO REGION is staged, and that is the contract rather than an omission: since
+    the shared-region refactor WF2 and WF3 each delineate their own
+    `data/spatial/geoms/region.geojson` and declare it as an OUTPUT, so staging
+    one would pre-empt a file the workflow is about to write.
+    """
+    missing = [
+        rel for rel in cross_workflow_inputs.LEAVES if not (project_dir / rel).exists()
+    ]
+    cross_workflow_inputs.stage(
+        project_dir, config_path.read_text(encoding="utf-8"), leaves=missing
+    )
+
+
+def _summary(snakefile: str, config_path: Path) -> list[str]:
+    """Return declared output + log paths for one workflow, via `snakemake --summary`."""
+    cmd = [
+        "snakemake",
+        "all",
+        "-c",
+        "1",
+        "-s",
+        str(REPO_ROOT / snakefile),
+        "--configfile",
+        str(config_path),
+        "--summary",
+    ]
+    proc = subprocess.run(
+        cmd,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(
+            proc.returncode, cmd, output=proc.stdout, stderr=proc.stderr
+        )
+
+    paths: list[str] = []
+    for line in proc.stdout.splitlines():
+        cols = [c.strip() for c in line.rstrip().split("\t")]
+        if len(cols) < 4 or cols[0] == "output_file":
+            continue
+        paths.append(cols[0])
+    return paths
+
+
+def _log_paths(snakefile: str, experiment: str = "") -> list[str]:
+    """Read each rule's `log:` path straight out of the Snakefile.
+
+    `--summary`'s log column reports only logs that already EXIST on disk (it
+    prints `-` otherwise), so it is useless against a fresh project_dir. Reading
+    the declarations instead keeps the scaffold honest about BOTH the numbering
+    and the root: WF3's parts sit under ``logs/_parts/<experiment>/``, not
+    directly under ``logs/_parts/``, so synthesizing ``logs/<W.NN>_<rule>.log``
+    would have misplaced all 15 of them.
+    """
+    text = (REPO_ROOT / snakefile).read_text(encoding="utf-8")
+    roots = {"project_dir": "", "exp_dir": f"experiments/{experiment}/"}
+
+    def _resolve_experiment(value: str) -> str:
+        """Substitute the ONE parse-time binding these declarations interpolate.
+
+        WF3's log paths and its merged-log name carry ``{experiment}``, which is
+        a value resolved at parse time, not a Snakemake wildcard. Left in, the
+        blanket wildcard substitution at the end would render it as ``1`` and
+        the scaffold would build ``logs/_parts/1/`` — a plausible-looking tree
+        under a directory no run writes.
+        """
+        return value.replace("{experiment}", experiment)
+
+    # ONE LEVEL OF INDIRECTION, resolved from the same file. Rules no longer
+    # interpolate `project_dir` directly -- they interpolate `LOG_PARTS_DIR`,
+    # itself assigned f"{project_dir}/logs/_parts" (WF1/WF2) or
+    # f"{project_dir}/logs/_parts/{experiment}" (WF3). Matching only the two ROOT
+    # names therefore matched nothing and every workflow silently scaffolded ZERO
+    # logs: the same failure mode as the stale staging above -- a helper left
+    # behind by a refactor, reporting success while producing a wrong tree.
+    for name, base, tail in re.findall(
+        r"""^(\w+)\s*=\s*f["']\{(\w+)\}/([^"']+)["']""", text, re.M
+    ):
+        # `not in roots` matters: `exp_dir` is itself assigned from project_dir
+        # as f"{project_dir}/experiments/{experiment_name}", and resolving that
+        # would replace the seeded value with one still carrying a wildcard --
+        # which the substitution below then renders as `experiments/1/`.
+        if base in roots and name not in roots:
+            roots[name] = roots[base] + _resolve_experiment(tail).rstrip("/") + "/"
+    # `.log` NAME constants (WORKFLOW_LOG_NAME = "wf1_build_model.log", and
+    # WF3's f-string f"wf4_simulate_system_{experiment}.log") are interpolated
+    # into the merged-log path, which would otherwise reduce to `logs/1` under
+    # the wildcard substitution below and be dropped.
+    #
+    # `[^"'/]` excludes `/`, which keeps this to bare FILENAMES: without it the
+    # f-string form would also capture a path constant like
+    # f"{LOG_PARTS_DIR}/x.log" and substitute it into unrelated paths.
+    consts = {
+        name: _resolve_experiment(value)
+        for name, value in re.findall(
+            r"""^(\w+)\s*=\s*f?["']([^"'/]+\.log)["']""", text, re.M
+        )
+    }
+
+    logs = []
+    # Three declaration forms are in use across the Snakefiles and all three
+    # must be read, or a workflow silently loses logs from the scaffold:
+    #   f"{LOG_PARTS_DIR}/2.05_….log"                          (plain f-string)
+    #   f"{LOG_PARTS_DIR}/3.12_…/" + "rlz_{rlz_num}_….log"     (f-string + concat)
+    #   project_dir + "/logs/_parts/2.02_…/{model}.log"        (bare concat)
+    #
+    # The tail is NOT anchored to `logs/` -- with LOG_PARTS_DIR resolved above,
+    # the `logs/` segment lives in the ROOT, not the tail. The `.log` suffix
+    # test below is what keeps non-log f-strings out.
+    patterns = (
+        r"""f["']\{(\w+)\}/([^"']*?)["'](?:\s*\+\s*["']([^"']+)["'])?""",
+        r"""\b(\w+)\s*\+\s*["']/([^"']+)["']()""",
+    )
+    for pattern in patterns:
+        for var, tail, extra in re.findall(pattern, text):
+            if var not in roots:
+                continue
+            rel = roots[var] + tail + extra
+            for const, value in consts.items():
+                rel = rel.replace("{" + const + "}", value)
+            if not rel.endswith(".log"):
+                continue
+            # Wildcards ({rlz_num}, {_b}) stand in for a fan-out; show one instance.
+            logs.append(re.sub(r"\{[^}]*\}", "1", rel))
+    return sorted(set(logs))
+
+
+def _load_delta(
+    path: Path | None,
+) -> tuple[list[tuple[str, str]], list[str], list[str]]:
+    """Load a layout delta: `renames` (prefix or exact), `drops`, `adds`.
+
+    Three verbs are enough to express every layout revision discussed so far:
+    a move (`renames`), an artifact that stops existing (`drops` — e.g. per-rule
+    logs that a merge step consumes), and one that starts (`adds`).
+    """
+    if path is None:
+        return [], [], []
+    spec = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    pairs = [(str(r["from"]), str(r["to"])) for r in spec.get("renames", [])]
+    # Longest prefix first, so a specific rule beats a general one.
+    pairs.sort(key=lambda p: len(p[0]), reverse=True)
+    return pairs, list(spec.get("drops", []) or []), list(spec.get("adds", []) or [])
+
+
+def _apply_renames(rel: str, renames: list[tuple[str, str]]) -> str:
+    for src, dst in renames:
+        if rel == src:
+            return dst
+        if src.endswith("/") and rel.startswith(src):
+            return dst + rel[len(src) :]
+    return rel
+
+
+_RULE_SEP = "# " + "=" * 72
+
+
+def _merged_log(project_dir: Path, part_logs: list[str]) -> str:
+    """Render the merged per-workflow log: contents index + one block per rule.
+
+    The separator line *is* the index — `grep "^# 1\\."` reproduces the contents —
+    and carries the status, so failures are one grep away.
+    """
+    rules = []
+    for rel in sorted(part_logs):
+        stem = Path(rel).stem
+        number, _, name = stem.partition("_")
+        rules.append((number, name))
+
+    lines = [
+        f"# BlueEarth-CST | project: {project_dir.name} | <date>",
+        f"# project dir: {project_dir.as_posix()}",
+        f"# log: wf1_run.log | {len(rules)} rules, {len(rules)} ran / 0 cached"
+        " | <hh:mm:ss> -> <hh:mm:ss> | total <h:mm:ss>",
+        "#",
+        "# contents",
+    ]
+    line_no = len(lines) + len(rules) + 2
+    for number, name in rules:
+        lines.append(f"#   {number}  {name:<32} <s>   line {line_no:>5}")
+        line_no += 8  # each block: blank + 3 separator lines + ~4 lines of output
+    lines.append("")
+
+    for number, name in rules:
+        lines += [
+            _RULE_SEP,
+            f"# {number}  {name:<32} <hh:mm:ss> -> <hh:mm:ss>   <s>  ok",
+            _RULE_SEP,
+            "<scaffold placeholder - this rule's captured output>",
+            "",
+        ]
+    return "\n".join(lines) + "\n"
+
+
+def _placeholder(rel: str, project_dir: Path, part_logs: list[str]) -> str:
+    """Content for files whose shape is under review; everything else stays empty."""
+    name = Path(rel).name
+    if re.fullmatch(r"wf\d+_run(\.partial)?\.log", name):
+        return _merged_log(project_dir, part_logs)
+    if rel.startswith("logs/") and name.endswith(".log"):
+        return _LOG_PLACEHOLDER.format(
+            project=project_dir.name, project_dir=project_dir.as_posix(), name=name
+        )
+    if rel.startswith("benchmarks/") and name.endswith((".md", ".tsv")):
+        return _BENCHMARK_PLACEHOLDER
+    return ""
+
+
+def _print_tree(root: Path) -> None:
+    """Render the scaffolded tree, directories first, one indent level per depth."""
+
+    def walk(d: Path, prefix: str) -> None:
+        entries = sorted(d.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
+        for i, entry in enumerate(entries):
+            last = i == len(entries) - 1
+            elbow = "└── " if last else "├── "
+            print(f"{prefix}{elbow}{entry.name}{'/' if entry.is_dir() else ''}")
+            if entry.is_dir():
+                walk(entry, prefix + ("    " if last else "│   "))
+
+    print(f"{root.name}/")
+    walk(root, "")
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    ap.add_argument(
+        "--workflows", default="0,1,2", help="comma-separated; supported: 0,1,2"
+    )
+    ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    ap.add_argument("--rename-map", type=Path, default=None)
+    ap.add_argument("--extras", type=Path, default=DEFAULT_EXTRAS)
+    ap.add_argument("--print-tree", action="store_true")
+    ap.add_argument(
+        "--keep",
+        action="store_true",
+        help="add missing placeholders; preserve existing files",
+    )
+    args = ap.parse_args(argv)
+
+    # The tree uses box-drawing characters; Windows consoles default to cp1252.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+    workflows = [int(w) for w in args.workflows.split(",") if w.strip()]
+    if any(w in {3, 4} for w in workflows):
+        ap.error(
+            "WF3/WF4 use dynamic retained-artifact checkpoints and cannot be "
+            "scaffolded from a dummy tree. Run the workflow, then inspect with "
+            "snapshot_project_tree.py --config <project> --project-dir <root>. "
+            "Use --workflows 0,1,2 for model/climate layout scaffolds."
+        )
+    project_dir = args.out.resolve()
+    if project_dir.exists():
+        if not project_dir.is_dir():
+            ap.error(f"--out must be a directory: {project_dir}")
+        if not args.keep and any(project_dir.iterdir()):
+            ap.error(
+                f"--out is not empty: {project_dir}. Choose a new or empty directory, "
+                "or use --keep to add missing placeholders without replacing files."
+            )
+    project_dir.mkdir(parents=True, exist_ok=True)
+
+    scratch_cfg = _scratch_config(
+        args.config, project_dir, project_dir.parent / "_scaffold_config.yml"
+    )
+    _stage_cross_workflow_inputs(project_dir, scratch_cfg)
+
+    raw: list[str] = []
+    for w in workflows:
+        try:
+            found = _summary(SNAKEFILES[w], scratch_cfg)
+        except subprocess.CalledProcessError as error:
+            combined = (error.stdout or "") + (error.stderr or "")
+            print(
+                f"{SNAKEFILES[w]} --summary failed (exit {error.returncode}). "
+                f"Scaffold incomplete: {project_dir}\n{combined[-3000:]}",
+                file=sys.stderr,
+            )
+            return 1
+        # WF3/WF4 were refused above; these workflows have no experiment name.
+        logs = _log_paths(SNAKEFILES[w])
+        print(
+            f"wf{w}: {len(found)} declared outputs, {len(logs)} logs", file=sys.stderr
+        )
+        raw.extend(found)
+        raw.extend(logs)
+
+    if args.extras.exists():
+        overlay = yaml.safe_load(args.extras.read_text(encoding="utf-8")) or {}
+        for w in workflows:
+            raw.extend(overlay.get(f"wf{w}", []) or [])
+
+    renames, drops, adds = _load_delta(args.rename_map)
+    rels: set[str] = set()
+    renamed: set[str] = set()
+    for p in raw:
+        rel = Path(p).as_posix()
+        prefix = project_dir.as_posix() + "/"
+        rel = rel[len(prefix) :] if rel.startswith(prefix) else rel
+        # Rename first, then drop: a drop names the POST-move location, so a
+        # delta can move files into a transient area and then retire the area.
+        rel = _apply_renames(rel, renames)
+        renamed.add(rel)
+        if any(rel == d or (d.endswith("/") and rel.startswith(d)) for d in drops):
+            continue
+        rels.add(rel)
+    rels.update(adds)
+
+    # Captured BEFORE drops: a merged log is rendered from the per-rule parts a
+    # successful run consumed, so it must survive the drop that retires them.
+    part_logs = [r for r in renamed if "/_parts/" in r and r.endswith(".log")]
+
+    for rel in sorted(rels):
+        target = project_dir / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists():
+            target.write_text(
+                _placeholder(rel, project_dir, part_logs), encoding="utf-8"
+            )
+
+    print(f"scaffolded {len(rels)} paths under {project_dir}", file=sys.stderr)
+    if args.print_tree:
+        _print_tree(project_dir)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

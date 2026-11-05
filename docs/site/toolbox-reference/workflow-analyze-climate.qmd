@@ -1,0 +1,30 @@
+---
+title: "WF0 — Analyze climate"
+format: html
+---
+
+Read the [technical manual](../../technical-manual/workflow-analyze-climate.md) for this reference.
+
+## Rules {#rules}
+
+See the [current reference](../../technical-manual/workflow-rule-reference.md#analyze-climate).
+
+## Rule flow {#rule-flow}
+
+See the [current reference](../../technical-manual/workflow-analyze-climate.md#rule-flow).
+
+## Configuration {#configuration}
+
+See the [current reference](../../technical-manual/workflow-analyze-climate.md#configuration).
+
+## Inputs {#inputs}
+
+See the [current reference](../../technical-manual/workflow-analyze-climate.md#inputs).
+
+## Outputs {#outputs}
+
+See the [current reference](../../technical-manual/workflow-analyze-climate.md#outputs).
+
+## Interpretation {#interpretation}
+
+See the [current reference](../../technical-manual/workflow-analyze-climate.md#interpretation).

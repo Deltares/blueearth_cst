@@ -1,0 +1,26 @@
+---
+title: "WF1 — Build model"
+format: html
+---
+
+Read the [technical manual](../../technical-manual/workflow-build-model.md) for this reference.
+
+## Rules {#rules}
+
+See the [current reference](../../technical-manual/workflow-rule-reference.md#build-model).
+
+## Rule flow {#rule-flow}
+
+See the [current reference](../../technical-manual/workflow-build-model.md#rule-flow).
+
+## Configuration {#configuration}
+
+See the [current reference](../../technical-manual/workflow-build-model.md#configuration).
+
+## Inputs {#inputs}
+
+See the [current reference](../../technical-manual/workflow-build-model.md#inputs).
+
+## Outputs {#outputs}
+
+See the [current reference](../../technical-manual/workflow-build-model.md#outputs).

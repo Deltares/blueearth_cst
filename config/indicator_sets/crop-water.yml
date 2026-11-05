@@ -1,0 +1,6 @@
+schema_version: 1
+id: crop-water
+title: Crop-water screening indicators
+description: Ten seasonal and annual hydroclimatic agricultural screening selections.
+selection:
+  registry: crop-water

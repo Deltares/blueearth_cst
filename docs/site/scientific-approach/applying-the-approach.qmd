@@ -1,0 +1,12 @@
+---
+title: "Applying the approach with the CST Toolbox"
+format: html
+bibliography: references.bib
+link-citations: true
+---
+
+The CST Toolbox provides basin climate analysis, weather generation, hydrological simulations and
+indicators to support this assessment. The analyst defines the performance criteria and interprets
+the simulated responses in relation to water-system needs. The
+[Technical Manual](../technical-manual/overview.qmd#components) describes the implemented capabilities
+and the further analysis needed to map vulnerabilities or compare adaptation options.

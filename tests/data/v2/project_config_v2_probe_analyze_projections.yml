@@ -1,0 +1,52 @@
+# analyze_projections settings, v2. Filled by P1b, which moved this workflow's
+# T2 reads; it was near-empty under P1, which moved the T1 reads only.
+#
+# D-7.9: this file and its `config_path` stanza travel together -- an empty
+# file is legal, a MISSING file with `config_path` still declared is not.
+
+# The climate catalog, pushed DOWN from `project.data_sources_climate` because
+# it has exactly one reader (C-39). Moved by P1, not P1b.
+catalog: config/catalogs/cmip6_data.yml
+
+# C-25: `clim_project:` renamed. The VALUE is unchanged -- it still names the
+# `data/climate/projections/<value>/` tree and every series-cache filename -- so
+# this row moves what the user writes and no output path.
+ensemble: cmip6
+
+models: [NOAA-GFDL/GFDL-ESM4]
+scenarios: [ssp245]
+
+# C-63: `members:` is a group. `preference` is the list this key used to be;
+# `selection` and `overrides` were flat `member_selection` / `member_overrides`.
+members:
+  preference: [r1i1p1f1]
+  selection: first_available
+  overrides: {}
+
+# C-57 is NOT applied here: the short form is "registry-resolved" and no
+# variable registry exists yet (see the commit message). The long form is not
+# retired -- no `RETIRED_KEYS` row covers `variables` -- so it stays valid and
+# this fixture uses it.
+# C-57: BOTH forms, in one document, because both have to keep working.
+#
+# `precip:` is the SHORT form -- a bare key resolving every field from
+# `blueearth_cst/shared/variable_registry.py`, including the 0.1 mm/day
+# near-zero threshold C-64 moved there. `temp:` stays long, which is the only
+# way to declare a variable the registry has never heard of and therefore the
+# form that must never stop working.
+#
+# Mixed deliberately rather than converted: a fixture on one form leaves the
+# other exercised nowhere against the real loader and a real DAG.
+variables:
+  precip:
+  temp: {source: temp, canonical: state, units: degC, change: absolute}
+
+# C-59: `historical_year_range: [2000, 2014]` retyped. CALENDAR years by design
+# (C-74) -- no water-year offset is applied to it.
+reference_window: {start: 2000, end: 2014}
+
+# C-60: `future_horizons: {mid: [2046, 2054]}` becomes a LIST, ordered by the
+# author rather than by YAML insertion. `name` is optional; naming this one
+# `mid` keeps the figure directory it would have had under v1 (C-61).
+future_windows:
+  - {start: 2046, end: 2054, name: mid}

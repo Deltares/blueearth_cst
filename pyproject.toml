@@ -1,0 +1,230 @@
+# Tool-configuration host only.
+#
+# This file exists so Python tooling has somewhere to declare settings. It is
+# DELIBERATELY NOT a packaging manifest: there is no [build-system] and no
+# [project] table, nothing is installed from it, and `blueearth_cst` remains a
+# plain importable directory rather than an installed distribution.
+#
+# Packaging policy is owned by dev/reference/toolbox-architecture.md.
+# A packaging change requires an explicit policy change, not a side effect of
+# wanting pytest settings.
+#
+# Also deliberately absent: [tool.pixi]. `pixi.toml` stays the pixi manifest
+# (verified: pixi still resolves pixi.toml with this file present). Migrating
+# the manifest here was assessed and rejected -- it churns a 100+ line manifest
+# and buys nothing.
+#
+# Assessment: dev/records/reviews/2026-07-25_post-r6-assessment.md § O-14.
+
+[tool.pytest.ini_options]
+# Where tests live, so a bare `pytest` behaves like the documented `pytest tests/`.
+testpaths = ["tests"]
+
+# Tests load dev.scripts.pytest_temp through conftest: unique run directories
+# live beside this reusable cache. See dev/reference/dev-validation.md.
+cache_dir = ".tmp/pytest/cache"
+
+# Repo root on sys.path. This is the supported declarative replacement for the
+# 29 `sys.path.insert(0, <repo root>)` lines in tests/ -- pytest prepends these
+# before collection, so `import blueearth_cst...` resolves without each module
+# re-deriving the path. The inserts remain in place for now: they are idempotent
+# and harmless, and removing 29 of them is a separate, independently verifiable
+# change (five further inserts point at dev/scripts/, which is not a package and
+# is not shipped -- those stay regardless).
+pythonpath = ["."]
+
+# Declared here rather than registered programmatically in tests/conftest.py, so
+# the marker is visible to `pytest --markers` and to anyone reading the repo
+# config. conftest.py keeps the --run-integration option and the skip logic --
+# only the marker's DECLARATION moves.
+markers = [
+    "integration: end-to-end workflow test; opt-in via --run-integration",
+    "workflow_contract: Snakemake CLI/API/DAG or lifecycle contract test",
+    "process_isolation: non-Snakemake test that requires fresh Python processes",
+    # Tiering runs on ONE scheme: test-fast deselects the two markers above.
+    # A `slow` label (>=2 s, label only) was retired 2026-10-04 (t2610041227)
+    # rather than wired into test-fast: deselecting it would drop the real-v2
+    # indicator tests from the local gate, so they would first run after a push.
+]
+
+# -ra shows the reason for every non-passing outcome, skips included. CI already
+# passes -rs on its run line; putting it here means a skip is equally visible
+# locally, which is the point of the CI comment that "a new skip is a signal".
+addopts = "-ra"
+
+# An xfail that starts passing is a silent regression in the other direction:
+# the documented bug got fixed and nobody noticed the marker is now a lie.
+# strict=True was already set per-marker at
+# tests/test_prepare_climate_data_catalog.py:292; this makes it the default so a
+# future xfail cannot opt out by omission.
+xfail_strict = true
+
+# Keep collection out of trees that are not source: the untracked run fixture
+# (renamed from examples/ in R07), the pixi env, and build scratch.
+# `.tmp` is listed because setting this key REPLACES pytest's default, which
+# includes the blanket `.*` — so the scratch dir (now holding this cache, plus
+# any --basetemp run) would otherwise be walked by a bare `pytest .`.
+norecursedirs = [
+    ".git", ".pixi", ".snakemake", ".tmp", "test_case", "examples",
+    "docs", "dev", "*.egg-info", "__pycache__",
+]
+
+
+# ---------------------------------------------------------------------------
+# ruff -- lint and format; both are CI gates (format since ADR 0005)
+# ---------------------------------------------------------------------------
+[tool.ruff]
+# Set EXPLICITLY because this file deliberately has no [project] table (see the
+# header): with no `requires-python` to infer from, ruff falls back to its own
+# default, and every pyupgrade-style rule keys off this value. The pin matches
+# `python = ">=3.12,<3.13"` in pixi.toml -- keep the two in step.
+target-version = "py312"
+
+# Out of the repo root, alongside the pytest cache above. Note the knock-on in
+# `extend-exclude`: ruff's built-in excludes name `.ruff_cache` / `.pytest_cache`
+# literally, so neither is default-excluded once it lives under `.tmp/`.
+cache-dir = ".tmp/ruff_cache"
+
+# Added to ruff's built-in excludes (.git, build/, dist/, ...), which do NOT
+# cover these. Mirrors the pytest `norecursedirs` above, minus `dev` -- dev/scripts/
+# is our code and is linted (it is where the F402 shadowing below was found).
+#   docs/      vendored hydromt / hydromt-wflow / wflow guides and the user
+#              notebooks. AGENTS.md forbids patching vendored upstream material,
+#              so linting it could only produce findings we are not allowed to act on.
+#   test_case/ untracked run fixture, not source.
+#   .tmp/      the ignored scratch dir, which now holds both tool caches (see
+#              `cache-dir` above). `respect-gitignore` already covers the walk;
+#              this also covers an explicitly-named path, given force-exclude.
+extend-exclude = ["docs", "test_case", ".pixi", ".snakemake", ".tmp"]
+
+# Apply the excludes to explicitly-named paths too, not only to a directory
+# walk. Without it `ruff format blueearth_cst/<file>.py` reformats a file the
+# [tool.ruff.format] exclude below is deliberately holding back, and the
+# Snakemake `code` rerun trigger fires on a tree nobody meant to touch.
+force-exclude = true
+
+[tool.ruff.lint]
+# Pinned explicitly rather than inherited. Ruff 0.16's DEFAULT selection is ~415
+# rules (verified with `ruff check --isolated`: 409 findings here, vs 96 for the
+# set below) and has broadened across releases -- an unpinned `select` would make
+# a routine ruff upgrade a repo-wide lint failure.
+#
+# Re-measuring that costs a root `.ruff_cache`, because `--isolated` discards
+# the `cache-dir` above with everything else. Put `RUFF_CACHE_DIR=.tmp/ruff_cache`
+# in front of it -- the variable outranks the config-less default, so the cache
+# still lands under `.tmp/` (tests/test_cache_dir_hygiene.py).
+#
+# The classic pyflakes + pycodestyle-essentials core -- rules that find defects
+# rather than express taste -- plus `I`, added 2026-08-09 under t2608091116.
+# Still deliberately NOT enabled, and unmeasured:
+#   UP   (pyupgrade)       -- style; also rewrites annotations wholesale
+#   B/SIM/PERF/RUF/...     -- opinion, and the repo predates them
+# Either can be added later as its own reviewable commit.
+#
+# `TC004` is here for a specific hole, found by falsification rather than by
+# reading: F821 does NOT catch a runtime use of a name that a
+# `if TYPE_CHECKING:` block imports. The guard binds the name at module scope in
+# ruff's semantic model, so the use resolves and the missing local import is
+# invisible. Measured on t2608202307's deferred-import work: deleting the local
+# `import pandas as pd` from `surface_axes.read_lookup` -- a live NameError --
+# left `ruff check` reporting "All checks passed", while the same deletion in a
+# module with no guard produced two errors. TC004 flags it.
+#
+# That matters because the deferral pattern and the TYPE_CHECKING guard arrive
+# TOGETHER: postponing an import is what strands the annotations that then need
+# the guard. Any future module doing this (t2608210029 is the next one) gets the
+# check that actually protects it. Clean repo-wide when enabled.
+select = ["E4", "E7", "E9", "F", "I", "TC004"]
+
+[tool.ruff.lint.per-file-ignores]
+# Import order is the one rule whose verdict depends on OTHER files: ruff ranks
+# an import first- or third-party by whether that module still exists, so
+# deleting a module re-sorts every record that imports it. Records under
+# `dev/records` are sealed and must stay byte-identical, so they keep every
+# other check but not this one.
+"dev/records/**" = ["I001"]
+# NOTE: there is deliberately no F821 entry here. All 23 Snakemake `script:`
+# modules now read the injected object via the guarded
+# `if "snakemake" in globals()` idiom, which keeps them importable for unit
+# tests. A new module needing an F821 ignore is a module that skipped the idiom.
+
+# E402 (import not at top) is load-bearing here, not an oversight: the module
+# sets GDAL_CACHEMAX / VSI_CACHE / GDAL_DISABLE_READDIR_ON_OPEN via
+# os.environ.setdefault, and GDAL reads those ONCE when rasterio is imported.
+# Hoisting the imports above the setdefaults would silently discard the tuning
+# (the comment block at the top of the file explains why it matters on SMB).
+# A file-level ignore rather than five inline noqas, because the reason is a
+# property of the file, not of any one line.
+"dev/scripts/stage_data.py" = ["E402"]
+
+[tool.ruff.format]
+# Black-compatible, and a CI gate since ADR 0005 (2026-08-09).
+quote-style = "double"
+
+# Scoped to `format` only, NOT [tool.ruff] extend-exclude -- the excluded tree
+# stays linted.
+#   *.md            ruff formats fenced Python inside Markdown, which would
+#                   rewrite documents hash-frozen in
+#                   dev/records/sealed-records.yml. Permanent.
+#   console.py      VENDORED verbatim from the `console-formatting` skill and
+#                   carrying a `__version__` that says which release it is a
+#                   copy of. Formatting it here would make every re-vendor a
+#                   diff against our own reformatting rather than against
+#                   upstream, so the drift check the marker exists for stops
+#                   working. It passes `ruff check` and stays linted; only the
+#                   formatter is held off. Drop this line if the file ever
+#                   stops being a straight copy.
+exclude = ["*.md", "dev/scripts/console.py"]
+
+
+# ---------------------------------------------------------------------------
+# pyright -- type-checking language server config, shared across editors
+# ---------------------------------------------------------------------------
+# NOT a gate and NOT a dependency: nothing in tests/ or CI runs pyright. This
+# section exists so that whichever editor is open reports the SAME diagnostics,
+# instead of each one applying its own defaults to an untyped scientific
+# codebase.
+#
+# Table name is `[tool.pyright]`, not `[tool.basedpyright]`, on purpose:
+# basedpyright reads both (the latter preferred, the former kept for backwards
+# compatibility), but pyright and VS Code's Pylance read only `[tool.pyright]`.
+# One table therefore covers Zed (basedpyright), VS Code, PyCharm, and nvim; the
+# `[tool.basedpyright]` spelling would silently do nothing outside Zed.
+#
+# A `pyrightconfig.json` would take precedence over everything here -- do not add
+# one without deleting this section, or the two will disagree.
+[tool.pyright]
+# Pinned because the two servers disagree by default: pyright defaults to
+# "standard", basedpyright to the much stricter "recommended" (which reports
+# missing annotations, implicit Any, and unknown member types across the whole
+# untyped stack). Stating it explicitly makes both report the same thing, and
+# keeps the signal to real errors rather than absent-typing noise. Measured on
+# the former blueearth_cst/shared/plot_map.py: "recommended" 75 errors + 287 warnings,
+# "standard" 75 errors + 0 warnings.
+typeCheckingMode = "standard"
+
+# Matches `python = ">=3.12,<3.13"` in pixi.toml and ruff's `target-version`
+# above -- keep all three in step.
+pythonVersion = "3.12"
+
+# Resolve imports against the pixi env, so `import hydromt` resolves without each
+# editor being pointed at an interpreter by hand. Relative to this file, and each
+# git worktree carries its own `.pixi/envs/default`, so this is correct in all of
+# them. An interpreter selected in the editor UI still wins where one is set;
+# this is the fallback that makes a fresh checkout work with no UI step.
+venvPath = ".pixi/envs"
+venv = "default"
+
+# Setting `exclude` REPLACES pyright's built-in default
+# (`**/node_modules`, `**/__pycache__`, `**/.*`), so those are restated here
+# rather than dropped. Beyond them this mirrors ruff's `extend-exclude`:
+#   docs/      vendored hydromt / hydromt-wflow / wflow guides and notebooks;
+#              AGENTS.md forbids patching vendored upstream material.
+#   test_case/ untracked run fixture, not source.
+exclude = [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.*",
+    "docs",
+    "test_case",
+]

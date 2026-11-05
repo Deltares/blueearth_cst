@@ -1,0 +1,14 @@
+# build_model (wf1) -- rapid set
+
+engine:
+  build_config: toolbox:config/defaults/wflow_build_model.yml
+  waterbodies_config: toolbox:config/defaults/wflow_update_waterbodies.yml
+
+observations:
+  river discharge: test_data/observations_timeseries.csv
+
+# Model run period, inside `climate.window`. Shorter than the record to keep
+# the run quick; the record itself must stay at 16 years or more.
+simulation_window:
+  start: 2010
+  end: 2016

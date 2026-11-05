@@ -1,0 +1,5 @@
+# analyze_climate settings. Empty by design: P1 moved the T1 reads, not the T2 ones
+# (the T2 renames are ~280 sites in three packages no R14 phase claims), so a
+# body of v2 workflow keys here would assert something P1 did not build.
+# D-7.9: this file and its `config_path` stanza travel together -- an empty
+# file is legal, a MISSING file with `config_path` still declared is not.

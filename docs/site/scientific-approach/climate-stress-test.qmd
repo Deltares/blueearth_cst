@@ -1,0 +1,23 @@
+---
+title: "What is a climate stress test?"
+format: html
+bibliography: references.bib
+link-citations: true
+---
+
+A **climate stress test** examines how a system responds to deliberately varied climatic conditions,
+with the purpose of finding combinations that cause unacceptable outcomes.
+It extends sensitivity analysis by explicitly seeking the conditions under which a service, asset or
+management strategy becomes vulnerable [@fowler2024].
+
+For example, a reservoir assessment might explore how warming, reduced rainfall and prolonged dry spells
+affect the ability to meet water demand.
+A flood assessment might examine the rainfall changes under which a protection standard is exceeded.
+The question is how far the system can be pushed, which processes cause failure, and whether an adaptation
+measure changes those limits.
+
+The experiment is often described as **scenario-neutral** because its climate perturbations are specified
+independently of a selected set of climate-model projections.
+It still uses scenarios: each tested combination represents a set of climatic conditions.
+Separating the experiment from particular projections allows the same response analysis to be compared
+with new climate information or different planning horizons [@prudhomme2010].

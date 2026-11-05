@@ -1,0 +1,23 @@
+---
+title: "Page not found"
+format: html
+subtitle: "Find the current documentation route"
+toc: false
+number-sections: false
+page-layout: article
+---
+
+The address may be an older route or a repository-only resource.
+Use site search or choose a current entry:
+
+- [Installation](setup/install.md).
+- [First example](guide/quick-start.md).
+- [Creating a project](guide/new-case.md).
+- [Running and recovery](guide/running.md).
+- [Output interpretation](guide/outputs.md).
+- [Technical manual](technical-manual/overview.qmd).
+- [Complete HTML and PDF manuals](downloads.qmd).
+
+Notebooks, developer guidance and offline upstream references are intentionally separate from the site.
+Use the [repository documentation map](https://github.com/tanerumit/blueearth_cst/blob/main/docs/README.md)
+for those sources. Linked repository material requires a separate checkout or network access.

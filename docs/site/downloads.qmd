@@ -1,0 +1,25 @@
+---
+title: "Download the manuals"
+format: html
+toc: false
+---
+
+Read the manuals as complete volumes or use the chapters in the navigation.
+Both formats come from the same maintained sources.
+
+| Manual | Complete HTML | PDF |
+|---|---|---|
+| User guide: installation, case setup, running and reading tables | [Read HTML](manuals/user-guide.html) | [Download PDF](manuals/user-guide.pdf) |
+| Technical manual: interfaces, retained products and indicator extension | [Read HTML](manuals/technical-manual.html) | [Download PDF](manuals/technical-manual.pdf) |
+
+The technical manual includes the complete indicator-module contract and all five set references.
+Keep both volumes of your chosen format together for offline reading.
+The two PDFs do not require HTML companions.
+Links between PDFs may open the volume without jumping to the section, depending on your PDF reader.
+Use the contents if needed.
+The interactive workflow diagram has a static diagram and text alternative.
+
+Repository evidence, source configuration files, notebooks and upstream literature linked from the manuals
+are separate resources. A repository link does not mean that its contents are included in the download or
+available without a checkout or network access. Software installation and these manuals do not supply the
+external basin datasets. Supported response-surface construction instructions remain unavailable.

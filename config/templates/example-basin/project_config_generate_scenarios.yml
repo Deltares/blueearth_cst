@@ -1,0 +1,87 @@
+# =============================================================================
+#  generate_scenarios (wf3) -- durable climate scenario collection
+# =============================================================================
+#
+# Generates weather series, perturbs them across a temperature x precipitation
+# grid, and publishes the immutable collection. Keep this
+# next to the project file.
+
+
+# -----------------------------------------------------------------------------
+#  GENERATION
+# -----------------------------------------------------------------------------
+
+# A fixed integer reproduces the same scenarios anywhere. `auto` derives the
+# seed from the climate-draw settings, source data and generator code, so any
+# change to those draws new weather.
+# Control reproducibility of generated weather. Input: integer or auto.
+seed: "auto"
+
+# Generate weather realizations per grid point. Input: positive integer.
+n_realizations: 2
+
+# Future years to simulate, inclusive. Match an analyze_projections horizon
+# to place the projections on the same period.
+# Select inclusive scenario simulation years. Input: year mapping.
+simulation_window:
+  # First scenario simulation year. Input: integer year, <= end.
+  start: 2040
+  # Last scenario simulation year. Input: integer year, >= start.
+  end: 2060
+
+
+# -----------------------------------------------------------------------------
+#  PERTURBATION GRID
+# -----------------------------------------------------------------------------
+
+# Each axis runs from `min` to `max` in `n_levels` steps, set per month
+# (Jan..Dec). The grid is temp levels x precip levels, plus the unperturbed
+# baseline (st_0), always included.
+#
+# `trajectory` is required: `constant` applies the full change from the
+# start, `transient` ramps it up over the run.
+# Define scenario stressors and monthly perturbations. Input: mapping.
+climate_perturbations:
+  # Define temperature perturbation axis. Input: mapping.
+  temp:
+    # Set temperature levels between minimum and maximum. Input: positive integer.
+    n_levels: 2
+    # Apply changes immediately or progressively. Options: constant | transient.
+    trajectory: transient
+    # Add monthly mean temperature changes. Input: minimum/maximum mappings, degrees Celsius.
+    mean:
+      # Lower temperature change for each month. Input: 12 numbers, January–December, degrees Celsius.
+      min: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      # Upper temperature change for each month. Input: 12 numbers, January–December, degrees Celsius.
+      max: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0]
+  # Define precipitation perturbation axis. Input: mapping.
+  precip:
+    # Set precipitation levels between minimum and maximum. Input: positive integer.
+    n_levels: 3
+    # Apply changes immediately or progressively. Options: constant | transient.
+    trajectory: transient
+    # Scale monthly precipitation means. Input: minimum/maximum multiplier mappings; 0.7 means 30% drier.
+    mean:
+      # Lower precipitation multiplier for each month. Input: 12 positive numbers, January–December.
+      min: [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7]
+      # Upper precipitation multiplier for each month. Input: 12 positive numbers, January–December.
+      max: [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+    # Scale year-to-year precipitation variability. Input: multiplier mappings; 1.0 leaves variability unchanged.
+    variance:
+      # Lower variability multiplier for each month. Input: 12 positive numbers, January–December.
+      min: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      # Upper variability multiplier for each month. Input: 12 positive numbers, January–December.
+      max: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+  # Dry and wet spell length multipliers, per month. Not a grid axis.
+  # Scale dry and wet spell lengths. Input: monthly multiplier mapping.
+  #spell_factors:
+  # Scale dry spell lengths monthly. Input: 12 positive multipliers, January–December.
+  #  dry: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+  # Scale wet spell lengths monthly. Input: 12 positive multipliers, January–December.
+  #  wet: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+
+# Advanced namespace capacity; choose at least the run-plus-bundle count.
+# Reserve enough identifiers for scenario units. Input: positive integer covering all generated units.
+#unit_id_capacity: 10000

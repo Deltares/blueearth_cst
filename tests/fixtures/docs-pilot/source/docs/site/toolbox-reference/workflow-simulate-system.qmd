@@ -1,0 +1,295 @@
+---
+title: "WF4 — Simulate system"
+---
+
+`simulate_system.smk` runs Wflow-SBM for explicit series in a ready WF3 collection and reduces retained native responses to named indicator sets. Invoke it through `scripts/simulate_system.py`, which validates the selected operations and indicator sets before Snakemake starts.
+
+The run settings identify the experiment, hydrological simulation or indicator analysis, selected
+scenario series and simulation years, indicator sets, and water-year start. They flag reuse of saved
+simulations and place parallel-execution details after the analysis settings. Indicators-only runs
+report saved simulations without implying that new simulations will run.
+
+## Rules
+
+| Rule | Operation |
+|---|---|
+| `all` (target) | Collect the selected indicator set and records. |
+| 4.01 `write_model_fingerprint` | Record the model reference. |
+| 4.02 `check_model_unchanged` | Verify the live model against its reference. |
+| 4.03 `snapshot_simulation_inputs` | Freeze collection, model, settings, and environment identity. |
+| 4.04 `downscale_scenario_series` | Prepare per-run model forcing. |
+| 4.05 `run_wflow_simulations_batch_<batch>` | Run Wflow in batches, retaining native responses. |
+| 4.06 `publish_wflow_outputs` | Publish the response inventory. |
+| `simulations_only` (target) | Collect simulation outputs without indicators. |
+| 4.07 `prepare_indicator_plan` | Resolve each distinct indicator request's identity and targets. |
+| 4.08 `derive_system_indicators` | Produce each immutable indicator set: tables, coverage evidence and marker. |
+| 4.09 `gather_logs` | Merge experiment logs. |
+| 4.10 `gather_benchmarks` | Merge experiment benchmarks. |
+| `simulations_and_indicators` (target) | Collect the selected indicator set. |
+
+The runner infers its target from `operations`: both operations run `all`, simulations alone stop at `simulations_only`, and indicators alone read completed responses without rerunning Wflow. Sets with identical numerical requests share one plan and one immutable indicator set. After Snakemake, the runner publishes each set separately; a failed set keeps its previous publication, and the command exits nonzero unless every set is current. With several sets, Snakemake runs with `--keep-going`, which also lets independent Wflow batches continue after one fails.
+
+Indicator planning reports set names and indicator counts. Rule completion markers carry calculation
+progress; the runner publishes the result folders before issuing the final WF4 verdict, including
+publication warnings or failures.
+
+## Rule flow
+
+```{mermaid}
+flowchart LR
+  A["4.01–4.03 Verify model and freeze inputs"] --> B["4.04 Downscale series"]
+  B --> C["4.05 Run Wflow batches"]
+  C --> D["4.06 Publish responses"]
+  D --> E["4.07 Plan indicators"]
+  E --> F["4.08 Derive indicator set"]
+  D --> G["simulations_only target"]
+  F --> H["simulations_and_indicators target"]
+  D --> I["4.09–4.10 Records"]
+  F --> I
+```
+
+Indicators alone start from existing retained responses and proceed through the indicator branch. Simulations alone stop after response publication.
+
+## Configuration
+
+The project file supplies the `model` context and `workflows.simulate_system.enabled` and `.config_path`; the latter resolves the workflow YAML beside the project file. The WF4 file, `test_case/project_config_rapid_simulate_system.yml`, sets `experiment_name` (the output namespace), `operations` and `indicator_sets`. The template at `config/templates/example-basin/project_config_simulate_system.yml` also describes the optional `compute` block: `julia_threads`, `max_parallel_batches`, `batch_size_max`, `batch_size`, and `disk_headroom_gb`.
+
+```yaml
+experiment_name: experiment_rapid
+operations: [simulations, indicators]   # either alone; omitted means both
+indicator_sets: [default, example_subset]
+indicator_set_definitions:
+  example_subset:
+    config_path: indicator_sets/example_subset.yml   # relative to this file
+```
+
+Edit `project_config_simulate_system.yml`, or the file named by `workflows.simulate_system.config_path`
+in `project_config.yml`:
+
+1. In `operations`, select `simulations`, `indicators`, or both.
+   List each choice once. Their order does not matter.
+
+2. In `indicator_sets`, choose the sets to calculate.
+   You can list set ids or provide their settings inline. If you leave this setting out, the toolbox
+   uses `[default]`. Start each set ID with a lowercase letter. After that, use only lowercase letters,
+   digits, underscores or hyphens. Keep the whole ID to 64 characters or fewer.
+
+   The `default` set is defined in `config/indicator_sets/default.yml`.
+   It selects indicators for `model.outvars`. If that setting is absent, it uses the toolbox defaults.
+   When calculating indicators without simulations, it uses the variables retained in the experiment.
+
+3. To choose your own set of indicators, copy `config/templates/indicator_set.template.yml` and set
+   its `config_path`. Use an absolute path or a path relative to the simulation file
+   (`project_config_simulate_system.yml`) that declares it.
+   The toolbox reads each selected set file once per invocation.
+
+   A custom set chooses existing calculations and can give them your own indicator names.
+   It does not change arithmetic, units, calendars, missingness or grain.
+
+To retain air temperature, add `temperature` to `model.outvars`. Its CSV code and response token are
+`temp`, units are degrees Celsius, and the default set emits `temp_annual_mean` using water-year
+means averaged across blocks. Monthly plots also use means. Existing retained experiments without
+temperature need a new simulation to supply it; existing selections keep their current outputs.
+
+To add environmental-flow indicators, use `indicator_sets: [default, eflow-erfa]`, or select
+`[eflow-erfa]` alone. This set requires retained daily discharge (`q`) and supplies 70 indicators:
+the median and interquartile range of each of 35 annual metrics, grouped into high flow, monthly flow,
+low flow, rates/frequencies of change, and intermittency. Names follow `q_<metric>_<med|iqr>`.
+It ports the default conventions of `eflowrisk`'s daily-flow extension of IHA/ERFA; it does not produce
+ecological risk classes or baseline/scenario comparisons.
+
+The configured water year applies. Years need at least 90% finite daily observations and monthly
+means need 80% of their calendar month's days; incomplete edge years can therefore be excluded.
+Pulse thresholds are the individual record's 90th/10th percentiles, with strict exceedances; zero
+sequences include discharge at or below zero. Rolling windows and daily differences cross year
+boundaries, while pulse runs split there. Timing uses the first occurrence and linear day-of-water-year
+statistics. Group results average member indicators with equal weights, propagating undefined values.
+Zero-flow timing is undefined when no zero-flow event occurs in the retained years. Its median and
+interquartile range then have no numerical value; a group mean also remains undefined if any member
+is undefined. The console explains these expected absent-event results as an informational note.
+Other undefined results remain warnings naming the affected indicators; unavailable inputs are
+reported separately. These statuses do not imply that a calculation failed.
+See the [set conventions](https://github.com/tanerumit/blueearth_cst/blob/main/blueearth_cst/indicators/sets/eflow_erfa/README.md)
+for all fixed defaults and interpretation limits.
+
+The `crop-water` set supplies ten seasonal or annual agricultural screening indicators from discharge,
+precipitation, PET, AET and net recharge. It requires daily retained responses for all five variables.
+Use `model.outvars` to retain them in a new simulation; existing experiments without PET must be
+regenerated under a fresh experiment name. The summer low-flow declaration also needs one fixed,
+location-keyed historical Qcrit with source and baseline provenance. Configure it inline in the WF4
+file; a separate set file is optional. The
+[set conventions](../../../blueearth_cst/indicators/sets/crop_water/README.md) define periods,
+formulas, the Qcrit record, diagnostics and interpretation limits. The ET ratios use Wflow landscape
+AET and reference PET as screening proxies; subcatchment means do not represent crop or aquifer areas.
+
+The override accepts explicit operational thresholds or a `thresholds.baseline_quantile` rule.
+The latter uses the same project's WF1 historical model and derives source identity from its artifacts,
+and automatically prepares
+fixed location thresholds at the WF4 boundary after upstream execution. Omitted `years`, or `years: all`,
+selects all discovered historical calendar years; an explicit year list restricts the request.
+It defaults to Q90 exceedance (non-exceedance
+p=0.10), linear interpolation and complete May–October reference periods. Choose `reference_period:
+annual` for complete calendar years, or another quantile with explicit exceedance/nonexceedance
+semantics. This changes the reference distribution; low-flow day counts still use May–October.
+Historical CSV/TOML digests, rule settings, requested/discovered years, year-selection mode and
+included/excluded coverage enter calculation provenance. A combined dry-run with WF1 enabled reports
+Q90 preparation as pending if historical inputs are absent; the data-dependent WF4 DAG remains
+uninspected until those inputs exist. A direct WF4 dry-run, or a run with WF1 disabled, requires the
+historical inputs and reports a WF1 prerequisite error when they are absent. Static malformed rules
+and corrupt existing inputs remain errors. Synthetic observations and
+scenario discharge are not used to fit these thresholds. The set conventions contain a complete example.
+
+Inline entries place indicator names directly below `set`:
+
+```yaml
+indicator_sets:
+  - set: crop-water
+    summer_low_flow_days:
+      thresholds:
+        baseline_quantile: {}
+    summer_longest_dry_spell:
+      dry_day_mm: 2.0
+    winter_longest_dry_spell:
+      enabled: false
+    summer_et_limitation_days:
+      pet_min_mm: 1.5
+      ratio: 0.6
+  - set: flow_regime
+    q_mean_annual_90day_min:
+      enabled: false
+  - set: default
+```
+
+`set` names a registered set. Optional `id` defaults to `set`; `title` and `description` are
+presentation metadata. Other keys must name registered indicators. Omitted indicators stay enabled;
+omitted parameters inherit registered defaults, including `season: summer` for `summer_low_flow_days`.
+Each supplied parameter replaces that parameter's value; nested threshold mappings are not merged.
+`enabled` must be a boolean and is not a calculation parameter. Disabled entries still undergo static
+parameter validation, but require no response variables or historical preparation. Disabling every
+indicator is an error: remove that set entry instead. Parameters encoded in registered names, such as
+season or window length, cannot be changed to contradict the name.
+
+Existing string selectors, `indicator_set_definitions` files and nested `selection.registry` files
+remain supported. Standalone files can also use the flat structure with `schema_version: 1`.
+An inline set cannot also have a file definition. In a baseline-quantile rule, `model_root` selects
+the model directory and `source_id` labels historical-discharge provenance. Omit them to use the project's
+model and the label `wf1-historical-model-discharge`. Inline sources are captured in the invocation's
+selection snapshot just like separate files.
+
+`indicator_selection` can further narrow an inline set, but cannot re-enable an
+indicator disabled there. To calculate part of a set, give it one `include` or `exclude` list per selected
+set; omitted means every indicator. Keys are the published indicator names, kept in set order.
+
+```yaml
+indicator_sets: [default, crop-water]
+indicator_selection:
+  crop-water:
+    exclude: [summer_low_flow_days]   # runs the other nine without Qcrit or retained q
+```
+
+A deselected indicator is outside the request: it is neither calculated, published nor checked for
+inputs. Unknown names, a set absent from `indicator_sets`, both lists for one set, or a selection
+leaving no indicators are refused. A changed selection publishes a new indicator set under the same set
+id from retained responses; earlier publications remain unchanged.
+
+Selected indicators are checked for inputs: before simulating, their required variables against
+`model.outvars`; when indicators run alone, against the retained responses and their locations. A set
+may also declare a parameter as absent, such as crop-water's empty or location-incomplete Qcrit.
+`indicator_evaluation` decides what an indicator lacking an input does:
+
+```yaml
+indicator_evaluation: partial   # strict (default) refuses; partial publishes what it can
+```
+
+`strict` refuses the invocation and names the set, indicator, method and missing input. `partial`
+calculates every available indicator and location and publishes the others as unavailable: the result
+tables carry `status: unavailable` with a `reason` such as `missing_parameter:thresholds` or
+`missing_response:pet` and no value, `indicators.csv` marks the indicator `partial` or `unavailable`,
+and the console shows one warning row per set. A partial set counts as a successful invocation only in
+partial mode. Supplied but malformed parameters, such as an incomplete Qcrit record, still fail.
+
+Recovery recalculates from retained responses. Supplying the missing Qcrit, or selecting another
+indicator whose responses are retained, publishes a new immutable indicator set for the whole selection
+under the same set id, with no Wflow run; earlier publications remain unchanged. A response the
+simulation never requested cannot be recovered this way: add it to `model.outvars` and simulate a new
+experiment (`--new-experiment`). Results of different simulations are never combined in one set.
+
+## Inputs
+
+WF4 can run with WF3 disabled when its selected collection is already ready. For a project-generation
+selection, the runner binds any pending experiment seed from the validated existing generation plan
+together with the collection. It preserves an already-bound seed and does not regenerate scenarios.
+
+WF4 requires the completed WF1 model and an explicitly selected ready WF3 collection and run IDs. It checks the model reference and freezes the selected collection, model, settings, and environment identity for the experiment. It does not consume WF2 projections.
+
+## Outputs
+
+An experiment retains native Wflow response CSVs and a response inventory. New immutable indicator sets use
+`indicator-set/6`, under `_engine/indicator_sets/<id>/`; their tables add `status` (`available`, `undefined`
+for a calculated NaN, `unavailable`) and `reason` columns. They retain `indicators.json`, indicator tables, group
+membership, declarations, return-level evidence, per-series block coverage and the execution context.
+Each selected set has a readable view at `results/indicator_sets/<set-id>/`: run and group tables, group
+lookups and an `indicators.csv` dictionary. See [Reading the outputs](../guide/outputs.md).
+
+## Local calculation sets
+
+`blueearth_cst/indicators/` provides a plain Python interface independent of WF4 files and Snakemake.
+Its [authoring guide](../../../blueearth_cst/indicators/README.md) documents contracts, dependencies,
+parameters, independent checks and extension examples. Trusted installed sets own formulas in
+`calculations.py`, registrations and fixed `ASSUMPTIONS` in `registry.py`, independent numerical
+checks in `checks.py`, and local guidance in `README.md`. Assumptions describe implemented choices;
+they do not offer alternative scientific methods. The water-year anchor remains explicit context.
+
+The optional bundled `flow_regime` set includes the matched prototype aliases and whole-period mean,
+plus five rolling extremes and daily change indicators. Its recharge entry requires retained `gwr`.
+`flood_risk` declares 2, 5, 10, 15 and 20-year discharge hazard levels. It remains opt-in, and the
+production probability qualification gate permits only 2 and 10 years with the shipped evidence.
+Selecting the entire example therefore fails explicitly at an unsupported probability. Select an
+eligible local calculation explicitly for a confined qualified calculation:
+
+```yaml
+schema_version: 1
+id: flood_10
+title: Ten-year discharge hazard
+description: Annual maximum discharge; no exposure or damage calculation.
+selection:
+  indicators:
+    - id: peak_10
+      title: Ten-year annual maximum discharge
+      description: Qualified production GEV estimator and screening requirements.
+      references: []
+      calculation:
+        set: flood_risk
+        method: flood_return_level/1
+        parameters: {return_period: 10}
+```
+
+`selection: {registry: flow_regime}` selects all registrations of that trusted module. An authored
+entry's optional `calculation.set` selects a trusted local callable. YAML cannot import a file path or
+execute Python.
+New local calculations have explicit set/indicator identities and need no `equivalent_definition`.
+
+## Integrity and numerical rechecking
+
+Discover indicator sets on demand with:
+
+```powershell
+pixi run python scripts/inspect_indicators.py --experiment <experiment-root> --list
+pixi run python scripts/inspect_indicators.py --experiment <experiment-root> --manifest <indicators.json>
+pixi run python scripts/inspect_indicators.py --experiment <experiment-root> --manifest <indicators.json> --recheck
+```
+
+The default command checks saved hashes, completion identity and artifact structure. It imports no
+current calculation registry and needs no original discharge input. It reports matching saved check
+receipts as **historical** evidence. Hash consistency does not prove authenticity against coordinated
+edits of artifacts and manifests.
+
+`--recheck` additionally requires matching execution sources, definitions, original input identity and
+recorded dependencies. It invokes current independent set checkers and records their hashes and current
+runtime in a new receipt. Changed checker-only code is allowed; it receives fresh attribution. A missing
+or changed input blocks numerical rechecking while preserving artifact inspection. A requested recheck
+exits nonzero if unavailable or unsuccessful. Both scripts support `--traceback` for diagnosis.
+
+The strict production reader retains its input and cache validity checks. Integrity inspection never
+makes a stale result reusable. A publication without the required execution context cannot be
+numerically rechecked.

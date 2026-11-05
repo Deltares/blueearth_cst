@@ -1,0 +1,42 @@
+# generate_scenarios settings, v2. Filled by P1b, which moved this workflow's T2
+# reads; it was empty under P1, which moved the T1 reads only.
+#
+# D-7.9: this file and its `config_path` stanza travel together -- an empty
+# file is legal, a MISSING file with `config_path` still declared is not.
+
+seed: 1548079376
+n_realizations: 2                      # C-29, was `realizations_num`
+
+# C-67: `horizontime_climate: 2050` + `run_length: 8` resolved to 2046..2054,
+# and that INCLUSIVE pair is declared directly now. Note the old form spanned
+# nine calendar years for a run_length of eight -- the window is what the run
+# used, not the length.
+simulation_window: {start: 2046, end: 2054}
+
+# C-68: was `stress_test:`. Renamed because that name also named the workflow;
+# this block is specifically the perturbations.
+climate_perturbations:
+  temp:
+    # C-31: a RETYPE, not a rename. `step_num: 1` counted INTERVALS and every
+    # caller added one; `n_levels: 2` is that sum, declared. Same grid.
+    n_levels: 2
+    # C-32: was `transient_change: true`. An enum now, required, no default.
+    trajectory: transient
+    mean:
+      min: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      max: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0]
+  precip:
+    n_levels: 2
+    trajectory: transient
+    mean:
+      min: [0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7]
+      max: [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+    variance:
+      min: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      max: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+  # C-33: were flat `dry_spell_factor` / `wet_spell_factor` beside the axes.
+  # Still not perturbation axes -- they add no grid member and no design-table
+  # column, which is why they sit beside `temp:`/`precip:` and not under them.
+  spell_factors:
+    dry: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    wet: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]

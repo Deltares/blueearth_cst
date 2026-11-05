@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="592" viewBox="0 0 800 592" role="img" aria-labelledby="title desc">
+  <title id="title">Top-down and bottom-up climate risk assessment</title>
+  <desc id="desc">Two parallel sequences, each read from top to bottom. Top-down: select climate projections; downscale to the local scale; assess impacts using simulation models; describe risk under projected scenarios. Bottom-up: understand local climate drivers; stress test the system across a wide range of futures; identify conditions that lead to vulnerabilities; describe robustness to climate change.</desc>
+  <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#66768a"/></marker></defs>
+  <rect width="800" height="592" fill="#ffffff"/>
+  <g font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" fill="#0a2e4d">
+    <text x="200" y="44" font-size="26" font-weight="600">Top-down</text>
+    <path d="M200 172 V204" stroke="#66768a" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+    <path d="M200 304 V336" stroke="#66768a" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+    <path d="M200 436 V468" stroke="#66768a" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+    <rect x="32" y="80" width="336" height="88" rx="6" fill="#ffffff" stroke="#aab4bf" stroke-width="1.5"/>
+    <text x="200" y="117" font-size="19"><tspan x="200">Select climate</tspan><tspan x="200" dy="26">projections</tspan></text>
+    <rect x="32" y="212" width="336" height="88" rx="6" fill="#ffffff" stroke="#aab4bf" stroke-width="1.5"/>
+    <text x="200" y="249" font-size="19"><tspan x="200">Downscale projections</tspan><tspan x="200" dy="26">to the local scale</tspan></text>
+    <rect x="32" y="344" width="336" height="88" rx="6" fill="#ffffff" stroke="#aab4bf" stroke-width="1.5"/>
+    <text x="200" y="381" font-size="19"><tspan x="200">Assess impacts using</tspan><tspan x="200" dy="26">simulation models</tspan></text>
+    <rect x="32" y="476" width="336" height="88" rx="6" fill="#ffffff" stroke="#aab4bf" stroke-width="1.5"/>
+    <text x="200" y="513" font-size="19"><tspan x="200">Describe risk under</tspan><tspan x="200" dy="26">projected scenarios</tspan></text>
+    <text x="600" y="44" font-size="26" font-weight="600">Bottom-up</text>
+    <path d="M600 172 V204" stroke="#66768a" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+    <path d="M600 304 V336" stroke="#66768a" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+    <path d="M600 436 V468" stroke="#66768a" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+    <rect x="432" y="80" width="336" height="88" rx="6" fill="#ffffff" stroke="#aab4bf" stroke-width="1.5"/>
+    <text x="600" y="117" font-size="19"><tspan x="600">Understand local</tspan><tspan x="600" dy="26">climate drivers</tspan></text>
+    <rect x="432" y="212" width="336" height="88" rx="6" fill="#ffffff" stroke="#aab4bf" stroke-width="1.5"/>
+    <text x="600" y="249" font-size="19"><tspan x="600">Stress test the system</tspan><tspan x="600" dy="26">across a wide range of futures</tspan></text>
+    <rect x="432" y="344" width="336" height="88" rx="6" fill="#ffffff" stroke="#aab4bf" stroke-width="1.5"/>
+    <text x="600" y="381" font-size="19"><tspan x="600">Identify conditions</tspan><tspan x="600" dy="26">that lead to vulnerabilities</tspan></text>
+    <rect x="432" y="476" width="336" height="88" rx="6" fill="#ffffff" stroke="#aab4bf" stroke-width="1.5"/>
+    <text x="600" y="513" font-size="19"><tspan x="600">Describe robustness</tspan><tspan x="600" dy="26">to climate change</tspan></text>
+  </g>
+</svg>

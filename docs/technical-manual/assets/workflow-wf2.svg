@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 576" role="img" aria-labelledby="workflow-wf2-title workflow-wf2-desc">
+<title id="workflow-wf2-title">Climate-projection analysis</title>
+<desc id="workflow-wf2-desc">Scientific processing steps for projection analysis; the accompanying page explains inputs, choices, products and conditional calculations.</desc>
+<defs><marker id="workflow-wf2-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6 Z" fill="#4f555e"/></marker></defs>
+<rect width="800" height="576" fill="#fff"/>
+<g fill="none" stroke="#4f555e" stroke-width="1.5" marker-end="url(#workflow-wf2-arrow)">
+<path d="M440 72 H480"/>
+<path d="M240 104 V160"/>
+<path d="M240 224 V280"/>
+<path d="M240 344 V400"/>
+<path d="M440 312 H456 Q464 312 464 320 V424 Q464 432 472 432 H480"/>
+<path d="M620 400 V344"/>
+</g>
+<g>
+<rect x="40" y="40" width="400" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="240" y="67" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Define basin boundary</text>
+<text x="240" y="87" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Shared basin boundary</text>
+</g>
+<g>
+<rect x="480" y="40" width="280" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="620" y="67" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Map basin, rivers and locations</text>
+<text x="620" y="87" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Shared basin and river products</text>
+</g>
+<g>
+<rect x="40" y="160" width="400" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="240" y="187" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Fetch CMIP6 slices</text>
+<text x="240" y="207" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Resolved model, scenario and member</text>
+</g>
+<g>
+<rect x="40" y="280" width="400" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="240" y="307" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Calculate monthly basin averages</text>
+<text x="240" y="327" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Basin climate series in NetCDF</text>
+</g>
+<g>
+<rect x="40" y="400" width="400" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="240" y="427" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Calculate future climate changes</text>
+<text x="240" y="447" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Annual/monthly CSVs and coverage report</text>
+</g>
+<g>
+<rect x="480" y="400" width="280" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="620" y="427" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Prepare projection analysis</text>
+<text x="620" y="447" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Window diagnostics and availability</text>
+</g>
+<g>
+<rect x="480" y="280" width="280" height="64" fill="#fff" stroke="#4f555e" stroke-width="1.5" rx="6"/>
+<text x="620" y="307" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="16" fill="#292d34">Plot projected climate changes</text>
+<text x="620" y="327" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Available PNGs and captions</text>
+</g>
+<line x1="40" y1="528" x2="760" y2="528" stroke="#aaa"/>
+<text x="40" y="552" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#292d34">Change factors provide plausibility context. Logs and benchmarks also complete all.</text>
+</svg>

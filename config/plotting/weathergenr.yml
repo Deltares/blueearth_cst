@@ -1,0 +1,12 @@
+# Weather diagnostics only; shared chart fonts and export DPI stay in style.yml.
+# This file is presentation configuration, never generator/scenario identity.
+colors:
+  simulated: '#707070'
+  reference: red
+  wavelet_observed: blue
+panel_layout:
+  panel_width_mm: 70
+  panel_height_mm: 70
+  preferred_columns: [3, 2]
+  max_width_mm: 180
+  single_panel_heading: false

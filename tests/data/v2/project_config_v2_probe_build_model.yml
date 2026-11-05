@@ -1,0 +1,23 @@
+# build_model settings, v2. Filled by P1b, which moved this workflow's T2 reads
+# (`C-22`, `C-56`); it was empty under P1, which moved the T1 reads only.
+#
+# D-7.9: this file and its `config_path` stanza travel together -- an empty
+# file is legal, a MISSING file with `config_path` still declared is not.
+
+# C-22: the wflow-engine settings, regrouped under `engine:`. Both leaves are
+# optional and carry the same defaults they had flat, so declaring neither is
+# the same run.
+engine:
+  build_config: config/defaults/wflow_build_model.yml
+  waterbodies_config: config/defaults/wflow_update_waterbodies.yml
+
+# C-56 / D-7.3: a mapping KEYED BY VARIABLE, keys drawn from `model.outvars`
+# verbatim -- the loader refuses a key that is not a declared outvar, which is
+# what makes "observations only for a variable the model outputs" a parse-time
+# invariant rather than a convention. `null` is a declared absence, and the
+# probe uses it so the fixture needs no observations CSV on disk.
+observations:
+  river discharge: null
+
+# The Wflow run period must now be explicit; retain this probe's former period.
+simulation_window: {start: 2000, end: 2020}

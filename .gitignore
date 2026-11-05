@@ -1,5 +1,13 @@
 # file based on github/gitignore
 
+# Each worktree owns its local lane status; never merge or seed it from another lane.
+/STATUS.md
+
+# Generated from canonical docs/guide/ by the Quarto pre-render hook.
+/docs/site/guide/
+/docs/site/technical-manual/
+/docs/site/manuals/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -44,6 +52,10 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+# Relocated to .tmp/pytest_cache (pyproject.toml). Kept as insurance: a
+# config-less run still writes the root dir. Ignoring only keeps such a
+# directory out of a COMMIT -- what keeps it out of the root is
+# tests/test_cache_dir_hygiene.py, which fails on any cache directory here.
 .pytest_cache
 nosetests.xml
 coverage.xml
@@ -111,6 +123,16 @@ venv.bak/
 # mkdocs documentation
 /site
 
+# quarto documentation site (docs/_quarto.yml). Rendered output only. The cache
+# is ignored by the TRACKED `docs/.gitignore`, which quarto writes and maintains
+# itself (`/.quarto/`, `**/*.quarto_ipynb`) -- leave that file to the tool rather
+# than hand-merging its entries up here.
+#
+# `docs/_freeze/` is deliberately NOT ignored: if the notebooks are ever
+# published with results, those stored outputs are the tracked artifact that
+# lets the site build without executing anything.
+docs/_site/
+
 # mypy
 .mypy_cache/
 
@@ -120,20 +142,70 @@ dask-worker-space/
 # snakemake
 .snakemake/
 
-# Examples
-examples/
+# Examples. `test_case/*` rather than `test_case/`, so the seed config below can
+# be re-included: git cannot un-ignore a file whose PARENT DIRECTORY is excluded,
+# and the directory form would silently keep it untracked.
+test_case/*
+!test_case/project_config_*.yml
+# The basin inputs those configs name. Untracked until 2026-08-12, which broke
+# both CI legs from 08-10: the seed config's `gauge_points` is a rule input, so
+# a bare checkout could not resolve the wf1 DAG at all (MissingInputException,
+# classified in tests/test_cli.py rather than predicted). Same two-step as the
+# configs, one level deeper -- git will not descend into an excluded DIRECTORY,
+# so `!test_case/test_data/*.csv` on its own matches nothing.
+!test_case/test_data/
+test_case/test_data/*
+!test_case/test_data/*.csv
 .Rproj.user
 
 # R-related files
 /config/reticulate_config.R
+.Rhistory
+.RData
 
 # Images
 *.png
-!/docs/_images/*.png
 
 # Tests
 tests/test_project
 
-# pixi environments
-.pixi
-*.egg-info
+# AI tooling local state (per-user; never committed). No trailing slash: in a
+# worktree these are SYMLINKS to the primary's copies (`worktree_link:` in
+# .git-workflow.yml), and git sees a symlink as a file, so a `dir/` pattern
+# stops matching and the link shows up as untracked -- one `git add -A` from
+# committing a machine-specific absolute path.
+.claude
+.agents
+.codex
+.github/agents
+
+# Baked toolbox commit, written by a git-less deployment (none ships today).
+# Such an image carries no .git, so this file is how a deployed run learns its own
+# revision. It must be ABSENT in a normal checkout: provenance.toolbox_identity()
+# resolves git first and falls back to this file, so a committed copy would let
+# a stale sha outrank the live one.
+.toolbox-commit
+
+# Local-only config variants (per-user; never committed)
+*_local.yml
+*_gabon.yml
+
+# v0 → v1 catalog migration safety copies (left during M2b)
+*.v0bak
+
+# Scratch: ONE place for disposable machine-local output, at the repo root.
+# Anything a run, a probe, or a pytest --basetemp writes goes here and is never
+# committed. Consolidated 2026-08-02 from dev/tmp/ + an unignored .tmp/ that
+# held 1172 untracked files (60 MB) one `git add -A` from being staged.
+# The tool caches were redirected here on 2026-08-11 (pyproject.toml `cache_dir`
+# / `cache-dir`), so .tmp/ now covers them and the root carries neither dir.
+.tmp/
+# Guard junctions that old branches' hooks may still create.
+dev/00-current-board-main/
+
+# dev/ is the process record: prose, tables, and small tabular evidence only.
+# netCDF probe/QA states belong outside the repo -- the two that reached
+# dev/records/milestones/p32a/qa/ were 68 MB, the largest blobs in this history. Record the
+# finding in Markdown and the artifact's SHA256, not the artifact.
+dev/**/*.nc
+dev/**/*.pdf

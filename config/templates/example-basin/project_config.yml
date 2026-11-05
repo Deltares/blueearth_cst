@@ -1,0 +1,168 @@
+# Example basin project: copy the whole directory or use scripts/create_case.py.
+# Review basin, climate, catalog and case paths before running.
+# Keep this project file beside its five project_config_<workflow>.yml files.
+# File paths resolve beside their declaring YAML; toolbox: names bundled resources.
+# Commented YAML entries are optional settings or examples.
+# See README.md here and config/templates/README.md for setup and rationale.
+
+# Identify the project configuration schema. Options: 2 (run-directory paths) | 3 (portable paths).
+schema_version: 3
+
+
+# -----------------------------------------------------------------------------
+#  PROJECT
+# -----------------------------------------------------------------------------
+
+# Define shared project storage and data access. Input: mapping.
+project:
+  # Store project inputs and generated outputs. Input: directory path relative to this file or absolute; keep outputs outside the toolbox.
+  project_dir: "../../runs/example-basin"
+  # This template's default catalog requires the Deltares P-drive.
+  # Locate source datasets by catalog name. Input: HydroMT catalog YAML path.
+  catalog: toolbox:config/catalogs/deltares_data_pdrive.yml
+
+
+# -----------------------------------------------------------------------------
+#  BASIN
+# -----------------------------------------------------------------------------
+
+# Define basin geometry and spatial inputs. Input: mapping.
+basin:
+  # hydromt region, in quotes. This form: the basin draining to a point
+  # (lon, lat), at least 100 km2 upstream. Other forms:
+  # docs/references/hydromt-user-guide/models/model_region.md
+  # Select the HydroMT basin region. Input: quoted HydroMT region dictionary.
+  region: "{'subbasin': [9.666, 0.4476], 'uparea': 100}"
+  # Set model grid cell size. Input: positive degrees; 0.00833333 is 30 arc-seconds.
+  resolution: 0.00833
+
+  # Points where the model reports results. Each `control` point also closes
+  # a subbasin. Columns: output_locations_template.csv. null = outlets only.
+  # Define reporting and subbasin control locations. Input: output-locations CSV path or null.
+  output_locations: "data/output_locations.csv"
+
+  # How the basin is split into subbasins.
+  # Configure automatic subbasin delineation. Input: mapping.
+  #delineation:
+  # Minimum upstream area defining river cells. Input: positive square kilometres.
+  #  river_uparea_km2: 32
+  # Maximum distance for snapping points to rivers. Input: positive metres.
+  #  snap_tolerance_m: 10000
+  # Limit generated subbasins per basin. Input: positive integer.
+  #  max_subbasins: 11
+
+  # Datasets used to build the basin, by catalog entry name.
+  # Select spatial datasets from the catalog. Input: dataset-role-to-catalog-entry mapping.
+  sources:
+  # Select flow direction and elevation dataset. Input: catalog entry matching setup_basemaps.
+  #  hydrography: merit_hydro_ihu
+  # Select indexed basin boundaries. Input: catalog entry matching setup_basemaps.
+  #  basin_index: merit_hydro_index
+    # Select river network geometry. Input: catalog entry name.
+    rivers: hydro_rivers_lin
+    # Select land use and land cover. Input: catalog entry name.
+    lulc: globcover
+  # Select leaf area index dataset. Input: catalog entry name.
+  #  lai: modis_lai
+  # Select soil properties dataset. Input: catalog entry name.
+  #  soil: soilgrids
+
+
+# -----------------------------------------------------------------------------
+#  CLIMATE
+# -----------------------------------------------------------------------------
+
+# Define historical climate data and calendar. Input: mapping.
+climate:
+  # Datasets to consider, and the one the model runs on. `selected` must be
+  # in `sources`. You may leave `selected` empty while only analyze_climate
+  # is enabled: run it, read the comparison, then choose.
+  # Select historical climate datasets to assess. Input: list of supported climate source names.
+  sources: [era5, chirps]
+  # Choose forcing for model and scenario generation. Input: name from sources; null for WF0-only assessment.
+  selected: era5
+
+  # Calendar years to extract, January 1 through December 31 inclusive. At least 16. This is not the model
+  # run period; see `simulation_window` in the build_model file.
+  # Select inclusive historical calendar years. Input: year mapping spanning at least 16 years.
+  window:
+    # First historical calendar year. Input: integer year, <= end.
+    start: 2000
+    # Last historical calendar year. Input: integer year, >= start.
+    end: 2016
+
+  # First month of the water year for reporting aggregation; it does not change extraction bounds.
+  # Set the first water-year month. Input: three-letter month abbreviation, Jan–Dec.
+  #water_year_start: Jan
+
+  # Optional shared historical map policy. WF0 diagnostic tolerances must match.
+  # Monthly tolerance is an integer from 0 to 27; annual tolerance is nonnegative.
+  # Set shared historical map completeness tolerances. Input: mapping matching WF0 diagnostics.
+  #map_reference:
+  # Allow missing days per month. Input: integer, 0–27.
+  #  max_missing_days_month: 3
+  # Allow missing days per year. Input: nonnegative integer.
+  #  max_missing_days_year: 15
+
+
+# -----------------------------------------------------------------------------
+#  MODEL
+# -----------------------------------------------------------------------------
+
+# Select shared hydrological model outputs. Input: mapping.
+model:
+  # Any of: river discharge, precipitation, potential evapotranspiration,
+  # overland flow, actual evapotranspiration, groundwater recharge, snow, temperature.
+  # Select retained model outputs; non-discharge ones are subcatchment means. Input: list.
+  outvars: ["river discharge", "precipitation", "potential evapotranspiration", "actual evapotranspiration", "groundwater recharge"]
+
+
+# -----------------------------------------------------------------------------
+#  PLOTTING
+# -----------------------------------------------------------------------------
+
+# Configure shared Python figure presentation. Input: mapping.
+plotting:
+  # Annotation modes apply to Python figures; R figures use the shared style without annotations.
+  # Place explanatory annotations on figures. Options: none | caption | title.
+  annotation: none
+
+
+# -----------------------------------------------------------------------------
+#  WORKFLOWS
+# -----------------------------------------------------------------------------
+#
+# Run WF0 alone first; then disable it before enabling downstream workflows.
+
+# Enable workflows and locate their configuration files. Input: workflow-name-to-settings mapping.
+workflows:
+  # Configure WF0 historical climate diagnostics. Input: workflow settings mapping.
+  analyze_climate:
+    # Include this workflow in the project run. Options: true | false.
+    enabled: true
+    # Locate this workflow's configuration. Input: YAML path relative to this file or absolute.
+    config_path: "project_config_analyze_climate.yml"
+  # Configure WF1 model construction and historical simulation. Input: workflow settings mapping.
+  build_model:
+    # Include this workflow in the project run. Options: true | false.
+    enabled: false
+    # Locate this workflow's configuration. Input: YAML path relative to this file or absolute.
+    config_path: "project_config_build_model.yml"
+  # Configure WF2 projection plausibility analysis. Input: workflow settings mapping.
+  analyze_projections:
+    # Include this workflow in the project run. Options: true | false.
+    enabled: false
+    # Locate this workflow's configuration. Input: YAML path relative to this file or absolute.
+    config_path: "project_config_analyze_projections.yml"
+  # Configure WF3 weather scenario generation. Input: workflow settings mapping.
+  generate_scenarios:
+    # Include this workflow in the project run. Options: true | false.
+    enabled: false
+    # Locate this workflow's configuration. Input: YAML path relative to this file or absolute.
+    config_path: "project_config_generate_scenarios.yml"
+  # Configure WF4 simulation and indicator calculation. Input: workflow settings mapping.
+  simulate_system:
+    # Include this workflow in the project run. Options: true | false.
+    enabled: false
+    # Locate this workflow's configuration. Input: YAML path relative to this file or absolute.
+    config_path: "project_config_simulate_system.yml"

@@ -1,0 +1,32 @@
+# analyze_projections (wf2) -- baseline linux set. A twin of the non-linux
+# file; see the header of `project_config_baseline_linux.yml`.
+
+catalog: toolbox:config/catalogs/cmip6_data.yml
+ensemble: cmip6
+
+models:
+- NOAA-GFDL/GFDL-ESM4
+- INM/INM-CM4-8
+- INM/INM-CM5-0
+scenarios: [ssp245, ssp585]
+members:
+  preference:
+  - r1i1p1f1
+
+variables:
+  precip: {source: precip, canonical: rate, units: mm/day, change: relative}
+  temp: {source: temp, canonical: state, units: degC, change: absolute}
+
+# Ends 2014, where the CMIP6 historical runs stop.
+reference_window:
+  start: 2000
+  end: 2014
+# Same years as the stress test's `simulation_window`, so the projections land
+# on the period the stress test simulates. Moved with it on 2026-09-07
+# (`t2608222155`); the horizon was `far: 2070-2090` while the window was
+# 2070-2086. The alignment is computed independently of these keys, so a missed
+# edit here misaligns SILENTLY.
+future_windows:
+- start: 2046
+  end: 2054
+  name: mid
