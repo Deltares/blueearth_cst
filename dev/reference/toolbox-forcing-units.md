@@ -1,33 +1,36 @@
 # Forcing unit admission
 
-Last updated: 2026-10-20
+Last updated: 2026-11-05
 
-Use this reference when changing historical climate catalogs or interpreting generated forcing.
-The authoritative binding and admission logic are
-`blueearth_cst/climate_analysis/prepare_climate_data_catalog.py::resolved_unit_interpretation`.
+Use this reference when changing historical climate catalogs or interpreting extracted forcing. The admission
+rule is implemented by
+[`resolved_unit_interpretation`](../../blueearth_cst/climate_analysis/prepare_climate_data_catalog.py)
+and checked by [`test_prepare_climate_data_catalog.py`](../../tests/test_prepare_climate_data_catalog.py).
 
 ## Reviewed variables
 
-The daily binding covers `precip`, `temp`, `temp_min`, `temp_max`, `press_msl`, `kin` and `kout`.
-The adapter is rejected if a reviewed conversion is missing or changed, if an extra conversion affects
-a reviewed variable, or if another native variable is renamed onto a reviewed name.
-Unconsumed variables may be present; catalog shape alone is not a scientific compatibility requirement.
+The daily conversion checks cover `precip`, `temp`, `temp_min`, `temp_max`, `press_msl`, `kin`, and `kout`
+after renaming. They compare the catalog adapter's renames and conversions with the expected definitions.
+They reject a missing or changed reviewed conversion, an extra conversion affecting a reviewed variable, or
+another native variable renamed onto a reviewed name. Descriptions of unconsumed variables are allowed;
+catalog shape alone does not establish scientific compatibility.
 
-CHIRPS has a separate exact precipitation/time-shift check and requires no precipitation scaling.
-It inherits the reviewed ERA5 auxiliaries through the existing extraction path.
-Do not relax that branch merely because the general daily binding permits surplus variables.
+The conversions put temperature, pressure, and radiation into the units expected by historical extraction;
+precipitation is not scaled. The owning code defines the exact arithmetic, renames, and binding revision.
+Check that arithmetic when changing sources: source attributes alone do not establish the units of values
+after extraction.
+
+CHIRPS (`chirps` or `chirps_global`) uses an exact precipitation adapter check for the reviewed rename and
+one-day time alignment, with an empty `unit_mult` map: precipitation must not be scaled. It takes six other
+reviewed variables from the ERA5 extraction path, whose adapter must pass the daily binding check. The
+general binding's allowance for surplus variables does not loosen the CHIRPS precipitation and time check.
 
 ## Provenance and verification
 
-The returned `UnitInterpretation` records the binding revision, units and evidence identifying the selected
-source and catalog/extraction hashes. Keep exact conversion values and revision strings in the owning code.
-Review the arithmetic before changing them; source attributes alone do not prove the values' units. Historical
-evidence-path strings remain part of that provenance even when documents move. Resolve old ADR paths through
-the decision-history transition (private-checkout-only citation:
-`../records/migrations/decision-history-transition-2026-10-20.md`); their original acceptance labels do not
-override this reference.
+The returned `UnitInterpretation` records the binding revision, interpreted units, selected precipitation
+source, catalog paths and SHA-256 hashes, and extraction-module hash. Its evidence field also contains fixed
+historical path strings; keep those serialized provenance values stable when moving documentation. The
+current admission rule is the code linked above, not the historical label in that field.
 
-`tests/test_prepare_climate_data_catalog.py` exercises admission and rejection. The retained forcing-unit
-investigation (private-checkout-only citation:
-`../records/milestones/r12/implementation/evidence/p1-forcing-units.md`) preserves the numerical/source
-evidence. Apply the [validation ladder](dev-validation.md) when a change can alter values.
+Use the admission and rejection cases in the linked test file for catalog changes. For changes that can alter
+forcing values, follow the [validation ladder](dev-validation.md).
