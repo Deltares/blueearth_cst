@@ -20,7 +20,7 @@ Its configuration and preparation adapter may differ. The [architecture referenc
 explains workflow responsibilities; the
 [retained handoffs](../../docs/technical-manual/retained-handoffs.md) describe saved products and reuse.
 For figure appearance, panel layout and export, see
-[styling weathergenr figures in CST](weather-diagnostic-style.md).
+[styling weathergenr figures in CST](../../blueearth_cst/plotting/docs/weathergenr-style.md).
 
 ## WG-1 — historical climate extraction
 

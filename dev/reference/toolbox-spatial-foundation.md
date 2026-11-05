@@ -51,7 +51,8 @@ Draw the basin-area map from the shared spatial foundation, not from `staticmaps
 model-dependent geometry copy. [`products.py`](../../blueearth_cst/spatial/products.py) clips physical
 waterbody layers from catalog sources and handles empty or missing layers. Wflow retains its own
 waterbody filtering and setup. [`plot_spatial_maps.py`](../../blueearth_cst/shared/plot_spatial_maps.py)
-reads the spatial products; [plot style](toolbox-plot-style.md) owns layout and export conventions.
+reads the spatial products; [CST style](../../blueearth_cst/plotting/docs/cst-style.md) owns layout and
+export conventions.
 
 ## Verification entry points
 

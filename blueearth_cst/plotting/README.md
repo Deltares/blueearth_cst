@@ -57,9 +57,9 @@ The [standalone demo](../../dev/scripts/plotting_standalone_demo.py) exercises t
 Every CST render entry point must use `use_preset(CST_PRESET)` through export; a caller that owns
 rcParams uses `use_preset(CST_PRESET, rcparams=False)`. CST composition code reads token names from
 `shared.plot_preset`. Figure families own scientific preparation, export and captions. The
-[plot style reference](../../dev/reference/toolbox-plot-style.md) owns CST appearance and figure
+[CST style reference](docs/cst-style.md) owns CST appearance and figure
 interpretation. The [figure naming conventions](docs/figure-naming.md) collect shared rules and workflow profiles;
-[weathergenr figure styling](../../dev/reference/weather-diagnostic-style.md) covers the package's
+[weathergenr figure styling](docs/weathergenr-style.md) covers the package's
 ggplot2 figures as used in CST.
 
 For a new fixed-size grid in Matplotlib or ggplot2, read the [layout contract](docs/panel-layout.md) and the

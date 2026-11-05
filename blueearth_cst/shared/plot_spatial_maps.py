@@ -1107,7 +1107,7 @@ def plot_spatial_maps(
             ),
             expected_units=figure.expected_units,
         )
-        # The template (toolbox-plot-style.md, Spatial map template): no title,
+        # The template (plotting/docs/cst-style.md, Spatial map template): no title,
         # the source credited in the caption, the key in the side panel. The
         # subbasin overview carries no key and its locator sits inside the map.
         overview = figure.stem == "subbasins"

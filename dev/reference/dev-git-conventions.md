@@ -15,8 +15,8 @@ when applicable, with the task and commit.
 The public trunk is `main`. `origin` fetches from and pushes to the Deltares repository; there is no
 configured `upstream` remote. Check `git branch -a`, `git remote -v` and `git status --short` when the
 current checkout matters. Work on a task branch in an isolated checkout and integrate verified changes
-into `main`; the primary checkout is the integration point. Check the integration target in
-`.git-workflow.yml` before landing: a temporary trial setting does not change the public trunk policy.
+into `main`; the primary checkout is the integration point. Check any local automation's integration
+target before landing: a temporary trial setting does not change the public trunk policy.
 
 Existing historical refs may use `base/<start-point>`, `milestone/<NN>-<topic>`,
 `milestone/r<NN>-<topic>`, `milestone/p3<N><letter?>-<topic>` or `lane/<territory>`. These are not

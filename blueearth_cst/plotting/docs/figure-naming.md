@@ -26,7 +26,7 @@ for its figures; the owning producer implements it.
 The [historical climate profile](#historical-climate-diagnostics-wf0) below documents WF0. Other workflows
 retain their current producer-defined filenames until their profiles are documented and checked here.
 For example, WF1 forcing figures retain `forcing_<variable>_<kind>.png` under the
-[CST plot-style rules](../../../dev/reference/toolbox-plot-style.md#figure-specific-decisions).
+[CST plot-style rules](cst-style.md#figure-specific-decisions).
 Moving this reference does not rename generated files or extend the WF0 builder to other workflows.
 
 Add further profiles as sections in this document, using the shared rules and the

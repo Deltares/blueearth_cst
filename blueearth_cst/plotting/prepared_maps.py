@@ -1,6 +1,6 @@
 """Draw prepared geographic rasters without workflow IO or scientific preparation.
 
-The map template (``dev/reference/toolbox-plot-style.md``, Spatial map template).
+The map template (``blueearth_cst/plotting/docs/cst-style.md``, Spatial map template).
 The caller supplies common frame, ticks, resolved colors and loaded GeoJSON
 features (``basins``, ``divides``, ``rivers``, ``locations``), and owns style
 context, captions, backend selection and export. Feature styling comes from the

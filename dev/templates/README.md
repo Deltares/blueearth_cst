@@ -12,4 +12,4 @@ See [scratch placement](../reference/dev-repository-layout.md#task-temporary-mat
 Private-checkout-only citation: lane status (`../reference/private/dev-task-and-session-workflow.md#lane-status`).
 
 Keep interface structure and field instructions here. Scientific figure conventions belong in
-[plot style](../reference/toolbox-plot-style.md); retained reports belong with their evidence, not in this folder.
+[CST style](../../blueearth_cst/plotting/docs/cst-style.md); retained reports belong with their evidence.

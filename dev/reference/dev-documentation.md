@@ -164,7 +164,7 @@ and figures through stable cross-references.
 - Give figures a clear analytical question, readable units and labels, a self-contained
   caption, and alternative text. Avoid color-only distinctions. Describe uncertainty
   and baselines in the caption when they affect interpretation; link accessible static
-  alternatives for interactive material. Follow [plot style](toolbox-plot-style.md).
+  alternatives for interactive material. Follow [CST style](../../blueearth_cst/plotting/docs/cst-style.md).
 
 ## Check a revision
 

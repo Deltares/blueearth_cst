@@ -41,8 +41,8 @@ before writing. Update that document for revisions; do not create a separate fil
 
 | When the change concerns | Update or consult |
 |---|---|
-| Scientific figure appearance, export or review practice | [toolbox-plot-style.md](toolbox-plot-style.md) |
-| Styling weathergenr figures in CST | [weather-diagnostic-style.md](weather-diagnostic-style.md) |
+| Scientific figure appearance, export or review practice | [cst-style.md](../../blueearth_cst/plotting/docs/cst-style.md) |
+| Styling weathergenr figures in CST | [weathergenr-style.md](../../blueearth_cst/plotting/docs/weathergenr-style.md) |
 | Measured ggplot2/Matplotlib panel geometry | [panel-layout.md][panel-layout] |
 | Figure filenames and workflow profiles | [figure-naming.md](../../blueearth_cst/plotting/docs/figure-naming.md) |
 | A workflow report template | [templates/README.md](../templates/README.md) |

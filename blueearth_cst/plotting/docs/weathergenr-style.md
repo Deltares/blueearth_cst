@@ -4,13 +4,14 @@ Last updated: 2026-11-05
 
 Use this reference when styling or exporting ggplot2 figures returned by weathergenr in CST. It covers
 appearance, panel layout and export settings for those figures, rather than a general style for all
-weather diagnostics. The [weather-generator interface](toolbox-weather-generator-interface.md) describes
+weather diagnostics. The
+[weather-generator interface](../../../dev/reference/toolbox-weather-generator-interface.md) describes
 generation inputs, outputs and replacement requirements.
 
-The [CST adapter](../../blueearth_cst/weathergen/plot_style.R) calls `weathergenr::style_weather_plot()`
-on returned plots. It reads [style](../../config/plotting/style.yml),
-[colors](../../config/plotting/colors.yml), and the weather-only
-[overrides](../../config/plotting/weathergenr.yml) at render time, after scientific identity is resolved.
+The [CST adapter](../../weathergen/plot_style.R) calls `weathergenr::style_weather_plot()`
+on returned plots. It reads [style](../../../config/plotting/style.yml),
+[colors](../../../config/plotting/colors.yml), and the weather-only
+[overrides](../../../config/plotting/weathergenr.yml) at render time, after scientific identity is resolved.
 These presentation settings do not enter generator or scenario identity.
 
 ## Figure conventions
@@ -22,7 +23,7 @@ These presentation settings do not enter generator or scenario identity.
   configured. Explicit partial-theme entries win. Fonts and marks retain physical sizes across grids.
 - Facets use white, left-aligned lettered headings, horizontal major gridlines and darker borders.
   A single panel omits its heading and letter. Follow
-  [the panel contract](../../blueearth_cst/plotting/docs/panel-layout.md).
+  [the panel contract](panel-layout.md).
 - Comparison medians use gray-filled, black-outlined 1.9 mm circles (fill alpha 0.30, stroke 0.30 mm).
   Gray ranges use 0.80 mm and alpha 0.85; the blue 1:1 guide is 0.30 mm behind the data. Each panel
   repeats its observed x-axis title. Medians are not renamed as means.
@@ -39,7 +40,7 @@ These presentation settings do not enter generator or scenario identity.
 The weather profile sets 70 × 70 mm plotting rectangles, preferred columns `[3, 2]` and a
 180 mm maximum complete width in `weathergenr.yml`. The CST adapter passes these settings and
 the raster DPI from `style.yml` to `weathergenr::style_weather_plot()`. The generic
-[panel contract](../../blueearth_cst/plotting/docs/panel-layout.md) governs candidate measurement,
+[panel contract](panel-layout.md) governs candidate measurement,
 fit, dimensions and comparison across renderers.
 
 The pinned weathergenr API uses `arrange_weather_panels()` to arrange ggplot2 panels and attach measured
@@ -72,7 +73,7 @@ The 15 diagnostic filenames remain unchanged; exports overwrite the matching PNG
 and non-facet canvas dimensions. Faceted diagnostics use measured stored dimensions. Captions in the
 comparison HTML identify colors and summary meanings; they remain outside the exported plot objects.
 
-The [installer](../../dev/scripts/install_weathergenr.R) owns `required_version` and `required_sha`
+The [installer](../../../dev/scripts/install_weathergenr.R) owns `required_version` and `required_sha`
 and checks installed `Version` and `RemoteSha`. Run `pixi run install-rdeps` to install that pinned
 source. The pin is outside `pixi.lock`; the upstream source itself is not part of this repository.
 Shared Python map styling remains separate.
