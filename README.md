@@ -1,8 +1,10 @@
-# BlueEarth Climate Stress Test toolbox
+# Climate Stress Testing toolbox
 
 [![CI](https://github.com/Deltares/blueearth_cst/actions/workflows/ci.yml/badge.svg)](https://github.com/Deltares/blueearth_cst/actions/workflows/ci.yml)
 
-BlueEarth Climate Stress Test (`blueearth_cst`) is a Python, R, and Julia workflow toolbox for
+[Documentation website](https://deltares.github.io/blueearth_cst/)
+
+The Climate Stress Testing toolbox (`blueearth_cst`) provides Python, R, and Julia workflows for
 bottom-up climate risk assessments of water systems. It combines historical climate analysis,
 hydrological modelling and weather generation to explore basin responses across a temperature ×
 precipitation stress-test grid. Hydrological indicators help identify vulnerabilities, assess robustness
