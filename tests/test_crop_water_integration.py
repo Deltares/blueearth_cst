@@ -225,6 +225,7 @@ def _run_indicators(experiment, *extra):
     os.name != "nt", reason="run_project_child refuses project writers off Windows"
 )
 @pytest.mark.parametrize("inline", [False, True])
+@pytest.mark.workflow_contract
 def test_crop_water_cli_publication(crop_water_experiment, inline):
     experiment, source = crop_water_experiment
     if inline:
@@ -254,6 +255,7 @@ def test_crop_water_cli_publication(crop_water_experiment, inline):
     assert dictionary.block_assignment.str.contains("1 Nov-31 May").all()
 
 
+@pytest.mark.workflow_contract
 def test_crop_water_retained_response_publication(crop_water_experiment):
     experiment, source = crop_water_experiment
     run = _run_indicators(experiment, "--dry-run")

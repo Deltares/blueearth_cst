@@ -194,6 +194,7 @@ def test_evaluation_mode_is_validated_and_snapshotted(tmp_path):
     ],
     ids=["preflight-and-dry-run", "publication"],
 )
+@pytest.mark.workflow_contract
 def test_cli_partial_run_succeeds_with_warning_and_strict_refuses(experiment, execute):
     import subprocess
     import sys

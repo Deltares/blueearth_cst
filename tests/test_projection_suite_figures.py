@@ -1,6 +1,7 @@
 """Synthetic suite render and recoverable-caption contract falsifiers."""
 
 import json
+from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,8 +17,8 @@ from blueearth_cst.projections.projection_captions import SUITE_NOTE, caption
 from blueearth_cst.projections.projection_suite_figures import render_product
 
 
-@pytest.fixture
-def suite():
+@pytest.fixture(scope="module")
+def _suite_template():
     def series(start, scenario, offset):
         time = pd.date_range(f"{start}-01-01", periods=360, freq="MS")
         wave = np.repeat(np.sin(np.arange(30)), 12)
@@ -128,6 +129,15 @@ def suite():
         summary[column] = np.exp(summary[column])
     record["variability_model_summary"] = summary.to_dict("records")
     return tables, record
+
+
+@pytest.fixture
+def suite(_suite_template):
+    """Reuse analysis, but keep each test's table and record mutations isolated."""
+    tables, record = _suite_template
+    return {name: table.copy(deep=True) for name, table in tables.items()}, deepcopy(
+        record
+    )
 
 
 def test_seasonal_grid_explains_unavailable_seasons(suite):

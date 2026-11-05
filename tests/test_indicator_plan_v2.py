@@ -252,7 +252,9 @@ def test_request_identity_tracks_only_contributing_sets(tmp_path, monkeypatch, s
     ):
         unrelated = tmp_path / "blueearth_cst" / relative
         unrelated.write_bytes(unrelated.read_bytes() + b"\n# unrelated edit\n")
-        assert request() == before, relative
+    # One fresh scan detects any unrelated file entering the source identity.
+    # Contributing edits below still need independent checks and restoration.
+    assert request() == before
 
     for relative in (
         "experiment/indicator_groups.py",
@@ -286,9 +288,8 @@ def test_request_identity_tracks_only_contributing_sets(tmp_path, monkeypatch, s
         contributing.read_text(encoding="utf-8") + "\n# contributing edit\n",
         encoding="utf-8",
     )
-    assert request() != before
-
     after_selected = request()
+    assert after_selected != before
     shared = root / "temporal.py"
     shared.write_text(
         shared.read_text(encoding="utf-8") + "\n# shared edit\n", encoding="utf-8"

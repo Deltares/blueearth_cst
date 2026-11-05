@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.process_isolation
+
 SCRIPT = Path(__file__).resolve().parents[1] / "dev/scripts/verify_landing.py"
 
 
