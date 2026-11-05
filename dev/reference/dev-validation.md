@@ -16,7 +16,7 @@ commands and mechanics; a passing command never proves claims it did not test.
 
 Before pushing to `origin` or releasing, review the **complete unpublished delta**. Require one
 integrated `test-fast` pass, stronger coverage or applicable reused evidence; an exempt-only delta
-skips the software gate. Add affected contract tests excluded from fast and any owed execution,
+skips the software gate. Add affected contract and tooling tests excluded from fast and any owed execution,
 numerical or visual checks. Use `test-full` when its wider coverage is needed. Resolve known
 regressions and missing coverage before publishing. Local `main` can hold regressions not yet found
 by a publication gate. CI from a proposed push is later assurance, not evidence for this gate;
@@ -95,10 +95,17 @@ or fixture issues; never hide an access failure with a longer workflow timeout.
 
 ## Tiering
 
-- `test-fast` deselects `workflow_contract` and `process_isolation`, including expensive fresh-process
-  and DAG checks. Count current cases with
+- `test-fast` excludes `tests/private/` and deselects `workflow_contract` and `process_isolation`,
+  including expensive fresh-process and DAG checks. Count current cases with
   `pytest tests/ -m "workflow_contract or process_isolation" --collect-only -q`; do not rely on a
   fixed count. Other setup/render costs still matter; compare current timings before changing tiers.
+- Run affected private tooling tests when changing their scripts, hooks, synchronization/backup policy,
+  board/session coordination, or shared helpers, dependencies and test infrastructure they consume.
+  Use `pixi run pytest tests/private/test_<name>.py` for bounded changes and `pixi run test-tooling`
+  for broad or uncertain impact. Ordinary toolbox changes need this tier only when they affect those
+  consumers. The tier requires optional local tooling files absent from public clones and CI.
+  `test-full` and direct `pytest tests/` still include private tests when present; their exclusion from
+  fast does not waive affected tooling checks at task, landing or publishing stages.
 - Fast uses `-n auto --dist loadfile` to keep a test file's module-level state on one worker.
   `--dist load` can break that isolation; adding workers eventually meets per-worker import cost.
   `test-contract` stays serial because isolated engine state does not prove independent output and
