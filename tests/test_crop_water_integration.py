@@ -28,7 +28,10 @@ from tests._v2_experiment import (
     build_v2_experiment,
 )
 
-pytestmark = pytest.mark.usefixtures("isolated_snakemake")
+pytestmark = [
+    pytest.mark.workflow_contract,
+    pytest.mark.usefixtures("isolated_snakemake"),
+]
 
 
 def _responses(locations=("9",), *, without_pet=False):
