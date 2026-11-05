@@ -9,7 +9,7 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
-- Apply the reviewed shared style and physical panel layout to WF3 weather figures, preserving
+- Use a shared style and consistent panel layout for WF3 weather figures, preserving
   their filenames and scientific results. Pin the required `weathergenr` 2.1.0 implementation by
   published commit and verify its version and source during installation.
 
@@ -54,7 +54,7 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [v0.4.1] — 2026-10-12
 
-Owner-approved versioning exception: this release uses a patch number despite new features and
+This release uses a patch number despite new features and
 incompatible output paths since `v0.4.0`. Read the migration notes before reusing existing projects.
 Git release tags remain authoritative.
 
@@ -96,8 +96,8 @@ Git release tags remain authoritative.
 
 ### Known limitations
 
-- The owner waived the all-five E2E release gate for `0.4.1` only after slow P-drive reads. The fresh
-  run completed WF0 and WF1 and stopped during WF2; it is not complete end-to-end evidence.
+- The full five-workflow test was incomplete for `0.4.1` because of slow P-drive reads. The fresh
+  run completed WF0 and WF1 and stopped during WF2.
 - Diagnostic changes affect scientific results; no whole-tree numerical equivalence is claimed.
   The baseline manifest remains stale after the P-drive/GlobCover input switch and cannot qualify
   current numerical results without fresh baseline generation and accepted re-recording.
@@ -108,7 +108,7 @@ Git release tags remain authoritative.
 ## [v0.4.0] — 2026-10-10
 
 Pre-1.0 minor release with incompatible experiment identities and output contracts since `v0.3.0`.
-The authoritative version is established by the approved Git tag.
+The Git release tag defines the version.
 
 ### Breaking
 
@@ -184,13 +184,12 @@ The authoritative version is established by the approved Git tag.
 - Plot and diagnostic additions do not establish cross-platform numerical equivalence. Linux/Docker
   full-pipeline scientific replication remains unqualified, and sample catalogs can require local data.
 - The baseline manifest predates the P-drive/GlobCover input change. It must be regenerated and
-  re-recorded from the revised baseline configuration before serving as a current numerical gate.
+  re-recorded from the revised baseline configuration before use for numerical checks.
 
 ## [v0.3.0] — 2026-10-01
 
 Pre-1.0 minor release with incompatible user interfaces, output contracts,
-and scientific calculations since `v0.2.0-alpha`. This entry is prepared for
-release; the authoritative version is established only by the approved Git tag.
+and scientific calculations since `v0.2.0-alpha`. The Git release tag defines the version.
 
 ### Breaking
 
@@ -221,7 +220,7 @@ release; the authoritative version is established only by the approved Git tag.
   caching with separate fetch and reduction steps.
 - Durable scenario collections with generation-code identity, simulation batch
   recovery, batching calibration, and retained-response metric validation.
-- Cross-platform CI, focused validation gates, and the manual toolbox release
+- Cross-platform CI, focused validation checks, and the manual toolbox release
   policy and checklist.
 - A single-workflow selector (`scripts/run_workflow.py`) for all five workflows,
   delegating generation and simulation to their owned runners; external basin
@@ -247,7 +246,6 @@ release; the authoritative version is established only by the approved Git tag.
 - The unperturbed scenario now passes through the same perturbation step as
   other scenarios. In the recorded baseline, affected low-flow results decreased
   by up to about 90%; the accepted baseline was re-recorded on 2026-09-25.
-  See AGENTS.md (private-checkout-only citation: `AGENTS.md`) for baseline configuration and provenance.
 - Restored workflow log and benchmark gathering, corrected checkpoint lookups,
   and repaired Windows console capture during simulation preparation.
 - Serialized netCDF access during staging to avoid the observed lock-order
@@ -282,23 +280,21 @@ release; the authoritative version is established only by the approved Git tag.
 
 ## [v0.2.0-alpha] — 2026-05-09
 
-Foundation phase sealed; Phase 2 (workflow refactor) designed and
-ready to execute. Substantial change since `v0.1.0-alpha` — minor
-version bump reflects breaking library upgrades plus structural and
-testing additions that make Phase 2 possible.
+Completed the foundation work and designed the workflow refactor.
+The minor version increase covers incompatible library upgrades, repository changes,
+and tests needed for the refactor.
 
-### Phase 1 (Foundation, sealed)
+### Phase 1 (Foundation, completed)
 
 - **M01 — Replication baseline** (`m01-replication`): all three
   Snakemake workflows replicated end-to-end on the test config;
   baseline manifest at `dev/baseline/manifest.json`;
   `dev/scripts/check_baseline.py` with `record` / `check` subcommands.
-- **M02 — Pixi env** (`m02-pixi`): pixi-driven Python + R + Julia env
-  replacing conda + ad-hoc setup. Single declarative `pixi.toml`.
+- **M02 — Pixi environment** (`m02-pixi`): Python and R managed through Pixi,
+  with Julia managed through juliaup, replacing conda and manual setup.
 - **M02b — Library upgrades** (`m02b-upgrades`): hydromt 0.x → 1.3,
   hydromt_wflow 0.x → 1.0.2, Wflow.jl 0.7 → 1.0.2, Python stack caps
-  lifted (numpy 2.x, xarray latest). Baseline re-recorded under the
-  "intentional drift, document deltas" policy.
+  lifted (numpy 2.x, xarray latest). Baseline regenerated with the numerical changes documented.
 - **M02c — Test coverage** (`m02c-tests`): 32 new unit tests across 4
   `src/` modules plus 2 strict xfails for documented bugs (hydromt
   `to_yml` preprocess strip; `extract_climate_grid` silent truncation).
@@ -310,25 +306,24 @@ testing additions that make Phase 2 possible.
   Sectioned config schema (`project` / `shared` / `workflows.<name>`),
   per-workflow contract docs, atomic migration plan including
   `src/` script updates and baseline-snapshot policy.
-- **R2 design** (`dev/records/milestones/r02/`): prescriptive naming conventions style
+- **R2 design** (`dev/records/milestones/r02/`): naming conventions
   guide (snake_case, lowercase acronyms, `_path` canonical, suffix
   vocabulary split between paths and data objects, domain-identifier
-  escape hatch, "do not rename without migration note" surfaces).
+  exceptions, and names requiring migration notes).
 
 ### Toolchain
 
 - **Python 3.12 → 3.14.4**. The deprecated `Path(fn, resolve_path=True)`
-  kwarg in `src/prepare_climate_data_catalog.py` was fixed (closes
-  R3 followup early as prep for the cap bump).
+  argument in `src/prepare_climate_data_catalog.py` was fixed before the upgrade.
 - **Snakemake stays at 9.6.2**. Bump to 9.20 deferred — snakemake 9.7+
   requires `packaging<26` but the conda env pulls in `packaging==26.2`
-  via another dep. Likely fixed in snakemake 9.21+.
+  through another dependency.
 - `datrie` pin removed (was redundant; modern snakemake doesn't need it
   as a hard conda dep).
 
 ### Repo structure
 
-- Roadmap restructured into Phase 1 (sealed) / Phase 2 (active)
+- Roadmap restructured into Phase 1 (completed) / Phase 2 (active)
   sections with clear visual break.
 - `dev/records/milestones/phase-1/{m01,m02,m02b,m02c}/` for sealed foundation milestones.
 - `dev/records/milestones/r01/`, `dev/records/milestones/r02/` for active Phase 2 milestones.
@@ -342,7 +337,7 @@ testing additions that make Phase 2 possible.
 
 - Suite total: 45 passed, 4 xfailed. Unchanged through the entire
   toolchain bump and repo restructure (validates that the moves and
-  text updates don't affect runtime behavior).
+  text updates did not affect the tested behavior).
 
 ### Documentation
 

@@ -1,9 +1,8 @@
 """The WF0 figure filename grammar, pinned against the rule that defines it.
 
-``dev/reference/wf0-figure-naming.md`` is the agreement; this module is
-what keeps the code on it. The examples in its "Examples" section are asserted
-VERBATIM below, so a drift in either direction shows up as a failure naming the
-exact string that moved.
+The WF0 profile in ``blueearth_cst/plotting/docs/figure-naming.md`` describes
+the grammar. These tests exercise admitted spellings, including legacy contexts
+retained for the forcing producer, and the current diagnostic output vocabulary.
 
 The vocabulary is deliberately CLOSED — an unknown ``plot_context`` or
 ``spatial_scope`` raises rather than producing a file. That is what makes the
@@ -35,7 +34,7 @@ from blueearth_cst.climate_analysis.figure_naming import (
     subbasin_scope,
 )
 
-#: Straight from the rule's "Examples" block.
+#: Representative admitted spellings, including legacy forcing contexts.
 DOCUMENTED_EXAMPLES = [
     "era5_precip_annual_ts_basin_avg.png",
     "era5_temp_annual_clim_map_basin_ext.png",

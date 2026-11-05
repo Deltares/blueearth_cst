@@ -1,121 +1,89 @@
 # Git conventions
 
-Last updated: 2026-10-20
+Last updated: 2026-11-05
 
-Current branch, tag and commit conventions. Branch/worktree lifecycle belongs to the `git-workflow` skill and
-repository configuration. Inspect `git branch -a` and `git tag` for existing refs; historical ref inventory
-(private-checkout-only citation: `../records/milestones/git-ref-inventory.md`) preserves their earlier
-context.
+Use this reference for current branch names, checkpoint tags and commit messages in this repository.
+The [validation ladder](dev-validation.md) describes checks before landing or publishing.
 
-## Using a checkpoint tag (e.g. `pre-r01`)
+## Branches and remotes
 
-```bash
-git diff pre-r01 -- <path>            # what changed since the checkpoint
-git checkout pre-r01 -- <path>        # restore one file from the checkpoint
-git reset --hard pre-r01              # throw away all commits on the current
-                                      # branch since the checkpoint (destructive)
+Name task branches `<type>/<slug>`, using a Conventional Commit type and a short kebab-case description:
+`fix/fixture-digest-drift-attribution`, `docs/config-modularization` or
+`refactor/wf0-rule-label-constants`. Do not put a milestone number in the name. Record the milestone,
+when applicable, with the task and commit.
+
+The public trunk is `main`. `origin` fetches from and pushes to the Deltares repository; there is no
+configured `upstream` remote. Check `git branch -a`, `git remote -v` and `git status --short` when the
+current checkout matters. Work on a task branch in an isolated checkout and integrate verified changes
+into `main`; the primary checkout is the integration point. Check any local automation's integration
+target before landing: a temporary trial setting does not change the public trunk policy.
+
+Existing historical refs may use `base/<start-point>`, `milestone/<NN>-<topic>`,
+`milestone/r<NN>-<topic>`, `milestone/p3<N><letter?>-<topic>` or `lane/<territory>`. These are not
+patterns for new task branches. Use `git branch -a` to inspect surviving branches; Git history and
+tags retain the earlier context.
+
+## Tags and checkpoints
+
+Development checkpoint tags include Phase 1 `m##-<topic>`, Phase 2 `r##-<topic>` and Phase 3
+`p3#-<topic>`. Archived work uses `archive/<topic>`. Use `git tag` for the actual inventory. Treat an
+existing checkpoint as permanent; never move it. Ordinary work needs no milestone tag. Release tags
+follow the separate [versioning reference](dev-versioning.md).
+
+A tag names committed state. It does not preserve uncommitted changes or outputs under `project_dir/`.
+The baseline manifest records comparison information for selected outputs; it does not back up those
+files. For example, inspect changes since `pre-r01` with:
+
+```powershell
+git diff pre-r01 -- <path>
 ```
 
-Tags protect committed state only — not the working tree, and not run outputs
-under `project_dir` (the baseline manifest covers those).
+`git restore --source pre-r01 -- <path>` replaces that working file with its tagged version. Check the
+diff before using it and preserve any work you still need. `git reset --hard pre-r01` discards the
+current branch's later commits and working changes. Check the target branch and preserve needed work
+before using that destructive command.
 
-## Branching and tagging conventions
+For a milestone seal, follow
+[record lifecycle](dev-record-lifecycle.md#milestone-records-and-historical-recovery) to preserve
+superseded specifications and seal metadata.
 
-**Branches are `<type>/<slug>`** — the Conventional Commits type, then a short kebab-case description
-of the work: `fix/fixture-digest-drift-attribution`, `docs/config-modularization`,
-`refactor/wf0-rule-label-constants`. No milestone number in the name; the branch is short-lived and its
-milestone, if any, is recorded on the board item and in the commit.
+## Commit messages
 
-Historical patterns preserved on existing refs, not used for new work:
+Use a Conventional Commits subject: `<type>(<scope>): <imperative subject>`. Keep it at most 72
+characters, with no trailing period. Add `!` before the colon for a breaking change, as in
+`refactor(workflows)!: rename the workflows.<name> config keys and every derived path`.
 
-| Pattern | Was |
+| Type | Use |
 |---|---|
-| `base/<start-point>` | Frozen historical starting point of the fork |
-| `milestone/<NN>-<topic>`, `milestone/r<NN>-<topic>`, `milestone/p3<N><letter?>-<topic>` | Sealed phase markers, one per milestone |
-| `lane/<territory>` | The two standing territory lanes, retired in favour of allocator-managed session slots |
+| `feat` | New capability |
+| `fix` | Defect correction |
+| `docs` | Documentation, including `dev/` records and the board |
+| `refactor` | Behavior-preserving restructuring |
+| `test` | Tests only |
+| `chore` | Environment, ignore rules or tooling housekeeping |
+| `perf` | Measured performance improvement |
+| `style` | Formatting only, with no code change |
 
-**Creating and landing a branch is the `git-workflow` skill's contract**, not this file's: a task claims
-a session slot, works on its own branch, and the integrator lands it. Do not cut a branch by hand in the
-primary checkout.
+Use a lowercase scope for the affected workflow (`wf0`, `wf2`, `wf3`), subsystem (`console`,
+`stage`, `climate`, `plotting`, `runner`) or documentation area (`board`, `dev`, `ref`, `agents`,
+`tests`). Omit the scope when the change is genuinely repository-wide.
 
-**Tags.** Phase 1 tags use `m##-<topic>`; Phase 2 onward `r##-<topic>`; Phase 3 sub-milestones
-`p3#-<topic>`; archived design runs and deleted branches `archive/<topic>`. Use `git tag` for the current inventory. Tags
-are permanent rollback points and never move. A milestone branch stays alive after its tag.
-
-Not every piece of work takes a tag or a milestone branch. Both are for a deliberate seal; ordinary work
-lands on `main` and is found through `dev/LOG.md`.
-
-**Remotes.**
-
-- `origin` — the fork (`github.com/tanerumit/blueearth_cst`), where CI runs.
-- `upstream` — the original Deltares repo (`github.com/Deltares/blueearth_cst`), fetch-only.
-
-`gh` resolves to `upstream` until told otherwise — see `dev/reference/dev-validation.md`.
-
-The branch `upstream-deltares` freezes the upstream Deltares state the fork tracked at renaming time;
-never commit to it. `main` is the moving trunk and the GitHub default.
-
-**PRs back to upstream** go from a dedicated branch, not from `main`. One PR per milestone is the
-default; only stack PRs when maintainers explicitly agree to review them in series.
-
----
-
-## Sealing a milestone
-
-Follow [record lifecycle](dev-record-lifecycle.md#milestone-records-and-historical-recovery) for
-preserving superseded specifications and their seal metadata.
-
-## Commit strategy
-
-Branch and tag naming live in § Branching and tagging conventions above. This section is commit messages
-only.
-
-**Subject format — Conventional Commits.** `<type>(<scope>): <imperative subject>`, subject ≤72 chars,
-no trailing period. Append `!` before the colon for a breaking change (`refactor(workflows)!:`).
-
-| Type | For |
-|---|---|
-| `feat` | new capability |
-| `fix` | a defect corrected |
-| `docs` | documentation, including `dev/` records and the board |
-| `refactor` | behaviour-preserving restructuring |
-| `test` | tests only |
-| `chore` | housekeeping — env, ignore rules, tooling |
-| `perf` | a measured performance change |
-| `style` | formatting only, no code change |
-
-The scope is the area touched, lowercase: a workflow (`wf0`, `wf2`, `wf3`), a subsystem (`console`,
-`stage`, `climate`, `plotting`, `runner`), or a documentation surface (`board`, `dev`, `ref`, `agents`,
-`tests`). Omit it when the change is genuinely repo-wide.
-
-Examples, all from this repo's history:
+Example subjects:
 
 - `fix(wf2): refuse to attribute drift against a mismatched fixture`
 - `refactor(tests): read LOG_RULES from the parsed workflow, and retire the second parser`
 - `docs(ref): state the rules in dev-naming-conventions.md, drop the archaeology`
-- `chore(board): close t2608201134, and record the ruling`
-- `refactor(workflows)!: rename the workflows.<name> config keys and every derived path`
 
-**Body.** Optional. Include only when the *why* is not obvious from the diff. Do not restate what the
-diff shows.
+Write a body only when the reason is not clear from the diff. Keep one logical change per commit; split
+unrelated changes. Stage and commit only task-owned hunks. An explicit pathspec does not isolate hunks
+in a file shared with other work, and `git commit -a` can include unrelated tracked changes. Inspect
+the final staged diff and effective author and committer identity before committing.
 
-**Granularity.** One logical change per commit. If the subject needs the word "and" to join two
-unrelated changes, split it.
+Do not commit run outputs under `project_dir/`, local-only configs such as `*_local.yml`, secrets,
+credentials, large binary fixtures or generated baselines other than `dev/baseline/manifest.json`.
+Never hand-edit `pixi.lock` or `Manifest.toml`. Check `git status --short` and `git diff --cached`
+before committing, and keep installed hooks enabled. If an unwanted file enters an unpublished commit,
+remove it from unpublished history and update `.gitignore` where appropriate.
 
-**Scope every commit by explicit pathspec** to the files the task authored. A bare `git commit -a`
-sweeps whatever else is dirty in the checkout, which is how another session's half-finished work lands
-in an unrelated commit.
-
-**Never commit.**
-
-- Outputs under `project_dir/`.
-- Files matching `*_local.yml` or other local-only configs.
-- Secrets, credentials, large binary fixtures.
-- Generated baselines other than `dev/baseline/manifest.json` itself.
-- Hand-edited `pixi.lock` or `Manifest.toml`.
-
-If any of these slip in, update `.gitignore` first, then remove from history if the commit has not been
-pushed.
-
-**Merges and tags.** Default merge-commit messages are fine — do not hand-craft them. A tag message
-restates the milestone goal in one line.
+Default merge-commit messages are sufficient. An annotated development tag message states the
+milestone goal in one line.

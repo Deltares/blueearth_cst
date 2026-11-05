@@ -1,18 +1,11 @@
-# Indicator glossary — every spelling of every WF4 output variable
+# Indicator variable and result glossary
 
-Last updated: 2026-10-21
+Last updated: 2026-11-05
 
-One output variable carries **five names** by the time it reaches a result table,
-and they are not interchangeable. This file is the one place all five sit in one
-row, so "what is `gwr`?" and "which of these do I put in a config?" have an
-answer that does not require reading four modules.
-
-**Derived, not authoritative.** Each column below is owned by a dict in the code,
-named in the column heading. `tests/test_indicator_glossary.py` parses the two
-tables in this file and fails when they disagree with those dicts, so the
-glossary cannot go quietly stale the way an unchecked prose copy would — but the
-fix for a failure is always to correct THIS file, never the code. Add a variable
-to the dicts first and to the tables here second.
+Use this lookup to distinguish configuration labels, Wflow standard names, native CSV codes, retained
+tokens, and indicator names. The mappings are derived from code, not an alternative source of defaults.
+`tests/test_indicator_glossary.py` checks the variable, plot-label, and discharge tables against their
+owners; change the owning code first when the vocabulary changes, then update these tables.
 
 ## 1. Variables
 
@@ -42,22 +35,20 @@ Column by column, with the dict that owns it:
   `<code>_<subcatchment-or-gauge-id>` (`gwr_101`). Owned by
   `blueearth_cst/shared/wflow_outputs.py::CODES`. Discharge is deliberately
   **absent from `CODES`**: it does not travel the basin-average path, and its
-  header is the fixed `Q` that `shared/gauges.py` keys on. Changing a code renames the csv column, the hydromt variable
+  header is the fixed `Q` that `shared/gauges.py` keys on. Changing a code renames the CSV column,
+  the HydroMT variable
   (`<code>_subcatchment`), rule 1.14's derived tables, and figure filenames.
 - **token** — the short name in the result **filename** and in the composite
   indicator. Owned by
   `blueearth_cst/shared/indicator_tables.py::VARIABLE_TOKENS`.
-  [HM-7](toolbox-hydrological-model-interface.md#hm-7--retained-indicator-sets) describes its interface context;
+  [HM-7](toolbox-hydrological-model-interface.md#hm-7--retained-indicator-sets) describes its
+  interface context;
   the code owns the exact mapping.
 - **table / indicator** — derived from the token by `indicator_table_filename` and
   `basin_indicator_name`; no dict of its own.
 
-**Why the token and the code differ at all, for three variables.** They answer to
-different owners: the code reaches the csv through the TOML, the token names our
-files. Where the repo already had a canonical short name the token takes it —
-which is why `aet` and `gwr` coincide with their code, and why `gwr` replaced the
-locally-invented `recharge` on 2026-08-11. Where taking the code would have cost
-something, it was not taken:
+CSV codes follow Wflow output declarations; tokens name retained files. The differences prevent
+ambiguous or misleading filenames:
 
 | token | rejected candidate | why |
 | --- | --- | --- |
@@ -86,8 +77,7 @@ figure sees only what the csv carried.
 | `temp` | `mean` | Air Temperature (°C) |
 
 Temperature is Wflow's air-temperature forcing retained as subcatchment means in degrees Celsius,
-using the upstream standard name `atmosphere_air__temperature`
-([Wflow simulation settings](https://deltares.github.io/Wflow.jl/stable/user_guide/toml_file.html)).
+using the upstream standard name `atmosphere_air__temperature`.
 It is a state variable: monthly and annual reductions use means, never depth sums. The default
 `temp_annual_mean` averages water-year means with equal block weight, following the default set's
 partial-block and missingness policies. Add `temperature` to `model.outvars` to enable it; existing
@@ -124,14 +114,10 @@ never expands them. IHA-style (eflowrisk `amax30d`, `amin30d`, `amin90d`, `mean_
   `annual_rolling_extreme/1` with `window` and `extreme`; m3 s-1.
 - `q_mean_rise_rate`, `q_mean_fall_rate`: `annual_daily_change/1` with `direction`; m3 s-1 d-1.
 
-The two return periods were the `Tpeak` / `Tlow` config keys until 2026-08-12,
-which made these two names partly config-derived — a project with `Tpeak: 50`
-emitted `q_return_level_50yr_max`, so `validate_hm7` had to match a *pattern*
-rather than an enumeration. The owner retired those keys: a return period is a
-property of the indicator set the toolbox defines, not of a project. Both shipped
-at 10 and 2 everywhere, so no name changed. They are now
-`indicator_tables.RETURN_PERIOD_PEAK_YR` / `RETURN_PERIOD_LOW_YR`, the vocabulary
-is closed, and `validate_hm7` enumerates.
+The default return periods are owned by `indicator_tables.RETURN_PERIOD_PEAK_YR` and
+`RETURN_PERIOD_LOW_YR`; they are properties of the indicator definitions, not project settings.
+The table's `rlz_id = 0` notation identifies pooled calculation grain; it is not a column in current
+run or group result tables.
 
 Three wordings in that list are deliberate and were each chosen against a
 shorter alternative:
@@ -162,60 +148,50 @@ asymmetries in that table are ruled, not accidental:
   depth in mm/yr only for complete nonmissing blocks. A daily sum of a mm Δt⁻¹
   flux is a legitimate time-integral. Scoped deliberately to overland flow.
 - **These suffixes omit the `mean_` prefix the `q` vocabulary uses**
-  (`snow_annual_max`, not `snow_mean_annual_max`), by owner ruling 2026-08-08.
-  An accepted asymmetry: `q_mean_annual_max` and `snow_annual_max` describe the
-  same reduction shape spelled two ways.
+  (`snow_annual_max`, not `snow_mean_annual_max`). `q_mean_annual_max` and `snow_annual_max`
+  describe the same reduction shape with different established names.
 
 ## 3. Row identifiers
 
-Current `indicator-set/3` indicator tables carry four columns, in this order:
+New `indicator-set/6` run and group tables carry six columns, in this order:
 
 | column | meaning |
 | --- | --- |
 | `indicator` | `<token>_<statistic>` from §2 |
-| `location` | the registry's bare Wflow id, joinable to `outlet_index.csv` |
+| `location` | the registry's bare Wflow ID, joinable to `outlet_index.csv` |
 | `run_id` or `group_id` | prefixed text identifying a run or group in its respective table |
-| `value` | numeric result stored to four significant digits |
+| `value` | result stored as plain decimal text to four significant digits, or empty |
+| `status` | `available`, `undefined`, or `unavailable` |
+| `reason` | reason for `unavailable`; empty otherwise |
 
 `<token>_run_indicators.csv` uses `run_id` (`run_01`); `<token>_group_indicators.csv` uses
-`group_id` (`group_01`). Join run IDs to the collection's `scenario_run_lookup.csv` for realization
-and `st_id`. Join group IDs directly to `group_metadata.csv`, then by `st_id` to
-`perturbation_lookup.csv` for monthly changes. `group_members.csv` records every contributing run,
-including singleton groups. An empty `st_id` and `is_reference=true` identify the unperturbed group.
-Run-grain group summaries are equal-weight means of realization-level indicators with NaN propagation;
-return levels retain pooled estimation from member-local blocks.
+`group_id` (`group_01`). Join runs to the collection's `scenario_run_lookup.csv` for realization and
+`st_id`. Join groups to `group_metadata.csv`, then by `st_id` to `perturbation_lookup.csv` for monthly
+changes. `group_members.csv` records contributing runs, including singleton groups. An empty `st_id`
+and `is_reference=true` identify an unperturbed group. Run-grain group summaries average realization
+indicators with equal weight and NaN propagation; return levels pool member-local blocks.
 
-Axis columns are derived at reporting time rather than stored in the indicator
-tables. `precip_change` in the perturbation lookup is a percent. HM-7 in
-`dev/reference/toolbox-hydrological-model-interface.md` defines the current
-contract; `blueearth_cst/shared/surface_axes.py` supplies monthly axis calculations.
+An empty `value` with `undefined` is a calculated NaN; an empty `value` with `unavailable` names a
+missing input in `reason`. Neither is zero. A missing response can also exclude a calculation from value
+tables while retaining its declaration and reason in the manifest and named dictionary. See
+[retained handoffs](../../docs/technical-manual/retained-handoffs.md) for current table and reuse rules.
+
+Axis columns are derived at reporting time rather than stored in indicator tables. `precip_change`
+in the perturbation lookup is a percent.
+[HM-7](toolbox-hydrological-model-interface.md#hm-7--retained-indicator-sets)
+defines the retained-set boundary; `blueearth_cst/shared/surface_axes.py` supplies monthly axis calculations.
 Keep identifiers as text; their scope is the owning collection or indicator set.
 
-`indicator_tables.py::INDICATOR_COLUMNS` describes the legacy expanded rows;
-the current retained four-column schema is written by `indicator_plan.py`.
+`indicator_tables.py::INDICATOR_COLUMNS` describes legacy expanded rows; current six-column retained
+tables are written by `indicator_plan.py`.
 
-`basin` is a **reserved** `location` for a whole-basin scalar. Nothing emits it
-today: since 8bd51de the csv columns are per-subcatchment means, so no
-whole-basin column exists to carry the value, and deriving one by area-weighting
-would silently assume subcatchments tile rather than nest (Q11).
+`basin` is a reserved `location` for a whole-basin scalar. Current native columns hold subcatchment
+means, not a whole-basin value. Deriving one by area weighting would assume subcatchments tile rather
+than nest; no current result row makes that claim.
 
 ## Renaming anything here
 
-Every column in §1 except the CSDMS name is a `dev-naming-conventions.md` §7 surface — old → new
-mapping in a `dev/<milestone>/migration_<topic>.md` note. The CSDMS name is
-§6 tier 1 and cannot be renamed locally at all.
-
-Records so far, all against `dev/records/milestones/r11/migration_indicator-tables.md`
-and its banners: the wide → long reshape (2026-08-08), the identifier-first
-column reorder with `realization_id` → `rlz_id` (2026-08-11), and
-`recharge` → `gwr` (2026-08-11). Then
-`dev/records/milestones/r12/migration_stress-test-lookup.md` (2026-08-16), which removed
-the two axis columns. Two earlier ones are R9's:
-`migration_indicator-axis-columns.md` (`tavg` → `temp_change`, `prcp` →
-`precip_change`) and `migration_project-tree.md` (`Qstats.csv` →
-`q_indicators.csv`).
-
-**Pre-existing experiments are never migrated in place** — the standing ruling
-since R7 (GA-2). A result tree written before a rename keeps its old names; re-run
-the experiment to get the new ones, and delete the orphan by hand (`tree-check`
-reports it as undeclared).
+The CSDMS names are upstream owned and cannot be renamed locally. Other §1 names are project contracts;
+follow [naming conventions](dev-naming-conventions.md) and provide a migration mapping for a rename.
+Existing experiment trees keep their recorded names; rerun an experiment to obtain a new schema rather
+than editing retained results in place.

@@ -76,7 +76,7 @@ The schema is a prototype authoring convention, not a stable workflow output con
 - Link findings to evidence. Significance, source ranking and causality need more than visual appearance.
 - Embed retained figures unchanged and retain meaningful captions; report omitted products explicitly.
 - Keep caveats relevant to the decision. Execution success alone does not establish model quality.
-- Follow [toolbox-plot-style.md](../reference/toolbox-plot-style.md) when revising the scientific figures themselves.
+- Follow [CST style](../../blueearth_cst/plotting/docs/cst-style.md) when revising scientific figures.
 
 ## Reuse across workflows
 

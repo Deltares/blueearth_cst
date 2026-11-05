@@ -1,92 +1,97 @@
 # Toolbox architecture
 
-Last updated: 2026-10-20
+Last updated: 2026-11-05
 
-Use this reference when changing workflow responsibilities, configuration ownership or retained handoffs.
-The [implementation map](toolbox-workflow-map.md) points to executable rules; execution instructions belong in
-[the workflow guide](../../docs/site/toolbox-reference/workflows.qmd).
+Use this reference when changing workflow responsibilities, shared configuration or retained outputs.
+The [workflow implementation map](toolbox-workflow-map.md) locates rules and their consumers; the
+[workflow guide](../../docs/site/toolbox-reference/workflows.qmd) covers supported execution.
 
-## Workflow boundaries
+## Workflow responsibilities
 
-| Stage | Responsibility | Implementation |
+| Workflow | Responsibility | Entry point |
 |---|---|---|
-| WF0 | Optional model-free historical climate analysis | `analyze_climate.smk` |
-| WF1 | Build Wflow and run historical forcing | `build_model.smk` |
-| WF2 | Derive projection change factors for plausibility overlays | `analyze_projections.smk` |
-| WF3 | Publish durable stochastic scenario collections | `generate_scenarios.smk` |
-| WF4 | Simulate systems and publish indicators from retained responses | `scripts/simulate_system.py` |
+| WF0 | Optional historical climate analysis without a hydrological model | `analyze_climate.smk` |
+| WF1 | Build Wflow-SBM and run historical forcing | `build_model.smk` |
+| WF2 | Derive CMIP6 change factors for a plausibility overlay | `analyze_projections.smk` |
+| WF3 | Generate durable, model-independent scenario collections | `generate_scenarios.smk` |
+| WF4 | Simulate the system and publish indicators from retained responses | `scripts/simulate_system.py` |
 
-WF1 and WF3 are independent prerequisites of WF4. WF2 does not select or drive the stress-test experiment.
-WF0 shares model-free region/climate producers with other workflows; run it first or omit it when
-executing the convenience sequence. The all-workflow runner owns ordering and workflow selection.
+WF1 and WF3 provide independent prerequisites for WF4. WF2 does not choose or drive the scenario-neutral
+stress-test grid. WF0 shares region and climate producers with other workflows; it can run first or be
+omitted. [`scripts/run_workflows.py`](../../scripts/run_workflows.py) selects enabled workflows in
+WF0–WF4 order and checks a consumer after preceding producers.
 
-WF3 generation identity is independent of experiment names. WF4 selects explicit run identities and
-validates retained artifacts before reuse. Metrics-only work consumes complete retained responses and
-must not cause model or simulation production. Use the owned runners for WF3/WF4; the runner's validated
-operation/target contract is part of the boundary, not an optional shell convenience.
+WF3 collections do not depend on an experiment name. WF4 selects explicit run identities and checks
+retained inputs before reuse. An indicators-only operation uses complete retained simulation responses;
+it does not generate scenarios or rerun the model. The
+[single-workflow runner](../../scripts/run_workflow.py) and all-workflow runner dispatch owned WF3/WF4
+execution; WF4 also has a [direct runner](../../scripts/simulate_system.py). Their operation and
+target validation is part of the supported execution path; bare Snakemake does not provide it.
+The [retained handoffs](../../docs/site/toolbox-reference/retained-handoffs.qmd)
+describe the artifact interface. The [generator](toolbox-weather-generator-interface.md) and
+[hydrological-model](toolbox-hydrological-model-interface.md) references own replacement-engine
+requirements.
 
-See [retained handoffs](../../docs/site/toolbox-reference/retained-handoffs.qmd) for the supported artifact
-interface. The [weather-generator interface](toolbox-weather-generator-interface.md) and
-[hydrological-model interface](toolbox-hydrological-model-interface.md) describe replacement-engine obligations
-and current adapter requirements.
+## Configuration ownership
 
-## Configuration and execution records
+The project YAML owns shared `project`, `basin`, `climate` and `model` settings. Each workflow stanza
+has the closed shape `{enabled, config_path}`; its optional `config_path` points to that workflow's
+settings file. Shared values stay in the project file, while workflow-specific values stay in their
+own files. [`config_composition.py`](../../blueearth_cst/shared/config_composition.py) owns the exact
+schema and merge rules.
 
-Project settings own shared `basin`, `climate` and `model` sections. Each workflow has a closed
-`{enabled, config_path}` stanza pointing to its settings file. Schema 3 resolves file paths beside their
-declaring YAML, with `toolbox:` for bundled resources.
-Schema 2 preserves run-directory-relative paths except for `config_path`. The parser and schemas in
-`blueearth_cst/shared/config_composition.py` own exact fields and composition behavior.
+Schema 3 resolves declared file paths beside the YAML that declares them and accepts `toolbox:` for
+bundled resources. Schema 2 retains invocation-relative path behavior except for `config_path`, which
+resolves beside the project YAML. [`config_paths.py`](../../blueearth_cst/shared/config_paths.py)
+owns the path rules. `config/advanced_settings.yml` is loaded for every project through a closed
+schema. [`config/defaults/`](../../config/defaults) changes runs;
+[`config/templates/`](../../config/templates) supplies scaffolds. The
+[repository layout](dev-repository-layout.md) owns placement conventions.
 
-`config/advanced_settings.yml` is always loaded through its closed schema. `config/defaults/` affects
-runs; `config/templates/` supplies scaffolds. Keep shared values at their shared owner instead of copying
-them into workflow files. [Repository layout](dev-repository-layout.md) owns repository placement details.
+## Retained products and execution records
 
-Supported WF0–WF2 launches capture original configuration bytes before Snakemake parses execution
-documents. `blueearth_cst/shared/workflow_archive_launch.py` owns admission and staging;
-`workflow_config_snapshot.py` owns archive publication and validation. Supported launcher attempts use
-`invocation_history.py`; source archives and invocation outcomes have different purposes and lifetimes.
-The all-workflow and direct simulation runners own their respective launch coverage.
+WF3 stores identified scenario collections; WF4 stores identified simulations, complete response
+inventories and indicator sets. Retained readers validate content and identity, not just path
+existence. Indicator recalculation uses the retained responses and does not cause a new simulation.
+The [retained-handoffs reference](../../docs/site/toolbox-reference/retained-handoffs.qmd) owns the
+product contract and recovery behavior.
 
-Captured sources retain their original bytes; generated execution views and parsed configuration
-projections serve different purposes. Do not treat a source-byte checksum as a scientific artifact
-identity. WF0–WF2 archives describe each workflow's latest captured configuration; they are not a full
-configuration history. A record alone proves neither successful execution nor a portable rerun:
-`workflow_config_snapshot.py` owns archive validation and explicit rerun path resolution.
+WF4 forcing elevation is project-owned ancillary data, shared by content identity rather than copied
+into each WF3 collection. [`shared_orography.py`](../../blueearth_cst/experiment/shared_orography.py)
+publishes and checks the bytes;
+[`wf4_ancillary_descriptor.py`](../../blueearth_cst/experiment/wf4_ancillary_descriptor.py)
+binds the checked dependency and its HydroMT reader. Preserving an experiment includes preserving
+its referenced project dependencies.
 
-WF4 forcing elevation is project-owned ancillary data, shared by content identity rather than bundled
-into WF3 scenario collections. `experiment/shared_orography.py` owns publication and byte checks;
-`experiment/wf4_ancillary_descriptor.py` binds the checked dependency and its HydroMT reader to WF4.
-Preserving an experiment therefore also requires preserving its referenced project dependencies.
+Supported WF0–WF2 launchers capture original configuration bytes before Snakemake parses execution
+documents. [`workflow_archive_launch.py`](../../blueearth_cst/shared/workflow_archive_launch.py)
+handles capture and admission;
+[`workflow_config_snapshot.py`](../../blueearth_cst/shared/workflow_config_snapshot.py)
+publishes and validates the archive. These archives describe each workflow's latest captured
+configuration, not a complete history. Generated execution views and parsed settings have different
+purposes from original source bytes. A source checksum is not a scientific product identity, and an
+archive alone proves neither a successful run nor a portable rerun.
 
-For an explicitly declared managed project root, the `cst-run-control` skill owns the operational
-run-manifest schema and conformance requirements. Implement or select a conforming adapter before
-claiming that contract. Existing launcher run records do not themselves declare a root managed or
-establish conformance; keep schema details in the skill rather than duplicating them here.
+The supported runners write separate invocation outcomes through
+[`invocation_history.py`](../../blueearth_cst/shared/invocation_history.py). These records cover
+supported launcher attempts; they do not establish resume or fencing guarantees for arbitrary raw
+Snakemake launches. WF3 and WF4 retain configuration snapshots within their identified collection
+or experiment rather than in one project-wide slot.
 
-Do not infer broader execution guarantees from historical designs. In particular, an accepted
-scheduler-neutral run-contract proposal does not establish universal namespace fencing, resumability or
-complete coverage of arbitrary raw Snakemake launches. Consult the actual launcher and its tests before
-claiming any of those properties. The historical alternatives and accepted limitations are summarized in
-0022-cst-capability-slots-and-run-contract.md (private-checkout-only citation:
-`../records/decision-history/0022-cst-capability-slots-and-run-contract.md`); that record supplies rationale,
-not additional current requirements.
+## Implementation and verification
 
-## Implementation ownership
+This repository is a Python/R/Julia Snakemake workflow, with no API or frontend. `blueearth_cst/`
+contains importable and rule-invoked modules; `scripts/` contains user entry points. `pixi.toml`
+defines the environment, while `pyproject.toml` configures tools and does not declare a package build.
+Ordinary tooling changes must not add packaging tables or a build backend as a side effect.
 
-The toolbox is a repository-based Python/R/Julia workflow, with no API or frontend in this repository.
-`pyproject.toml` is tool configuration, not a packaging manifest; `pixi.toml` owns the environment.
-`blueearth_cst/` contains importable and rule-invoked modules, while `scripts/` provides user entry points.
-Do not add packaging tables or a build backend as a side effect of tooling changes.
+The [spatial foundation](toolbox-spatial-foundation.md) owns model-neutral region and vector products.
+The [WF1 reference](wf1-model-construction.md) owns Wflow construction and mutable model-root ordering.
+Historical climate figures use WF0 and shared climate plotting; model evaluation consumes model
+responses and optional observations rather than maintaining a second climate-diagnostic pipeline.
 
-Model-neutral spatial products belong to the [spatial foundation](toolbox-spatial-foundation.md).
-Model construction and mutable model-root ordering belong to the [WF1 contract](wf1-model-construction.md).
-Historical climate figures belong to WF0/shared climate plotting, not a second subcatchment-climate
-plotting path inside model-result evaluation.
-
-## Verification entry points
-
-Use the [validation ladder](dev-validation.md) to select required coverage. The relevant contract
-owners include `tests/test_run_workflows.py`, `tests/test_workflow_archive_launch.py`,
-`tests/test_invocation_history.py`, and the retained-artifact reader/runner tests.
-Test files define executable coverage; this list is navigation, not a separate mandatory gate.
+Use the [validation ladder](dev-validation.md) to choose checks. Relevant contract tests include
+[`test_run_workflows.py`](../../tests/test_run_workflows.py),
+[`test_workflow_archive_launch.py`](../../tests/test_workflow_archive_launch.py) and
+[`test_invocation_history.py`](../../tests/test_invocation_history.py), plus affected retained-artifact
+reader and runner tests. This is navigation, not a separate test gate.

@@ -1,64 +1,65 @@
 # Shared spatial foundation
 
-Last updated: 2026-10-20
+Last updated: 2026-11-05
 
-Use this reference when changing spatial ownership, region reuse, location identities or basin maps.
-`blueearth_cst/spatial/` owns the implementation; the [implementation map](toolbox-workflow-map.md) points
-to rule definitions and consumer checks.
+Use this reference when changing the shared region, spatial products or location identities. The
+[architecture reference](toolbox-architecture.md) explains workflow responsibilities; the
+[workflow map](toolbox-workflow-map.md) locates rules and consumers.
 
-## Ownership and dependency direction
+## Shared region and product ownership
 
-Delineate the project region once from basin settings and the catalog. Model-free climate extraction,
-projection analysis and spatial products consume that same region artifact. They must not read a built
-Wflow model to obtain their extent.
+The project region comes from `basin` settings and the project data catalog. Model-free climate
+extraction, projection analysis and spatial products use that region; they must not obtain their
+extent from a built Wflow model. [`delineate_region.py`](../../blueearth_cst/spatial/delineate_region.py)
+owns region creation. Its rule parameters must track the spatial inputs it actually reads, without
+adding unrelated workflow selection or model settings.
 
-The shared vector foundation supplies basins, subbasins, rivers and the location registry. WF1 alone
-prepares thematic raster products needed to parameterize Wflow. Keep model-neutral producers independent
-of land/soil inputs they do not consume; changing a model build must not manufacture a new region.
+The vector stage produces basins, subbasins, rivers and a location registry. WF1 adds the thematic
+land and soil rasters needed to parameterize Wflow. Keep the shared region and vector producers
+independent of thematic inputs they do not consume. The implementations are
+[`delineate_spatial_units.py`](../../blueearth_cst/spatial/delineate_spatial_units.py) and
+[`products.py`](../../blueearth_cst/spatial/products.py); the [WF1 reference](wf1-model-construction.md)
+owns model construction.
 
-`delineate_region.py`, `delineate_spatial_units.py`, `products.py` and `config.py` in
-`blueearth_cst/spatial/` own the producer contracts. Their shared rule parameters must describe their
-actual spatial inputs, not unrelated workflow selection or model settings.
-
-`hydrography.nc` carries the grid stack between the vector and thematic stages. Preserve its identifier
-types and nodata semantics when reading it. It is deliberately absent from the model-input catalog:
-the thematic stage alone writes the complete `spatial_catalog.yml`, avoiding two writers of one catalog.
-`products.py` and `prepare_spatial_maps.py` own that boundary.
+`hydrography.nc` carries the grid stack between vector and thematic stages. Preserve its identifier
+types and nodata semantics when reading it. It is deliberately absent from the model-input
+`spatial_catalog.yml`: the thematic writer alone publishes the complete catalog, so the vector and
+thematic stages never write competing versions. The writer is
+[`prepare_spatial_maps.py`](../../blueearth_cst/spatial/prepare_spatial_maps.py), using `products.py`.
 
 ## Spatial identities and controls
 
-`blueearth_cst/spatial/identity.py` owns stable basin, subbasin and location identifiers and capacity
-validation. Do not copy its encoding tables into another registry. `spatial/config.py` owns configuration
-translation, while the project schema and `config/advanced_settings.yml` own admitted settings/defaults.
+[`identity.py`](../../blueearth_cst/spatial/identity.py) assigns stable basin, subbasin and location
+identifiers and checks their capacity. Basin IDs follow area and outlet-grid ordering; subbasin and
+location IDs remain deterministic under input row reordering. Do not duplicate the encoding in another
+registry or substitute positional model labels for these persisted IDs. Changing capacity requires an
+identity-format migration: the current format allows at most 99 local subbasins per parent basin and
+nine additional, non-primary locations per subbasin.
 
-The foundation resolves each parent feature independently and snaps configured controls to the analysis
-river network. Automatic partitioning supplies fallback parents when controls do not prescribe a split.
-`basin.delineation.max_subbasins` is a ceiling applied independently to each automatic parent partition,
-not a project-wide budget. Configuration and identity code enforce its bounds and location capacities;
-read those owners for exact defaults and limits rather than historical configuration names.
-
-The persisted location registry preserves stable spatial identifiers. Model-specific gauge positions and
-outlet-index mappings are downstream representations; do not substitute positional model output labels
-for the foundation's identity. The [WF1 contract](wf1-model-construction.md) describes those mappings.
+The foundation resolves each parent basin independently and snaps configured controls to the analysis
+river network. Automatic partitioning supplies a fallback where controls do not prescribe a split.
+`basin.delineation.max_subbasins` limits each automatic parent partition separately; it is not a
+project-wide total. [`spatial/config.py`](../../blueearth_cst/spatial/config.py) validates that ceiling,
+snap tolerance and river threshold. The project config and
+[`advanced_settings.yml`](../../config/advanced_settings.yml) own admitted values and defaults.
+The [WF1 output mapping](wf1-model-construction.md#outputs-and-consumers) explains how model gauge
+positions connect back to these identifiers.
 
 ## Basin maps
 
-Draw the basin-area map from the shared spatial foundation, not from `staticmaps.nc` or a model-dependent
-copy of the geometry. Physical waterbody layers are clipped from catalog sources by
-`spatial.products.clip_waterbodies`; the hydrological model keeps its own filtering and setup behavior.
-Empty layers and missing-source warnings follow that producer's implementation.
-
-`blueearth_cst/shared/plot_spatial_maps.py` owns the map reader. Figure layout and export conventions belong in
-[plot style](toolbox-plot-style.md), rather than being repeated here.
+Draw the basin-area map from the shared spatial foundation, not from `staticmaps.nc` or a
+model-dependent geometry copy. [`products.py`](../../blueearth_cst/spatial/products.py) clips physical
+waterbody layers from catalog sources and handles empty or missing layers. Wflow retains its own
+waterbody filtering and setup. [`plot_spatial_maps.py`](../../blueearth_cst/shared/plot_spatial_maps.py)
+reads the spatial products; [CST style](../../blueearth_cst/plotting/docs/cst-style.md) owns layout and
+export conventions.
 
 ## Verification entry points
 
-Use `tests/test_spatial_identity.py`, `tests/test_spatial_config.py`, `tests/test_spatial_products.py`
-and `tests/test_spatial_units_rule.py` for their respective contracts.
-`tests/test_cross_workflow_inputs.py` checks workflow dependency boundaries.
-Select the applicable checks through the [validation ladder](dev-validation.md).
-
-For historical rationale and the original bounded timing/identity measurements, see
-0003-one-shared-region-artifact.md (private-checkout-only citation:
-`../records/decision-history/0003-one-shared-region-artifact.md`). Those observations do not set today's
-configuration or certify a new basin.
+Use [`test_spatial_identity.py`](../../tests/test_spatial_identity.py) for stable identifiers and
+capacity, [`test_spatial_config.py`](../../tests/test_spatial_config.py) for configuration bounds,
+[`test_spatial_products.py`](../../tests/test_spatial_products.py) for products, and
+[`test_spatial_units_rule.py`](../../tests/test_spatial_units_rule.py) for shared rule inputs.
+[`test_cross_workflow_inputs.py`](../../tests/test_cross_workflow_inputs.py) checks dependency direction.
+Choose affected checks through the [validation ladder](dev-validation.md); these tests do not by
+themselves establish performance or adequacy for a new basin.

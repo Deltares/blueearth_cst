@@ -21,5 +21,5 @@ Style lengths are millimetres and font/line sizes are points; alpha is a fractio
 Classification, normalization, completeness, statistical methods and quantity-specific thresholds remain
 in Python. Geometry and artist placement specific to one figure also remain with that renderer.
 R/weathergenr plots retain their own setup. The agreed appearance and exceptions live in
-[plot style](../../dev/reference/toolbox-plot-style.md); user choices are in
+[CST style](../../blueearth_cst/plotting/docs/cst-style.md); user choices are in
 [configuration](../../docs/technical-manual/configuration-and-execution.md#plot-annotations).
