@@ -19,5 +19,5 @@ Use site search or choose a current entry:
 - [Complete HTML and PDF manuals](downloads.qmd).
 
 Notebooks, developer guidance and offline upstream references are intentionally separate from the site.
-Use the [repository documentation map](https://github.com/tanerumit/blueearth_cst/blob/main/docs/README.md)
+Use the [repository documentation map](https://github.com/Deltares/blueearth_cst/blob/dev/docs/README.md)
 for those sources. Linked repository material requires a separate checkout or network access.
