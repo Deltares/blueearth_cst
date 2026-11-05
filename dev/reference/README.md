@@ -14,10 +14,10 @@ before writing. Update that document for revisions; do not create a separate fil
 | Documentation authority, promotion, retention or sealing | [dev-record-lifecycle.md](dev-record-lifecycle.md) |
 | File, identifier or output naming | [dev-naming-conventions.md](dev-naming-conventions.md) |
 | Verification, evidence reuse, landing or CI | [dev-validation.md](dev-validation.md) |
+| Gate receipts, Windows test setup or E2E bundles | [Validation procedures](dev-validation-procedures.md) |
 | Git branch, tag or commit conventions | [dev-git-conventions.md](dev-git-conventions.md) |
 | Release/version decisions | [dev-versioning.md](dev-versioning.md) |
-| User documentation structure and authoring | [dev-documentation.md](dev-documentation.md) |
-| Editorial preferences and collaborative page review | [Revision guidance](documentation-revision-guidance.md) |
+| CST documentation content, presentation and publishing | [dev-documentation.md](dev-documentation.md) |
 
 - Task admission, sessions, board coordination, handoffs or Herdr worker coordination:
   private/dev-task-and-session-workflow.md (private-checkout-only citation)
