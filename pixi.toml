@@ -156,7 +156,8 @@ install       = { depends-on = ["install-rdeps", "install-julia"], description =
 # integration-marked end-to-end runs stay opt-in via --run-integration, and
 # test-e2e is that opt-in (local only: it needs the data mirror, Julia,
 # weathergenr and network; the validation ladder says when to run it).
-test-fast = { cmd = "pytest tests/ -m \"not workflow_contract and not process_isolation\" -n auto --dist loadfile", description = "Run the fast non-integration suite in parallel; loadfile keeps a file's tests on one worker" }
+test-fast = { cmd = "pytest tests/ --ignore=tests/private -m \"not workflow_contract and not process_isolation\" -n auto --dist loadfile", description = "Run fast tests without private tooling in parallel; loadfile keeps a file's tests on one worker" }
+test-tooling = { cmd = "pytest tests/private/", description = "Run private tooling tests when related tooling or its dependencies change; requires the private checkout files" }
 test-contract = { cmd = "pytest tests/ -m \"workflow_contract or process_isolation\"", description = "Run the expensive workflow and fresh-process contract tier" }
 test-full = { cmd = "pytest tests/", description = "Run the authoritative full non-integration suite" }
 test-e2e = { cmd = "pytest tests/test_workflow_end_to_end.py::test_all_five_workflows_run_end_to_end_from_a_fresh_root --run-integration -rs", description = "Run all five workflows end to end through scripts/run_workflows.py in a fresh temporary project root (rapid config; needs the data mirror, Julia, weathergenr and network; tens of minutes)" }

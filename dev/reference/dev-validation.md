@@ -1,6 +1,6 @@
 # Validation ladder — tiering, configs, and CI
 
-Last updated: 2026-10-21
+Last updated: 2026-11-05
 
 This reference owns verification policy: check selection, evidence reuse, execution coverage,
 config provenance, and CI. `AGENTS.md` routes verification work here.
@@ -16,7 +16,8 @@ config provenance, and CI. `AGENTS.md` routes verification work here.
 Local `main` may contain undiscovered regressions between landing and publishing. Before pushing to
 `origin` or releasing, review the complete unpublished delta and require one integrated `test-fast`
 pass, stronger coverage, or applicable reused evidence; exempt-only deltas skip the software gate.
-Include affected contract tests excluded from fast and any owed execution, numerical, or visual checks.
+Include affected contract and tooling tests excluded from fast, plus any owed execution, numerical,
+or visual checks.
 Use full when broader or uncertain impact needs its extra coverage. Resolve known regressions and
 missing required coverage before publishing. This gate reduces risk; no suite guarantees zero regressions.
 
@@ -164,10 +165,20 @@ path outside the checkout must explicitly choose one; ordinary fixtures now live
 
 ## Tiering
 
-`test-fast` deselects the `workflow_contract` and `process_isolation` markers. They include expensive
-fresh-process and Snakemake DAG checks. Other tests also incur setup and rendering costs; use current
+`test-fast` excludes `tests/private/` from collection and deselects the `workflow_contract` and
+`process_isolation` markers. Those markers include expensive fresh-process and Snakemake DAG checks.
+Other tests also incur setup and rendering costs; use current
 duration evidence before optimizing either tier. Count the selected cases with
 `pytest tests/ -m "workflow_contract or process_isolation" --collect-only -q` rather than trusting a number written here — it drifts every time a rule gains a contract test.
+
+Private tooling tests run when the changed behavior can affect them: private scripts, hooks,
+synchronization or backup policy, board/session coordination, or shared helpers, dependencies and test
+infrastructure they consume. For a bounded change, run the affected files with
+`pixi run pytest tests/private/test_<name>.py`; use `pixi run test-tooling` for broad or uncertain tooling
+impact. Ordinary toolbox changes do not require this tier unless they affect those consumers.
+`test-tooling` requires the private checkout files; public clones and public CI do not contain them.
+`test-full` and direct `pytest tests/` still include private tests when present. Exclusion from fast
+does not waive related tooling checks at task, landing or publishing gates.
 
 `test-fast` runs its workers in parallel (`-n auto --dist loadfile`). Keep `loadfile`: it puts every test in a file on one worker, which is what contains module-level state — a test that stubs a library process-globally stays confined to its own file. `--dist load` distributes per test and would break that. The floor is the per-worker import cost, so adding cores past a point buys nothing.
 
