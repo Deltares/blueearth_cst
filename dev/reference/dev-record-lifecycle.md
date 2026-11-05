@@ -1,125 +1,82 @@
 # Development documentation lifecycle
 
-Last updated: 2026-10-30
+Last updated: 2026-11-05
 
-This reference owns the boundary between current guidance, proposed changes, reusable templates and retained
-evidence. File placement and scratch cleanup are detailed in [repository layout](dev-repository-layout.md);
-task coordination is in development workflow (private-checkout-only citation:
-`private/dev-task-and-session-workflow.md`).
+This reference separates current development guidance, proposals, reusable templates and retained evidence.
+See [repository layout](dev-repository-layout.md) for placement and temporary files.
 
 ## Current guidance
 
-`dev/reference/` is the single maintained home for development practices and toolbox architecture.
-Each topic has one owner document, shared by developers and agents. Elsewhere, use a pointer and a short
-explanation of when to read it. `AGENTS.md` routes agents and carries essential execution constraints;
-`dev/README.md` provides orientation.
+`dev/reference/` holds maintained development practices and toolbox architecture. Find the existing topic
+in the [reference index](README.md), then update that document in place. The
+[developer overview](../README.md) orients contributors and links to the detailed references.
+Other pages should link to the topic owner with a short reason to read it. Create a new topic only when it
+answers a distinct reader question with a separate maintenance boundary; index it and remove overlap.
 
-Choose the existing topic from the reference index before writing. Update that document for improvements
-and revisions; do not create a new file per decision, date, task, review round or implementation change.
-A new topic file is justified only when it answers a distinct reader question with its own maintenance
-boundary. Add it to the owning area's index and remove any overlapping account in the same change.
+Write the effective rule or design, its scope, useful rationale, and pointers to implementation and
+verification. Keep exact schemas, defaults and inventories in their owning code or configuration. Remove
+superseded wording instead of appending dated old/new accounts or a decision record for every revision.
+Git history retains earlier versions.
 
-Write the applicable rule or design, its scope, brief rationale where useful, and pointers to implementation
-and verification. Keep exact machine-owned defaults, schemas and inventories in their owning code or
-configuration. Update the relevant section in place; remove superseded wording. Git preserves versions.
-Do not append dated updates, old/new accounts, revision logs or a new ADR for every change.
-
-Use a lightweight format: a title, `Last updated: YYYY-MM-DD`, a short scope statement, and the sections
-the topic needs for current rules/design, rationale and implementation/verification pointers.
-The date means the latest substantive content revision, not a verification certificate. Do not change it
-for relocation, formatting or index maintenance alone. When introducing the field, use the latest relevant
-Git revision date if no more precise content date is available.
-
-Guidance describes the effective policy and implementation of its checkout. Main carries the integrated
-account; session changes to code and guidance merge together. Do not share reference files through the
-board's cross-worktree links.
+Use a title, `Last updated: YYYY-MM-DD`, a short scope statement and sections suited to the topic. The date
+marks a substantive content revision, not a verification certificate; relocation, formatting or index
+maintenance alone need no date change. If introducing the field, use the latest relevant Git revision
+date when a more precise content date is unavailable. Guidance must describe the effective policy and
+implementation in its checkout, and state any known gap explicitly.
 
 ## Proposed changes and promotion
 
-Unfinished designs and implementation plans belong with their live task on main. Acceptance of a design
-does not establish runtime implementation. Promote a design to current guidance when its behavior or
-policy takes effect. If a requirement is effective before implementation catches up, state the gap
-explicitly and track it on the board; do not describe intended behavior as already available.
+Keep unfinished designs, implementation plans and unresolved choices with the work they concern. Design
+acceptance alone does not establish implementation. Promote a requirement into its current reference when
+the policy or behavior takes effect; if implementation still lags, describe the gap rather than claiming
+the intended behavior works.
 
-Before closing a task or removing old material, check filename citations and cited details in code,
-tests, configuration and prose. Extract current requirements into their owner document and preserve
-only evidence with a future use. Keep historical citations distinct from compliance pointers.
+Before removing material, search filename and section citations in code, tests, configuration and prose.
+Move effective requirements to their topic owner; keep evidence that has a future use. A live script or
+workflow comment should cite the current topic for compliance, while historical evidence may explain why.
+Persisted provenance can retain its original citation identity; give readers a current recovery pointer.
 
 | Material | Home |
 |---|---|
-| Current rules, procedures and technical contracts | `dev/reference/` |
+| Current rules, procedures and technical contracts | `dev/reference/` or the established component reference |
 | Reusable templates and their usage instructions | `dev/templates/` |
-| Proposals, implementation plans and unresolved choices | Main's `dev/tasks/` |
-| Decision rationale or measurements needed beyond a task | Appropriate existing home under `dev/records/` |
+| Proposals, implementation plans and unresolved choices | Work-specific notes |
+| Decision rationale or measurements needed beyond the work | Retained evidence record |
 | User-facing installation, configuration and usage | `docs/` |
 | Disposable notes, logs and probes | Local scratch under the layout policy |
 
-`dev/records/decision-history/` preserves significant historical choices and rationale, including
-accepted designs whose adoption was partial or unverified. Developers and agents may consult it to
-understand past reasoning, but must use `dev/reference/` for current decisions and compliance.
-Historical acceptance labels and imperative wording do not establish present requirements.
-
-Before retaining a decision, place effective requirements in their existing reference owner and
-unresolved implementation work with its task. Put measured verification in `records/validation/` or
-the relevant milestone. Keep historical IDs and cited sections when consumers need them; otherwise
-retain concise rationale and recover superseded implementation instructions from Git.
-The history index maps each record to its current owner. Operational instructions must not require
-reading history to discover a rule. Optional links must identify their purpose as historical rationale
-or evidence. Do not create a new history record for every reference update or retain review bundles
-merely because a decision was made.
-
-Live scripts, workflow comments and parameter guidance cite the owning `dev/reference/` topic rather
-than an ADR or historical section as authority. The reference may link to history for rationale.
-Do not rewrite a historical citation embedded in persisted provenance merely to rename documentation;
-retain its identity and resolve it through the current reference's recovery pointer.
+Historical acceptance labels and imperative wording do not establish present requirements. Retain
+significant rationale, measurements, tolerances and identifiers when a consumer needs them; use the
+current reference for the actionable rule. Do not create a history record for each reference update.
 
 ## Retention
 
-Delete a retained record only after confirming that needed findings have another home, unresolved
-work is tracked, and no citations require its body or identifiers. Check cited detail as well as filenames.
-A newer summary or age alone does not establish disposability. Preserve measurements, tolerances and
-individual findings when consumers depend on them.
+Delete a retained record only after checking that needed findings have another home, unresolved work
+remains visible, and no citation requires its body or identifiers. Search cited details as well as file
+names. Age or a newer summary alone does not make evidence disposable. Preserve individual findings,
+measurements and tolerances that readers rely on.
 
-Sealed evidence is immutable under sealed-records.yml (private-checkout-only citation:
-`../records/sealed-records.yml`). An authorized relocation may move it unchanged and update the registry path;
-never rewrite its body or recalculate its hash to make an edited record pass. Update editable consumers and
-record old-to-new paths for immutable citations. Keep intentionally historical IDs and anchors resolvable.
+If an evidence record is sealed, keep its body unchanged. Relocation requires byte-preserving movement
+and an updated registry path; never edit the body and recalculate its hash to make the change pass.
+Update editable consumers and retain old-to-new path resolution for immutable citations. Keep deliberately
+historical IDs and anchors resolvable.
 
-Reviews belong with their task on main; disposable drafts and renders follow the scratch policy.
-Persistent task closure retains authored notes and supporting review or acceptance evidence in place.
-Current requirements still belong in their owning reference; reusable knowledge may be promoted when it
-has an identified consumer. Retained task evidence needs no move into `dev/records/` merely for closure.
-Scratch cleanup is a separate explicit operation; closure never authorizes deletion.
-Approved skill or role changes must reach their canonical infrastructure repository before discarding
-their only evidence. Decisions and milestone evidence receive the same citation review, with sealing
-taking precedence.
-
-`dev/records/reviews/` and `dev/records/review/` are retired and must not be recreated.
-`dev/scripts/private/check_activation.py` rejects those directories and current-reference links to them, as well as
-dependencies on transient tasks. The retirement map (private-checkout-only citation:
-`../records/migrations/review-retirement-2026-10-20.md`) resolves historical citations.
+Keep accepted work notes and supporting review or verification evidence while they have readers. Current
+requirements still belong in the maintained reference. Review temporary drafts and renders separately;
+completion does not itself authorize deletion. Preserve evidence until its consumers no longer need it.
+Do not recreate retired review directories as a parallel home for current guidance.
 
 ## Closure-ledger entries
 
-`dev/LOG.md` is the historical pre-adoption ledger; persistent task closure no longer appends to it.
-The retained task note owns its explicit result and append-only closure history.
-
-When maintaining an existing historical row, keep it at most three short sentences: what closed, why, and where durable outcomes
-live. Promote measurements, findings, tolerances and decisions first, then link to their home.
-This limit does not authorize dropping unique evidence.
-
-Before shortening a row, confirm removed findings survive elsewhere. Preserve cited item IDs and identify
-the Git commit from which full text is recoverable. Older rows are reviewed individually, not shortened
-by a blanket sweep. Shared board and ledger changes are committed on main separately.
+An older closure ledger is historical evidence, not the place for new requirements or routine completion
+entries. When maintaining an existing row, keep it brief: what closed, why and where durable outcomes live.
+First promote unique findings, tolerances and decisions, then shorten. Preserve cited IDs and identify a
+Git commit from which removed detail can be recovered. Review rows individually, never by blanket sweep.
 
 ## Milestone records and historical recovery
 
-Milestone records (private-checkout-only citation: `../records/milestones/README.md`) own milestone evidence
-and seal dates. The historical roadmap (private-checkout-only citation: `../records/milestones/roadmap.md`)
-preserves phase lineage; it is not a source of current requirements. Seal superseded specifications when they
-are needed as acceptance evidence and retain them under records, while current references continue to be
-updated.
-
-For pre-board item identifiers cited by code, tests or records, recover the original source with
-`git show 45e3a564:dev/followups-archive.md`. For the earlier development policy narrative, use
-`git show cda3900a:dev/README.md`. Git history supports investigation; it is not another active rulebook.
+Milestone records preserve evidence and seal dates; they do not override current guidance. Retain a
+superseded specification when needed to interpret acceptance, after promoting its effective requirements.
+For an older file or rule, inspect the relevant commit with `git log -- <path>` and
+`git show <commit>:<path>`. Interpret historical rule numbers in their dated context because numbers can
+be reused. Git history supports investigation; the current reference supplies the present rule.
