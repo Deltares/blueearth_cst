@@ -1,0 +1,127 @@
+name: Documentation
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: >-
+      github.repository == 'Deltares/blueearth_cst' &&
+      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+       (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      publish: ${{ steps.revision.outputs.publish }}
+      sha: ${{ steps.revision.outputs.sha }}
+    steps:
+      - name: Select the tested main revision
+        id: revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          current_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          if [ "$CANDIDATE_SHA" != "$current_sha" ]; then
+            echo '::notice::Skipping a superseded main revision.'
+            echo 'publish=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$GITHUB_EVENT_NAME" = 'workflow_dispatch' ]; then
+            successful_runs=$(gh api --method GET \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+              -f head_sha="$CANDIDATE_SHA" -f branch=main -f event=push -f status=success \
+              --jq '.total_count')
+            if [ "$successful_runs" -eq 0 ]; then
+              echo '::error::The current main revision must pass CI before deployment.'
+              exit 1
+            fi
+          fi
+          echo 'publish=true' >> "$GITHUB_OUTPUT"
+          echo "sha=$CANDIDATE_SHA" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7.0.1
+        if: steps.revision.outputs.publish == 'true'
+        with:
+          ref: ${{ steps.revision.outputs.sha }}
+          persist-credentials: false
+
+      - name: Install the locked documentation environment
+        if: steps.revision.outputs.publish == 'true'
+        uses: prefix-dev/setup-pixi@v0.11.3
+        with:
+          pixi-version: v0.70.2
+          locked: true
+          cache: true
+
+      - name: Build the complete manuals and website
+        if: steps.revision.outputs.publish == 'true'
+        run: |
+          pixi run python dev/scripts/build_publications.py --source-root . --output .tmp/publications/build
+          mkdir -p docs/site/manuals
+          cp .tmp/publications/build/manuals/*.html docs/site/manuals/
+          cp .tmp/publications/build/manuals/*.pdf docs/site/manuals/
+          pixi run docs-build
+          test -s docs/site/_site/index.html
+          for manual in user-guide technical-manual; do
+            test -s "docs/site/_site/manuals/$manual.html"
+            test -s "docs/site/_site/manuals/$manual.pdf"
+          done
+
+      - name: Upload the rendered site
+        if: steps.revision.outputs.publish == 'true'
+        uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: docs/site/_site
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check that main has not advanced
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ needs.build.outputs.sha }}
+        run: |
+          current_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          if [ "$CANDIDATE_SHA" = "$current_sha" ]; then
+            echo 'publish=true' >> "$GITHUB_OUTPUT"
+          else
+            echo '::notice::Main advanced during the build; its next successful CI will deploy.'
+          fi
+
+      - name: Configure GitHub Pages
+        if: steps.current.outputs.publish == 'true'
+        uses: actions/configure-pages@v6.0.0
+
+      - name: Deploy GitHub Pages
+        if: steps.current.outputs.publish == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v5.0.1

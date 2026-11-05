@@ -7,9 +7,8 @@
 # Existing scientific pages are retained; new scientific writing is deferred.
 # Upstream references, notebooks and developer guidance stay outside the render list.
 #
-# Nothing here publishes. There is deliberately no `site-url` and no deploy
-# workflow. Hosting has not been configured; set the final public URL when
-# deployment is introduced so project-subpath links resolve correctly.
+# Rendering is local; .github/workflows/docs.yml publishes the generated site
+# to GitHub Pages after successful main CI. See docs/publication/README.md.
 project:
   type: website
   output-dir: _site

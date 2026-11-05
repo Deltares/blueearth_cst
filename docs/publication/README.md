@@ -48,6 +48,34 @@ Windows Quarto/Sass rendering may require normal user permissions rather than a 
 Use the existing runtime; do not change permissions or install another toolchain to mask an access error.
 For staging without rendering, add `--stage-only` to the builder command.
 
+## Automatic GitHub Pages deployment
+
+The website is published at <https://deltares.github.io/blueearth_cst/>.
+GitHub Pages uses **GitHub Actions** as its publishing source in repository Settings → Pages.
+`docs/site/_quarto.yml` declares this public URL so generated links include the project subpath.
+
+After a successful **CI** run for a push to `main`, `.github/workflows/docs.yml` checks out that
+exact revision, installs the locked Pixi environment, builds both complete HTML/PDF manuals, copies
+the downloads into the site, and renders the website. It uploads only `docs/site/_site/` and deploys
+that artifact through the `github-pages` environment. Rendering keeps computation disabled;
+no basin data, model runs, Julia package installation, or R dependency installation is needed.
+
+Deployment skips revisions superseded by a newer `main` commit, including when `main` advances during
+the documentation build. The next successful `main` CI run publishes the newer revision.
+Failed CI, pull requests, forks, and `dev` pushes do not publish the site.
+
+To redeploy the current `main` revision, select **Documentation → Run workflow → main** in GitHub
+Actions, or run:
+
+```powershell
+gh workflow run docs.yml --repo Deltares/blueearth_cst --ref main
+```
+
+Manual deployment also requires a successful push CI run for that exact revision. If it is missing,
+finish or rerun CI first. Build and deployment progress appear in the **Documentation** workflow;
+the deployment job reports the public site URL. If publication fails, inspect the failing step and
+rerun the workflow after fixing it. Generated HTML/PDF files remain outside the Git index.
+
 ## Generated outputs
 
 - `docs/site/guide/`: derived guide chapters and workflow assets.
