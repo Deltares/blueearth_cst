@@ -12,10 +12,11 @@ Name task branches `<type>/<slug>`, using a Conventional Commit type and a short
 `refactor/wf0-rule-label-constants`. Do not put a milestone number in the name. Record the milestone,
 when applicable, with the task and commit.
 
-The configured working trunk is `dev`. `main` is the PR-based public branch. `origin` fetches from and
-pushes to the Deltares repository; there is no configured `upstream` remote. Check `git branch -a`,
-`git remote -v` and `git status --short` when the current checkout matters. Work on a task branch in an
-isolated checkout and land verified changes on `dev`; the primary checkout is the integration point.
+The public trunk is `main`. `origin` fetches from and pushes to the Deltares repository; there is no
+configured `upstream` remote. Check `git branch -a`, `git remote -v` and `git status --short` when the
+current checkout matters. Work on a task branch in an isolated checkout and integrate verified changes
+into `main`; the primary checkout is the integration point. Check the integration target in
+`.git-workflow.yml` before landing: a temporary trial setting does not change the public trunk policy.
 
 Existing historical refs may use `base/<start-point>`, `milestone/<NN>-<topic>`,
 `milestone/r<NN>-<topic>`, `milestone/p3<N><letter?>-<topic>` or `lane/<territory>`. These are not
