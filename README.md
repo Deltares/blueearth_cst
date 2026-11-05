@@ -37,7 +37,7 @@ generate climate scenarios and simulate hydrological responses. Model building a
 are independent prerequisites of simulation. Historical climate analysis helps users understand
 variability and select forcing; projection analysis provides context for interpreting the tested changes.
 
-## Documentation and development
+## Documentation
 
 - [User Guide](docs/guide/quick-start.md): installation, the example basin, project creation,
   workflow execution, outputs and troubleshooting.
@@ -45,11 +45,6 @@ variability and select forcing; projection analysis provides context for interpr
   configuration, indicators, saved results and advanced extension.
 - [Methodology](docs/site/scientific-approach/overview.qmd): the bottom-up assessment approach
   and interpretation of climate vulnerability and robustness.
-- [Documentation map](docs/README.md): all documentation entry points and optional notebooks.
-- [Build the publications](docs/publication/README.md): render the navigable website and complete
-  User Guide and Technical Manual in HTML and PDF. The rendered site's Downloads page provides both volumes.
-- [Development reference](dev/reference/README.md): current maintainer practices and architecture.
-- [Changelog](CHANGELOG.md): release history.
 
 ## License
 

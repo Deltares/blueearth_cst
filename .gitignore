@@ -3,6 +3,9 @@
 # Each worktree owns its local lane status; never merge or seed it from another lane.
 /STATUS.md
 
+# Local development history.
+/DEVLOG.md
+
 # Generated from canonical docs/guide/ by the Quarto pre-render hook.
 /docs/site/guide/
 /docs/site/technical-manual/
