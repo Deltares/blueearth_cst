@@ -4,7 +4,7 @@ Moved verbatim from the retired ``shared/cartographic_map.py`` (2026-10-29), wit
 the reviewed spatial-profile locator settings as defaults. It decides WHAT a map
 shows -- class boundaries, ramp colours, the diverging midpoint, the hillshade,
 the locator's window and cities -- and leaves drawing to the template,
-``plotting/prepared_maps.py`` (toolbox-plot-style.md, Spatial map template).
+``plotting/prepared_maps.py`` (plotting/docs/cst-style.md, Spatial map template).
 Adapters: ``shared/plot_spatial_maps.py`` and ``shared/map_frames.py``.
 """
 

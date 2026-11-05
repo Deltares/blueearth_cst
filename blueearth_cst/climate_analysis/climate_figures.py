@@ -110,10 +110,10 @@ AGGREGATED_KINDS = tuple(k for k in FIGURE_KINDS if k != "map")
 def _legacy_figure_name(dataset: str, var: str, kind: str) -> str:
     """``<dataset>_<variable>_<kind>.png`` — the pre-grammar spelling.
 
-    Retained for the FORCING family only. ``wf0-figure-naming.md`` stages
-    the new grammar at WF0 first, and the forcing figures have their own
-    consumers and their own directory; migrating them is a separate step with
-    its own rename sweep.
+    Retained for the FORCING family only. The WF0 profile in
+    ``blueearth_cst/plotting/docs/figure-naming.md`` does not rename forcing
+    figures. They have their own consumers and directory; changing their names
+    requires a separate migration.
     """
     return f"{dataset}_{var}_{kind}.png"
 

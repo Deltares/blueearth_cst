@@ -93,7 +93,7 @@ def prepared_map(
     eligible = [int(positive.min()), int(positive.max())] if positive.size else None
     label = {"precip": "Precip.", "temp": "Temp.", "pet": "PET"}[variable]
     drawn_scale = drawing_scale(reference, variable)
-    # Climate display rules (toolbox-plot-style.md): reference units, a tick on
+    # Climate display rules (plotting/docs/cst-style.md): reference units, a tick on
     # every class boundary and both rectangular extensions.
     if (
         drawn_scale.units not in {"degC", "mm/year"}
