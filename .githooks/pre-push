@@ -7,8 +7,8 @@
 # hook exists to stop.
 #
 # Why not the test suite. Even the cheap tier (`pixi run test-fast`) runs for
-# minutes, and a multi-minute pre-push hook gets bypassed with --no-verify until
-# the bypass is the habit -- at which point the hook reads as coverage while
+# minutes, and a multi-minute pre-push hook gets skipped until skipping is
+# the habit -- at which point the hook reads as coverage while
 # providing none. The bare `pytest tests/` is an order of magnitude slower again,
 # because the marked contract tier spawns a process per test. Both stay manual
 # steps, per dev/reference/dev-validation.md.
@@ -20,8 +20,7 @@
 #
 # Install (once per clone; covers linked worktrees too):
 #     git config core.hooksPath .githooks
-# Bypass a single push:
-#     git push --no-verify
+# A failing check blocks the push: fix what it reports, then push again.
 #
 # Expect the FIRST push from a new worktree to be slow. Every worktree builds
 # its own pixi env, so `pixi run` here installs it
@@ -32,14 +31,14 @@ set -e
 
 if ! command -v pixi >/dev/null 2>&1; then
     echo "pre-push: pixi not found on PATH -- cannot run the ruff gates." >&2
-    echo "          Fix the environment, or bypass once with: git push --no-verify" >&2
+    echo "          Fix the environment; see docs/site/setup/install.md." >&2
     exit 1
 fi
 
 echo "pre-push: ruff check ..."
 if ! pixi run --frozen lint; then
     echo "" >&2
-    echo "pre-push: BLOCKED -- ruff check failed. Fix, or: git push --no-verify" >&2
+    echo "pre-push: BLOCKED -- ruff check failed. Fix the findings above, then push again." >&2
     exit 1
 fi
 
@@ -47,7 +46,7 @@ echo "pre-push: ruff format --check ..."
 if ! pixi run --frozen format-check; then
     echo "" >&2
     echo "pre-push: BLOCKED -- formatting is not clean." >&2
-    echo "          Run: pixi run format     (or bypass: git push --no-verify)" >&2
+    echo "          Run: pixi run format, commit, then push again." >&2
     exit 1
 fi
 
