@@ -65,6 +65,10 @@ source ownership, authoring conventions and verification.
   configuration keys and filenames verbatim. Apply this rule as each page is revised.
 - Prefer short paragraphs with one clear purpose. Remove repeated explanations and unnecessary detail
   before adding more headings or callouts.
+- Review document boundaries as well as wording. Merge references that cover the same purpose and repeat
+  guidance; split references when distinct reader tasks or maintenance responsibilities need separate homes.
+  Keep related topics together when readers need them for one task. Update links and the review checklist
+  when files move, merge or split, and present the resulting documents in a small reviewable batch.
 - Group reference topics by their role. Separate datasets from data access and preparation, and mirror
   that distinction in overview pages and navigation. The first manual version omits a standalone data
   quality and limitations chapter; retain relevant qualifications alongside methods and results.

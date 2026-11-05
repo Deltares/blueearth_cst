@@ -42,10 +42,10 @@ before writing. Update that document for revisions; do not create a separate fil
 | When the change concerns | Update or consult |
 |---|---|
 | Scientific figure appearance, export or review practice | [toolbox-plot-style.md](toolbox-plot-style.md) |
-| Reviewed WF3 weather diagnostics and figure exceptions | [weather-diagnostic-style.md](weather-diagnostic-style.md) |
+| Styling weathergenr figures in CST | [weather-diagnostic-style.md](weather-diagnostic-style.md) |
 | Measured ggplot2/Matplotlib panel geometry | [panel-layout.md][panel-layout] |
-| WF0 diagnostic figure filename grammar | [wf0-figure-naming.md](wf0-figure-naming.md) |
-| A reusable report or comparison interface | [templates/README.md](../templates/README.md) |
+| Figure filenames and workflow profiles | [figure-naming.md](../../blueearth_cst/plotting/docs/figure-naming.md) |
+| A workflow report template | [templates/README.md](../templates/README.md) |
 
 ## Find guidance by workflow
 
@@ -55,14 +55,14 @@ Use this lookup to reach the relevant topic owners; a workflow does not need its
 
 | Workflow | Development guidance | User guide | Rule definitions |
 |---|---|---|---|
-| WF0: historical climate | [toolbox-spatial-foundation.md][spatial], [wf0-figure-naming.md][wf0-figures] | [workflow-analyze-climate.qmd][guide0] | [analyze_climate.smk][rules0] |
+| WF0: historical climate | [toolbox-spatial-foundation.md][spatial], [figure-naming.md][wf0-figures] | [workflow-analyze-climate.qmd][guide0] | [analyze_climate.smk][rules0] |
 | WF1: model construction | [wf1-model-construction.md][model], [toolbox-forcing-units.md][forcing] | [workflow-build-model.qmd][guide1] | [build_model.smk][rules1] |
 | WF2: projections | [wf2-cmip6-source-readability.md][cmip6], [toolbox-spatial-foundation.md][spatial] | [workflow-analyze-projections.qmd][guide2] | [analyze_projections.smk][rules2] |
 | WF3: scenarios | [toolbox-weather-generator-interface.md][generator], [retained-handoffs.qmd][handoffs] | [workflow-generate-scenarios.qmd][guide3] | [generate_scenarios.smk][rules3] |
 | WF4: simulation | [toolbox-hydrological-model-interface.md][simulator], [toolbox-indicator-glossary.md][indicators] | [workflow-simulate-system.qmd][guide4] | [simulate_system.smk][rules4] |
 
 [spatial]: toolbox-spatial-foundation.md
-[wf0-figures]: wf0-figure-naming.md
+[wf0-figures]: ../../blueearth_cst/plotting/docs/figure-naming.md#historical-climate-diagnostics-wf0
 [model]: wf1-model-construction.md
 [forcing]: toolbox-forcing-units.md
 [cmip6]: wf2-cmip6-source-readability.md

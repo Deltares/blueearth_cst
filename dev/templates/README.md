@@ -8,7 +8,6 @@ See [scratch placement](../reference/dev-repository-layout.md#task-temporary-mat
 |---|---|
 | [lane-status.md](lane-status.md) | Copy to local root `STATUS.md`; see private citation below. |
 | [workflow-report.html](workflow-report.html) | [Manual workflow report guide](workflow-report.md) |
-| [figure-comparison.html](figure-comparison.html) | [Figure comparison guide](figure-comparison.md) |
 
 Private-checkout-only citation: lane status (`../reference/private/dev-task-and-session-workflow.md#lane-status`).
 

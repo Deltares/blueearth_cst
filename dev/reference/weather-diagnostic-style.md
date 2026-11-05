@@ -1,15 +1,23 @@
-# Reviewed weather diagnostic profile
+# Styling weathergenr figures in CST
 
-The weather export adapter applies `weathergenr::style_weather_plot()` to returned diagnostics.
-Generator/evaluation defaults remain unchanged upstream. CST reads `config/plotting/style.yml`,
-`colors.yml` and the weather-only `weathergenr.yml` at render time, after scientific identity is resolved.
-No YAML parser, CST path, or CST dependency is introduced upstream.
+Last updated: 2026-11-05
 
-## Approved conventions
+Use this reference when styling or exporting ggplot2 figures returned by weathergenr in CST. It covers
+appearance, panel layout and export settings for those figures, rather than a general style for all
+weather diagnostics. The [weather-generator interface](toolbox-weather-generator-interface.md) describes
+generation inputs, outputs and replacement requirements.
+
+The [CST adapter](../../blueearth_cst/weathergen/plot_style.R) calls `weathergenr::style_weather_plot()`
+on returned plots. It reads [style](../../config/plotting/style.yml),
+[colors](../../config/plotting/colors.yml), and the weather-only
+[overrides](../../config/plotting/weathergenr.yml) at render time, after scientific identity is resolved.
+These presentation settings do not enter generator or scenario identity.
+
+## Figure conventions
 
 - Observations and agreement guides are blue; stochastic traces/ranges are gray; central ensemble
   summaries are black. Significance thresholds and cone-of-influence guides are red. The wavelet
-  significance contour stays black and its observed spectrum retains the reviewed plain blue.
+  significance contour stays black and its observed spectrum retains plain blue.
 - Use 7 pt labels/headings and 6 pt tick labels from shared chart tokens, with DejaVu Sans where
   configured. Explicit partial-theme entries win. Fonts and marks retain physical sizes across grids.
 - Facets use white, left-aligned lettered headings, horizontal major gridlines and darker borders.
@@ -29,25 +37,22 @@ No YAML parser, CST path, or CST dependency is introduced upstream.
 ## Panel layout in CST
 
 The weather profile sets 70 × 70 mm plotting rectangles, preferred columns `[3, 2]` and a
-180 mm maximum complete width in `config/plotting/weathergenr.yml`. The CST adapter in
-`blueearth_cst/weathergen/plot_style.R` passes these settings and the raster DPI from
-`config/plotting/style.yml` to `weathergenr::style_weather_plot()`. The generic
+180 mm maximum complete width in `weathergenr.yml`. The CST adapter passes these settings and
+the raster DPI from `style.yml` to `weathergenr::style_weather_plot()`. The generic
 [panel contract](../../blueearth_cst/plotting/docs/panel-layout.md) governs candidate measurement,
-fit, dimensions and comparison across renderers. These presentation settings do not enter scientific
-configuration identity.
+fit, dimensions and comparison across renderers.
 
-Upstream `weathergenr::arrange_weather_panels()` accepts single-panel ggplots and stores layout
-measurements on the returned patchwork. `weathergenr::export_weather_plot()` uses those dimensions
-when width and height are omitted. The CST adapter passes explicit dimensions for non-faceted plots
-and stored dimensions for faceted plots. Upstream owns these R APIs; CST provides configuration
-translation, not a standalone general ggplot2 adapter.
+The pinned weathergenr API uses `arrange_weather_panels()` to arrange ggplot2 panels and attach measured
+layout dimensions to the patchwork; `export_weather_plot()` uses those dimensions when width and height
+are omitted. The CST adapter passes explicit dimensions for non-faceted plots and uses the stored
+dimensions for faceted plots. CST provides configuration translation, not a standalone ggplot2 adapter.
 The R and Python implementations do not call each other's runtime.
 
 Default R layout retains repeated y-axis titles. The compact weather profile keeps the y-axis title
 only in the first column and retains tick values. Captions remain outside the exported PNGs; the
 gallery carries their colour and summary explanations. Weather diagnostics use this measured layout;
-Python adoption currently consists of isolated conformance renders, with no automatic migration of
-existing production figure families.
+Python adoption consists of isolated conformance renders; existing production figure families do not
+automatically use this weather profile.
 
 ## Preserved figure exceptions
 
@@ -63,16 +68,11 @@ not a basin-specific fixed upper bound.
 
 ## Delivery and integration
 
-All 15 original filenames remain unchanged; exports overwrite the matching PNGs. CST owns export DPI
+The 15 diagnostic filenames remain unchanged; exports overwrite the matching PNGs. CST owns export DPI
 and non-facet canvas dimensions. Faceted diagnostics use measured stored dimensions. Captions in the
 comparison HTML identify colors and summary meanings; they remain outside the exported plot objects.
 
-CST installs `weathergenr` version 2.1.0 from published commit
-`a2f97631ab0d43c9d2ffa76f622dcd697ec6554f`. The planned `v2.1.0` tag is not published;
-the installer uses this immutable commit and verifies both `Version` and `RemoteSha` before
-accepting an existing installation. Run `pixi run install-rdeps` after updating the toolbox.
-The R package source pin is maintained by `dev/scripts/install_weathergenr.R`, outside `pixi.lock`.
-
-The pinned commit contains the approved plotting implementation
-`2b2f602cb3f6500fb69e014d7c6650be357f5370`, including the return/style/export interface.
-The shared Python map-style work remains separate from this weather adapter.
+The [installer](../../dev/scripts/install_weathergenr.R) owns `required_version` and `required_sha`
+and checks installed `Version` and `RemoteSha`. Run `pixi run install-rdeps` to install that pinned
+source. The pin is outside `pixi.lock`; the upstream source itself is not part of this repository.
+Shared Python map styling remains separate.
