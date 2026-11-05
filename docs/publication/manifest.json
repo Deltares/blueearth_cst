@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "source_revision": "Local source candidate based on 856bc47c; source-hashes.json identifies consumed files",
-  "repository_url": "https://github.com/tanerumit/blueearth_cst/blob/856bc47c0d20e84acd34554e3f72cdc97dff8538/",
+  "source_revision": "Local source build; source-hashes.json identifies consumed files",
+  "repository_url": "https://github.com/Deltares/blueearth_cst/blob/dev/",
   "format": "docs/publication/format.yml",
   "asset": "docs/guide/assets/workflow-overview.png",
   "appendix_manifest": "docs/technical-manual/local-source-appendix.yml",

@@ -61,7 +61,7 @@ with the toolbox's dependencies.
 In PowerShell, move to the folder where you want to keep the toolbox. Then run:
 
 ```powershell
-git clone https://github.com/tanerumit/blueearth_cst.git
+git clone https://github.com/Deltares/blueearth_cst.git
 cd blueearth_cst
 ```
 

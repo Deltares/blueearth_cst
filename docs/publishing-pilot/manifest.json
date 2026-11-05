@@ -1,7 +1,7 @@
 {
   "title": "Indicator selection — publishing pilot",
   "source_revision": "P3 named-files working tree (base 865803b2)",
-  "repository_url": "https://github.com/tanerumit/blueearth_cst/blob/470fc7613b8fd2cf6b840b724b5b4a0d3f64505e/",
+  "repository_url": "https://github.com/Deltares/blueearth_cst/blob/470fc7613b8fd2cf6b840b724b5b4a0d3f64505e/",
   "sections": [
     {
       "source": "docs/guide/running.md",
