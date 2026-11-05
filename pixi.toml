@@ -229,13 +229,8 @@ run-workflows = { cmd = "python scripts/run_workflows.py", description = "Run th
 
 create-case = { cmd = "python scripts/create_case.py", description = "Create an external case from the cases repository template; requires case slug, --cases-root, outlet coordinates, and --purpose" }
 
-# Documentation site. The Quarto project is rooted at `docs/`, so both tasks
-# take that directory rather than the repo root -- the render scope is then a
-# directory that holds only documentation, and the vendored hydromt / wflow
-# guides are excluded by name in `docs/site/_quarto.yml` rather than the whole repo
-# being excluded by an allow-list nobody maintains.
-#
-# Neither task publishes anything. Deployment to GitHub Pages is deliberately
-# not wired yet; see docs/README.md for the documentation entry point.
+# Documentation site, scoped by docs/site/_quarto.yml. These tasks render locally;
+# .github/workflows/docs.yml publishes after successful main CI. Build commands
+# and deployment instructions live in docs/publication/README.md.
 docs-preview = { cmd = "quarto preview docs/site", description = "Serve the documentation site locally with live reload (Ctrl-C to stop)" }
 docs-build   = { cmd = "quarto render docs/site", description = "Render the documentation site to docs/site/_site (gitignored); the build gate" }
