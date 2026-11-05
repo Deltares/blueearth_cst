@@ -3,7 +3,7 @@ title: "Datasets"
 format: html
 ---
 
-The toolbox reads external gridded data through HydroMT catalogs. The project names catalogs and source entries; the data files are not distributed with the workflow code. The [2025 CST technical note](https://github.com/tanerumit/blueearth_cst/blob/main/docs/references/cst-toolbox-technical-note-2025.md) describes the recommended global datasets and their scientific roles. The table below adapts that inventory to the [current project template](https://github.com/tanerumit/blueearth_cst/blob/main/config/templates/example-basin/project_config.yml), [data catalog](https://github.com/tanerumit/blueearth_cst/blob/main/config/catalogs/deltares_data.yml), and [projection template](https://github.com/tanerumit/blueearth_cst/blob/main/config/templates/example-basin/project_config_analyze_projections.yml). It is a source-role guide, not a claim that every listed source is enabled or locally available.
+The toolbox reads external gridded data through HydroMT catalogs. The project names catalogs and source entries; the data files are not distributed with the workflow code. The [2025 CST technical note](https://github.com/Deltares/blueearth_cst/blob/dev/docs/references/cst-toolbox-technical-note-2025.md) describes the recommended global datasets and their scientific roles. The table below adapts that inventory to the [current project template](https://github.com/Deltares/blueearth_cst/blob/dev/config/templates/example-basin/project_config.yml), [data catalog](https://github.com/Deltares/blueearth_cst/blob/dev/config/catalogs/deltares_data.yml), and [projection template](https://github.com/Deltares/blueearth_cst/blob/dev/config/templates/example-basin/project_config_analyze_projections.yml). It is a source-role guide, not a claim that every listed source is enabled or locally available.
 
 ## Spatial data for the basin and model
 
@@ -31,7 +31,7 @@ especially where a small spatial error could move an outlet or change upstream a
 | CHIRPS precipitation | Alternative or candidate precipitation source for historical-climate comparison | Geographic coverage, rainfall seasonality and extremes, and consistency with the other forcing variables needed by the model and generator |
 | Local observed discharge | Optional historical model evaluation at configured locations | Gauge identity, dates, units and known regulation |
 
-The [2025 note](https://github.com/tanerumit/blueearth_cst/blob/main/docs/references/cst-toolbox-technical-note-2025.md) identifies historical meteorology as serving **two purposes**: forcing the hydrological model and conditioning the stochastic weather generator. This makes source selection unusually consequential in the current toolbox, which does not locally calibrate the model. Historical climate analysis can compare available climate variables across candidate sources before one is selected. In the current pipeline, CHIRPS supplies precipitation; when it is selected, ERA5 contributes the other variables needed for model building and weather generation. A structurally complete climate store is not, by itself, a scientific validation of the forcing.
+The [2025 note](https://github.com/Deltares/blueearth_cst/blob/dev/docs/references/cst-toolbox-technical-note-2025.md) identifies historical meteorology as serving **two purposes**: forcing the hydrological model and conditioning the stochastic weather generator. This makes source selection unusually consequential in the current toolbox, which does not locally calibrate the model. Historical climate analysis can compare available climate variables across candidate sources before one is selected. In the current pipeline, CHIRPS supplies precipitation; when it is selected, ERA5 contributes the other variables needed for model building and weather generation. A structurally complete climate store is not, by itself, a scientific validation of the forcing.
 
 The historical extraction window must cover the historical model run and provide enough complete years for the
 weather generator. The project template requires at least 16 inclusive years. Compare source behavior with
@@ -49,7 +49,7 @@ therefore changes the plausibility comparison, not an already generated scenario
 relative precipitation changes and absolute temperature changes with the stress-test axes before plotting them
 together.
 
-The [projection settings template](https://github.com/tanerumit/blueearth_cst/blob/main/config/templates/example-basin/project_config_analyze_projections.yml) shows example selections; it is not a prescribed ensemble for every basin. The number of available models and members, spatial resolution, and variable coverage depend on the catalog. Ensemble spread describes differences among those available projections, not a calibrated probability distribution for basin-scale outcomes.
+The [projection settings template](https://github.com/Deltares/blueearth_cst/blob/dev/config/templates/example-basin/project_config_analyze_projections.yml) shows example selections; it is not a prescribed ensemble for every basin. The number of available models and members, spatial resolution, and variable coverage depend on the catalog. Ensemble spread describes differences among those available projections, not a calibrated probability distribution for basin-scale outcomes.
 
 ## Choosing, replacing, and recording sources
 

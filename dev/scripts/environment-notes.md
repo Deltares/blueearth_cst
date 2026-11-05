@@ -25,6 +25,19 @@ Python exception traceback when diagnosing a process that has already exited.
 
 ## Live workarounds (automated via pixi activation)
 
+### Quarto tool paths after moving a Windows checkout
+
+Conda-forge's Quarto activation can retain absolute paths from the installation location, including
+the package build directory for `deno_dom.dll`. A moved checkout can then fail with
+"The system cannot find the path specified" before rendering starts.
+
+`dev/scripts/pixi_activate.bat` sets Quarto's tool and resource paths from the active `CONDA_PREFIX`
+after package activation. This applies to `pixi run` and generated PowerShell shell hooks without
+editing package files, changing the lockfile, or requiring per-command overrides.
+
+Verify with `pixi run quarto check` and `pixi run docs-build`. An already activated parent shell may
+still contain old values; start a new shell or reactivate it before calling Quarto directly.
+
 ### Graphviz `dot` — missing `ffi.dll` / `cairo.dll` aliases (Windows)
 
 `snakemake --dag | dot -Tpng` printed warnings and rendered fonts as Times

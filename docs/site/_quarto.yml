@@ -8,8 +8,8 @@
 # Upstream references, notebooks and developer guidance stay outside the render list.
 #
 # Nothing here publishes. There is deliberately no `site-url` and no deploy
-# workflow: the subpath a GitHub Pages project page needs is not known until the
-# repository has a home, and a wrong one breaks links only once deployed.
+# workflow. Hosting has not been configured; set the final public URL when
+# deployment is introduced so project-subpath links resolve correctly.
 project:
   type: website
   output-dir: _site
@@ -52,7 +52,7 @@ website:
         href: scientific-approach/overview.qmd
     right:
       - icon: github
-        href: https://github.com/tanerumit/blueearth_cst
+        href: https://github.com/Deltares/blueearth_cst
         aria-label: "Source on GitHub"
   sidebar:
     - title: "User guide"

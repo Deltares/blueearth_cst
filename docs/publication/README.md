@@ -72,7 +72,8 @@ Required inputs must exist; a successful smaller publication is not an acceptabl
 ## Source identity and external material
 
 `source-hashes.json` records consumed input hashes; retain it with review artifacts.
-The manifest's source label describes a local candidate based on its recorded checkout revision.
+The manifest's source label identifies a local build; the hashes identify its exact consumed sources.
+Repository links point to the maintained `dev` branch in `Deltares/blueearth_cst`.
 Its repository URL is a locator for external source evidence, not proof that an unpushed candidate
 exists online. Network availability is not verified by rendering.
 
