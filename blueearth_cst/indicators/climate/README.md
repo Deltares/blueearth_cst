@@ -9,7 +9,7 @@ from blueearth_cst.indicators.climate.reference import fit_reference
 from blueearth_cst.indicators.climate.evaluate import evaluate
 from blueearth_cst.indicators.climate.periods import annual_periods
 
-# daily: Dataset with precip [mm/day], temp_max and/or temp_min [degC].
+# daily: Dataset with precip [mm/day], temp, temp_max and/or temp_min [degC].
 reference = fit_reference(daily, 1991, 2020)
 indices, events = evaluate(daily, reference, annual_periods(2021, 2025))
 ```
@@ -27,6 +27,9 @@ indices with continuous event detection. `definitions.py` owns display labels an
 The [historical climate manual](../../../docs/technical-manual/workflow-analyze-climate.md#climate-indices)
 owns formulas, reference conventions, missingness, period allocation and interpretation. In particular,
 TX90p/TN90p are bootstrap-corrected within reference years; WSDI and heatwaves use fixed thresholds.
+Daily mean `temp` supplies observed-day counts below zero and above
+`mean_temperature_threshold_degc` (default 25°C), passed to `evaluate` or `absolute_indices`.
+These counts do not require percentile support and never substitute TX/TN for the mean.
 Calling evaluation on a subset does not refit thresholds. Complete reference years, including absent
 years, remain in expected support counts. Unsupported bootstrap replicates make a result unavailable.
 

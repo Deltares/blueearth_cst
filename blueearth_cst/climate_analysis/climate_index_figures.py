@@ -31,15 +31,15 @@ from blueearth_cst.shared.map_reference import (
 from blueearth_cst.shared.plot_preset import CST_PRESET
 
 
-def _series(data, *, seasonal=False, color=None):
+def _series(data, metadata, *, seasonal=False, color=None):
     """Draw all declared indices with unavailable panels retained."""
     columns = 3
-    rows = int(np.ceil(len(INDEX_METADATA) / columns))
+    rows = int(np.ceil(len(metadata) / columns))
     fig, axes = new_fig(rows * 37, rows, columns, width_mm=180)
     dates = pd.DatetimeIndex(data.period_start.values)
     years = np.asarray(dates.year)
     season_names = np.array([str(label).split(":")[0] for label in data.period.values])
-    for index, (metric, (label, units)) in enumerate(INDEX_METADATA.items()):
+    for index, (metric, (label, units)) in enumerate(metadata.items()):
         ax = axes.flat[index]
         ax.set_title(textwrap.fill(f"{chr(97 + index)}) {label}", 30), loc="left")
         ax.set_ylabel(units)
@@ -60,7 +60,7 @@ def _series(data, *, seasonal=False, color=None):
             ax.plot(years, data[metric].values, marker="o", color=color)
         year_ticks(ax, np.unique(years))
         ax.grid(axis="y", alpha=0.2)
-    for ax in list(axes.flat)[len(INDEX_METADATA) :]:
+    for ax in list(axes.flat)[len(metadata) :]:
         ax.set_visible(False)
     return fig
 
@@ -85,12 +85,18 @@ def render_indices(
     source = manifest["identity"]["source"]
     hue = source_styles([source])[source][0]
     options = manifest["identity"]["settings"]["climate_indices"]
+    threshold = options.get("mean_temperature_threshold_degc", 25.0)
+    metadata = INDEX_METADATA | {
+        "mean_temp_above_threshold_days": (f"Mean T > {threshold:g}°C days", "days")
+    }
     reference = options["reference_period"]
     window = manifest["identity"]["settings"]["analysis_window"]
     common = (
         f"{source.upper()}; reference calendar years {reference['start']}–{reference['end']}. "
         f"Reporting start years {window['start']}–{window['end']}; "
         f"annual start month {manifest['identity']['start_month']}. "
+        "Mean-temperature counts use T < 0°C and "
+        f"T > {options.get('mean_temperature_threshold_degc', 25.0):g}°C, without missing-day scaling. "
         f"Minimum reference sample fraction {options['reference_minimum_fraction']:g}. "
         "TX90p/TN90p use in-reference bootstrap; WSDI and heatwaves use fixed thresholds. "
         "Missing values indicate unavailable inputs, reference support or period coverage. "
@@ -116,7 +122,7 @@ def render_indices(
 
     with use_preset(CST_PRESET):
         save(
-            _series(basin, color=hue),
+            _series(basin, metadata, color=hue),
             "index_series",
             f"{source.upper()} annual climate indices",
             "Indices of daily equal-weight basin-cell means, not spatial means of cell indices. "
@@ -126,7 +132,7 @@ def render_indices(
             with xr.open_dataset(folder / "seasonal_basin.nc") as opened:
                 seasonal = opened.load()
             save(
-                _series(seasonal, seasonal=True),
+                _series(seasonal, metadata, seasonal=True),
                 "index_seasons",
                 f"{source.upper()} seasonal climate indices",
                 f"Explicit seasons {options['seasons']}; labels use start years. Basin-series calculation.",
@@ -154,13 +160,7 @@ def render_indices(
             "Gap- and edge-censored segments are excluded; this can bias duration distributions.",
         )
         # Use a two-dimensional index field, never a scalar support counter.
-        template = (
-            grid["rx1day"]
-            if "rx1day" in grid
-            else grid["txx"]
-            if "txx" in grid
-            else grid["tnx"]
-        )
+        template = next(grid[metric] for metric in INDEX_METADATA if metric in grid)
         template = template.mean("period").transpose("latitude", "longitude")
         x, y = field_edges(template)
         if reference_record is not None:
@@ -179,7 +179,7 @@ def render_indices(
                 1 / np.cos(np.deg2rad(float(template.latitude.mean()))),
             )
         cmap = LinearSegmentedColormap.from_list("source_quantity", ["#f5f5f5", hue])
-        for metric, (label, units) in INDEX_METADATA.items():
+        for metric, (label, units) in metadata.items():
             field = (
                 grid[metric].mean("period").transpose("latitude", "longitude")
                 if metric in grid

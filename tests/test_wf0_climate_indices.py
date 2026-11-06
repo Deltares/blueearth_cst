@@ -27,6 +27,7 @@ def inputs(tmp_path):
         ("precip", rng.gamma(1, 5, shape), "mm/day"),
         ("temp_max", rng.normal(25, 3, shape), "degC"),
         ("temp_min", rng.normal(15, 3, shape), "degC"),
+        ("temp", rng.normal(20, 7, shape), "degC"),
     ):
         ds[name] = xr.DataArray(
             values, dims=("time", "latitude", "longitude"), attrs={"units": units}
@@ -55,8 +56,29 @@ def test_publication_preserves_source_identity_reuse_and_integrity(tmp_path, sou
     with xr.open_dataset(folder / "annual_grid.nc") as ds:
         assert "r95p_amount" in ds
         assert ("tx90p" in ds) == (source == "era5")
+        assert ("mean_temp_above_threshold_days" in ds) == (source == "era5")
+    if source == "era5":
+        with (
+            xr.open_dataset(climate) as raw,
+            xr.open_dataset(folder / "annual_grid.nc") as result,
+        ):
+            series = raw.temp.sel(latitude=1, longitude=3, time=slice("2000", "2000"))
+            assert result.mean_temp_below_zero_days.sel(
+                period="2000", latitude=1, longitude=3
+            ).item() == int((series < 0).sum())
+            assert result.mean_temp_above_threshold_days.sel(
+                period="2000", latitude=1, longitude=3
+            ).item() == int((series > 25).sum())
+        settings["climate_indices"]["mean_temperature_threshold_degc"] = 30.0
+        publish(climate, cells, source, root, settings, 1)
+        warmer, _ = load_publication(pointer)
+        assert warmer != folder
+        with xr.open_dataset(warmer / "annual_basin.nc") as result:
+            assert result.mean_temp_above_threshold_days.attrs["threshold_degc"] == 30
+        settings["climate_indices"]["mean_temperature_threshold_degc"] = 25.0
     if source == "chirps":
         assert "temp_max" in manifest["unavailable_variables"]
+        assert "temp" in manifest["unavailable_variables"]
     publish(climate, cells, source, root, settings, 1)
     assert load_publication(pointer)[1]["products"] == hashes
     settings["wet_day_threshold_mm"] = 2.0
@@ -75,6 +97,16 @@ def test_disabled_default_and_closed_settings():
     with pytest.raises(ValueError, match="accepts"):
         parse_settings(
             {"climate_indices": {"typo": True}}, {"start": 2000, "end": 2002}, ["era5"]
+        )
+
+
+@pytest.mark.parametrize("value", [True, "25", float("nan"), float("inf")])
+def test_mean_temperature_threshold_requires_finite_number(value):
+    with pytest.raises(ValueError, match="finite number"):
+        parse_settings(
+            {"climate_indices": {"mean_temperature_threshold_degc": value}},
+            {"start": 2000, "end": 2002},
+            ["era5"],
         )
 
 

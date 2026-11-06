@@ -27,15 +27,18 @@ def parse_settings(block, window, sources):
         "seasons",
         "reference_minimum_fraction",
         "reference_period",
+        "mean_temperature_threshold_degc",
     }:
         raise ValueError(
-            "climate_indices accepts enabled, seasons, reference_period and reference_minimum_fraction"
+            "climate_indices accepts enabled, seasons, reference_period, reference_minimum_fraction "
+            "and mean_temperature_threshold_degc"
         )
     indices = {
         "enabled": False,
         "seasons": {},
         "reference_minimum_fraction": 0.9,
         "reference_period": None,
+        "mean_temperature_threshold_degc": 25.0,
     } | indices
     reference = (
         window if indices["reference_period"] is None else indices["reference_period"]
@@ -50,6 +53,13 @@ def parse_settings(block, window, sources):
             "climate_indices.reference_period requires ordered calendar years"
         )
     indices["reference_period"] = dict(reference)
+    threshold = indices["mean_temperature_threshold_degc"]
+    if (
+        isinstance(threshold, bool)
+        or not isinstance(threshold, (int, float))
+        or not math.isfinite(threshold)
+    ):
+        raise ValueError("mean_temperature_threshold_degc must be a finite number")
     if type(indices["enabled"]) is not bool:
         raise ValueError("climate_indices.enabled requires a boolean")
     fraction = indices["reference_minimum_fraction"]

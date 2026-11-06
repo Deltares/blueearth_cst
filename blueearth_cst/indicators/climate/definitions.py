@@ -11,6 +11,8 @@ INDEX_METADATA = {
     "r95p_fraction": ("R95p fraction", "%"),
     "txx": ("TXx", "degC"),
     "tnx": ("TNx", "degC"),
+    "mean_temp_below_zero_days": ("Mean T < 0°C days", "days"),
+    "mean_temp_above_threshold_days": ("Mean T above threshold days", "days"),
     "tx90p": ("TX90p", "%"),
     "tn90p": ("TN90p", "%"),
     "wsdi": ("WSDI (fixed reference)", "days"),

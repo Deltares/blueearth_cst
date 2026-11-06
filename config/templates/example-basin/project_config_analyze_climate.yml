@@ -7,6 +7,7 @@ diagnostics:
     enabled: false
     reference_period: null  # Calendar years; null uses climate.window.
     reference_minimum_fraction: 0.9
+    mean_temperature_threshold_degc: 25.0  # Count days with daily mean temperature strictly above this.
     seasons: {}  # Example: {DJF: [12, 1, 2]}; labels use the season's start year.
 
 # Optional settings (omitted periods use climate.window):

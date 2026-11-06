@@ -151,7 +151,7 @@ def publish(
         entry = yaml.safe_load(Path(path).read_text(encoding="utf-8")).get(source, {})
         if entry:
             offsets = entry.get("data_adapter", entry).get("unit_add", {})
-    for variable in ("precip", "temp_max", "temp_min"):
+    for variable in ("precip", "temp", "temp_max", "temp_min"):
         if variable not in original or (
             variable != "precip" and "temp" not in source_climate_vars(source)
         ):
@@ -228,6 +228,7 @@ def publish(
             annual,
             max_missing_days_month=settings["max_missing_days_month"],
             max_missing_days_period=settings["max_missing_days_year"],
+            mean_temperature_threshold_degc=options["mean_temperature_threshold_degc"],
         )
         result.attrs.update(
             source=source,
@@ -244,6 +245,9 @@ def publish(
                 seasons,
                 max_missing_days_month=settings["max_missing_days_month"],
                 max_missing_days_period=settings["max_missing_days_year"],
+                mean_temperature_threshold_degc=options[
+                    "mean_temperature_threshold_degc"
+                ],
             )
             seasonal.attrs.update(
                 source=source,

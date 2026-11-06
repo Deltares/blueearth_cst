@@ -99,7 +99,7 @@ def fit_reference(
     dates = pd.date_range(f"{start_year}-01-01", f"{end_year}-12-31", freq="D")
     years = np.arange(start_year, end_year + 1)
     result = xr.Dataset()
-    for variable in ("precip", "temp_max", "temp_min"):
+    for variable in ("precip", "temp", "temp_max", "temp_min"):
         if variable not in data:
             continue
         units = "mm/day" if variable == "precip" else "degC"
@@ -108,7 +108,10 @@ def fit_reference(
         field = field.transpose("time", *spatial)
         coords = {dim: field[dim] for dim in spatial}
         values = field.values
-        if variable == "precip":
+        if variable == "temp":
+            # Absolute mean-temperature counts do not depend on reference support.
+            result["temp_valid_days"] = field.notnull().sum("time")
+        elif variable == "precip":
             if np.any(values < 0):
                 raise ValueError("Precipitation must be nonnegative")
             wet = np.where(values >= wet_day_threshold_mm, values, np.nan)

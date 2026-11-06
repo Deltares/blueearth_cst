@@ -14,20 +14,29 @@ def absolute_indices(
     *,
     variable: str,
     wet_day_threshold_mm: float = 1.0,
+    mean_temperature_threshold_degc: float = 25.0,
     max_missing_days_month: int = 3,
     max_missing_days_period: int = 15,
 ) -> xr.Dataset:
     """Calculate observed-value indices, masking inadequately covered periods.
 
     Precipitation returns R10mm, R20mm, Rx1day, Rx5day, wet-day count, wet-day
-    precipitation total and SDII. Temperature returns TXx or TNx. Rolling
+    precipitation total and SDII. Temperature returns TXx or TNx; daily mean
+    temperature returns counts strictly below zero and above the declared
+    threshold (25°C by default). These are not TN frost or TX summer-day indices. Rolling
     precipitation windows stay inside each period and require all five days.
     Missing dates and period-edge days absent from the input count as missing.
     No amount is infilled. Valid/expected days and an eligibility mask accompany
     the values. Arbitrary non-time dimensions, including a location axis, survive.
     """
-    if variable not in {"precip", "temp_max", "temp_min"}:
-        raise ValueError("variable must be precip, temp_max or temp_min")
+    if variable not in {"precip", "temp", "temp_max", "temp_min"}:
+        raise ValueError("variable must be precip, temp, temp_max or temp_min")
+    if (
+        isinstance(mean_temperature_threshold_degc, bool)
+        or not isinstance(mean_temperature_threshold_degc, (int, float))
+        or not np.isfinite(mean_temperature_threshold_degc)
+    ):
+        raise ValueError("mean_temperature_threshold_degc must be a finite number")
     if not periods or len({p.label for p in periods}) != len(periods):
         raise ValueError("Require nonempty periods with unique labels")
     for tolerance in (max_missing_days_month, max_missing_days_period):
@@ -77,6 +86,14 @@ def absolute_indices(
                 "prcptot": "mm",
                 "sdii": "mm/day",
             }
+        elif variable == "temp":
+            metrics = {
+                "mean_temp_below_zero_days": (valid & (values < 0)).sum("time"),
+                "mean_temp_above_threshold_days": (
+                    valid & (values > mean_temperature_threshold_degc)
+                ).sum("time"),
+            }
+            units = {name: "days" for name in metrics}
         else:
             name = "txx" if variable == "temp_max" else "tnx"
             metrics = {name: values.max("time")}
@@ -86,6 +103,21 @@ def absolute_indices(
         )
         for name, unit in units.items():
             result[name].attrs["units"] = unit
+        if variable == "temp":
+            for name, threshold, operator in (
+                ("mean_temp_below_zero_days", 0.0, "<"),
+                (
+                    "mean_temp_above_threshold_days",
+                    mean_temperature_threshold_degc,
+                    ">",
+                ),
+            ):
+                result[name].attrs.update(
+                    input_variable="daily mean temperature",
+                    threshold_degc=float(threshold),
+                    operator=operator,
+                    missing_policy="observed days; no scaling or infilling",
+                )
         result["valid_days"] = count
         result["expected_days"] = len(dates)
         result["eligible"] = eligible

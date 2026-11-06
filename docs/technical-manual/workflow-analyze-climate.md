@@ -128,9 +128,10 @@ start; annual and seasonal labels use their start year. December 2000–February
 ### Definitions and reference conventions
 
 Daily precipitation is in mm/day and TX/TN are daily maximum/minimum temperature in °C. Wet days have
-precipitation at least `diagnostics.wet_day_threshold_mm` (default 1 mm). Temperature requires verified
-source-owned TX/TN; mean temperature is not substituted. CHIRPS remains precipitation-only even when
-its forcing store contains ERA5 companion temperatures.
+precipitation at least `diagnostics.wet_day_threshold_mm` (default 1 mm). TX/TN indices require verified
+source-owned extrema; mean temperature is not substituted. Mean-temperature counts separately require
+the source's actual daily `temp` variable, not an estimate from TX/TN. CHIRPS remains precipitation-only
+even when its forcing store contains ERA5 companion temperatures.
 
 | Product | Definition |
 |---|---|
@@ -142,10 +143,20 @@ its forcing store contains ERA5 companion temperatures.
 | R95p amount | Sum of daily rainfall strictly exceeding the reference wet-day 95th percentile. |
 | R95p fraction | R95p amount divided by period wet-day rainfall, in percent; undefined at zero rainfall. |
 | TXx, TNx | Maximum daily maximum/minimum temperature in the period. |
+| Mean-temperature counts | Days with daily mean T <0°C, and T above the configured threshold (default 25°C). |
 | TX90p, TN90p | Percentage of valid days strictly above the calendar-day reference 90th percentile. |
 | WSDI | Days overlapping the period in fixed-reference TX exceedance runs of at least six days. |
 | Heatwave days, longest heatwave | Total and maximum overlapping days in TX exceedance runs ≥3 days. |
 | Heatwave count | Number of qualifying events starting in the period, when their count is known. |
+
+The mean-temperature counts adapt the FAO branch's two temperature-count diagnostics, retaining strict
+comparisons and its 25°C default. Configure the upper boundary with
+`diagnostics.climate_indices.mean_temperature_threshold_degc`; it must be finite. These products are
+`mean_temp_below_zero_days` and `mean_temp_above_threshold_days`. They are not minimum-temperature frost
+days, maximum-temperature summer days or heatwave events. They count observed qualifying days without
+missing-day scaling, use the same period-eligibility rules as other absolute indices, and need no
+percentile reference support or bootstrap. The boundary is retained in NetCDF attributes, publication
+identity, captions and figure labels. Both annual and configured-season results are produced.
 
 Percentiles use Hyndman–Fan type 8. Precipitation thresholds pool reference wet days. Temperature uses
 a five-day calendar window, circular within each reference year. February 29 is excluded from fitting

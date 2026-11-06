@@ -33,6 +33,7 @@ def evaluate(
     *,
     max_missing_days_month: int = 3,
     max_missing_days_period: int = 15,
+    mean_temperature_threshold_degc: float = 25.0,
 ) -> tuple[xr.Dataset, pd.DataFrame]:
     """Evaluate explicit periods on a grid or location axis without publishing.
 
@@ -46,7 +47,7 @@ def evaluate(
     output = xr.Dataset()
     rows = []
     wet = float(reference.attrs["wet_day_threshold_mm"])
-    for variable in ("precip", "temp_max", "temp_min"):
+    for variable in ("precip", "temp", "temp_max", "temp_min"):
         if variable not in data:
             continue
         field = daily_array(
@@ -65,6 +66,7 @@ def evaluate(
             periods,
             variable=variable,
             wet_day_threshold_mm=wet,
+            mean_temperature_threshold_degc=mean_temperature_threshold_degc,
             max_missing_days_month=max_missing_days_month,
             max_missing_days_period=max_missing_days_period,
         )
@@ -75,6 +77,8 @@ def evaluate(
             }
         )
         output = xr.merge([output, base], compat="no_conflicts")
+        if variable == "temp":
+            continue
         dates = pd.DatetimeIndex(field.time.values)
         values = field.values
         shape = values.shape[1:]

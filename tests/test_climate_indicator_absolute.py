@@ -85,6 +85,54 @@ def test_all_dry_sdii_is_undefined_but_counts_are_zero():
     assert np.isnan(result.sdii.item())
 
 
+def test_mean_temperature_counts_use_strict_boundaries_and_observed_days():
+    data = xr.DataArray(
+        [-1.0, 0.0, 25.0, 26.0, np.nan],
+        dims="time",
+        coords={"time": pd.date_range("2001-01-01", periods=5)},
+        attrs={"units": "degC"},
+    )
+    periods = (Period("test", "2001-01-01", "2001-01-06"),)
+    result = absolute_indices(data, periods, variable="temp")
+    assert result.mean_temp_below_zero_days.item() == 1
+    assert result.mean_temp_above_threshold_days.item() == 1
+    assert result.valid_days.item() == 4
+    assert result.mean_temp_above_threshold_days.attrs["threshold_degc"] == 25
+    changed = absolute_indices(
+        data, periods, variable="temp", mean_temperature_threshold_degc=26
+    )
+    assert changed.mean_temp_above_threshold_days.item() == 0
+    refused = absolute_indices(
+        data, periods, variable="temp", max_missing_days_period=0
+    )
+    assert np.isnan(refused.mean_temp_below_zero_days.item())
+    assert np.isnan(refused.mean_temp_above_threshold_days.item())
+
+
+def test_mean_temperature_counts_need_no_percentile_reference_or_extrema():
+    from blueearth_cst.indicators.climate.evaluate import evaluate
+    from blueearth_cst.indicators.climate.reference import fit_reference
+
+    data = xr.Dataset(
+        {
+            "temp": xr.DataArray(
+                [-2.0, 0.0, 20.0, 25.0, 27.0],
+                dims="time",
+                coords={"time": pd.date_range("2003-01-01", periods=5)},
+                attrs={"units": "degC"},
+            )
+        }
+    )
+    reference = fit_reference(data, 2000, 2001)  # Entire reference is missing.
+    result, events = evaluate(
+        data, reference, (Period("test", "2003-01-01", "2003-01-06"),)
+    )
+    assert result.mean_temp_below_zero_days.item() == 1
+    assert result.mean_temp_above_threshold_days.item() == 1
+    assert "txx" not in result
+    assert events.empty
+
+
 def test_water_year_periods_are_start_labelled():
     (period,) = annual_periods(2000, 2000, 10)
     assert period.label == "2000"
