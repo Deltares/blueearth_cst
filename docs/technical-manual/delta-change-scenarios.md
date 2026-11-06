@@ -1,0 +1,118 @@
+---
+title: "Projection-conditioned delta-change scenarios"
+format: html
+---
+
+Use the standalone delta-change producer to apply monthly projection changes to an existing historical
+weather sequence, then simulate that collection with WF4. This optional projection-conditioned assessment
+is separate from the scenario-neutral stochastic stress test. It does not change WF3's stress grid,
+weather generator or projection-independent sampling.
+
+## Inputs and configuration
+
+Start with the optional
+[delta configuration](../../config/templates/example-basin/project_config_delta.yml) in the basin starter.
+The producer takes its own closed configuration, not a workflow stanza in the project file.
+All listed settings are required; unknown settings are refused. Relative input paths resolve beside this YAML.
+The initial profile supports `source_like: era5` only and requires the same selected source in WF4.
+
+Supply a georeferenced historical NetCDF with daily time coordinates and `temp`, `temp_min`, `temp_max`
+and `precip`. Retain pressure and radiation required by the selected WF4 preparation. Supply one pair of
+monthly basin-scalar projection NetCDFs per explicitly listed model/scenario/member. Projection variables
+are `temp` and `precip`, with one ordered sample per requested year and month. Singleton model/member
+dimensions are allowed; unresolved spatial grids or multiple members in one variable are refused.
+
+`reference_period` and `future_period` are inclusive projection years, common to all members in a collection.
+They do not replace the historical timestamps. The template's 30-year windows are examples; the selected
+files must cover every month of those periods. Missing months, duplicates, nonfinite samples, negative
+precipitation and nonpositive reference monthly precipitation are errors. Temperature units must match
+between projection files and be K or degrees Celsius; precipitation units must be explicit and match.
+`simulation_window` selects inclusive historical years for WF4, using its existing January 1 through
+December 31 midnight convention. Historical forcing must cover that interval. This selection does not
+perform or exclude a separate spin-up simulation.
+
+`reader.metadata.cst_unit_interpretation` declares the historical values' **effective physical units**.
+Copy the evidenced binding from the historical extraction/preparation provenance, or establish an equivalent
+binding for supplied data. Its variables must cover every data variable except `spatial_ref` exactly once.
+The template shows the toolbox's extracted ERA5-style variable set; it is not permission to reinterpret
+arbitrary raw files. Some historical files retain original unit labels after extraction converted values.
+Do not apply those conversions a second time. This producer makes no unit conversion.
+Historical effective units must be `degC` for all three temperature variables, `mm/day` for precipitation,
+`hPa` for pressure and `W/m2` for radiation. Other declarations for those variables are refused because
+WF4's extracted-ERA5 reader expects this binding. Projection temperature inputs may still use K or
+degrees Celsius.
+
+`unit_id_capacity` fixes run/group ID width and must accommodate all projection members plus two controls.
+For example, 1000 gives `run_0001`. Changing capacity changes collection identity. Member ordering is
+explicit and retained; duplicate model/scenario/member identities are refused.
+
+## Generate and simulate
+
+From the toolbox environment:
+
+```powershell
+python scripts/generate_delta_scenarios.py --config <case>/project_config_delta.yml --project-dir <run-root>
+```
+
+The command prints the ready collection manifest. Put that path in the existing WF4 configuration:
+
+```yaml
+scenario_collection:
+  manifest_path: <run-root>/scenarios/_engine/collections/<identity>/collection.json
+```
+
+Keep the project's model, selected historical source and WF4 preparation consistent with the supplied
+forcing interpretation. Then use the existing runner:
+
+```powershell
+python scripts/simulate_system.py --config <case>/project_config.yml --dry-run
+python scripts/simulate_system.py --config <case>/project_config.yml --cores 2
+```
+
+WF4 owns PET preparation, initialization, simulation and indicator selection. The exercised path uses
+De Bruin PET recomputed from adjusted temperature and historical radiation/pressure. No new PET algorithm,
+spin-up exclusion or state chaining is supplied by the delta producer. Choose and qualify initialization
+and evaluation periods for the intended assessment; a cold-start execution is not evidence of adequacy.
+
+The producer always includes historical and neutral-factor controls. WF4's default includes both.
+`include_unperturbed: false` selects only projection runs and excludes both controls; indicators requiring
+a historical reference then require a new experiment including that control.
+
+## Transformations and results
+
+For calendar month *m*, the temperature offset is the future monthly mean minus the reference monthly mean.
+The precipitation ratio is the future monthly mean divided by the reference monthly mean. Monthly samples
+receive equal weight within each month. The offset is added to historical mean/minimum/maximum temperature;
+the ratio multiplies historical precipitation. The same monthly factors apply to every historical grid cell.
+All other variables, historical dates, leap days, event order and missing-value masks are preserved.
+
+Per-member runs retain their model, scenario and member identities in `scenario_run_lookup.csv`.
+Members are bundled only within the same model/scenario and collection-wide periods/method. Historical and
+neutral controls each have separate bundles, including when the projection bundle has only one member.
+Indicator exports retain per-run values and existing bundle reductions. Delta `group_metadata.csv` uses
+`scenario_key` (a JSON array of role, model and scenario) instead of stochastic `st_id`; `is_reference`
+identifies the historical control. Stochastic response-surface plotting does not accept this metadata.
+
+The existing indicator declarations distinguish equal-weight member reductions from return levels fitted
+to pooled member-local annual blocks. The latter remains a conditional pooled calculation: transformed
+members share the historical sequence and do not supply independent additional years. Do not use member
+count to claim a longer observed record or reduced uncertainty. Model spread, member spread and stochastic
+weather variability are distinct quantities; no probabilities or cross-model ensemble reduction are supplied.
+
+Monthly scaling does not independently prescribe future event sequencing or wet-day frequency. Threshold
+crossings can change under scaling and rounding. Unchanged radiation/pressure and the historical event
+sequence limit interpretation even when software and neutral-equivalence checks pass.
+
+## Retention and recovery
+
+Collections use the dedicated `delta-scenario-collection/1` profile. Existing stochastic collections retain
+their profile and validation; experimental pilot collections are not converted in place.
+The engine directory contains the frozen intent and ready marker. Its matching data directory contains
+input snapshots, the producer source snapshot, scenario lookup and generated NetCDFs. The intent retains
+full-precision monthly factors, resolved configuration, source hashes and numerical package versions.
+WF4 retains its own simulation and indicator provenance through the normal execution path.
+
+Identity includes resolved settings, input bytes, producer revision and environment. A repeated identical
+completed request verifies retained artifacts before reuse. Changed inputs produce a new identity. A partial
+directory without a ready marker is refused; inspect and preserve it before explicitly removing task-owned
+incomplete products or choosing a fresh project root. Corrupt retained bytes are errors, never overwritten.

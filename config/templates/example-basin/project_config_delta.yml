@@ -1,0 +1,59 @@
+# Optional standalone producer; not a workflows.generate_scenarios configuration.
+# Replace input paths and verify the historical physical-unit evidence before use.
+# Select the standalone producer schema. Options: delta-change/1.
+schema_version: delta-change/1
+# Locate the extracted historical forcing. Input: NetCDF path beside this YAML.
+historical_path: data/extract_historical.nc
+# Bind the WF4 climate preparation source. Options: era5.
+source_like: era5
+# Select projection reference years. Input: inclusive year mapping.
+reference_period:
+  # First reference year. Input: integer year.
+  start: 1985
+  # Last reference year. Input: integer year >= start.
+  end: 2014
+# Select projection future years. Input: inclusive year mapping.
+future_period:
+  # First future year. Input: integer year.
+  start: 2035
+  # Last future year. Input: integer year >= start.
+  end: 2064
+# Select historical years simulated by WF4. Input: inclusive year mapping.
+simulation_window:
+  # First simulation year. Input: integer year covered by historical forcing.
+  start: 2000
+  # Last simulation year. Input: integer year >= start, covered by forcing.
+  end: 2016
+# Set run and group namespace capacity. Input: integer >= member count + 2.
+unit_id_capacity: 1000
+# List explicit projection member inputs. Input: nonempty list.
+members:
+  # Preserve the upstream climate model identity. Input: nonempty text.
+  - model: NOAA-GFDL/GFDL-ESM4
+    # Preserve the emissions scenario identity. Input: nonempty text.
+    scenario: ssp245
+    # Preserve the upstream member identity. Input: nonempty text.
+    member: r1i1p1f1
+    # Locate reference monthly basin scalars. Input: NetCDF path beside this YAML.
+    reference_path: data/GFDL-ESM4_historical.nc
+    # Locate future monthly basin scalars. Input: NetCDF path beside this YAML.
+    future_path: data/GFDL-ESM4_ssp245.nc
+# Declare the historical forcing interpretation. Input: mapping.
+reader:
+  # Retain physical-unit provenance. Input: mapping.
+  metadata:
+    # Bind effective historical units to evidence. Input: mapping.
+    cst_unit_interpretation:
+      # Identify the interpretation revision. Input: nonempty text.
+      revision: extracted-daily-forcing/1
+      # Cite extraction evidence for the effective units. Input: nonempty text.
+      evidence: REPLACE with the extraction provenance establishing these effective units
+      # List every data variable and effective unit. Input: name/unit pairs.
+      variables:
+        - [precip, mm/day]
+        - [temp, degC]
+        - [temp_min, degC]
+        - [temp_max, degC]
+        - [press_msl, hPa]
+        - [kin, W/m2]
+        - [kout, W/m2]

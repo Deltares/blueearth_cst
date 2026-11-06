@@ -45,6 +45,8 @@ Use [indicator selection](../../../docs/guide/new-case.md#choose-indicators) bef
 
 - `project_config.yml`: shared case settings and workflow enablement.
 - `project_config_<workflow>.yml`: one workflow's settings.
+- `project_config_delta.yml`: optional standalone projection-conditioned producer; see the
+  [delta-change guide](../../../docs/technical-manual/delta-change-scenarios.md). It is not enabled by a workflow stanza.
 - `data/`: case sidecars and their [local instructions](data/README.md).
 - `notes.md`: retained findings and evidence pointers.
 

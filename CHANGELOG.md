@@ -9,6 +9,10 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Add a standalone monthly delta-change scenario producer with explicit projection-member provenance,
+  historical and neutral controls, and WF4 simulation and indicator grouping. Stochastic generation remains
+  independent of projection selection.
+
 - Bundle the FAO-style daily mean-temperature counts into historical climate indices: days strictly
   below 0°C and above a configurable threshold (default 25°C), with basin/grid annual and seasonal
   products. These are explicitly distinguished from minimum-temperature frost days and heatwaves.

@@ -543,6 +543,16 @@ def verify_selected_collection_source(project, selection, marker):
     configured_root = Path(project["project"]["project_dir"]).resolve()
     if project_root != configured_root:
         raise ValueError("selected collection is outside the WF4 project root")
+    if marker.get("schema_version") == "delta-scenario-collection/1":
+        from blueearth_cst.experiment.content_identity import read_canonical_json
+
+        intent = read_canonical_json(
+            resolve_file_reference(marker["intent"], {"project_root": project_root})
+        )
+        selected = intent["settings"]["source_like"]
+        if selected != project["climate"]["selected"]:
+            raise ValueError("WF4 climate source differs from delta collection source")
+        return selected
     archive_path = resolve_file_reference(
         marker["archive"],
         {"project_root": project_root, "record_directory": record_dir},

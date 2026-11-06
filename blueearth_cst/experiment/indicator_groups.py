@@ -1,8 +1,27 @@
 """WF4 stochastic row grouping, independent of the WF3 provider inventory."""
 
+import json
 from collections.abc import Sequence
 
 from blueearth_cst.experiment.scenario_rows import ScenarioRow, validate_stochastic
+
+
+def group_metadata(
+    groups: dict[str, str], *, delta: bool
+) -> tuple[list[str], list[dict[str, str]]]:
+    """Describe resolved bundles without disguising projections as stress points."""
+    key_name = "scenario_key" if delta else "st_id"
+    rows = [
+        {
+            "group_id": identity,
+            key_name: key,
+            "is_reference": str(
+                json.loads(key)[0] == "historical" if delta else not key
+            ).lower(),
+        }
+        for key, identity in groups.items()
+    ]
+    return ["group_id", key_name, "is_reference"], rows
 
 
 def indicator_groups(

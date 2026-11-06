@@ -27,7 +27,11 @@ def selected_run_ids(
         {"project_root": path.parent.parents[3], "record_directory": path.parent},
     )
     with lookup.open(encoding="utf-8", newline="") as handle:
-        perturbed = {row["run_id"] for row in csv.DictReader(handle) if row["st_id"]}
+        rows = list(csv.DictReader(handle))
+        if collection.get("schema_version") == "delta-scenario-collection/1":
+            perturbed = {row["run_id"] for row in rows if row["role"] == "projection"}
+        else:
+            perturbed = {row["run_id"] for row in rows if row["st_id"]}
     selected = [run for run in runs if run in perturbed]
     if not selected:
         raise ValueError(
