@@ -196,6 +196,11 @@ OBSERVED_DISCHARGE_VAR = "river discharge"
 # warning instead of a silent drop.
 _observations = get_config(my_cfg, "observations", {}) or {}
 observations_timeseries = _observations.get(OBSERVED_DISCHARGE_VAR)
+from blueearth_cst.model.budyko import budyko_settings
+_budyko_evaluation = get_config(my_cfg, "evaluation", {})
+if not isinstance(_budyko_evaluation, dict):
+    raise ValueError("build_model.evaluation must be a mapping")
+_budyko_settings = budyko_settings(_budyko_evaluation.get("budyko"), observations_timeseries)
 _unconsumed_observations = sorted(
     name
     for name, source in _observations.items()
@@ -512,6 +517,8 @@ ADD_CLIMATE_FORCING = RULES.logged("1.09", "add_climate_forcing", summary="prepa
 WRITE_GAUGE_INDEX = RULES.logged("1.10", "write_gauge_index", summary="write the outlet-to-location identity crosswalk")
 PLOT_BASIN_MAP = RULES.logged("1.11", "plot_basin_map", summary="render basin and spatial-input maps")
 PLOT_MODEL_FORCING = RULES.logged("1.12", "plot_model_forcing", summary="render model-forcing maps and time series")
+if _budyko_settings is not None:
+    EVALUATE_BUDYKO = RULES.logged("1.12b", "evaluate_budyko", summary="screen observed catchment water balance")
 RUN_HISTORICAL_SIMULATION = RULES.logged("1.13", "run_historical_simulation", summary="run Wflow-SBM with historical forcing")
 EXPORT_SIMULATION_TABLES = RULES.logged("1.14", "export_simulation_tables", summary="export simulation time-series tables")
 PLOT_MODEL_EVALUATION = RULES.logged("1.15", "plot_model_evaluation", summary="compare simulation outputs with available discharge observations")
@@ -528,6 +535,7 @@ GATHER_LOGS = RULES.banner_only("1.18", "gather_logs", summary="merge rule logs"
 # independently of the build and needs no gather waiting on it) and the two
 # gather outputs themselves.
 WF1_TERMINALS = [
+    *([f"{basin_dir}/evaluation/budyko/tables/summary.csv"] if _budyko_settings is not None else []),
     # The evaluation rule's terminal is its INDICATORS TABLE, not one of its
     # figures: since 2026-08-10 the figures are keyed by wflow_id and none of
     # their names is knowable at parse time. The table is written by the same
@@ -1319,6 +1327,40 @@ rule plot_model_forcing:
     benchmark:
         PLOT_MODEL_FORCING.benchmark(),
     script: "blueearth_cst/model/plot_map_forcing.py"
+
+if _budyko_settings is not None:
+    # 1.12b  evaluate_budyko — prepared forcing and observed Q only.
+    rule evaluate_budyko:
+        message: EVALUATE_BUDYKO.banner()
+        input:
+            hydrography_path = SPATIAL_UNITS.outputs["hydrography"],
+            registry_path = SPATIAL_UNITS.outputs["location_registry"],
+            forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
+            observations_path = observations_timeseries,
+            recipe_path = f"{basin_dir}/config/build_historical_forcing.yml",
+            model_final = ancient(f"{basin_dir}/.model_final"),
+        output:
+            stations = f"{basin_dir}/evaluation/budyko/tables/stations.csv",
+            annual = f"{basin_dir}/evaluation/budyko/tables/annual.csv",
+            summary = f"{basin_dir}/evaluation/budyko/tables/summary.csv",
+            daily = f"{basin_dir}/evaluation/budyko/_engine/daily.csv",
+            methods = f"{basin_dir}/evaluation/budyko/_engine/methods.json",
+            figure = f"{basin_dir}/evaluation/budyko/plots/observed_runoff_coefficient_budyko_stations.png",
+            titles = f"{basin_dir}/evaluation/budyko/plots/figure_titles.md",
+            captions = f"{basin_dir}/evaluation/budyko/plots/figure_captions.md",
+            titles_json = f"{basin_dir}/evaluation/budyko/_engine/figure_titles.json",
+            captions_json = f"{basin_dir}/evaluation/budyko/_engine/figure_captions.json",
+        params:
+            root = f"{basin_dir}/evaluation/budyko",
+            settings = _budyko_settings,
+            start = f"{simulation_window['start']}-01-01",
+            end = f"{int(simulation_window['end']) + 1}-01-01",
+            water_year_start = water_year_start_number(WATER_YEAR_START),
+            annotation = plot_annotation,
+            plot_setup_digest = plot_setup_digest,
+        log: EVALUATE_BUDYKO.log(),
+        benchmark: EVALUATE_BUDYKO.benchmark(),
+        script: "blueearth_cst/model/evaluate_budyko.py"
 
 # --- benchmark gather ---------------------------------------------------------
 # Per-rule benchmarks land under benchmarks/_parts/. This runs once, after the

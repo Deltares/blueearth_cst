@@ -34,6 +34,10 @@ Descriptions without displayed titles or footers assume `plotting.annotation: no
 
 ## Shared colour defaults
 
+Observed water-balance diagrams retain every available station, with station names and matched-year
+counts, adaptive axis limits and water/energy bounds. Unavailable stations are listed with reasons.
+Axis labels name both ratios because their meaning is otherwise ambiguous. No reference curve is fitted.
+
 - [`colors.yml`](../../../config/plotting/colors.yml) owns the categorical cycle, dataset and
   evaluation colours, SSP colours, climate-map colormaps and precipitation-anomaly colormap.
   `shared.plot_colors` resolves it relative to the toolbox, validates structure and hex colours, and

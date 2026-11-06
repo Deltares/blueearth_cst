@@ -9,6 +9,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Add optional observed catchment water-balance screening against prepared historical forcing, with
+  explicit daily-mean UTC support declarations, complete matched years and retained diagnostic tables.
+
 - Add optional historical rain-gauge comparisons with native-cell sampling, explicit UTC daily labels,
   common observed-only dates, strict complete-period totals, inspectable tables and station figures.
 

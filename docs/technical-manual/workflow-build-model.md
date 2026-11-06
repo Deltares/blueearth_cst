@@ -89,3 +89,44 @@ archives are described in [execution records](execution-and-provenance.md).
   establish model skill; a successful run alone does not establish predictive adequacy.
 
 See the [processing rule reference](workflow-rule-reference.md#build-model) for individual steps.
+
+## Observed catchment water balance
+
+Optional `evaluation.budyko` in the model-building YAML screens observed runoff against selected
+prepared historical precipitation and PET. It requires the existing `observations.river discharge` CSV
+and this explicit support declaration:
+
+```yaml
+evaluation:
+  budyko:
+    discharge_statistic: daily_mean
+    time_label: interval_end
+```
+
+Both fields are required; `time_label` also accepts `interval_start`. Omitted, null or false disables
+the diagnostic. Bare true and incomplete or unknown settings fail with a complete configuration example.
+The declaration asserts daily mean m³/s over midnight-to-midnight UTC days. Naive timestamps are asserted
+UTC; aware timestamps normalize to UTC and must land at midnight. Start labels shift one day in a derived
+series; the input CSV and ordinary model evaluation retain their labels. The toolbox checks structure
+and records the declaration as user-supplied support; it cannot establish measurement provenance from values.
+
+The diagnostic uses original snapped upstream catchments and hydrography cell areas. Prepared model
+forcing is sampled at those cell centres using nearest cells, then area-weighted. The same contributing
+area converts daily mean Q to depth with `Q * 86400 * 1000 / area_m2`. This discretization is a screening
+approximation; inspect station areas and forcing coverage before interpreting departures.
+
+Only complete matched water years of precipitation, PET and observed Q enter the ratios. The covered day
+(interval end minus one day) determines window and water-year membership. Missing days remain missing;
+partial edge years are excluded, and no spin-up year is removed. Aridity is total PET / total P and runoff
+coefficient is total runoff depth / total P over the same retained years. Zero P or no eligible years
+produces an unavailable result. These are ratios of totals, rather than averages of annual ratios.
+
+Outputs live in `models/hydrology/wflow/evaluation/budyko/`: `tables/stations.csv`, `annual.csv` and
+`summary.csv`, the diagram in `plots/`, and daily evidence, input hashes and support declarations in
+`_engine/`. The target `evaluate_budyko` requires model/forcing preparation but no Wflow simulation.
+Retained tables support `scripts/render_figures.py budyko --project <project_dir> --out <new_dir>`.
+
+Water and energy limits describe long-term equilibrium assumptions. Short/discontinuous records,
+storage changes, regulation, transfers, basin area and forcing/observation errors can explain departures.
+The residual `1-Q/P` is not measured ET. Unusual points remain visible; no automatic pass/fail or source
+ranking is supplied. Tables retain counts, actual years and exclusion reasons for inspection.

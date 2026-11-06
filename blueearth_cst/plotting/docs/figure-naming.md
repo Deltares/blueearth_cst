@@ -23,6 +23,11 @@ for its figures; the owning producer implements it.
 
 ## Workflow profiles
 
+The observed water-balance profile uses `observed_runoff_coefficient_budyko_stations.png` under
+model `evaluation/budyko/plots/`. `model/plot_budyko.py` renders this retained-table station comparison;
+source recipe, period and station identities live in its tables and methods record. Annotation modes
+use the same PNG path, with readable title/caption inventories and machine records in the root `_engine/`.
+
 The [historical climate profile](#historical-climate-diagnostics-wf0) below documents WF0. Other workflows
 retain their current producer-defined filenames until their profiles are documented and checked here.
 For example, WF1 forcing figures retain `forcing_<variable>_<kind>.png` under the

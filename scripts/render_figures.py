@@ -47,6 +47,19 @@ def _rain_gauges(args):
     return {"rain_gauges": args.out / "plots"}
 
 
+def _budyko(args):
+    from blueearth_cst.model.plot_budyko import render
+
+    if args.source:
+        raise ValueError("--source does not apply to budyko")
+    render(
+        args.project / "models/hydrology/wflow/evaluation/budyko",
+        args.out,
+        args.annotation,
+    )
+    return {"budyko": args.out / "plots"}
+
+
 def _spatial(args):
     from blueearth_cst.shared.plot_spatial_maps import (
         SPATIAL_DIRNAME,
@@ -75,6 +88,7 @@ def _wf2(args):
 #: Family name -> (what it renders, renderer). Add a family by pointing it at a
 #: re-render function that sits beside its rule adapter in ``blueearth_cst``.
 FAMILIES = {
+    "budyko": ("WF1 observed water balance from retained tables", _budyko),
     "rain-gauges": (
         "Rain-gauge comparisons from retained station evidence",
         _rain_gauges,

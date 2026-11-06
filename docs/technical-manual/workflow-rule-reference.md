@@ -43,6 +43,7 @@ See [hydrological model building](workflow-build-model.md) for inputs, settings 
 | `write_gauge_index` | Map Wflow IDs to named stations. |
 | `plot_basin_map` | Plot basin and thematic maps. |
 | `plot_model_forcing` | Plot the model forcing grid. |
+| `evaluate_budyko` | Optional observed upstream water balance against prepared forcing, without simulated Q. |
 | `run_historical_simulation` | Run Wflow on the historical window. |
 | `export_simulation_tables` | Export per-variable response tables. |
 | `plot_model_evaluation` | Plot and score against available observations. |

@@ -28,6 +28,12 @@ observations:
 #evaluation:
 # Generate individual subbasin evaluation figures. Options: true | false.
 #  subbasin_plots: false
+# Optional observed catchment water-balance screening, independent of simulated Q.
+# Requires observations.river discharge and an explicit assertion of daily means
+# over midnight-to-midnight UTC days. Labels: interval_end | interval_start.
+#  budyko:
+#    discharge_statistic: daily_mean
+#    time_label: interval_end
 
 
 # -----------------------------------------------------------------------------
