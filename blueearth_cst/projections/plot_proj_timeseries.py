@@ -289,7 +289,9 @@ def render_suite(
         path = root / relative
         if (
             path.name in pet_names
-            and path.parent.name in folders
+            # The previous horizon may no longer be in the current folder set.
+            # Only exact manifest-owned PET files in a direct child are retired.
+            and path.parent.parent == root
             and path.resolve().is_relative_to(root.resolve())
         ):
             path.unlink(missing_ok=True)

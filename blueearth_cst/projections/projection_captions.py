@@ -164,6 +164,9 @@ def caption(filename, record, window_id="", counts=None):
     """A self-contained figure legend for one product."""
     filename = figure_key(filename)
     counts = counts or {}
+    window = next(
+        (w for w in record.get("windows", []) if w["window_id"] == window_id), None
+    )
     if "pet" in filename:
         from blueearth_cst.projections.variable_spec import VariableSpec
 
@@ -175,23 +178,43 @@ def caption(filename, record, window_id="", counts=None):
             if method
             else "Supplied PET variable; source method is recorded with the inputs. "
         )
-        quantity = (
-            "Annual PET anomalies (mm/year), relative to each member's reference-period annual total. Lines show equal-model medians and shading their range; thin traces show members. "
-            if filename.startswith("trajectory-")
-            else "Monthly PET climatology (mm/day). Lines show model medians; shading shows the historical model range. "
-            if filename.startswith("seasonal-cycle-")
-            else "Annual and seasonal PET changes ("
-            + ("%" if "-pct" in filename else "mm, period integrals")
-            + "). Points show member-averaged model changes, ticks their median and boxes their IQR where at least ten models contribute. "
+        if filename.startswith("trajectory-"):
+            windows = record.get("windows", [])
+            spans = "; ".join(_span(w["used"]) for w in windows)
+            quantity = (
+                f"Annual PET anomalies (mm/year), relative to each member's {_span(record['reference'])} mean annual total. "
+                "Lines show equal-model medians and shading their range; thin traces show members. "
+                "The dashed line marks the historical/scenario transition (2014/2015); "
+                f"grey shading marks the future analysis windows ({spans}). "
+            )
+            notes = list(
+                dict.fromkeys(note for w in windows for note in _window_notes(w))
+            )
+        else:
+            quantity = (
+                f"Monthly PET climatology (mm/day) for the reference period {_span(window['reference'])} "
+                f"(black) and {_span(window['used'])} under each SSP scenario (colours). "
+                "Lines show model medians; shading shows the historical model range. "
+                if filename.startswith("seasonal-cycle-")
+                else "Annual and seasonal PET changes ("
+                + ("%" if "-pct" in filename else "mm, period integrals")
+                + f") for {_period(window)}. Points show member-averaged model changes, "
+                "ticks their median and boxes their IQR where at least ten models contribute. "
+            )
+            notes = _window_notes(window)
+        support = dict(counts)
+        support.setdefault(
+            "models", {s: (n, n) for s, n in counts.get("by_scenario", {}).items()}
         )
-        return (
-            quantity
-            + recipe
-            + "Spatial support is the entire selected buffered bounding box, including cells outside the basin polygon, with spherical cell-area weights. Near-zero reference daily rates exclude relative changes; absolute differences remain in the tables. Inter-model spread is not a confidence interval. Coverage and exclusions are recorded in the analysis tables."
+        return " ".join(
+            [
+                quantity + recipe,
+                f"Based on {plural(counts.get('n_models', len(record.get('models', []))), 'model')}.",
+                *_support(support),
+                "Spatial support is the entire selected buffered bounding box, including cells outside the basin polygon, with spherical cell-area weights. Near-zero reference daily rates exclude relative changes; absolute differences remain in the tables. Inter-model spread is not a confidence interval. Coverage and exclusions are recorded in the analysis tables.",
+                *notes,
+            ]
         )
-    window = next(
-        (w for w in record.get("windows", []) if w["window_id"] == window_id), None
-    )
     n_models = counts.get("n_models", len(record.get("models", [])))
     reference = _span(record["reference"])
     temperature = "temperature" in filename
