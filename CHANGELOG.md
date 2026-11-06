@@ -9,6 +9,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Add optional historical rain-gauge comparisons with native-cell sampling, explicit UTC daily labels,
+  common observed-only dates, strict complete-period totals, inspectable tables and station figures.
+
 - Consolidate public forcing selection in project-level `climate.forcing.precip_source` and
   `temp_source`. Infer precipitation only from a sole valid candidate when required; comparison-only
   analysis needs no selection. Accept legacy keys with notices, reject alias collisions and invalid

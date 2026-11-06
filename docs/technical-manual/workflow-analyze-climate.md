@@ -48,6 +48,59 @@ The reference period defaults to the climate window, and the comparison period d
 reference period. Missing-day tolerances must match the project settings in `climate.map_reference`.
 See [execution and run management](configuration-and-execution.md) for running the workflow.
 
+### Compare daily rain gauges {#rain-gauges}
+
+Optionally set `rain_gauges` in the historical analysis YAML:
+
+```yaml
+rain_gauges:
+  stations_path: data/rain_gauge_stations.csv
+  precip_path: data/rain_gauge_precip.csv
+  time_label: interval_end
+```
+
+Omission or `null` disables the comparison. A populated mapping requires exactly these three fields.
+Schema 3 resolves paths beside that YAML; schema 2 keeps its existing invocation-relative base.
+The station CSV requires `id,x,y`, with optional display `name` and elevation `elevtn` (metres).
+IDs are unique nonempty strings, including leading zeros. Coordinates are finite WGS84 longitude and
+latitude in degrees. Elevation is metadata only. The precipitation CSV has `time` followed by literal
+station-ID columns, in millimetres per daily interval. Names never control joins. Blank cells and
+missing rows are missing; zero is dry weather. Duplicate dates/columns, negative/non-numeric values,
+infinity and non-midnight timestamps are rejected. Convert provider missing-value codes to blanks.
+
+`interval_end` means midnight UTC ending the accumulated day: `2000-02-01` belongs to January 31.
+`interval_start` labels are shifted forward one day before matching. Both declarations require actual
+midnight-to-midnight UTC intervals; prepare other accumulation windows upstream. Relabelling a local
+09:00 accumulation does not convert it. Extracted source stores retain their interval-end labels.
+Clipping and month/reporting-year attribution use the preceding covered day, without modifying stores.
+An extraction missing the last required interval leaves the period incomplete.
+
+Every declared precipitation candidate is sampled with HydroMT native-cell point sampling, including
+single-source comparisons. Stations must lie inside/on the basin and within the actual source grid.
+Outside points, unmatched IDs and nodata cells are reported; there is no interpolation, nearest-valid
+search, elevation adjustment or gap filling. Each station uses common valid dates across observations
+and all candidates. Coverage retains individual counts, joint counts and the expected calendar.
+Daily bias (source minus observed), MAE, RMSE and Pearson correlation use those same dates.
+Percentage bias divides the summed difference by summed observations; zero denominators are unavailable.
+Correlation is unavailable with fewer than two pairs or constant series.
+
+Monthly and reporting-year totals require every actual day, including leap days. Reporting years use
+start-year labels and `climate.water_year_start`. Monthly climatologies average the same complete months
+for every series; `monthly.csv` retains contributing months for counting. These strict rules apply only
+to rain gauges and do not change basin diagnostics' existing tolerated-gap summaries.
+
+Run the usual historical analysis entry point. Products appear in
+`data/climate/historical/rain_gauges/`: `tables/{stations,exclusions,coverage,agreement,monthly,annual}.csv`,
+four comparison PNGs per supplied station under `plots/`, and one `_engine/` containing sampled daily
+values/masks, evaluation provenance and figure manifests. Station metadata records safe filename tokens,
+sampled-cell coordinates/CRS and distance. Figures show unavailable comparisons explicitly.
+Titles and captions remain available in `plots/figure_titles.md` and `plots/figure_captions.md`.
+Rerender retained products with `scripts/render_figures.py rain-gauges --project <run> --out <review>`.
+
+This comparison supports forcing choice; it does not select or correct forcing. Point/grid support
+differs, and gridded products may already incorporate these observations, so agreement is not independent
+validation. The starter's two CSVs illustrate the format with synthetic values.
+
 ## Processing sequence {#rule-flow}
 
 ![Main scientific processing steps and conditional paths described below.](assets/workflow-wf0.svg){width=100% fig-alt="Scientific processing from basin and climate inputs to the assessment products described in this section."}

@@ -306,6 +306,12 @@ PLOT_DIAGNOSTICS = RULES.logged("0.04b", "plot_climate_diagnostics", summary="re
 # is registered -- and its label enters LOG_RULES -- only then.
 if len(CANDIDATE_SOURCES) > 1:
     COMPARE_DIAGNOSTICS = RULES.logged("0.05", "plot_climate_comparison", summary="compare sources over the configured common period")
+from blueearth_cst.climate_analysis.rain_gauges import parse_rain_gauges, read_stations
+from blueearth_cst.climate_analysis.diagnostic_outputs import rain_gauge_outputs
+rain_gauge_settings = parse_rain_gauges(my_cfg.get("rain_gauges"))
+if rain_gauge_settings is not None:
+    PREPARE_RAIN_GAUGES = RULES.logged("0.05b", "prepare_rain_gauges", summary="sample and compare daily rain gauges")
+    PLOT_RAIN_GAUGES = RULES.logged("0.05c", "plot_rain_gauges", summary="render rain-gauge comparisons")
 GATHER_BENCHMARKS = RULES.banner_only("0.06", "gather_benchmarks", summary="merge rule timing and resource-use records")
 GATHER_LOGS = RULES.banner_only("0.07", "gather_logs", summary="merge rule logs")
 
@@ -330,6 +336,10 @@ POOLED_ROOTS = [SOURCE_DIAGNOSTICS[s]["root"] for s in CANDIDATE_SOURCES]
 COMPARISON_DIR = f"{project_dir}/data/climate/historical/comparison"
 COMPARISON_DIAGNOSTICS = diagnostic_comparison_outputs(COMPARISON_DIR, CANDIDATE_SOURCES, DIAGNOSTIC_SETTINGS) if len(CANDIDATE_SOURCES) > 1 else None
 WF0_TERMINALS = [p for spec in SOURCE_DIAGNOSTICS.values() for p in spec["render"].values()]
+if rain_gauge_settings is not None:
+    rain_gauge_root = f"{project_dir}/data/climate/historical/rain_gauges"
+    rain_gauge_inventory = rain_gauge_outputs(rain_gauge_root, read_stations(rain_gauge_settings["stations_path"]).token)
+    WF0_TERMINALS += list(rain_gauge_inventory["compute"].values()) + list(rain_gauge_inventory["render"].values())
 if COMPARISON_DIAGNOSTICS:
     WF0_TERMINALS += list(COMPARISON_DIAGNOSTICS["compute"].values()) + list(COMPARISON_DIAGNOSTICS["render"].values()) + list(COMPARISON_DIAGNOSTICS["source_summary"].values())
 if DIAGNOSTIC_SETTINGS["subbasin_figures"]:
@@ -477,6 +487,35 @@ for _source in CANDIDATE_SOURCES:
         log: PLOT_DIAGNOSTICS.log(_source),
         benchmark: PLOT_DIAGNOSTICS.benchmark(_source),
         script: "blueearth_cst/climate_analysis/plot_climate_diagnostics.py"
+
+if rain_gauge_settings is not None:
+    # 0.05b  prepare_rain_gauges — observations never affect source extraction.
+    rule prepare_rain_gauges:
+        input:
+            climate=[CLIMATE_STORES[source].outputs["climate_nc"] for source in CANDIDATE_SOURCES],
+            region=REGION.outputs["region_geojson"],
+            stations=rain_gauge_settings["stations_path"],
+            precip=rain_gauge_settings["precip_path"],
+        output: **rain_gauge_inventory["compute"],
+        params:
+            settings=rain_gauge_settings, root=rain_gauge_root, sources=CANDIDATE_SOURCES,
+            window=historical_window, comparison=DIAGNOSTIC_SETTINGS["comparison_period"], m0=DIAGNOSTIC_M0,
+            code_digest={name: file_sha256(Path(workflow.basedir) / "blueearth_cst/climate_analysis" / name) for name in ("rain_gauges.py", "evaluate_rain_gauges.py", "diagnostic_outputs.py")},
+            input_digest={key: file_sha256(rain_gauge_settings[key]) for key in ("stations_path", "precip_path")},
+        log: PREPARE_RAIN_GAUGES.log(),
+        benchmark: PREPARE_RAIN_GAUGES.benchmark(),
+        script: "blueearth_cst/climate_analysis/evaluate_rain_gauges.py"
+
+    # 0.05c  plot_rain_gauges — retained products only.
+    rule plot_rain_gauges:
+        input: list(rain_gauge_inventory["compute"].values()),
+        output: **rain_gauge_inventory["render"],
+        params:
+            root=rain_gauge_root, annotation=plot_annotation, plot_setup_digest=plot_setup_digest,
+            code_digest={name: file_sha256(Path(workflow.basedir) / "blueearth_cst/climate_analysis" / name) for name in ("plot_rain_gauges.py", "figure_naming.py", "diagnostics.py")},
+        log: PLOT_RAIN_GAUGES.log(),
+        benchmark: PLOT_RAIN_GAUGES.benchmark(),
+        script: "blueearth_cst/climate_analysis/plot_rain_gauges.py"
 
 # 0.03b  produce_historical_map_reference — shared native-grid display contract.
 include: "blueearth_cst/climate_analysis/rules/source_map_preparation.smk"

@@ -19,6 +19,27 @@ from blueearth_cst.shared.provenance import effective_config_digest
 from scripts.run_workflows import _project_dir, _read_config
 
 
+def test_rain_gauge_paths_follow_declaring_yaml(tmp_path):
+    settings = {
+        "rain_gauges": {
+            "stations_path": "data/stations.csv",
+            "precip_path": "data/precip.csv",
+            "time_label": "interval_end",
+        }
+    }
+    path = tmp_path / "climate.yml"
+    resolved = resolve_workflow_paths(settings, path, "analyze_climate", 3)
+    assert (
+        resolved["rain_gauges"]["stations_path"]
+        == (tmp_path / "data/stations.csv").as_posix()
+    )
+    assert (
+        resolved["rain_gauges"]["precip_path"]
+        == (tmp_path / "data/precip.csv").as_posix()
+    )
+    assert resolve_workflow_paths(settings, path, "analyze_climate", 2) == settings
+
+
 def test_case_relocation_and_launch_directory(tmp_path, monkeypatch):
     original = tmp_path / "original" / "applications" / "basin"
     (original / "data").mkdir(parents=True)

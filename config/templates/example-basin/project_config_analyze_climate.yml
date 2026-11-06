@@ -3,6 +3,15 @@
 # Generate individual subbasin climate figures. Options: true | false.
 subbasin_figures: false
 
+# Optional user-prepared daily rain gauges; omitted/null disables evaluation.
+# Both paths and time_label are required when enabled. Paths resolve beside this YAML.
+# Synthetic format examples only: replace with measured data before enabling.
+#rain_gauges:
+#  stations_path: data/rain_gauge_stations.csv
+#  precip_path: data/rain_gauge_precip.csv
+# Midnight UTC accumulations only. Options: interval_start | interval_end.
+#  time_label: interval_end
+
 # Optional settings (omitted periods use climate.window):
 # Custom completeness must also be set in the project's climate.map_reference.
 # Shared maps require matching tolerances and at most 27 missing days per month.

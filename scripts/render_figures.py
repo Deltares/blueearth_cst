@@ -36,6 +36,17 @@ def _wf1_forcing(args):
     return rerender_forcing(args.project, args.out, annotation=args.annotation)
 
 
+def _rain_gauges(args):
+    from blueearth_cst.climate_analysis.plot_rain_gauges import render
+
+    if args.source:
+        raise ValueError("--source does not apply to rain-gauges (common source mask)")
+    render(
+        args.project / "data/climate/historical/rain_gauges", args.out, args.annotation
+    )
+    return {"rain_gauges": args.out / "plots"}
+
+
 def _spatial(args):
     from blueearth_cst.shared.plot_spatial_maps import (
         SPATIAL_DIRNAME,
@@ -64,6 +75,10 @@ def _wf2(args):
 #: Family name -> (what it renders, renderer). Add a family by pointing it at a
 #: re-render function that sits beside its rule adapter in ``blueearth_cst``.
 FAMILIES = {
+    "rain-gauges": (
+        "Rain-gauge comparisons from retained station evidence",
+        _rain_gauges,
+    ),
     "wf0": (
         "WF0 per-source diagnostics and climatology maps (no subbasin or comparison figures)",
         _wf0,

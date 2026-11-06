@@ -144,6 +144,15 @@ Descriptions without displayed titles or footers assume `plotting.annotation: no
 
 ## Figure-specific decisions
 
+### Rain-gauge comparisons
+
+- Use the shared CST preset for coverage, annual totals, monthly climatology and daily agreement.
+  Annual totals are strict matched reporting-year totals without fitted trends. Monthly climatology
+  averages complete matched months; individual and joint daily coverage are shown separately.
+- Retain zero amounts, common-day scatter masks, native-cell support and unavailable-period notes.
+  Distinguish series with line styles/markers as well as colour. Captions carry station identity,
+  contributing source names, common counts and interval attribution.
+
 ### WF1 forcing QA
 
 - Use WF0 map, annual-series and monthly-climatology styles for precipitation, temperature and PET.

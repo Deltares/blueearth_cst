@@ -20,6 +20,8 @@ See [historical climate analysis](workflow-analyze-climate.md) for inputs, setti
 | `compute_climate_diagnostics_<source>` | Calculate and save temporal diagnostics. |
 | `plot_climate_diagnostics_<source>` | Produce source figures and captions. |
 | `plot_climate_comparison` | Calculate and plot the common-period comparison. |
+| `prepare_rain_gauges` | Sample native cells and calculate observed-only station comparisons. |
+| `plot_rain_gauges` | Render coverage, totals, climatology and daily agreement from retained tables. |
 
 ## Hydrological model building {#build-model}
 

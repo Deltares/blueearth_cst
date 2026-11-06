@@ -19,7 +19,7 @@ In either case, review these replacements:
 3. Replace `data/output_locations.csv` with intended locations consistent with that drainage network.
 4. Check every selected catalog/source covers the basin and period.
    This starter expects `P:/wflow_global/hydromt`, `rivers: hydro_rivers_lin` and `lulc: globcover`.
-5. Review `climate.sources`, choose `climate.selected` after source comparison, and keep at least
+5. Review `climate.sources`, choose `climate.forcing.precip_source` after source comparison, and keep at least
    16 years of historical record for weather generation. There is no local model calibration.
 6. Set the required historical model `simulation_window` in `project_config_build_model.yml` within
    the extracted record. Review outputs and optional observations before running.
@@ -37,9 +37,15 @@ Then disable WF0 before enabling downstream work. WF1 builds the model; WF3 inde
 climate series. WF2 is optional plausibility context. WF4 requires the model and a ready collection.
 Disabling a workflow leaves earlier products in place; check whether they still match your intended inputs.
 
+For optional station rainfall comparisons, prepare the two CSVs described in the
+[historical analysis reference](../../../docs/technical-manual/workflow-analyze-climate.md#rain-gauges).
+Then enable `rain_gauges` in `project_config_analyze_climate.yml`. The supplied rain-gauge CSVs are
+synthetic format examples; replace them before interpreting results. Rain gauges have no forcing role.
+
 Use the [running guide](../../../docs/guide/running.md) from the toolbox checkout for commands,
 preview/recovery and experiment selection. Generated cases retain local quick-reference commands.
-Use [indicator selection](../../../docs/guide/new-case.md#choose-indicators) before simulation to retain required variables.
+Use [indicator selection](../../../docs/guide/new-case.md#choose-indicators) before simulation to retain
+required variables.
 
 ## Files
 

@@ -5,6 +5,48 @@ from pathlib import Path
 from blueearth_cst.climate_analysis.diagnostic_settings import carries_temp
 from blueearth_cst.climate_analysis.figure_naming import figure_filename
 
+
+def rain_gauge_outputs(root, tokens):
+    """Explicit station evaluation compute and figure inventory."""
+    root = Path(root)
+    compute = {
+        name: str(root / "tables" / f"{name}.csv")
+        for name in (
+            "stations",
+            "exclusions",
+            "coverage",
+            "agreement",
+            "monthly",
+            "annual",
+        )
+    }
+    compute.update(
+        daily=str(root / "_engine/station_daily.nc"),
+        metadata=str(root / "_engine/evaluation.json"),
+    )
+    render = {
+        f"{token}_{form}": str(
+            root
+            / "plots"
+            / figure_filename("comparison", "precip", form, f"station_{token}_avg")
+        )
+        for token in tokens
+        for form in (
+            "monthly_coverage",
+            "annual_ts",
+            "monthly_clim_line",
+            "daily_agreement",
+        )
+    }
+    render.update(
+        titles=str(root / "plots/figure_titles.md"),
+        captions=str(root / "plots/figure_captions.md"),
+        titles_json=str(root / "_engine/figure_titles.json"),
+        captions_json=str(root / "_engine/figure_captions.json"),
+    )
+    return {"compute": compute, "render": render}
+
+
 TABLES = (
     "coverage",
     "valid_years",

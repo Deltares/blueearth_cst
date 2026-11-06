@@ -96,6 +96,7 @@ annual_trend_ts
 seasonal_anomaly
 monthly_spi_fit
 annual_trend_sensitivity
+daily_agreement
 ```
 
 The machine vocabulary and descriptions live in `figure_naming.py`. `annual_ts`, `monthly_box` and
@@ -135,7 +136,10 @@ subbasin area distinct from a model observation point.
 Add new contexts or abbreviations to `figure_naming.py` and this reference, rather than spelling
 them independently in plotting modules. The
 [`figure-naming tests`](../../../tests/test_figure_naming.py) check admitted tokens and examples.
-The station scope is registered for future evaluation figures; current WF0 figures do not emit it.
+Rain-gauge comparisons emit `monthly_coverage`, `annual_ts`, `monthly_clim_line` and `daily_agreement`
+with `station_<token>_avg`. Here the token maps to the literal user-supplied gauge ID in
+`rain_gauges/tables/stations.csv`; it is independent of Wflow's `wflow_id` namespace.
+The suffix identifies station comparison support; the sampled grid value is its native cell.
 
 ### Examples
 
