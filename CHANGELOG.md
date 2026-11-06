@@ -9,6 +9,10 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Fix CHIRPS historical model forcing by passing the extraction orography sidecar into its
+  generated catalog and using that elevation reference for temperature downscaling. This avoids
+  a missing-sidecar error and applying the extraction lapse correction twice; ERA5 is unchanged.
+
 - Use a shared style and consistent panel layout for WF3 weather figures, preserving
   their filenames and scientific results. Pin the required `weathergenr` 2.1.0 implementation by
   published commit and verify its version and source during installation.

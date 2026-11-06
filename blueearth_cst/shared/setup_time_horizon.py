@@ -14,6 +14,7 @@ def prep_hydromt_update_forcing_config(
     precip_source: str = "era5",
     wflow_root: Optional[Union[str, Path]] = None,
     store_source: Optional[str] = None,
+    dem_forcing_fn: Optional[str] = None,
 ):
     """Write a hydromt 1.x `steps:`-format YAML to add forcing to a wflow model.
 
@@ -26,6 +27,11 @@ def prep_hydromt_update_forcing_config(
     because the branch below keys on the real source: eobs picks a different
     orography and PET method, and passing the store's name would silently take
     the era5 branch. What is read and what it IS are two different questions.
+
+    ``dem_forcing_fn`` overrides the source elevation catalog entry. CHIRPS
+    store callers pass the extraction sidecar entry because extraction already
+    corrected temperature to that elevation. Omission retains the raw-source
+    defaults, including ERA5 companions for direct CHIRPS catalog reads.
     """
     if precip_source == "eobs":
         clim_source = "eobs"
@@ -70,8 +76,7 @@ def prep_hydromt_update_forcing_config(
                     # The store carries precip AND the climate variables in one
                     # file (the extraction merges them for a precip-only source
                     # like chirps), so both steps read the same entry when it is
-                    # in play. `dem_forcing_fn` below still resolves from the
-                    # main catalog -- the store holds no orography.
+                    # in play. CHIRPS elevation is a separate store sidecar.
                     "precip_fn": store_source or precip_source,
                     "chunksize": chunksize,
                 }
@@ -81,7 +86,7 @@ def prep_hydromt_update_forcing_config(
                     "temp_pet_fn": store_source or clim_source,
                     "press_correction": True,
                     "temp_correction": True,
-                    "dem_forcing_fn": oro_source,
+                    "dem_forcing_fn": dem_forcing_fn or oro_source,
                     "pet_method": pet_method,
                     "skip_pet": False,
                     "chunksize": chunksize,

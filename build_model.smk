@@ -805,6 +805,8 @@ rule add_climate_forcing:
         # it makes the reuse a DAG edge rather than a convention, and is why
         # `simulation_window` must now sit inside `historical_window`.
         climate_nc = CLIMATE_STORE.outputs["climate_nc"],
+        # CHIRPS temperatures are already corrected to this extraction-owned DEM.
+        oro_nc = CLIMATE_STORE.outputs.get("oro_nc", []),
         scientific_code = [
             "blueearth_cst/climate_analysis/prepare_climate_data_catalog.py",
             "blueearth_cst/shared/setup_time_horizon.py",

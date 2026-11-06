@@ -431,6 +431,7 @@ def test_chirps_branch_declares_and_consumes_one_orography_path(tmp_path):
     # wf1 declares the same sidecar output on the same branch.
     wf1 = _parse_workflow("build_model.smk", cfg_path)
     assert str(wf1.get_rule(RULE_NAME).output.oro_nc) == oro_out
+    assert str(wf1.get_rule("add_climate_forcing").input.oro_nc) == oro_out
 
 
 # ---------------------------------------------------------------------------
