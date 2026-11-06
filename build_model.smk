@@ -164,6 +164,8 @@ if clim_source == "eobs":
 # one workflow lives in the project file. It was the last such key, and
 # `CROSS_WORKFLOW_READS` is retired with its move.
 wflow_outvars = get_config(config.get("model") or {}, "outvars", DEFAULT_WFLOW_OUTVARS)
+from blueearth_cst.shared.grid_output import normalize_grid_output
+grid_output = normalize_grid_output(my_cfg.get("output"))
 # `defaults/`, not `templates/` — these are read by rules 1.05/1.06/1.07, and the
 # 2026-08-11 split moved them out of the copy-me directory. Rule 1.01 still routes
 # them to a `templates/` bin inside the PROJECT: a different meaning of the word,
@@ -755,11 +757,13 @@ rule declare_gauges_and_outputs:
         scientific_code = [
             "blueearth_cst/shared/wflow_write.py",
             "blueearth_cst/shared/wflow_outputs.py",
+            "blueearth_cst/shared/grid_output.py",
         ],
     output:
         configured = touch(f"{basin_dir}/.outputs_configured"),
     params:
         outputs = wflow_outvars,
+        netcdf_grid = grid_output,
         data_catalog = DATA_SOURCES
     log:
         DECLARE_GAUGES_AND_OUTPUTS.log(),
@@ -892,6 +896,7 @@ rule run_historical_simulation:
         model_final = ancient(f"{basin_dir}/.model_final"),
         scientific_code = [
             "blueearth_cst/model/run_wflow.jl",
+            "blueearth_cst/shared/wflow_grid.jl",
             # This helper constructs Wflow.Config and invokes Wflow.run.
             "blueearth_cst/shared/wflow_progress.jl",
         ],
@@ -900,6 +905,7 @@ rule run_historical_simulation:
         # can rerun without another historical simulation. Rounded exports are
         # not a replacement for this input or for numerical baseline checks.
         csv_path = f"{basin_dir}/run_default/output.csv",
+        grid_path = [f"{basin_dir}/run_default/output_grid.nc"] if grid_output else [],
         # Wflow's own log. DECLARED but no longer temp(): it is now the ONLY
         # copy of Wflow's records.
         #
@@ -936,17 +942,24 @@ rule run_historical_simulation:
     params:
         toml_path = f"{basin_dir}/wflow_sbm.toml",
         driver = str(Path(workflow.basedir) / "blueearth_cst" / "model" / "run_wflow.jl"),
+        netcdf_grid = grid_output,
     log:
         RUN_HISTORICAL_SIMULATION.log(),
     benchmark:
         RUN_HISTORICAL_SIMULATION.benchmark(),
-    shell:
+    run:
         # A DRIVER FILE rather than the `-e "using Wflow; Wflow.run()"` one-liner
         # Wflow's docstring suggests. Under `[logging] silent = true` that form
         # emits nothing at all for the whole run -- the longest single step in
         # WF1 -- so the driver adds the progress bar every other long step in the
         # toolbox animates. It is also the shape rule 3.15 already has.
-        """python -u "{run_logged}" "{log}" -- {wflow_julia} "{params.driver}" "{params.toml_path}" """
+        import shlex
+        import subprocess
+        subprocess.run([sys.executable, "-u", run_logged, str(log[0]), "--",
+            *shlex.split(wflow_julia), params.driver, params.toml_path], check=True)
+        if params.netcdf_grid:
+            from blueearth_cst.shared.grid_output import validate_grid
+            validate_grid(output.grid_path[0], params.toml_path)
 
 # 1.03  extract_climate_datasets — the SHARED historical-climate store producer
 # (R07 B1). This declaration and rule 3.08 in run_stress_test.smk are

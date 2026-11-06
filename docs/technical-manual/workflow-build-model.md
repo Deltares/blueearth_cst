@@ -42,6 +42,7 @@ See [input formats](data-formats-and-conventions.md) for file conventions and
 | `evaluation.subbasin_plots` | Additional evaluation figures for individual subbasins. |
 | `engine.build_config` | Alternative HydroMT model-building recipe. |
 | `engine.waterbodies_config` | Alternative waterbody-update recipe. |
+| `output.netcdf_grid` | Optional native grids from this historical simulation. |
 
 Wflow treats the starting date as the initial state time. With daily forcing, the first output is one
 day later; forcing must cover that first update through the requested end date. See
@@ -57,6 +58,11 @@ figures. Basin and forcing maps can be produced before the simulation finishes; 
 sources may be extracted for shared map scales without changing the selected forcing.
 
 ## Outputs {#outputs}
+
+Optional `output.netcdf_grid` in this workflow's settings enables native grids at
+`models/hydrology/wflow/run_default/output_grid.nc`. See the shared
+[configuration reference](configuration.md#netcdf-grid). This request is independent of
+ensemble simulation output and leaves scalar outputs unchanged.
 
 Paths below are relative to `project_dir`. The main outputs are:
 

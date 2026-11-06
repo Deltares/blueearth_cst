@@ -38,6 +38,7 @@ simulations. Climate projections are not simulation inputs.
 | `experiment_name` | Name of the saved experiment. |
 | `scenario_collection` | Advanced selection of a saved weather experiment. |
 | `compute` | Julia threads, concurrent batches, batch size and reserved disk space. |
+| `output.netcdf_grid` | Optional native grids for every selected run; independent of historical output. |
 
 Scenario selection normally follows the project's scenario-generation settings. Omitting unperturbed
 simulations does not remove the reference weather saved by scenario generation. See
@@ -64,6 +65,8 @@ The main outputs are:
 - **Daily responses (`hydrology/wflow/output/<run_id>.csv`).** Native Wflow time series retained for
   subsequent indicator calculations; temporary forcing NetCDFs are not retained.
 - **Model settings (`hydrology/wflow/run_settings/<run_id>.toml`).** Settings associated with each run.
+- **Optional native grids (`hydrology/wflow/output/<run_id>.nc`).** One retained file per run,
+  containing all requested variables and native layers. See [grid settings](configuration.md#netcdf-grid).
 - **Simulation records (`_engine/simulation.json` and `_engine/response_inventory.json`).** The model
   and scenario experiment used, completed simulations and available response data.
 - **Indicator results (`results/indicator_sets/<set-id>/`).** Run and group indicator tables,

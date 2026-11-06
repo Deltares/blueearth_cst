@@ -62,3 +62,13 @@ simulation_window:
 #  build_config: toolbox:config/defaults/wflow_build_model.yml
 # Configure lake and reservoir updates. Input: HydroMT YAML file path.
 #  waterbodies_config: toolbox:config/defaults/wflow_update_waterbodies.yml
+
+# Optional native grids at each simulation timestep; retained in run_default/output_grid.nc.
+# Output settings are independent of the simulation workflow. Omitted/null disables grids.
+#output:
+#  netcdf_grid:
+#    compressionlevel: 1
+#    variables:
+#      snowpack_dry_snow__leq_depth: snow
+#      snowpack_liquid_water__depth: snowwater
+#      river_water__volume_flow_rate: discharge

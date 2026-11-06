@@ -182,6 +182,7 @@ COVERED: dict[str, list[str]] = {
         "models/hydrology/wflow/staticgeoms/gauges_locations.geojson",
         # Full-precision native responses persist beside the readable exports.
         "models/hydrology/wflow/run_default/output.csv",
+        "models/hydrology/wflow/run_default/output_grid.nc",
         "models/hydrology/wflow/run_default/output_q.csv",
         # Wflow's log is retained but excluded as non-content-bearing evidence.
         "models/hydrology/wflow/run_default/outstate/outstates.nc",
@@ -253,6 +254,7 @@ COVERED: dict[str, list[str]] = {
         f"experiments/{E}/hydrology/wflow/run_settings/forcing_elevation_catalog.yml",
         f"experiments/{E}/hydrology/wflow/forcing/inmaps_run_001.nc",
         f"experiments/{E}/hydrology/wflow/output/run_001.csv",
+        f"experiments/{E}/hydrology/wflow/output/run_001.nc",
         f"experiments/{E}/hydrology/wflow/output/_log/run_001.log",
         # outstates_run_<id>.nc is gone from this list (2026-09-15): the
         # experiment runs no longer emit a warm state at all, so it is not a

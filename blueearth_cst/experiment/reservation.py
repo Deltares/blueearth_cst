@@ -328,12 +328,18 @@ def validate_request(request: dict, project_root: Path | str) -> dict:
         {
             key: value
             for key, value in simulation.items()
-            if key != "include_unperturbed"
+            if key not in {"include_unperturbed", "netcdf_grid"}
         },
         {"climate_source", "model_root", "outvars", "model_request"},
         "declared simulation",
     )
     _text(simulation["climate_source"], "climate_source")
+    from blueearth_cst.shared.grid_output import normalize_grid_output
+
+    if "netcdf_grid" in simulation:
+        grid = normalize_grid_output({"netcdf_grid": simulation["netcdf_grid"]})
+        if grid is None or grid != simulation["netcdf_grid"]:
+            raise ValueError("declared simulation grid request must be normalized")
     _path(root, simulation["model_root"])
     outvars = simulation["outvars"]
     if (
@@ -346,11 +352,15 @@ def validate_request(request: dict, project_root: Path | str) -> dict:
     model = simulation["model_request"]
     if model is not None:
         _fields(
-            model,
+            {key: value for key, value in model.items() if key != "netcdf_grid"},
             {"basin", "climate", "engine", "simulation_window", "local_inputs"},
             "model request",
         )
         _fields(model["climate"], {"selected", "window"}, "model climate")
+        if "netcdf_grid" in model:
+            grid = normalize_grid_output({"netcdf_grid": model["netcdf_grid"]})
+            if grid is None or grid != model["netcdf_grid"]:
+                raise ValueError("model grid request must be normalized")
         _text(model["climate"]["selected"], "selected climate")
         _window(model["climate"]["window"], "model climate window")
         _fields(model["engine"], {"build_config", "waterbodies_config"}, "model engine")

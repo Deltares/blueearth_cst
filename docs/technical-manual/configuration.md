@@ -187,6 +187,36 @@ of completion. `--new-experiment` advances it; an exact numbered name selects th
 `scripts/suggest_experiment_name.py` reserves nothing. Changed scientific simulation inputs require a new
 experiment. See [retained identities](retained-handoffs.md#identities-and-reuse).
 
+## Optional native model grids {#netcdf-grid}
+
+The model-building and hydrological-simulation workflow files each accept their own
+`output.netcdf_grid` request. Omission or `null` disables it. Settings are independent: enabling
+historical grids does not enable ensemble grids. The toolbox manages file paths.
+
+```yaml
+output:
+  netcdf_grid:
+    compressionlevel: 1
+    variables:
+      snowpack_dry_snow__leq_depth: snow
+      snowpack_liquid_water__depth: snowwater
+      river_water__volume_flow_rate: discharge
+```
+
+Keys under `variables` are installed Wflow-SBM standard names; values are unique lowercase
+snake_case NetCDF names. Coordinate names are reserved. Variables must exist in enabled model
+components and have a native writer-supported shape; admission occurs before timestepping.
+Native soil-layer dimensions are preserved. Empty mappings, unknown keys and user-specified
+paths reject. `compressionlevel` defaults to 1 and accepts integers 0–9, excluding booleans.
+
+Files follow the native simulation timestep, period and calendar, with interval-end labels.
+Snow depths are end-of-step storages in mm: dry-snow water equivalent and liquid water,
+respectively; neither is fractional snow cover. Discharge is the native timestep-average flow
+in m3/s. Other variables retain Wflow's own units and temporal meaning. Native values and masks
+are written by Wflow; metadata adds units from its standard-name API and CRS from staticmaps.
+
+The [output guide](../guide/outputs.md#native-grids) describes placement, storage and reruns.
+
 ## Plotting resources
 
 Python plotting adapters load `config/plotting/colors.yml` and `style.yml` from the toolbox.

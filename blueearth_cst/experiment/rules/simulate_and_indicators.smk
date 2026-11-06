@@ -18,6 +18,8 @@ from blueearth_cst.shared.console_style import RuleRegistry, defer_rows, defer_w
 from blueearth_cst.shared.run_log_core import log_row, plural
 
 project, my_cfg, _selection = simulation_selection(config_path)
+from blueearth_cst.shared.grid_output import normalize_grid_output
+grid_output = normalize_grid_output(my_cfg.get("output"))
 project_dir = Path(project["project"]["project_dir"]).resolve().as_posix()
 experiment = resolve_experiment_name(Path(project_dir), my_cfg.get("experiment_name"))
 experiment = validate_experiment_name(experiment, project_dir)
@@ -131,7 +133,7 @@ def _live_simulation_inputs():
                 simulation_window={"start": SIM_WINDOW_START, "end": SIM_WINDOW_END},
                 julia_command=shlex.split(julia_prefix(1)),
                 header_path=Path(directory) / "headers.txt",
-                include_unperturbed=include_unperturbed(my_cfg))
+                include_unperturbed=include_unperturbed(my_cfg), netcdf_grid=grid_output)
 
 _simulation_complete = False
 if stored is not None:
@@ -142,7 +144,7 @@ if stored is not None:
         resolution_mode=SELECTION["resolution_mode"], preparation=_current_preparation(),
         simulation_window={"start": SIM_WINDOW_START, "end": SIM_WINDOW_END},
         julia_command=shlex.split(julia_prefix(1)),
-        include_unperturbed=include_unperturbed(my_cfg), _ready_simulation=stored)
+        include_unperturbed=include_unperturbed(my_cfg), netcdf_grid=grid_output, _ready_simulation=stored)
     _simulation_complete = True
 
 def _frozen_simulation(wc):
@@ -260,11 +262,23 @@ if not _simulation_complete:
     BATCH_PLAN_SUMMARY = f"Up to {plural(_plan.max_parallel, 'simulation')} at once; {plural(_threads, 'Julia thread')} per simulation"
     if _plan.active_cells is not None:
         BATCH_PLAN_SUMMARY += f"; {_plan.active_cells} active model cells"
+    _footprint = measure_member_footprint(basin_dir, SIM_WINDOW_START, SIM_WINDOW_END, write_states=False)
+    _headroom = disk_headroom_bytes(project_dir,
+        fraction=ADVANCED_SETTINGS["defaults"]["batch_disk_headroom_fraction"], headroom_gb=compute.get("disk_headroom_gb"))
+    if grid_output:
+        from blueearth_cst.experiment.batch_sizing import estimate_grid_payload, MemberFootprint
+        _grid_bytes = estimate_grid_payload(basin_dir, SIM_WINDOW_START, SIM_WINDOW_END, len(grid_output["variables"]))
+        BATCH_PLAN_SUMMARY += f"; grid raw {_grid_bytes / (1 << 30):.2f} GiB/run x {len(RUN_IDS)} (all cells/layers, daily float64; no compression saving)"
+        # Completed staging pairs survive until publication. Both the complete
+        # staging set and its published copies can coexist; reserve both sets,
+        # with an additional active-batch allowance in the footprint below.
+        _headroom = None if _headroom is None else max(1, _headroom - 2 * len(RUN_IDS) * _grid_bytes)
+        if _footprint is not None:
+            _footprint = MemberFootprint(_footprint.forcing_bytes, _footprint.state_bytes,
+                _footprint.basis + f" + {_grid_bytes} B grid publication copy", _grid_bytes)
     sizing = resolve_batch_size(member_count=len(RUN_IDS), cores=_plan.max_parallel,
         batch_size_max=compute.get("batch_size_max"), explicit=compute.get("batch_size"),
-        footprint=measure_member_footprint(basin_dir, SIM_WINDOW_START, SIM_WINDOW_END, write_states=False),
-        headroom_bytes=disk_headroom_bytes(project_dir,
-            fraction=ADVANCED_SETTINGS["defaults"]["batch_disk_headroom_fraction"], headroom_gb=compute.get("disk_headroom_gb")))
+        footprint=_footprint, headroom_bytes=_headroom)
     # Observations stay out of rule params: changing free RAM must not itself
     # become a reason for Snakemake to rerun a simulation.
     _batch_resource_decision = {"selected_at_epoch_s": _batch_decision_epoch,
@@ -292,6 +306,7 @@ if not _simulation_complete:
                 tomls=[f"{runs_dir}/run_settings/{run}.toml" for run in members],
             output:
                 csvs=[update(f"{runs_dir}/output/{run}.csv") for run in members],
+                grids=[update(f"{runs_dir}/output/{run}.nc") for run in members] if grid_output else [],
             threads: _threads
             resources:
                 mem_mb=2048,
@@ -306,7 +321,7 @@ if not _simulation_complete:
             run:
                 from blueearth_cst.experiment.batch_staging import run_staged_batch
                 read_simulation_intent_v2(exp_dir)
-                if Path(f"{engine_dir}/simulation.json").exists() or any(Path(p).exists() for p in output.csvs):
+                if Path(f"{engine_dir}/simulation.json").exists():
                     raise SimulationFrozenError("native responses already exist; use a new experiment name")
                 # Finished members of a failed attempt wait in staging, keyed by
                 # run id; only the rest run (t2608071217, batch_staging.py).
@@ -321,6 +336,7 @@ if not _simulation_complete:
         input:
             simulation=_frozen_simulation,
             csvs=[f"{runs_dir}/output/{run}.csv" for run in RUN_IDS],
+            grids=[f"{runs_dir}/output/{run}.nc" for run in RUN_IDS] if grid_output else [],
             tomls=[f"{runs_dir}/run_settings/{run}.toml" for run in RUN_IDS],
             temporal=[f"{runs_dir}/run_settings/{run}.temporal.json" for run in RUN_IDS],
         output:
@@ -337,6 +353,8 @@ if not _simulation_complete:
                 raise ValueError("response temporal evidence differs from retained source calendar")
             inventory = publish_response_inventory_v2(exp_dir, native, evidence)
             published = publish_simulation_v2(exp_dir, inventory)
+            from blueearth_cst.experiment.batch_staging import cleanup_published_staging
+            cleanup_published_staging(f"{engine_dir}/batch_staging", RUN_IDS)
             log_row(f"Simulation outputs ready: {plural(len(RUN_IDS), 'run')} retained", module="responses")
             from blueearth_cst.experiment.console_reporting import record_indicator_detail
             record_indicator_detail(exp_dir, f"Simulation {published['simulation_id']}; response inventory → {output.inventory}")

@@ -19,7 +19,7 @@ def _members(tmp_path, ids):
     for run in ids:
         toml = tmp_path / "settings" / f"{run}.toml"
         toml.parent.mkdir(parents=True, exist_ok=True)
-        toml.write_text(f"run = {run}\n", encoding="utf-8")
+        toml.write_text(f'run = "{run}"\n', encoding="utf-8")
         out.append(BatchMember(run, toml, tmp_path / "output" / f"{run}.csv"))
     return out
 
@@ -74,7 +74,7 @@ def test_a_changed_toml_or_simulation_discards_the_staged_member(tmp_path):
     members = _members(tmp_path, ["run_01", "run_02"])
     _driver(staging, prepare_staging(members, staging, "sim"))
 
-    members[0].toml_path.write_text("run = changed\n", encoding="utf-8")
+    members[0].toml_path.write_text('run = "changed"\n', encoding="utf-8")
     assert [m.run_id for m in prepare_staging(members, staging, "sim")] == ["run_01"]
     assert len(prepare_staging(members, staging, "other-sim")) == 2
 

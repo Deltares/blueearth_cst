@@ -1060,6 +1060,10 @@ def compose_config(
     # missing `trajectory:` for an axis still spelled `stress_test:`.
     bodies = {probe.name: probe.body for probe in probes if probe.status == "ok"}
     for owner, body in bodies.items():
+        if owner in {"build_model", "simulate_system"}:
+            from blueearth_cst.shared.grid_output import normalize_grid_output
+
+            normalize_grid_output(body.get("output"))
         diagnostics = body.get("diagnostics")
         if "captioned_figures" in body or (
             isinstance(diagnostics, Mapping) and "captioned_figures" in diagnostics

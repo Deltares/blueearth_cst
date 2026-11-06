@@ -9,6 +9,10 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Add independent optional native Wflow NetCDF grids for historical and scenario simulations,
+  preserving native layers and scalar results, with frozen requests, retained integrity evidence,
+  conservative disk estimates and paired CSV/NetCDF retry recovery.
+
 - Add optional observed catchment water-balance screening against prepared historical forcing, with
   explicit daily-mean UTC support declarations, complete matched years and retained diagnostic tables.
 

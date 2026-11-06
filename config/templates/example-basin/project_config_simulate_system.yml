@@ -100,3 +100,13 @@ indicator_sets:
 #  batch_size: 4
 # Reserve free disk space during simulations. Input: nonnegative gigabytes.
 #  disk_headroom_gb: 40
+
+# Optional native grids for every selected run; may require substantial disk space.
+# Independent of historical model output. Omitted/null disables grids.
+#output:
+#  netcdf_grid:
+#    compressionlevel: 1
+#    variables:
+#      snowpack_dry_snow__leq_depth: snow
+#      snowpack_liquid_water__depth: snowwater
+#      river_water__volume_flow_rate: discharge

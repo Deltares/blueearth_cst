@@ -1,6 +1,7 @@
 """Function to update a wflow model and add gauges and outputs."""
 
 import os
+import warnings
 from os.path import join
 from pathlib import Path
 from typing import List, Union
@@ -34,6 +35,7 @@ def update_wflow_gauges_outputs(
     data_catalog: Union[str, Path] = "deltares_data",
     location_registry: Union[str, Path, None] = None,
     outputs: List[str] = ["river discharge"],
+    netcdf_grid: dict | None = None,
 ):
     """
     Add output declarations to registry-indexed maps created by P2.
@@ -69,6 +71,19 @@ def update_wflow_gauges_outputs(
     # kept emitting it forever. `errors="ignore"` because a first build has no
     # such key to remove.
     mod.config.remove("output.csv.column", errors="ignore")
+    from blueearth_cst.shared.grid_output import configure_grid_output
+
+    configure_grid_output(mod.config.data, netcdf_grid, "output_grid.nc")
+    old_grid = (
+        Path(wflow_root)
+        / mod.config.data.get("dir_output", "run_default")
+        / "output_grid.nc"
+    )
+    if netcdf_grid is None and old_grid.exists():
+        warnings.warn(
+            f"Retained old grid {old_grid} is not produced by the current disabled request",
+            stacklevel=2,
+        )
 
     staticmaps = mod.staticmaps.data
     if "outlets" not in staticmaps:
@@ -162,6 +177,7 @@ if __name__ == "__main__":
                 data_catalog=sm.params.data_catalog,
                 location_registry=sm.input.location_registry,
                 outputs=sm.params.outputs,
+                netcdf_grid=sm.params.netcdf_grid,
             )
     else:
         update_wflow_gauges_outputs(

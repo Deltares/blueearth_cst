@@ -461,6 +461,45 @@ def build_response_inventory_v2(
 
     inventory_series.sort(key=order)
     identity_series.sort(key=order)
+    grids = []
+    grid_identity = []
+    grid_request = intent["documents"]["settings"].get("netcdf_grid")
+    if grid_request is not None:
+        from blueearth_cst.shared.grid_output import (
+            configured_grid_path,
+            grid_path,
+            validate_grid,
+        )
+
+        for run in request["run_ids"]:
+            native = native_runs[run]
+            path = grid_path(native.csv_path).resolve(strict=True)
+            if (
+                not path.is_relative_to(root)
+                or configured_grid_path(native.toml_path) != path
+            ):
+                raise MissingResponseRequirement(
+                    f"run {run}: grid path differs or escapes experiment"
+                )
+            with Path(native.toml_path).open("rb") as handle:
+                declared = tomllib.load(handle)["output"]["netcdf_grid"]
+            if {
+                key: value for key, value in declared.items() if key != "path"
+            } != grid_request:
+                raise MissingResponseRequirement(
+                    f"run {run}: grid request differs from frozen intent"
+                )
+            metadata = validate_grid(path, native.toml_path)
+            reference = file_reference(path, "experiment_root", root)
+            grids.append({"run_id": run, "file": reference, "metadata": metadata})
+            grid_identity.append(
+                {
+                    "run_id": run,
+                    "sha256": reference["sha256"],
+                    "size_bytes": reference["size_bytes"],
+                    "metadata": metadata,
+                }
+            )
     intent_ref = file_reference(
         root / "_engine/simulation_intent.json", "experiment_root", root
     )
@@ -500,6 +539,19 @@ def build_response_inventory_v2(
         "response_identity_sha256": content_sha256(identity),
     }
     inventory["response_inventory_sha256"] = content_sha256(inventory)
+    if grid_request is not None:
+        identity["schema_version"] = "response-inventory-identity/2"
+        identity["grids"] = grid_identity
+        inventory["schema_version"] = "response-inventory/4"
+        inventory["grids"] = grids
+        inventory["response_identity_sha256"] = content_sha256(identity)
+        inventory["response_inventory_sha256"] = content_sha256(
+            {
+                key: value
+                for key, value in inventory.items()
+                if key != "response_inventory_sha256"
+            }
+        )
     return inventory
 
 
@@ -529,10 +581,18 @@ def read_response_inventory_v2(experiment_root):
                 "identity_projection",
                 "response_identity_sha256",
                 "response_inventory_sha256",
-            },
+            }
+            | (
+                {"grids"}
+                if stored.get("schema_version") == "response-inventory/4"
+                else set()
+            ),
             "response inventory",
         )
-        if stored["schema_version"] != "response-inventory/3":
+        if stored["schema_version"] not in {
+            "response-inventory/3",
+            "response-inventory/4",
+        }:
             raise MissingResponseRequirement("unsupported response inventory version")
         digest = content_sha256(
             {
@@ -569,6 +629,9 @@ def read_response_inventory_v2(experiment_root):
         ):
             raise MissingResponseRequirement("response request section digest differs")
         native_runs = {}
+        for grid in stored.get("grids", []):
+            _v2_exact(grid, {"run_id", "file", "metadata"}, "grid artifact")
+            resolve_file_reference(grid["file"], {"experiment_root": root})
         for index, artifact in enumerate(stored["artifacts"]):
             _v2_exact(artifact, {"run_id", "file"}, "native artifact")
             matching = [item for item in stored["series"] if item["artifact"] == index]

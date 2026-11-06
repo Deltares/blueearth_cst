@@ -88,7 +88,7 @@ def test_a_retry_after_one_failure_runs_only_that_member(tmp_path):
     for run in ("run_01", "run_02", "run_03"):
         toml = tmp_path / "settings" / f"{run}.toml"
         toml.parent.mkdir(parents=True, exist_ok=True)
-        toml.write_text(f"run = {run}\n", encoding="utf-8")
+        toml.write_text(f'run = "{run}"\n', encoding="utf-8")
     staging = tmp_path / "_engine" / "batch_staging"
 
     failed = _snakemake(tmp_path, STUB_FAIL="run_02")
