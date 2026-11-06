@@ -9,6 +9,15 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Bundle the FAO-style daily mean-temperature counts into historical climate indices: days strictly
+  below 0°C and above a configurable threshold (default 25°C), with basin/grid annual and seasonal
+  products. These are explicitly distinguished from minimum-temperature frost days and heatwaves.
+
+- Add opt-in historical climate indices for basin series and native grids, with retained references,
+  event catalogues, annual/seasonal NetCDFs and figures. Temperature exceedance percentages use
+  reference-year bootstrap correction; WSDI uses fixed thresholds to match its event catalogue.
+  Existing diagnostic tables and formulas remain unchanged.
+
 - Use a shared style and consistent panel layout for WF3 weather figures, preserving
   their filenames and scientific results. Pin the required `weathergenr` 2.1.0 implementation by
   published commit and verify its version and source during installation.

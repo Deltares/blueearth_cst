@@ -22,6 +22,23 @@ def run(sm):
         from blueearth_cst.climate_analysis.diagnostic_subbasins import render_subbasins
 
         render_subbasins(sm, settings, [sm.params.source])
+    if settings.get("climate_indices", {}).get("enabled", False):
+        from blueearth_cst.climate_analysis.climate_index_figures import render_indices
+        from blueearth_cst.climate_analysis.diagnostic_render import load_map_overlays
+
+        render_indices(
+            paths["compute"]["climate_indices"],
+            paths["render"],
+            map_reference=sm.input.map_reference,
+            map_reference_params=dict(sm.params.map_reference_params),
+            overlays=load_map_overlays(
+                {
+                    key: sm.input[key]
+                    for key in ("basins", "subbasins", "rivers", "locations")
+                }
+            ),
+            annotation=getattr(sm.params, "annotation", "none"),
+        )
 
 
 if "snakemake" in globals():

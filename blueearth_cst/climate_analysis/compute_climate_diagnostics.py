@@ -73,6 +73,18 @@ def run(sm):
                     "trends",
                 ):
                     subset[name].to_csv(subfolder / f"{name}.csv", index=False)
+    if settings.get("climate_indices", {}).get("enabled", False):
+        from blueearth_cst.climate_analysis.climate_indices import publish
+
+        publish(
+            sm.input.climate_nc,
+            sm.input.basin_cells,
+            source,
+            sm.params.store_dir,
+            settings,
+            m0,
+            sm.params.data_sources,
+        )
     write_tables(paths, {source: tables}, settings, m0, period, {source: lineage})
     from blueearth_cst.shared.snake_utils import log_row
 
