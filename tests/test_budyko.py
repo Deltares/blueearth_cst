@@ -137,7 +137,11 @@ def test_partial_year_zero_precip_and_unusual_ratio():
     assert np.isnan(summary["aridity_index"])
 
 
-def test_real_upstream_masks_and_unequal_area_weighting(tmp_path):
+@pytest.mark.parametrize(
+    "headers",
+    [("1010", "1011"), ("01010", "1011"), (" 1010 ", "1011"), ("01010", " 01011 ")],
+)
+def test_real_upstream_masks_and_unequal_area_weighting(tmp_path, headers):
     import hydromt  # noqa: F401
     import xarray as xr
 
@@ -176,9 +180,10 @@ def test_real_upstream_masks_and_unequal_area_weighting(tmp_path):
             "snapped_col": [1, 0],
         }
     ).to_csv(tmp_path / "registry.csv", index=False)
-    pd.DataFrame({"time": time, "1010": 1.0, "1011": 1.0}).to_csv(
+    pd.DataFrame({"time": time, headers[0]: 1.0, headers[1]: 1.0}).to_csv(
         tmp_path / "q.csv", sep=";", index=False
     )
+    original_csv = (tmp_path / "q.csv").read_bytes()
     (tmp_path / "recipe.yml").write_text("synthetic controlled forcing\n")
     root = tmp_path / "result"
     evaluate(
@@ -194,9 +199,28 @@ def test_real_upstream_masks_and_unequal_area_weighting(tmp_path):
         1,
     )
     stations = pd.read_csv(root / "tables/stations.csv")
+    assert stations.wflow_id.tolist() == [1010, 1011]
+    assert original_csv == (tmp_path / "q.csv").read_bytes()
     assert stations.cell_count.tolist() == [4, 1]
     assert stations.area_m2.tolist() == [10e6, 1e6]
     summary = pd.read_csv(root / "tables/summary.csv")
     assert summary.aridity_index.tolist() == pytest.approx([2, 2])
     assert summary.precip_mm.tolist() == pytest.approx([30 * 366, 10 * 366])
     assert summary.runoff_coefficient.tolist() == pytest.approx([8.64 / 30, 86.4 / 10])
+
+
+def test_duplicate_observation_aliases_rejected(tmp_path):
+    from blueearth_cst.model.observation_validation import (
+        validate_observation_station_ids,
+    )
+
+    observations = tmp_path / "q.csv"
+    observations.write_text("time;1010; 01010 \n2000-01-02;1;2\n")
+    original = observations.read_bytes()
+    registry = tmp_path / "registry.csv"
+    registry.write_text("wflow_id,location_role\n1010,control\n")
+    with pytest.raises(ValueError, match=r"duplicate=\[1010\]"):
+        validate_observation_station_ids(observations, registry)
+    with pytest.raises(ValueError, match="duplicate"):
+        read_daily_discharge(observations, "interval_end")
+    assert observations.read_bytes() == original

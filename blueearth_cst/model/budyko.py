@@ -38,6 +38,13 @@ def read_daily_discharge(path: str, time_label: str) -> pd.DataFrame:
     if "time" not in data or len(data.columns) < 2:
         raise ValueError("discharge CSV requires time;<wflow_id>;... columns")
     index = pd.DatetimeIndex(pd.to_datetime(data.pop("time"), utc=True, format="mixed"))
+    labels = [label.strip() for label in data.columns]
+    if any(not label.isdecimal() for label in labels):
+        raise ValueError("discharge station columns must be integer wflow_id values")
+    # Match the existing registry validator's identity semantics in derived data.
+    data.columns = pd.Index([str(int(label)) for label in labels])
+    if data.columns.has_duplicates:
+        raise ValueError("discharge station columns contain duplicate wflow_id values")
     if index.hasnans or index.has_duplicates or not index.equals(index.normalize()):
         raise ValueError("discharge timestamps must be unique midnight UTC labels")
     data = data.apply(pd.to_numeric, errors="raise")
