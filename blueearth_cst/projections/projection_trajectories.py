@@ -83,7 +83,9 @@ def member_anomalies(
         "reference_end": reference_window[1],
     }
     rows = []
-    for variable in sorted(set(owned.data_vars) & {"temp", "precip"}):
+    for variable in sorted(set(owned.data_vars) & {"temp", "precip", "pet"}):
+        if variable == "pet" and not owned.pet.attrs.get("cst_pet_method"):
+            continue
         annual = period_values(owned, variable, water_year_start)["annual"]
         ref = (
             period_values(reference, variable, water_year_start)["annual"]
@@ -96,7 +98,9 @@ def member_anomalies(
             else np.nan
         )
         ref_value = (
-            float(np.mean(ref["total"] if variable == "precip" else ref["level"]))
+            float(
+                np.mean(ref["total"] if variable in {"precip", "pet"} else ref["level"])
+            )
             if ref is not None and len(ref["years"])
             else np.nan
         )
@@ -113,7 +117,7 @@ def member_anomalies(
         for year, rate, total in zip(
             annual["years"], annual["level"], annual["total"], strict=True
         ):
-            value = total if variable == "precip" else rate
+            value = total if variable in {"precip", "pet"} else rate
             anomaly = (
                 (
                     (value - ref_value) / ref_value * 100
@@ -133,8 +137,12 @@ def member_anomalies(
                     "reference_value": ref_value,
                     "reference_rate": ref_rate,
                     "anomaly": anomaly,
-                    "units": "mm/year" if variable == "precip" else "degC",
-                    "anomaly_units": "%" if variable == "precip" else "degC",
+                    "units": "mm/year" if variable in {"precip", "pet"} else "degC",
+                    "anomaly_units": "%"
+                    if variable == "precip"
+                    else "mm/year"
+                    if variable == "pet"
+                    else "degC",
                     "status": status,
                     "reason": why,
                 }

@@ -88,12 +88,15 @@ DEFAULTS_BLOCK = """  data_type: RasterDataset
     unit_mult:
       precip: 86400
       press_msl: 0.01
+      press: 0.01
     rename:
       pr: precip
       tas: temp
       tasmin: temp_min
       tasmax: temp_max
       rsds: kin
+      rsdt: kout
+      ps: press
       psl: press_msl
   metadata:
     category: climate

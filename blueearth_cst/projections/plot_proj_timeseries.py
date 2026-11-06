@@ -56,7 +56,9 @@ def figure_counts(filename, tables, window_id=""):
     data = tables[name]
     if window_id and "window_id" in data:
         data = data.loc[data.window_id == window_id]
-    if "temperature" in filename or "precipitation" in filename:
+    if "pet" in filename:
+        data = data.loc[data.variable.eq("pet")]
+    elif "temperature" in filename or "precipitation" in filename:
         data = data.loc[
             data.variable == ("temp" if "temperature" in filename else "precip")
         ]
@@ -195,11 +197,34 @@ def render_suite(
         for filename in product["filenames"]
     }
     actual = set(zip(available.folder, available.filename))
+    from blueearth_cst.projections.variable_spec import VariableSpec
+
+    fields = record.get("variable_spec", {}).get("pet")
+    pet = VariableSpec(*fields) if fields else None
+    if pet and pet.method:
+        from blueearth_cst.projections.projection_figures import FIGURE_FILENAMES
+
+        expected.add(("full_period", FIGURE_FILENAMES["trajectory-pet.png"]))
+        key = "change-pet-pct.png" if pet.change == "relative" else "change-pet.png"
+        for folder in folders[1:]:
+            expected.update(
+                (folder, FIGURE_FILENAMES[k]) for k in ("seasonal-cycle-pet.png", key)
+            )
     if actual != expected or available.duplicated(["folder", "filename"]).any():
         raise ValueError(
             f"availability product contract differs: missing={expected - actual}, extra={actual - expected}"
         )
     manifest, skipped = {}, []
+    manifest_path = (
+        Path(captions_json)
+        if captions_json is not None
+        else root.parent / "_engine" / "figure_captions.json"
+    )
+    previous = (
+        json.loads(manifest_path.read_text(encoding="utf-8"))
+        if manifest_path.exists()
+        else {}
+    )
     for row in available.to_dict("records"):
         relative = f"{row['folder']}/{row['filename']}"
         if not isinstance(row["available"], bool):
@@ -217,6 +242,7 @@ def render_suite(
             counts["n_unretrieved"] = int(coverage.model.nunique() - len(loaded))
         counts["variability_band"] = bool(
             figure_key(row["filename"]).startswith(("change-", "monthly-change-"))
+            and "pet" not in figure_key(row["filename"])
             and "cloud" not in row["filename"]
             and "noise_halfwidth" in tables["change_summary"]
         )
@@ -254,6 +280,19 @@ def render_suite(
                 for h in w.get("horizons", [])
             ],
         }
+    # Retire only exact PET paths owned by the previous managed publication.
+    # Raw inputs and unrelated products are never cleanup candidates.
+    from blueearth_cst.projections.projection_figures import FIGURE_FILENAMES
+
+    pet_names = {value for key, value in FIGURE_FILENAMES.items() if "pet" in key}
+    for relative in set(previous) - set(manifest):
+        path = root / relative
+        if (
+            path.name in pet_names
+            and path.parent.name in folders
+            and path.resolve().is_relative_to(root.resolve())
+        ):
+            path.unlink(missing_ok=True)
     pngs = {
         str(path.relative_to(root)).replace("\\", "/")
         for folder in folders

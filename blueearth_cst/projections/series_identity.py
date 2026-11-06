@@ -766,7 +766,7 @@ def digest_components(
 
 
 def raw_components(components: Mapping) -> dict:
-    """The digest components the RAW slice depends on: everything but the reducer.
+    """The acquisition identity, excluding reducer code and the PET method.
 
     The stage-A split (design revision 6) separates *fetching* a slice of the
     remote store from *reducing* it. What the raw bytes are determined by — catalog
@@ -774,12 +774,20 @@ def raw_components(components: Mapping) -> dict:
     polygon — is exactly the series' component set minus ``reducer_module_hash``:
     changing the reduction cannot change what was downloaded.
 
+    Calculated PET's method is also series-only; its required source fields and
+    admission identity remain acquisition inputs. Reporting thresholds never
+    enter this component set.
+
     That exclusion is the whole point of the split, and it has to hold in **two**
     places to pay off: here, and in the fetch rule's ``params`` (the Snakefile must
     not pass the reducer hash to the fetch job, or Snakemake's params trigger
     re-downloads on a formula edit no matter what this function returns).
     """
-    return {k: v for k, v in components.items() if k != "reducer_module_hash"}
+    return {
+        k: v
+        for k, v in components.items()
+        if k not in {"reducer_module_hash", "derived_pet"}
+    }
 
 
 def raw_digest(components: Mapping, region_fingerprint_hex: str) -> str:

@@ -24,6 +24,7 @@ from blueearth_cst.projections.series_checks import (
     assert_calendar_agreement,
     load_checked_series,
 )
+from blueearth_cst.projections.variable_spec import VariableSpec
 from blueearth_cst.shared.snake_utils import listed, log_row, plural, tee_to_log
 
 
@@ -156,6 +157,12 @@ def prepare_tables(
                 "calendar": dataset.attrs.get("cst_calendar", ""),
                 "start": str(dataset.time.values[0])[:7],
                 "end": str(dataset.time.values[-1])[:7],
+                "path": str(point[path_key]),
+                "source_paths": dataset.attrs.get(
+                    "cst_selected_source_paths",
+                    dataset.attrs.get("cst_source_paths", ""),
+                ),
+                "pet": dict(dataset.pet.attrs) if "pet" in dataset else {},
             }
         historical, future = datasets
         assert_calendar_agreement(
@@ -242,6 +249,8 @@ def prepare_tables(
         "variability_model_ratios": model_ratios,
         "variability_summary": analysis.ratio_summary(ratios),
     }
+    pet = (variable_spec or {}).get("pet")
+    pet = pet if isinstance(pet, VariableSpec) or pet is None else VariableSpec(*pet)
     tables["availability"] = analysis.product_availability(
         {
             "coverage": coverage,
@@ -252,6 +261,7 @@ def prepare_tables(
             "model_ratios": model_ratios,
         },
         windows,
+        pet_change=pet.change if pet and pet.method else None,
     )
     unavailable = changes.loc[
         changes.status == "unavailable",
@@ -263,6 +273,8 @@ def prepare_tables(
         "windows": windows,
         "reference": reference,
         "reference_rule": windows[0]["reference_rule"],
+        "variable_spec": {k: list(v) for k, v in (variable_spec or {}).items()},
+        "series": list(inventory.values()),
         "methods": {
             "analysis_precision": "float64; aligned kernels and inputs unchanged",
             "dry_rule": "analysis period reference mean; CV also requires wet future mean",

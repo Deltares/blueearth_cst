@@ -9,6 +9,11 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Add opt-in monthly CMIP6 PET analysis using explicit HydroMT Makkink or de Bruin methods,
+  native-cell derivation before buffered-bbox averaging, strict source admission, calendar-aware
+  totals, inspectable provenance and three PET figure families. Real additional-input qualification
+  remains separate from controlled mechanism verification.
+
 - Reject incomplete native grid support, shifted grids and incorrect units before publication or retry
   reuse, using model-derived expectations while preserving portable retained readers.
 

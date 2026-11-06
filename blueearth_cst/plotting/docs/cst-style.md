@@ -295,6 +295,11 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
 
 ### WF2 annual and variability products
 
+- Calculated PET uses the annual anomaly trajectory form in mm/year and the monthly climatology
+  form in mm/day. Its change strip contains Annual plus four seasons, with existing model points,
+  median ticks and IQR marks; use percent for relative changes and integrated mm for absolute changes.
+  Label unavailable panels explicitly. Captions name the method, monthly-input approximation and
+  shared buffered-bbox support; PET does not enter the temperature–precipitation cloud.
 - Annual-overview median lines use 1.0 pt; trajectory medians 1.5 pt. Do not smooth annual values or
   bridge missing-year gaps.
 - Show temperature SD, precipitation SD and precipitation CV variability in separate figures, with

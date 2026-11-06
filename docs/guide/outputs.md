@@ -199,6 +199,17 @@ were excluded before comparing the ensemble. Figure captions explain the period 
 behind each product. Use projected changes to interpret the climate conditions in your stress test.
 Ensemble spread does not assign probabilities to its hydrological outcomes.
 
+When calculated PET is selected, the same tables include `pet`, and the plots add annual anomalies
+(mm/year), monthly climatology (mm/day), and annual/seasonal changes (% by default, mm for absolute
+changes). Captions name Makkink or de Bruin and the approximation from monthly mean inputs.
+Spatial averages use the selected buffered bounding box, including cells outside the basin polygon;
+the established `basin_avg` filenames do not imply polygon weighting. PET requires complete joint
+meteorological support throughout this box. Near-zero reference rates flag unavailable percentages
+while absolute differences remain inspectable. Source paths, units, calendar, method/library and
+spatial support are retained in scalar attributes and `_engine/analysis_record.json`.
+See [projected PET](../technical-manual/workflow-analyze-projections.md#optional-projected-pet)
+for configuration, source requirements and qualification limits. PET does not add a stress-test axis.
+
 <figure class="guide-illustration" style="max-width:440px">
 
 [![](assets/illustrations/cmip6-cloud.png){fig-alt="Example paired CMIP6 precipitation and temperature changes, coloured by emissions scenario." width=100%}](assets/illustrations/cmip6-cloud.png)

@@ -35,6 +35,7 @@ def rerender_projections(
         with_variability_band,
     )
     from blueearth_cst.projections.projection_figures import FIGURE_KEYS
+    from blueearth_cst.projections.variable_spec import VariableSpec
 
     records = sorted(
         (Path(project_dir) / PROJECTIONS_DIR).glob("*/_engine/analysis_record.json")
@@ -59,6 +60,9 @@ def rerender_projections(
         # A run made before the product list changed has a stale availability
         # table; rebuild it from the retained tables with the analysis step's
         # own function.
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        fields = record.get("variable_spec", {}).get("pet")
+        pet = VariableSpec(*fields) if fields else None
         availability = tables["availability"]
         if set(availability.filename) != set(FIGURE_KEYS):
             availability = product_availability(
@@ -71,6 +75,7 @@ def rerender_projections(
                     "model_ratios": tables["variability_model_ratios"],
                 },
                 sorted(availability.window_id.dropna().unique()),
+                pet_change=pet.change if pet and pet.method else None,
             )
         availability["window_id"] = availability.window_id.fillna("")
         tables["availability"] = availability
@@ -89,7 +94,7 @@ def rerender_projections(
         plot_dir = Path(out_dir) / "projections" / ensemble_dir.name / "plots"
         render_suite(
             tables,
-            json.loads(record_path.read_text(encoding="utf-8")),
+            record,
             plot_dir,
             annotation=annotation,
             scenarios=scenarios,

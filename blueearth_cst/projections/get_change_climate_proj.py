@@ -282,6 +282,7 @@ def get_change_annual_clim_proj(
     start_month_hyd_year="Jan",
     calendar=None,
     variable_spec=None,
+    min_reference=None,
     *,
     _reference_cache=None,
 ):
@@ -506,6 +507,28 @@ def get_change_annual_clim_proj(
 
             if "quantile" in change.coords:
                 change = change.drop("quantile")
+            if (
+                var == "pet"
+                and getattr((variable_spec or {}).get(var), "method", None)
+                and change_kind(variable_spec, var) == "relative"
+            ):
+                threshold = (min_reference or {}).get(var)
+                if threshold is not None:
+                    daily_reference = (
+                        getattr(hist_level, stat_name)("time")
+                        if "q_" not in stat_name
+                        else hist_level.quantile(
+                            int(stat_name.split("_")[1]) / 100, "time"
+                        )
+                    )
+                    flagged = (
+                        daily_reference.drop_vars("scenario", errors="ignore")
+                        < threshold
+                    ).broadcast_like(change)
+                    change = change.where(~flagged)
+                    ds.append(
+                        flagged.rename(f"{var}{COMPANION_SEP}flagged").to_dataset()
+                    )
             ds.append(change.to_dataset())
 
             # S8-04: the future level, same contract as the monthly path above.
@@ -520,7 +543,12 @@ def get_change_annual_clim_proj(
                     return source.quantile(int(stat_name.split("_")[1]) / 100, "time")
                 return getattr(source, stat_name)("time")
 
-            level_stat = _stat_of(clim_level)
+            pet_integrals = (
+                var == "pet"
+                and getattr((variable_spec or {}).get(var), "method", None)
+                and change_kind(variable_spec, var) == "absolute"
+            )
+            level_stat = _stat_of(clim if pet_integrals else clim_level)
             # The BASELINE must be shaped exactly like the level it sits beside.
             # Two traps, both hit before this landed:
             #   1. the historical source carries a scalar `scenario='historical'`
@@ -536,7 +564,7 @@ def get_change_annual_clim_proj(
             # and comparing it against the change column, on every row.
             level_key = ("level", *key)
             if level_key not in reference:
-                reference[level_key] = _stat_of(hist_level)
+                reference[level_key] = _stat_of(hist if pet_integrals else hist_level)
             reference_stat = (
                 reference[level_key]
                 .drop_vars("scenario", errors="ignore")

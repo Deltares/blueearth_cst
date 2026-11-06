@@ -49,6 +49,13 @@ variables:
   precip:
   # Calculate absolute temperature change. Input: null for built-in definition, or mapping.
   temp:
+  # Optional native-cell PET from monthly CMIP6 means. Options: makkink | debruin.
+  # Requires tas, ps and rsds; debruin also requires rsdt. No pressure/elevation correction.
+  # Missing dependencies fail; availability beyond pr/tas is not certified by the catalog.
+  # pet:
+  #   method: makkink
+  #   change: relative          # default; alternative: absolute
+  #   min_denominator: 0.1      # mm/day; relative only, default reporting safeguard
   # Define another projection variable. Input: mapping.
   #'custom_variable':
   # Select the catalog's renamed variable. Input: post-rename variable name, such as temp.

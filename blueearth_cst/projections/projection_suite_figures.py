@@ -722,7 +722,7 @@ def ipcc_trajectory(
     ax.axhline(0, color=MUTED, lw=LW_REF)
     ax.set(
         xlabel="Year",
-        ylabel=f"Relative to {reference[0]}–{reference[1]} ({'%' if variable == 'precip' else '°C'})",
+        ylabel=f"Relative to {reference[0]}–{reference[1]} ({'%' if variable == 'precip' else 'mm/year' if variable == 'pet' else '°C'})",
     )
     year_ticks(ax, np.arange(int(data.year.min()), int(data.year.max()) + 1))
     if data.year.max() - data.year.min() > 100:
@@ -1292,7 +1292,68 @@ def render_product(filename, tables, record, *, window_id="", scenarios=None):
     with use_preset(CST_PRESET):
         if filename == "availability.png":
             return availability_matrix(table("coverage"), scenarios)
-        variable = "temp" if "temperature" in filename else "precip"
+        variable = (
+            "pet"
+            if "pet" in filename
+            else "temp"
+            if "temperature" in filename
+            else "precip"
+        )
+        if filename in {"change-pet.png", "change-pet-pct.png"}:
+            quantity = "change_pct" if "-pct" in filename else "change"
+            data = table("model_changes")
+            data = data.loc[
+                data.variable.eq("pet")
+                & data.statistic.eq("mean")
+                & data.quantity.eq(quantity)
+            ]
+            summary = table("change_summary")
+            summary = summary.loc[
+                summary.variable.eq("pet")
+                & summary.statistic.eq("mean")
+                & summary.quantity.eq(quantity)
+            ]
+            fig, axes = _panels(
+                STRIP_PERIODS, "%" if quantity == "change_pct" else "mm"
+            )
+            groups = _scenarios(data, scenarios)
+            for ax, period in zip(axes, STRIP_PERIODS, strict=True):
+                ax.axhline(0, color=MUTED, lw=LW_REF)
+                if not np.isfinite(
+                    data.loc[data.period.eq(period), "value"].to_numpy(float)
+                ).any():
+                    ax.text(
+                        0.5,
+                        0.5,
+                        "Unavailable",
+                        transform=ax.transAxes,
+                        ha="center",
+                        va="center",
+                        color=MUTED,
+                        fontsize=FS_NOTE,
+                    )
+                for x, scenario in enumerate(groups):
+                    selected = data.loc[
+                        data.period.eq(period) & data.scenario.eq(scenario)
+                    ]
+                    row = summary.loc[
+                        summary.period.eq(period) & summary.scenario.eq(scenario)
+                    ]
+                    _group(
+                        ax,
+                        x,
+                        selected.value.to_numpy(float),
+                        _color(scenario),
+                        row.iloc[0] if len(row) else None,
+                        f"pet:{period}:{scenario}",
+                    )
+                ax.set_xticks(
+                    range(len(groups)),
+                    [_label(s) for s in groups],
+                    rotation=45,
+                    ha="right",
+                )
+            return fig
         if filename.startswith("trajectory-"):
             return ipcc_trajectory(
                 table("trajectory_range"),

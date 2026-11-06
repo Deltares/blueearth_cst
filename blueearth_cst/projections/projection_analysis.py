@@ -273,11 +273,16 @@ def analysis_change_table(
         )
     except AnalysisWindowUnavailable as error:
         reason = str(error)
-    supported = [variable for variable in variables if variable in {"temp", "precip"}]
     spec = {
         key: value if isinstance(value, VariableSpec) else VariableSpec(*value)
         for key, value in (variable_spec or {}).items()
     }
+    calculated_pet = bool(spec.get("pet") and spec["pet"].method)
+    supported = [
+        variable
+        for variable in variables
+        if variable in {"temp", "precip"} or (variable == "pet" and calculated_pet)
+    ]
     calendar = (
         assert_calendar_agreement(hist, fut, base["model"] + " " + base["scenario"])
         if not reason
@@ -296,6 +301,7 @@ def analysis_change_table(
             start_month_hyd_year=water_year_start,
             calendar=calendar,
             variable_spec=spec,
+            min_reference=min_reference,
         )
         monthly = get_change_monthly_clim_proj(
             hist[supported],
@@ -316,7 +322,9 @@ def analysis_change_table(
     rows = []
     for variable in variables:
         unavailable = reason or (
-            "analysis covers precip/temp only" if variable not in supported else ""
+            "analysis covers precip/temp and calculated PET only"
+            if variable not in supported
+            else ""
         )
         units = (
             spec[variable].units
@@ -406,6 +414,12 @@ def analysis_change_table(
                                     kernel[variable].sel(stats=statistic).values.item()
                                 )
                                 if variable == "precip"
+                                or (
+                                    variable == "pet"
+                                    and calculated_pet
+                                    and spec.get(variable)
+                                    and spec[variable].change == "relative"
+                                )
                                 else np.nan
                             )
                         else:
@@ -441,6 +455,18 @@ def analysis_change_table(
                         ref = null_sd / null_mean if null_mean > 0 else np.nan
                         value_fut = check_fut_sd / f_mean if f_mean > 0 else np.nan
                         pct = (value_fut / ref - 1) * 100 if ref > 0 else np.nan
+                if (
+                    variable == "pet"
+                    and statistic == "mean"
+                    and calculated_pet
+                    and period not in MONTHS
+                    and not unavailable
+                ):
+                    # PET absolute period changes are integrals; screen their
+                    # denominator using ref_mean (the canonical daily rate).
+                    ref = float(rp["total"].mean()) if n_ref else np.nan
+                    value_fut = float(fp["total"].mean()) if n_fut else np.nan
+                    pct = (value_fut / ref - 1) * 100 if ref > 0 else np.nan
                 status = (
                     "unavailable"
                     if unavailable
@@ -468,7 +494,15 @@ def analysis_change_table(
                     "future_integrals": _encode(fp["total"]),
                 }
                 for quantity in (
-                    ("change", "change_pct") if variable == "precip" else ("change",)
+                    ("change", "change_pct")
+                    if variable == "precip"
+                    or (
+                        variable == "pet"
+                        and spec.get(variable)
+                        and calculated_pet
+                        and spec[variable].change == "relative"
+                    )
+                    else ("change",)
                 ):
                     value = value_fut - ref if quantity == "change" else pct
                     if status in ("unavailable", "insufficient_observations") or (
@@ -488,6 +522,11 @@ def analysis_change_table(
                             if quantity == "change_pct"
                             else "1"
                             if statistic == "cv_detrended"
+                            else "mm"
+                            if variable == "pet"
+                            and calculated_pet
+                            and statistic == "mean"
+                            and period not in MONTHS
                             else units,
                             "reference_value": ref,
                             "future_value": value_fut,
@@ -563,6 +602,27 @@ def apply_dry_reference(table, min_reference=None):
         & (result.reference_value > 0)
         & (result.future_value > 0)
         & np.isfinite(result.future_value.astype(float))
+    )
+    pet_dry = (
+        valid
+        & result.variable.eq("pet")
+        & (
+            (result.reference_mean < (min_reference or {}).get("pet", -np.inf))
+            | (
+                result.statistic.ne("mean")
+                & (result.reference_value < (min_reference or {}).get("pet", -np.inf))
+            )
+        )
+    )
+    result.loc[pet_dry & result.quantity.eq("change_pct"), "value"] = np.nan
+    result.loc[pet_dry & result.quantity.eq("change_pct"), "status"] = (
+        "reference_below_threshold"
+    )
+    result.loc[pet_dry & result.quantity.eq("change_pct"), "reason"] = (
+        "PET reference daily rate or rate statistic below min_denominator"
+    )
+    result.loc[pet_dry & result.quantity.eq("change_pct"), "mean_change_eligible"] = (
+        False
     )
     return result
 
@@ -1213,7 +1273,7 @@ def member_null_bands(ratios):
     return result
 
 
-def product_availability(tables, windows=None):
+def product_availability(tables, windows=None, *, pet_change=None):
     """Actual-data figure predicates, independent of the C0 coverage matrix.
 
     Any scenario satisfying a predicate makes the product available. Missing
@@ -1477,6 +1537,54 @@ def product_availability(tables, windows=None):
         cloud_windows >= 2,
         "fewer than two distinct cloud windows",
     )
+    pet = data["models"].loc[data["models"].variable.eq("pet")]
+    if pet_change is not None:
+        sub = trajectory.loc[trajectory.variable.eq("pet")]
+        add(
+            "trajectory-pet.png",
+            "full_period",
+            "",
+            np.isfinite(sub.anomaly.astype(float)).any(),
+            "no PET member with valid reference",
+        )
+        quantity = "change_pct" if pet_change == "relative" else "change"
+        for window_id in window_ids:
+            climate = data["climatology"]
+            climate = climate.loc[
+                climate.variable.eq("pet")
+                & climate.window_id.eq(window_id)
+                & climate.period.isin(MONTHS)
+            ]
+            complete = any(
+                set(
+                    group.loc[
+                        np.isfinite(group.reference) & np.isfinite(group.future),
+                        "period",
+                    ]
+                )
+                == set(MONTHS)
+                for _, group in climate.groupby(["model", "scenario"])
+            )
+            add(
+                "seasonal-cycle-pet.png",
+                period_folder(window_id),
+                window_id,
+                complete,
+                "no complete PET monthly climatology",
+            )
+            changes = pet.loc[
+                pet.window_id.eq(window_id)
+                & pet.quantity.eq(quantity)
+                & pet.statistic.eq("mean")
+                & pet.period.isin(PERIODS[:5])
+            ]
+            add(
+                "change-pet-pct.png" if quantity == "change_pct" else "change-pet.png",
+                period_folder(window_id),
+                window_id,
+                np.isfinite(changes.value.astype(float)).any(),
+                "no eligible PET changes; inspect reference thresholds and coverage",
+            )
     return pd.DataFrame(
         rows, columns=["filename", "folder", "window_id", "available", "reason"]
     )

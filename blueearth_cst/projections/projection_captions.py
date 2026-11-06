@@ -13,6 +13,10 @@ from blueearth_cst.climate_analysis.diagnostic_figures import plural
 from blueearth_cst.projections.projection_figures import figure_key
 
 TITLES = {
+    "trajectory-pet.png": "Annual PET anomalies",
+    "seasonal-cycle-pet.png": "Monthly PET climatology",
+    "change-pet-pct.png": "Annual and seasonal PET change (%)",
+    "change-pet.png": "Annual and seasonal PET change",
     "availability.png": "CMIP6 ensemble composition",
     "trajectory-temperature.png": "Annual temperature anomalies",
     "trajectory-precipitation.png": "Annual precipitation anomalies",
@@ -37,6 +41,8 @@ TITLES = {
 
 #: Stated once for the whole suite, at the head of ``figure_captions.md``.
 SUITE_NOTE = (
+    "Spatial averages use the selected buffered bounding box and spherical cell-area weights, including "
+    "cells outside the basin polygon; they are not polygon integrals. "
     "All figures show basin-average quantities from the CMIP6 ensemble. Unless stated otherwise, each "
     "model is represented by the mean of its available ensemble members and models are weighted "
     "equally. Inter-model spread describes structural model uncertainty; it is not a confidence "
@@ -158,6 +164,31 @@ def caption(filename, record, window_id="", counts=None):
     """A self-contained figure legend for one product."""
     filename = figure_key(filename)
     counts = counts or {}
+    if "pet" in filename:
+        from blueearth_cst.projections.variable_spec import VariableSpec
+
+        fields = record.get("variable_spec", {}).get("pet")
+        method = VariableSpec(*fields).method if fields else None
+        recipe = (
+            f"HydroMT {method}, evaluated on native cells from monthly mean temperature, surface pressure and radiation; "
+            "this monthly-input approximation is not the mean of daily-derived PET. No elevation or pressure correction is applied. "
+            if method
+            else "Supplied PET variable; source method is recorded with the inputs. "
+        )
+        quantity = (
+            "Annual PET anomalies (mm/year), relative to each member's reference-period annual total. Lines show equal-model medians and shading their range; thin traces show members. "
+            if filename.startswith("trajectory-")
+            else "Monthly PET climatology (mm/day). Lines show model medians; shading shows the historical model range. "
+            if filename.startswith("seasonal-cycle-")
+            else "Annual and seasonal PET changes ("
+            + ("%" if "-pct" in filename else "mm, period integrals")
+            + "). Points show member-averaged model changes, ticks their median and boxes their IQR where at least ten models contribute. "
+        )
+        return (
+            quantity
+            + recipe
+            + "Spatial support is the entire selected buffered bounding box, including cells outside the basin polygon, with spherical cell-area weights. Near-zero reference daily rates exclude relative changes; absolute differences remain in the tables. Inter-model spread is not a confidence interval. Coverage and exclusions are recorded in the analysis tables."
+        )
     window = next(
         (w for w in record.get("windows", []) if w["window_id"] == window_id), None
     )
