@@ -1109,7 +1109,8 @@ def compose_config(
         )
     if recipe is not None and entry is not None:
         require_workflow_compatibility(recipe, entry)
-    composed["climate"] = climate
+    if "climate" in composed or required:
+        composed["climate"] = climate
     if entry == "analyze_climate" and not climate.get("sources"):
         raise ValueError("climate.sources must contain comparison candidates")
     merged: dict[str, Any] = {}
