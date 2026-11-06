@@ -1440,7 +1440,7 @@ def test_unset_climate_selection_is_refused_when_wf1_or_wf3_runs(tmp_path):
     with pytest.raises(ValueError) as excinfo:
         compose(t1_path)
     message = str(excinfo.value)
-    assert "climate.selected" in message
+    assert "climate.forcing.precip_source" in message
     assert "era5" in message and "chirps" in message, "name the candidates"
     assert "analyze_climate" in message, "and the workflow that compares them"
     assert "comparison" in message, "and where it writes the comparison"
@@ -1488,7 +1488,7 @@ def test_a_non_member_climate_selection_is_refused_and_names_the_set(tmp_path):
     message = str(excinfo.value)
     assert "era-5" in message
     assert "era5" in message and "chirps" in message, "name the member set"
-    assert "add" in message, "and both ways out, not just one"
+    assert "climate.forcing.precip_source" in message
 
 
 def test_an_observation_for_an_undeclared_outvar_is_refused(tmp_path):

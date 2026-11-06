@@ -9,6 +9,11 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Consolidate public forcing selection in project-level `climate.forcing.precip_source` and
+  `temp_source`. Infer precipitation only from a sole valid candidate when required; comparison-only
+  analysis needs no selection. Accept legacy keys with notices, reject alias collisions and invalid
+  supplied values, preserve scientific serialization and show resolved choices before execution.
+
 - Add selected historical forcing recipes for companion climate, source elevation, de Bruin/Makkink
   PET and independent temperature/pressure corrections. Computed recipes extend through scenario
   generation and retained simulation preparation; supplied reference PET is historical-only.

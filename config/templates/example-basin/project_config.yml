@@ -74,25 +74,23 @@ basin:
 
 # Define historical climate data and calendar. Input: mapping.
 climate:
-  # Datasets to consider, and the one the model runs on. `selected` must be
-  # in `sources`. You may leave `selected` empty while only analyze_climate
-  # is enabled: run it, read the comparison, then choose.
+  # Comparison candidates; their order never chooses model forcing.
   # Select historical climate datasets to assess. Input: list of supported climate source names.
   sources: [era5, chirps]
-  # Choose forcing for model and scenario generation. Input: name from sources; null for WF0-only assessment.
-  selected: era5
+  forcing:
+    # Explicit choice required with multiple candidates; omit this block for comparison-only work.
+    precip_source: era5
 
   # Optional selected-source recipe; these are the effective defaults.
   # Entries name existing HydroMT catalog sources, not file paths.
-  # An alternative temp_pet_source requires its explicit orography_source.
-  #forcing:
-  #  temp_pet_source: era5
-  #  orography_source: era5_orography
-  #  temp_correction: true
-  #  press_correction: true
-  #  pet:
-  #    mode: computed
-  #    method: debruin  # debruin | makkink
+  # An alternative temp_source requires its explicit orography_source.
+    #temp_source: era5
+    #orography_source: era5_orography
+    #temp_correction: true
+    #press_correction: true
+    #pet:
+    #  mode: computed
+    #  method: debruin  # debruin | makkink
   # Historical-only supplied reference PET: use pet: {mode: direct, source: <catalog-entry>}
   # and omit method and press_correction. Scenario generation/simulation reject direct PET.
 

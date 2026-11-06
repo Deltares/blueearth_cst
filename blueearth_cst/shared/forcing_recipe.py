@@ -6,9 +6,145 @@ Consumers must validate data and call the workflow guard before side effects.
 
 import hashlib
 import json
+import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal, cast
+
+
+def resolve_climate_forcing(
+    climate: Mapping[str, object], *, required: bool, notices: bool = True
+) -> "tuple[dict[str, object], ForcingRecipe | None]":
+    """Translate public configuration into the existing scientific representation.
+
+    Selection depends on requested work, never candidate order or saved state.
+    Archived scientific recipes must use ``read_forcing_recipe`` instead.
+    """
+    if not isinstance(climate, Mapping):
+        raise ValueError("climate must be a mapping")
+    result = dict(climate)
+    raw = climate.get("forcing", {})
+    if not isinstance(raw, Mapping):
+        raise ValueError("climate.forcing must be a mapping")
+    fields = dict(
+        _mapping(
+            raw,
+            {
+                "precip_source",
+                "temp_source",
+                "temp_pet_source",
+                "orography_source",
+                "temp_correction",
+                "press_correction",
+                "pet",
+            },
+            "climate.forcing",
+        )
+    )
+    for old, new, owner in (
+        ("selected", "precip_source", climate),
+        ("temp_pet_source", "temp_source", fields),
+    ):
+        if old in owner and new in fields:
+            raise ValueError(f"Both legacy {old} and climate.forcing.{new} supplied")
+        if old in owner:
+            if notices:
+                warnings.warn(
+                    f"{old} is deprecated; use climate.forcing.{new}",
+                    FutureWarning,
+                    stacklevel=2,
+                )
+            if old != "selected" or owner[old] is not None:
+                fields[new] = owner[old]
+            if old == "temp_pet_source":
+                fields.pop(old)
+    candidates = climate.get("sources", [])
+    # Legacy inputs allowed explicit selection without comparison candidates.
+    if "sources" not in climate and isinstance(climate.get("selected"), str):
+        candidates = [climate["selected"]]
+    if not isinstance(candidates, list):
+        raise ValueError("climate.sources must be a list of unique source names")
+    for candidate in candidates:
+        if not isinstance(candidate, str) or candidate not in {
+            "era5",
+            "chirps",
+            "chirps_global",
+        }:
+            raise ValueError(
+                f"climate.sources contains unsupported candidate {candidate!r}"
+            )
+    if len(set(candidates)) != len(candidates):
+        raise ValueError("climate.sources contains duplicate candidates")
+    wants_recipe = required or bool(fields)
+    if wants_recipe and not candidates:
+        raise ValueError("climate.sources must contain at least one valid candidate")
+    if "precip_source" not in fields and wants_recipe:
+        if len(candidates) != 1:
+            raise ValueError(
+                "climate.forcing.precip_source is required; "
+                f"candidates: {candidates!r}. Choose explicitly; list order is not selection. "
+                "Use analyze_climate for comparison before choosing."
+            )
+        fields["precip_source"] = candidates[0]
+    if not wants_recipe:
+        result["selected"] = None
+        result.pop("forcing", None)
+        return result, None
+    selected = _source(fields.pop("precip_source"), "climate.forcing.precip_source")
+    if selected not in candidates:
+        raise ValueError(
+            f"climate.forcing.precip_source {selected!r} must be a member of "
+            f"climate.sources {candidates!r}"
+        )
+    public_temperature = "temp_source" in fields
+    if public_temperature:
+        fields["temp_pet_source"] = _source(
+            fields.pop("temp_source"), "climate.forcing.temp_source"
+        )
+    try:
+        recipe = normalize_forcing_recipe(selected, fields)
+    except ValueError as error:
+        if public_temperature:
+            raise ValueError(
+                str(error).replace("temp_pet_source", "temp_source")
+            ) from error
+        raise
+    result["selected"] = selected
+    if recipe == normalize_forcing_recipe(selected):
+        result.pop("forcing", None)
+    else:
+        result["forcing"] = recipe.settings()
+    return result, recipe
+
+
+def climate_forcing_summary(
+    climate: Mapping[str, object], *, required: bool
+) -> tuple[str, ...]:
+    """Project human-readable resolution origins without terminal dependencies."""
+    _, recipe = resolve_climate_forcing(climate, required=required, notices=False)
+    if recipe is None:
+        return ("No forcing recipe selected; comparison only",)
+    raw = climate.get("forcing", {})
+    selection = (
+        "explicit"
+        if climate.get("selected") is not None or "precip_source" in raw
+        else "inferred"
+    )
+    rows = [f"Precipitation {recipe.precip_source} ({selection})"]
+    settings = recipe.settings()
+    for key, value in settings.items():
+        if key == "pet":
+            for pet_key, pet_value in value.items():
+                origin = "explicit" if pet_key in raw.get("pet", {}) else "defaulted"
+                rows.append(f"PET {pet_key} {pet_value} ({origin})")
+            continue
+        public_key = "temp_source" if key == "temp_pet_source" else key
+        origin = "explicit" if public_key in raw or key in raw else "defaulted"
+        rows.append(f"{public_key} {value} ({origin})")
+    if recipe.press_correction is None:
+        rows.append("Pressure correction not applicable")
+    rows.append(f"Required fields {', '.join(recipe.required_variables)}")
+    return tuple(rows)
 
 
 def _canonical_json(document: dict[str, object]) -> bytes:

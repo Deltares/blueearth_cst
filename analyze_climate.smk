@@ -101,25 +101,10 @@ validate_historical_window(historical_window)
 WATER_YEAR_START = resolve_water_year_start(get_config(climate_cfg, "water_year_start"))
 
 # --- the candidate source set -------------------------------------------------
-# THE PROJECT'S OWN SOURCE IS ALWAYS FIRST AND ALWAYS PRESENT. `candidate_sources`
-# ADDS to it rather than replacing it, so a config that sets nothing gets exactly
-# the figures WF1 already draws for `shared.clim_historical` and nothing else --
-# this workflow is then a model-free entry point onto artifacts the project
-# already has, not a new cost.
-#
-# Order is declaration order with duplicates dropped, NOT sorted: the primary
-# source leads every figure set and every comparison table, which is the reading
-# order a person wants when the question is "should I switch away from it?".
-clim_source = get_config(climate_cfg, "selected", optional=False)
-# `C-43`: the candidate set moved UP to `climate.sources` and WIDENED -- it is
-# the full list with no privileged element, and `climate.selected` names one
-# MEMBER of it. The v1 key held the OTHERS, beside a privileged
-# `clim_historical`, which is why the migration unions the two rather than
-# copying one.
-#
-# The loader already refuses a `selected` outside `sources`, so the only work
-# left here is ORDER: the primary leads every figure set and comparison table,
-# and `sources` is in declaration order.
+# Comparisons have no privileged source until a forcing recipe is selected.
+# The internal selected key is resolved once by project composition; candidate
+# presentation order is never used to select model or scenario forcing.
+clim_source = climate_cfg.get("selected")
 _declared_sources = get_config(climate_cfg, "sources", []) or []
 if isinstance(_declared_sources, str):
     raise ValueError(
@@ -127,7 +112,11 @@ if isinstance(_declared_sources, str):
         f"{_declared_sources!r}. A bare string would be iterated character "
         "by character and mint one store per letter."
     )
-CANDIDATE_SOURCES = list(dict.fromkeys([clim_source, *_declared_sources]))
+CANDIDATE_SOURCES = ([clim_source] if clim_source is not None else []) + [
+    source for source in _declared_sources if source != clim_source
+]
+if not CANDIDATE_SOURCES:
+    raise ValueError("climate.sources must contain comparison candidates")
 
 # P3-2a bounded support (design ext2-3): the raw-climate path supports era5,
 # chirps and chirps_global only. Rejected HERE, at parse time, for every
@@ -300,7 +289,7 @@ declare_path_tokens(
     # sources in two different shapes — the one thing this workflow exists to put
     # side by side. Rooted one level up, both read `<climate>/<key>/...` and the
     # store key stays visible, which is the part a reader is comparing.
-    climate=os.path.dirname(CLIMATE_STORES[clim_source].store_dir),
+    climate=os.path.join(project_dir, "data", "climate", "historical"),
 )
 declare_project_root(project_dir)
 RULES = RuleRegistry(LOG_PARTS_DIR, BENCH_PARTS_DIR)

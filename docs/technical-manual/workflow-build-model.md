@@ -29,7 +29,7 @@ See [input formats](data-formats-and-conventions.md) for file conventions and
 |---|---|
 | `basin.region`, `basin.resolution` | Basin extent and model resolution. |
 | `basin.output_locations` | Reporting locations. |
-| `climate.selected`, `climate.window` | Historical forcing source and available record. |
+| `climate.forcing.precip_source`, `climate.window` | Forcing source and available record. |
 | `model.outvars` | Variables saved for evaluation and later indicator calculations. |
 
 **Workflow settings** control the historical simulation and evaluation. The annotated template is

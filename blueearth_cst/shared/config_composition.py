@@ -603,55 +603,6 @@ def _check_retired_keys(
     )
 
 
-def _check_climate_selection(
-    t1: Mapping[str, Any], workflows: Mapping[str, Any], t1_path: str | os.PathLike
-) -> None:
-    """Refuse an unset or non-member ``climate.selected`` (rows 3 and 4).
-
-    **Unset is VALID when only WF0 is enabled (D-10.5).** "I have candidates, I
-    have not chosen yet" is a legitimate project state, and it is precisely the
-    state WF0 exists to resolve: WF0 compares the candidates and the comparison
-    is what a user reads in order to choose. Refusing it would make the workflow
-    that answers the question impossible to run until the question is answered.
-    """
-    climate = t1.get("climate") or {}
-    if not isinstance(climate, Mapping):
-        raise ValueError(f"{t1_path}: `climate:` must be a mapping if present.")
-    sources = climate.get("sources") or []
-    selected = climate.get("selected")
-
-    if selected is None:
-        needs = [
-            name
-            for name in ("build_model", "generate_scenarios")
-            if (workflows.get(name) or {}).get("enabled")
-        ]
-        if not needs:
-            return  # D-10.5: candidates without a choice, and only WF0 to run.
-        raise ValueError(
-            f"{t1_path}: `climate.selected` is unset, but {needs!r} "
-            f"{'is' if len(needs) == 1 else 'are'} enabled and "
-            "must build on ONE historical dataset.\n"
-            f"  Candidates declared in `climate.sources`: {list(sources)!r}\n"
-            "  Set `climate.selected` to one of them. To choose on evidence "
-            "rather than by guessing, run analyze_climate first with these "
-            "candidates -- it writes a comparison of them to "
-            "`<project_dir>/data/climate/historical/comparison/` and needs no "
-            "model, and leaving `climate.selected` unset is legal for exactly "
-            f"that run. See {CONFIG_DOC}."
-        )
-
-    if sources and selected not in sources:
-        raise ValueError(
-            f"{t1_path}: `climate.selected: {selected!r}` is not one of the "
-            f"candidates `climate.sources` declares: {list(sources)!r}.\n"
-            "  Either pick a member of that set, or add "
-            f"{selected!r} to `climate.sources` -- the selection names the "
-            "dataset the model is built and run on, and the candidate list is "
-            f"what analyze_climate compares. See {CONFIG_DOC}."
-        )
-
-
 def _check_observations(
     t1: Mapping[str, Any], bodies: Mapping[str, Mapping[str, Any]]
 ) -> None:
@@ -1119,7 +1070,6 @@ def compose_config(
                 "(or none for unannotated figures)."
             )
     _check_retired_keys(t1, bodies)  # the T2 half; the T1 half ran above
-    _check_climate_selection(t1, workflows, t1_path)
     _check_observations(t1, bodies)
     _check_trajectories(bodies)
     for owner, forbidden, destination in (
@@ -1137,24 +1087,31 @@ def compose_config(
         for key, value in resolve_project_paths(t1, t1_path).items()
         if key != "workflows"
     }
-    climate = composed.get("climate", {})
-    if "forcing" in climate:
-        from blueearth_cst.shared.forcing_recipe import (
-            normalize_forcing_recipe,
-            require_workflow_compatibility,
-        )
+    from blueearth_cst.shared.forcing_recipe import (
+        require_workflow_compatibility,
+        resolve_climate_forcing,
+    )
 
-        if climate.get("selected") is None:
-            raise ValueError("climate.forcing requires climate.selected")
-        recipe = normalize_forcing_recipe(climate["selected"], climate["forcing"])
-        if entry is not None:
-            require_workflow_compatibility(recipe, entry)
-        climate = dict(climate)
-        if recipe == normalize_forcing_recipe(climate["selected"]):
-            climate.pop("forcing")
-        else:
-            climate["forcing"] = recipe.settings()
-        composed["climate"] = climate
+    required = entry in {"build_model", "generate_scenarios"}
+    retained_only = False
+    if entry == "simulate_system":
+        simulation = normalize_indicator_settings(bodies.get("simulate_system", {}))
+        required = not (
+            simulation.get("operation") == "indicators-only"
+            or simulation.get("operations") == ["indicators"]
+        )
+        retained_only = not required
+    if retained_only:
+        climate, recipe = composed.get("climate", {}), None
+    else:
+        climate, recipe = resolve_climate_forcing(
+            composed.get("climate", {}), required=required
+        )
+    if recipe is not None and entry is not None:
+        require_workflow_compatibility(recipe, entry)
+    composed["climate"] = climate
+    if entry == "analyze_climate" and not climate.get("sources"):
+        raise ValueError("climate.sources must contain comparison candidates")
     merged: dict[str, Any] = {}
     workflow_config_paths: dict[str, str] = {}
     for name, stanza in workflows.items():
@@ -1177,6 +1134,12 @@ def compose_config(
             "[config_composition] skipped unreadable workflow config(s) outside "
             f"this entry point's scope: {', '.join(skipped)}"
         )
+    if entry is not None and entry != "analyze_projections" and not retained_only:
+        from blueearth_cst.shared.forcing_recipe import climate_forcing_summary
+        from blueearth_cst.shared.run_log_core import log_row
+
+        for row in climate_forcing_summary(t1.get("climate", {}), required=required):
+            log_row(row, module="forcing")
     return composed, workflow_config_paths
 
 

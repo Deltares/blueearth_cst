@@ -74,7 +74,7 @@ and resolved runtime locators. `config_paths.py` and `tests/test_config_paths.py
 | `basin.output_locations` | Optional location CSV; [format and snapping](input-formats.md#output-locations) |
 | `basin.delineation` | Spatial-unit controls, including `snap_tolerance_m`; starter comments describe the options |
 | `climate.sources` | Candidate historical catalog sources |
-| `climate.selected` | Selected forcing; must belong to candidates; null is allowed for historical climate analysis-only analysis |
+| `climate.forcing.precip_source` | Precipitation choice from comparison candidates; infer only a sole candidate |
 | `climate.forcing` | Optional selected-source companion, elevation, PET and correction recipe; see below |
 | `climate.window` | Inclusive calendar-year `start`/`end`; historical record, not hydrological run period |
 | `climate.water_year_start` | Reporting-year month, default January |
@@ -100,9 +100,28 @@ Completeness and temporal aggregation are distinct from the inclusive extraction
 Selected precipitation remains `era5`, `chirps` or `chirps_global`. Omission and explicit defaults are
 equivalent. The [annotated starter](../../config/templates/example-basin/project_config.yml) shows the keys.
 
+Keep this block in the project file: model building and independent scenario generation share it.
+Comparison-only historical analysis needs no forcing selection; omit the block or use `{}`. When forcing
+is needed, the whole block may be omitted only with one valid candidate in `climate.sources`.
+With several candidates, set `climate.forcing.precip_source` explicitly. Candidate order and earlier runs
+never select forcing. Empty, duplicate or unsupported candidates fail before execution.
+
+Defaults fill omitted settings, never missing data. ERA5 supplies all required companion fields by default,
+including for CHIRPS precipitation. A different `temp_source` must supply every required field; individual
+variables are not silently borrowed from ERA5. The recipe derives seven total fields for de Bruin, six for
+Makkink and precipitation/temperature/PET for direct mode. Supplied nulls, wrong types, unknown keys and
+empty names are errors. Entry-point summaries show resolved choices before execution.
+
+Legacy `climate.selected` and `climate.forcing.temp_pet_source` remain accepted with deprecation notices.
+Do not supply both spellings of a field, even with equal values. A legacy null selection remains unselected;
+null under a new key is invalid. Archives and scientific recipe serialization retain their original bytes
+and meaning. Equivalent old/new or inferred/explicit choices have the same scientific identity within one
+software candidate; producer-code integrity can change identities across revisions.
+
 | Key | Default and allowed meaning |
 |---|---|
-| `temp_pet_source` | `era5`; catalog entry for temperature and computed-PET inputs |
+| `precip_source` | Candidate precipitation source; required explicitly when several candidates exist |
+| `temp_source` | `era5`; temperature, extrema, pressure and radiation required by the selected PET recipe |
 | `orography_source` | `era5_orography`; source elevation entry; required explicitly for another companion |
 | `temp_correction` | `true`; boolean controlling lapse correction at extraction and model preparation |
 | `press_correction` | `true`; boolean controlling pressure correction during computed-PET preparation |

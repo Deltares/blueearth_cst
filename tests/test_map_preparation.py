@@ -135,8 +135,9 @@ def test_source_edits_preserve_only_compatible_preparations(
     assert path.read_bytes() == saved
 
 
+@pytest.mark.parametrize("selected", ["chirps", None])
 def test_display_reference_reuses_fields_without_scientific_execution(
-    prepared, monkeypatch
+    prepared, monkeypatch, selected
 ):
     from blueearth_cst.climate_analysis import source_map_fields
 
@@ -148,8 +149,11 @@ def test_display_reference_reuses_fields_without_scientific_execution(
     monkeypatch.setattr(source_map_fields, "prepare_source_map_fields", refuse)
     target = mp.source_fields_path(spec)
     before = target.read_bytes()
-    reference = mr.build_reference([spec], "chirps", 1, policy, {})
-    mr.validate_reference(reference, [spec], "chirps", 1, policy, {})
+    reference = mr.build_reference([spec], selected, 1, policy, {})
+    mr.validate_reference(reference, [spec], selected, 1, policy, {})
+    assert reference["identity"]["selected"] == selected
+    assert reference["frame"]["selected_source"] == selected
+    assert reference["variables"]["precip"]["finite_pool_count"] == 4
     np.testing.assert_array_equal(
         mp.read_source_fields(spec, 1, policy)[0].precip_valid_years, np.ones((2, 2))
     )

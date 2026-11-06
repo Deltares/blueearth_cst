@@ -177,6 +177,19 @@ def read_enabled_flags(config_path: str) -> dict[str, bool]:
     return _enabled_flags(cfg, config_path)
 
 
+def _preflight_forcing(config_path: str, flags: Mapping[str, bool]) -> None:
+    """Validate requested consumers before any producer or namespace side effects."""
+    from blueearth_cst.shared.config_composition import load_composed_config
+
+    for name, enabled in flags.items():
+        if enabled and name != "simulate_system":
+            load_composed_config(config_path, entry=name)
+    if flags.get("simulate_system"):
+        from blueearth_cst.experiment.simulation_runner import simulation_settings
+
+        simulation_settings(config_path)
+
+
 def _read_config(config_path: str) -> Mapping[str, Any]:
     """Load a wrapper source config as a YAML mapping."""
     path = Path(config_path).expanduser()
@@ -1342,6 +1355,7 @@ def run(
         try:
             cfg = _read_config(config_path)
             flags = _enabled_flags(cfg, config_path)
+            _preflight_forcing(config_path, flags)
         finally:
             # Name the attempt from its selection when available, while still
             # retaining explicit-root failures that cannot read configuration.

@@ -57,7 +57,7 @@ settings and the shared parameters it uses:
 | Output storage and data access | Project `project.project_dir`, `project.catalog`. |
 | Basin boundary and grid spacing | Project `basin.region`, `basin.resolution` (degrees). |
 | Reporting locations and saved variables | Project `basin.output_locations`, `model.outvars`. |
-| Historical sources and selected forcing | Project `climate.sources`, `climate.selected`. |
+| Candidates and forcing | Project `climate.sources`, `climate.forcing.precip_source`. |
 | Historical record and reporting year | Project `climate.window`, `climate.water_year_start`. |
 
 The historical extraction window, historical model run, GCM comparison windows and generated scenario

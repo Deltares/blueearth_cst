@@ -38,7 +38,7 @@ globcover:
 ```
 
 The full entry also supplies reader options and metadata. In the project file, `basin.sources`
-selects spatial entries, `climate.sources` lists historical candidates, and `climate.selected` chooses
+selects spatial entries, `climate.sources` lists candidates, and `climate.forcing.precip_source` chooses
 forcing for historical simulation and weather generation. These names must match catalog entries.
 
 ## Other bundled variants
