@@ -74,24 +74,72 @@ def configured_grid_path(toml_path: str | Path) -> Path | None:
     ).resolve()
 
 
-def validate_grid(path: str | Path, toml_path: str | Path) -> dict:
-    """Check native names, metadata, shapes and complete simulation clock."""
+def validate_grid(
+    path: str | Path,
+    toml_path: str | Path,
+    *,
+    expected_contract: dict | None = None,
+    legacy: bool = False,
+) -> dict:
+    """Validate against native model expectations and the complete simulation clock.
+
+    New admission loads the producer's TOML-bound contract and checks its static
+    input digest. Retained readers may supply an inventory-authenticated contract
+    without the original model paths. ``legacy`` preserves the original reader
+    semantics only for checksum-verified inventories predating that contract.
+    """
     import netCDF4
     import numpy as np
     import pandas as pd
     from pyproj import CRS
 
+    from blueearth_cst.shared.provenance import file_sha256
+
     with Path(toml_path).open("rb") as handle:
         config = tomllib.load(handle)
     request = config["output"]["netcdf_grid"]
     clock = config["time"]
+    contract = expected_contract
+    if not legacy:
+        if contract is None:
+            with Path(str(toml_path) + ".grid.toml").open("rb") as handle:
+                contract = tomllib.load(handle)
+            static_path = (
+                Path(toml_path).parent
+                / config.get("dir_input", ".")
+                / config["input"]["path_static"]
+            ).resolve()
+            if contract["static_sha256"] != file_sha256(static_path):
+                raise ValueError("Grid contract differs from model staticmaps")
+        if (
+            contract["schema_version"] != "wflow-grid-contract/1"
+            or contract["toml_sha256"] != file_sha256(toml_path)
+            or {
+                name: item["standard_name"]
+                for name, item in contract["variables"].items()
+            }
+            != {name: standard for standard, name in request["variables"].items()}
+        ):
+            raise ValueError("Grid contract differs from native TOML/request")
     with netCDF4.Dataset(path) as ds:
         variables = request["variables"]
         coordinates = {"x", "y", "lon", "lat", "time", "layer", "spatial_ref"}
         if set(ds.variables) - coordinates != set(variables.values()):
             raise ValueError(f"Grid {path}: variable names differ from request")
         crs = ds.variables["spatial_ref"]
-        CRS.from_wkt(getattr(crs, "crs_wkt", getattr(crs, "spatial_ref", "")))
+        actual_crs = CRS.from_wkt(
+            getattr(crs, "crs_wkt", getattr(crs, "spatial_ref", ""))
+        )
+        if contract is not None:
+            if actual_crs != CRS.from_wkt(contract["crs_wkt"]):
+                raise ValueError(f"Grid {path}: CRS differs from model staticmaps")
+            for name, expected_coordinate in contract["coordinates"].items():
+                if name not in ds.variables or not np.array_equal(
+                    ds[name][:], expected_coordinate
+                ):
+                    raise ValueError(
+                        f"Grid {path}: {name} differs from model staticmaps"
+                    )
         time = ds.variables["time"]
         if time.calendar != clock["calendar"]:
             raise ValueError(f"Grid {path}: calendar differs from simulation")
@@ -121,6 +169,25 @@ def validate_grid(path: str | Path, toml_path: str | Path) -> dict:
                 or getattr(value, "grid_mapping", None) != "spatial_ref"
             ):
                 raise ValueError(f"Grid {name}: missing native physical metadata")
+            support = None
+            if contract is not None:
+                native = contract["variables"][name]
+                if value.units != native["units"]:
+                    raise ValueError(f"Grid {name}: units differ from native Wflow")
+                if list(value.dimensions) != native["dimensions"]:
+                    raise ValueError(
+                        f"Grid {name}: dimensions differ from native Wflow"
+                    )
+                if native["layers"] and not np.array_equal(
+                    ds["layer"][:], native["layers"]
+                ):
+                    raise ValueError(f"Grid {name}: layers differ from native Wflow")
+                support = np.zeros(
+                    tuple(len(ds.dimensions[d]) for d in spatial), dtype=bool
+                )
+                indices = np.asarray(contract["supports"][native["support"]], dtype=int)
+                if indices.size:
+                    support[indices[:, 0] - 1, indices[:, 1] - 1] = True
             # Read every compressed chunk, batching small grids into roughly
             # 8 MiB blocks instead of paying one Python/NetCDF call per day.
             # Very large grids still require at least one native time slab.
@@ -132,7 +199,12 @@ def validate_grid(path: str | Path, toml_path: str | Path) -> dict:
             for step in range(0, len(dates), block_steps):
                 key = [slice(None)] * value.ndim
                 key[axis] = slice(step, min(step + block_steps, len(dates)))
-                if np.isinf(value[tuple(key)]).any():
+                block = np.ma.filled(value[tuple(key)], np.nan)
+                if support is not None and not np.isfinite(block[..., support]).all():
+                    raise ValueError(
+                        f"Grid {name}: missing/non-finite values on native support"
+                    )
+                if np.isinf(block).any():
                     raise ValueError(f"Grid {name}: infinite values")
             metadata[name] = {
                 "standard_name": standard,
@@ -146,8 +218,11 @@ def validate_grid(path: str | Path, toml_path: str | Path) -> dict:
                 np.all(np.diff(coord) > 0) or np.all(np.diff(coord) < 0)
             ):
                 raise ValueError(f"Grid {path}: nonmonotonic {name}")
-        return {
+        result = {
             "variables": metadata,
             "calendar": time.calendar,
             "timesteps": len(dates),
         }
+        if contract is not None:
+            result["validation_contract"] = contract
+        return result

@@ -255,7 +255,7 @@ function run_with_progress(Wflow, tomlpath::AbstractString; label::AbstractStrin
                 check_grid_request(Wflow, config)
                 model = Wflow.Model(config)
                 try
-                    annotate_grid(Wflow, model)
+                    annotate_grid(Wflow, model, tomlpath)
                     Wflow.load_fixed_forcing!(model)
                     Wflow.run!(model; close_files=false)
                 finally

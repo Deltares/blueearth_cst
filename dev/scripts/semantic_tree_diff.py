@@ -489,6 +489,7 @@ def build_project_tree_rules(
     for leaf in (
         "staticmaps.nc",
         "wflow_sbm.toml",
+        "wflow_sbm.toml.grid.toml",
         "hydromt.log",
         "hydromt_data.yml",
         ".model_built",
@@ -625,7 +626,9 @@ def build_project_tree_rules(
             rf"experiments/{exp}/results/indicator_sets/[a-z][a-z0-9_]*_(run|group)_indicators\.csv"
         )
         native = rf"experiments/{exp}/hydrology/wflow"
-        same_rx(rf"{native}/run_settings/run_[0-9]+\.(toml|yml|temporal\.json)")
+        same_rx(
+            rf"{native}/run_settings/run_[0-9]+\.(toml|toml\.grid\.toml|yml|temporal\.json)"
+        )
         same(
             f"experiments/{e}/hydrology/wflow/run_settings/forcing_elevation_catalog.yml"
         )

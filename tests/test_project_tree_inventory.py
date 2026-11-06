@@ -166,6 +166,7 @@ COVERED: dict[str, list[str]] = {
     "models": [
         "models/hydrology/wflow/staticmaps.nc",
         "models/hydrology/wflow/wflow_sbm.toml",
+        "models/hydrology/wflow/wflow_sbm.toml.grid.toml",
         "models/hydrology/wflow/hydromt.log",
         "models/hydrology/wflow/hydromt_data.yml",
         "models/hydrology/wflow/.model_built",
@@ -249,6 +250,7 @@ COVERED: dict[str, list[str]] = {
         f"experiments/{E}/results/indicator_sets/q_run_indicators.csv",
         f"experiments/{E}/results/indicator_sets/q_group_indicators.csv",
         f"experiments/{E}/hydrology/wflow/run_settings/run_001.toml",
+        f"experiments/{E}/hydrology/wflow/run_settings/run_001.toml.grid.toml",
         f"experiments/{E}/hydrology/wflow/run_settings/run_001.temporal.json",
         f"experiments/{E}/hydrology/wflow/run_settings/run_001.yml",
         f"experiments/{E}/hydrology/wflow/run_settings/forcing_elevation_catalog.yml",

@@ -1,10 +1,12 @@
 """Grid request admission, native-file integrity and pair publication recovery."""
 
 import shutil
+import tomllib
 from pathlib import Path
 
 import netCDF4
 import pytest
+import tomli_w
 from pyproj import CRS
 
 from blueearth_cst.experiment.batch_staging import (
@@ -76,12 +78,22 @@ def _pair(tmp_path):
     """Synthetic native-format payload for transaction/corruption tests only."""
     toml = tmp_path / "run_1.toml"
     toml.write_text(
-        'dir_output="."\n[time]\ncalendar="standard"\n'
+        'dir_output="."\n[input]\npath_static="staticmaps.nc"\n'
+        '[time]\ncalendar="standard"\n'
         'starttime="2046-01-01"\nendtime="2046-01-03"\ntimestepsecs=86400\n'
         '[output.netcdf_grid]\npath="run_1.nc"\ncompressionlevel=1\n'
         f'[output.netcdf_grid.variables]\n{STANDARD}="q"\n',
         encoding="utf-8",
     )
+    with netCDF4.Dataset(tmp_path / "staticmaps.nc", "w") as ds:
+        for name in ("latitude", "longitude"):
+            ds.createDimension(name, 2)
+            ds.createVariable(name, "f8", (name,))[:] = [1, 2]
+        ds.createVariable("spatial_ref", "i4").crs_wkt = CRS.from_epsg(4326).to_wkt()
+        ds.createVariable("locations", "f8", ("latitude", "longitude"))[:] = [
+            [9, 2],
+            [float("nan"), float("nan")],
+        ]
     grid = tmp_path / "run_1.nc"
     with netCDF4.Dataset(grid, "w") as ds:
         for name, count in (("time", 2), ("lat", 2), ("lon", 2)):
@@ -101,7 +113,31 @@ def _pair(tmp_path):
         value.grid_mapping = "spatial_ref"
     csv = tmp_path / "run_1.csv"
     csv.write_text("time,Q_1\n2046-01-02,1\n2046-01-03,1\n", encoding="utf-8")
+    _contract(toml, tmp_path / "staticmaps.nc")
     return BatchMember("run_1", toml, csv), grid
+
+
+def _contract(toml, static):
+    """Independent two-by-two native-model expectation for transaction fixtures."""
+    contract = {
+        "schema_version": "wflow-grid-contract/1",
+        "toml_sha256": file_sha256(toml),
+        "static_sha256": file_sha256(static),
+        "wflow_version": "fixture",
+        "crs_wkt": CRS.from_epsg(4326).to_wkt(),
+        "coordinates": {"lat": [1.0, 2.0], "lon": [1.0, 2.0]},
+        "supports": {"river": [[1, 1], [2, 2]]},
+        "variables": {
+            "q": {
+                "standard_name": STANDARD,
+                "units": "m3 s-1",
+                "dimensions": ["time", "lat", "lon"],
+                "layers": [],
+                "support": "river",
+            }
+        },
+    }
+    Path(str(toml) + ".grid.toml").write_text(tomli_w.dumps(contract), encoding="utf-8")
 
 
 def test_truncated_grid_rejects(tmp_path):
@@ -110,6 +146,85 @@ def test_truncated_grid_rejects(tmp_path):
     grid.write_bytes(grid.read_bytes()[:100])
     with pytest.raises((OSError, ValueError)):
         validate_grid(grid, member.toml_path)
+
+
+@pytest.mark.parametrize("corruption", ["longitude", "crs"])
+def test_grid_rejects_spatial_metadata_different_from_model(tmp_path, corruption):
+    member, grid = _pair(tmp_path)
+    with netCDF4.Dataset(grid, "r+") as ds:
+        if corruption == "longitude":
+            ds["lon"][:] += 10
+        else:
+            ds["spatial_ref"].crs_wkt = CRS.from_epsg(3857).to_wkt()
+    with pytest.raises(ValueError, match="differs from model staticmaps"):
+        validate_grid(grid, member.toml_path)
+
+
+@pytest.mark.parametrize("corruption", ["nan", "masked", "infinity", "units"])
+def test_grid_rejects_native_support_or_unit_corruption(tmp_path, corruption):
+    member, grid = _pair(tmp_path)
+    with netCDF4.Dataset(grid, "r+") as ds:
+        if corruption == "units":
+            ds["q"].units = "kg"
+        else:
+            ds["q"][0, 0, 0] = {
+                "nan": float("nan"),
+                "masked": float("nan"),
+                "infinity": float("inf"),
+            }[corruption]
+    with pytest.raises(ValueError, match="native"):
+        validate_grid(grid, member.toml_path)
+
+
+def test_grid_accepts_outside_support_masks_and_rejects_changed_contract(tmp_path):
+    member, grid = _pair(tmp_path)
+    with netCDF4.Dataset(grid, "r+") as ds:
+        ds["q"][:, 0, 1] = float("nan")
+    assert validate_grid(grid, member.toml_path)["timesteps"] == 2
+    member.toml_path.write_text(member.toml_path.read_text() + "\n# changed\n")
+    with pytest.raises(ValueError, match="contract differs"):
+        validate_grid(grid, member.toml_path)
+
+
+def test_grid_requires_independent_contract_and_native_dimensions(tmp_path):
+    member, grid = _pair(tmp_path)
+    contract_path = Path(str(member.toml_path) + ".grid.toml")
+    contract = tomllib.loads(contract_path.read_text())
+    contract["variables"]["q"]["dimensions"] = ["time", "layer", "lat", "lon"]
+    contract["variables"]["q"]["layers"] = [1.0, 2.0]
+    contract_path.write_text(tomli_w.dumps(contract), encoding="utf-8")
+    with pytest.raises(ValueError, match="dimensions differ"):
+        validate_grid(grid, member.toml_path)
+    contract_path.unlink()
+    with pytest.raises(FileNotFoundError):
+        validate_grid(grid, member.toml_path)
+
+
+@pytest.mark.parametrize("corruption", ["nan", "units", "coordinates"])
+def test_retry_rejects_malformed_pair_even_with_matching_checksums(
+    tmp_path, corruption
+):
+    member, grid = _pair(tmp_path)
+    staging = tmp_path / "staging"
+    prepare_staging([member], staging, "simulation")
+    member.native_output_path.replace(staging / "run_1.csv")
+    grid.replace(staging / "run_1.nc")
+    with netCDF4.Dataset(staging / "run_1.nc", "r+") as ds:
+        if corruption == "nan":
+            ds["q"][0, 0, 0] = float("nan")
+        elif corruption == "units":
+            ds["q"].units = "kg"
+        else:
+            ds["lon"][:] += 10
+    (staging / "run_1.sha256").write_text(
+        f'csv="{file_sha256(staging / "run_1.csv")}"\n'
+        f'grid="{file_sha256(staging / "run_1.nc")}"\n',
+        encoding="utf-8",
+    )
+    (staging / "run_1.expect").replace(staging / "run_1.ok")
+    with pytest.raises(ValueError):
+        restore_staged([member], staging)
+    assert prepare_staging([member], staging, "simulation") == [member]
 
 
 def test_pair_survives_interrupted_publication(tmp_path, monkeypatch):
@@ -184,7 +299,11 @@ def test_grid_inventory_binds_both_artifacts_and_reads_old_records(
     runs = native_runs(experiment.root)
     for run, native in runs.items():
         native.toml_path.write_text(
-            'dir_output="."\n' + native.toml_path.read_text(encoding="utf-8"),
+            'dir_output="."\n'
+            + native.toml_path.read_text(encoding="utf-8")
+            .replace('header="Q"', 'header="Q"\nmap="locations"')
+            .replace('header="gwr"', 'header="gwr"\nmap="locations"')
+            + f'\n[input]\npath_static="{(sample_dir / "staticmaps.nc").as_posix()}"\n',
             encoding="utf-8",
         )
         with native.toml_path.open("a", encoding="utf-8") as handle:
@@ -193,10 +312,22 @@ def test_grid_inventory_binds_both_artifacts_and_reads_old_records(
                 f'[output.netcdf_grid.variables]\n{STANDARD}="q"\n'
             )
         shutil.copyfile(sample, native.csv_path.with_suffix(".nc"))
+        _contract(native.toml_path, sample_dir / "staticmaps.nc")
+    first_grid = next(iter(runs.values())).csv_path.with_suffix(".nc")
+    with netCDF4.Dataset(first_grid, "r+") as ds:
+        ds["q"][0, 0, 0] = float("nan")
+    with pytest.raises(ValueError, match="native support"):
+        publish_response_inventory_v2(experiment.root, runs, TEMPORAL)
+    shutil.copyfile(sample, first_grid)
     inventory = publish_response_inventory_v2(experiment.root, runs, TEMPORAL)
     assert inventory["schema_version"] == "response-inventory/4"
     assert len(inventory["grids"]) == 2
     publish_simulation_v2(experiment.root, inventory)
+    # Retained reads use the inventory-bound native contract, not local inputs
+    # or an engine installation; temporary producer records are unnecessary.
+    for native in runs.values():
+        Path(str(native.toml_path) + ".grid.toml").unlink()
+    (sample_dir / "staticmaps.nc").unlink()
     read_simulation_v2(experiment.root)
     next(iter(runs.values())).csv_path.with_suffix(".nc").unlink()
     with pytest.raises(ValueError):

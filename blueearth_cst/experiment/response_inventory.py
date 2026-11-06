@@ -306,7 +306,12 @@ def _v2_native_semantics(config, variable):
 
 
 def build_response_inventory_v2(
-    experiment_root, native_runs, temporal_preparation, *, _retained=False
+    experiment_root,
+    native_runs,
+    temporal_preparation,
+    *,
+    _retained=False,
+    _grid_metadata=None,
 ):
     """Check every requested native run and build the acyclic v2 inventory."""
     from blueearth_cst.experiment.simulation_record import read_simulation_intent_v2
@@ -489,7 +494,22 @@ def build_response_inventory_v2(
                 raise MissingResponseRequirement(
                     f"run {run}: grid request differs from frozen intent"
                 )
-            metadata = validate_grid(path, native.toml_path)
+            if _grid_metadata is not None and not _retained:
+                raise MissingResponseRequirement(
+                    "saved grid metadata is retained-reader only"
+                )
+            if _grid_metadata is None:
+                metadata = validate_grid(path, native.toml_path)
+            else:
+                # Only the retained reader supplies this after verifying the
+                # enclosing inventory and each artifact's exact checksum.
+                saved = _grid_metadata[run]
+                metadata = validate_grid(
+                    path,
+                    native.toml_path,
+                    expected_contract=saved.get("validation_contract"),
+                    legacy="validation_contract" not in saved,
+                )
             reference = file_reference(path, "experiment_root", root)
             grids.append({"run_id": run, "file": reference, "metadata": metadata})
             grid_identity.append(
@@ -672,7 +692,10 @@ def read_response_inventory_v2(experiment_root):
             )
         # Temporary handoff files are deliberately unnecessary after publication.
         observed = _build_response_inventory_v2_retained(
-            root, native_runs, stored["temporal_preparation"]
+            root,
+            native_runs,
+            stored["temporal_preparation"],
+            {item["run_id"]: item["metadata"] for item in stored.get("grids", [])},
         )
         if stored != observed:
             raise MissingResponseRequirement(
@@ -685,10 +708,16 @@ def read_response_inventory_v2(experiment_root):
         raise MissingResponseRequirement(f"retained responses {path}: {exc}") from exc
 
 
-def _build_response_inventory_v2_retained(root, native_runs, temporal_preparation):
+def _build_response_inventory_v2_retained(
+    root, native_runs, temporal_preparation, grid_metadata
+):
     """Rebuild through checked native files without requiring temporary JSONs."""
     return build_response_inventory_v2(
-        root, native_runs, temporal_preparation, _retained=True
+        root,
+        native_runs,
+        temporal_preparation,
+        _retained=True,
+        _grid_metadata=grid_metadata,
     )
 
 

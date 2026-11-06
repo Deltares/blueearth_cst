@@ -9,6 +9,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Reject incomplete native grid support, shifted grids and incorrect units before publication or retry
+  reuse, using model-derived expectations while preserving portable retained readers.
+
 - Add independent optional native Wflow NetCDF grids for historical and scenario simulations,
   preserving native layers and scalar results, with frozen requests, retained integrity evidence,
   conservative disk estimates and paired CSV/NetCDF retry recovery.

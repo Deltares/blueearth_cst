@@ -62,6 +62,12 @@ is not evidence that the current request produced a grid. Completed ensemble exp
 the request: use `--new-experiment` for a different request. Retain the complete experiment,
 including its inventory, when archiving grids.
 
+Before publication or retry reuse, grids must contain finite values on each variable's native support.
+Masked cells outside that support remain valid. Units, coordinates, CRS and layers are checked against
+expectations captured directly from the initialized Wflow model in `<run>.toml.grid.toml`, beside its
+run settings. The retained inventory embeds these expectations, so archived reads do not need Julia
+or the original model-input paths. Existing inventories retain their original checksum and reader semantics.
+
 ## Check whether a run finished
 
 1. **Read the summary:** open the `summary.md` named by the runner and check outcomes and warnings.
