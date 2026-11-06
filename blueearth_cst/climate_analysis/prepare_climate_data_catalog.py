@@ -241,7 +241,9 @@ def plan_preparation_payloads(
     context = {
         "schema_version": "forcing-preparation/1",
         "generated_forcing_reader": reader,
-        "pet_method": "makkink" if source_like == "eobs" else "debruin",
+        "pet_method": recipe.pet_method
+        if recipe is not None
+        else ("makkink" if source_like == "eobs" else "debruin"),
         "forcing_elevation": {"catalog_key": "elevation", "artifact_id": "elevation"},
         "catalog": {
             "path": "preparation_catalog.yml",

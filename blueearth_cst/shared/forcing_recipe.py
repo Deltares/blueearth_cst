@@ -81,8 +81,8 @@ class ForcingRecipe:
         """Project only extraction inputs; exclude preparation-only corrections.
 
         Same-source extraction reads native fields without lapse correction.
-        Cross-source extraction regrids the companion and carries its declared
-        elevation/correction choices. PET algorithms enter through their variable
+        Cross-source extraction regrids the companion; source elevation enters
+        only when lapse correction consumes it. PET algorithms enter through their variable
         requirements, while direct PET adds its independent source.
         """
         result: dict[str, object] = {
@@ -92,8 +92,9 @@ class ForcingRecipe:
             "required_variables": list(self.required_variables),
         }
         if self.temp_pet_source != self.precip_source:
-            result["orography_source"] = self.orography_source
             result["temp_correction"] = self.temp_correction
+            if self.temp_correction:
+                result["orography_source"] = self.orography_source
         if self.pet_mode == "direct":
             result["pet_source"] = self.pet_source
         return result

@@ -165,6 +165,20 @@ def test_same_source_extraction_does_not_gain_model_lapse_dependencies(change):
     assert hybrid.extraction_fingerprint != changed_hybrid.extraction_fingerprint
 
 
+@pytest.mark.parametrize("correction", [False, True])
+def test_cross_source_elevation_identity_requires_active_lapse_correction(correction):
+    original = normalize_forcing_recipe("chirps", {"temp_correction": correction})
+    changed = normalize_forcing_recipe(
+        "chirps",
+        {"temp_correction": correction, "orography_source": "another_dem"},
+    )
+    assert original.fingerprint != changed.fingerprint
+    assert (original.extraction_fingerprint == changed.extraction_fingerprint) is (
+        not correction
+    )
+    assert changed.settings()["orography_source"] == "another_dem"
+
+
 @pytest.mark.parametrize(
     "change",
     [

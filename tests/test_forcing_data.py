@@ -351,6 +351,9 @@ def test_nondefault_preparation_v3_retains_method_flags_and_rejects_tampering(
 
     import yaml
 
+    from blueearth_cst.climate_analysis.prepare_climate_data_catalog import (
+        resolve_preparation_payloads,
+    )
     from blueearth_cst.experiment.wf4_ancillary_descriptor import (
         preparation_identity_v2,
         resolve_wf4_preparation,
@@ -371,6 +374,10 @@ def test_nondefault_preparation_v3_retains_method_flags_and_rejects_tampering(
     catalog_path = tmp_path / "catalog.yml"
     catalog_path.write_text(yaml.safe_dump(sources[1]), encoding="utf-8")
     units = recipe_unit_interpretation(catalog_path, recipe, climate_path)
+    precursor, _, _ = resolve_preparation_payloads(
+        [catalog_path], "era5", units, tmp_path / "orography.nc", recipe=recipe
+    )
+    assert precursor["pet_method"] == "makkink"
     project = tmp_path / "project"
     experiment = project / "experiments/fixture"
     preparation = resolve_wf4_preparation(
