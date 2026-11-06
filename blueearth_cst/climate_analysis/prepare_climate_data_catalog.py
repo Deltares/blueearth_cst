@@ -10,72 +10,15 @@ import hydromt
 import yaml
 
 from blueearth_cst.experiment.forcing_descriptor import UnitInterpretation
+from blueearth_cst.shared.forcing_data import (
+    departs_from_reviewed_binding as _departs_from_reviewed_binding,
+)
 from blueearth_cst.shared.provenance import file_sha256
 
-_REVIEWED_DAILY_BINDING = {
-    "unit_add": {"temp": -273.15, "temp_min": -273.15, "temp_max": -273.15},
-    "unit_mult": {"kin": 0.000277778, "kout": 0.000277778, "press_msl": 0.01},
-    "rename": {
-        "msl": "press_msl",
-        "ssrd": "kin",
-        "t2m": "temp",
-        "tisr": "kout",
-        "tmax": "temp_max",
-        "tmin": "temp_min",
-        "tp": "precip",
-    },
-}
 
-# The seven variables the toolbox consumes, named as they are AFTER the rename.
-# The guard below reasons about this set and ignores everything outside it.
-_REVIEWED_VARIABLES = frozenset(_REVIEWED_DAILY_BINDING["rename"].values())
-
-
-def _departs_from_reviewed_binding(adapter):
-    """Report whether an adapter's arithmetic over the reviewed variables differs.
-
-    The reviewed binding (the forcing-admission contract) is a statement about seven variables, not
-    about the size of a catalog entry: what P1 established is the arithmetic
-    `extract_historical_climate.py` applies to `precip`, `temp`, `temp_min`,
-    `temp_max`, `press_msl`, `kin` and `kout`. An upstream catalog that also
-    describes variables this toolbox never reads says nothing about those seven,
-    so it is accepted; an upstream catalog that touches one of them in a way the
-    review did not cover is rejected.
-
-    Concretely, an adapter departs when any of these holds:
-
-    - a reviewed conversion is missing or has a different value;
-    - it converts a reviewed variable the review left unconverted (an extra
-      `unit_add`/`unit_mult` entry keyed on one of the seven) — e.g. a
-      `unit_mult: {precip: 1000}` that would silently rescale precipitation;
-    - it renames some other native variable ONTO a reviewed name, which would
-      shadow the reviewed source of that variable.
-
-    Everything else is surplus description and is ignored. Rejecting it was the
-    behaviour before the forcing-admission contract, and it made the guard a version pin on one
-    catalog file rather than a check on the arithmetic: hydromt's own
-    `deltares_data` catalog states the identical seven conversions and adds
-    `d2m`/`u10`/`v10` renames plus an `ssr` scale, and was refused for it.
-    """
-    for key in ("unit_add", "unit_mult"):
-        reviewed = _REVIEWED_DAILY_BINDING[key]
-        found = adapter.get(key, {})
-        if any(found.get(name) != value for name, value in reviewed.items()):
-            return True
-        if any(name in _REVIEWED_VARIABLES for name in found if name not in reviewed):
-            return True
-    reviewed_rename = _REVIEWED_DAILY_BINDING["rename"]
-    found_rename = adapter.get("rename", {})
-    if any(found_rename.get(src) != dst for src, dst in reviewed_rename.items()):
-        return True
-    return any(
-        dst in _REVIEWED_VARIABLES
-        for src, dst in found_rename.items()
-        if src not in reviewed_rename
-    )
-
-
-def resolved_unit_interpretation(data_libs, precip_source):
+def resolved_unit_interpretation(
+    data_libs, precip_source, *, recipe=None, climate_nc=None
+):
     """Verify the reviewed daily source arithmetic before interpreting labels.
 
     This checks the consumed adapter, not merely its catalog name. CHIRPS keeps
@@ -88,6 +31,16 @@ def resolved_unit_interpretation(data_libs, precip_source):
     carries the time shift and NO scaling at all, and `unit_mult` being empty is
     the substance of that, not an incidental shape.
     """
+    from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
+
+    if (
+        recipe is not None
+        and recipe.extraction_fingerprint
+        != normalize_forcing_recipe(precip_source).extraction_fingerprint
+    ):
+        from blueearth_cst.shared.forcing_data import recipe_unit_interpretation
+
+        return recipe_unit_interpretation(data_libs, recipe, climate_nc)
     paths = (
         [os.fspath(data_libs)]
         if isinstance(data_libs, (str, os.PathLike))
@@ -134,7 +87,9 @@ def resolved_unit_interpretation(data_libs, precip_source):
     )
 
 
-def generated_forcing_reader(source_entry, source_like):
+def generated_forcing_reader(
+    source_entry, source_like, *, recipe=None, historical=False
+):
     """Retain the established generated-file reader without a source URI."""
     entry = deepcopy(source_entry)
     entry.pop("uri", None)
@@ -152,6 +107,19 @@ def generated_forcing_reader(source_entry, source_like):
     entry.setdefault("metadata", {})["processing"] = (
         f"Climate data generated from {source_like}{suffix} using Deltares/weathergenr"
     )
+    # Retain the default generated reader bytes used by existing v2 identities.
+    if recipe is not None:
+        from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
+
+        if historical or recipe != normalize_forcing_recipe(source_like):
+            producer = "Historical extraction" if historical else "Deltares/weathergenr"
+            supplied = (
+                f"; supplied PET: {recipe.pet_source}" if recipe.pet_source else ""
+            )
+            entry["metadata"]["processing"] = (
+                f"{producer}; precipitation: {source_like}; "
+                f"temperature/PET inputs: {recipe.temp_pet_source}{supplied}"
+            )
     return entry
 
 
@@ -181,19 +149,19 @@ class IncompletePreparationContext(ValueError):
 
 
 def resolve_preparation_payloads(
-    data_libs, source_like, unit_interpretation, oro_path=None
+    data_libs, source_like, unit_interpretation, oro_path=None, recipe=None
 ):
     """Refuse an incomplete portable closure before any collection is claimed."""
     try:
         return _resolve_preparation_payloads(
-            data_libs, source_like, unit_interpretation, oro_path
+            data_libs, source_like, unit_interpretation, oro_path, recipe
         )
     except (OSError, KeyError, TypeError, ValueError) as exc:
         raise IncompletePreparationContext(f"{source_like}: {exc}") from exc
 
 
 def _resolve_preparation_payloads(
-    data_libs, source_like, unit_interpretation, oro_path=None
+    data_libs, source_like, unit_interpretation, oro_path=None, recipe=None
 ):
     """Resolve current local catalog inputs once, preserving native elevation adapters.
 
@@ -204,11 +172,19 @@ def _resolve_preparation_payloads(
     paths = [data_libs] if isinstance(data_libs, (str, Path)) else list(data_libs)
     catalog = hydromt.DataCatalog(data_libs=paths)
     source_entry = catalog.to_dict()[source_like]
-    if source_like in {"chirps", "chirps_global"}:
+    if (
+        recipe.temp_pet_source != source_like
+        if recipe is not None
+        else source_like in {"chirps", "chirps_global"}
+    ):
         elevation_entry = chirps_elevation_entry(source_like, oro_path)
         elevation_path = Path(elevation_entry["uri"])
     else:
-        key = f"{source_like}_orography"
+        key = (
+            recipe.orography_source
+            if recipe is not None
+            else f"{source_like}_orography"
+        )
         elevation_path = Path(catalog.get_source(key).full_uri)
         elevation_entry = None
         for path in paths:
@@ -220,12 +196,23 @@ def _resolve_preparation_payloads(
                 f"preparation requires an explicit local catalog entry for {key}"
             )
     return plan_preparation_payloads(
-        source_entry, source_like, elevation_entry, elevation_path, unit_interpretation
+        source_entry,
+        source_like,
+        elevation_entry,
+        elevation_path,
+        unit_interpretation,
+        recipe=recipe,
     )
 
 
 def plan_preparation_payloads(
-    source_entry, source_like, elevation_entry, elevation_path, unit_interpretation
+    source_entry,
+    source_like,
+    elevation_entry,
+    elevation_path,
+    unit_interpretation,
+    *,
+    recipe=None,
 ):
     """Plan the portable reader and unchanged elevation bytes before claiming a collection.
 
@@ -241,7 +228,7 @@ def plan_preparation_payloads(
     path = Path(elevation_path).resolve(strict=True)
     relative = f"ancillary/elevation/{path.name}"
     confined_path(path.parent, relative)
-    reader = generated_forcing_reader(source_entry, source_like)
+    reader = generated_forcing_reader(source_entry, source_like, recipe=recipe)
     reader["metadata"]["cst_unit_interpretation"] = asdict(unit_interpretation)
     # JSON has arrays, not tuples; this same representation goes into YAML metadata.
     reader["metadata"]["cst_unit_interpretation"]["variables"] = [
@@ -280,6 +267,7 @@ def prepare_clim_data_catalog(
     source_like: str,
     fn_out: Union[str, Path] = None,
     oro_path: Union[str, Path] = None,
+    recipe=None,
 ):
     """
     Prepares a data catalog for files path listed in fns using the same attributes as source_like
@@ -321,7 +309,9 @@ def prepare_clim_data_catalog(
     for fn in fns:
         fn = Path(fn).resolve()
         name = os.path.basename(fn).split(".")[0]
-        dc_fn = generated_forcing_reader(dc_like, source_like)
+        dc_fn = generated_forcing_reader(
+            dc_like, source_like, recipe=recipe, historical=True
+        )
         dc_fn["uri"] = str(fn)
         # The R-generated NetCDFs are written one realization per file with
         # variables already in their standard units, so override the inherited
@@ -330,7 +320,12 @@ def prepare_clim_data_catalog(
         climate_data_dict[name] = dc_fn
 
     # Add local orography for chirps resolution
-    if source_like in ("chirps", "chirps_global"):
+    needs_sidecar = (
+        recipe.temp_pet_source != source_like
+        if recipe is not None
+        else source_like in ("chirps", "chirps_global")
+    )
+    if needs_sidecar:
         # The sidecar lives beside extract_historical.nc under the keyed store
         # dir; the caller passes its absolute path (design Â§4a). No ../.. walk.
         if oro_path is None:

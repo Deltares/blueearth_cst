@@ -134,7 +134,14 @@ MIGRATION_COMMAND = "scripts/migrate_project_config.py"
 #: refuse a shape the design ships.
 T1_SHARED_SECTIONS: dict[str, tuple[str, ...]] = {
     "basin": ("region", "resolution", "output_locations", "delineation", "sources"),
-    "climate": ("sources", "selected", "window", "water_year_start", "map_reference"),
+    "climate": (
+        "sources",
+        "selected",
+        "window",
+        "water_year_start",
+        "map_reference",
+        "forcing",
+    ),
     "model": ("outvars",),
     "plotting": ("annotation",),
 }
@@ -1130,6 +1137,24 @@ def compose_config(
         for key, value in resolve_project_paths(t1, t1_path).items()
         if key != "workflows"
     }
+    climate = composed.get("climate", {})
+    if "forcing" in climate:
+        from blueearth_cst.shared.forcing_recipe import (
+            normalize_forcing_recipe,
+            require_workflow_compatibility,
+        )
+
+        if climate.get("selected") is None:
+            raise ValueError("climate.forcing requires climate.selected")
+        recipe = normalize_forcing_recipe(climate["selected"], climate["forcing"])
+        if entry is not None:
+            require_workflow_compatibility(recipe, entry)
+        climate = dict(climate)
+        if recipe == normalize_forcing_recipe(climate["selected"]):
+            climate.pop("forcing")
+        else:
+            climate["forcing"] = recipe.settings()
+        composed["climate"] = climate
     merged: dict[str, Any] = {}
     workflow_config_paths: dict[str, str] = {}
     for name, stanza in workflows.items():

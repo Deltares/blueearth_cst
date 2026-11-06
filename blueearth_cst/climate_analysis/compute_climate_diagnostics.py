@@ -20,8 +20,15 @@ def run(sm):
     source = sm.params.source
     m0 = int(sm.params.m0)
     paths = diagnostic_source_outputs(sm.params.store_dir, source, settings)
+    from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
+
+    recipe = normalize_forcing_recipe(source, getattr(sm.params, "forcing", None))
     daily, lineage = daily_series(
-        sm.input.climate_nc, sm.input.basin_cells, source, sm.params.data_sources
+        sm.input.climate_nc,
+        sm.input.basin_cells,
+        source,
+        sm.params.data_sources,
+        recipe=recipe,
     )
     ry = dg.reporting_year(daily.index, m0)
     period = (int(ry.min()), int(ry.max()))

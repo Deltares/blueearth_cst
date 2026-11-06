@@ -9,6 +9,12 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Add selected historical forcing recipes for companion climate, source elevation, de Bruin/Makkink
+  PET and independent temperature/pressure corrections. Computed recipes extend through scenario
+  generation and retained simulation preparation; supplied reference PET is historical-only.
+  Separate extraction identity from preparation settings and retain version-2 preparation compatibility.
+  No new data products are included; alternative-source qualification remains separate.
+
 - Fix CHIRPS historical model forcing by passing the extraction orography sidecar into its
   generated catalog and using that elevation reference for temperature downscaling. This avoids
   a missing-sidecar error and applying the extraction lapse correction twice; ERA5 is unchanged.

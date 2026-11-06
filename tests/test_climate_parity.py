@@ -10,6 +10,7 @@ on the same value — a stacked (double) correction misses by
 
 import numpy as np
 import pandas as pd
+import pytest
 import xarray as xr
 from hydromt.model.processes.meteo import temp as meteo_temp  # noqa: E402
 
@@ -65,6 +66,42 @@ def _ds_raw(temp_grid, coords, time):
             "kin": _raster(200.0, coords, time),
             "kout": _raster(50.0, coords, time),
         }
+    )
+
+
+@pytest.mark.parametrize(
+    "temperature,pressure,makkink,debruin",
+    [
+        (False, False, 3.1081310, 3.0702580),
+        (False, True, 3.1667965, 3.1149341),
+        (True, False, 2.9579063, 2.9541856),
+        (True, True, 3.0193127, 3.0009489),
+    ],
+)
+@pytest.mark.parametrize("method", ["makkink", "debruin"])
+def test_independent_corrections_have_nonzero_pet_oracle(
+    temperature, pressure, makkink, debruin, method
+):
+    """Fixed scalar formula evaluations at 500 m discriminate all four choices.
+
+    Traw=20 C at 100 m, lapse=-0.0065 C/m, pmsl=1013.25 hPa, kin=200,
+    kout=400 W/m2. Corrected pressure is 954.6093661 hPa. These constants
+    were evaluated independently of the production parity/recipe functions.
+    """
+    time = _time()
+    raw = _ds_raw(_raster(T_RAW, _COARSE, time, name="temp"), _COARSE, time)
+    raw["kout"] = _raster(400, _COARSE, time)
+    result = model_parity_climate(
+        raw,
+        _raster(DEM_MODEL, _FINE),
+        _raster(DEM_FORCING, _COARSE),
+        method,
+        temp_correction=temperature,
+        press_correction=pressure,
+    )
+    np.testing.assert_allclose(result.temp, 17.4 if temperature else 20, atol=1e-5)
+    np.testing.assert_allclose(
+        result.pet, makkink if method == "makkink" else debruin, atol=1e-5
     )
 
 

@@ -75,6 +75,7 @@ and resolved runtime locators. `config_paths.py` and `tests/test_config_paths.py
 | `basin.delineation` | Spatial-unit controls, including `snap_tolerance_m`; starter comments describe the options |
 | `climate.sources` | Candidate historical catalog sources |
 | `climate.selected` | Selected forcing; must belong to candidates; null is allowed for historical climate analysis-only analysis |
+| `climate.forcing` | Optional selected-source companion, elevation, PET and correction recipe; see below |
 | `climate.window` | Inclusive calendar-year `start`/`end`; historical record, not hydrological run period |
 | `climate.water_year_start` | Reporting-year month, default January |
 | `climate.map_reference` | Historical-map completeness; default 3 missing days/month, 15/year |
@@ -84,8 +85,7 @@ and resolved runtime locators. `config_paths.py` and `tests/test_config_paths.py
 The historical-window parser is `historical_window_bounds` in `shared/wf3_science.py`.
 `snake_utils.validate_historical_window` enforces the configured 16-year minimum. Extraction uses the
 available overlap, warns on narrowing, and refuses no overlap or insufficient selected-source coverage.
-CHIRPS selection requires overlap with its ERA5 companion variables. Model building independently checks
-forcing
+CHIRPS selection requires overlap with its companion variables (ERA5 by default). Model building checks forcing
 coverage for its declared simulation window, including Wflow's initial-state time convention.
 
 `climate.map_reference` accepts only `max_missing_days_month` (integer 0–27) and
@@ -93,6 +93,61 @@ coverage for its declared simulation window, including Wflow's initial-state tim
 diagnostic tolerances must
 equal these shared values. Model building forcing summaries retain their independent default 3/15 policy.
 Completeness and temporal aggregation are distinct from the inclusive extraction dates.
+
+### Historical forcing recipe
+
+`climate.forcing` applies to the selected source; comparison-only candidates retain their native behavior.
+Selected precipitation remains `era5`, `chirps` or `chirps_global`. Omission and explicit defaults are
+equivalent. The [annotated starter](../../config/templates/example-basin/project_config.yml) shows the keys.
+
+| Key | Default and allowed meaning |
+|---|---|
+| `temp_pet_source` | `era5`; catalog entry for temperature and computed-PET inputs |
+| `orography_source` | `era5_orography`; source elevation entry; required explicitly for another companion |
+| `temp_correction` | `true`; boolean controlling lapse correction at extraction and model preparation |
+| `press_correction` | `true`; boolean controlling pressure correction during computed-PET preparation |
+| `pet.mode` | `computed` or `direct` |
+| `pet.method` | `debruin` (default) or `makkink`; computed mode only |
+| `pet.source` | Required catalog entry for supplied reference PET in direct mode; forbidden in computed mode |
+
+Direct mode forbids both `pet.method` and an explicitly supplied `press_correction`, even if false.
+It prepares temperature and transports the supplied PET through HydroMT-Wflow's `setup_pet_forcing`.
+Supply reference PET, not actual evapotranspiration. Direct PET is available for historical analysis and
+model forcing; scenario generation and scenario simulation reject it before preparation. No PET
+perturbation model is implied.
+
+Computed recipes require companion `temp`, `temp_min`, `temp_max`, `press_msl` and `kin`, plus `kout`
+for de Bruin. Direct recipes require companion `temp` and supplied `pet`. Precipitation defines the
+extraction grid. Sources are clipped to their actual daily overlap; gaps, duplicates, unsupported
+calendars, absent variables and invalid required-domain values fail instead of being padded. Supplied
+PET must be finite and nonnegative inside the required basin; masked cells outside it are allowed.
+
+When a different companion is regridded, its declared source elevation references the lapse correction
+onto the hydrography sidecar. Subsequent model preparation uses that sidecar. Disabling temperature
+correction disables both steps. Same-source ERA5 extraction reads native temperature without applying
+lapse correction; its configured elevation is used during preparation. Pressure is corrected only during
+PET preparation.
+
+The reviewed ERA5/CHIRPS catalog arithmetic remains supported. An alternative canonical-unit input must
+declare `metadata.time_label: interval_end` in its catalog and actually deliver daily midnight fields in
+mm/day, degrees Celsius, hPa and W/m² as applicable. This declaration describes the daily interval ending
+at each timestamp; regular midnight timestamps alone do not establish it. Required-variable unit scaling
+must be identity arithmetic, and variable attributes are checked. Supplied PET may also use HydroMT's
+native `mm` label for a daily total; it is equivalent to mm/day only under this enforced one-day interval
+contract. No additional conversion profile or new data product is supplied. Controlled fixtures establish
+the mechanism; real alternative companions
+and independent PET products require separate source qualification.
+
+Extraction identity contains sources, required variables and corrections performed during extraction.
+Non-default extraction settings select a separate store. Preparation-only pressure settings, and
+same-source elevation/lapse settings, do not change that store or its generator input identity.
+Scenario simulation compares extraction recipes with the selected collection's archived creator recipe
+and applies the current preparation settings. Non-default preparation records use version 3; retained
+version-2 records retain their original correction settings. Producer-code integrity remains part of
+scenario identity. Numerical backward comparisons therefore use equivalent fixed inputs and seeds.
+
+CHIRPS diagnostics remain precipitation-only contributors even when their forcing stores borrow
+temperature/PET fields. Captions identify the companion or supplied-PET source when those fields are shown.
 
 ## Workflow settings
 

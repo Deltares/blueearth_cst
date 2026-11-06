@@ -36,7 +36,29 @@ SOURCE_CREDITS = {
 }
 
 
-def map_caption(lead: str, source: str | None = None, notes: Sequence[str] = ()) -> str:
+def forcing_attribution(recipe, variable: str) -> str:
+    """Credit the field's physical source, separate from its destination grid."""
+    source = recipe.precip_source if variable == "precip" else recipe.temp_pet_source
+    if variable == "pet" and recipe.pet_mode == "direct":
+        source = recipe.pet_source
+    credit = SOURCE_CREDITS.get(source, source)
+    if variable == "pet":
+        credit += (
+            " (supplied reference PET)"
+            if recipe.pet_mode == "direct"
+            else f" ({recipe.pet_method} PET)"
+        )
+    return credit
+
+
+def map_caption(
+    lead: str,
+    source: str | None = None,
+    notes: Sequence[str] = (),
+    *,
+    recipe=None,
+    variable=None,
+) -> str:
     """Every map caption: one sentence, plus one per ``note`` that is needed.
 
     ``lead`` names the quantity with units (and grid and period where they
@@ -46,7 +68,12 @@ def map_caption(lead: str, source: str | None = None, notes: Sequence[str] = ())
     falls back to its catalog key: "from vito" reads badly, but a figure that
     silently loses its attribution is worse.
     """
-    text = f"{lead} from {SOURCE_CREDITS.get(source, source)}" if source else lead
+    credit = (
+        forcing_attribution(recipe, variable)
+        if recipe is not None
+        else SOURCE_CREDITS.get(source, source)
+    )
+    text = f"{lead} from {credit}" if credit else lead
     return " ".join(
         part if part.endswith(".") else f"{part}." for part in (text, *notes) if part
     )

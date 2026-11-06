@@ -245,6 +245,32 @@ def test_selected_collection_climate_source_matches_creator(tmp_path, monkeypatc
         )
         == "era5"
     )
+    # Preparation changes use current WF4 intent without changing the selected
+    # collection's actual generator inputs. Changing required fields does not.
+    for forcing in ({"press_correction": False}, {"temp_correction": False}):
+        assert (
+            simulation_runner.verify_selected_collection_source(
+                {
+                    "project": {"project_dir": str(tmp_path)},
+                    "climate": {"selected": "era5", "forcing": forcing},
+                },
+                selection,
+                marker,
+            )
+            == "era5"
+        )
+    with pytest.raises(ValueError, match="extraction recipe differs"):
+        simulation_runner.verify_selected_collection_source(
+            {
+                "project": {"project_dir": str(tmp_path)},
+                "climate": {
+                    "selected": "era5",
+                    "forcing": {"pet": {"method": "makkink"}},
+                },
+            },
+            selection,
+            marker,
+        )
     with pytest.raises(ValueError, match="differs from collection creator"):
         simulation_runner.verify_selected_collection_source(
             {

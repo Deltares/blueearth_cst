@@ -94,9 +94,17 @@ def collection_run_forcing(
         forcing_key,
         elevation["catalog_key"],
         preparation["pet_method"],
-        True,
-        True,
-        ("cftime_to_datetime64", "clip_to_configured_window", "refresh_toml_endpoints"),
+        press_correction=preparation["press_correction"]
+        if preparation["schema_version"] == "forcing-preparation/3"
+        else True,
+        temp_correction=preparation["temp_correction"]
+        if preparation["schema_version"] == "forcing-preparation/3"
+        else True,
+        conversions=(
+            "cftime_to_datetime64",
+            "clip_to_configured_window",
+            "refresh_toml_endpoints",
+        ),
     )
     descriptor = describe_forcing(
         ClimateArtifact(run_id, forcing_path),
@@ -132,8 +140,8 @@ def forcing_chunksize(size):
 def pet_method_for(precip_source):
     """Return the PET method matching ``precip_source``.
 
-    E-OBS carries no radiation, so it takes Makkink; everything else takes
-    De Bruin.
+    Preserve the legacy E-OBS/Makkink mapping for public-helper compatibility.
+    Retained WF4 preparation selects its method from the effective recipe.
     """
     return "makkink" if precip_source == "eobs" else "debruin"
 

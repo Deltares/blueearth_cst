@@ -30,6 +30,7 @@ def load_source_orography(
     ds_raw: xr.Dataset,
     oro_nc: Optional[Union[str, Path]] = None,
     data_sources: Optional[Union[str, Path]] = None,
+    orography_source: str = "era5_orography",
 ) -> xr.DataArray:
     """Return the source-grid DEM, on ``ds_raw``'s own grid.
 
@@ -64,7 +65,7 @@ def load_source_orography(
             )
         data_catalog = hydromt.DataCatalog(data_libs=data_sources)
         dem = data_catalog.get_rasterdataset(
-            "era5_orography",
+            orography_source,
             geom=ds_raw.raster.box,  # clip with the extraction bbox for full coverage
             buffer=2,
             variables=["elevtn"],
@@ -76,6 +77,9 @@ def source_grid_climate(
     ds_raw: xr.Dataset,
     dem_source: xr.DataArray,
     pet_method: str = "debruin",
+    *,
+    temp_correction: bool = True,
+    press_correction: bool = True,
 ) -> xr.Dataset:
     """Derive ``precip`` / ``temp`` / ``pet`` on the extraction grid.
 
@@ -93,7 +97,7 @@ def source_grid_climate(
       era5 orography; the chirps branch's producer already lapse-corrected onto
       the sidecar DEM).
 
-    What survives is the de Bruin PET workflow with the pressure correction
+    What survives is the selected PET workflow with the configured pressure correction
     referenced to the source elevations — source-grid PET. It is **not** the
     build's PET and is not required to equal it.
     """
@@ -106,4 +110,6 @@ def source_grid_climate(
         dem_model=dem_source,
         dem_forcing=dem_source,
         pet_method=pet_method,
+        temp_correction=temp_correction,
+        press_correction=press_correction,
     )

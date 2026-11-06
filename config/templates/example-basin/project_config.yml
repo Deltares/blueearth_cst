@@ -82,6 +82,20 @@ climate:
   # Choose forcing for model and scenario generation. Input: name from sources; null for WF0-only assessment.
   selected: era5
 
+  # Optional selected-source recipe; these are the effective defaults.
+  # Entries name existing HydroMT catalog sources, not file paths.
+  # An alternative temp_pet_source requires its explicit orography_source.
+  #forcing:
+  #  temp_pet_source: era5
+  #  orography_source: era5_orography
+  #  temp_correction: true
+  #  press_correction: true
+  #  pet:
+  #    mode: computed
+  #    method: debruin  # debruin | makkink
+  # Historical-only supplied reference PET: use pet: {mode: direct, source: <catalog-entry>}
+  # and omit method and press_correction. Scenario generation/simulation reject direct PET.
+
   # Calendar years to extract, January 1 through December 31 inclusive. At least 16. This is not the model
   # run period; see `simulation_window` in the build_model file.
   # Select inclusive historical calendar years. Input: year mapping spanning at least 16 years.

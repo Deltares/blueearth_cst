@@ -31,6 +31,17 @@ def simulation_selection(config_path):
     )
 
     project = resolve_project_paths(project, path)
+    from blueearth_cst.shared.forcing_recipe import (
+        normalize_forcing_recipe,
+        require_workflow_compatibility,
+    )
+
+    climate = project.get("climate", {})
+    if climate.get("selected") is not None:
+        require_workflow_compatibility(
+            normalize_forcing_recipe(climate["selected"], climate.get("forcing")),
+            "simulate_system",
+        )
     workflows = project.get("workflows", {})
     if "run_stress_test" in workflows:
         raise ValueError(
@@ -558,6 +569,17 @@ def verify_selected_collection_source(project, selection, marker):
         raise ValueError(
             f"WF4 climate source {project['climate']['selected']!r} differs from "
             f"collection creator source {selected!r}"
+        )
+    from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
+
+    creator = archive["loaded_config"]["climate"]
+    current_recipe = normalize_forcing_recipe(
+        selected, project["climate"].get("forcing")
+    )
+    creator_recipe = normalize_forcing_recipe(selected, creator.get("forcing"))
+    if current_recipe.extraction_dict() != creator_recipe.extraction_dict():
+        raise ValueError(
+            "WF4 forcing extraction recipe differs from collection creator recipe"
         )
     return selected
 

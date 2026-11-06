@@ -17,6 +17,7 @@ from blueearth_cst.shared.advanced_settings import (
     _month_abbrev,
     _nonnegative_int,
 )
+from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
 
 DEFAULT_SEED = ADVANCED_SETTINGS["defaults"]["seed"]
 
@@ -355,6 +356,7 @@ def climate_store_rule(
     basin_index=DEFAULT_BASIN_INDEX,
     enforce_min_years=True,
     forcing_required=True,
+    forcing=None,
 ) -> ClimateStoreRule:
     """Build the one producer contract for ``data/climate/historical/<key>/``
     (R07 B1).
@@ -457,6 +459,13 @@ def climate_store_rule(
     # experiments sharing clim_historical + historical_window resolve to the
     # same dir and reuse the extraction.
     store_key = f"{clim_source}_{slugify_window(starttime, endtime)}"
+    recipe = normalize_forcing_recipe(clim_source, forcing)
+    default_recipe = normalize_forcing_recipe(clim_source)
+    changed_extraction = forcing_required and (
+        recipe.extraction_fingerprint != default_recipe.extraction_fingerprint
+    )
+    if changed_extraction:
+        store_key += f"_{recipe.extraction_fingerprint[:12]}"
     # R9 P2 commit 2: the store moves under `data/climate/`, and the KEY IS
     # RETAINED. `<clim_source>_<window>` is a cache key, not multi-window
     # support (R9 design Finding 3): two experiments sharing a source and a
@@ -475,7 +484,7 @@ def climate_store_rule(
         # cell the bbox+buffer read happened to include.
         "basin_cells": f"{store_dir}/basin_cells.csv",
     }
-    if forcing_required and clim_source in ("chirps", "chirps_global"):
+    if forcing_required and recipe.temp_pet_source != clim_source:
         # Resolved at parse time from clim_historical, so there are no dynamic
         # outputs. The filename is clim_source-INDEPENDENT (R07 standardises the
         # two pre-R07 spellings on `orography.nc`).
@@ -495,6 +504,23 @@ def climate_store_rule(
         params["enforce_min_years"] = False
     if not forcing_required:
         params["forcing_required"] = False
+    if changed_extraction:
+        # Only extraction choices may affect store bytes or stochastic seeds.
+        extraction_settings = {
+            "temp_pet_source": recipe.temp_pet_source,
+            "pet": recipe.to_dict()["pet"],
+        }
+        if recipe.temp_pet_source != clim_source:
+            extraction_settings.update(
+                orography_source=recipe.orography_source,
+                temp_correction=recipe.temp_correction,
+            )
+        elif recipe.temp_pet_source != "era5":
+            # Preserve the explicit companion admission at the script boundary.
+            # Native-grid extraction does not read this orography or include it
+            # in its scientific projection/attributes.
+            extraction_settings["orography_source"] = recipe.orography_source
+        params["forcing"] = extraction_settings
 
     return ClimateStoreRule(
         store_dir=store_dir,

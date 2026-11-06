@@ -98,6 +98,15 @@ class ForcingRecipe:
             result["pet_source"] = self.pet_source
         return result
 
+    def settings(self) -> dict[str, object]:
+        """Return the equivalent closed ``climate.forcing`` configuration."""
+        result = self.to_dict()
+        result.pop("schema_version")
+        result.pop("precip_source")
+        if self.pet_mode == "direct":
+            result.pop("press_correction")
+        return result
+
     def canonical_bytes(self) -> bytes:
         """Serialize the full effective recipe deterministically."""
         return _canonical_json(self.to_dict())
@@ -243,3 +252,26 @@ def require_workflow_compatibility(recipe: ForcingRecipe, workflow: str) -> None
         raise ValueError(
             f"{workflow} does not support direct PET; use computed PET or restrict the recipe to historical forcing"
         )
+
+
+def read_forcing_recipe(document: Mapping[str, object]) -> ForcingRecipe:
+    """Validate archived full provenance without silently filling missing fields."""
+    if not isinstance(document, Mapping):
+        raise ValueError("effective forcing recipe must be a mapping")
+    settings = {
+        key: value
+        for key, value in document.items()
+        if key not in {"schema_version", "precip_source"}
+    }
+    if (
+        isinstance(settings.get("pet"), Mapping)
+        and settings["pet"].get("mode") == "direct"
+    ):
+        if settings.get("press_correction") is None:
+            settings.pop("press_correction", None)
+    recipe = normalize_forcing_recipe(document.get("precip_source"), settings)
+    if recipe.to_dict() != document:
+        raise ValueError(
+            "effective forcing recipe is incomplete or has an unsupported version"
+        )
+    return recipe

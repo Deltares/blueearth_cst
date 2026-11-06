@@ -174,10 +174,19 @@ def simulation_intent_v2(
             "forcing_elevation",
             "generated_forcing_reader",
             "pet_method",
-        },
+        }
+        | (
+            {"forcing_recipe", "temp_correction", "press_correction"}
+            if preparation_identity.get("schema_version")
+            == "forcing-preparation-identity/3"
+            else set()
+        ),
         "preparation identity",
     )
-    if preparation_identity["schema_version"] != "forcing-preparation-identity/2":
+    if preparation_identity["schema_version"] not in {
+        "forcing-preparation-identity/2",
+        "forcing-preparation-identity/3",
+    }:
         raise ValueError("unsupported preparation identity version")
     projections = {
         "settings": documents["settings"],

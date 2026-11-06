@@ -4,47 +4,28 @@ from pathlib import Path
 from typing import Sequence
 
 from blueearth_cst.experiment.forcing_descriptor import UnitInterpretation
+from blueearth_cst.shared.forcing_data import (
+    departs_from_reviewed_binding as _departs_from_binding,
+)
 from blueearth_cst.shared.provenance import file_sha256
-
-_BINDING = {
-    "unit_add": {"temp": -273.15, "temp_min": -273.15, "temp_max": -273.15},
-    "unit_mult": {"kin": 0.000277778, "kout": 0.000277778, "press_msl": 0.01},
-    "rename": {
-        "msl": "press_msl",
-        "ssrd": "kin",
-        "t2m": "temp",
-        "tisr": "kout",
-        "tmax": "temp_max",
-        "tmin": "temp_min",
-        "tp": "precip",
-    },
-}
-_VARIABLES = frozenset(_BINDING["rename"].values())
-
-
-def _departs_from_binding(adapter: dict) -> bool:
-    for key in ("unit_add", "unit_mult"):
-        required = _BINDING[key]
-        found = adapter.get(key, {})
-        if any(found.get(name) != value for name, value in required.items()):
-            return True
-        if any(name in _VARIABLES for name in found if name not in required):
-            return True
-    found = adapter.get("rename", {})
-    if any(found.get(name) != value for name, value in _BINDING["rename"].items()):
-        return True
-    return any(
-        value in _VARIABLES
-        for name, value in found.items()
-        if name not in _BINDING["rename"]
-    )
 
 
 def generation_interpretation(
-    catalogs: Sequence[str | Path], climate: str
+    catalogs: Sequence[str | Path], climate: str, *, recipe=None, climate_nc=None
 ) -> UnitInterpretation:
     """Resolve only WF3-consumed units; refuse changed extraction arithmetic."""
     import hydromt
+
+    from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
+
+    if (
+        recipe is not None
+        and recipe.extraction_fingerprint
+        != normalize_forcing_recipe(climate).extraction_fingerprint
+    ):
+        from blueearth_cst.shared.forcing_data import recipe_unit_interpretation
+
+        return recipe_unit_interpretation(catalogs, recipe, climate_nc)
 
     paths = [str(Path(path).resolve()) for path in catalogs]
     entries = hydromt.DataCatalog(data_libs=paths).to_dict()

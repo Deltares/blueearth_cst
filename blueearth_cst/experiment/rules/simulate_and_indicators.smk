@@ -101,12 +101,24 @@ def _current_preparation():
     catalogs = project["project"]["catalog"]
     catalogs = catalogs if isinstance(catalogs, list) else [catalogs]
     source = project["climate"]["selected"]
+    from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
+    from blueearth_cst.shared.wf3_science import climate_store_rule, DEFAULT_HYDROGRAPHY, DEFAULT_BASIN_INDEX
+    recipe = normalize_forcing_recipe(source, project["climate"].get("forcing"))
+    basin = project["basin"]
+    sources = basin.get("sources") or {}
+    store = climate_store_rule(
+        project_dir, basin["region"], source, project["climate"]["window"], catalogs,
+        hydrography=sources.get("hydrography", DEFAULT_HYDROGRAPHY),
+        basin_index=sources.get("basin_index", DEFAULT_BASIN_INDEX), forcing=recipe.settings(),
+    )
     # Warnings print under the run header, not above it (`defer_rows`).
     with captured_output(replay=defer_rows):
         return resolve_wf4_preparation(
             Path(project_dir), Path(exp_dir), climate_source=source,
             catalogs=catalogs,
-            unit_interpretation=resolved_unit_interpretation(catalogs, source),
+            unit_interpretation=resolved_unit_interpretation(
+                catalogs, source, recipe=recipe, climate_nc=store.outputs["climate_nc"]),
+            oro_path=store.outputs.get("oro_nc"), recipe=recipe,
         )
 def _live_simulation_inputs():
     preparation = _current_preparation()

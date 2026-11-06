@@ -6,6 +6,8 @@ from typing import Optional, Union
 import yaml
 from hydromt_wflow import WflowSbmModel
 
+from blueearth_cst.shared.forcing_recipe import ForcingRecipe
+
 
 def prep_hydromt_update_forcing_config(
     starttime: str,
@@ -15,6 +17,7 @@ def prep_hydromt_update_forcing_config(
     wflow_root: Optional[Union[str, Path]] = None,
     store_source: Optional[str] = None,
     dem_forcing_fn: Optional[str] = None,
+    recipe: ForcingRecipe | None = None,
 ):
     """Write a hydromt 1.x `steps:`-format YAML to add forcing to a wflow model.
 
@@ -41,6 +44,10 @@ def prep_hydromt_update_forcing_config(
         clim_source = "era5"
         oro_source = "era5_orography"
         pet_method = "debruin"
+    if recipe is not None:
+        clim_source = recipe.temp_pet_source
+        oro_source = recipe.orography_source
+        pet_method = recipe.pet_method
 
     if wflow_root is not None:
         mod = WflowSbmModel(root=wflow_root, mode="r")
@@ -94,6 +101,24 @@ def prep_hydromt_update_forcing_config(
             },
         ],
     }
+
+    if recipe is not None:
+        options = workflow["steps"][-1]["setup_temp_pet_forcing"]
+        options["temp_correction"] = recipe.temp_correction
+        if recipe.pet_mode == "direct":
+            options["skip_pet"] = True
+            options.pop("pet_method")
+            options.pop("press_correction")
+            workflow["steps"].append(
+                {
+                    "setup_pet_forcing": {
+                        "pet_fn": store_source or recipe.pet_source,
+                        "chunksize": chunksize,
+                    }
+                }
+            )
+        else:
+            options["press_correction"] = recipe.press_correction
 
     fn_yml = Path(fn_yml)
     fn_yml.parent.mkdir(parents=True, exist_ok=True)

@@ -533,8 +533,28 @@ def test_the_guard_runs_before_the_catalog_is_written(tmp_path, spy, monkeypatch
     assert spy["command"] == []
 
 
-@pytest.mark.parametrize("source", ["era5", "chirps", "chirps_global"])
-def test_store_catalog_and_recipe_deliver_single_lapse_correction(tmp_path, source):
+@pytest.mark.parametrize(
+    "source,settings,expected_temperature,expected_pet",
+    [
+        ("era5", None, 17.4, None),
+        ("chirps", None, 17.4, None),
+        ("chirps_global", None, 17.4, None),
+        (
+            "era5",
+            {
+                "pet": {"method": "makkink"},
+                "temp_correction": False,
+                "press_correction": False,
+            },
+            20,
+            3.1081310,
+        ),
+        ("era5", {"pet": {"mode": "direct", "source": "supplied_pet"}}, 17.4, 7),
+    ],
+)
+def test_store_catalog_and_recipe_deliver_single_lapse_correction(
+    tmp_path, source, settings, expected_temperature, expected_pet
+):
     """Execute the real catalog/recipe/CLI seam on controlled elevation fields.
 
     Extraction moves 20 C at 100 m to 18.7 C at the 300 m CHIRPS sidecar;
@@ -580,6 +600,9 @@ def test_store_catalog_and_recipe_deliver_single_lapse_correction(tmp_path, sour
             "kout": raster(50, "kout").expand_dims(time=time),
         }
     )
+    if settings and settings["pet"].get("mode") == "direct":
+        store["pet"] = raster(7, "pet").expand_dims(time=time)
+        store.pet.attrs["units"] = "mm/day"
     climate_nc = tmp_path / "extract_historical.nc"
     store.to_netcdf(climate_nc)
     oro_path = tmp_path / "orography.nc"
@@ -625,6 +648,7 @@ def test_store_catalog_and_recipe_deliver_single_lapse_correction(tmp_path, sour
         climate_nc=climate_nc,
         store_catalog=store_catalog,
         oro_path=oro_path if hybrid else None,
+        forcing=settings,
     )
     written = yaml.safe_load(store_catalog.read_text())
     assert "data_adapter" not in written["extract_historical"]
@@ -634,7 +658,13 @@ def test_store_catalog_and_recipe_deliver_single_lapse_correction(tmp_path, sour
     if hybrid:
         assert written[expected_dem]["uri"] == str(oro_path.resolve())
     with xr.open_dataset(model_root / "forcing/inmaps_historical.nc") as forcing:
-        np.testing.assert_allclose(forcing["temp"], 17.4, atol=1e-4)
+        np.testing.assert_allclose(forcing["temp"], expected_temperature, atol=1e-4)
         np.testing.assert_allclose(forcing["precip"], 5, atol=1e-6)
         assert np.isfinite(forcing["pet"]).all()
         assert (forcing["pet"] >= 0).all()
+        if expected_pet is not None:
+            # HydroMT-Wflow's forcing writer quantizes to two decimal places.
+            # The parity tests independently check the unrounded scalar oracle.
+            np.testing.assert_allclose(
+                forcing["pet"], round(expected_pet, 2), atol=1e-5
+            )

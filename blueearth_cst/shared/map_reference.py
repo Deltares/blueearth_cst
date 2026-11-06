@@ -135,10 +135,14 @@ def historical_map_reference_rule(
         for path in ([data_sources] if isinstance(data_sources, str) else data_sources)
     )
     completeness = resolve_map_completeness(climate.get("map_reference"))
-    orography = resolve_source_orography(catalogs) if "era5" in names else ()
+    from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
+
     specs = []
     for name in names:
         source_role(name)
+        recipe = normalize_forcing_recipe(
+            name, climate.get("forcing") if name == selected else None
+        )
         store = climate_store_rule(
             project_dir,
             model_region,
@@ -150,6 +154,7 @@ def historical_map_reference_rule(
             enforce_min_years=name == selected,
             forcing_required=name == selected
             or name not in {"chirps", "chirps_global"},
+            forcing=recipe.settings(),
         )
         specs.append(
             SourceMapSpec(
@@ -159,7 +164,12 @@ def historical_map_reference_rule(
                 catalogs,
                 (store.params["starttime"][:10], store.params["endtime"][:10]),
                 Path(store.outputs["oro_nc"]) if "oro_nc" in store.outputs else None,
-                orography if name == "era5" else (),
+                resolve_source_orography(catalogs, recipe.orography_source)
+                if name == "era5"
+                and "oro_nc" not in store.outputs
+                and recipe.pet_mode == "computed"
+                else (),
+                recipe if recipe != normalize_forcing_recipe(name) else None,
             )
         )
     shared = {

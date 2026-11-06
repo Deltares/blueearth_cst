@@ -27,6 +27,9 @@ GENERATION_INVENTORY = {
     "blueearth_cst/experiment/scenario_rows.py",
     "blueearth_cst/shared/__init__.py",
     "blueearth_cst/shared/wf3_science.py",
+    # Recipe requirements and unit admission affect generated input meaning.
+    "blueearth_cst/shared/forcing_recipe.py",
+    "blueearth_cst/shared/forcing_data.py",
     "blueearth_cst/weathergen/generate_weather.R",
     "blueearth_cst/weathergen/global.R",
     "blueearth_cst/weathergen/impose_climate_change.R",

@@ -15,6 +15,7 @@ from blueearth_cst.climate_analysis import diagnostics as dg
 from blueearth_cst.climate_analysis.diagnostic_maps import annual_fields
 from blueearth_cst.climate_analysis.diagnostic_settings import carries_temp
 from blueearth_cst.climate_analysis.diagnostic_tables import daily_series
+from blueearth_cst.shared.forcing_recipe import ForcingRecipe, normalize_forcing_recipe
 
 
 @dataclass(frozen=True)
@@ -33,6 +34,7 @@ class SourceMapSpec:
     requested_window: tuple[str, str]
     orography_nc: Path | None = None
     orography_inputs: tuple[Path, ...] = ()
+    recipe: ForcingRecipe | None = None
 
 
 @dataclass(frozen=True)
@@ -64,22 +66,43 @@ def prepare_source_map_fields(
         source_spec.basin_cells,
         source_spec.source,
         source_spec.catalogs,
+        recipe=source_spec.recipe,
     )
     reporting_years = dg.reporting_year(daily.index, m0)
     with xr.open_dataset(source_spec.climate_nc) as raw:
         ds = raw
         if carries_temp(source_spec.source):
+            recipe = source_spec.recipe or normalize_forcing_recipe(source_spec.source)
             from blueearth_cst.climate_analysis.plot_climate_source import (
                 load_source_orography,
                 source_grid_climate,
             )
 
-            dem = load_source_orography(
-                raw,
-                oro_nc=source_spec.orography_nc,
-                data_sources=source_spec.catalogs,
-            )
-            derived = source_grid_climate(raw, dem)
+            if recipe.pet_mode == "direct":
+                from blueearth_cst.shared.forcing_data import validate_daily_fields
+                from blueearth_cst.shared.grid_cells import cells_csv_mask
+
+                validate_daily_fields(
+                    raw,
+                    ("pet",),
+                    source="supplied PET diagnostics",
+                    domain=cells_csv_mask(raw, source_spec.basin_cells),
+                )
+                derived = raw
+            else:
+                dem = load_source_orography(
+                    raw,
+                    oro_nc=source_spec.orography_nc,
+                    data_sources=source_spec.catalogs,
+                    orography_source=recipe.orography_source,
+                )
+                derived = source_grid_climate(
+                    raw,
+                    dem,
+                    recipe.pet_method,
+                    temp_correction=recipe.temp_correction,
+                    press_correction=recipe.press_correction,
+                )
             ds = raw[["precip", "temp"]].assign(pet=derived.pet)
             if not daily.temp.notna().any():
                 ds = ds.assign(

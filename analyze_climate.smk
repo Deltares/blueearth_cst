@@ -237,6 +237,7 @@ CLIMATE_STORES = {
         hydrography=basin_hydrography,
         basin_index=basin_index,
         enforce_min_years=(source == clim_source),
+        forcing=climate_cfg.get("forcing") if source == clim_source else None,
         forcing_required=(
             source == clim_source or source not in {"chirps", "chirps_global"}
         ),
@@ -455,6 +456,7 @@ for _source in CANDIDATE_SOURCES:
         params:
             settings=DIAGNOSTIC_SETTINGS, source=_source, store_dir=_spec.store_dir,
             m0=DIAGNOSTIC_M0, data_sources=DATA_SOURCES,
+            forcing=climate_cfg.get("forcing") if _source == clim_source else None,
             preparation_code_digest=MAP_REFERENCE.params["preparation_code_digest"],
             map_environment=MAP_REFERENCE.params["environment"],
         log: COMPUTE_DIAGNOSTICS.log(_source),

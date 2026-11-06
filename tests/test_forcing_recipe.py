@@ -8,8 +8,20 @@ import pytest
 
 from blueearth_cst.shared.forcing_recipe import (
     normalize_forcing_recipe,
+    read_forcing_recipe,
     require_workflow_compatibility,
 )
+
+
+@pytest.mark.parametrize("settings", [{}, {"pet": {"mode": "direct", "source": "pet"}}])
+def test_archived_effective_recipe_requires_complete_consistent_fields(settings):
+    recipe = normalize_forcing_recipe("era5", settings)
+    assert normalize_forcing_recipe("era5", recipe.settings()) == recipe
+    assert read_forcing_recipe(recipe.to_dict()) == recipe
+    incomplete = recipe.to_dict()
+    incomplete.pop("temp_correction")
+    with pytest.raises(ValueError, match="incomplete"):
+        read_forcing_recipe(incomplete)
 
 
 @pytest.mark.parametrize("source", ["era5", "chirps", "chirps_global"])

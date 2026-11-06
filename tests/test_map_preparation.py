@@ -16,6 +16,46 @@ from blueearth_cst.shared import map_preparation as mp
 from blueearth_cst.shared import map_reference as mr
 
 
+def test_direct_diagnostics_keep_supplied_pet_and_masked_outside_domain(
+    tmp_path, monkeypatch
+):
+    from blueearth_cst.climate_analysis.source_map_fields import (
+        prepare_source_map_fields,
+    )
+    from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
+
+    monkeypatch.setattr(mp, "environment_identity", lambda: {"fixture": "qualified"})
+    raw = xr.Dataset(
+        {
+            name: (("time", "latitude", "longitude"), np.full((365, 2, 2), value))
+            for name, value in (("precip", 2.0), ("temp", 20.0), ("pet", 7.0))
+        },
+        coords={
+            "time": pd.date_range("2001-01-01", periods=365),
+            "latitude": [1.5, 1.0],
+            "longitude": [2.0, 2.5],
+        },
+    )
+    raw.temp.attrs["units"] = "degC"
+    raw.pet.attrs["units"] = "mm/day"
+    raw.pet.values[:, :, 1] = np.nan
+    raw.raster.set_crs(4326)
+    climate = tmp_path / "direct.nc"
+    raw.to_netcdf(climate)
+    cells = tmp_path / "basin_cells.csv"
+    cells.write_text("latitude,longitude\n1.5,2.0\n1.0,2.0\n", encoding="utf-8")
+    recipe = normalize_forcing_recipe(
+        "era5", {"pet": {"mode": "direct", "source": "fixture_pet"}}
+    )
+    spec = SourceMapSpec(
+        "era5", climate, cells, (), ("2001-01-01", "2001-12-31"), recipe=recipe
+    )
+    result = prepare_source_map_fields(spec, 1, mp.resolve_map_completeness())
+    np.testing.assert_allclose(result.fields.pet.sel(longitude=2.0), 2555)
+    assert result.fields.pet.sel(longitude=2.5).isnull().all()
+    assert result.preparation_identity["forcing_recipe"] == recipe.to_dict()
+
+
 @pytest.fixture
 def prepared(tmp_path, monkeypatch):
     from blueearth_cst.climate_analysis.prepare_source_map_fields import run

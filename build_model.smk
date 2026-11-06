@@ -323,6 +323,7 @@ CLIMATE_STORE = climate_store_rule(
     data_sources=DATA_SOURCES,
     hydrography=basin_hydrography,
     basin_index=basin_index,
+    forcing=climate_cfg.get("forcing"),
 )
 store_dir = CLIMATE_STORE.store_dir
 
@@ -864,6 +865,7 @@ rule add_climate_forcing:
         clim_source = get_config(climate_cfg, "selected", optional=False),
         basin_dir = basin_dir,
         data_catalog = DATA_SOURCES,
+        forcing = climate_cfg.get("forcing"),
     log:
         ADD_CLIMATE_FORCING.log(),
     benchmark:

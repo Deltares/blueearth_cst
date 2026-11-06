@@ -301,7 +301,9 @@ def render(
     view = artists.View(
         sources=sources,
         labels={
-            s: "CHIRPS" if s in {"chirps", "chirps_global"} else s.upper()
+            s: "CHIRPS"
+            if s in {"chirps", "chirps_global"}
+            else metadata.get("source_labels", {}).get(s, s.upper())
             for s in sources
         },
         styles=artists.source_styles(sources),
@@ -344,12 +346,27 @@ def render(
                 map_info["source_role"] = reference["identity"]["source_preparations"][
                     sources[0]
                 ]["preparation_identity"]["role"]
+                from blueearth_cst.shared.forcing_recipe import (
+                    normalize_forcing_recipe,
+                    read_forcing_recipe,
+                )
+
+                provenance = reference["identity"]["source_preparations"][sources[0]][
+                    "preparation_identity"
+                ]
+                recipe = (
+                    read_forcing_recipe(provenance["forcing_recipe"])
+                    if "forcing_recipe" in provenance
+                    else normalize_forcing_recipe(sources[0])
+                )
                 if (
                     variable == "pet"
                     and map_info["source_role"] == "temperature-carrier"
                 ):
                     notes.append(
-                        "PET is derived on the source grid (de Bruin) and can differ from model PET"
+                        "Supplied reference PET is shown without recomputation"
+                        if recipe.pet_mode == "direct"
+                        else f"PET is derived on the source grid ({recipe.pet_method}) and can differ from model PET"
                     )
                 elif (
                     variable in {"temp", "pet"}
@@ -361,6 +378,11 @@ def render(
                     f"{period[0]}–{period[1]},",
                     sources[0],
                     notes,
+                    recipe=recipe
+                    if recipe != normalize_forcing_recipe(sources[0])
+                    or (sources[0] != "era5" and variable != "precip")
+                    else None,
+                    variable=variable,
                 )
                 if not map_info["displayed_cells"]:
                     availability = "not displayed: native support does not intersect the displayed frame"
