@@ -16,6 +16,21 @@ CONFIG_FN = Path(__file__).with_name("project_config_fixture.yml")
 pytestmark = pytest.mark.workflow_contract
 
 
+def test_enabled_climate_indices_wire_compute_pointer_and_render_outputs(tmp_path):
+    cfg = load_composed_config(CONFIG_FN)
+    cfg["project"]["project_dir"] = (tmp_path / "project").as_posix()
+    cfg["workflows"]["analyze_climate"]["diagnostics"] = {
+        "climate_indices": {"enabled": True, "seasons": {"DJF": [12, 1, 2]}}
+    }
+    workflow = _parse_workflow("analyze_climate.smk", write_config(tmp_path, cfg))
+    compute = workflow.get_rule("compute_climate_diagnostics_era5")
+    render = workflow.get_rule("plot_climate_diagnostics_era5")
+    assert compute.output.climate_indices in render.input
+    assert len(compute.params.climate_indices_code_digest) == 64
+    assert render.output.index_seasons in workflow.get_rule("all").input
+    assert render.output.index_map_wsdi in workflow.get_rule("all").input
+
+
 @pytest.mark.parametrize(
     "snakefile",
     [

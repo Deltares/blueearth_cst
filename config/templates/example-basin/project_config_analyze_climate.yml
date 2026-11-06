@@ -2,12 +2,17 @@
 # Subbasin plots are optional. Basin maps still show subbasin boundaries.
 # Generate individual subbasin climate figures. Options: true | false.
 subbasin_figures: false
+diagnostics:
+  climate_indices:
+    enabled: false
+    reference_period: null  # Calendar years; null uses climate.window.
+    reference_minimum_fraction: 0.9
+    seasons: {}  # Example: {DJF: [12, 1, 2]}; labels use the season's start year.
 
 # Optional settings (omitted periods use climate.window):
 # Custom completeness must also be set in the project's climate.map_reference.
 # Shared maps require matching tolerances and at most 27 missing days per month.
-# Historical climate diagnostic settings. Input: mapping.
-#diagnostics:
+# Add these optional keys inside the diagnostics mapping above.
 # Select reference water years. Input: inclusive year mapping.
 #  reference_period:
 # First reference water year. Input: integer year, <= end.
