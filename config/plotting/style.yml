@@ -36,6 +36,22 @@ charts:
     figure.facecolor: white
     savefig.facecolor: white
 maps:
+  panels:
+    columns: 4
+    max_panels_per_figure: 12
+    width_mm: 190
+    horizontal_gap_mm: 1.5
+    vertical_gap_mm: 2
+    outer_padding_mm: 3
+    heading_space_mm: 4
+    heading_pad_pt: 2
+    row_label_space_mm: 30
+    key_space_mm: 16
+    key_gap_mm: 4
+    key_width_mm: 2.3
+    key_height_fraction: 0.64
+    overlay_reference_width_mm: 150
+    overlay_min_scale: 0.5
   # Stream-order steps, lowest order first; colours are colors.yml river_order.
   river_order_widths: [0.57, 0.85, 1.19, 1.70, 2.41, 3.26, 4.54]
   river_width: 0.6           # rivers without an order attribute

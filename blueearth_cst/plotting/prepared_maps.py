@@ -8,6 +8,7 @@ active preset's ``maps`` tokens.
 """
 
 import math
+import textwrap
 import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -316,7 +317,9 @@ def _river_order(properties: Mapping[str, Any]) -> float | None:
     return None
 
 
-def _draw_rivers(ax: Axes, rivers: Sequence[Mapping[str, Any]]) -> None:
+def _draw_rivers(
+    ax: Axes, rivers: Sequence[Mapping[str, Any]], scale: float = 1.0
+) -> None:
     """Blue reaches stepped by stream order; thin reaches first, round joins.
 
     The layer's lowest order takes the first step and orders past the last
@@ -343,13 +346,13 @@ def _draw_rivers(ax: Axes, rivers: Sequence[Mapping[str, Any]]) -> None:
                 points[:, 0],
                 points[:, 1],
                 color=color,
-                lw=width,
+                lw=width * scale,
                 solid_capstyle="round",
                 solid_joinstyle="round",
                 zorder=3,
                 path_effects=[
                     Stroke(
-                        linewidth=width + maps["river_halo_width"],
+                        linewidth=(width + maps["river_halo_width"]) * scale,
                         foreground=halo,
                         capstyle="round",
                         joinstyle="round",
@@ -360,12 +363,12 @@ def _draw_rivers(ax: Axes, rivers: Sequence[Mapping[str, Any]]) -> None:
 
 
 def _draw_overlays(
-    ax: Axes, overlays: Mapping[str, Sequence[Mapping[str, Any]]]
+    ax: Axes, overlays: Mapping[str, Sequence[Mapping[str, Any]]], scale: float = 1.0
 ) -> list[tuple[float, float, str]]:
     """Draw rivers, divides, the basin outline and locations; return labels."""
     maps = active().maps
     halo = maps["halo"]
-    _draw_rivers(ax, overlays.get("rivers", []))
+    _draw_rivers(ax, overlays.get("rivers", []), scale)
     for key, color, width, dashes, zorder in (
         ("divides", maps["divide"], maps["divide_width"], maps["divide_dash"], 4),
         ("basins", maps["basin_outline"], maps["basin_outline_width"], None, 4.5),
@@ -374,12 +377,16 @@ def _draw_overlays(
             for coordinates in _geometry_lines(feature["geometry"]):
                 points = np.asarray(coordinates)
                 (artist,) = ax.plot(
-                    points[:, 0], points[:, 1], color=color, lw=width, zorder=zorder
+                    points[:, 0],
+                    points[:, 1],
+                    color=color,
+                    lw=width * scale,
+                    zorder=zorder,
                 )
                 if dashes is not None:
                     artist.set_dashes(dashes)
                 artist.set_path_effects(
-                    [Stroke(linewidth=width + 1.0, foreground=halo), Normal()]
+                    [Stroke(linewidth=(width + 1.0) * scale, foreground=halo), Normal()]
                 )
     labels = []
     for feature in overlays.get("locations", []):
@@ -393,8 +400,8 @@ def _draw_overlays(
             maps["location_marker"],
             color=maps["location"],
             mec=maps["marker_edge"],
-            mew=0.6,
-            ms=maps["location_size"],
+            mew=0.6 * scale,
+            ms=maps["location_size"] * scale,
             zorder=5,
         )
         label = location_label(feature.get("properties") or {})
@@ -811,6 +818,9 @@ def draw_raster_map(
     locator: LocatorMap | None = None,
     show_key: bool = True,
     locator_in_map: bool = False,
+    *,
+    ax: Axes | None = None,
+    compact: bool = False,
 ) -> Figure:
     """Draw supplied classes or honest unscaled hatching; never change input arrays.
 
@@ -824,9 +834,19 @@ def draw_raster_map(
     ``colorbar_title`` defaults to the scale's units; ``show_key=False`` omits
     the key. The map frame fits within 150 × 95 mm at its geographic aspect;
     labels, keys and external locators extend the canvas without shrinking it.
+    With ``ax``, draw into the caller's figure without resizing its canvas.
+    ``compact`` retains spatial layers and location markers but omits coordinate
+    labels/ticks, point labels, scale bar and key; the caller owns panel headings
+    and the shared key.
+    Compact overlay marks and strokes scale by the square root of panel width
+    relative to 150 mm, bounded to 0.5–1; text sizes remain controlled by the caller.
     """
     _validate(raster, frame, scale)
-    fig, ax = _map_figure(frame)
+    owns_canvas = ax is None
+    if owns_canvas:
+        fig, ax = _map_figure(frame)
+    else:
+        fig = ax.figure
     values = np.ma.masked_invalid(raster.values)
     inside = (
         np.ones(values.shape, dtype=bool)
@@ -907,11 +927,30 @@ def draw_raster_map(
             edgecolors="none",
             linewidth=0,
         )
-    labels = _draw_overlays(ax, overlays)
     west, east, south, north = frame.extent
     ax.set_xlim(west, east)
     ax.set_ylim(south, north)
     ax.set_aspect(frame.aspect)
+    overlay_scale = 1.0
+    if compact:
+        width_mm = ax.get_position().width * fig.get_figwidth() * 25.4
+        panels = active().map_panels
+        overlay_scale = min(
+            1.0,
+            max(
+                panels["overlay_min_scale"],
+                math.sqrt(width_mm / panels["overlay_reference_width_mm"]),
+            ),
+        )
+        for spine in ax.spines.values():
+            spine.set_linewidth(active().lines["boundary"] * overlay_scale)
+    labels = _draw_overlays(ax, overlays, overlay_scale)
+    if compact:
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlabel("")
+        ax.set_ylabel("")
+        return fig
     ax.set_xticks(frame.longitude_ticks)
     ax.set_yticks(frame.latitude_ticks)
     ax.set_xlabel("Longitude (°)")
@@ -981,5 +1020,220 @@ def draw_raster_map(
             ax, [_swatch(missing_color, MISSING_LABEL)], None, active().fonts["tick"]
         )
     _place_point_labels(fig, ax, labels)
-    _fit_map_canvas(fig, ax)
+    if owns_canvas:
+        _fit_map_canvas(fig, ax)
     return fig
+
+
+def draw_raster_panels(
+    rasters: Sequence[RasterMap],
+    titles: Sequence[str],
+    frame: MapFrame,
+    scale: MapScale,
+    overlays: Mapping[str, Sequence[Mapping[str, Any]]],
+    *,
+    colorbar_title: str | None = None,
+) -> list[Figure]:
+    """Draw compact spatial panels using the active preset's ``map_panels``.
+
+    Panels share the supplied geographic frame and scientific scale. The caller
+    owns units, class boundaries, colour meaning, missing-data explanation and
+    ordering; this helper never rounds or recalculates their values. Default
+    geometry is four columns, narrow gutters and a bottom-aligned shared key.
+    Return ordered figures, each containing at most ``max_panels_per_figure``
+    fields. All pages keep identical map sizes and the supplied scale, including
+    a partially filled final page. The caller owns page filenames or PDF export.
+    """
+    if not rasters or len(rasters) != len(titles):
+        raise ValueError(
+            "map panels require a nonempty raster list and matching titles"
+        )
+    for raster in rasters:
+        _validate(raster, frame, scale)
+    settings = active().map_panels
+    maximum = settings["max_panels_per_figure"]
+    if type(maximum) is not int or maximum <= 0:
+        raise ValueError("max_panels_per_figure must be a positive integer")
+    columns = min(int(settings["columns"]), maximum, len(rasters))
+    return [
+        _draw_raster_panel_page(
+            rasters[start : start + maximum],
+            titles[start : start + maximum],
+            frame,
+            scale,
+            overlays,
+            columns=columns,
+            colorbar_title=colorbar_title,
+        )
+        for start in range(0, len(rasters), maximum)
+    ]
+
+
+def _draw_raster_panel_page(
+    rasters: Sequence[RasterMap],
+    titles: Sequence[str],
+    frame: MapFrame,
+    scale: MapScale,
+    overlays: Mapping[str, Sequence[Mapping[str, Any]]],
+    *,
+    columns: int,
+    colorbar_title: str | None,
+    row_labels: Sequence[str] = (),
+    column_labels: Sequence[str] = (),
+    geometry_columns: int | None = None,
+) -> Figure:
+    """Draw one page with column geometry fixed across the complete panel set."""
+    preset = active()
+    settings = preset.map_panels
+    rows = math.ceil(len(rasters) / columns)
+    width = settings["width_mm"]
+    padding = settings["outer_padding_mm"]
+    xgap, ygap = settings["horizontal_gap_mm"], settings["vertical_gap_mm"]
+    heading = settings["heading_space_mm"] if any(titles) else 0.0
+    label_space = settings["row_label_space_mm"] if row_labels else 0.0
+    geometry_columns = columns if geometry_columns is None else geometry_columns
+    map_width = (
+        width
+        - 2 * padding
+        - label_space
+        - settings["key_space_mm"]
+        - (geometry_columns - 1) * xgap
+    ) / geometry_columns
+    if map_width <= 0:
+        raise ValueError("spatial panel preset leaves no room after matrix row labels")
+    west, east, south, north = frame.extent
+    map_height = map_width * frame.aspect * (north - south) / (east - west)
+    height = 2 * padding + rows * (map_height + heading) + (rows - 1) * ygap
+    column_heading = settings["heading_space_mm"] if column_labels else 0.0
+    height += column_heading
+    fig = plt.figure(figsize=(width / 25.4, height / 25.4), layout="none")
+    axes = []
+    for index, (raster, title) in enumerate(zip(rasters, titles, strict=True)):
+        row, column = divmod(index, columns)
+        left = padding + label_space + column * (map_width + xgap)
+        bottom = (
+            height
+            - padding
+            - row * (map_height + heading + ygap)
+            - heading
+            - map_height
+            - column_heading
+        )
+        ax = fig.add_axes(
+            (left / width, bottom / height, map_width / width, map_height / height)
+        )
+        draw_raster_map(raster, frame, scale, overlays, ax=ax, compact=True)
+        ax.set_title(
+            title,
+            loc="left",
+            pad=settings["heading_pad_pt"],
+            fontsize=preset.fonts["tick"],
+        )
+        axes.append(ax)
+        if row_labels and column == 0:
+            fig.text(
+                (padding + label_space - 2) / width,
+                (bottom + map_height / 2) / height,
+                textwrap.fill(row_labels[row], 22),
+                ha="right",
+                va="center",
+                fontsize=preset.fonts["tick"],
+                color=preset.colors["ink"],
+            )
+        if column_labels and row == 0:
+            fig.text(
+                (left + map_width / 2) / width,
+                (height - padding) / height,
+                column_labels[column],
+                ha="center",
+                va="top",
+                fontsize=preset.fonts["tick"],
+                color=preset.colors["ink"],
+            )
+    if scale.status == "available":
+        key_left = width - padding - settings["key_space_mm"] + settings["key_gap_mm"]
+        cax = fig.add_axes(
+            (
+                key_left / width,
+                padding / height,
+                settings["key_width_mm"] / width,
+                settings["key_height_fraction"],
+            )
+        )
+        colorbar = fig.colorbar(
+            axes[0].collections[0],
+            cax=cax,
+            ticks=scale.ticks,
+            extend=scale.extend,
+            extendrect=True,
+        )
+        style_colourbar(
+            colorbar, scale.units if colorbar_title is None else colorbar_title
+        )
+    return fig
+
+
+def draw_raster_matrix(
+    rasters: Sequence[Sequence[RasterMap]],
+    row_labels: Sequence[str],
+    column_labels: Sequence[str],
+    panel_titles: Sequence[Sequence[str]],
+    frame: MapFrame,
+    scale: MapScale,
+    overlays: Mapping[str, Sequence[Mapping[str, Any]]],
+    *,
+    colorbar_title: str | None = None,
+) -> list[Figure]:
+    """Labelled spatial matrix, paginated in rectangular blocks without reflow.
+
+    Row and column meanings survive page breaks. All tiles, including explicitly
+    unavailable combinations, count toward the common page cap.
+    """
+    rows, columns = len(row_labels), len(column_labels)
+    if (
+        not rows
+        or not columns
+        or len(rasters) != rows
+        or len(panel_titles) != rows
+        or any(len(row) != columns for row in (*rasters, *panel_titles))
+    ):
+        raise ValueError(
+            "map matrix requires matching nonempty rectangular fields and labels"
+        )
+    for row in rasters:
+        for raster in row:
+            _validate(raster, frame, scale)
+    settings = active().map_panels
+    maximum = settings["max_panels_per_figure"]
+    if type(maximum) is not int or maximum <= 0:
+        raise ValueError("max_panels_per_figure must be a positive integer")
+    page_columns = min(int(settings["columns"]), columns, maximum)
+    if page_columns < 1:
+        raise ValueError("map matrix requires a positive page capacity")
+    page_rows = max(1, maximum // page_columns)
+    figures = []
+    for start_row in range(0, rows, page_rows):
+        selected_rows = range(start_row, min(start_row + page_rows, rows))
+        for start_column in range(0, columns, page_columns):
+            selected_columns = range(
+                start_column, min(start_column + page_columns, columns)
+            )
+            figures.append(
+                _draw_raster_panel_page(
+                    [rasters[r][c] for r in selected_rows for c in selected_columns],
+                    [
+                        panel_titles[r][c]
+                        for r in selected_rows
+                        for c in selected_columns
+                    ],
+                    frame,
+                    scale,
+                    overlays,
+                    columns=len(selected_columns),
+                    geometry_columns=page_columns,
+                    row_labels=[row_labels[r] for r in selected_rows],
+                    column_labels=[column_labels[c] for c in selected_columns],
+                    colorbar_title=colorbar_title,
+                )
+            )
+    return figures

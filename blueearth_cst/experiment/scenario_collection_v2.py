@@ -499,6 +499,10 @@ def read_collection_v2(marker_path: Path) -> dict[str, Any]:
         raise ValueError("collection marker is outside the scenario engine")
     project_root = record_dir.parents[3]
     marker = read_canonical_json(marker_path)
+    if marker.get("schema_version") == "delta-scenario-collection/1":
+        from blueearth_cst.experiment.delta_scenarios import read_delta_collection
+
+        return read_delta_collection(marker_path)
     _fields(
         marker,
         {
