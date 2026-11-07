@@ -172,3 +172,62 @@ hashes independent of compression and container timestamps. Station identities a
 Retention supports comparison after the current model or `run_default` changes. It is **not a complete
 model archive for re-execution**: the fingerprints identify model and forcing inputs but do not copy them.
 Keep those inputs and the recorded software environment separately if model re-execution is required.
+
+## Compare retained historical runs
+
+Use `scripts/compare_historical.py --config comparison.yml` after retaining the runs. This command
+reads retained responses and never launches Wflow. Paths resolve beside the comparison YAML.
+The output directory must not exist; choose a new directory for a changed comparison.
+
+```yaml
+project_dir: ./my-basin
+runs:
+  - era5_reference
+  - chirps_reference
+evaluation_window:
+  # Inclusive daily response timestamps, explicitly quoted ISO dates.
+  start: "2002-10-01"
+  end: "2005-09-30"
+# Start-year labels: October 2002 through September 2003 is water year 2002.
+water_year_start: Oct
+# Optional semicolon CSV: time;1010;1020 (stable registry wflow_id columns).
+# Values are daily discharge in m3/s, labelled at interval end, like native WF1 output.
+observations_path: ./observations.csv
+output_dir: ./my-basin/comparisons/historical/forcing_comparison
+```
+
+The requested dates must all exist in every run. The comparison requires identical fixed-model identity,
+simulation dates, timestep, initialization and station identity; only daily Gregorian responses are supported.
+Recipe names select runs, not new forcing settings. The inventory retains each executed recipe and provenance.
+The window uses explicit dates rather than the inclusive years of `climate.window`; no water-year trimming
+or endpoint shortening occurs. Water-year labels use their starting year and seasonal months start at
+`water_year_start`. Exact requested and warm-up boundaries are retained in `comparison.json`.
+
+Warm-up preserves WF1's current behavior: when a run has more than 365 samples, exclude timestamps before
+its first response timestamp plus one calendar year. This can exclude 366 samples across a leap year.
+Runs with at most 365 samples have no warm-up exclusion. Each run supplies its own simulated warm-up;
+the common exclusion uses the identical response calendar. Requested warm-up dates remain in the coverage
+tables but never enter diagnostics. A wholly excluded window is reported with unavailable results.
+
+At each station, simulation-only diagnostics use dates with finite nonnegative discharge in **all** runs.
+Observation-paired diagnostics additionally require finite nonnegative observations on those same dates.
+Missing stations or dates are reported without infilling. Duplicate or unknown observation station IDs,
+duplicate dates and non-midnight timestamps are errors. Missing observation columns are allowed.
+Daily and monthly KGE, NSE, NSElog, RMSE, MSE, Pbias and VE reuse WF1's existing calculations. Monthly
+means use the same available paired days, with no completeness threshold. Undefined scores retain reasons;
+simulation-only results make no skill claim. Seasonal curves average available monthly means equally
+within calendar month; flow-duration curves rank available daily values using rank/(count+1), retaining zeros.
+
+Outputs include `inventory.csv`, `coverage.csv`, `performance.csv`, `support.csv`, `daily.csv`, `monthly.csv`,
+`seasonal.csv` and `flow_duration.csv` under `tables/`. `support.csv` records every requested date and the
+warm-up, simulated-common and observation-paired masks. Coverage counts and first/last usable dates are
+station-specific; unavailable observations are explicit. Figures cover every station on each applicable
+support, using the shared CST preset, palette, legends and caption/title inventories. Numerical tables and
+their hashes are retained for independent inspection and rerendering, without current model files:
+
+```powershell
+pixi run python scripts/render_figures.py historical-hydrology --project <comparison-dir> --out <figure-dir>
+```
+
+Controlled checks establish arithmetic and artifact handling, not real-basin forcing suitability, local
+calibration or empirical model adequacy. Review coverage before interpreting comparative performance.

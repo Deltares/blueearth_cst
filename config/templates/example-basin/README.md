@@ -51,6 +51,8 @@ required variables.
 
 - `project_config.yml`: shared case settings and workflow enablement.
 - `project_config_<workflow>.yml`: one workflow's settings.
+- `historical-comparison.yml`: optional retained-run comparison; review both directory paths and run names.
+  See [historical hydrology](../../../docs/technical-manual/workflow-build-model.md#compare-retained-historical-runs).
 - `data/`: case sidecars and their [local instructions](data/README.md).
 - `notes.md`: retained findings and evidence pointers.
 

@@ -22,6 +22,83 @@ TREND_DASH = (0, (5, 2.5))
 
 
 @dataclass(frozen=True)
+class PreparedLine:
+    """A labelled numeric or datetime series; scientific masks are caller-owned."""
+
+    label: str
+    x: object
+    y: object
+    color: str
+    linestyle: object = "-"
+    marker: str = ""
+
+
+def series_panel(
+    lines: Sequence[PreparedLine],
+    *,
+    xlabel: str,
+    ylabel: str,
+    ticks: tuple[Sequence, Sequence[str]] | None = None,
+    xlim: tuple | None = None,
+    width_mm: float = 127,
+    height_mm: float = 65,
+) -> Figure:
+    """Draw one prepared comparison panel with a measured, nontruncated legend.
+
+    Missing values retain gaps. Legend rows grow the canvas without shrinking
+    the data area or fonts. The caller owns units, support, ordering and export.
+    """
+    if not lines:
+        raise ValueError("supply at least one prepared line")
+    for line in lines:
+        _vector(line.y, "line values")
+        if np.asanyarray(line.x).ndim != 1 or len(line.x) != len(line.y):
+            raise ValueError("line coordinates must have matching vector lengths")
+    # One entry per row also accommodates long retained-run labels without loss.
+    fig, axes = f.new_fig(height_mm=height_mm + 4 * len(lines), width_mm=width_mm)
+    ax = axes[0, 0]
+    handles = []
+    for line in lines:
+        (artist,) = ax.plot(
+            line.x,
+            line.y,
+            label=line.label,
+            color=line.color,
+            linestyle=line.linestyle,
+            marker=line.marker,
+            markevery=max(1, len(line.y) // 12),
+            lw=active().lines["line"],
+            ms=active().markers["line"],
+        )
+        handles.append(artist)
+    ax.set(xlabel=xlabel, ylabel=ylabel, ylim=(0, None))
+    if xlim is not None:
+        ax.set_xlim(*xlim)
+    if np.issubdtype(np.asanyarray(lines[0].x).dtype, np.datetime64):
+        from matplotlib.dates import AutoDateLocator, ConciseDateFormatter
+
+        locator = AutoDateLocator(minticks=3, maxticks=5)
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_formatter(ConciseDateFormatter(locator))
+    if ticks is not None:
+        ax.set_xticks(ticks[0], ticks[1])
+        ax.set_xticks([], minor=True)
+    if not any(np.isfinite(np.asanyarray(line.y)).any() for line in lines):
+        ax.set_yticks([])
+        ax.text(
+            0.5,
+            0.5,
+            "No common support",
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+        )
+    f.ygrid(ax)
+    f.top_legend(fig, *[[handle] for handle in handles])
+    return fig
+
+
+@dataclass(frozen=True)
 class AnnualLine:
     """One source's values, already aligned with the supplied display years."""
 

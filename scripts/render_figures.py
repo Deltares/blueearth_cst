@@ -20,6 +20,15 @@ import matplotlib  # noqa: E402
 matplotlib.use("Agg")
 
 
+def _historical_hydrology(args):
+    from blueearth_cst.model.plot_historical_comparison import render
+
+    if args.source or args.scenario:
+        raise ValueError("historical-hydrology uses the retained comparison selection")
+    render(args.project, args.out, args.annotation)
+    return {"historical-hydrology": args.out / "plots"}
+
+
 def _wf0(args):
     from blueearth_cst.climate_analysis.diagnostic_rerender import rerender_sources
 
@@ -88,6 +97,10 @@ def _wf2(args):
 #: Family name -> (what it renders, renderer). Add a family by pointing it at a
 #: re-render function that sits beside its rule adapter in ``blueearth_cst``.
 FAMILIES = {
+    "historical-hydrology": (
+        "Fixed-model historical discharge from retained comparison tables",
+        _historical_hydrology,
+    ),
     "budyko": ("WF1 observed water balance from retained tables", _budyko),
     "rain-gauges": (
         "Rain-gauge comparisons from retained station evidence",
