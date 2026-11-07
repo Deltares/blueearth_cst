@@ -5,10 +5,12 @@ runs:
   - era5_reference
   - chirps_reference
 evaluation_window:
-  # Inclusive daily interval-end response timestamps; unavailable dates are rejected.
-  start: "2002-10-01"
-  end: "2005-09-30"
-# Water years use start-year labels; this orders seasonal curves October to September.
+  # First reporting year, labelled by its start year. Input: integer year.
+  start: 2002
+  # Last reporting year, inclusive. Input: integer year >= start.
+  end: 2004
+# Expands this window to 2002-10-01 through 2005-09-30; unavailable dates are rejected.
+# Also orders seasonal curves October to September.
 water_year_start: Oct
 # Optional semicolon CSV (time;wflow_id;...), daily discharge in m3/s.
 observations_path: null

@@ -185,10 +185,12 @@ runs:
   - era5_reference
   - chirps_reference
 evaluation_window:
-  # Inclusive daily response timestamps, explicitly quoted ISO dates.
-  start: "2002-10-01"
-  end: "2005-09-30"
+  # First reporting year, labelled by its start year. Input: integer year.
+  start: 2002
+  # Last reporting year, inclusive. Input: integer year >= start.
+  end: 2004
 # Start-year labels: October 2002 through September 2003 is water year 2002.
+# The complete evaluation window here is 2002-10-01 through 2005-09-30.
 water_year_start: Oct
 # Optional semicolon CSV: time;1010;1020 (stable registry wflow_id columns).
 # Values are daily discharge in m3/s, labelled at interval end, like native WF1 output.

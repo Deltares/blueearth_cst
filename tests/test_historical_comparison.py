@@ -162,10 +162,21 @@ def test_incompatible_runs_and_unavailable_period_reject(damage):
 
 
 def test_explicit_window_and_observation_schema(tmp_path):
-    dates = evaluation_dates({"start": "2000-02-28", "end": "2000-03-01"})
-    assert len(dates) == 3
-    with pytest.raises(ValueError, match="quoted ISO"):
-        evaluation_dates({"start": 2000, "end": 2001})
+    dates = evaluation_dates({"start": 2000, "end": 2000})
+    assert len(dates) == 366
+    assert dates[0] == pd.Timestamp("2000-01-01")
+    assert dates[-1] == pd.Timestamp("2000-12-31")
+    dates = evaluation_dates({"start": 1999, "end": 2000}, "Oct")
+    assert len(dates) == 731
+    assert dates[0] == pd.Timestamp("1999-10-01")
+    assert dates[-1] == pd.Timestamp("2001-09-30")
+    for window in (
+        {"start": "2000-01-01", "end": "2000-12-31"},
+        {"start": True, "end": 2000},
+        {"start": 2001, "end": 2000},
+    ):
+        with pytest.raises(ValueError, match="integers|ordered"):
+            evaluation_dates(window)
     path = tmp_path / "obs.csv"
     path.write_text("time;01010\n2000-01-01;1\n2000-01-03;2\n")
     assert read_observations(path, {"1010", "1020"}).columns.tolist() == ["1010"]
@@ -182,6 +193,44 @@ def write_tables(root: Path, metadata: dict, tables: dict) -> None:
         p.name: file_sha256(p) for p in (root / "tables").iterdir()
     }
     (root / "comparison.json").write_text(json.dumps(metadata))
+
+
+def test_public_comparison_expands_year_window_without_trimming(tmp_path, monkeypatch):
+    import yaml
+
+    from blueearth_cst.model import historical_comparison as comparison
+
+    runs = runs_for(pd.date_range("1999-01-01", "2002-12-31"))
+    for name in runs:
+        directory = tmp_path / name
+        directory.mkdir()
+        (directory / "complete.json").write_text("retained fixture")
+    monkeypatch.setattr(
+        comparison, "run_directory", lambda project, name: project / name
+    )
+    monkeypatch.setattr(
+        comparison, "read_historical_run", lambda project, name: runs[name]
+    )
+    config = tmp_path / "comparison.yml"
+    settings = {
+        "project_dir": ".",
+        "runs": ["a", "b"],
+        "output_dir": "result",
+        "evaluation_window": {"start": 2000, "end": 2001},
+        "water_year_start": "Oct",
+    }
+    config.write_text(yaml.safe_dump(settings))
+    metadata, tables = read_comparison(comparison.compare(config))
+    assert metadata["requested_start"] == "2000-10-01"
+    assert metadata["requested_end"] == "2002-09-30"
+    assert metadata["warmup_exclusive_end"] == "2000-01-01"
+    assert len(tables["support"]) == 730 * 2
+    settings["output_dir"] = "unavailable"
+    settings["evaluation_window"]["end"] = 2002
+    config.write_text(yaml.safe_dump(settings))
+    with pytest.raises(ValueError, match="unavailable"):
+        comparison.compare(config)
+    assert not (tmp_path / "unavailable").exists()
 
 
 def test_retained_tables_render_without_source_runs_and_damage_refuses(

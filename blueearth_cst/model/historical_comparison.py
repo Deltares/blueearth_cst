@@ -12,6 +12,7 @@ import pandas as pd
 import xarray as xr
 import yaml
 
+from blueearth_cst.indicators.climate.periods import annual_periods
 from blueearth_cst.model.historical_runs import read_historical_run, run_directory
 from blueearth_cst.shared.func_plot_signature import compute_indicators
 from blueearth_cst.shared.provenance import (
@@ -45,16 +46,15 @@ def _daily_index(index: pd.Index, context: str) -> pd.DatetimeIndex:
     return index
 
 
-def evaluation_dates(window: object) -> pd.DatetimeIndex:
-    """Read exact inclusive ISO-date endpoints, never infer or trim a period."""
+def evaluation_dates(window: object, water_year_start: str = "Jan") -> pd.DatetimeIndex:
+    """Expand inclusive integer start-year labels to complete reporting years."""
     if not isinstance(window, dict) or set(window) != {"start", "end"}:
         raise ValueError("evaluation_window requires only start and end")
-    for value in window.values():
-        if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
-            raise ValueError(
-                "evaluation_window endpoints must be quoted ISO dates YYYY-MM-DD"
-            )
-    dates = pd.date_range(window["start"], window["end"], freq="D")
+    month = water_year_start_number(resolve_water_year_start(water_year_start))
+    periods = annual_periods(window["start"], window["end"], month)
+    dates = pd.date_range(
+        periods[0].start, periods[-1].stop, freq="D", inclusive="left"
+    )
     return _daily_index(dates, "evaluation_window")
 
 
@@ -380,7 +380,9 @@ def compare(config_path: Path) -> Path:
         observations = read_observations(observation_path, ids)
     metadata, tables = prepare_comparison(
         runs,
-        evaluation_dates(settings["evaluation_window"]),
+        evaluation_dates(
+            settings["evaluation_window"], settings.get("water_year_start", "Jan")
+        ),
         water_year_start=settings.get("water_year_start", "Jan"),
         observations=observations,
     )
