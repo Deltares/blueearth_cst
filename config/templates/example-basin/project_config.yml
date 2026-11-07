@@ -77,8 +77,10 @@ climate:
   # Comparison candidates; their order never chooses model forcing.
   # Select historical climate datasets to assess. Input: list of supported climate source names.
   sources: [era5, chirps]
+  # Configure selected historical model forcing. Input: mapping.
   forcing:
     # Explicit choice required with multiple candidates; omit this block for comparison-only work.
+    # Select the precipitation forcing dataset. Input: supported climate source name.
     precip_source: era5
 
   # Optional selected-source recipe; these are the effective defaults.
