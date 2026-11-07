@@ -24,6 +24,7 @@ import xarray as xr
 
 from blueearth_cst.experiment.downscale_climate_forcing import (
     forcing_chunksize,
+    initial_state_settings,
     pet_method_for,
 )
 from blueearth_cst.experiment.forcing_window import forcing_window
@@ -133,6 +134,7 @@ def test_preparation_checks_wrapped_elevation_grid(
 
         def __init__(self, **kwargs):
             self.staticmaps = SimpleNamespace(data=forcing)
+            self.config = SimpleNamespace(data={})
 
         def setup_config(self, **kwargs):
             raise PreparationReached
@@ -170,3 +172,40 @@ def test_preparation_checks_wrapped_elevation_grid(
             np.tile([350, 351, 352, 353], (3, 1)),
         )
         selected.close()
+
+
+def test_shared_warm_state_preserves_selected_file_and_requires_it(tmp_path):
+    state = tmp_path / "historical-warm.nc"
+    state.write_bytes(b"state fixture")
+    config = {
+        "model": {"cold_start__flag": False},
+        "state": {
+            "path_input": state.name,
+            "variables": {"soil_water_saturated_zone__depth": "satwaterdepth"},
+        },
+    }
+    assert initial_state_settings(tmp_path, config) == {"state.path_input": str(state)}
+    state.unlink()
+    with pytest.raises(ValueError, match="state does not exist"):
+        initial_state_settings(tmp_path, config)
+
+
+def test_cold_start_does_not_invent_an_initial_state(tmp_path):
+    assert initial_state_settings(tmp_path, {}) == {}
+    assert initial_state_settings(tmp_path, {"state": {"path_input": "unused.nc"}}) == {
+        "state.path_input": str(tmp_path / "unused.nc")
+    }
+
+
+def test_warm_state_requires_mapping_and_fingerprint_coverage(tmp_path):
+    state = tmp_path / "state.nc"
+    state.touch()
+    config = {"model": {"cold_start__flag": False}, "state": {"path_input": state.name}}
+    with pytest.raises(ValueError, match="state.variables"):
+        initial_state_settings(tmp_path, config)
+    config["state"]["variables"] = {"soil_water_saturated_zone__depth": "satwaterdepth"}
+    (tmp_path / "inputs").mkdir()
+    (tmp_path / "inputs" / state.name).touch()
+    config["dir_input"] = "inputs"
+    with pytest.raises(ValueError, match="fingerprint coverage"):
+        initial_state_settings(tmp_path, config)

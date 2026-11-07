@@ -257,6 +257,38 @@ def downscale_climate_forcing(
     )
 
 
+def initial_state_settings(model_root: Path, config: dict) -> dict[str, str]:
+    """Preserve the model's shared state when relocating a WF4 run TOML.
+
+    Cold starts retain their declared pointer without requiring its file. Warm
+    starts require the input and variable mapping; no conventional filename is
+    substituted. The model fingerprint owns state-byte provenance.
+    """
+    cold = config.get("model", {}).get("cold_start__flag", True)
+    if type(cold) is not bool:
+        raise ValueError("model.cold_start__flag must be boolean")
+    state = config.get("state", {})
+    raw = state.get("path_input")
+    if raw is None and cold:
+        return {}
+    if not isinstance(raw, str) or not raw.strip():
+        raise ValueError("warm initialization requires state.path_input")
+    path = Path(model_root, config.get("dir_input", ""), raw).absolute()
+    if not cold:
+        if not path.is_file():
+            raise ValueError(f"warm initialization state does not exist: {path}")
+        if not state.get("variables"):
+            raise ValueError("warm initialization requires state.variables")
+        # The existing model digest resolves pointers relative to model_root.
+        # Refuse an anchor mismatch rather than claiming unhashed state bytes.
+        if path != Path(model_root, raw).absolute():
+            raise ValueError(
+                "warm state with dir_input requires an absolute state.path_input "
+                "inside the model root for fingerprint coverage"
+            )
+    return {"state.path_input": str(path)}
+
+
 def prepare_model_forcing(run_forcing, model_reference, settings):
     """Apply the predecessor HydroMT preparation with explicit physical context."""
     context = run_forcing.preparation_context
@@ -332,11 +364,7 @@ def prepare_model_forcing(run_forcing, model_reference, settings):
             # absolute same-mount value against the new toml's own directory on
             # write, emitting the correct relative pointer (verified against the
             # vendored make_config_paths_relative; design Â§5/Â§5a).
-            # state.path_input is inert under reinit=true but set for future
-            # warm-state safety.
-            "state.path_input": str(
-                Path(model_root, "instate", "instates.nc").resolve()
-            ),
+            **initial_state_settings(Path(model_root), mod.config.data),
             "input.path_static": str(Path(model_root, "staticmaps.nc").resolve()),
             "input.path_forcing": str(fn_out.resolve()),
             "output.csv.path": os.path.relpath(

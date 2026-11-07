@@ -35,6 +35,20 @@ averaging. Equality with the threshold is accepted. Factors are never clipped or
 December 31 midnight convention. Historical forcing must cover that interval. This selection does not
 perform or exclude a separate spin-up simulation.
 
+For a shared historical warm start, prepare one historical state before the evaluation interval. Set
+`model.cold_start__flag = false` and `state.path_input` in the source model's `wflow_sbm.toml`, retaining
+its `state.variables` mapping. WF4 preserves that chosen path when writing each run configuration and
+refuses a missing warm-state file or mapping. The model fingerprint covers the selected state bytes.
+Use a path inside the model root; if `dir_input` is set, use an absolute state path inside that root so
+the current fingerprint and runtime resolve the same file. Cold-start defaults remain unchanged.
+
+Set `simulation_window` to the evaluation years only, with the warm-up performed separately. All
+members and independent horizons then start from the same state; no future run supplies another
+future run's initialization. Match the state epoch to the configured simulation start, remembering
+Wflow uses the first forcing timestamp as the initial state time and begins output one timestep later.
+The presence of a state file does not establish sufficient spin-up: compare storage and responses under
+alternative warm-up lengths before treating initialization as qualified.
+
 `reader.metadata.cst_unit_interpretation` declares the historical values' **effective physical units**.
 Copy the evidenced binding from the historical extraction/preparation provenance, or establish an equivalent
 binding for supplied data. Its variables must cover every data variable except `spatial_ref` exactly once.
