@@ -133,6 +133,31 @@ readable under their original positive-denominator policy; reading them does not
 their dry-month factors. Regeneration applies the current policy and creates a new collection identity.
 WF4 retains its own simulation and indicator provenance through the normal execution path.
 
+### Gridded factors and member diagnostics
+
+Use `schema_version: delta-change/2` with the required `factor_layout: grid` to retain spatial variation.
+Alternatively, `factor_layout: basin_scalar` uses the existing scalar calculation. Version-1 configurations
+remain scalar and do not accept this field. The other configuration fields have the same meanings.
+
+Gridded reference and future files must have matching grids and explicit matching CRS, with temperature
+and precipitation on monthly rasters. Historical forcing must have explicit CRS and `latitude` and
+`longitude` coordinates. Monthly offsets and ratios are calculated on the projection grid, then mapped
+to the historical forcing grid using HydroMT nearest-neighbour reprojection. Missing coverage and dry
+reference cells in the active historical domain are errors. Outside that domain the factors are neutral
+and historical missing values remain missing. This method does not add subgrid climate information.
+The intent retains the applied arrays in month/latitude/longitude order, alongside their source inputs.
+
+Plot a completed scalar or gridded collection with:
+
+```powershell
+python scripts/plot_delta_scenarios.py --manifest <collection.json> --output-dir <case>/plots/delta
+```
+
+The command validates the collection and writes monthly member comparisons, twelve-month grid panels
+for each gridded member and variable, and `figure_captions.md`. Members are grouped by model and scenario
+without pooling. Grid comparison lines are unweighted active-cell means; shaded spatial ranges are not
+confidence intervals. Grid panels share each variable's colour scale across members and months.
+
 Identity includes resolved settings, input bytes, producer revision and environment. A repeated identical
 completed request verifies retained artifacts before reuse. Changed inputs produce a new identity. A partial
 directory without a ready marker is refused; inspect and preserve it before explicitly removing task-owned

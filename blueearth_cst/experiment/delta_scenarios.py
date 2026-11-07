@@ -51,6 +51,7 @@ def _period(value: Any, label: str) -> dict:
 
 def validate_settings(settings: Any) -> dict:
     """Validate the producer configuration, with no implicit scientific choices."""
+    version = settings.get("schema_version") if isinstance(settings, dict) else None
     value = _fields(
         settings,
         {
@@ -63,11 +64,17 @@ def validate_settings(settings: Any) -> dict:
             "simulation_window",
             "members",
             "unit_id_capacity",
-        },
+        }
+        | ({"factor_layout"} if version == "delta-change/2" else set()),
         "delta configuration",
     )
-    if value["schema_version"] != "delta-change/1":
+    if version not in {"delta-change/1", "delta-change/2"}:
         raise ValueError("unsupported delta configuration schema")
+    if version == "delta-change/2" and value["factor_layout"] not in {
+        "grid",
+        "basin_scalar",
+    }:
+        raise ValueError("factor_layout must be grid or basin_scalar")
     if value["source_like"] != "era5":
         raise ValueError(
             "delta-change/1 currently supports extracted ERA5 forcing only"
@@ -233,8 +240,16 @@ def apply_factors(
     """Apply monthly factors by labelled time; preserve dtype, grid and masks."""
     offsets, ratios = np.asarray(offsets), np.asarray(ratios)
     if (
-        offsets.shape != (12,)
-        or ratios.shape != (12,)
+        offsets.shape != ratios.shape
+        or offsets.shape
+        not in {
+            (12,),
+            (
+                12,
+                historical.sizes.get("latitude", 0),
+                historical.sizes.get("longitude", 0),
+            ),
+        }
         or not np.isfinite(offsets).all()
         or not np.isfinite(ratios).all()
         or (ratios < 0).any()
@@ -254,10 +269,10 @@ def apply_factors(
             )
         if name == "precip" and (source.values < 0).any():
             raise ValueError("historical precipitation cannot be negative")
+        values = (ratios if name == "precip" else offsets)[months]
+        dims = ("time",) if values.ndim == 1 else ("time", "latitude", "longitude")
         factor = xr.DataArray(
-            (ratios if name == "precip" else offsets)[months],
-            dims="time",
-            coords={"time": source.time},
+            values, dims=dims, coords={key: source[key] for key in dims}
         )
         transformed = (source * factor if name == "precip" else source + factor).astype(
             source.dtype
@@ -270,6 +285,140 @@ def apply_factors(
                 f"{name}: transformation changed missingness or overflowed"
             )
         result[name].data = transformed.transpose(*source.dims).data
+    return result
+
+
+def gridded_factors(reference, future, historical, settings, policy):
+    """Map monthly change fields to the historical grid with HydroMT nearest.
+
+    Projection grids must match each other, with explicit CRS. Missing mapped
+    values and dry reference cells in the active historical domain are errors.
+    Factors outside that domain are neutral; historical masks remain unchanged.
+    """
+    import hydromt  # noqa: F401 -- registers the raster accessor
+
+    policy = _fields(policy, {"min_denominator", "units"}, "precipitation policy")
+    if (
+        type(policy["min_denominator"]) not in (int, float)
+        or not np.isfinite(policy["min_denominator"])
+        or policy["min_denominator"] <= 0
+        or policy["units"] != "mm/day"
+    ):
+        raise ValueError("precipitation policy requires a positive mm/day threshold")
+
+    target = historical.temp.isel(time=0, drop=True).transpose("latitude", "longitude")
+    if historical.raster.crs is None:
+        raise ValueError("historical grid requires an explicit CRS")
+    target.raster.set_crs(historical.raster.crs)
+    active = historical.temp.notnull().any("time").transpose("latitude", "longitude")
+    active = active | historical.precip.notnull().any("time").transpose(
+        "latitude", "longitude"
+    )
+    means = []
+    for dataset, period in (
+        (reference, settings["reference_period"]),
+        (future, settings["future_period"]),
+    ):
+        if dataset.raster.crs is None:
+            raise ValueError("projection grid requires an explicit CRS")
+        selected = dataset.sel(time=slice(str(period["start"]), str(period["end"])))
+        pairs = list(
+            zip(
+                selected.time.dt.year.values.tolist(),
+                selected.time.dt.month.values.tolist(),
+            )
+        )
+        if pairs != [
+            (year, month)
+            for year in range(period["start"], period["end"] + 1)
+            for month in range(1, 13)
+        ]:
+            raise ValueError(
+                "projection requires exactly one ordered sample per requested year/month"
+            )
+        for name in ("temp", "precip"):
+            if set(selected[name].dims) != {
+                "time",
+                dataset.raster.x_dim,
+                dataset.raster.y_dim,
+            }:
+                raise ValueError(f"{name}: monthly raster required")
+            if np.isinf(selected[name]).any() or (
+                name == "precip" and (selected[name] < 0).any()
+            ):
+                raise ValueError(f"{name}: invalid projection values")
+        means.append(
+            selected[["temp", "precip"]]
+            .groupby("time.month")
+            .mean("time", skipna=False)
+        )
+    if reference.raster.crs != future.raster.crs:
+        raise ValueError("reference and future projection CRS differ")
+    xr.align(means[0], means[1], join="exact")
+    for name in ("temp", "precip"):
+        units = reference[name].attrs.get("units")
+        allowed = (
+            {"K", "degC", "degree_Celsius", "degrees_Celsius"}
+            if name == "temp"
+            else {"mm/day", "mm/month"}
+        )
+        if units not in allowed or units != future[name].attrs.get("units"):
+            raise ValueError(
+                f"{name}: explicit equal supported projection units required"
+            )
+    ref = reference.sel(
+        time=slice(
+            str(settings["reference_period"]["start"]),
+            str(settings["reference_period"]["end"]),
+        )
+    )
+    daily = ref.precip
+    if daily.attrs["units"] == "mm/month":
+        daily = daily / ref.time.dt.days_in_month
+    daily = daily.groupby("time.month").mean("time", skipna=False)
+    daily = daily.transpose("month", reference.raster.y_dim, reference.raster.x_dim)
+    daily.raster.set_crs(reference.raster.crs)
+    mapped_daily = daily.raster.reproject_like(
+        target, method="nearest"
+    ).raster.mask_nodata()
+    if bool((~np.isfinite(mapped_daily) & active).any()):
+        raise ValueError(
+            "reference precipitation does not cover every active historical grid cell"
+        )
+    if bool(((mapped_daily < policy["min_denominator"]) & active).any()):
+        raise ValueError(
+            "reference precipitation below threshold in active grid; relative factors are refused, not clipped"
+        )
+    fields = (means[1].temp - means[0].temp, means[1].precip / means[0].precip)
+    result = []
+    for field, neutral in zip(fields, (0.0, 1.0), strict=True):
+        field = field.transpose("month", reference.raster.y_dim, reference.raster.x_dim)
+        field.raster.set_crs(reference.raster.crs)
+        mapped = field.raster.reproject_like(
+            target, method="nearest"
+        ).raster.mask_nodata()
+        if bool((~np.isfinite(mapped) & active).any()):
+            raise ValueError(
+                "projection factors do not cover every active historical grid cell"
+            )
+        mapped = mapped.where(active, neutral).transpose(
+            "month", "latitude", "longitude"
+        )
+        result.append(mapped.values)
+    return tuple(result)
+
+
+def derive_factors(reference, future, historical, settings, policy):
+    """Dispatch the explicit factor layout without altering legacy arithmetic."""
+    if settings.get("factor_layout") == "grid":
+        return gridded_factors(reference, future, historical, settings, policy)
+    result = monthly_factors(
+        reference, future, settings["reference_period"], settings["future_period"]
+    )
+    if policy is not None:
+        validate_precipitation_reference(
+            reference, settings["reference_period"], policy
+        )
     return result
 
 
@@ -342,17 +491,12 @@ def generate_collection(config_path: Path, project_root: Path) -> Path:
         with (
             xr.open_dataset(paths[1 + index * 2]) as reference,
             xr.open_dataset(paths[2 + index * 2]) as future,
+            xr.open_dataset(paths[0]) as historical,
         ):
             factors.append(
-                monthly_factors(
-                    reference,
-                    future,
-                    settings["reference_period"],
-                    settings["future_period"],
+                derive_factors(
+                    reference, future, historical, settings, factor_policy["precip"]
                 )
-            )
-            validate_precipitation_reference(
-                reference, settings["reference_period"], factor_policy["precip"]
             )
     # Observe the physical source before publishing anything. WF4 uses the same
     # evidenced interpretation when binding the existing preparation catalog.
@@ -389,6 +533,11 @@ def generate_collection(config_path: Path, project_root: Path) -> Path:
         "environment": {
             name: importlib.metadata.version(name)
             for name in ("numpy", "xarray", "netCDF4")
+            + (
+                ("hydromt", "rasterio", "pyproj")
+                if settings.get("factor_layout") == "grid"
+                else ()
+            )
         },
         "historical_descriptor": descriptor,
         "run_group_id_capacity": settings["unit_id_capacity"],
@@ -584,18 +733,15 @@ def read_delta_collection(marker_path: Path) -> dict:
         with (
             xr.open_dataset(data / member["reference_path"]) as reference,
             xr.open_dataset(data / member["future_path"]) as future,
+            xr.open_dataset(data / names[0]) as historical,
         ):
-            offsets, ratios = monthly_factors(
-                reference,
-                future,
-                settings["reference_period"],
-                settings["future_period"],
-            )
+            precipitation_policy = None
             if intent_version == "delta-scenario-intent/2":
                 policy = _fields(intent["factor_policy"], {"precip"}, "factor policy")
-                validate_precipitation_reference(
-                    reference, settings["reference_period"], policy["precip"]
-                )
+                precipitation_policy = policy["precip"]
+            offsets, ratios = derive_factors(
+                reference, future, historical, settings, precipitation_policy
+            )
         if content_sha256(factors) != content_sha256(
             {"temp_offset_degC": offsets.tolist(), "precip_ratio": ratios.tolist()}
         ):

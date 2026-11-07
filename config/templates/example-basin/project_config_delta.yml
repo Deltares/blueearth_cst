@@ -1,6 +1,8 @@
 # Optional standalone producer; not a workflows.generate_scenarios configuration.
 # Replace input paths and verify the historical physical-unit evidence before use.
-# Select the standalone producer schema. Options: delta-change/1.
+# Select the standalone producer schema. Options: delta-change/1, delta-change/2.
+# Version 2 additionally requires factor_layout: basin_scalar or grid.
+# Version 1 remains scalar; omit factor_layout for this version.
 schema_version: delta-change/1
 # Locate the extracted historical forcing. Input: NetCDF path beside this YAML.
 historical_path: data/extract_historical.nc

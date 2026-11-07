@@ -14,6 +14,7 @@ from blueearth_cst.experiment.delta_scenarios import (
     apply_factors,
     delta_groups,
     generate_collection,
+    gridded_factors,
     monthly_factors,
     scenario_records,
     validate_precipitation_reference,
@@ -256,6 +257,89 @@ def test_duplicate_member_identity_is_rejected():
     config["members"].append(deepcopy(config["members"][0]))
     with pytest.raises(ValueError, match="duplicate"):
         validate_settings(config)
+
+
+def grid_inputs():
+    """Two-by-two independent spatial signals on the historical grid."""
+    import hydromt  # noqa: F401
+
+    baseline = historical().rename({"y": "latitude", "x": "longitude"})
+    baseline.raster.set_crs(4326)
+    reference = (
+        monthly().expand_dims(latitude=[1.0, 0.0], longitude=[0.0, 1.0]).copy(deep=True)
+    )
+    reference.raster.set_crs(4326)
+    future = reference.copy(deep=True)
+    offset = xr.DataArray([[1.0, 2.0], [3.0, 4.0]], dims=("latitude", "longitude"))
+    future["temp"] = reference.temp + offset
+    future.temp.attrs = reference.temp.attrs.copy()
+    future["precip"] = reference.precip * (offset / 2)
+    future.precip.attrs = reference.precip.attrs.copy()
+    config = {**settings(), "schema_version": "delta-change/2", "factor_layout": "grid"}
+    return baseline, reference, future, config
+
+
+def test_gridded_factors_preserve_spatial_signals_masks_and_roundtrip(tmp_path):
+    baseline, reference, future, config = grid_inputs()
+    offsets, ratios = gridded_factors(
+        reference, future, baseline, config, {"min_denominator": 0.1, "units": "mm/day"}
+    )
+    np.testing.assert_array_equal(offsets[:, 1, 1], np.full(12, 4.0))
+    np.testing.assert_array_equal(ratios[:, 1, 1], np.full(12, 2.0))
+    result = apply_factors(baseline, offsets, ratios)
+    np.testing.assert_array_equal(
+        result.temp.isel(latitude=1, longitude=1), np.full(366, 14.0)
+    )
+    np.testing.assert_array_equal(
+        result.precip.isel(latitude=1, longitude=1), np.full(366, 20.0)
+    )
+    np.testing.assert_array_equal(result.temp.isnull(), baseline.temp.isnull())
+    for name, dataset in (
+        ("historical", baseline),
+        ("reference", reference),
+        ("future", future),
+    ):
+        dataset.to_netcdf(tmp_path / f"{name}.nc")
+    path = tmp_path / "delta.yml"
+    path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    manifest = generate_collection(path, tmp_path / "project")
+    assert read_collection_v2(manifest)["status"] == "ready"
+
+
+def test_gridded_factors_refuse_dry_active_cell():
+    baseline, reference, future, config = grid_inputs()
+    reference["precip"] = xr.zeros_like(reference.precip) + 0.01
+    reference.precip.attrs["units"] = "mm/day"
+    with pytest.raises(ValueError, match="below threshold in active grid"):
+        gridded_factors(
+            reference,
+            future,
+            baseline,
+            config,
+            {"min_denominator": 0.1, "units": "mm/day"},
+        )
+
+
+def test_nearest_grid_boundary_uses_eastern_pixel():
+    baseline, reference, future, config = grid_inputs()
+    baseline = baseline.assign_coords(longitude=[0.25, 0.5])
+    offsets, _ = gridded_factors(
+        reference, future, baseline, config, {"min_denominator": 0.1, "units": "mm/day"}
+    )
+    np.testing.assert_array_equal(offsets[:, 1, 1], np.full(12, 4.0))
+
+
+def test_gridded_factors_refuse_missing_active_cell():
+    baseline, reference, future, config = grid_inputs()
+    future["temp"] = future.temp.where(future.longitude != 1)
+    with pytest.raises(ValueError, match="do not cover every active"):
+        gridded_factors(
+            reference,
+            future,
+            baseline,
+            config,
+            {"min_denominator": 0.1, "units": "mm/day"},
+        )
 
 
 def test_generation_refuses_dry_reference_before_creating_collection(tmp_path):
