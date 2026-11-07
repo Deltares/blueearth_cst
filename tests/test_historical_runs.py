@@ -8,11 +8,14 @@ import pytest
 import xarray as xr
 
 from blueearth_cst.model.historical_runs import (
+    completion_inputs,
+    completion_path,
     execution_inputs,
     historical_run_name,
     read_historical_run,
     retain_historical_run,
     run_directory,
+    write_completion,
     write_forcing_record,
 )
 from blueearth_cst.shared.provenance import collection_sha256, file_sha256
@@ -92,6 +95,150 @@ def test_collision_preserves_publication(historical_model):
         with retain_historical_run(name="a", **model):
             pytest.fail("collision admitted execution")
     read_historical_run(model["project_dir"], "a")
+
+
+@pytest.mark.parametrize("damage", ["archive", "payload", "receipt", "completion"])
+def test_workflow_completion_validates_retention(historical_model, damage):
+    model = historical_model
+    project = model["project_dir"]
+    assert completion_inputs(project, "a") == []
+    with retain_historical_run(name="a", **model):
+        write_response(model)
+    write_completion(project, "a")
+    assert completion_inputs(project, "a") == []
+    root = run_directory(project, "a")
+    if damage == "archive":
+        root.rename(root.with_name("saved_archive"))
+    elif damage == "payload":
+        (root / "discharge.csv").write_text("damaged")
+    elif damage == "completion":
+        (root / "complete.json").unlink()
+    else:
+        completion_path(project, "a").write_text("{}")
+    with pytest.raises((ValueError, FileNotFoundError)):
+        completion_inputs(project, "a")
+
+
+@pytest.mark.workflow_contract
+def test_wf1_declares_named_completion_without_parse_time_collision(
+    historical_model, tmp_path
+):
+    from blueearth_cst.shared.config_composition import load_composed_config
+    from tests.conftest import parse_workflow, write_config
+
+    model = historical_model
+    with retain_historical_run(name="a", **model):
+        write_response(model)
+    write_completion(model["project_dir"], "a")
+    config = load_composed_config(
+        Path(__file__).with_name("project_config_fixture.yml")
+    )
+    config["project"]["project_dir"] = model["project_dir"].as_posix()
+    config["workflows"]["build_model"]["historical_run"] = {"name": "a"}
+    workflow = parse_workflow("build_model.smk", write_config(tmp_path, config))
+    rule = workflow.get_rule("run_historical_simulation")
+    receipt = completion_path(model["project_dir"], "a")
+    assert receipt in map(Path, rule.output)
+    assert receipt in map(Path, workflow.get_rule("all").input)
+    assert not any(
+        Path(path).is_relative_to(run_directory(model["project_dir"], "a"))
+        for path in rule.output
+    )
+
+
+@pytest.mark.workflow_contract
+def test_named_retention_dag_noop_new_label_collision_and_unrelated_target(
+    historical_model, isolated_snakemake
+):
+    """Exercise actual engine scheduling/cleanup with the native retention context."""
+    import subprocess
+    import sys
+
+    model = historical_model
+    work = isolated_snakemake
+    write_response(model)
+    native = model["toml_path"].parent / "run_default/output.csv"
+    fixture = work / "fixture.json"
+    fixture.write_text(
+        json.dumps(
+            {
+                "arguments": {
+                    key: str(value) if isinstance(value, Path) else value
+                    for key, value in model.items()
+                },
+                "native": native.as_posix(),
+                "response": native.read_text(),
+            }
+        )
+    )
+    snakefile = work / "Snakefile"
+    snakefile.write_text(
+        "import json\nfrom pathlib import Path\n"
+        "from blueearth_cst.model.historical_runs import completion_inputs, completion_path, retain_historical_run, write_completion\n"
+        f"fixture=json.loads(Path({fixture.as_posix()!r}).read_text())\n"
+        'arguments=fixture["arguments"]\n'
+        'for key in ("toml_path", "registry_path", "forcing_record_path", "config_path", "repo_root"):\n'
+        "    arguments[key]=Path(arguments[key])\n"
+        'project=arguments["project_dir"]\nname=config["name"]\n'
+        "rule all:\n    input: str(completion_path(project, name))\n"
+        "rule simulate:\n"
+        "    input: guard=lambda wc: completion_inputs(project, name)\n"
+        '    output: receipt=str(completion_path(project, name)), csv=fixture["native"]\n'
+        "    run:\n"
+        "        with retain_historical_run(name=name, **arguments):\n"
+        '            Path(output.csv).write_text(fixture["response"])\n'
+        "        write_completion(project, name)\n"
+        'rule figure:\n    output: "figure.txt"\n'
+        '    run:\n        Path(output[0]).write_text("unrelated figure")\n'
+    )
+
+    def invoke(name="a", *options):
+        return subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "snakemake",
+                "--snakefile",
+                str(snakefile),
+                "--directory",
+                str(work),
+                "--cores",
+                "1",
+                *options,
+                "--config",
+                f"name={name}",
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+    dry = invoke("a", "--dry-run")
+    assert dry.returncode == 0, dry.stderr
+    assert "simulate" in dry.stdout + dry.stderr
+    first = invoke()
+    assert first.returncode == 0, first.stdout + first.stderr
+    root = run_directory(model["project_dir"], "a")
+    hashes = {p.name: file_sha256(p) for p in root.iterdir()}
+    for options in (("--dry-run",), ()):
+        repeated = invoke("a", *options)
+        assert repeated.returncode == 0, repeated.stderr
+        assert "Nothing to be done" in repeated.stdout + repeated.stderr
+    fresh = invoke("b", "--dry-run")
+    assert fresh.returncode == 0 and "simulate" in fresh.stdout + fresh.stderr
+    fresh = invoke("b")
+    assert fresh.returncode == 0, fresh.stdout + fresh.stderr
+    assert completion_path(model["project_dir"], "b").is_file()
+    collision = invoke("a", "--forcerun", "simulate")
+    assert collision.returncode != 0
+    assert "already exists" in collision.stdout + collision.stderr
+    assert hashes == {p.name: file_sha256(p) for p in root.iterdir()}
+    # Engine cleanup may remove its receipt; the archive is never an engine output.
+    missing_receipt = invoke("a")
+    assert missing_receipt.returncode != 0
+    assert "already exists" in missing_receipt.stdout + missing_receipt.stderr
+    unrelated = invoke("a", "figure")
+    assert unrelated.returncode == 0, unrelated.stdout + unrelated.stderr
+    assert hashes == {p.name: file_sha256(p) for p in root.iterdir()}
 
 
 @pytest.mark.parametrize("failure", ["interruption", "input_drift", "station_mismatch"])

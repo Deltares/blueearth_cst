@@ -90,13 +90,11 @@ climate_cfg = config.get("climate") or {}
 # number -- but a figure labelled 'annual' should mean the basin's year.
 WATER_YEAR_START = resolve_water_year_start(get_config(climate_cfg, "water_year_start"))
 my_cfg = config["workflows"]["build_model"]
-from blueearth_cst.model.historical_runs import historical_run_name, require_new_run
+from blueearth_cst.model.historical_runs import historical_run_name, completion_path, completion_inputs
 historical_name = historical_run_name(my_cfg.get("historical_run"))
 
 # Project — paths and external resources
 project_dir = get_config(project_cfg, "project_dir", optional=False)
-if historical_name:
-    require_new_run(project_dir, historical_name)
 # O-22: make the two-tier project_dir rule mechanical rather than
 # documentary. Warns, never raises; test_case/ is the one exemption.
 warn_if_project_dir_in_repo(project_dir, workflow.basedir)
@@ -541,6 +539,7 @@ GATHER_LOGS = RULES.banner_only("1.18", "gather_logs", summary="merge rule logs"
 # independently of the build and needs no gather waiting on it) and the two
 # gather outputs themselves.
 WF1_TERMINALS = [
+    *([str(completion_path(project_dir, historical_name))] if historical_name else []),
     *([f"{basin_dir}/evaluation/budyko/tables/summary.csv"] if _budyko_settings is not None else []),
     # The evaluation rule's terminal is its INDICATORS TABLE, not one of its
     # figures: since 2026-08-10 the figures are keyed by wflow_id and none of
@@ -893,6 +892,7 @@ rule add_climate_forcing:
 rule run_historical_simulation:
     message: RUN_HISTORICAL_SIMULATION.banner()
     input:
+        retained_validation = lambda wildcards: completion_inputs(project_dir, historical_name),
         forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
         forcing_record = [f"{basin_dir}/config/historical_forcing.json"] if historical_name else [],
         registry_path = [f"{spatial_dir}/location_registry.csv"] if historical_name else [],
@@ -908,6 +908,7 @@ rule run_historical_simulation:
             "blueearth_cst/shared/wflow_progress.jl",
         ] + (["blueearth_cst/model/historical_runs.py"] if historical_name else []),
     output:
+        retained_completion = [str(completion_path(project_dir, historical_name))] if historical_name else [],
         # Retain full-precision native responses so evaluation and table exports
         # can rerun without another historical simulation. Rounded exports are
         # not a replacement for this input or for numerical baseline checks.
@@ -965,7 +966,7 @@ rule run_historical_simulation:
         import shlex
         import subprocess
         from contextlib import nullcontext
-        from blueearth_cst.model.historical_runs import retain_historical_run
+        from blueearth_cst.model.historical_runs import retain_historical_run, write_completion
         retention = retain_historical_run(
             project_dir=project_dir, name=params.historical_name,
             toml_path=Path(params.toml_path), registry_path=Path(input.registry_path[0]),
@@ -980,6 +981,8 @@ rule run_historical_simulation:
             if params.netcdf_grid:
                 from blueearth_cst.shared.grid_output import validate_grid
                 validate_grid(output.grid_path[0], params.toml_path)
+        if params.historical_name:
+            write_completion(project_dir, params.historical_name)
 
 # 1.03  extract_climate_datasets — the SHARED historical-climate store producer
 # (R07 B1). This declaration and rule 3.08 in run_stress_test.smk are

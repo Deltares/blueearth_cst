@@ -152,7 +152,9 @@ historical_run:
 Run the model workflow through the usual runner. Retention requires a fresh historical simulation;
 it does not attach today's configuration to an older `output.csv`. Choose a new name for each run.
 Names use lowercase letters, digits and underscores, start with a letter, and contain at most 64 characters.
-An existing name is refused before execution, including when its retained files are damaged.
+An unchanged completed run permits normal up-to-date workflow requests. A scheduled execution under an
+existing name is refused before Wflow runs; changed inputs require a new name. Unrelated figure targets
+remain usable. When the simulation enters the DAG, retained payloads and its completion receipt are validated.
 Omitting `historical_run` or setting it to null preserves the existing behavior.
 
 Completed runs live under `simulations/historical/<name>/` in the project. Each contains the unrounded
@@ -160,6 +162,15 @@ native `output.csv`, full-precision discharge keyed by registry ID in `discharge
 station registry and crosswalk, effective forcing recipe, composed configuration, input fingerprints,
 and completion evidence. Publication is atomic; incomplete staging directories are not readable runs.
 Source changes during execution prevent publication. Retained readers verify every payload hash.
+The declared workflow output `simulations/historical/_engine/<name>.json` binds the archive completion hash.
+Every new label therefore schedules retention even when `run_default` already exists. Receipts live outside
+immutable archives so workflow cleanup cannot delete archival evidence. Missing/damaged archives or receipts
+are not accepted as completed workflow state. Archives created before receipts were introduced remain
+readable for comparison; requesting their labels as simulation outputs requires a new label, not overwriting
+or reconstructing the original run.
+Use the normal workflow or target the completion receipt for an up-to-date check. Explicitly targeting
+`run_historical_simulation` also requests fresh invocation logs/benchmarks and can schedule execution;
+the existing-name collision guard still applies.
 Failed stages remain as hidden `.partial` directories for inspection. A killed process can also leave
 a hidden `.lock` reservation; inspect it and confirm no writer is active before removing that reservation.
 Choose a new run name when uncertain. Readers never treat either location as a completed run.

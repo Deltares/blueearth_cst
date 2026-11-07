@@ -71,6 +71,57 @@ def require_new_run(project_dir: str | Path, name: str) -> Path:
     return target
 
 
+def completion_path(project_dir: str | Path, name: str) -> Path:
+    """Declare workflow state outside immutable payloads that engines may clean."""
+    root = run_directory(project_dir, name).parent / "_engine"
+    if root.is_symlink() or root.resolve() != root:
+        raise ValueError("historical completion receipt directory is aliased")
+    return root / f"{name}.json"
+
+
+def completion_inputs(project_dir: str | Path, name: str | None) -> list[str]:
+    """Validate retained state when the simulation job enters the DAG.
+
+    Return no artificial dependencies: adding archive files only after execution
+    would itself trigger a rerun. The per-name receipt is the declared output.
+    An archive without a receipt still schedules execution, whose collision guard
+    refuses it. Unrelated targets do not call this input function.
+    """
+    if name is None:
+        return []
+    target = run_directory(project_dir, name)
+    receipt = completion_path(project_dir, name)
+    if target.exists() or receipt.exists():
+        read_historical_run(project_dir, name)
+    if receipt.exists():
+        if receipt.is_symlink() or json.loads(receipt.read_text(encoding="utf-8")) != {
+            "schema_version": SCHEMA,
+            "name": name,
+            "complete_sha256": file_sha256(target / "complete.json"),
+        }:
+            raise ValueError("damaged historical workflow completion receipt")
+    return []
+
+
+def write_completion(project_dir: str | Path, name: str) -> None:
+    """Publish the declared receipt only after the immutable archive is complete."""
+    read_historical_run(project_dir, name)
+    receipt = completion_path(project_dir, name)
+    receipt.parent.mkdir(parents=True, exist_ok=True)
+    with receipt.open("xb") as stream:
+        stream.write(
+            _json_bytes(
+                {
+                    "schema_version": SCHEMA,
+                    "name": name,
+                    "complete_sha256": file_sha256(
+                        run_directory(project_dir, name) / "complete.json"
+                    ),
+                }
+            )
+        )
+
+
 def _json_bytes(document: dict) -> bytes:
     """Serialize JSON without silently accepting nonfinite metadata."""
     return (
