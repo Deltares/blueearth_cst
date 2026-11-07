@@ -72,6 +72,24 @@ temperature change in degrees Celsius; precipitation mean/variance changes are p
 The configured precipitation bounds are multipliers; the lookup converts them to `(factor - 1) * 100`.
 These are monthly perturbation settings, not annual response-surface coordinates.
 
+## Optional gridded responses
+
+Enabled grid requests are frozen in simulation settings and the creator configuration archive.
+Their response inventory uses `response-inventory/4` and records each NetCDF's hash, byte size,
+variables, units, native dimensions and time coverage. Scalar-only records retain
+`response-inventory/3` and remain readable without adding grids or rewriting saved bytes.
+The scalar response-reader and indicator input formats are unchanged.
+
+Enabled simulation completion requires both CSV and NetCDF for every selected run. Batch retries
+retain verified pairs outside declared job outputs, check their hashes and native time coverage,
+and recover interrupted publication from those copies. The complete simulation marker is written
+after inventory validation; recovery copies are then removed. A missing or corrupted enabled grid
+fails readiness, including indicators-only admission. Indicators-only never generates a missing grid.
+
+Changing a frozen output request requires `--new-experiment`. Source/model identity guards still
+apply across toolbox revisions; the ability to read old responses does not authorize re-simulation
+with changed code or model inputs.
+
 ## Indicator tables and dictionary
 
 New sets use `indicator-set/6`. On disk, immutable `data/` and named exports use the same split run/group

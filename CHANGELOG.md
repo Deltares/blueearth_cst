@@ -9,6 +9,42 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Add opt-in monthly liquid-water dew point and explicit 10 m scalar/component wind analysis,
+  with strict native metadata admission, cell-first derivation, absolute state changes and captions.
+  Controlled verification does not qualify live input availability.
+
+- Add opt-in monthly CMIP6 PET analysis using explicit HydroMT Makkink or de Bruin methods,
+  native-cell derivation before buffered-bbox averaging, strict source admission, calendar-aware
+  totals, inspectable provenance and three PET figure families. Real additional-input qualification
+  remains separate from controlled mechanism verification.
+
+- Reject incomplete native grid support, shifted grids and incorrect units before publication or retry
+  reuse, using model-derived expectations while preserving portable retained readers.
+
+- Add independent optional native Wflow NetCDF grids for historical and scenario simulations,
+  preserving native layers and scalar results, with frozen requests, retained integrity evidence,
+  conservative disk estimates and paired CSV/NetCDF retry recovery.
+
+- Add optional observed catchment water-balance screening against prepared historical forcing, with
+  explicit daily-mean UTC support declarations, complete matched years and retained diagnostic tables.
+
+- Add optional historical rain-gauge comparisons with native-cell sampling, explicit UTC daily labels,
+  common observed-only dates, strict complete-period totals, inspectable tables and station figures.
+
+- Consolidate public forcing selection in project-level `climate.forcing.precip_source` and
+  `temp_source`. Infer precipitation only from a sole valid candidate when required; comparison-only
+  analysis needs no selection. Accept legacy keys with notices, reject alias collisions and invalid
+  supplied values, preserve scientific serialization and show resolved choices before execution.
+
+- Add selected historical forcing recipes for companion climate, source elevation, de Bruin/Makkink
+  PET and independent temperature/pressure corrections. Computed recipes extend through scenario
+  generation and retained simulation preparation; supplied reference PET is historical-only.
+  Separate extraction identity from preparation settings and retain version-2 preparation compatibility.
+  No new data products are included; alternative-source qualification remains separate.
+
+- Fix CHIRPS historical model forcing by passing the extraction orography sidecar into its
+  generated catalog and using that elevation reference for temperature downscaling. This avoids
+  a missing-sidecar error and applying the extraction lapse correction twice; ERA5 is unchanged.
 - Add a standalone monthly delta-change scenario producer with explicit projection-member provenance,
   historical and neutral controls, and WF4 simulation and indicator grouping. Stochastic generation remains
   independent of projection selection.

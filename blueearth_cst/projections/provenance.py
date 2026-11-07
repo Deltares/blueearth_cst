@@ -124,7 +124,20 @@ def build(
         "configuration_inputs_sha256": configuration_inputs_sha256,
         "weighting_scheme": weighting_scheme,
         "variable_spec": {
-            name: dict(zip(("name", "source", "canonical", "units", "change"), fields))
+            name: dict(
+                zip(
+                    (
+                        "name",
+                        "source",
+                        "canonical",
+                        "units",
+                        "change",
+                        "min_denominator",
+                        "method",
+                    ),
+                    fields,
+                )
+            )
             for name, fields in dict(variable_spec).items()
         },
         "catalog_crawled_on": catalog_crawled_on,

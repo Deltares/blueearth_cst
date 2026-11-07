@@ -531,3 +531,140 @@ def test_the_guard_runs_before_the_catalog_is_written(tmp_path, spy, monkeypatch
         )
     assert spy["catalog"] == []
     assert spy["command"] == []
+
+
+@pytest.mark.parametrize(
+    "source,settings,expected_temperature,expected_pet",
+    [
+        ("era5", None, 17.4, None),
+        ("chirps", None, 17.4, None),
+        ("chirps_global", None, 17.4, None),
+        (
+            "era5",
+            {
+                "pet": {"method": "makkink"},
+                "temp_correction": False,
+                "press_correction": False,
+            },
+            20,
+            3.1081310,
+        ),
+        ("era5", {"pet": {"mode": "direct", "source": "supplied_pet"}}, 17.4, 7),
+    ],
+)
+def test_store_catalog_and_recipe_deliver_single_lapse_correction(
+    tmp_path, source, settings, expected_temperature, expected_pet
+):
+    """Execute the real catalog/recipe/CLI seam on controlled elevation fields.
+
+    Extraction moves 20 C at 100 m to 18.7 C at the 300 m CHIRPS sidecar;
+    historical forcing must finish at 17.4 C at 500 m. Reusing ERA5 elevation
+    would give 16.1 C. ERA5 goes directly from 100 to 500 m as a control.
+    """
+    import numpy as np
+    import pandas as pd
+    import xarray as xr
+    import yaml
+    from hydromt.model.processes.meteo import temp as meteo_temp
+    from hydromt_wflow import WflowSbmModel
+
+    coords = {"latitude": [0.3, 0.2, 0.1], "longitude": [0.1, 0.2, 0.3]}
+
+    def raster(value, name):
+        da = xr.DataArray(
+            np.full((3, 3), value, dtype="float32"),
+            dims=("latitude", "longitude"),
+            coords=coords,
+            name=name,
+        )
+        da.raster.set_crs(4326)
+        da.raster.set_nodata(-9999)
+        return da
+
+    era5_dem = raster(100, "elevtn")
+    sidecar = raster(300, "elevtn")
+    model_dem = raster(500, "elevtn")
+    time = pd.date_range("2000-01-01", "2016-12-31")
+    raw = raster(20, "temp").expand_dims(time=time)
+    hybrid = source != "era5"
+    temperature = (
+        meteo_temp(raw, sidecar, dem_forcing=era5_dem, freq=None) if hybrid else raw
+    )
+    np.testing.assert_allclose(temperature, 18.7 if hybrid else 20, atol=1e-4)
+    store = xr.Dataset(
+        {
+            "temp": temperature,
+            "precip": raster(5, "precip").expand_dims(time=time),
+            "press_msl": raster(1013.25, "press_msl").expand_dims(time=time),
+            "kin": raster(200, "kin").expand_dims(time=time),
+            "kout": raster(50, "kout").expand_dims(time=time),
+        }
+    )
+    if settings and settings["pet"].get("mode") == "direct":
+        store["pet"] = raster(7, "pet").expand_dims(time=time)
+        store.pet.attrs["units"] = "mm/day"
+    climate_nc = tmp_path / "extract_historical.nc"
+    store.to_netcdf(climate_nc)
+    oro_path = tmp_path / "orography.nc"
+    sidecar.to_netcdf(oro_path)
+    era5_path = tmp_path / "era5_orography.nc"
+    era5_dem.to_netcdf(era5_path)
+    entry = {
+        "data_type": "RasterDataset",
+        "driver": "raster_xarray",
+        "metadata": {"crs": 4326},
+    }
+    catalog = tmp_path / "source.yml"
+    catalog.write_text(
+        yaml.safe_dump(
+            {
+                source: {
+                    **entry,
+                    "uri": str(climate_nc),
+                    "data_adapter": {"unit_mult": {"precip": 1000}},
+                },
+                "era5_orography": {**entry, "uri": str(era5_path)},
+            }
+        ),
+        encoding="utf-8",
+    )
+    model_root = tmp_path / "model"
+    model = WflowSbmModel(root=model_root, mode="w")
+    model.staticmaps.set(model_dem, name=model._MAPS["elevtn"])
+    model.staticmaps.set(raster(1, "basins"), name=model._MAPS["basins"])
+    model.geoms.set(model_dem.raster.box, name="region")
+    model.staticmaps.write()
+    model.geoms.write()
+    model.config.write()
+    recipe = tmp_path / "forcing.yml"
+    store_catalog = tmp_path / "store.yml"
+    add_climate_forcing(
+        "2001-01-01",
+        "2001-01-04",
+        source,
+        model_root,
+        str(catalog),
+        recipe,
+        climate_nc=climate_nc,
+        store_catalog=store_catalog,
+        oro_path=oro_path if hybrid else None,
+        forcing=settings,
+    )
+    written = yaml.safe_load(store_catalog.read_text())
+    assert "data_adapter" not in written["extract_historical"]
+    expected_dem = f"{source}_orography" if hybrid else "era5_orography"
+    step = yaml.safe_load(recipe.read_text())["steps"][2]["setup_temp_pet_forcing"]
+    assert step["dem_forcing_fn"] == expected_dem
+    if hybrid:
+        assert written[expected_dem]["uri"] == str(oro_path.resolve())
+    with xr.open_dataset(model_root / "forcing/inmaps_historical.nc") as forcing:
+        np.testing.assert_allclose(forcing["temp"], expected_temperature, atol=1e-4)
+        np.testing.assert_allclose(forcing["precip"], 5, atol=1e-6)
+        assert np.isfinite(forcing["pet"]).all()
+        assert (forcing["pet"] >= 0).all()
+        if expected_pet is not None:
+            # HydroMT-Wflow's forcing writer quantizes to two decimal places.
+            # The parity tests independently check the unrounded scalar oracle.
+            np.testing.assert_allclose(
+                forcing["pet"], round(expected_pet, 2), atol=1e-5
+            )

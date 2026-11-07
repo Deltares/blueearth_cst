@@ -153,6 +153,7 @@ def check_completed_simulation_inputs(
     simulation_window,
     julia_command,
     include_unperturbed=True,
+    netcdf_grid=None,
     _ready_simulation=None,
 ) -> None:
     """Recheck a completed simulation without regenerating its native layout.
@@ -211,6 +212,8 @@ def check_completed_simulation_inputs(
     }
     if not include_unperturbed:
         documents["settings"]["include_unperturbed"] = False
+    if netcdf_grid is not None:
+        documents["settings"]["netcdf_grid"] = netcdf_grid
     selection = {
         "resolution_mode": resolution_mode,
         "manifest": file_reference(collection_path, "project_root", project),

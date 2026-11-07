@@ -93,10 +93,29 @@ class MemberFootprint:
     state_bytes: int
     #: Where the numbers came from, for the row that reports the decision.
     basis: str
+    grid_bytes: int = 0
 
     @property
     def total_bytes(self):
-        return self.forcing_bytes + self.state_bytes
+        return self.forcing_bytes + self.state_bytes + self.grid_bytes
+
+
+def estimate_grid_payload(basin_dir, startyear, endyear, variable_count):
+    """Conservative raw bytes: all rectangular cells/layers, float64, daily."""
+    import tomllib
+
+    import netCDF4
+
+    with (Path(basin_dir) / "wflow_sbm.toml").open("rb") as handle:
+        config = tomllib.load(handle)
+    with netCDF4.Dataset(Path(basin_dir) / "staticmaps.nc") as ds:
+        variable = ds.variables[config["input"]["subbasin_location__count"]]
+        cells = math.prod(variable.shape)
+        layers = max(
+            (len(dim) for name, dim in ds.dimensions.items() if "layer" in name),
+            default=1,
+        )
+    return cells * layers * _days_in_years(startyear, endyear) * variable_count * 8
 
 
 @dataclass(frozen=True)

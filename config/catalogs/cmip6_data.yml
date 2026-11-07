@@ -39,13 +39,20 @@ cmip6_AS-RCEC/TaiESM1_historical_{member}: &cmip6_amon
     unit_mult:
       precip: 86400
       press_msl: 0.01
+      press: 0.01
     rename:
       pr: precip
       tas: temp
       tasmin: temp_min
       tasmax: temp_max
       rsds: kin
+      rsdt: kout
+      ps: press
       psl: press_msl
+      huss: sh
+      sfcWind: wind10
+      uas: wind10_u
+      vas: wind10_v
   metadata:
     category: climate
     paper_doi: 10.1175/BAMS-D-11-00094.1

@@ -20,6 +20,15 @@ import matplotlib  # noqa: E402
 matplotlib.use("Agg")
 
 
+def _historical_hydrology(args):
+    from blueearth_cst.model.plot_historical_comparison import render
+
+    if args.source or args.scenario:
+        raise ValueError("historical-hydrology uses the retained comparison selection")
+    render(args.project, args.out, args.annotation)
+    return {"historical-hydrology": args.out / "plots"}
+
+
 def _wf0(args):
     from blueearth_cst.climate_analysis.diagnostic_rerender import rerender_sources
 
@@ -34,6 +43,30 @@ def _wf1_forcing(args):
     if args.source:
         raise ValueError("--source does not apply to wf1-forcing")
     return rerender_forcing(args.project, args.out, annotation=args.annotation)
+
+
+def _rain_gauges(args):
+    from blueearth_cst.climate_analysis.plot_rain_gauges import render
+
+    if args.source:
+        raise ValueError("--source does not apply to rain-gauges (common source mask)")
+    render(
+        args.project / "data/climate/historical/rain_gauges", args.out, args.annotation
+    )
+    return {"rain_gauges": args.out / "plots"}
+
+
+def _budyko(args):
+    from blueearth_cst.model.plot_budyko import render
+
+    if args.source:
+        raise ValueError("--source does not apply to budyko")
+    render(
+        args.project / "models/hydrology/wflow/evaluation/budyko",
+        args.out,
+        args.annotation,
+    )
+    return {"budyko": args.out / "plots"}
 
 
 def _spatial(args):
@@ -64,6 +97,15 @@ def _wf2(args):
 #: Family name -> (what it renders, renderer). Add a family by pointing it at a
 #: re-render function that sits beside its rule adapter in ``blueearth_cst``.
 FAMILIES = {
+    "historical-hydrology": (
+        "Fixed-model historical discharge from retained comparison tables",
+        _historical_hydrology,
+    ),
+    "budyko": ("WF1 observed water balance from retained tables", _budyko),
+    "rain-gauges": (
+        "Rain-gauge comparisons from retained station evidence",
+        _rain_gauges,
+    ),
     "wf0": (
         "WF0 per-source diagnostics and climatology maps (no subbasin or comparison figures)",
         _wf0,

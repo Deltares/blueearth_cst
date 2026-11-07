@@ -17,6 +17,10 @@ import pandas as pd
 import xarray as xr
 
 from blueearth_cst.climate_analysis.source_map_fields import SourceMapSpec
+from blueearth_cst.shared.forcing_recipe import (
+    normalize_forcing_recipe,
+    read_forcing_recipe,
+)
 from blueearth_cst.shared.output_capture import captured_output
 from blueearth_cst.shared.yaml_documents import parse_yaml_document
 
@@ -31,6 +35,8 @@ PREPARATION_FILES = (
     "blueearth_cst/climate_analysis/diagnostic_settings.py",
     "blueearth_cst/climate_analysis/plot_climate_source.py",
     "blueearth_cst/shared/climate_parity.py",
+    "blueearth_cst/shared/forcing_recipe.py",
+    "blueearth_cst/shared/forcing_data.py",
     "blueearth_cst/shared/grid_cells.py",
     "blueearth_cst/shared/map_preparation.py",
     "blueearth_cst/shared/yaml_documents.py",
@@ -248,7 +254,7 @@ def environment_identity() -> dict[str, Any]:
     }
 
 
-def _orography_descriptor(catalogs: Sequence[Path]) -> Any:
+def _orography_descriptor(catalogs: Sequence[Path], key="era5_orography") -> Any:
     """Qualify HydroMT's descriptor; preserve its root-relative logical URI."""
     import hydromt
 
@@ -257,7 +263,7 @@ def _orography_descriptor(catalogs: Sequence[Path]) -> Any:
     with captured_output():
         source = hydromt.DataCatalog(
             data_libs=[str(path) for path in catalogs]
-        ).get_source("era5_orography")
+        ).get_source(key)
     if (
         source.data_type != "RasterDataset"
         or source.driver.name != "raster_xarray"
@@ -277,9 +283,11 @@ def _orography_descriptor(catalogs: Sequence[Path]) -> Any:
     return source
 
 
-def resolve_source_orography(catalogs: Sequence[Path]) -> tuple[Path, ...]:
+def resolve_source_orography(
+    catalogs: Sequence[Path], key="era5_orography"
+) -> tuple[Path, ...]:
     """Resolve the qualified static local ERA5 NetCDF descriptor without reading it."""
-    source = _orography_descriptor(catalogs)
+    source = _orography_descriptor(catalogs, key)
     uris = source.uri_resolver.resolve(
         source.full_uri, variables=["z"], metadata=source.metadata
     )
@@ -302,6 +310,9 @@ def source_spec_dict(spec: SourceMapSpec) -> dict[str, Any]:
         if spec.orography_nc is not None
         else None,
         "orography_inputs": [path.as_posix() for path in spec.orography_inputs],
+        **(
+            {"forcing_recipe": spec.recipe.to_dict()} if spec.recipe is not None else {}
+        ),
     }
 
 
@@ -314,6 +325,9 @@ def source_spec_from_dict(value: Mapping[str, Any]) -> SourceMapSpec:
         tuple(value["requested_window"]),
         Path(value["orography_nc"]) if value["orography_nc"] is not None else None,
         tuple(Path(path) for path in value["orography_inputs"]),
+        read_forcing_recipe(value["forcing_recipe"])
+        if "forcing_recipe" in value
+        else None,
     )
 
 
@@ -356,15 +370,16 @@ def _input_identity(spec: SourceMapSpec) -> list[dict[str, str]]:
             )
         )
     for index, path in enumerate(spec.orography_inputs):
-        descriptor = _orography_descriptor(spec.catalogs)
-        resolved = resolve_source_orography(spec.catalogs)
+        key = spec.recipe.orography_source if spec.recipe else "era5_orography"
+        descriptor = _orography_descriptor(spec.catalogs, key)
+        resolved = resolve_source_orography(spec.catalogs, key)
         if tuple(item.resolve() for item in resolved) != tuple(
             item.resolve() for item in spec.orography_inputs
         ):
             raise ValueError(
                 f"{spec.source}: catalog-backed orography dependency mismatch"
             )
-        files.append((f"era5_orography:{index}", Path(descriptor.uri).as_posix(), path))
+        files.append((f"{key}:{index}", Path(descriptor.uri).as_posix(), path))
     return [
         {"role": role, "path": logical, "sha256": file_digest(path)}
         for role, logical, path in files
@@ -383,6 +398,7 @@ def preparation_identity(
         source_role(spec.source) == "temperature-carrier"
         and spec.orography_nc is None
         and not spec.orography_inputs
+        and not (spec.recipe is not None and spec.recipe.pet_mode == "direct")
     ):
         raise ValueError(
             f"{spec.source}: concrete source PET orography inputs are required"
@@ -415,6 +431,12 @@ def preparation_identity(
         }
     return {
         "schema_version": SCHEMA_VERSION,
+        **(
+            {"forcing_recipe": spec.recipe.to_dict()}
+            if spec.recipe is not None
+            and spec.recipe != normalize_forcing_recipe(spec.source)
+            else {}
+        ),
         "source": spec.source,
         "role": source_role(spec.source),
         "scientific_variables": ["precip"]

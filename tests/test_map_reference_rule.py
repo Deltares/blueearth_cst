@@ -12,6 +12,36 @@ pytestmark = pytest.mark.workflow_contract
 CONFIG = Path(__file__).parent / "project_config_fixture.yml"
 
 
+def test_comparison_only_dag_has_no_selected_forcing(tmp_path):
+    cfg = load_composed_config(CONFIG)
+    cfg["project"]["project_dir"] = (tmp_path / "comparison").as_posix()
+    cfg["climate"].pop("forcing", None)
+    cfg["climate"].pop("selected", None)
+    cfg["climate"]["sources"] = ["era5", "chirps"]
+    config = write_config(tmp_path, cfg)
+    workflow = parse_workflow("analyze_climate.smk", config)
+    rule = workflow.get_rule("produce_historical_map_reference")
+    assert rule.params.selected is None
+    assert (
+        workflow.get_rule("extract_climate_datasets_chirps").params.forcing_required
+        is False
+    )
+
+
+def test_empty_comparison_candidates_fail_only_in_comparison_scope(tmp_path):
+    cfg = load_composed_config(CONFIG)
+    cfg["climate"].pop("forcing", None)
+    cfg["climate"].pop("selected", None)
+    cfg["climate"]["sources"] = []
+    config = write_config(tmp_path, cfg)
+    with pytest.raises(ValueError, match="climate.sources"):
+        load_composed_config(config, entry="analyze_climate")
+    with pytest.raises(Exception, match="climate.sources"):
+        parse_workflow("analyze_climate.smk", config)
+    projection = load_composed_config(config, entry="analyze_projections")
+    assert projection["climate"]["selected"] is None
+
+
 @pytest.mark.parametrize("selected", ["era5", "chirps"])
 def test_reference_and_extra_extractions_are_identical_in_both_dags(tmp_path, selected):
     cfg = load_composed_config(CONFIG)

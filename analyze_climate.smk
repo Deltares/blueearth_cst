@@ -17,7 +17,7 @@ from blueearth_cst.shared.config_composition import compose_config
 from blueearth_cst.shared.workflow_archive_launch import captured_projection, require_capture
 from blueearth_cst.spatial.config import parse_spatial_config
 from blueearth_cst.climate_analysis.diagnostic_outputs import diagnostic_source_outputs, diagnostic_comparison_outputs
-from blueearth_cst.climate_analysis.diagnostic_settings import parse_settings
+from blueearth_cst.climate_analysis.annual_spatial_anomalies import parse_settings
 from blueearth_cst.shared.map_reference import historical_map_reference_rule, require_wf0_completeness, source_map_inputs
 
 # --- figure filenames ---------------------------------------------------------
@@ -101,25 +101,10 @@ validate_historical_window(historical_window)
 WATER_YEAR_START = resolve_water_year_start(get_config(climate_cfg, "water_year_start"))
 
 # --- the candidate source set -------------------------------------------------
-# THE PROJECT'S OWN SOURCE IS ALWAYS FIRST AND ALWAYS PRESENT. `candidate_sources`
-# ADDS to it rather than replacing it, so a config that sets nothing gets exactly
-# the figures WF1 already draws for `shared.clim_historical` and nothing else --
-# this workflow is then a model-free entry point onto artifacts the project
-# already has, not a new cost.
-#
-# Order is declaration order with duplicates dropped, NOT sorted: the primary
-# source leads every figure set and every comparison table, which is the reading
-# order a person wants when the question is "should I switch away from it?".
-clim_source = get_config(climate_cfg, "selected", optional=False)
-# `C-43`: the candidate set moved UP to `climate.sources` and WIDENED -- it is
-# the full list with no privileged element, and `climate.selected` names one
-# MEMBER of it. The v1 key held the OTHERS, beside a privileged
-# `clim_historical`, which is why the migration unions the two rather than
-# copying one.
-#
-# The loader already refuses a `selected` outside `sources`, so the only work
-# left here is ORDER: the primary leads every figure set and comparison table,
-# and `sources` is in declaration order.
+# Comparisons have no privileged source until a forcing recipe is selected.
+# The internal selected key is resolved once by project composition; candidate
+# presentation order is never used to select model or scenario forcing.
+clim_source = climate_cfg.get("selected")
 _declared_sources = get_config(climate_cfg, "sources", []) or []
 if isinstance(_declared_sources, str):
     raise ValueError(
@@ -127,7 +112,11 @@ if isinstance(_declared_sources, str):
         f"{_declared_sources!r}. A bare string would be iterated character "
         "by character and mint one store per letter."
     )
-CANDIDATE_SOURCES = list(dict.fromkeys([clim_source, *_declared_sources]))
+CANDIDATE_SOURCES = ([clim_source] if clim_source is not None else []) + [
+    source for source in _declared_sources if source != clim_source
+]
+if not CANDIDATE_SOURCES:
+    raise ValueError("climate.sources must contain comparison candidates")
 
 # P3-2a bounded support (design ext2-3): the raw-climate path supports era5,
 # chirps and chirps_global only. Rejected HERE, at parse time, for every
@@ -237,6 +226,7 @@ CLIMATE_STORES = {
         hydrography=basin_hydrography,
         basin_index=basin_index,
         enforce_min_years=(source == clim_source),
+        forcing=climate_cfg.get("forcing") if source == clim_source else None,
         forcing_required=(
             source == clim_source or source not in {"chirps", "chirps_global"}
         ),
@@ -299,7 +289,7 @@ declare_path_tokens(
     # sources in two different shapes — the one thing this workflow exists to put
     # side by side. Rooted one level up, both read `<climate>/<key>/...` and the
     # store key stays visible, which is the part a reader is comparing.
-    climate=os.path.dirname(CLIMATE_STORES[clim_source].store_dir),
+    climate=os.path.join(project_dir, "data", "climate", "historical"),
 )
 declare_project_root(project_dir)
 RULES = RuleRegistry(LOG_PARTS_DIR, BENCH_PARTS_DIR)
@@ -310,21 +300,32 @@ EXTRACT_CLIMATE_DATASETS = RULES.logged("0.03", "extract_climate_datasets", summ
 PRODUCE_MAP_REFERENCE = RULES.logged("0.03b", "produce_historical_map_reference", summary="prepare the shared display reference")
 PREPARE_SOURCE_MAPS = RULES.logged("0.03c", "prepare_historical_map_fields", summary="prepare shared native-grid map fields")
 COMPUTE_DIAGNOSTICS = RULES.logged("0.04", "compute_climate_diagnostics", summary="compute source diagnostic tables")
+DIAGNOSTIC_SETTINGS = parse_settings(my_cfg.get("diagnostics"), historical_window, CANDIDATE_SOURCES)
+if DIAGNOSTIC_SETTINGS["annual_spatial_anomalies"]:
+    PREPARE_ANNUAL_ANOMALIES = RULES.logged("0.04a", "prepare_annual_spatial_anomalies", summary="prepare native annual anomalies")
 PLOT_DIAGNOSTICS = RULES.logged("0.04b", "plot_climate_diagnostics", summary="render historical climate diagnostics")
 
 # Rule 0.05 exists only when there is more than one source to compare, so it
 # is registered -- and its label enters LOG_RULES -- only then.
 if len(CANDIDATE_SOURCES) > 1:
     COMPARE_DIAGNOSTICS = RULES.logged("0.05", "plot_climate_comparison", summary="compare sources over the configured common period")
+from blueearth_cst.climate_analysis.rain_gauges import parse_rain_gauges, read_stations
+from blueearth_cst.climate_analysis.diagnostic_outputs import rain_gauge_outputs
+rain_gauge_settings = parse_rain_gauges(my_cfg.get("rain_gauges"))
+if rain_gauge_settings is not None:
+    PREPARE_RAIN_GAUGES = RULES.logged("0.05b", "prepare_rain_gauges", summary="sample and compare daily rain gauges")
+    PLOT_RAIN_GAUGES = RULES.logged("0.05c", "plot_rain_gauges", summary="render rain-gauge comparisons")
 GATHER_BENCHMARKS = RULES.banner_only("0.06", "gather_benchmarks", summary="merge rule timing and resource-use records")
 GATHER_LOGS = RULES.banner_only("0.07", "gather_logs", summary="merge rule logs")
 
 
-DIAGNOSTIC_SETTINGS = parse_settings(my_cfg.get("diagnostics"), historical_window, CANDIDATE_SOURCES)
+# The opt-in owns a separate product; it does not change existing numerical diagnostics.
+BASE_DIAGNOSTIC_SETTINGS = {k: v for k, v in DIAGNOSTIC_SETTINGS.items() if k != "annual_spatial_anomalies"}
 _subbasin_figures = my_cfg.get("subbasin_figures", False)
 if type(_subbasin_figures) is not bool:
     raise ValueError("subbasin_figures must be a boolean")
 DIAGNOSTIC_SETTINGS["subbasin_figures"] = _subbasin_figures
+BASE_DIAGNOSTIC_SETTINGS["subbasin_figures"] = _subbasin_figures
 from blueearth_cst.shared.wf3_science import water_year_start_number
 DIAGNOSTIC_M0 = water_year_start_number(WATER_YEAR_START)
 MAP_REFERENCE = historical_map_reference_rule(
@@ -342,6 +343,10 @@ POOLED_ROOTS = [SOURCE_DIAGNOSTICS[s]["root"] for s in CANDIDATE_SOURCES]
 COMPARISON_DIR = f"{project_dir}/data/climate/historical/comparison"
 COMPARISON_DIAGNOSTICS = diagnostic_comparison_outputs(COMPARISON_DIR, CANDIDATE_SOURCES, DIAGNOSTIC_SETTINGS) if len(CANDIDATE_SOURCES) > 1 else None
 WF0_TERMINALS = [p for spec in SOURCE_DIAGNOSTICS.values() for p in spec["render"].values()]
+if rain_gauge_settings is not None:
+    rain_gauge_root = f"{project_dir}/data/climate/historical/rain_gauges"
+    rain_gauge_inventory = rain_gauge_outputs(rain_gauge_root, read_stations(rain_gauge_settings["stations_path"]).token)
+    WF0_TERMINALS += list(rain_gauge_inventory["compute"].values()) + list(rain_gauge_inventory["render"].values())
 if COMPARISON_DIAGNOSTICS:
     WF0_TERMINALS += list(COMPARISON_DIAGNOSTICS["compute"].values()) + list(COMPARISON_DIAGNOSTICS["render"].values()) + list(COMPARISON_DIAGNOSTICS["source_summary"].values())
 if DIAGNOSTIC_SETTINGS["subbasin_figures"]:
@@ -455,8 +460,9 @@ for _source in CANDIDATE_SOURCES:
         input: **_compute_inputs,
         output: **_compute_outputs,
         params:
-            settings=DIAGNOSTIC_SETTINGS, source=_source, store_dir=_spec.store_dir,
+            settings=BASE_DIAGNOSTIC_SETTINGS, source=_source, store_dir=_spec.store_dir,
             m0=DIAGNOSTIC_M0, data_sources=DATA_SOURCES,
+            forcing=climate_cfg.get("forcing") if _source == clim_source else None,
             preparation_code_digest=MAP_REFERENCE.params["preparation_code_digest"],
             climate_indices_code_digest=CLIMATE_INDICES_DIGEST,
             map_environment=MAP_REFERENCE.params["environment"],
@@ -464,12 +470,31 @@ for _source in CANDIDATE_SOURCES:
         benchmark: COMPUTE_DIAGNOSTICS.benchmark(_source),
         script: "blueearth_cst/climate_analysis/compute_climate_diagnostics.py"
 
+    if DIAGNOSTIC_SETTINGS["annual_spatial_anomalies"]:
+        # 0.04a  prepare_annual_spatial_anomalies — no PET or climatology dependency.
+        rule:
+            name: PREPARE_ANNUAL_ANOMALIES.job_name(_source)
+            message: PREPARE_ANNUAL_ANOMALIES.banner(part=_source)
+            input: **_compute_inputs,
+            output: **_diag["annual_spatial"],
+            params:
+                source=_source, m0=DIAGNOSTIC_M0, data_sources=DATA_SOURCES,
+                settings={k: DIAGNOSTIC_SETTINGS[k] for k in ("reference_period", "comparison_period", "max_missing_days_month", "max_missing_days_year")},
+                forcing=climate_cfg.get("forcing") if _source == clim_source else None,
+                code_digest={path: file_sha256(path) for path in ("blueearth_cst/climate_analysis/annual_spatial_anomalies.py", "blueearth_cst/climate_analysis/diagnostics.py", "blueearth_cst/climate_analysis/diagnostic_tables.py")},
+                environment=MAP_REFERENCE.params["environment"],
+            log: PREPARE_ANNUAL_ANOMALIES.log(_source),
+            benchmark: PREPARE_ANNUAL_ANOMALIES.benchmark(_source),
+            script: "blueearth_cst/climate_analysis/annual_spatial_anomalies.py"
+
     _render_outputs = dict(_diag["render"])
     _render_inputs = {"tables": list(_diag["compute"].values()),
         "pooled": [p for spec in SOURCE_DIAGNOSTICS.values() for key, p in spec["compute"].items() if key in {"monthly_values", "metadata"}],
         "map_reference": MAP_REFERENCE.outputs["reference"],
         **MAP_REFERENCE.inputs,
         **{key: SPATIAL_UNITS.outputs[key] for key in ("basins", "subbasins", "rivers", "locations")}}
+    if DIAGNOSTIC_SETTINGS["annual_spatial_anomalies"]:
+        _render_inputs["annual_spatial"] = [p for spec in SOURCE_DIAGNOSTICS.values() for p in spec["annual_spatial"].values()]
     if DIAGNOSTIC_SETTINGS["subbasin_figures"]:
         _render_inputs["subbasin_tables"] = f"{_diag['root']}/tables/subbasins"
         _render_outputs["subbasin_figures"] = directory(f"{_diag['root']}/plots/subbasins")
@@ -487,9 +512,39 @@ for _source in CANDIDATE_SOURCES:
             m0=DIAGNOSTIC_M0, pooled_roots=POOLED_ROOTS,
             subbasin_table_dirs=[f"{_diag['root']}/tables/subbasins"],
             map_reference_params=dict(MAP_REFERENCE.params),
+            **({"annual_render_code_digest": {path: file_sha256(path) for path in ("blueearth_cst/climate_analysis/annual_spatial_render.py", "blueearth_cst/plotting/prepared_maps.py", "blueearth_cst/plotting/export.py")}} if DIAGNOSTIC_SETTINGS["annual_spatial_anomalies"] else {}),
         log: PLOT_DIAGNOSTICS.log(_source),
         benchmark: PLOT_DIAGNOSTICS.benchmark(_source),
         script: "blueearth_cst/climate_analysis/plot_climate_diagnostics.py"
+
+if rain_gauge_settings is not None:
+    # 0.05b  prepare_rain_gauges — observations never affect source extraction.
+    rule prepare_rain_gauges:
+        input:
+            climate=[CLIMATE_STORES[source].outputs["climate_nc"] for source in CANDIDATE_SOURCES],
+            region=REGION.outputs["region_geojson"],
+            stations=rain_gauge_settings["stations_path"],
+            precip=rain_gauge_settings["precip_path"],
+        output: **rain_gauge_inventory["compute"],
+        params:
+            settings=rain_gauge_settings, root=rain_gauge_root, sources=CANDIDATE_SOURCES,
+            window=historical_window, comparison=DIAGNOSTIC_SETTINGS["comparison_period"], m0=DIAGNOSTIC_M0,
+            code_digest={name: file_sha256(Path(workflow.basedir) / "blueearth_cst/climate_analysis" / name) for name in ("rain_gauges.py", "evaluate_rain_gauges.py", "diagnostic_outputs.py")},
+            input_digest={key: file_sha256(rain_gauge_settings[key]) for key in ("stations_path", "precip_path")},
+        log: PREPARE_RAIN_GAUGES.log(),
+        benchmark: PREPARE_RAIN_GAUGES.benchmark(),
+        script: "blueearth_cst/climate_analysis/evaluate_rain_gauges.py"
+
+    # 0.05c  plot_rain_gauges — retained products only.
+    rule plot_rain_gauges:
+        input: list(rain_gauge_inventory["compute"].values()),
+        output: **rain_gauge_inventory["render"],
+        params:
+            root=rain_gauge_root, annotation=plot_annotation, plot_setup_digest=plot_setup_digest,
+            code_digest={name: file_sha256(Path(workflow.basedir) / "blueearth_cst/climate_analysis" / name) for name in ("plot_rain_gauges.py", "figure_naming.py", "diagnostics.py")},
+        log: PLOT_RAIN_GAUGES.log(),
+        benchmark: PLOT_RAIN_GAUGES.benchmark(),
+        script: "blueearth_cst/climate_analysis/plot_rain_gauges.py"
 
 # 0.03b  produce_historical_map_reference — shared native-grid display contract.
 include: "blueearth_cst/climate_analysis/rules/source_map_preparation.smk"

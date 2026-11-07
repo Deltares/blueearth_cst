@@ -27,6 +27,10 @@ from blueearth_cst.experiment.content_identity import (
 from blueearth_cst.experiment.generation_sources import generation_interpretation
 from blueearth_cst.experiment.prepare_weathergen_config import build_weathergen_config
 from blueearth_cst.experiment.scenario_rows import stochastic_rows
+from blueearth_cst.shared.forcing_recipe import (
+    normalize_forcing_recipe,
+    require_workflow_compatibility,
+)
 from blueearth_cst.shared.wf3_science import (
     DEFAULT_BASIN_INDEX,
     DEFAULT_HYDROGRAPHY,
@@ -156,6 +160,8 @@ def generation_configuration(config, repository, *, stage=True):
         )
     project = config["project"]
     climate = config["climate"]
+    recipe = normalize_forcing_recipe(climate["selected"], climate.get("forcing"))
+    require_workflow_compatibility(recipe, "generate_scenarios")
     basin = config["basin"]
     sources = basin.get("sources") or {}
     catalogs = project["catalog"]
@@ -184,7 +190,10 @@ def generation_configuration(config, repository, *, stage=True):
         basin_index=sources.get("basin_index", DEFAULT_BASIN_INDEX),
     )
     store = climate_store_rule(
-        **shared, clim_source=climate["selected"], historical_window=climate["window"]
+        **shared,
+        clim_source=climate["selected"],
+        historical_window=climate["window"],
+        forcing=recipe.settings(),
     )
     _, historical_end = window_year_pair(climate["window"], "climate.window")
     region = region_rule(**shared)
@@ -220,6 +229,12 @@ def generation_configuration(config, repository, *, stage=True):
             "catalogs": [Path(p).resolve().as_posix() for p in catalogs],
             "climate": climate["selected"],
             "store": Path(store.store_dir).resolve().as_posix(),
+            **(
+                {"forcing_extraction": recipe.extraction_dict()}
+                if recipe.extraction_fingerprint
+                != normalize_forcing_recipe(climate["selected"]).extraction_fingerprint
+                else {}
+            ),
         },
         "water_year_start": resolve_water_year_start(
             climate.get("water_year_start")
@@ -251,6 +266,7 @@ def generation_configuration(config, repository, *, stage=True):
         request=request,
         request_path=request_path.as_posix(),
         source=climate["selected"],
+        recipe=recipe,
     )
 
 
@@ -364,6 +380,14 @@ def build_candidate_intent(settings: dict) -> dict:
     interpretation = generation_interpretation(
         [pinned_paths[f"catalog_{i}"] for i in range(len(settings["catalogs"]))],
         settings["source"],
+        **(
+            {
+                "recipe": settings["recipe"],
+                "climate_nc": pinned_paths["historical_climate"],
+            }
+            if "recipe" in settings
+            else {}
+        ),
     )
     for source in sources:
         if source["role"].startswith("catalog_"):

@@ -88,6 +88,7 @@ def get_stats_clim_projections(
     name_model,
     name_scenario,
     name_member,
+    variable_spec=None,
 ):
     """
     Parameters
@@ -103,16 +104,49 @@ def get_stats_clim_projections(
         scenario name of the climate model (e.g. rcp4.5, rcp8.5).
     name_member : str
         member name of the climate model (e.g. r1i1p1f1).
-    time_tuple : tuple
-        time period over which to calculate statistics.
+    variable_spec : mapping, optional
+        Parsed output specifications. Calculated PET is derived on the selected
+        buffered grid before reduction, and only requested outputs are retained.
+        Supplied-variable configurations retain the existing reduction behavior.
+
     Returns
     -------
-    Writes a netcdf file with mean monthly precipitation and temperature regime (12 maps) over the geom.
-    todo: Writes a csv file with mean monthly timeseries of precip and temp statistics (mean) over the geom
-
+    xarray.Dataset
+        Monthly series reduced with spherical cell-area weights over the selected
+        buffered bounding box, carrying model, scenario, and member coordinates.
     """
 
     import xarray as xr
+
+    if variable_spec:
+        from blueearth_cst.projections.derived_pet import calculate_pet
+        from blueearth_cst.projections.derived_states import calculate_state
+        from blueearth_cst.projections.variable_spec import VariableSpec
+
+        spec = {
+            k: v if isinstance(v, VariableSpec) else VariableSpec(*v)
+            for k, v in variable_spec.items()
+        }
+        if any(value.method for value in spec.values()):
+            outputs = {}
+            for name, value in spec.items():
+                outputs[name] = (
+                    calculate_state(
+                        data,
+                        name,
+                        value.method,
+                        source=f"{name_model} {name_member} {name_scenario}",
+                    )
+                    if name in {"tdew", "wind"} and value.method
+                    else calculate_pet(
+                        data,
+                        value.method,
+                        source=f"{name_model} {name_member} {name_scenario}",
+                    )
+                    if value.method
+                    else data[value.source].rename(name)
+                )
+            data = xr.Dataset(outputs, attrs=data.attrs)
 
     # get lat lon name of data
     x_dim = _spatial_dim(data, XDIMS)
@@ -164,6 +198,7 @@ def get_stats_clim_projections(
         var_m_scalar = weighted_spatial_mean(
             var_m, x_dim, y_dim, source=f"{name_model} {name_scenario}"
         )
+        var_m_scalar.attrs.update(data[var].attrs)
         ds_scalar.append(var_m_scalar.to_dataset())
 
     # mean stats over grid and time
@@ -398,6 +433,7 @@ if __name__ == "__main__":
                     name_model,
                     name_scenario,
                     name_member,
+                    variable_spec=dict(sm.params.variable_spec),
                 )
                 data.close()
 
@@ -466,6 +502,10 @@ if __name__ == "__main__":
                     "cst_weighting_scheme": WEIGHTING_SCHEME,
                     "cst_geometry_check": geometry_check,
                     "cst_calendar": raw_calendar,
+                    "cst_selected_source_paths": data.attrs.get(
+                        "cst_selected_source_paths", ""
+                    ),
+                    "cst_spatial_support": "selected buffered bounding box; spherical midpoint-edge cell areas; no polygon mask",
                 }
             )
             # The series inherits the raw slice's global attrs, so it inherits

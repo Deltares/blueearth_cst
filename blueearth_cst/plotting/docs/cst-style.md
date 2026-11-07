@@ -34,6 +34,10 @@ Descriptions without displayed titles or footers assume `plotting.annotation: no
 
 ## Shared colour defaults
 
+Observed water-balance diagrams retain every available station, with station names and matched-year
+counts, adaptive axis limits and water/energy bounds. Unavailable stations are listed with reasons.
+Axis labels name both ratios because their meaning is otherwise ambiguous. No reference curve is fitted.
+
 - [`colors.yml`](../../../config/plotting/colors.yml) owns the categorical cycle, dataset and
   evaluation colours, SSP colours, climate-map colormaps and precipitation-anomaly colormap.
   `shared.plot_colors` resolves it relative to the toolbox, validates structure and hex colours, and
@@ -176,6 +180,28 @@ and never reclassifies supplied scientific values. Missing-data meaning belongs 
 
 ## Figure-specific decisions
 
+### Annual spatial anomalies
+
+- Optional historical P/T anomaly maps show every comparison reporting year, six per page in at most
+  three columns and two rows. Retain trailing empty slots and labelled unavailable years. Shared
+  `prepared_maps.draw_raster_panels_detailed` preserves native cells, geographic aspect and map overlays.
+- Use absolute departures (mm, °C), symmetric limits over finite cells intersecting each displayed
+  native frame across all sources and comparison years, without clipping. Precipitation uses the
+  shared precipitation-anomaly palette; temperature uses `climate_maps.temp_crossing_freezing` as
+  the shared cool-negative/warm-positive ramp. Missing cells use the shared map missing colour.
+  With all finite departures zero, display ±1 in the relevant units and disclose the display fallback;
+  with none finite, omit the numerical key. Captions state exact dates, per-cell reference support,
+  completeness/infill, native support, counts and unavailable reasons.
+
+### Rain-gauge comparisons
+
+- Use the shared CST preset for coverage, annual totals, monthly climatology and daily agreement.
+  Annual totals are strict matched reporting-year totals without fitted trends. Monthly climatology
+  averages complete matched months; individual and joint daily coverage are shown separately.
+- Retain zero amounts, common-day scatter masks, native-cell support and unavailable-period notes.
+  Distinguish series with line styles/markers as well as colour. Captions carry station identity,
+  contributing source names, common counts and interval attribution.
+
 ### WF1 forcing QA
 
 - Use WF0 map, annual-series and monthly-climatology styles for precipitation, temperature and PET.
@@ -314,6 +340,15 @@ and never reclassifies supplied scientific values. Missing-data meaning belongs 
 
 ### WF2 annual and variability products
 
+- Calculated dew point and 10 m wind reuse the annual anomaly trajectory, monthly climatology and
+  Annual-plus-four-seasons change strip. Use degC and m/s state means and absolute differences.
+  Captions distinguish liquid-water dew point, supplied scalar wind speed and magnitude of the monthly
+  mean vector; retain method, height, periods/counts and monthly/buffered-bbox approximations.
+- Calculated PET uses the annual anomaly trajectory form in mm/year and the monthly climatology
+  form in mm/day. Its change strip contains Annual plus four seasons, with existing model points,
+  median ticks and IQR marks; use percent for relative changes and integrated mm for absolute changes.
+  Label unavailable panels explicitly. Captions name the method, monthly-input approximation and
+  shared buffered-bbox support; PET does not enter the temperature–precipitation cloud.
 - Annual-overview median lines use 1.0 pt; trajectory medians 1.5 pt. Do not smooth annual values or
   bridge missing-year gaps.
 - Show temperature SD, precipitation SD and precipitation CV variability in separate figures, with

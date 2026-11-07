@@ -76,7 +76,7 @@ Use `--catalog` during creation to select a different data catalog.
    Coordinates are longitude then latitude; grid spacing is in degrees. The `uparea` delineation
    threshold is in km², not a target catchment area. Finer grids do not add detail to source datasets.
    Check that `basin.sources` names exist in your catalog.
-3. **Historical forcing:** choose `climate.sources`, then `climate.selected` after comparing sources.
+3. **Historical forcing:** compare `climate.sources`, then choose `climate.forcing.precip_source`.
    Selected forcing also conditions weather generation; the toolbox does no local calibration.
 4. **Historical period:** set `climate.window` using the
    [period guidance below](#keep-the-analysis-periods-consistent).
@@ -157,7 +157,7 @@ your configured output directory.
 
 **Review the outputs:** inspect the basin boundary, river network, reporting locations and climate
 diagnostics using
-[Reading outputs](outputs.md#inspect-the-basin-and-historical-conditions). Then set `climate.selected`
+[Reading outputs](outputs.md#inspect-the-basin-and-historical-conditions). Then set `climate.forcing.precip_source`
 to your chosen forcing. You can stop here for a climate-only study.
 
 ## 5. Prepare the remaining workflows {#set-workflow-parameters}

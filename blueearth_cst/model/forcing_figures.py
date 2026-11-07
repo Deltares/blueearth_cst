@@ -21,7 +21,7 @@ from blueearth_cst.plotting.export import export_figure
 from blueearth_cst.plotting.figure_titles import write_figure_titles
 from blueearth_cst.plotting.fundamentals import MONTH_ABBR
 from blueearth_cst.plotting.preset import use_preset
-from blueearth_cst.shared.map_frames import map_caption
+from blueearth_cst.shared.map_frames import forcing_attribution, map_caption
 from blueearth_cst.shared.plot_preset import CST_PRESET
 from blueearth_cst.shared.variable_registry import CLIMATE_VARS
 
@@ -181,6 +181,17 @@ def render_forcing_figures(
     root = Path(plot_dir)
     root.mkdir(parents=True, exist_ok=True)
     records = {}
+    from blueearth_cst.shared.forcing_recipe import read_forcing_recipe
+
+    selected = reference["identity"]["selected"]
+    provenance = reference["identity"]["source_preparations"][selected][
+        "preparation_identity"
+    ]
+    recipe = (
+        read_forcing_recipe(provenance["forcing_recipe"])
+        if "forcing_recipe" in provenance
+        else None
+    )
     written = []
     for variable in CLIMATE_VARS:
         is_temperature = variable == "temp"
@@ -290,7 +301,7 @@ def render_forcing_figures(
                     "in total are eligible. Tolerated gaps in "
                     "annual summaries and amount climatologies use the month's observed mean; monthly temperature "
                     "uses observed-day means. The input forcing is unchanged. Model forcing includes the build's "
-                    "regridding, configured temperature correction and PET derivation."
+                    "regridding, configured temperature correction and PET preparation."
                 )
             )
             records[name] = {
@@ -319,6 +330,11 @@ def render_forcing_figures(
                     ),
                 },
             }
+            if recipe is not None:
+                records[name]["caption"] += (
+                    f" Source: {forcing_attribution(recipe, variable)}."
+                )
+                caption = records[name]["caption"]
             if kind == "map":
                 records[name]["map_reference"] = map_info
                 if not map_info["displayed_cells"]:

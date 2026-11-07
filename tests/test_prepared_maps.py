@@ -21,6 +21,76 @@ from blueearth_cst.shared.map_frames import overlay_features
 _FRAME = MapFrame((0.0, 4.0, 0.0, 1.0), (0.0, 2.0, 4.0), (0.0, 1.0), 1.0)
 
 
+def test_invalid_frame_rejects_before_figure_allocation():
+    import matplotlib.pyplot as plt
+
+    from blueearth_cst.plotting.prepared_maps import (
+        draw_raster_map,
+        draw_raster_panels_detailed,
+    )
+
+    before = plt.get_fignums()
+    frame = MapFrame((0.0, 0.0, 0.0, 1.0), (), (), 1.0)
+    with pytest.raises(ValueError):
+        draw_raster_map(_raster([10, 20, 30, 10]), frame, _classes(), {})
+    with pytest.raises(ValueError):
+        draw_raster_panels_detailed(
+            [_raster([10, 20, 30, 10])], ["one"], frame, _classes(), {}
+        )
+    assert plt.get_fignums() == before
+
+
+@pytest.mark.parametrize("count", [1, 4, 6])
+def test_map_panel_geometry_empty_slots_and_one_shared_missing_key(count):
+    import matplotlib.pyplot as plt
+
+    from blueearth_cst.plotting.prepared_maps import (
+        MapScale,
+        draw_raster_panels_detailed,
+    )
+
+    scale = MapScale(
+        "mm",
+        (-2.0, 0.0, 2.0),
+        (-2.0, 0.0, 2.0),
+        ("brown", "teal"),
+        "brown",
+        "teal",
+        "gray",
+        "available",
+        "neither",
+    )
+    rasters = [_raster([np.nan, -1.0, 0.0, 1.0])] + [_raster([-1.0, 0.0, 1.0, 2.0])] * (
+        count - 1
+    )
+    fig = draw_raster_panels_detailed(
+        rasters, [str(i) for i in range(count)], _FRAME, scale, {}
+    )
+    try:
+        fig.canvas.draw()
+        assert len(fig.axes) == count  # trailing cells have no axes or duplicated data
+        sizes = [
+            (ax.bbox.width / fig.dpi * 25.4, ax.bbox.height / fig.dpi * 25.4)
+            for ax in fig.axes
+        ]
+        np.testing.assert_allclose(
+            sizes, np.tile([65.0, 16.25], (count, 1)), atol=0.001
+        )
+        assert sum(len(ax.child_axes) for ax in fig.axes) == 1
+        assert any(
+            t.get_text() == "No data" for t in fig.axes[-1].get_legend().get_texts()
+        )
+        bounds = fig.get_tightbbox(fig.canvas.get_renderer())
+        assert bounds.x0 >= 0 and bounds.y0 >= 0
+        assert bounds.x1 <= fig.get_figwidth() and bounds.y1 <= fig.get_figheight()
+        if count > 1:
+            assert fig.axes[0].bbox.x0 < fig.axes[1].bbox.x0
+        if count > 3:
+            assert fig.axes[3].bbox.y0 < fig.axes[0].bbox.y0
+    finally:
+        plt.close(fig)
+
+
 def _classes(**kwargs):
     return MapClasses(
         "x",

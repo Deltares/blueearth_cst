@@ -184,6 +184,14 @@ def tidy_rows(
         change_kind = (
             getattr(entry, "change", "absolute") if entry is not None else "absolute"
         )
+        if (
+            variable == "pet"
+            and getattr(entry, "method", None)
+            and month is None
+            and change_kind == "absolute"
+            and getattr(entry, "canonical", "") == "rate"
+        ):
+            units = "mm"
         relative_units = PERCENT if change_kind == "relative" else units
 
         for idx in range(stacked.sizes["_row"]):

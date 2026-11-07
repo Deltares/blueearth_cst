@@ -104,6 +104,7 @@ def resolve_workflow_paths(
     if schema_version != 3:
         return result
     fields = {
+        "analyze_climate": ("rain_gauges.stations_path", "rain_gauges.precip_path"),
         "build_model": ("engine.build_config", "engine.waterbodies_config"),
         "analyze_projections": ("catalog",),
         "generate_scenarios": ("weathergen_config",),

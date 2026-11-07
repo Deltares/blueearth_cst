@@ -308,6 +308,7 @@ def derive_point_datasets(
         calendar=calendar,
         stats=stats,
         variable_spec=variable_spec,
+        min_reference=min_reference,
         start_month_hyd_year=water_year_start,
         _reference_cache=cached_reference,
     )

@@ -29,6 +29,7 @@ import geopandas as gpd
 import hydromt
 import netCDF4
 import pandas as pd
+import xarray as xr
 from hydromt.error import NoDataException
 from hydromt.model.processes.meteo import temp
 
@@ -38,6 +39,13 @@ from blueearth_cst.shared.climate_window import (
     resolve_coverage,
     time_axis_bounds,
 )
+from blueearth_cst.shared.forcing_data import (
+    recipe_unit_profiles,
+    source_unit_profile,
+    validate_canonical_units,
+    validate_daily_fields,
+)
+from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
 from blueearth_cst.shared.progress import DaskProgress
 from blueearth_cst.shared.provenance import file_sha256
 from blueearth_cst.shared.snake_utils import (
@@ -431,6 +439,7 @@ _WG1_GLOBAL_ATTRS = {"crs": 4326, "category": "meteo"}
 _WG1_FLOAT32_COORDS = ("latitude", "longitude")
 _WG1_FLOAT32_VARS = (
     "precip",
+    "pet",
     "temp",
     "temp_min",
     "temp_max",
@@ -513,6 +522,104 @@ def _coerce_store_dtypes(ds):
     return ds
 
 
+def _extract_recipe_fields(
+    catalog, recipe, *, bbox, requested, hydrography, oro_out, domain
+):
+    """Read, align and transform a non-default recipe using upstream physics."""
+    entries = catalog.to_dict()
+    profiles = recipe_unit_profiles(entries, recipe)
+
+    def read(source, variables):
+        ds = _read_source(
+            catalog,
+            source,
+            requested=requested,
+            bbox=bbox,
+            time_range=requested,
+            buffer=BUFFER_CELLS,
+            variables=list(variables),
+        )
+        if isinstance(ds, xr.DataArray):
+            ds = ds.to_dataset()
+        ds = _normalize_grid_names(ds)
+        # Establish the axis before intersection. Values outside the eventual
+        # common interval are not required by this forcing recipe.
+        validate_daily_fields(ds, (), source=source)
+        profile = source_unit_profile(entries[source], variables, source=source)
+        if profile == "canonical-daily/1":
+            validate_canonical_units(ds, variables, source=source)
+        return ds
+
+    if recipe.precip_source == recipe.temp_pet_source:
+        ds = read(recipe.precip_source, ("precip",) + recipe.companion_variables)
+        companion = None
+    else:
+        ds = read(recipe.precip_source, ("precip",))
+        companion = read(recipe.temp_pet_source, recipe.companion_variables)
+    supplied_pet = (
+        read(recipe.pet_source, ("pet",)) if recipe.pet_mode == "direct" else None
+    )
+    fields = [part for part in (ds, companion, supplied_pet) if part is not None]
+    start = max(pd.Timestamp(part.time.values[0]) for part in fields)
+    end = min(pd.Timestamp(part.time.values[-1]) for part in fields)
+    if start > end:
+        raise ValueError("forcing recipe sources have no overlapping daily coverage")
+    for part in fields:
+        validate_daily_fields(
+            part.sel(time=slice(start, end)),
+            tuple(name for name in recipe.required_variables if name in part),
+            source="forcing recipe input",
+            domain=domain,
+        )
+    ds = ds.sel(time=slice(start, end))
+    if companion is not None:
+        companion = companion.sel(time=slice(start, end))
+        dem = catalog.get_rasterdataset(
+            hydrography, bbox=bbox, buffer=BUFFER_CELLS, variables=["elevtn"]
+        ).raster.reproject_like(ds, method="average")
+        source_dem = None
+        if recipe.temp_correction:
+            source_dem = catalog.get_rasterdataset(
+                recipe.orography_source,
+                geom=companion.raster.box,
+                buffer=2,
+                variables=["elevtn"],
+            ).squeeze()
+        for name in recipe.companion_variables:
+            if name in {"temp", "temp_min", "temp_max"}:
+                ds[name] = temp(
+                    companion[name],
+                    dem,
+                    dem_forcing=source_dem,
+                    lapse_correction=recipe.temp_correction,
+                    freq=None,
+                    reproj_method="nearest_index",
+                    lapse_rate=-0.0065,
+                )
+            else:
+                ds[name] = companion[name].raster.reproject_like(
+                    ds, method="nearest_index"
+                )
+        # This sidecar is the target grid's DEM. When correction is disabled,
+        # downstream preparation must also disable correction, not infer it here.
+        Path(oro_out).parent.mkdir(parents=True, exist_ok=True)
+        dem.to_netcdf(oro_out, mode="w")
+    if supplied_pet is not None:
+        ds["pet"] = supplied_pet.pet.sel(time=slice(start, end)).raster.reproject_like(
+            ds, method="nearest_index"
+        )
+    validate_daily_fields(
+        ds, recipe.required_variables, source="forcing recipe", domain=domain
+    )
+    ds.attrs["forcing_extraction"] = recipe.extraction_bytes().decode().strip()
+    ds.attrs["forcing_extraction_sha256"] = recipe.extraction_fingerprint
+    # Only extraction evidence is carried in seed-bearing netCDF attributes.
+    import json
+
+    ds.attrs["forcing_unit_profiles"] = json.dumps(profiles, sort_keys=True)
+    return ds
+
+
 @_bounded_hdf5_chunk_cache
 def prep_historical_climate(
     region_fn: Optional[Union[str, Path]],
@@ -529,6 +636,8 @@ def prep_historical_climate(
     region_source: Optional[Union[str, Path]] = None,
     enforce_min_years: bool = True,
     forcing_required: bool = True,
+    forcing=None,
+    required_domain=None,
 ):
     """
     Extract historical climate data for a given region and time period.
@@ -601,8 +710,15 @@ def prep_historical_climate(
         # Read region
         region = gpd.read_file(region_fn)
         bbox = region.geometry.total_bounds
+        if required_domain is None:
+            required_domain = region
     # Read data catalog
     data_catalog = hydromt.DataCatalog(data_libs=data_libs)
+    recipe = normalize_forcing_recipe(clim_source, forcing)
+    changed_extraction = forcing_required and (
+        recipe.extraction_fingerprint
+        != normalize_forcing_recipe(clim_source).extraction_fingerprint
+    )
 
     # ALIGN THE DASK CHUNKS TO THE STORE'S OWN CHUNKS, for EVERY source this
     # function may read -- see `_align_chunks_to_store` for the measurement that
@@ -621,10 +737,23 @@ def prep_historical_climate(
     sources = [clim_source]
     if is_precip_only and forcing_required:
         sources.append("era5")
+    if changed_extraction:
+        sources.extend([recipe.temp_pet_source, recipe.pet_source])
     data_catalog = _align_chunks_to_store(data_catalog, sources)
     # Extract climate data
     log_row(f"Extracting historical climate grid for {clim_source}", module="extract")
-    if is_precip_only:
+    if changed_extraction:
+        ds = _extract_recipe_fields(
+            data_catalog,
+            recipe,
+            bbox=bbox,
+            requested=(starttime, endtime),
+            hydrography=hydrography,
+            oro_out=oro_out
+            or os.path.join(os.path.dirname(fn_out), f"{clim_source}_orography.nc"),
+            domain=required_domain,
+        )
+    elif is_precip_only:
         log_row(
             (
                 f"{clim_source} provides precipitation only; "
@@ -937,6 +1066,8 @@ if __name__ == "__main__":
                 # store already on disk -- keeps its params byte-identical.
                 enforce_min_years=getattr(sm.params, "enforce_min_years", True),
                 forcing_required=getattr(sm.params, "forcing_required", True),
+                forcing=getattr(sm.params, "forcing", None),
+                required_domain=gdf,
             )
             # Which of the extracted cells the basin actually touches. Written
             # HERE rather than derived by the consumer because this is the only

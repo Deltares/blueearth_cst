@@ -56,7 +56,7 @@ def write_json(path, value):
     )
 
 
-def daily_series(climate_nc, cells_csv, source, data_sources=None):
+def daily_series(climate_nc, cells_csv, source, data_sources=None, *, recipe=None):
     """Exact basin-mask reduction; no buffered extraction fallback."""
     with xr.open_dataset(climate_nc) as ds:
         cells = pd.read_csv(cells_csv)
@@ -89,13 +89,18 @@ def daily_series(climate_nc, cells_csv, source, data_sources=None):
                 values = field.mean([LAT, LON], skipna=True).to_series()
                 if var == "temp":
                     finite = values.dropna()
-                    units = str(ds[var].attrs.get("units", "")).lower()
+                    units = str(
+                        ds[var].attrs.get("units", ds[var].attrs.get("unit", ""))
+                    ).lower()
                     declared_celsius = units in {
                         "degc",
                         "celsius",
                         "degree_celsius",
                         "degrees_celsius",
                         "°c",
+                        "degree c",
+                        "degree c.",
+                        "c",
                     }
                     catalog_offset = None
                     if data_sources:
@@ -109,7 +114,12 @@ def daily_series(climate_nc, cells_csv, source, data_sources=None):
                         for path in catalogs:
                             spec = yaml.safe_load(
                                 Path(path).read_text(encoding="utf-8")
-                            ).get(source, {})
+                            ).get(
+                                recipe.temp_pet_source
+                                if recipe is not None
+                                else source,
+                                {},
+                            )
                             if spec:
                                 adapter = spec.get("data_adapter", spec)
                                 catalog_offset = adapter.get("unit_add", {}).get("temp")
@@ -155,6 +165,8 @@ def daily_series(climate_nc, cells_csv, source, data_sources=None):
         str(p): hashlib.sha256(Path(p).read_bytes()).hexdigest()
         for p in (climate_nc, cells_csv)
     }
+    if recipe is not None:
+        lineage["forcing_recipe"] = recipe.to_dict()
     return daily, lineage
 
 
@@ -604,6 +616,14 @@ def write_tables(paths, tables_by_source, settings, m0, period, lineage):
         s: "CHIRPS v2.0" if s in {"chirps", "chirps_global"} else s.upper()
         for s in tables_by_source
     }
+    for source in tables_by_source:
+        record = lineage.get(source, {})
+        record = record.get(source, record)
+        recipe = record.get("forcing_recipe")
+        if recipe and source == "era5" and recipe["temp_pet_source"] != source:
+            metadata["source_labels"][source] = (
+                f"ERA5 precip.; {recipe['temp_pet_source']} temp."
+            )
     if len(tables_by_source) > 1:
         metadata["common_valid_years"] = sorted(
             set.intersection(

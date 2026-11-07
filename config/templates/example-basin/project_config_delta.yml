@@ -1,11 +1,11 @@
 # Optional standalone producer; not a workflows.generate_scenarios configuration.
 # Replace input paths and verify the historical physical-unit evidence before use.
-# Select the standalone producer schema. Options: delta-change/1, delta-change/2.
 # Version 2 additionally requires factor_layout: basin_scalar or grid.
 # Version 1 remains scalar; omit factor_layout for this version.
 # Version 2 can also add pet: {mode: projection_ratio, method: makkink}.
 # That option requires historical and projection PET, matching pet_method attributes,
 # and [pet, mm/day] in the historical reader's evidenced variables below.
+# Select the standalone producer schema. Options: delta-change/1, delta-change/2.
 schema_version: delta-change/1
 # Locate the extracted historical forcing. Input: NetCDF path beside this YAML.
 historical_path: data/extract_historical.nc
@@ -39,8 +39,8 @@ members:
     scenario: ssp245
     # Preserve the upstream member identity. Input: nonempty text.
     member: r1i1p1f1
-    # Locate reference monthly basin scalars. Input: NetCDF path beside this YAML.
     # Precipitation: mm/day or mm/month; reference means below 0.1 mm/day are refused.
+    # Locate reference monthly basin scalars. Input: NetCDF path beside this YAML.
     reference_path: data/GFDL-ESM4_historical.nc
     # Locate future monthly basin scalars. Input: NetCDF path beside this YAML.
     future_path: data/GFDL-ESM4_ssp245.nc

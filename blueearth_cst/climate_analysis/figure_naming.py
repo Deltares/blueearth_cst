@@ -53,6 +53,8 @@ COMPARISON_SCOPE = "comparison"
 #: climatology, ``box`` distribution box plot -- so a reader who knows four
 #: tokens can read every name.
 PLOT_CONTEXTS = {
+    "annual_anomaly_map": "annual native-cell departure from the reference mean",
+    "daily_agreement": "paired observed and native-cell daily precipitation",
     "annual_indices_ts": "annual climate-index series with explicit units",
     "seasonal_indices_ts": "configured-season climate-index series",
     "wet_spell_exceedance": "complete wet-spell empirical exceedance",
@@ -90,8 +92,8 @@ FIXED_SPATIAL_SCOPES = {
     "source_ext": "framed on the source grid's own extent",
 }
 
-#: Prefixes for the scopes that carry an id. ``station_<id>`` is reserved for
-#: the evaluation family and is not produced here yet.
+#: Prefixes for scopes carrying an id. Rain-gauge figures map station tokens
+#: back to literal input IDs in their retained station table.
 #:
 #: ``st`` is deliberately NOT used for station: it already identifies a
 #: stress-test member elsewhere in the project, and one token meaning two things

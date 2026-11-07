@@ -164,3 +164,55 @@ def test_retained_rerender_routes_enabled_bundle_to_separate_output(
     assert str(pointer).startswith(str(store))
     assert all(str(path).startswith(str(destination)) for path in paths.values())
     assert arguments["reference_record"] is reference
+
+
+def test_indices_and_anomalies_share_inventory_and_retained_rerender(
+    tmp_path, monkeypatch
+):
+    from blueearth_cst.climate_analysis import (
+        climate_index_figures,
+        diagnostic_rerender,
+    )
+    from blueearth_cst.climate_analysis.annual_spatial_anomalies import parse_settings
+
+    settings = parse_settings(
+        {"climate_indices": {"enabled": True}, "annual_spatial_anomalies": True},
+        {"start": 2000, "end": 2002},
+        ["era5"],
+    )
+    store = tmp_path / "era5"
+    (store / "_engine").mkdir(parents=True)
+    (store / "_engine/diagnostics.json").write_text(
+        json.dumps({"settings": settings, "water_year_start": 10})
+    )
+    (store / "plots/_engine").mkdir(parents=True)
+    (store / "plots/_engine/figure_captions.json").write_text(
+        json.dumps(
+            {"figures": {"annual.png": {"encoding": "annual_spatial_anomalies"}}}
+        )
+    )
+    monkeypatch.setattr(diagnostic_rerender, "load_retained_reference", lambda _: {})
+    monkeypatch.setattr(
+        diagnostic_rerender, "source_stores", lambda *args: {"era5": store}
+    )
+    ordinary, indices = [], []
+    monkeypatch.setattr(
+        diagnostic_rerender, "render", lambda *args, **kwargs: ordinary.append(args)
+    )
+    monkeypatch.setattr(
+        climate_index_figures,
+        "render_indices",
+        lambda *args, **kwargs: indices.append(args),
+    )
+    destination = tmp_path / "preview"
+    diagnostic_rerender.rerender_sources(tmp_path, destination)
+    paths = ordinary[0][0]
+    assert paths["annual_spatial"]["fields"] == str(
+        store / "tables/annual_spatial_anomalies.nc"
+    )
+    assert any(key.startswith("annual-map-") for key in paths["figures"])
+    assert any(key.startswith("index_map_") for key in paths["render"])
+    assert indices[0][0] == paths["compute"]["climate_indices"]
+    assert all(
+        str(path).startswith(str(destination)) for path in paths["render"].values()
+    )

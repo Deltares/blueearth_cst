@@ -92,6 +92,39 @@ def test_eobs_precip_source_swaps_orography_and_pet_method(tmp_path):
     assert steps_by_key["setup_temp_pet_forcing"]["pet_method"] == "makkink"
 
 
+@pytest.mark.parametrize("source", ["era5", "chirps", "chirps_global"])
+def test_explicit_forcing_elevation_preserves_other_recipe_choices(tmp_path, source):
+    fn = tmp_path / "out.yml"
+    setup_time_horizon.prep_hydromt_update_forcing_config(
+        "2000-01-01",
+        "2000-01-04",
+        fn,
+        source,
+        store_source="extract_historical",
+        dem_forcing_fn="store_elevation",
+    )
+    step = _read_yaml(fn)["steps"][2]["setup_temp_pet_forcing"]
+    assert step["dem_forcing_fn"] == "store_elevation"
+    assert step["temp_pet_fn"] == "extract_historical"
+    assert step["pet_method"] == "debruin"
+    assert step["temp_correction"] is True
+    assert step["press_correction"] is True
+
+
+@pytest.mark.parametrize("source", ["chirps", "chirps_global"])
+def test_direct_chirps_recipe_keeps_raw_era5_companion_elevation(tmp_path, source):
+    fn = tmp_path / "out.yml"
+    setup_time_horizon.prep_hydromt_update_forcing_config(
+        "2000-01-01",
+        "2000-01-04",
+        fn,
+        source,
+    )
+    step = _read_yaml(fn)["steps"][2]["setup_temp_pet_forcing"]
+    assert step["dem_forcing_fn"] == "era5_orography"
+    assert step["temp_pet_fn"] == "era5"
+
+
 def test_unknown_precip_source_falls_back_to_era5_stack(tmp_path):
     """The else branch catches anything that isn't 'eobs' — including typos."""
     fn = tmp_path / "out.yml"

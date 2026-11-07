@@ -48,6 +48,7 @@ _METADATA_KEYS = (
             "processing",
             "category",
             "cst_unit_interpretation",
+            "time_label",
         }
     )
     | _CITATION_KEYS
@@ -164,6 +165,8 @@ def reader_identity_v2(native: dict, *, elevation: bool) -> dict:
     metadata = native.get("metadata") or {}
     if type(metadata) is not dict or set(metadata) - _METADATA_KEYS:
         raise ValueError("unclassified HydroMT reader metadata")
+    if "time_label" in metadata and metadata["time_label"] != "interval_end":
+        raise ValueError("unsupported HydroMT reader time convention")
     unit = metadata.get("cst_unit_interpretation")
     if elevation:
         if unit is not None:
@@ -206,6 +209,11 @@ def reader_identity_v2(native: dict, *, elevation: bool) -> dict:
             "nodata": metadata.get("nodata"),
             "units": metadata.get("units"),
             "extent": _extent(metadata.get("extent")),
+            **(
+                {"time_label": metadata["time_label"]}
+                if "time_label" in metadata
+                else {}
+            ),
         },
         "unit_interpretation": unit_identity,
     }
@@ -215,6 +223,7 @@ def preparation_identity_v2(
     document: dict, *, project_root: Path, experiment_root: Path
 ) -> dict:
     """Rebuild the path-neutral identity from checked preparation artifacts."""
+    version3 = document.get("schema_version") == "forcing-preparation/3"
     _closed(
         document,
         {
@@ -224,11 +233,32 @@ def preparation_identity_v2(
             "forcing_elevation",
             "generated_forcing_reader",
             "pet_method",
-        },
+        }
+        | (
+            {"forcing_recipe", "temp_correction", "press_correction"}
+            if version3
+            else set()
+        ),
         "WF4 preparation",
     )
-    if document["schema_version"] != "forcing-preparation/2":
+    if document["schema_version"] not in {
+        "forcing-preparation/2",
+        "forcing-preparation/3",
+    }:
         raise ValueError("unsupported WF4 preparation version")
+    if version3:
+        from blueearth_cst.shared.forcing_recipe import (
+            read_forcing_recipe,
+            require_workflow_compatibility,
+        )
+
+        recipe = read_forcing_recipe(document["forcing_recipe"])
+        require_workflow_compatibility(recipe, "simulate_system")
+        for key in ("temp_correction", "press_correction"):
+            if type(document[key]) is not bool or document[key] != getattr(recipe, key):
+                raise ValueError(f"WF4 preparation {key} differs from effective recipe")
+        if document["pet_method"] != recipe.pet_method:
+            raise ValueError("WF4 preparation PET method differs from effective recipe")
     ancillary = document["ancillary"]
     if type(ancillary) is not list or not ancillary:
         raise ValueError("WF4 preparation ancillary is empty")
@@ -282,7 +312,17 @@ def preparation_identity_v2(
     ):
         raise ValueError("WF4 elevation catalog resolves another artifact")
     return {
-        "schema_version": "forcing-preparation-identity/2",
+        "schema_version": "forcing-preparation-identity/3"
+        if version3
+        else "forcing-preparation-identity/2",
+        **(
+            {
+                key: document[key]
+                for key in ("forcing_recipe", "temp_correction", "press_correction")
+            }
+            if version3
+            else {}
+        ),
         "ancillary": projected,
         "catalog": {
             "elevation": {
@@ -336,10 +376,22 @@ def resolve_wf4_preparation(
     catalogs: list[str | Path],
     unit_interpretation,
     oro_path: Path | None = None,
+    recipe=None,
     collection_path: Path | None = None,
 ) -> dict[str, Any]:
     """Bind verified shared elevation and its relative HydroMT catalog to WF4."""
     import hydromt
+
+    from blueearth_cst.shared.forcing_recipe import (
+        normalize_forcing_recipe,
+        require_workflow_compatibility,
+    )
+
+    if recipe is not None:
+        require_workflow_compatibility(recipe, "simulate_system")
+    nondefault = recipe is not None and recipe != normalize_forcing_recipe(
+        climate_source
+    )
 
     from blueearth_cst.climate_analysis.prepare_climate_data_catalog import (
         resolve_preparation_payloads,
@@ -350,7 +402,11 @@ def resolve_wf4_preparation(
     if not experiment.is_relative_to(project / "experiments"):
         raise ValueError("WF4 preparation must belong to this project")
     predecessor, catalog_bytes, payloads = resolve_preparation_payloads(
-        catalogs, climate_source, unit_interpretation, oro_path
+        catalogs,
+        climate_source,
+        unit_interpretation,
+        oro_path,
+        **({"recipe": recipe} if recipe is not None else {}),
     )
     if len(payloads) != 1:
         raise ValueError("WF4 preparation has an unexpected ancillary closure")
@@ -398,7 +454,18 @@ def resolve_wf4_preparation(
     ) != Path(selected.full_uri).resolve(strict=True):
         raise ValueError("HydroMT elevation URI differs from checked shared file")
     document = {
-        "schema_version": "forcing-preparation/2",
+        "schema_version": "forcing-preparation/3"
+        if nondefault
+        else "forcing-preparation/2",
+        **(
+            {
+                "forcing_recipe": recipe.to_dict(),
+                "temp_correction": recipe.temp_correction,
+                "press_correction": recipe.press_correction,
+            }
+            if nondefault
+            else {}
+        ),
         "ancillary": [
             {
                 "id": "elevation",
@@ -410,7 +477,9 @@ def resolve_wf4_preparation(
         "catalog": file_reference(catalog_path, "project_root", project),
         "forcing_elevation": predecessor["forcing_elevation"],
         "generated_forcing_reader": predecessor["generated_forcing_reader"],
-        "pet_method": predecessor["pet_method"],
+        "pet_method": recipe.pet_method
+        if recipe is not None
+        else predecessor["pet_method"],
     }
     if collection_path is not None:
         from blueearth_cst.experiment.content_identity import read_canonical_json

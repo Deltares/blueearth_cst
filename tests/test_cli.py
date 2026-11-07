@@ -393,20 +393,11 @@ def test_both_sentinel_spellings_are_treated_as_unset():
 
 @pytest.mark.workflow_contract
 def test_eobs_config_fails_wf1_dry_run_at_parse_time(tmp_path):
-    """`clim_historical: eobs` must red the wf1 dry-run at DAG-parse time.
-
-    Rehomed from the retired `tests/test_extract_climate_wf1.py` (R07 commit 7
-    retired rule 1.10's wf1-only wrapper, but NOT this guard): the rejection
-    exists because rule 1.11's model-parity transform maps eobs to a different
-    PET method, which B1 does not touch. The other test in that module compared
-    the two pre-R07 bbox derivations and is superseded by
-    `tests/test_store_region_bbox.py`.
-    """
+    """Unsupported E-OBS candidates must fail WF1 during config admission."""
     cfg = load_composed_config(config_fn)
-    # `C-43`: `selected` names a MEMBER of `sources`, and the loader refuses
-    # one that is not. Switching the source therefore means declaring it as a
-    # candidate as well -- otherwise this test reds on the membership rule
-    # rather than on the eobs rejection it exists to check.
+    # Declare both legacy selection and candidate so the rejection identifies
+    # unsupported E-OBS rather than an inconsistent selection. Shared forcing
+    # validation now rejects it before the retired WF1-specific guard.
     cfg["climate"]["selected"] = "eobs"
     cfg["climate"]["sources"] = ["eobs"]
     cfg_path = write_config(tmp_path, cfg, stem="project_config_eobs")
@@ -414,10 +405,7 @@ def test_eobs_config_fails_wf1_dry_run_at_parse_time(tmp_path):
     result = _dry_run("build_model.smk", cfg=str(cfg_path))
     combined = (result.stdout or "") + (result.stderr or "")
     assert result.returncode != 0, "eobs config must fail the wf1 dry-run"
-    assert (
-        "clim_historical: eobs is not supported by the P3-2a wf1 raw-climate "
-        "path; supported sources: era5, chirps, chirps_global"
-    ) in combined, combined
+    assert "climate.sources contains unsupported candidate 'eobs'" in combined, combined
 
 
 @pytest.mark.parametrize(

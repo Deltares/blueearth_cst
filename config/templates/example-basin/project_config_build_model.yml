@@ -28,6 +28,12 @@ observations:
 #evaluation:
 # Generate individual subbasin evaluation figures. Options: true | false.
 #  subbasin_plots: false
+# Optional observed catchment water-balance screening, independent of simulated Q.
+# Requires observations.river discharge and an explicit assertion of daily means
+# over midnight-to-midnight UTC days. Labels: interval_end | interval_start.
+#  budyko:
+#    discharge_statistic: daily_mean
+#    time_label: interval_end
 
 
 # -----------------------------------------------------------------------------
@@ -43,6 +49,11 @@ simulation_window:
   # Last simulation water year. Input: integer year, >= start.
   end: 2016
 
+# Optional immutable historical response, separate from mutable run_default.
+# Requires a fresh simulation; choose a new name for each forcing recipe/run.
+#historical_run:
+#  name: era5_reference
+
 
 # -----------------------------------------------------------------------------
 #  ENGINE
@@ -56,3 +67,13 @@ simulation_window:
 #  build_config: toolbox:config/defaults/wflow_build_model.yml
 # Configure lake and reservoir updates. Input: HydroMT YAML file path.
 #  waterbodies_config: toolbox:config/defaults/wflow_update_waterbodies.yml
+
+# Optional native grids at each simulation timestep; retained in run_default/output_grid.nc.
+# Output settings are independent of the simulation workflow. Omitted/null disables grids.
+#output:
+#  netcdf_grid:
+#    compressionlevel: 1
+#    variables:
+#      snowpack_dry_snow__leq_depth: snow
+#      snowpack_liquid_water__depth: snowwater
+#      river_water__volume_flow_rate: discharge

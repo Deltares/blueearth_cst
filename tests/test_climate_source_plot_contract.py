@@ -16,11 +16,15 @@ CONFIG_FN = Path(__file__).with_name("project_config_fixture.yml")
 pytestmark = pytest.mark.workflow_contract
 
 
-def test_enabled_climate_indices_wire_compute_pointer_and_render_outputs(tmp_path):
+@pytest.mark.parametrize("anomalies", [False, True])
+def test_enabled_climate_indices_wire_compute_pointer_and_render_outputs(
+    tmp_path, anomalies
+):
     cfg = load_composed_config(CONFIG_FN)
     cfg["project"]["project_dir"] = (tmp_path / "project").as_posix()
     cfg["workflows"]["analyze_climate"]["diagnostics"] = {
-        "climate_indices": {"enabled": True, "seasons": {"DJF": [12, 1, 2]}}
+        "climate_indices": {"enabled": True, "seasons": {"DJF": [12, 1, 2]}},
+        "annual_spatial_anomalies": anomalies,
     }
     workflow = _parse_workflow("analyze_climate.smk", write_config(tmp_path, cfg))
     compute = workflow.get_rule("compute_climate_diagnostics_era5")
@@ -29,6 +33,10 @@ def test_enabled_climate_indices_wire_compute_pointer_and_render_outputs(tmp_pat
     assert len(compute.params.climate_indices_code_digest) == 64
     assert render.output.index_seasons in workflow.get_rule("all").input
     assert render.output.index_map_wsdi in workflow.get_rule("all").input
+    if anomalies:
+        annual = workflow.get_rule("prepare_annual_spatial_anomalies_era5")
+        assert all(path in render.input for path in annual.output)
+        assert any("annual_anomaly_map" in path for path in render.output)
 
 
 @pytest.mark.parametrize(

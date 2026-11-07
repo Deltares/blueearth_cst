@@ -424,6 +424,8 @@ STORE_INDEX = str(Path(DATA_SOURCES).parent / "cmip6_store_index.json")
 # purpose -- any dependency change re-derives, which is the safe direction for a
 # cache whose failure mode is silently wrong numbers.
 from blueearth_cst.projections.get_stats_climate_proj import get_stats_clim_projections, merge_member_series
+from blueearth_cst.projections.derived_pet import calculate_pet, admit_monthly_sources, INPUT_CONTRACT
+from blueearth_cst.projections.derived_states import calculate_state, admit_state_sources
 from blueearth_cst.projections.grid_weights import (
     cell_area_weights,
     latitude_weights,
@@ -439,6 +441,8 @@ from blueearth_cst.projections.grid_weights import (
 REDUCER_KERNEL = [
     get_stats_clim_projections,
     merge_member_series,
+    calculate_pet,
+    calculate_state,
     weighted_spatial_mean,
     cell_area_weights,
     latitude_weights,
@@ -733,7 +737,7 @@ def series_digest_components(model, experiment, member):
     """
     catalog_entry = f"{clim_project}_{model}_{experiment}_{{member}}"
     entry = _si.load_catalog_entry(DATA_SOURCES, catalog_entry)
-    return _si.digest_components(
+    components = _si.digest_components(
         catalog_entry=catalog_entry,
         entry=entry,
         members=[member],
@@ -750,6 +754,18 @@ def series_digest_components(model, experiment, member):
         experiment=experiment,
         reducer_module_hash=REDUCER_HASH,
     )
+    pet_identity = _vs.derived_pet_identity(VARIABLE_SPEC)
+    if pet_identity is not None:
+        components["pet_input_contract"] = INPUT_CONTRACT
+        components["pet_admission_hash"] = _si.kernel_hash([admit_monthly_sources])
+        components["derived_pet"] = pet_identity
+    state_identity = _vs.derived_state_identity(VARIABLE_SPEC)
+    if state_identity is not None:
+        components["pet_input_contract"] = INPUT_CONTRACT
+        components["pet_admission_hash"] = _si.kernel_hash([admit_monthly_sources])
+        components["derived_states"] = state_identity
+        components["state_admission_hash"] = _si.kernel_hash([admit_state_sources])
+    return components
 
 ### Dictionary elements from the config based on wildcards
 def get_horizon(wildcards):
@@ -1000,7 +1016,7 @@ rule fetch_cmip6_projections:
         # attribute describing the pre-conversion quantity, so every array claimed
         # `kg m-2 s-1` over mm/day. Not a digest component -- it labels the values,
         # it does not change them.
-        variable_units = {v.source: v.units for v in VARIABLE_SPEC.values()},
+        variable_units = _vs.source_units(VARIABLE_SPEC),
         buffer_cells = REGION_BUFFER_CELLS,
         acquisition_window = lambda wildcards: list(_si.acquisition_window(SERIES[wildcards.series_key][1])),
         raw_digest_components = lambda wildcards: _si.raw_components(
@@ -1053,6 +1069,7 @@ rule reduce_to_basin_averages:
         name_model = lambda wildcards: SERIES[wildcards.series_key][0],
         name_clim_project = clim_project,
         variables = variables,
+        variable_spec = {k: list(v) for k, v in VARIABLE_SPEC.items()},
         # S8-08(a): see rule 2.03.
         variable_units = {v.source: v.units for v in VARIABLE_SPEC.values()},
         series_nc_out = lambda wildcards: f"{clim_project_dir}/scalar/{wildcards.series_key}.nc",

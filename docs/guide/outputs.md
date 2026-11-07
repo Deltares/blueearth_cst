@@ -43,6 +43,31 @@ Keep the complete output directory when archiving an assessment. Indicator CSVs 
 the model, climate conditions or calculation settings needed to understand a result. Edit the source
 case files when changing settings; the configuration copies in the output directory document past runs.
 
+## Native model grids {#native-grids}
+
+Opt into [native grid output](../technical-manual/configuration.md#netcdf-grid) separately in
+the model-building and simulation workflow files. Historical grids are saved at
+`models/hydrology/wflow/run_default/output_grid.nc`; selected scenario runs each produce
+`experiments/<name>/hydrology/wflow/output/<run_id>.nc`. Open them with xarray or GIS software.
+One file holds all requested variables, including native soil layers where present.
+
+Grid storage scales with rectangular cells × timesteps × variable layers × runs. The launcher
+reports a conservative raw float64 estimate with no assumed compression saving and reserves space
+for retained grids and recovery copies. Compression is lossless but its benefit depends on the data.
+
+Changing historical grid variables requires rerunning the historical simulation; CSVs cannot
+reconstruct maps. Historical reruns replace their configured products, so archive completed cases
+that must be kept. Disabling output removes the declaration and preserves old files; an old file
+is not evidence that the current request produced a grid. Completed ensemble experiments freeze
+the request: use `--new-experiment` for a different request. Retain the complete experiment,
+including its inventory, when archiving grids.
+
+Before publication or retry reuse, grids must contain finite values on each variable's native support.
+Masked cells outside that support remain valid. Units, coordinates, CRS and layers are checked against
+expectations captured directly from the initialized Wflow model in `<run>.toml.grid.toml`, beside its
+run settings. The retained inventory embeds these expectations, so archived reads do not need Julia
+or the original model-input paths. Existing inventories retain their original checksum and reader semantics.
+
 ## Check whether a run finished
 
 1. **Read the summary:** open the `summary.md` named by the runner and check outcomes and warnings.
@@ -173,6 +198,25 @@ The `analysis/` tables identify coverage and availability; check whether models,
 were excluded before comparing the ensemble. Figure captions explain the period and spatial coverage
 behind each product. Use projected changes to interpret the climate conditions in your stress test.
 Ensemble spread does not assign probabilities to its hydrological outcomes.
+
+When calculated PET is selected, the same tables include `pet`, and the plots add annual anomalies
+(mm/year), monthly climatology (mm/day), and annual/seasonal changes (% by default, mm for absolute
+changes). Captions name Makkink or de Bruin and the approximation from monthly mean inputs.
+Spatial averages use the selected buffered bounding box, including cells outside the basin polygon;
+the established `basin_avg` filenames do not imply polygon weighting. PET requires complete joint
+meteorological support throughout this box. Near-zero reference rates flag unavailable percentages
+while absolute differences remain inspectable. Source paths, units, calendar, method/library and
+spatial support are retained in scalar attributes and `_engine/analysis_record.json`.
+Optional calculated dew point (`tdew`) and 10 m wind (`wind`) add rows to the same tables and
+three figure families: annual anomalies, monthly climatologies and annual/seasonal mean differences.
+These are duration-weighted states in degC and m/s. Captions and the analysis inventory distinguish
+supplied monthly mean wind speed from magnitude of the monthly mean vector; they preserve method,
+height and monthly/buffered-bbox approximations. No derived native-grid files are retained.
+See [dew point and wind](../technical-manual/workflow-analyze-projections.md#optional-projected-dew-point-and-wind)
+for opt-ins and input qualification limits.
+
+See [projected PET](../technical-manual/workflow-analyze-projections.md#optional-projected-pet)
+for configuration, source requirements and qualification limits. PET does not add a stress-test axis.
 
 <figure class="guide-illustration" style="max-width:440px">
 

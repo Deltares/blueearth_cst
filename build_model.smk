@@ -90,6 +90,8 @@ climate_cfg = config.get("climate") or {}
 # number -- but a figure labelled 'annual' should mean the basin's year.
 WATER_YEAR_START = resolve_water_year_start(get_config(climate_cfg, "water_year_start"))
 my_cfg = config["workflows"]["build_model"]
+from blueearth_cst.model.historical_runs import historical_run_name, completion_path, completion_inputs
+historical_name = historical_run_name(my_cfg.get("historical_run"))
 
 # Project — paths and external resources
 project_dir = get_config(project_cfg, "project_dir", optional=False)
@@ -164,6 +166,8 @@ if clim_source == "eobs":
 # one workflow lives in the project file. It was the last such key, and
 # `CROSS_WORKFLOW_READS` is retired with its move.
 wflow_outvars = get_config(config.get("model") or {}, "outvars", DEFAULT_WFLOW_OUTVARS)
+from blueearth_cst.shared.grid_output import normalize_grid_output
+grid_output = normalize_grid_output(my_cfg.get("output"))
 # `defaults/`, not `templates/` — these are read by rules 1.05/1.06/1.07, and the
 # 2026-08-11 split moved them out of the copy-me directory. Rule 1.01 still routes
 # them to a `templates/` bin inside the PROJECT: a different meaning of the word,
@@ -196,6 +200,11 @@ OBSERVED_DISCHARGE_VAR = "river discharge"
 # warning instead of a silent drop.
 _observations = get_config(my_cfg, "observations", {}) or {}
 observations_timeseries = _observations.get(OBSERVED_DISCHARGE_VAR)
+from blueearth_cst.model.budyko import budyko_settings
+_budyko_evaluation = get_config(my_cfg, "evaluation", {})
+if not isinstance(_budyko_evaluation, dict):
+    raise ValueError("build_model.evaluation must be a mapping")
+_budyko_settings = budyko_settings(_budyko_evaluation.get("budyko"), observations_timeseries)
 _unconsumed_observations = sorted(
     name
     for name, source in _observations.items()
@@ -323,6 +332,7 @@ CLIMATE_STORE = climate_store_rule(
     data_sources=DATA_SOURCES,
     hydrography=basin_hydrography,
     basin_index=basin_index,
+    forcing=climate_cfg.get("forcing"),
 )
 store_dir = CLIMATE_STORE.store_dir
 
@@ -511,6 +521,8 @@ ADD_CLIMATE_FORCING = RULES.logged("1.09", "add_climate_forcing", summary="prepa
 WRITE_GAUGE_INDEX = RULES.logged("1.10", "write_gauge_index", summary="write the outlet-to-location identity crosswalk")
 PLOT_BASIN_MAP = RULES.logged("1.11", "plot_basin_map", summary="render basin and spatial-input maps")
 PLOT_MODEL_FORCING = RULES.logged("1.12", "plot_model_forcing", summary="render model-forcing maps and time series")
+if _budyko_settings is not None:
+    EVALUATE_BUDYKO = RULES.logged("1.12b", "evaluate_budyko", summary="screen observed catchment water balance")
 RUN_HISTORICAL_SIMULATION = RULES.logged("1.13", "run_historical_simulation", summary="run Wflow-SBM with historical forcing")
 EXPORT_SIMULATION_TABLES = RULES.logged("1.14", "export_simulation_tables", summary="export simulation time-series tables")
 PLOT_MODEL_EVALUATION = RULES.logged("1.15", "plot_model_evaluation", summary="compare simulation outputs with available discharge observations")
@@ -527,6 +539,8 @@ GATHER_LOGS = RULES.banner_only("1.18", "gather_logs", summary="merge rule logs"
 # independently of the build and needs no gather waiting on it) and the two
 # gather outputs themselves.
 WF1_TERMINALS = [
+    *([str(completion_path(project_dir, historical_name))] if historical_name else []),
+    *([f"{basin_dir}/evaluation/budyko/tables/summary.csv"] if _budyko_settings is not None else []),
     # The evaluation rule's terminal is its INDICATORS TABLE, not one of its
     # figures: since 2026-08-10 the figures are keyed by wflow_id and none of
     # their names is knowable at parse time. The table is written by the same
@@ -746,11 +760,13 @@ rule declare_gauges_and_outputs:
         scientific_code = [
             "blueearth_cst/shared/wflow_write.py",
             "blueearth_cst/shared/wflow_outputs.py",
+            "blueearth_cst/shared/grid_output.py",
         ],
     output:
         configured = touch(f"{basin_dir}/.outputs_configured"),
     params:
         outputs = wflow_outvars,
+        netcdf_grid = grid_output,
         data_catalog = DATA_SOURCES
     log:
         DECLARE_GAUGES_AND_OUTPUTS.log(),
@@ -805,6 +821,8 @@ rule add_climate_forcing:
         # it makes the reuse a DAG edge rather than a convention, and is why
         # `simulation_window` must now sit inside `historical_window`.
         climate_nc = CLIMATE_STORE.outputs["climate_nc"],
+        # CHIRPS temperatures are already corrected to this extraction-owned DEM.
+        oro_nc = CLIMATE_STORE.outputs.get("oro_nc", []),
         scientific_code = [
             "blueearth_cst/climate_analysis/prepare_climate_data_catalog.py",
             "blueearth_cst/shared/setup_time_horizon.py",
@@ -821,6 +839,7 @@ rule add_climate_forcing:
         # incidental: the script writes it, so an undeclared file here would be
         # invisible to Snakemake exactly as `output_gwr.csv` was.
         store_catalog = f"{basin_dir}/config/climate_store_catalog.yml",
+        forcing_record = [f"{basin_dir}/config/historical_forcing.json"] if historical_name else [],
         forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
         # TERMINAL BUILD SENTINEL. `hydromt update wflow_sbm` calls
         # mod.write(), which rewrites the WHOLE model root -- measured on the R9
@@ -862,6 +881,7 @@ rule add_climate_forcing:
         clim_source = get_config(climate_cfg, "selected", optional=False),
         basin_dir = basin_dir,
         data_catalog = DATA_SOURCES,
+        forcing = climate_cfg.get("forcing"),
     log:
         ADD_CLIMATE_FORCING.log(),
     benchmark:
@@ -872,7 +892,10 @@ rule add_climate_forcing:
 rule run_historical_simulation:
     message: RUN_HISTORICAL_SIMULATION.banner()
     input:
+        retained_validation = lambda wildcards: completion_inputs(project_dir, historical_name),
         forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
+        forcing_record = [f"{basin_dir}/config/historical_forcing.json"] if historical_name else [],
+        registry_path = [f"{spatial_dir}/location_registry.csv"] if historical_name else [],
         # the model-root ordering contract. Already ordered after 1.09 through forcing_path; declared
         # anyway so the invariant is LOCAL rather than transitive -- a reader is
         # correct because of what it declares, not because of a chain someone
@@ -880,14 +903,17 @@ rule run_historical_simulation:
         model_final = ancient(f"{basin_dir}/.model_final"),
         scientific_code = [
             "blueearth_cst/model/run_wflow.jl",
+            "blueearth_cst/shared/wflow_grid.jl",
             # This helper constructs Wflow.Config and invokes Wflow.run.
             "blueearth_cst/shared/wflow_progress.jl",
-        ],
+        ] + (["blueearth_cst/model/historical_runs.py"] if historical_name else []),
     output:
+        retained_completion = [str(completion_path(project_dir, historical_name))] if historical_name else [],
         # Retain full-precision native responses so evaluation and table exports
         # can rerun without another historical simulation. Rounded exports are
         # not a replacement for this input or for numerical baseline checks.
         csv_path = f"{basin_dir}/run_default/output.csv",
+        grid_path = [f"{basin_dir}/run_default/output_grid.nc"] if grid_output else [],
         # Wflow's own log. DECLARED but no longer temp(): it is now the ONLY
         # copy of Wflow's records.
         #
@@ -923,18 +949,40 @@ rule run_historical_simulation:
         wflow_log = f"{basin_dir}/run_default/log.txt",
     params:
         toml_path = f"{basin_dir}/wflow_sbm.toml",
+        historical_name = historical_name,
+        retained_config = config if historical_name else {},
         driver = str(Path(workflow.basedir) / "blueearth_cst" / "model" / "run_wflow.jl"),
+        netcdf_grid = grid_output,
     log:
         RUN_HISTORICAL_SIMULATION.log(),
     benchmark:
         RUN_HISTORICAL_SIMULATION.benchmark(),
-    shell:
+    run:
         # A DRIVER FILE rather than the `-e "using Wflow; Wflow.run()"` one-liner
         # Wflow's docstring suggests. Under `[logging] silent = true` that form
         # emits nothing at all for the whole run -- the longest single step in
         # WF1 -- so the driver adds the progress bar every other long step in the
         # toolbox animates. It is also the shape rule 3.15 already has.
-        """python -u "{run_logged}" "{log}" -- {wflow_julia} "{params.driver}" "{params.toml_path}" """
+        import shlex
+        import subprocess
+        from contextlib import nullcontext
+        from blueearth_cst.model.historical_runs import retain_historical_run, write_completion
+        retention = retain_historical_run(
+            project_dir=project_dir, name=params.historical_name,
+            toml_path=Path(params.toml_path), registry_path=Path(input.registry_path[0]),
+            forcing_record_path=Path(input.forcing_record[0]), config=params.retained_config,
+            config_path=Path(config_path),
+            workflow_config_path=WORKFLOW_CONFIG_PATHS.get("build_model"),
+            repo_root=Path(workflow.basedir),
+        ) if params.historical_name else nullcontext()
+        with retention:
+            subprocess.run([sys.executable, "-u", run_logged, str(log[0]), "--",
+                *shlex.split(wflow_julia), params.driver, params.toml_path], check=True)
+            if params.netcdf_grid:
+                from blueearth_cst.shared.grid_output import validate_grid
+                validate_grid(output.grid_path[0], params.toml_path)
+        if params.historical_name:
+            write_completion(project_dir, params.historical_name)
 
 # 1.03  extract_climate_datasets — the SHARED historical-climate store producer
 # (R07 B1). This declaration and rule 3.08 in run_stress_test.smk are
@@ -1315,6 +1363,40 @@ rule plot_model_forcing:
     benchmark:
         PLOT_MODEL_FORCING.benchmark(),
     script: "blueearth_cst/model/plot_map_forcing.py"
+
+if _budyko_settings is not None:
+    # 1.12b  evaluate_budyko — prepared forcing and observed Q only.
+    rule evaluate_budyko:
+        message: EVALUATE_BUDYKO.banner()
+        input:
+            hydrography_path = SPATIAL_UNITS.outputs["hydrography"],
+            registry_path = SPATIAL_UNITS.outputs["location_registry"],
+            forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
+            observations_path = observations_timeseries,
+            recipe_path = f"{basin_dir}/config/build_historical_forcing.yml",
+            model_final = ancient(f"{basin_dir}/.model_final"),
+        output:
+            stations = f"{basin_dir}/evaluation/budyko/tables/stations.csv",
+            annual = f"{basin_dir}/evaluation/budyko/tables/annual.csv",
+            summary = f"{basin_dir}/evaluation/budyko/tables/summary.csv",
+            daily = f"{basin_dir}/evaluation/budyko/_engine/daily.csv",
+            methods = f"{basin_dir}/evaluation/budyko/_engine/methods.json",
+            figure = f"{basin_dir}/evaluation/budyko/plots/observed_runoff_coefficient_budyko_stations.png",
+            titles = f"{basin_dir}/evaluation/budyko/plots/figure_titles.md",
+            captions = f"{basin_dir}/evaluation/budyko/plots/figure_captions.md",
+            titles_json = f"{basin_dir}/evaluation/budyko/_engine/figure_titles.json",
+            captions_json = f"{basin_dir}/evaluation/budyko/_engine/figure_captions.json",
+        params:
+            root = f"{basin_dir}/evaluation/budyko",
+            settings = _budyko_settings,
+            start = f"{simulation_window['start']}-01-01",
+            end = f"{int(simulation_window['end']) + 1}-01-01",
+            water_year_start = water_year_start_number(WATER_YEAR_START),
+            annotation = plot_annotation,
+            plot_setup_digest = plot_setup_digest,
+        log: EVALUATE_BUDYKO.log(),
+        benchmark: EVALUATE_BUDYKO.benchmark(),
+        script: "blueearth_cst/model/evaluate_budyko.py"
 
 # --- benchmark gather ---------------------------------------------------------
 # Per-rule benchmarks land under benchmarks/_parts/. This runs once, after the

@@ -821,6 +821,7 @@ def draw_raster_map(
     *,
     ax: Axes | None = None,
     compact: bool = False,
+    key_missing: bool = False,
 ) -> Figure:
     """Draw supplied classes or honest unscaled hatching; never change input arrays.
 
@@ -853,7 +854,7 @@ def draw_raster_map(
         if raster.inside is None
         else np.asarray(raster.inside)
     )
-    missing = missing_shown(raster, frame)
+    missing = missing_shown(raster, frame) or key_missing
     classes = scale if isinstance(scale, MapClasses) else None
     present: list[int] = []
     if classes is not None:
@@ -1237,3 +1238,111 @@ def draw_raster_matrix(
                 )
             )
     return figures
+
+
+def draw_raster_panels_detailed(
+    rasters: Sequence[RasterMap],
+    headings: Sequence[str],
+    frame: MapFrame,
+    scale: MapScale,
+    overlays: Mapping[str, Sequence[Mapping[str, Any]]],
+    *,
+    colorbar_title: str | None = None,
+    notes: Sequence[str] | None = None,
+    columns: int = 3,
+    panel_width_mm: float = 65.0,
+    panel_height_mm: float = 50.0,
+) -> Figure:
+    """Compose prepared maps with fixed type, geographic aspect and one shared key.
+
+    Fill rows chronologically in supplied order; trailing cells stay empty. Fit
+    each map within the physical panel envelope, then measure its decorations
+    and space the cells without shrinking maps or fonts. The caller owns page
+    selection, scientific scale resolution, headings, unavailable reasons and
+    export. Notes appear within the associated frame. No data are aggregated.
+    """
+    if not rasters or len(rasters) != len(headings):
+        raise ValueError("Map panels require equally sized nonempty rasters/headings")
+    if type(columns) is not int or columns < 1:
+        raise ValueError("Map panel columns must be a positive integer")
+    if not all(np.isfinite(v) and v > 0 for v in (panel_width_mm, panel_height_mm)):
+        raise ValueError("Map panel dimensions must be positive and finite")
+    if notes is not None and len(notes) != len(rasters):
+        raise ValueError("Map panel notes must match rasters")
+    for raster in rasters:
+        _validate(raster, frame, scale)
+    columns = min(columns, len(rasters))
+    rows = math.ceil(len(rasters) / columns)
+    west, east, south, north = frame.extent
+    ratio = frame.aspect * (north - south) / (east - west)
+    width = min(panel_width_mm, panel_height_mm / ratio) / 25.4
+    height = width * ratio
+    # A generous temporary canvas lets labels measure at their final physical size.
+    cell_width, cell_height = width + 1.2, height + 0.9
+    fig = plt.figure(figsize=(columns * cell_width, rows * cell_height), layout="none")
+    axes = []
+    for i, (raster, heading) in enumerate(zip(rasters, headings)):
+        row, col = divmod(i, columns)
+        ax = fig.add_axes(
+            (
+                (col * cell_width + 0.5) / fig.get_figwidth(),
+                ((rows - row - 1) * cell_height + 0.4) / fig.get_figheight(),
+                width / fig.get_figwidth(),
+                height / fig.get_figheight(),
+            )
+        )
+        draw_raster_map(
+            raster,
+            frame,
+            scale,
+            overlays,
+            colorbar_title,
+            ax=ax,
+            show_key=i == len(rasters) - 1,
+            key_missing=any(missing_shown(r, frame) for r in rasters),
+        )
+        ax.set_title(heading, loc="left", fontsize=active().fonts["label"])
+        if notes and notes[i]:
+            ax.text(
+                0.5,
+                0.5,
+                notes[i],
+                transform=ax.transAxes,
+                ha="center",
+                va="center",
+                fontsize=active().fonts["note"],
+                wrap=True,
+                bbox=active().label_box,
+            )
+        axes.append(ax)
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    boxes = [
+        ax.get_tightbbox(renderer).transformed(fig.dpi_scale_trans.inverted())
+        for ax in axes
+    ]
+    frames = [
+        ax.get_window_extent(renderer).transformed(fig.dpi_scale_trans.inverted())
+        for ax in axes
+    ]
+    left = max(f.x0 - b.x0 for f, b in zip(frames, boxes))
+    right = max(b.x1 - f.x1 for f, b in zip(frames, boxes))
+    bottom = max(f.y0 - b.y0 for f, b in zip(frames, boxes))
+    top = max(b.y1 - f.y1 for f, b in zip(frames, boxes))
+    gap, pad = 4 / 25.4, MAP_PADDING_MM / 25.4
+    cell_width, cell_height = left + width + right, bottom + height + top
+    canvas_width = columns * cell_width + (columns - 1) * gap + 2 * pad
+    canvas_height = rows * cell_height + (rows - 1) * gap + 2 * pad
+    fig.set_size_inches(canvas_width, canvas_height)
+    for i, ax in enumerate(axes):
+        row, col = divmod(i, columns)
+        ax.set_position(
+            (
+                (pad + col * (cell_width + gap) + left) / canvas_width,
+                (pad + (rows - row - 1) * (cell_height + gap) + bottom) / canvas_height,
+                width / canvas_width,
+                height / canvas_height,
+            )
+        )
+    fig.canvas.draw()
+    return fig

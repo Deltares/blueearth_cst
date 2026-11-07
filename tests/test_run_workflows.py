@@ -34,6 +34,8 @@ def wrapper_only_admission(monkeypatch):
     from blueearth_cst.experiment import reservation_context
 
     monkeypatch.setattr(rw, "_console_width", lambda: 240)
+    # Scientific entry/composition admission has separate real-config coverage.
+    monkeypatch.setattr(rw, "_preflight_forcing", lambda *_args: None)
 
     monkeypatch.setattr(
         reservation_context,
@@ -64,6 +66,8 @@ def _write_cfg(path, flags, project_dir=None):
     lines = [
         "project:",
         f"  project_dir: {project_dir}",
+        "climate:",
+        "  sources: [era5]",
         "workflows:",
     ]
     for name in rw.WORKFLOW_ORDER:

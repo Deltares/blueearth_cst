@@ -22,6 +22,14 @@ supports its climate and spatial labels. [figure_titles.py](figure_titles.py) an
 [figure_captions.py](figure_captions.py) write CST figure inventories. Those modules carry workflow
 conventions and are not general plotting APIs.
 
+`prepared_maps.draw_raster_panels_detailed(rasters, headings, frame, scale, overlays)` composes native raster
+maps with the same coordinates, geographic aspect, overlays and scale bars as `draw_raster_map`.
+Supply a common resolved `MapScale`; drawing does not calculate pooled limits. Panels fill row by row
+in up to three columns, with one shared key and optional within-frame unavailable notes. Each map fits
+a 65 × 50 mm envelope by default; measured labels and keys extend the canvas without shrinking fonts
+or frames. The caller owns pagination, captions, preset scope and export. The single-map API retains
+its 150 × 95 mm envelope and validation before figure allocation.
+
 Use `prepared_maps.draw_raster_panels` for continuous spatial panel figures. Supply ordered `RasterMap`
 fields and headings, one `MapFrame`, one `MapScale` and shared overlays. The helper owns compact panel
 geometry, proportionate overlay marks and the bottom-aligned colourbar. `Preset.map_panels` carries its

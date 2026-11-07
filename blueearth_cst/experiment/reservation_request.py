@@ -194,7 +194,7 @@ def capture_request(
     model_request = None
     if execute_model:
         model_settings = config["workflows"]["build_model"]
-        allowed = {"enabled", "engine", "observations", "simulation_window"}
+        allowed = {"enabled", "engine", "observations", "simulation_window", "output"}
         unknown = set(model_settings) - allowed
         if unknown:
             raise ValueError(f"unclassified build_model fields: {sorted(unknown)}")
@@ -228,6 +228,11 @@ def capture_request(
             "simulation_window": {"start": start, "end": end},
             "local_inputs": local,
         }
+        from blueearth_cst.shared.grid_output import normalize_grid_output
+
+        grid = normalize_grid_output(model_settings.get("output"))
+        if grid is not None:
+            model_request["netcdf_grid"] = grid
     workflow = config["workflows"]["simulate_system"]
     unknown = set(workflow) - {
         "enabled",
@@ -237,6 +242,7 @@ def capture_request(
         "indicators",
         "compute",
         "include_unperturbed",
+        "output",
         # Analysis intent, never simulation identity.
         "operations",
         "indicator_sets",
@@ -292,6 +298,11 @@ def capture_request(
     # Omission and true preserve the existing reservation identity.
     if not include_unperturbed(workflow):
         request["simulation"]["include_unperturbed"] = False
+    from blueearth_cst.shared.grid_output import normalize_grid_output
+
+    grid = normalize_grid_output(workflow.get("output"))
+    if grid is not None:
+        request["simulation"]["netcdf_grid"] = grid
     request = _json_value(request)
     content_sha256(request)  # Reject non-finite/unsupported values before allocation.
     for role, original, data in captures:

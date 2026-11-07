@@ -43,6 +43,8 @@ def model_parity_climate(
     pet_method: str = "debruin",
     *,
     corrections: bool = True,
+    temp_correction: bool | None = None,
+    press_correction: bool | None = None,
 ) -> xr.Dataset:
     """Regrid + correct + derive PET on raw climate, exactly as the build does.
 
@@ -64,13 +66,15 @@ def model_parity_climate(
         there leaves the extraction's embedded correction unreversed and
         double-corrects (design ext1-1 ledger).
     pet_method : str
-        ``"debruin"`` for the P3-2a-supported sources (era5/chirps/
-        chirps_global map to debruin per the setup_time_horizon mapping).
+        ``"debruin"`` (default) or ``"makkink"``, as selected by the recipe.
     corrections : bool, keyword-only
         True (default): the production parity transform (ladder state S3).
         False: the regrid-only ladder state S2 — ``lapse_correction=False``,
         ``press_correction=False`` (``press_msl`` renamed uncorrected,
         meteo.py:404-406), same methods and resampling (design §5.5).
+    temp_correction, press_correction : bool, optional
+        Independent recipe overrides. An omitted flag inherits ``corrections``
+        to preserve the existing public helper's behavior.
 
     Returns
     -------
@@ -94,7 +98,7 @@ def model_parity_climate(
         ds_raw["temp"].astype("float32"),
         dem_model=dem_model,
         dem_forcing=dem_forcing,
-        lapse_correction=corrections,
+        lapse_correction=corrections if temp_correction is None else temp_correction,
         freq=None,  # resample time after the pet workflow, as the build does
         reproj_method="nearest_index",
     )
@@ -109,7 +113,7 @@ def model_parity_climate(
         temp=temp_in,
         dem_model=dem_model,
         method=pet_method,
-        press_correction=corrections,
+        press_correction=corrections if press_correction is None else press_correction,
         wind_correction=True,
         wind_altitude=10,
         reproj_method="nearest_index",

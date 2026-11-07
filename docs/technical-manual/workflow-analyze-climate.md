@@ -27,7 +27,7 @@ extraction requires overlap between the source record and that period.
 |---|---|
 | `basin.region`, `basin.resolution` | Basin extent and analysis resolution. |
 | `climate.sources` | Candidate historical datasets to analyze. |
-| `climate.selected` | Forcing source used in subsequent modeling. |
+| `climate.forcing.precip_source` | Optional forcing choice; comparison-only analysis needs none. |
 | `climate.window` | Requested historical period. |
 | `climate.water_year_start` | Month that begins the reporting year. |
 
@@ -38,6 +38,7 @@ extraction requires overlap between the source record and that period.
 |---|---|
 | `diagnostics.reference_period` | Reference water years for anomalies and SPI fitting. |
 | `diagnostics.comparison_period` | Requested period for comparing sources. |
+| `diagnostics.annual_spatial_anomalies` | Native-grid annual P/T departure panels; default `false`. |
 | `diagnostics.max_missing_days_month` | Allowed missing days per month; default 3. |
 | `diagnostics.max_missing_days_year` | Allowed missing days per water year; default 15. |
 | `diagnostics.wet_day_threshold_mm` | Wet-day threshold; default 1 mm/day. |
@@ -47,6 +48,117 @@ extraction requires overlap between the source record and that period.
 The reference period defaults to the climate window, and the comparison period defaults to the
 reference period. Missing-day tolerances must match the project settings in `climate.map_reference`.
 See [execution and run management](configuration-and-execution.md) for running the workflow.
+
+### Map annual departures {#annual-spatial-anomalies}
+
+Set `diagnostics.annual_spatial_anomalies: true` in the historical analysis YAML to show where each
+comparison reporting year was wetter, drier, warmer or cooler than the reference climate. This optional
+product uses the existing reference/comparison periods, sources, reporting-year start and missing-day
+tolerances. Omitted or `false` disables it; other types are rejected. Precipitation-only sources produce
+precipitation panels without borrowed temperature. PET and percentage anomalies are outside this product.
+
+For example, in `project_config_analyze_climate.yml`:
+
+```yaml
+diagnostics:
+  reference_period:
+    # First reference reporting year. Input: integer year, <= end.
+    start: 2000
+    # Last reference reporting year. Input: integer year, >= start.
+    end: 2010
+  comparison_period:
+    # First comparison reporting year. Input: integer year, <= end.
+    start: 2000
+    # Last comparison reporting year. Input: integer year, >= start.
+    end: 2016
+  annual_spatial_anomalies: true
+```
+
+At each native cell, precipitation is the annual total (mm), temperature the daily annual mean (°C),
+and the anomaly is that value minus its arithmetic reference mean. Reporting-year labels name the
+starting year: an October year labelled 2000 spans October 2000 through September 2001. Missing dates
+count as gaps. Eligible years allow the configured missing-day tolerances (defaults: three per month,
+fifteen per year); tolerated gaps use that calendar month's observed mean for both variables. Set both
+tolerances to zero, also in `climate.map_reference`, for strict no-infill summaries.
+
+Only reference years fully contained in the stored daily span enter the baseline; excluded incomplete
+or out-of-span years are reported. A cell needs a valid annual aggregate in **every** eligible reference year,
+giving fixed reference support across all plotted years. No eligible reference year is an error. One eligible
+year is allowed and identified explicitly; it does not constitute a climate normal. Invalid cell-years
+and unavailable baselines remain missing. Every requested comparison year has a labelled panel,
+including partial boundary years and wholly unavailable years.
+
+Maps retain native cells and existing basin/subbasin/river overlays, including cells outside the basin
+that intersect the displayed frame. No polygon mask, spatial averaging or regridding is applied. Each
+variable uses one symmetric zero-centred scale across finite displayed cells of all candidate sources
+and comparison years, without clipping. All-zero data use a disclosed display-only range of ±1 mm or
+±1 °C; wholly unavailable data have no numerical key. Gray denotes missing cells, white uncovered area.
+These are descriptive departures, not trends or significance estimates.
+
+Each source store retains `tables/annual_spatial_anomalies.nc` with native annual values, anomalies,
+reference means/counts and validity masks. `_engine/annual_spatial_anomalies.json` records settings,
+source/input identity, requested/eligible/excluded years, exact dates, availability and page inventory.
+Figures live under `plots/annual_anomalies/page_001/`, `page_002/`, etc., with filenames
+`<source>_<variable>_annual_anomaly_map_basin_ext.png`. Six chronological years fit each page; all pages
+are produced. Ordinary title/caption inventories and `plotting.annotation` modes apply.
+
+Run the usual historical analysis entry point. Retained rerendering through
+`scripts/render_figures.py wf0 --project <run> --out <review>` uses saved annual fields without
+daily source data. Disabling the option or shortening the comparison period retires only previously
+managed anomaly figures and their inventory entries, preserving unrelated files and retained data.
+
+### Compare daily rain gauges {#rain-gauges}
+
+Optionally set `rain_gauges` in the historical analysis YAML:
+
+```yaml
+rain_gauges:
+  stations_path: data/rain_gauge_stations.csv
+  precip_path: data/rain_gauge_precip.csv
+  time_label: interval_end
+```
+
+Omission or `null` disables the comparison. A populated mapping requires exactly these three fields.
+Schema 3 resolves paths beside that YAML; schema 2 keeps its existing invocation-relative base.
+The station CSV requires `id,x,y`, with optional display `name` and elevation `elevtn` (metres).
+IDs are unique nonempty strings, including leading zeros. Coordinates are finite WGS84 longitude and
+latitude in degrees. Elevation is metadata only. The precipitation CSV has `time` followed by literal
+station-ID columns, in millimetres per daily interval. Names never control joins. Blank cells and
+missing rows are missing; zero is dry weather. Duplicate dates/columns, negative/non-numeric values,
+infinity and non-midnight timestamps are rejected. Convert provider missing-value codes to blanks.
+
+`interval_end` means midnight UTC ending the accumulated day: `2000-02-01` belongs to January 31.
+`interval_start` labels are shifted forward one day before matching. Both declarations require actual
+midnight-to-midnight UTC intervals; prepare other accumulation windows upstream. Relabelling a local
+09:00 accumulation does not convert it. Extracted source stores retain their interval-end labels.
+Clipping and month/reporting-year attribution use the preceding covered day, without modifying stores.
+An extraction missing the last required interval leaves the period incomplete.
+
+Every declared precipitation candidate is sampled with HydroMT native-cell point sampling, including
+single-source comparisons. Stations must lie inside/on the basin and within the actual source grid.
+Outside points, unmatched IDs and nodata cells are reported; there is no interpolation, nearest-valid
+search, elevation adjustment or gap filling. Each station uses common valid dates across observations
+and all candidates. Coverage retains individual counts, joint counts and the expected calendar.
+Daily bias (source minus observed), MAE, RMSE and Pearson correlation use those same dates.
+Percentage bias divides the summed difference by summed observations; zero denominators are unavailable.
+Correlation is unavailable with fewer than two pairs or constant series.
+
+Monthly and reporting-year totals require every actual day, including leap days. Reporting years use
+start-year labels and `climate.water_year_start`. Monthly climatologies average the same complete months
+for every series; `monthly.csv` retains contributing months for counting. These strict rules apply only
+to rain gauges and do not change basin diagnostics' existing tolerated-gap summaries.
+
+Run the usual historical analysis entry point. Products appear in
+`data/climate/historical/rain_gauges/`: `tables/{stations,exclusions,coverage,agreement,monthly,annual}.csv`,
+four comparison PNGs per supplied station under `plots/`, and one `_engine/` containing sampled daily
+values/masks, evaluation provenance and figure manifests. Station metadata records safe filename tokens,
+sampled-cell coordinates/CRS and distance. Figures show unavailable comparisons explicitly.
+Titles and captions remain available in `plots/figure_titles.md` and `plots/figure_captions.md`.
+Rerender retained products with `scripts/render_figures.py rain-gauges --project <run> --out <review>`.
+
+This comparison supports forcing choice; it does not select or correct forcing. Point/grid support
+differs, and gridded products may already incorporate these observations, so agreement is not independent
+validation. The starter's two CSVs illustrate the format with synthetic values.
 
 ## Processing sequence {#rule-flow}
 

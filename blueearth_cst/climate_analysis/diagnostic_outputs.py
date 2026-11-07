@@ -5,6 +5,48 @@ from pathlib import Path
 from blueearth_cst.climate_analysis.diagnostic_settings import carries_temp
 from blueearth_cst.climate_analysis.figure_naming import figure_filename
 
+
+def rain_gauge_outputs(root, tokens):
+    """Explicit station evaluation compute and figure inventory."""
+    root = Path(root)
+    compute = {
+        name: str(root / "tables" / f"{name}.csv")
+        for name in (
+            "stations",
+            "exclusions",
+            "coverage",
+            "agreement",
+            "monthly",
+            "annual",
+        )
+    }
+    compute.update(
+        daily=str(root / "_engine/station_daily.nc"),
+        metadata=str(root / "_engine/evaluation.json"),
+    )
+    render = {
+        f"{token}_{form}": str(
+            root
+            / "plots"
+            / figure_filename("comparison", "precip", form, f"station_{token}_avg")
+        )
+        for token in tokens
+        for form in (
+            "monthly_coverage",
+            "annual_ts",
+            "monthly_clim_line",
+            "daily_agreement",
+        )
+    }
+    render.update(
+        titles=str(root / "plots/figure_titles.md"),
+        captions=str(root / "plots/figure_captions.md"),
+        titles_json=str(root / "_engine/figure_titles.json"),
+        captions_json=str(root / "_engine/figure_captions.json"),
+    )
+    return {"compute": compute, "render": render}
+
+
 TABLES = (
     "coverage",
     "valid_years",
@@ -87,6 +129,33 @@ def inventory(root, sources, settings, comparison=False):
         "captions_md": str(root / "plots" / "figure_captions.md"),
     }
     render.update({f"figure_{k}": v for k, v in figures.items()})
+    paths = {
+        "root": str(root),
+        "compute": compute,
+        "render": render,
+        "figures": figures,
+    }
+    if not comparison and settings.get("annual_spatial_anomalies", False):
+        from blueearth_cst.climate_analysis.annual_spatial_anomalies import (
+            anomaly_paths,
+            page_years,
+        )
+
+        paths["annual_spatial"] = anomaly_paths(root)
+        for page, _ in enumerate(page_years(settings), 1):
+            for variable in ("precip", "temp") if temp else ("precip",):
+                key = f"annual-map-{variable}-{page:03d}"
+                filename = str(
+                    root
+                    / "plots"
+                    / "annual_anomalies"
+                    / f"page_{page:03d}"
+                    / figure_filename(
+                        scope, variable, "annual_anomaly_map", "basin_ext"
+                    )
+                )
+                figures[key] = filename
+                render[f"figure_{key}"] = filename
     if not comparison and settings.get("climate_indices", {}).get("enabled", False):
         from blueearth_cst.indicators.climate.definitions import INDEX_METADATA
 
@@ -119,7 +188,7 @@ def inventory(root, sources, settings, comparison=False):
         render["index_captions"] = str(
             root / "plots" / "indices" / "figure_captions.json"
         )
-    return {"root": str(root), "compute": compute, "render": render, "figures": figures}
+    return paths
 
 
 def retarget_render(paths, render_root):

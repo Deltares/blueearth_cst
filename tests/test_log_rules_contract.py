@@ -64,7 +64,8 @@ PARTS_DIR_NAME = "_parts"
 #: appended label both exist only for a multi-source run, and that pair is
 #: precisely what the old source-text parser could not see.
 CASES = [(snakefile, "default") for snakefile in WORKFLOWS] + [
-    ("analyze_climate.smk", "two_source")
+    ("analyze_climate.smk", "two_source"),
+    ("analyze_climate.smk", "annual_anomalies"),
 ]
 
 #: Readable ids, so a failure names the configuration and not just an index.
@@ -195,7 +196,11 @@ def config_paths(tmp_path_factory) -> dict[str, Path]:
     path = write_config(
         tmp_path_factory.mktemp("log_rules"), cfg, stem="project_config_two_sources"
     )
-    return {"default": CONFIG_FN, "two_source": path}
+    cfg["workflows"]["analyze_climate"]["diagnostics"] = {
+        "annual_spatial_anomalies": True
+    }
+    anomaly_path = write_config(tmp_path_factory.mktemp("anomaly_log_rules"), cfg)
+    return {"default": CONFIG_FN, "two_source": path, "annual_anomalies": anomaly_path}
 
 
 @functools.lru_cache(maxsize=None)

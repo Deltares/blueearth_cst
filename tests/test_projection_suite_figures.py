@@ -269,6 +269,169 @@ def test_captions_and_distinct_folder_contract(suite):
     assert sum(len(p["filenames"]) for p in contract.SUITE_PRODUCTS.values()) == 20
 
 
+@pytest.mark.parametrize(
+    "filename, units",
+    [
+        ("seasonal-cycle-pet.png", "mm/day"),
+        ("change-pet-pct.png", "%"),
+        ("change-pet.png", "mm, period integrals"),
+    ],
+)
+def test_pet_window_captions_stand_alone(suite, filename, units):
+    from blueearth_cst.projections.variable_spec import parse
+
+    _, record = suite
+    record["variable_spec"] = parse({"pet": {"method": "debruin"}})
+    window = record["windows"][0]
+    window.update(
+        reference=[1971, 2000],
+        used=[2010, 2039],
+        requested=[2005, 2034],
+        shifted=True,
+        joined=True,
+    )
+    window.pop("horizon_windows", None)
+    text = caption(
+        contract.FIGURE_FILENAMES[filename],
+        record,
+        window["window_id"],
+        {"n_models": 7, "by_scenario": {"ssp245": 5, "ssp585": 7}},
+    )
+    for phrase in (
+        "1971–2000",
+        "2010–2039",
+        "Based on 7 models.",
+        "Number of models: SSP2-4.5, 5; SSP5-8.5, 7.",
+        "shifted from [2005, 2034] to [2010, 2039]",
+        "Historical and scenario simulations are concatenated",
+        "HydroMT debruin",
+        "monthly-input approximation",
+        "buffered bounding box",
+        units,
+    ):
+        assert phrase in text
+    assert "1985–2014" not in text  # use this window's actual reference
+
+
+def test_pet_trajectory_caption_has_reference_shading_and_window_notes(suite):
+    from blueearth_cst.projections.variable_spec import parse
+
+    _, record = suite
+    record["variable_spec"] = parse({"pet": {"method": "makkink"}})
+    record["windows"] = [
+        {
+            "window_id": "2010-2039",
+            "used": [2010, 2039],
+            "horizon_windows": {
+                "near": {
+                    "requested": [2005, 2034],
+                    "used": [2010, 2039],
+                    "shifted": True,
+                    "joined": True,
+                }
+            },
+        },
+        {"window_id": "2071-2100", "used": [2071, 2100]},
+    ]
+    text = caption(
+        "cmip6_pet_annual_anomaly_ts_basin_avg.png",
+        record,
+        counts={"n_models": 3, "by_scenario": {"historical": 3, "ssp245": 2}},
+    )
+    for phrase in (
+        "1985–2014 mean annual total",
+        "grey shading marks the future analysis windows (2010–2039; 2071–2100)",
+        "historical/scenario transition (2014/2015)",
+        "Based on 3 models.",
+        "Number of models: Historical, 3; SSP2-4.5, 2.",
+        "window (near) was shifted",
+        "concatenated to complete the window (near)",
+        "HydroMT makkink",
+        "mm/year",
+    ):
+        assert phrase in text
+
+
+@pytest.mark.parametrize(
+    "variable,method",
+    [("pet", "makkink"), ("tdew", "specific_humidity"), ("wind", "sfcwind")],
+)
+def test_derived_opt_out_retires_previous_horizon_without_deleting_other_files(
+    suite, tmp_path, variable, method
+):
+    from blueearth_cst.projections.variable_spec import parse
+
+    tables, record = suite
+    original_availability = tables["availability"].copy()
+    for name, table in list(tables.items()):
+        if "variable" in table:
+            pet = table.loc[table.variable.eq("temp")].assign(variable=variable)
+            tables[name] = pd.concat([table, pet], ignore_index=True)
+    record["variable_spec"] = parse(
+        {variable: {"method": method, "change": "absolute"}}
+    )
+    tables["availability"]["available"] = False
+    old_folder = "period_2036_2065"
+    pet_rows = [
+        dict(
+            filename=contract.FIGURE_FILENAMES[key],
+            folder="full_period" if key.startswith("trajectory-") else old_folder,
+            window_id="" if key.startswith("trajectory-") else "2036-2065",
+            available=key == f"seasonal-cycle-{variable}.png",
+            reason="synthetic unavailable product",
+        )
+        for key in (
+            f"trajectory-{variable}.png",
+            f"seasonal-cycle-{variable}.png",
+            f"change-{variable}.png",
+        )
+    ]
+    tables["availability"] = pd.concat(
+        [tables["availability"], pd.DataFrame(pet_rows)], ignore_index=True
+    )
+    plots = tmp_path / "plots"
+    manifest, _ = render_suite(tables, record, plots)
+    pet_path = (
+        plots / old_folder / contract.FIGURE_FILENAMES[f"seasonal-cycle-{variable}.png"]
+    )
+    assert set(manifest) == {f"{old_folder}/{pet_path.name}"}
+    assert pet_path.is_file()  # exercise real publication before opt-out
+
+    preserved = [
+        plots
+        / old_folder
+        / contract.FIGURE_FILENAMES["seasonal-cycle-temperature.png"],
+        plots / old_folder / "unrelated.png",
+        plots
+        / old_folder
+        / contract.FIGURE_FILENAMES[
+            f"change-{variable}.png"
+        ],  # unmanaged derived figure
+        tmp_path / "outside" / pet_path.name,
+        tmp_path / "raw" / "source.nc",
+    ]
+    for path in preserved:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"preserve these bytes")
+    manifest_path = tmp_path / "_engine/figure_captions.json"
+    manifest[
+        f"../outside/{pet_path.name}"
+    ] = {}  # untrusted manifest must not escape root
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    record.pop("variable_spec")
+    record["windows"][0].update(window_id="2071-2100", used=[2071, 2100])
+    tables["availability"] = original_availability
+    tables["availability"]["available"] = False
+    period = tables["availability"].folder.eq(old_folder)
+    tables["availability"].loc[period, "folder"] = "period_2071_2100"
+    tables["availability"].loc[period, "window_id"] = "2071-2100"
+    refreshed, _ = render_suite(tables, record, plots)
+    assert not pet_path.exists()
+    assert refreshed == json.loads(manifest_path.read_text()) == {}
+    assert all(path.read_bytes() == b"preserve these bytes" for path in preserved)
+
+
 def test_unplotted_statistics_do_not_enable_mean_figures(suite):
     tables, _ = suite
     models = tables["model_changes"].loc[tables["model_changes"].statistic != "mean"]

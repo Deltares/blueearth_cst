@@ -74,7 +74,8 @@ and resolved runtime locators. `config_paths.py` and `tests/test_config_paths.py
 | `basin.output_locations` | Optional location CSV; [format and snapping](input-formats.md#output-locations) |
 | `basin.delineation` | Spatial-unit controls, including `snap_tolerance_m`; starter comments describe the options |
 | `climate.sources` | Candidate historical catalog sources |
-| `climate.selected` | Selected forcing; must belong to candidates; null is allowed for historical climate analysis-only analysis |
+| `climate.forcing.precip_source` | Precipitation choice from comparison candidates; infer only a sole candidate |
+| `climate.forcing` | Optional selected-source companion, elevation, PET and correction recipe; see below |
 | `climate.window` | Inclusive calendar-year `start`/`end`; historical record, not hydrological run period |
 | `climate.water_year_start` | Reporting-year month, default January |
 | `climate.map_reference` | Historical-map completeness; default 3 missing days/month, 15/year |
@@ -84,8 +85,7 @@ and resolved runtime locators. `config_paths.py` and `tests/test_config_paths.py
 The historical-window parser is `historical_window_bounds` in `shared/wf3_science.py`.
 `snake_utils.validate_historical_window` enforces the configured 16-year minimum. Extraction uses the
 available overlap, warns on narrowing, and refuses no overlap or insufficient selected-source coverage.
-CHIRPS selection requires overlap with its ERA5 companion variables. Model building independently checks
-forcing
+CHIRPS selection requires overlap with its companion variables (ERA5 by default). Model building checks forcing
 coverage for its declared simulation window, including Wflow's initial-state time convention.
 
 `climate.map_reference` accepts only `max_missing_days_month` (integer 0–27) and
@@ -94,6 +94,80 @@ diagnostic tolerances must
 equal these shared values. Model building forcing summaries retain their independent default 3/15 policy.
 Completeness and temporal aggregation are distinct from the inclusive extraction dates.
 
+### Historical forcing recipe
+
+`climate.forcing` applies to the selected source; comparison-only candidates retain their native behavior.
+Selected precipitation remains `era5`, `chirps` or `chirps_global`. Omission and explicit defaults are
+equivalent. The [annotated starter](../../config/templates/example-basin/project_config.yml) shows the keys.
+
+Keep this block in the project file: model building and independent scenario generation share it.
+Comparison-only historical analysis needs no forcing selection; omit the block or use `{}`. When forcing
+is needed, the whole block may be omitted only with one valid candidate in `climate.sources`.
+With several candidates, set `climate.forcing.precip_source` explicitly. Candidate order and earlier runs
+never select forcing. Empty, duplicate or unsupported candidates fail before execution.
+
+Defaults fill omitted settings, never missing data. ERA5 supplies all required companion fields by default,
+including for CHIRPS precipitation. A different `temp_source` must supply every required field; individual
+variables are not silently borrowed from ERA5. The recipe derives seven total fields for de Bruin, six for
+Makkink and precipitation/temperature/PET for direct mode. Supplied nulls, wrong types, unknown keys and
+empty names are errors. Entry-point summaries show resolved choices before execution.
+
+Legacy `climate.selected` and `climate.forcing.temp_pet_source` remain accepted with deprecation notices.
+Do not supply both spellings of a field, even with equal values. A legacy null selection remains unselected;
+null under a new key is invalid. Archives and scientific recipe serialization retain their original bytes
+and meaning. Equivalent old/new or inferred/explicit choices have the same scientific identity within one
+software candidate; producer-code integrity can change identities across revisions.
+
+| Key | Default and allowed meaning |
+|---|---|
+| `precip_source` | Candidate precipitation source; required explicitly when several candidates exist |
+| `temp_source` | `era5`; temperature, extrema, pressure and radiation required by the selected PET recipe |
+| `orography_source` | `era5_orography`; source elevation entry; required explicitly for another companion |
+| `temp_correction` | `true`; boolean controlling lapse correction at extraction and model preparation |
+| `press_correction` | `true`; boolean controlling pressure correction during computed-PET preparation |
+| `pet.mode` | `computed` or `direct` |
+| `pet.method` | `debruin` (default) or `makkink`; computed mode only |
+| `pet.source` | Required catalog entry for supplied reference PET in direct mode; forbidden in computed mode |
+
+Direct mode forbids both `pet.method` and an explicitly supplied `press_correction`, even if false.
+It prepares temperature and transports the supplied PET through HydroMT-Wflow's `setup_pet_forcing`.
+Supply reference PET, not actual evapotranspiration. Direct PET is available for historical analysis and
+model forcing; scenario generation and scenario simulation reject it before preparation. No PET
+perturbation model is implied.
+
+Computed recipes require companion `temp`, `temp_min`, `temp_max`, `press_msl` and `kin`, plus `kout`
+for de Bruin. Direct recipes require companion `temp` and supplied `pet`. Precipitation defines the
+extraction grid. Sources are clipped to their actual daily overlap; gaps, duplicates, unsupported
+calendars, absent variables and invalid required-domain values fail instead of being padded. Supplied
+PET must be finite and nonnegative inside the required basin; masked cells outside it are allowed.
+
+When a different companion is regridded, its declared source elevation references the lapse correction
+onto the hydrography sidecar. Subsequent model preparation uses that sidecar. Disabling temperature
+correction disables both steps. Same-source ERA5 extraction reads native temperature without applying
+lapse correction; its configured elevation is used during preparation. Pressure is corrected only during
+PET preparation.
+
+The reviewed ERA5/CHIRPS catalog arithmetic remains supported. An alternative canonical-unit input must
+declare `metadata.time_label: interval_end` in its catalog and actually deliver daily midnight fields in
+mm/day, degrees Celsius, hPa and W/m² as applicable. This declaration describes the daily interval ending
+at each timestamp; regular midnight timestamps alone do not establish it. Required-variable unit scaling
+must be identity arithmetic, and variable attributes are checked. Supplied PET may also use HydroMT's
+native `mm` label for a daily total; it is equivalent to mm/day only under this enforced one-day interval
+contract. No additional conversion profile or new data product is supplied. Controlled fixtures establish
+the mechanism; real alternative companions
+and independent PET products require separate source qualification.
+
+Extraction identity contains sources, required variables and corrections performed during extraction.
+Non-default extraction settings select a separate store. Preparation-only pressure settings, and
+same-source elevation/lapse settings, do not change that store or its generator input identity.
+Scenario simulation compares extraction recipes with the selected collection's archived creator recipe
+and applies the current preparation settings. Non-default preparation records use version 3; retained
+version-2 records retain their original correction settings. Producer-code integrity remains part of
+scenario identity. Numerical backward comparisons therefore use equivalent fixed inputs and seeds.
+
+CHIRPS diagnostics remain precipitation-only contributors even when their forcing stores borrow
+temperature/PET fields. Captions identify the companion or supplied-PET source when those fields are shown.
+
 ## Workflow settings
 
 Use the complete annotated starter files for supported optional fields and example values.
@@ -101,7 +175,7 @@ The following links explain the settings for each workflow.
 
 | Workflow | Settings and detailed reference |
 |---|---|
-| historical climate analysis | `diagnostics`, `subbasin_figures`: [historical analysis](workflow-analyze-climate.md#configuration) |
+| historical climate analysis | `diagnostics`, `subbasin_figures`, optional `rain_gauges`: [historical analysis](workflow-analyze-climate.md#configuration) |
 | model building | Required `simulation_window`; optional engine recipes and `observations`: [model](workflow-build-model.md#configuration) |
 | projection analysis | `catalog`, `ensemble`, `models`, `scenarios`, `members`, `variables`, windows, `stats`: [projections](workflow-analyze-projections.md#configuration) |
 | scenario generation | `seed`, `n_realizations`, `simulation_window`, monthly perturbations, generator and capacity: [generation](workflow-generate-scenarios.md#configuration) |
@@ -112,6 +186,36 @@ a custom base selects its own numbered family. Plain execution selects the highe
 of completion. `--new-experiment` advances it; an exact numbered name selects that experiment. Previewing with
 `scripts/suggest_experiment_name.py` reserves nothing. Changed scientific simulation inputs require a new
 experiment. See [retained identities](retained-handoffs.md#identities-and-reuse).
+
+## Optional native model grids {#netcdf-grid}
+
+The model-building and hydrological-simulation workflow files each accept their own
+`output.netcdf_grid` request. Omission or `null` disables it. Settings are independent: enabling
+historical grids does not enable ensemble grids. The toolbox manages file paths.
+
+```yaml
+output:
+  netcdf_grid:
+    compressionlevel: 1
+    variables:
+      snowpack_dry_snow__leq_depth: snow
+      snowpack_liquid_water__depth: snowwater
+      river_water__volume_flow_rate: discharge
+```
+
+Keys under `variables` are installed Wflow-SBM standard names; values are unique lowercase
+snake_case NetCDF names. Coordinate names are reserved. Variables must exist in enabled model
+components and have a native writer-supported shape; admission occurs before timestepping.
+Native soil-layer dimensions are preserved. Empty mappings, unknown keys and user-specified
+paths reject. `compressionlevel` defaults to 1 and accepts integers 0–9, excluding booleans.
+
+Files follow the native simulation timestep, period and calendar, with interval-end labels.
+Snow depths are end-of-step storages in mm: dry-snow water equivalent and liquid water,
+respectively; neither is fractional snow cover. Discharge is the native timestep-average flow
+in m3/s. Other variables retain Wflow's own units and temporal meaning. Native values and masks
+are written by Wflow; metadata adds units from its standard-name API and CRS from staticmaps.
+
+The [output guide](../guide/outputs.md#native-grids) describes placement, storage and reruns.
 
 ## Plotting resources
 

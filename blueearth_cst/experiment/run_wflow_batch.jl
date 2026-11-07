@@ -4,6 +4,8 @@
 # failed-job cleanup cannot delete it and a retry re-runs only the failures
 # (blueearth_cst/experiment/batch_staging.py). Unset, outputs stay in place.
 using Dates
+using TOML
+using SHA
 
 function parse_batch(args)
     length(args) >= 4 && (length(args) - 1) % 3 == 0 ||
@@ -49,9 +51,23 @@ if abspath(PROGRAM_FILE) == @__FILE__
             end
             isfile(member.native_output_path) ||
                 error("Missing native output $(member.native_output_path)")
+            config = TOML.parsefile(member.toml_path)
+            grid_config = get(get(config, "output", Dict()), "netcdf_grid", nothing)
+            grid_path = isnothing(grid_config) ? nothing : normpath(joinpath(
+                dirname(member.toml_path), get(config, "dir_output", "run_default"), grid_config["path"]))
+            isnothing(grid_path) || isfile(grid_path) || error("Missing native grid $grid_path")
             if !isempty(staging)
                 # CSV first, marker second: an `.ok` always has its CSV.
                 mv(member.native_output_path, joinpath(staging, "$(tag).csv"); force=true)
+                if !isnothing(grid_path)
+                    staged_grid = joinpath(staging, "$(tag).nc")
+                    mv(grid_path, staged_grid; force=true)
+                    checksums = Dict("csv" => bytes2hex(open(sha256, joinpath(staging, "$(tag).csv"))),
+                                     "grid" => bytes2hex(open(sha256, staged_grid)))
+                    open(joinpath(staging, "$(tag).sha256"), "w") do io
+                        TOML.print(io, checksums)
+                    end
+                end
                 mv(joinpath(staging, "$(tag).expect"), joinpath(staging, "$(tag).ok"); force=true)
             end
         catch e

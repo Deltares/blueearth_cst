@@ -193,17 +193,18 @@ def test_instrumented_driver_preserves_member_outputs_and_failure(tmp_path):
     package = tmp_path / "packages/Wflow/src"
     package.mkdir(parents=True)
     (package / "Wflow.jl").write_text(
-        'module Wflow\nusing Logging\nconst VERSION = "test"\n'
+        'module Wflow\nusing Logging, TOML\nconst VERSION = "test"\n'
+        "do_netcdf_grid(config) = false\n"
         "Config(path) = (logging=(silent=true,), fews_run__flag=false, path=path)\n"
         "init_logger(config; silent) = (NullLogger(), IOBuffer())\n"
         "function run(config)\n"
         '  endswith(config.path, "fail.toml") && error("expected failure")\n'
-        '  write(read(config.path, String), "native response\\n")\nend\nend\n',
+        '  write(TOML.parsefile(config.path)["fixture_output"], "native response\\n")\nend\nend\n',
         encoding="utf-8",
     )
     output = tmp_path / "run_01.csv"
     settings = tmp_path / "ok.toml"
-    settings.write_text(str(output), encoding="utf-8")
+    settings.write_text(f'fixture_output="{output.as_posix()}"\n', encoding="utf-8")
     diagnostics = tmp_path / "diagnostics"
     env = {
         **os.environ,

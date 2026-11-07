@@ -11,6 +11,7 @@ SIMULATION_CODE_ENTRIES = (
     "blueearth_cst/experiment/run_wflow_batch.jl",
     # This helper also constructs Wflow.Config and invokes Wflow.run.
     "blueearth_cst/shared/wflow_progress.jl",
+    "blueearth_cst/shared/wflow_grid.jl",
     "blueearth_cst/shared/resource_timing.jl",
 )
 

@@ -119,26 +119,33 @@ def historical_map_reference_rule(
     """Resolve both DAGs' identical producer without reading not-yet-built stores."""
     if type(m0) is not int or not 1 <= m0 <= 12:
         raise ValueError("Map reporting month must be an integer in [1, 12]")
-    selected = climate["selected"]
+    selected = climate.get("selected")
     declared = climate["sources"]
     if (
         not isinstance(declared, (list, tuple))
         or not declared
-        or selected not in declared
+        or (selected is not None and selected not in declared)
     ):
         raise ValueError(
             "climate.sources must be a nonempty list containing climate.selected"
         )
-    names = tuple(dict.fromkeys([selected, *declared]))
+    names = tuple(
+        ([selected] if selected is not None else [])
+        + [name for name in declared if name != selected]
+    )
     catalogs = tuple(
         Path(path)
         for path in ([data_sources] if isinstance(data_sources, str) else data_sources)
     )
     completeness = resolve_map_completeness(climate.get("map_reference"))
-    orography = resolve_source_orography(catalogs) if "era5" in names else ()
+    from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
+
     specs = []
     for name in names:
         source_role(name)
+        recipe = normalize_forcing_recipe(
+            name, climate.get("forcing") if name == selected else None
+        )
         store = climate_store_rule(
             project_dir,
             model_region,
@@ -150,6 +157,7 @@ def historical_map_reference_rule(
             enforce_min_years=name == selected,
             forcing_required=name == selected
             or name not in {"chirps", "chirps_global"},
+            forcing=recipe.settings(),
         )
         specs.append(
             SourceMapSpec(
@@ -159,7 +167,12 @@ def historical_map_reference_rule(
                 catalogs,
                 (store.params["starttime"][:10], store.params["endtime"][:10]),
                 Path(store.outputs["oro_nc"]) if "oro_nc" in store.outputs else None,
-                orography if name == "era5" else (),
+                resolve_source_orography(catalogs, recipe.orography_source)
+                if name == "era5"
+                and "oro_nc" not in store.outputs
+                and recipe.pet_mode == "computed"
+                else (),
+                recipe if recipe != normalize_forcing_recipe(name) else None,
             )
         )
     shared = {
@@ -268,7 +281,7 @@ def geographic_ticks(low: float, high: float) -> list[float]:
     ]
 
 
-def frame_record(field: xr.DataArray, source: str) -> dict[str, Any]:
+def frame_record(field: xr.DataArray, source: str | None) -> dict[str, Any]:
     x, y = field_edges(field)
     west, east, south, north = (
         float(x.min()),
@@ -362,14 +375,14 @@ def scale_record(
 
 def current_reference_identity(
     specs: Sequence[SourceMapSpec],
-    selected: str,
+    selected: str | None,
     m0: int,
     completeness: Mapping[str, int],
     shared_inputs: Mapping[str, str],
 ) -> dict[str, Any]:
     if (
         not specs
-        or specs[0].source != selected
+        or (selected is not None and specs[0].source != selected)
         or len({spec.source for spec in specs}) != len(specs)
     ):
         raise ValueError("Reference sources must be unique and selected-first")
@@ -402,7 +415,7 @@ def current_reference_identity(
 
 def build_reference(
     specs: Sequence[SourceMapSpec],
-    selected: str,
+    selected: str | None,
     m0: int,
     completeness: Mapping[str, int],
     shared_inputs: Mapping[str, str],
@@ -428,6 +441,8 @@ def build_reference(
             )
         identity["source_preparations"][spec.source] = entry
         if frame is None:
+            # An unselected comparison uses a native display grid, without
+            # turning that grid into a forcing choice.
             frame = frame_record(fields.precip, selected)
         prep = entry["preparation_identity"]
         grid = fields.precip.transpose("latitude", "longitude")
@@ -557,7 +572,7 @@ def build_reference(
 def validate_reference(
     record: Mapping[str, Any],
     specs: Sequence[SourceMapSpec],
-    selected: str,
+    selected: str | None,
     m0: int,
     completeness: Mapping[str, int],
     shared_inputs: Mapping[str, str],

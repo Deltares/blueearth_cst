@@ -39,12 +39,15 @@ from pathlib import Path
 from typing import Sequence, Union
 
 import pandas as pd
+import xarray as xr
 from hydromt_wflow import WflowSbmModel
 
 from blueearth_cst.climate_analysis.prepare_climate_data_catalog import (
     prepare_clim_data_catalog,
 )
 from blueearth_cst.shared.climate_window import require_min_years, store_time_bounds
+from blueearth_cst.shared.forcing_data import validate_daily_fields
+from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
 from blueearth_cst.shared.progress import DaskFrameRelay
 from blueearth_cst.shared.setup_time_horizon import prep_hydromt_update_forcing_config
 
@@ -195,6 +198,8 @@ def add_climate_forcing(
     forcing_yml: Union[str, os.PathLike],
     climate_nc: Union[str, os.PathLike, None] = None,
     store_catalog: Union[str, os.PathLike, None] = None,
+    oro_path: Union[str, os.PathLike, None] = None,
+    forcing=None,
 ) -> None:
     """Write the forcing recipe, then apply it to the model with hydromt.
 
@@ -208,9 +213,30 @@ def add_climate_forcing(
     inherited rather than hand-written (``prepare_clim_data_catalog`` drops the
     unit adapters, which is correct -- the extraction already applied them, and
     keeping them would convert twice).
+
+    ``oro_path`` is required for a CHIRPS store: its temperatures have already
+    been lapse-corrected to the extraction sidecar's elevation. The model must
+    use that same reference when correcting from the store to the model grid.
     """
     store_source = None
     bounds = None
+    dem_forcing_fn = None
+    recipe = (
+        normalize_forcing_recipe(clim_source, forcing) if forcing is not None else None
+    )
+    if recipe is not None and recipe.pet_mode == "direct":
+        if climate_nc is None:
+            raise ValueError(
+                "direct PET requires the validated historical climate store"
+            )
+        model = WflowSbmModel(root=basin_dir, mode="r")
+        with xr.open_dataset(climate_nc) as raw:
+            validate_daily_fields(
+                raw.sel(time=slice(starttime, endtime)),
+                ("pet",),
+                source="direct PET",
+                domain=model.region,
+            )
     if climate_nc is not None:
         # BEFORE the catalog is written and hydromt is invoked: a store that
         # cannot force this run should fail here, naming the store, rather than
@@ -221,9 +247,17 @@ def add_climate_forcing(
             data_libs_like=data_catalog,
             source_like=clim_source,
             fn_out=store_catalog,
+            oro_path=oro_path,
+            **({"recipe": recipe} if recipe is not None else {}),
         )
         # `prepare_clim_data_catalog` keys each entry on the file stem.
         store_source = Path(climate_nc).stem
+        if (
+            recipe.temp_pet_source != clim_source
+            if recipe is not None
+            else clim_source in {"chirps", "chirps_global"}
+        ):
+            dem_forcing_fn = f"{clim_source}_orography"
         data_catalog = [*_as_list(data_catalog), store_catalog]
 
     prep_hydromt_update_forcing_config(
@@ -233,6 +267,8 @@ def add_climate_forcing(
         precip_source=clim_source,
         wflow_root=basin_dir,
         store_source=store_source,
+        dem_forcing_fn=dem_forcing_fn,
+        **({"recipe": recipe} if recipe is not None else {}),
     )
     _run_streaming(
         [
@@ -276,7 +312,18 @@ if __name__ == "__main__":
                 forcing_yml=sm.output.forcing_yml,
                 climate_nc=sm.input.climate_nc,
                 store_catalog=sm.output.store_catalog,
+                oro_path=sm.input.oro_nc or None,
+                forcing=getattr(sm.params, "forcing", None),
             )
+            if getattr(sm.output, "forcing_record", []):
+                from blueearth_cst.model.historical_runs import write_forcing_record
+
+                write_forcing_record(
+                    Path(sm.params.basin_dir) / "wflow_sbm.toml",
+                    Path(sm.output.forcing_record[0]),
+                    sm.params.clim_source,
+                    getattr(sm.params, "forcing", None),
+                )
             log_row(
                 # Dates only: the run window is whole days, so the `T00:00:00`
                 # both stamps carry is 18 chars of constant on a row that was

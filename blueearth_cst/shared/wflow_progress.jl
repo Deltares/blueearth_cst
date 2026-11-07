@@ -37,6 +37,7 @@
 module WflowProgress
 
 using Logging
+include("wflow_grid.jl")
 
 """
     format_elapsed(seconds) -> String
@@ -250,7 +251,19 @@ function run_with_progress(Wflow, tomlpath::AbstractString; label::AbstractStrin
     with_logger(TeeLogger(logger, FrameLogger(io, label; position = position))) do
         @info "Wflow version `v$(Wflow.VERSION)`"
         try
-            Wflow.run(config)
+            if Wflow.do_netcdf_grid(config)
+                check_grid_request(Wflow, config)
+                model = Wflow.Model(config)
+                try
+                    annotate_grid(Wflow, model, tomlpath)
+                    Wflow.load_fixed_forcing!(model)
+                    Wflow.run!(model; close_files=false)
+                finally
+                    Wflow.close_files(model; delete_output=false)
+                end
+            else
+                Wflow.run(config)
+            end
         catch e
             if config.fews_run__flag
                 @error "Wflow simulation failed" exception = e _id = :wflow_run

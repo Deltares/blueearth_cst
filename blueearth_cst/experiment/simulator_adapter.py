@@ -113,6 +113,7 @@ class PreparationSettings:
     first_time: str
     last_time: str
     temporal_path: Path | None = None
+    netcdf_grid: dict | None = None
 
 
 @dataclass(frozen=True)

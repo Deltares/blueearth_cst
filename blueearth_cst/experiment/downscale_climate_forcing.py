@@ -94,9 +94,17 @@ def collection_run_forcing(
         forcing_key,
         elevation["catalog_key"],
         preparation["pet_method"],
-        True,
-        True,
-        ("cftime_to_datetime64", "clip_to_configured_window", "refresh_toml_endpoints"),
+        press_correction=preparation["press_correction"]
+        if preparation["schema_version"] == "forcing-preparation/3"
+        else True,
+        temp_correction=preparation["temp_correction"]
+        if preparation["schema_version"] == "forcing-preparation/3"
+        else True,
+        conversions=(
+            "cftime_to_datetime64",
+            "clip_to_configured_window",
+            "refresh_toml_endpoints",
+        ),
     )
     descriptor = describe_forcing(
         ClimateArtifact(run_id, forcing_path),
@@ -132,8 +140,8 @@ def forcing_chunksize(size):
 def pet_method_for(precip_source):
     """Return the PET method matching ``precip_source``.
 
-    E-OBS carries no radiation, so it takes Makkink; everything else takes
-    De Bruin.
+    Preserve the legacy E-OBS/Makkink mapping for public-helper compatibility.
+    Retained WF4 preparation selects its method from the effective recipe.
     """
     return "makkink" if precip_source == "eobs" else "debruin"
 
@@ -389,6 +397,15 @@ def prepare_model_forcing(run_forcing, model_reference, settings):
     # WF3 consumes only the CSV. Remove the inherited output pointer while
     # retaining state.path_input and state.variables for warm initialization.
     mod.config.data.get("state", {}).pop("path_output", None)
+    from blueearth_cst.shared.grid_output import configure_grid_output, grid_path
+
+    configure_grid_output(
+        mod.config.data,
+        settings.netcdf_grid,
+        os.path.relpath(
+            grid_path(settings.native_output_path), config_out_root
+        ).replace("\\", "/"),
+    )
 
     mod.setup_precip_forcing(
         precip_fn=climate_name,
@@ -477,6 +494,7 @@ def prepare_collection_run(
     temporal_out,
     validated_collection=None,
     preparation=None,
+    netcdf_grid=None,
 ):
     """Prepare one retained member with the reviewed physical Wflow binding."""
     from blueearth_cst.experiment.simulator_adapter import (
@@ -528,6 +546,7 @@ def prepare_collection_run(
             first,
             last,
             Path(temporal_out),
+            netcdf_grid,
         ),
     )
 
@@ -565,6 +584,7 @@ if __name__ == "__main__":
                 temporal_out=sm.output.temporal,
                 validated_collection=sm.params.validated_collection,
                 preparation=record["documents"]["preparation"],
+                netcdf_grid=record["documents"]["settings"].get("netcdf_grid"),
             )
             from blueearth_cst.shared.run_log_core import log_row
 

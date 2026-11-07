@@ -23,6 +23,11 @@ for its figures; the owning producer implements it.
 
 ## Workflow profiles
 
+The observed water-balance profile uses `observed_runoff_coefficient_budyko_stations.png` under
+model `evaluation/budyko/plots/`. `model/plot_budyko.py` renders this retained-table station comparison;
+source recipe, period and station identities live in its tables and methods record. Annotation modes
+use the same PNG path, with readable title/caption inventories and machine records in the root `_engine/`.
+
 The [historical climate profile](#historical-climate-diagnostics-wf0) below documents WF0. Other workflows
 retain their current producer-defined filenames until their profiles are documented and checked here.
 For example, WF1 forcing figures retain `forcing_<variable>_<kind>.png` under the
@@ -79,6 +84,7 @@ Canonical WF0 plot-context tokens:
 
 ```text
 annual_clim_map
+annual_anomaly_map
 monthly_coverage
 monthly_clim_band
 annual_timing
@@ -96,12 +102,17 @@ annual_trend_ts
 seasonal_anomaly
 monthly_spi_fit
 annual_trend_sensitivity
+daily_agreement
 ```
 
 The machine vocabulary and descriptions live in `figure_naming.py`. `annual_ts`, `monthly_box` and
 `monthly_clim_line` remain registered for the WF1 source producer; WF0 does not emit them. WF0 emits
 PNGs only. Optional captioned copies use the
 same filename under `plots/captioned/`; captions never add a fifth field.
+
+Optional annual spatial anomalies use `annual_anomaly_map` under
+`plots/annual_anomalies/page_001/`, `page_002/`, etc. Each page retains the ordinary four-field filename;
+dates and page membership live in titles, captions and the source's retained anomaly record.
 
 Recommended spatial-scope tokens:
 
@@ -135,7 +146,10 @@ subbasin area distinct from a model observation point.
 Add new contexts or abbreviations to `figure_naming.py` and this reference, rather than spelling
 them independently in plotting modules. The
 [`figure-naming tests`](../../../tests/test_figure_naming.py) check admitted tokens and examples.
-The station scope is registered for future evaluation figures; current WF0 figures do not emit it.
+Rain-gauge comparisons emit `monthly_coverage`, `annual_ts`, `monthly_clim_line` and `daily_agreement`
+with `station_<token>_avg`. Here the token maps to the literal user-supplied gauge ID in
+`rain_gauges/tables/stations.csv`; it is independent of Wflow's `wflow_id` namespace.
+The suffix identifies station comparison support; the sampled grid value is its native cell.
 
 ### Examples
 

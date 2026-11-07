@@ -676,11 +676,20 @@ def merge_variable_slices(slices, calendars, entry):
 
 
 def read_variable_slices(
-    read_spec, catalog_entry, member, variables, chosen, bbox, buffer, window
+    read_spec,
+    catalog_entry,
+    member,
+    variables,
+    chosen,
+    bbox,
+    buffer,
+    window,
+    admit_pet=False,
 ):
     """Read differing versions through HydroMT, checking compatibility before merge."""
     import hydromt
     import xarray as xr
+    from hydromt.error import NoDataException
 
     rename = (read_spec.get("data_adapter") or {}).get("rename", {})
     source_names = {target: source for source, target in rename.items()}
@@ -689,18 +698,34 @@ def read_variable_slices(
     try:
         for variable in variables:
             source = source_names.get(variable, variable)
-            if source not in chosen:
+            versions = set(chosen.values())
+            if source not in chosen and (not admit_pet or len(versions) > 1):
                 raise ValueError(
                     f"{entry}: no indexed pin for requested variable {source!r}"
+                    + (
+                        ". Supply explicit matching source pins on one common grid; "
+                        "calculated monthly variables cannot substitute a different member or method."
+                        if admit_pet
+                        else ""
+                    )
                 )
             spec = dict(read_spec)
-            spec["uri"] = (
-                str(read_spec["uri"])[: -len(series_identity.STORE_GLOB_SUFFIX)]
-                + "/"
-                + chosen[source]
-            ).replace("{variable}", source)
+            spec["uri"] = str(read_spec["uri"])
+            selected = chosen.get(source)
+            if admit_pet and selected is None and len(versions) == 1:
+                # Preserve the existing shared-pin policy for non-certified
+                # dependencies. Differing versions require every source pin.
+                selected = next(iter(versions))
+            if selected is not None:
+                spec["uri"] = (
+                    spec["uri"][: -len(series_identity.STORE_GLOB_SUFFIX)]
+                    + "/"
+                    + selected
+                )
+            spec["uri"] = spec["uri"].replace("{variable}", source)
             store_uri = spec["uri"].replace("{member}", member)
-            calendars[source] = series_identity.read_store_calendar(store_uri)
+            if not admit_pet:
+                calendars[source] = series_identity.read_store_calendar(store_uri)
             log_row(f"Using source {source}: {store_uri}", module="fetch")
             catalog = hydromt.DataCatalog()
             catalog.from_dict({catalog_entry: spec})
@@ -712,8 +737,12 @@ def read_variable_slices(
                     time_range=window,
                     variables=[variable],
                 )
-            except ValueError as exc:
+            except (ValueError, OSError, KeyError, NoDataException) as exc:
                 if not is_irregular_grid_error(exc):
+                    if admit_pet:
+                        raise ValueError(
+                            f"{entry}: monthly input {source} could not be admitted: {exc}. Supply matching qualified monthly inputs or disable the calculated variable."
+                        ) from exc
                     raise
                 data = catalog.get_rasterdataset(
                     entry, time_range=window, variables=[variable]
@@ -728,6 +757,36 @@ def read_variable_slices(
                 )
             if isinstance(data, xr.DataArray):
                 data = data.to_dataset(name=variable)
+            if admit_pet:
+                if variable not in data:
+                    raise ValueError(
+                        f"{entry}: missing {source}; supply matching monthly inputs or disable the calculated variable"
+                    )
+                attrs = data[variable].attrs
+                calendars[source] = attrs.get("cst_source_calendar", "unknown")
+                if source in {
+                    "tas",
+                    "ps",
+                    "rsds",
+                    "rsdt",
+                    "huss",
+                    "sfcWind",
+                    "uas",
+                    "vas",
+                }:
+                    model, experiment, expected_member = entry.removeprefix(
+                        "cmip6_"
+                    ).rsplit("_", 2)
+                    for field, expected in (
+                        ("model", model),
+                        ("experiment", experiment),
+                        ("member", expected_member),
+                    ):
+                        if attrs.get(f"cst_source_{field}") != expected:
+                            raise ValueError(
+                                f"{entry}: {source} source {field} mismatch; expected {expected!r}, found {attrs.get(f'cst_source_{field}')!r}"
+                            )
+                data[variable].attrs["cst_selected_source_path"] = store_uri
             slices[source] = data
             driver_index = data.indexes.get("time")
             data = data.sel(time=slice(*window))
@@ -735,7 +794,36 @@ def read_variable_slices(
                 f"{entry} {source}", data.indexes.get("time"), driver_index, window
             )
             slices[source] = data
-        merged = merge_variable_slices(slices, calendars, entry)
+        if admit_pet:
+            grids = {
+                var: array[var].attrs.get("cst_source_grid", "")
+                for array in slices.values()
+                for var in array.data_vars
+                if var
+                in {
+                    "temp",
+                    "press",
+                    "kin",
+                    "kout",
+                    "sh",
+                    "wind10",
+                    "wind10_u",
+                    "wind10_v",
+                }
+            }
+            if len(set(grids.values())) != 1 or "" in grids.values():
+                raise ValueError(
+                    f"{entry}: unknown or unequal monthly source grids: {grids}. "
+                    "Supply matching native grids or disable the calculated variable."
+                )
+        try:
+            merged = merge_variable_slices(slices, calendars, entry)
+        except ValueError as exc:
+            if admit_pet:
+                raise ValueError(
+                    f"{exc}. Supply matching monthly coordinates/calendars or disable the calculated variable."
+                ) from exc
+            raise
         # Materialize within this ownership scope so all sources close on failure too.
         return merged.load(), next(iter(calendars.values()))
     finally:
@@ -936,13 +1024,29 @@ def fetch_raw_slice(
     # stops parsing 289 entries to read one.
     register_wide_time_preprocess()
     read_spec = with_read_overrides(entry_spec)
+    if components.get("pet_input_contract"):
+        from blueearth_cst.projections.derived_pet import (
+            register_pet_preprocess,
+            validate_pet_adapter,
+        )
+
+        validate_pet_adapter(read_spec, variables)
+        read_spec["driver"]["options"]["preprocess"] = register_pet_preprocess()
+        if components.get("state_admission_hash"):
+            from blueearth_cst.projections.derived_states import (
+                register_state_preprocess,
+            )
+
+            read_spec["driver"]["options"]["preprocess"] = register_state_preprocess()
     pins_for_member = (components.get("pins") or {}).get(member, {})
     chosen = (
         series_identity.selected_pins(pins_for_member)
         if str(entry_spec.get("uri", "")).endswith(series_identity.STORE_GLOB_SUFFIX)
         else {}
     )
-    split_pins = len(set(chosen.values())) > 1
+    split_pins = len(set(chosen.values())) > 1 or bool(
+        components.get("pet_input_contract")
+    )
     pin_uri = series_identity.pinned_uri(
         str(entry_spec.get("uri", "")), pins_for_member
     )
@@ -1030,6 +1134,7 @@ def fetch_raw_slice(
             bbox,
             buffer,
             acquisition_window,
+            admit_pet=bool(components.get("pet_input_contract")),
         )
     else:
         with explaining_ambiguous_versions(entry, ambiguous):

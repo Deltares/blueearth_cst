@@ -243,6 +243,12 @@ def render(
     """
     root = Path(paths["root"])
     out_root = Path(paths.get("render_root", root))
+    previous_path = Path(paths["render"]["captions_json"])
+    previous = (
+        json.loads(previous_path.read_text(encoding="utf-8"))["figures"]
+        if previous_path.is_file()
+        else {}
+    )
     has_maps = any(form.startswith("map-") for form in paths["figures"])
     arguments = (
         reference_arguments(map_reference_params)
@@ -301,7 +307,9 @@ def render(
     view = artists.View(
         sources=sources,
         labels={
-            s: "CHIRPS" if s in {"chirps", "chirps_global"} else s.upper()
+            s: "CHIRPS"
+            if s in {"chirps", "chirps_global"}
+            else metadata.get("source_labels", {}).get(s, s.upper())
             for s in sources
         },
         styles=artists.source_styles(sources),
@@ -320,6 +328,8 @@ def render(
     )
     records = {}
     for form, filename in paths["figures"].items():
+        if form.startswith("annual-map-"):
+            continue
         availability = "available"
         support = (
             "native source cells intersecting the displayed map frame"
@@ -344,12 +354,27 @@ def render(
                 map_info["source_role"] = reference["identity"]["source_preparations"][
                     sources[0]
                 ]["preparation_identity"]["role"]
+                from blueearth_cst.shared.forcing_recipe import (
+                    normalize_forcing_recipe,
+                    read_forcing_recipe,
+                )
+
+                provenance = reference["identity"]["source_preparations"][sources[0]][
+                    "preparation_identity"
+                ]
+                recipe = (
+                    read_forcing_recipe(provenance["forcing_recipe"])
+                    if "forcing_recipe" in provenance
+                    else normalize_forcing_recipe(sources[0])
+                )
                 if (
                     variable == "pet"
                     and map_info["source_role"] == "temperature-carrier"
                 ):
                     notes.append(
-                        "PET is derived on the source grid (de Bruin) and can differ from model PET"
+                        "Supplied reference PET is shown without recomputation"
+                        if recipe.pet_mode == "direct"
+                        else f"PET is derived on the source grid ({recipe.pet_method}) and can differ from model PET"
                     )
                 elif (
                     variable in {"temp", "pet"}
@@ -361,6 +386,11 @@ def render(
                     f"{period[0]}–{period[1]},",
                     sources[0],
                     notes,
+                    recipe=recipe
+                    if recipe != normalize_forcing_recipe(sources[0])
+                    or (sources[0] != "era5" and variable != "precip")
+                    else None,
+                    variable=variable,
                 )
                 if not map_info["displayed_cells"]:
                     availability = "not displayed: native support does not intersect the displayed frame"
@@ -505,6 +535,19 @@ def render(
                 }
     if retained is not None:
         retained.close()
+    if len(sources) == 1:
+        from blueearth_cst.climate_analysis.annual_spatial_render import (
+            render_pages,
+            retire_pages,
+        )
+
+        if settings.get("annual_spatial_anomalies", False):
+            records.update(
+                render_pages(
+                    paths, settings, pooled_roots, reference, features, annotation
+                )
+            )
+        retire_pages(out_root, previous, records, sources[0])
     write_json(
         paths["render"]["captions_json"],
         {

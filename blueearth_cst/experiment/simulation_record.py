@@ -148,11 +148,21 @@ def simulation_intent_v2(
 
     include_unperturbed(settings)
     _v2_fields(
-        {key: value for key, value in settings.items() if key != "include_unperturbed"},
+        {
+            key: value
+            for key, value in settings.items()
+            if key not in {"include_unperturbed", "netcdf_grid"}
+        },
         {"simulation_window"},
         "settings",
     )
     window = _v2_fields(settings["simulation_window"], {"start", "end"}, "window")
+    if "netcdf_grid" in settings:
+        from blueearth_cst.shared.grid_output import normalize_grid_output
+
+        grid = normalize_grid_output({"netcdf_grid": settings["netcdf_grid"]})
+        if grid is None or grid != settings["netcdf_grid"]:
+            raise ValueError("simulation netcdf_grid must be enabled and normalized")
     if (
         type(window["start"]) is not int
         or type(window["end"]) is not int
@@ -174,10 +184,19 @@ def simulation_intent_v2(
             "forcing_elevation",
             "generated_forcing_reader",
             "pet_method",
-        },
+        }
+        | (
+            {"forcing_recipe", "temp_correction", "press_correction"}
+            if preparation_identity.get("schema_version")
+            == "forcing-preparation-identity/3"
+            else set()
+        ),
         "preparation identity",
     )
-    if preparation_identity["schema_version"] != "forcing-preparation-identity/2":
+    if preparation_identity["schema_version"] not in {
+        "forcing-preparation-identity/2",
+        "forcing-preparation-identity/3",
+    }:
         raise ValueError("unsupported preparation identity version")
     projections = {
         "settings": documents["settings"],
@@ -387,6 +406,7 @@ def live_simulation_inputs_v2(
     julia_command,
     header_path,
     include_unperturbed=True,
+    netcdf_grid=None,
 ):
     """Resolve all current scientific WF4 inputs into an immutable intent."""
     import tomllib
@@ -443,6 +463,8 @@ def live_simulation_inputs_v2(
     }
     if not include_unperturbed:
         documents["settings"]["include_unperturbed"] = False
+    if netcdf_grid is not None:
+        documents["settings"]["netcdf_grid"] = netcdf_grid
     selection = {
         "resolution_mode": resolution_mode,
         "manifest": file_reference(collection_path, "project_root", project),

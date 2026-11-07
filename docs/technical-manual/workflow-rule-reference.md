@@ -18,8 +18,11 @@ See [historical climate analysis](workflow-analyze-climate.md) for inputs, setti
 | `produce_historical_map_reference` | Prepare the shared map extent and color classes. |
 | `prepare_historical_map_fields_<source>` | Prepare native-grid map fields for each source. |
 | `compute_climate_diagnostics_<source>` | Calculate and save temporal diagnostics. |
+| `prepare_annual_spatial_anomalies_<source>` | Retain optional native annual P/T anomalies. |
 | `plot_climate_diagnostics_<source>` | Produce source figures and captions. |
 | `plot_climate_comparison` | Calculate and plot the common-period comparison. |
+| `prepare_rain_gauges` | Sample native cells and calculate observed-only station comparisons. |
+| `plot_rain_gauges` | Render coverage, totals, climatology and daily agreement from retained tables. |
 
 ## Hydrological model building {#build-model}
 
@@ -41,6 +44,7 @@ See [hydrological model building](workflow-build-model.md) for inputs, settings 
 | `write_gauge_index` | Map Wflow IDs to named stations. |
 | `plot_basin_map` | Plot basin and thematic maps. |
 | `plot_model_forcing` | Plot the model forcing grid. |
+| `evaluate_budyko` | Optional observed upstream water balance against prepared forcing, without simulated Q. |
 | `run_historical_simulation` | Run Wflow on the historical window. |
 | `export_simulation_tables` | Export per-variable response tables. |
 | `plot_model_evaluation` | Plot and score against available observations. |

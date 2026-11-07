@@ -59,6 +59,24 @@ def simulation_selection(config_path):
         settings, workflow_path, "simulate_system", project.get("schema_version", 2)
     )
     settings = normalize_indicator_settings(settings)
+    from blueearth_cst.shared.forcing_recipe import (
+        require_workflow_compatibility,
+        resolve_climate_forcing,
+    )
+
+    indicators_only = settings.get("operation") == "indicators-only" or settings.get(
+        "operations"
+    ) == ["indicators"]
+    if not indicators_only:
+        requested_climate = project.get("climate", {})
+        climate, recipe = resolve_climate_forcing(requested_climate, required=True)
+        require_workflow_compatibility(recipe, "simulate_system")
+        project["climate"] = climate
+        from blueearth_cst.shared.forcing_recipe import climate_forcing_summary
+        from blueearth_cst.shared.run_log_core import log_row
+
+        for row in climate_forcing_summary(requested_climate, required=True):
+            log_row(row, module="forcing")
     from blueearth_cst.experiment.simulation_runs import include_unperturbed
 
     include_unperturbed(settings)
@@ -563,11 +581,29 @@ def verify_selected_collection_source(project, selection, marker):
         "id": marker["collection_id"],
     }:
         raise ValueError("collection creator archive owner differs")
-    selected = archive["loaded_config"]["climate"]["selected"]
+    from blueearth_cst.shared.forcing_recipe import resolve_climate_forcing
+
+    creator = dict(archive["loaded_config"]["climate"])
+    # Older validated creator configs did not require a comparison candidate list.
+    if "sources" not in creator and creator.get("selected") is not None:
+        creator["sources"] = [creator["selected"]]
+    creator, creator_recipe = resolve_climate_forcing(
+        creator, required=True, notices=False
+    )
+    selected = creator["selected"]
     if selected != project["climate"]["selected"]:
         raise ValueError(
             f"WF4 climate source {project['climate']['selected']!r} differs from "
             f"collection creator source {selected!r}"
+        )
+    from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
+
+    current_recipe = normalize_forcing_recipe(
+        selected, project["climate"].get("forcing")
+    )
+    if current_recipe.extraction_dict() != creator_recipe.extraction_dict():
+        raise ValueError(
+            "WF4 forcing extraction recipe differs from collection creator recipe"
         )
     return selected
 

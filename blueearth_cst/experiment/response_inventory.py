@@ -306,7 +306,12 @@ def _v2_native_semantics(config, variable):
 
 
 def build_response_inventory_v2(
-    experiment_root, native_runs, temporal_preparation, *, _retained=False
+    experiment_root,
+    native_runs,
+    temporal_preparation,
+    *,
+    _retained=False,
+    _grid_metadata=None,
 ):
     """Check every requested native run and build the acyclic v2 inventory."""
     from blueearth_cst.experiment.simulation_record import read_simulation_intent_v2
@@ -461,6 +466,60 @@ def build_response_inventory_v2(
 
     inventory_series.sort(key=order)
     identity_series.sort(key=order)
+    grids = []
+    grid_identity = []
+    grid_request = intent["documents"]["settings"].get("netcdf_grid")
+    if grid_request is not None:
+        from blueearth_cst.shared.grid_output import (
+            configured_grid_path,
+            grid_path,
+            validate_grid,
+        )
+
+        for run in request["run_ids"]:
+            native = native_runs[run]
+            path = grid_path(native.csv_path).resolve(strict=True)
+            if (
+                not path.is_relative_to(root)
+                or configured_grid_path(native.toml_path) != path
+            ):
+                raise MissingResponseRequirement(
+                    f"run {run}: grid path differs or escapes experiment"
+                )
+            with Path(native.toml_path).open("rb") as handle:
+                declared = tomllib.load(handle)["output"]["netcdf_grid"]
+            if {
+                key: value for key, value in declared.items() if key != "path"
+            } != grid_request:
+                raise MissingResponseRequirement(
+                    f"run {run}: grid request differs from frozen intent"
+                )
+            if _grid_metadata is not None and not _retained:
+                raise MissingResponseRequirement(
+                    "saved grid metadata is retained-reader only"
+                )
+            if _grid_metadata is None:
+                metadata = validate_grid(path, native.toml_path)
+            else:
+                # Only the retained reader supplies this after verifying the
+                # enclosing inventory and each artifact's exact checksum.
+                saved = _grid_metadata[run]
+                metadata = validate_grid(
+                    path,
+                    native.toml_path,
+                    expected_contract=saved.get("validation_contract"),
+                    legacy="validation_contract" not in saved,
+                )
+            reference = file_reference(path, "experiment_root", root)
+            grids.append({"run_id": run, "file": reference, "metadata": metadata})
+            grid_identity.append(
+                {
+                    "run_id": run,
+                    "sha256": reference["sha256"],
+                    "size_bytes": reference["size_bytes"],
+                    "metadata": metadata,
+                }
+            )
     intent_ref = file_reference(
         root / "_engine/simulation_intent.json", "experiment_root", root
     )
@@ -500,6 +559,19 @@ def build_response_inventory_v2(
         "response_identity_sha256": content_sha256(identity),
     }
     inventory["response_inventory_sha256"] = content_sha256(inventory)
+    if grid_request is not None:
+        identity["schema_version"] = "response-inventory-identity/2"
+        identity["grids"] = grid_identity
+        inventory["schema_version"] = "response-inventory/4"
+        inventory["grids"] = grids
+        inventory["response_identity_sha256"] = content_sha256(identity)
+        inventory["response_inventory_sha256"] = content_sha256(
+            {
+                key: value
+                for key, value in inventory.items()
+                if key != "response_inventory_sha256"
+            }
+        )
     return inventory
 
 
@@ -529,10 +601,18 @@ def read_response_inventory_v2(experiment_root):
                 "identity_projection",
                 "response_identity_sha256",
                 "response_inventory_sha256",
-            },
+            }
+            | (
+                {"grids"}
+                if stored.get("schema_version") == "response-inventory/4"
+                else set()
+            ),
             "response inventory",
         )
-        if stored["schema_version"] != "response-inventory/3":
+        if stored["schema_version"] not in {
+            "response-inventory/3",
+            "response-inventory/4",
+        }:
             raise MissingResponseRequirement("unsupported response inventory version")
         digest = content_sha256(
             {
@@ -569,6 +649,9 @@ def read_response_inventory_v2(experiment_root):
         ):
             raise MissingResponseRequirement("response request section digest differs")
         native_runs = {}
+        for grid in stored.get("grids", []):
+            _v2_exact(grid, {"run_id", "file", "metadata"}, "grid artifact")
+            resolve_file_reference(grid["file"], {"experiment_root": root})
         for index, artifact in enumerate(stored["artifacts"]):
             _v2_exact(artifact, {"run_id", "file"}, "native artifact")
             matching = [item for item in stored["series"] if item["artifact"] == index]
@@ -609,7 +692,10 @@ def read_response_inventory_v2(experiment_root):
             )
         # Temporary handoff files are deliberately unnecessary after publication.
         observed = _build_response_inventory_v2_retained(
-            root, native_runs, stored["temporal_preparation"]
+            root,
+            native_runs,
+            stored["temporal_preparation"],
+            {item["run_id"]: item["metadata"] for item in stored.get("grids", [])},
         )
         if stored != observed:
             raise MissingResponseRequirement(
@@ -622,10 +708,16 @@ def read_response_inventory_v2(experiment_root):
         raise MissingResponseRequirement(f"retained responses {path}: {exc}") from exc
 
 
-def _build_response_inventory_v2_retained(root, native_runs, temporal_preparation):
+def _build_response_inventory_v2_retained(
+    root, native_runs, temporal_preparation, grid_metadata
+):
     """Rebuild through checked native files without requiring temporary JSONs."""
     return build_response_inventory_v2(
-        root, native_runs, temporal_preparation, _retained=True
+        root,
+        native_runs,
+        temporal_preparation,
+        _retained=True,
+        _grid_metadata=grid_metadata,
     )
 
 

@@ -31,6 +31,7 @@ Falsifier K7: a variable named something other than ``precip``, declared
 
 from __future__ import annotations
 
+import math
 from typing import NamedTuple
 
 from blueearth_cst.shared.variable_registry import (
@@ -41,6 +42,15 @@ from blueearth_cst.shared.variable_registry import (
 
 __all__ = ["CANONICAL_KINDS", "CHANGE_KINDS", "VariableSpec", "parse", "source_names"]
 
+PET_INPUTS = {
+    "makkink": ("temp", "press", "kin"),
+    "debruin": ("temp", "press", "kin", "kout"),
+}
+STATE_INPUTS = {
+    "tdew": {"specific_humidity": ("sh", "press")},
+    "wind": {"sfcwind": ("wind10",), "components": ("wind10_u", "wind10_v")},
+}
+
 
 class VariableSpec(NamedTuple):
     """One configured variable and what it means."""
@@ -50,9 +60,10 @@ class VariableSpec(NamedTuple):
     canonical: str
     units: str
     change: str
-    #: `C-64`. **Appended and must stay last** -- the params boundary flattens
-    #: this to a list and rebuilds it positionally.
+    #: Legacy positions stay stable: the params boundary rebuilds positionally.
     min_denominator: float | None = None
+    #: Appended with a default so retained six-field specs remain readable.
+    method: str | None = None
 
     @property
     def long_name(self) -> str:
@@ -184,6 +195,72 @@ def parse(variables) -> dict[str, VariableSpec]:
 
     spec: dict[str, VariableSpec] = {}
     for name, body in variables.items():
+        if name in STATE_INPUTS and (
+            body is None or body == {} or isinstance(body, dict) and "method" in body
+        ):
+            methods = STATE_INPUTS[name]
+            if (
+                not isinstance(body, dict)
+                or not isinstance(body.get("method"), str)
+                or body["method"] not in methods
+            ):
+                raise ValueError(
+                    f"variables.{name}.method must be one of {sorted(methods)}"
+                )
+            if (
+                set(body) - {"method", "change"}
+                or body.get("change", "absolute") != "absolute"
+            ):
+                raise ValueError(
+                    f"variables.{name} supports method and absolute change only"
+                )
+            spec[name] = VariableSpec(
+                name,
+                name,
+                "state",
+                "degC" if name == "tdew" else "m/s",
+                "absolute",
+                None,
+                body["method"],
+            )
+            continue
+        if name == "pet" and (body is None or body == {}):
+            raise ValueError(
+                "variables.pet requires {method: makkink} or {method: debruin}; "
+                "alternatively declare source/canonical/units/change in full."
+            )
+        if name == "pet" and isinstance(body, dict) and "method" in body:
+            extra = set(body) - {"method", "change", "min_denominator"}
+            if extra:
+                raise ValueError(
+                    f"variables.pet calculated form rejects keys {sorted(extra)}"
+                )
+            method = body["method"]
+            if not isinstance(method, str) or method not in {"makkink", "debruin"}:
+                raise ValueError("variables.pet.method must be makkink or debruin")
+            change = body.get("change", "relative")
+            if not isinstance(change, str) or change not in CHANGE_KINDS:
+                raise ValueError("variables.pet.change must be relative or absolute")
+            threshold = None
+            if change == "absolute" and "min_denominator" in body:
+                raise ValueError(
+                    "variables.pet.min_denominator is unused with absolute change"
+                )
+            if change == "relative":
+                threshold = body.get("min_denominator", 0.1)
+                if (
+                    isinstance(threshold, bool)
+                    or not isinstance(threshold, (float, int))
+                    or not math.isfinite(threshold)
+                    or threshold <= 0
+                ):
+                    raise ValueError(
+                        "variables.pet.min_denominator must be finite and > 0 mm/day"
+                    )
+            spec[name] = VariableSpec(
+                name, name, "rate", "mm/day", change, threshold, method
+            )
+            continue
         body = _resolve(name, body)
         if not isinstance(body, dict):
             raise ValueError(
@@ -214,6 +291,13 @@ def parse(variables) -> dict[str, VariableSpec]:
             change=str(body["change"]),
             min_denominator=_threshold(name, body),
         )
+    if any(value.method for value in spec.values()):
+        required_units = source_units(spec)
+        for name, value in spec.items():
+            if not value.method and value.units != required_units[value.source]:
+                raise ValueError(
+                    f"variables.{name}.units conflicts with calculated PET input {value.source}: expected {required_units[value.source]}"
+                )
     return spec
 
 
@@ -224,7 +308,67 @@ def source_names(spec: dict[str, VariableSpec]) -> list[str]:
     components, and an unordered one would make the cache key depend on mapping
     iteration order.
     """
-    return sorted(v.source for v in spec.values())
+    sources = set()
+    for value in spec.values():
+        if value.method:
+            sources.update(
+                STATE_INPUTS[value.name][value.method]
+                if value.name in STATE_INPUTS
+                else PET_INPUTS[value.method]
+            )
+        else:
+            sources.add(value.source)
+    return sorted(sources)
+
+
+def source_units(spec: dict[str, VariableSpec]) -> dict[str, str]:
+    """Canonical labels for acquired inputs, excluding calculated outputs."""
+    units = {v.source: v.units for v in spec.values() if not v.method}
+    if spec.get("pet") and spec["pet"].method:
+        units.update(temp="degC", press="hPa", kin="W m-2")
+        if spec["pet"].method == "debruin":
+            units["kout"] = "W m-2"
+    for name in STATE_INPUTS:
+        if name in spec and spec[name].method:
+            for source in STATE_INPUTS[name][spec[name].method]:
+                units[source] = {"sh": "1", "press": "hPa"}.get(source, "m/s")
+    return units
+
+
+def derived_state_identity(spec: dict[str, VariableSpec]) -> dict | None:
+    """Scientific methods and selected outputs, excluding presentation settings."""
+    methods = {
+        name: value.method
+        for name, value in spec.items()
+        if name in STATE_INPUTS and value.method
+    }
+    if not methods:
+        return None
+    return {
+        "methods": methods,
+        "outputs": {
+            name: {"source": value.source, "units": value.units}
+            for name, value in sorted(spec.items())
+        },
+    }
+
+
+def derived_pet_identity(spec: dict[str, VariableSpec]) -> dict | None:
+    """Identity of calculated PET and selected scalar outputs, excluding reporting.
+
+    Selecting temperature as an output can leave PET's acquired fields unchanged;
+    the scalar cache must still refresh its variable set.
+    """
+    pet = spec.get("pet")
+    if pet is None or pet.method is None:
+        return None
+    return {
+        "method": pet.method,
+        "outputs": {
+            name: {"source": value.source, "units": value.units}
+            for name, value in sorted(spec.items())
+        },
+    }
 
 
 def change_kind(spec, variable_name, default="absolute") -> str:
