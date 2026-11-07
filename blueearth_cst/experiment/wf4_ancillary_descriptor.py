@@ -377,6 +377,7 @@ def resolve_wf4_preparation(
     unit_interpretation,
     oro_path: Path | None = None,
     recipe=None,
+    collection_path: Path | None = None,
 ) -> dict[str, Any]:
     """Bind verified shared elevation and its relative HydroMT catalog to WF4."""
     import hydromt
@@ -452,7 +453,7 @@ def resolve_wf4_preparation(
         catalog_path, native["elevation"]["uri"], shared_reference, project
     ) != Path(selected.full_uri).resolve(strict=True):
         raise ValueError("HydroMT elevation URI differs from checked shared file")
-    return {
+    document = {
         "schema_version": "forcing-preparation/3"
         if nondefault
         else "forcing-preparation/2",
@@ -480,3 +481,21 @@ def resolve_wf4_preparation(
         if recipe is not None
         else predecessor["pet_method"],
     }
+    if collection_path is not None:
+        from blueearth_cst.experiment.content_identity import read_canonical_json
+        from blueearth_cst.experiment.scenario_collection_v2 import read_collection_v2
+
+        collection = read_collection_v2(collection_path)
+        if collection["schema_version"] == "delta-scenario-collection/1":
+            intent = read_canonical_json(
+                resolve_file_reference(collection["intent"], {"project_root": project})
+            )
+            settings = intent["settings"]
+            if "pet" in settings:
+                document["pet_method"] = "provided"
+                document["generated_forcing_reader"] = {
+                    "data_type": "RasterDataset",
+                    "driver": "raster_xarray",
+                    **settings["reader"],
+                }
+    return document

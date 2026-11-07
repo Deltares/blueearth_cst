@@ -120,6 +120,8 @@ def inventory(root, sources, settings, comparison=False):
     else:
         compute["daily"] = str(root / "tables" / "daily_basin.csv")
         compute["maps"] = str(root / "tables" / "annual_climatology.nc")
+        if settings.get("climate_indices", {}).get("enabled", False):
+            compute["climate_indices"] = str(root / "_engine" / "climate_indices.json")
     render = {
         "titles_json": str(root / "plots" / "_engine" / "figure_titles.json"),
         "titles_md": str(root / "plots" / "figure_titles.md"),
@@ -154,6 +156,38 @@ def inventory(root, sources, settings, comparison=False):
                 )
                 figures[key] = filename
                 render[f"figure_{key}"] = filename
+    if not comparison and settings.get("climate_indices", {}).get("enabled", False):
+        from blueearth_cst.indicators.climate.definitions import INDEX_METADATA
+
+        for metric in INDEX_METADATA:
+            render[f"index_map_{metric}"] = str(
+                root
+                / "plots"
+                / "indices"
+                / figure_filename(scope, metric, "annual_clim_map", "basin_ext")
+            )
+        for key, context in (
+            ("index_series", "annual_indices_ts"),
+            ("index_spells", "wet_spell_exceedance"),
+        ):
+            render[key] = str(
+                root
+                / "plots"
+                / "indices"
+                / figure_filename(scope, "climate_indices", context, "basin_avg")
+            )
+        if settings["climate_indices"]["seasons"]:
+            render["index_seasons"] = str(
+                root
+                / "plots"
+                / "indices"
+                / figure_filename(
+                    scope, "climate_indices", "seasonal_indices_ts", "basin_avg"
+                )
+            )
+        render["index_captions"] = str(
+            root / "plots" / "indices" / "figure_captions.json"
+        )
     return paths
 
 

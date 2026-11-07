@@ -1,5 +1,8 @@
 # Independent indicator module
 
+Daily multidimensional meteorological calculations live in [climate/](climate/README.md).
+That component is independent of the retained-response scalar interface described below.
+
 This module consumes retained daily responses and returns in-memory values. It needs Python, NumPy and
 pandas; qualified return levels additionally need the production-pinned lmoments3 and SciPy dependencies.
 It does not load a model, remove warm-up, select simulation runs, read project configuration or publish files.

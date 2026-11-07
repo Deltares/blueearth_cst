@@ -121,6 +121,7 @@ def _current_preparation():
             unit_interpretation=resolved_unit_interpretation(
                 catalogs, source, recipe=recipe, climate_nc=store.outputs["climate_nc"]),
             oro_path=store.outputs.get("oro_nc"), recipe=recipe,
+            collection_path=Path(SELECTION["manifest_path"]),
         )
 def _live_simulation_inputs():
     preparation = _current_preparation()

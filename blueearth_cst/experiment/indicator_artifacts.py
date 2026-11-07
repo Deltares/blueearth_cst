@@ -284,17 +284,24 @@ def _read_indicator_set_v2(experiment_root, marker, *, integrity_only=False):
         or file_sha256(metadata) != manifest["group_metadata"]["sha256"]
     ):
         raise ImmutableIndicatorSetError("group metadata reference or bytes differ")
+    from blueearth_cst.experiment.indicator_groups import group_metadata
+
+    metadata_fields, expected_metadata = group_metadata(
+        dict(
+            zip(
+                sorted(manifest["groups"]), sorted({row["group_id"] for row in members})
+            )
+        ),
+        delta=manifest.get("execution_context", {})
+        .get("indicator_definition", {})
+        .get("grouping", "")
+        .startswith("delta-change/"),
+    )
     with metadata.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
-        if reader.fieldnames != ["group_id", "st_id", "is_reference"]:
+        if reader.fieldnames != metadata_fields:
             raise ImmutableIndicatorSetError("group metadata schema differs")
         metadata_rows = list(reader)
-    expected_metadata = [
-        {"group_id": group, "st_id": key, "is_reference": str(not key).lower()}
-        for key, group in zip(
-            sorted(manifest["groups"]), sorted({row["group_id"] for row in members})
-        )
-    ]
     if metadata_rows != expected_metadata:
         raise ImmutableIndicatorSetError("group metadata differs from grouping keys")
     tables = {}

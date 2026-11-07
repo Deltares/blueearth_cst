@@ -17,7 +17,7 @@ from blueearth_cst.plotting.prepared_maps import (
     MapFrame,
     MapScale,
     RasterMap,
-    draw_raster_panels,
+    draw_raster_panels_detailed,
 )
 from blueearth_cst.plotting.preset import use_preset
 from blueearth_cst.shared.map_frames import basin_frame, map_caption
@@ -189,7 +189,7 @@ def render_pages(
         )
         title = f"Annual {label.lower()} anomalies — {source.upper()} ({years[0]}–{years[-1]}), reference {eligible[0]}–{eligible[-1]}, page {int(page)}"
         with use_preset(CST_PRESET):
-            fig = draw_raster_panels(
+            fig = draw_raster_panels_detailed(
                 rasters,
                 [f"{chr(97 + i)}) {year}" for i, year in enumerate(years)],
                 frame,

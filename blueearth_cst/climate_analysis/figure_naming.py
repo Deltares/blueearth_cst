@@ -55,6 +55,9 @@ COMPARISON_SCOPE = "comparison"
 PLOT_CONTEXTS = {
     "annual_anomaly_map": "annual native-cell departure from the reference mean",
     "daily_agreement": "paired observed and native-cell daily precipitation",
+    "annual_indices_ts": "annual climate-index series with explicit units",
+    "seasonal_indices_ts": "configured-season climate-index series",
+    "wet_spell_exceedance": "complete wet-spell empirical exceedance",
     "monthly_coverage": "reporting-year monthly completeness calendar",
     "monthly_clim_band": "monthly climatology and 10th–90th percentile band",
     "annual_timing": "cumulative annual precipitation timing",

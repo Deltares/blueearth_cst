@@ -103,5 +103,20 @@ def rerender_sources(
             annotation=annotation,
             reference_record=reference,
         )
+        if settings.get("climate_indices", {}).get("enabled", False):
+            from blueearth_cst.climate_analysis.climate_index_figures import (
+                render_indices,
+            )
+            from blueearth_cst.climate_analysis.diagnostic_render import (
+                load_map_overlays,
+            )
+
+            render_indices(
+                paths["compute"]["climate_indices"],
+                paths["render"],
+                reference_record=reference,
+                overlays=load_map_overlays(overlay_paths(project_dir)),
+                annotation=annotation,
+            )
         written[source] = Path(paths["render_root"]) / "plots"
     return written

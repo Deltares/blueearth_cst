@@ -337,6 +337,8 @@ MAP_REFERENCE = historical_map_reference_rule(
 require_wf0_completeness(DIAGNOSTIC_SETTINGS, MAP_REFERENCE.params["completeness"])
 MAP_SOURCE_SPECS = {spec.source: spec for spec in MAP_REFERENCE.source_specs}
 SOURCE_DIAGNOSTICS = {s: diagnostic_source_outputs(CLIMATE_STORES[s].store_dir, s, DIAGNOSTIC_SETTINGS) for s in CANDIDATE_SOURCES}
+from blueearth_cst.climate_analysis.climate_indices import implementation_digest as climate_indices_digest
+CLIMATE_INDICES_DIGEST = climate_indices_digest() if DIAGNOSTIC_SETTINGS["climate_indices"]["enabled"] else None
 POOLED_ROOTS = [SOURCE_DIAGNOSTICS[s]["root"] for s in CANDIDATE_SOURCES]
 COMPARISON_DIR = f"{project_dir}/data/climate/historical/comparison"
 COMPARISON_DIAGNOSTICS = diagnostic_comparison_outputs(COMPARISON_DIR, CANDIDATE_SOURCES, DIAGNOSTIC_SETTINGS) if len(CANDIDATE_SOURCES) > 1 else None
@@ -462,6 +464,7 @@ for _source in CANDIDATE_SOURCES:
             m0=DIAGNOSTIC_M0, data_sources=DATA_SOURCES,
             forcing=climate_cfg.get("forcing") if _source == clim_source else None,
             preparation_code_digest=MAP_REFERENCE.params["preparation_code_digest"],
+            climate_indices_code_digest=CLIMATE_INDICES_DIGEST,
             map_environment=MAP_REFERENCE.params["environment"],
         log: COMPUTE_DIAGNOSTICS.log(_source),
         benchmark: COMPUTE_DIAGNOSTICS.benchmark(_source),
@@ -504,6 +507,7 @@ for _source in CANDIDATE_SOURCES:
         params:
             annotation=plot_annotation,
             plot_setup_digest=plot_setup_digest,
+            climate_indices_render_digest=file_sha256(Path(workflow.basedir) / "blueearth_cst/climate_analysis/climate_index_figures.py") if DIAGNOSTIC_SETTINGS["climate_indices"]["enabled"] else None,
             settings=DIAGNOSTIC_SETTINGS, source=_source, store_dir=_spec.store_dir,
             m0=DIAGNOSTIC_M0, pooled_roots=POOLED_ROOTS,
             subbasin_table_dirs=[f"{_diag['root']}/tables/subbasins"],

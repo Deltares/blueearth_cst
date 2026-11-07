@@ -40,6 +40,24 @@ NEUTRAL_MAPS: Mapping[str, Any] = {
     "locator_mark": "#c0392b",
 }
 
+NEUTRAL_MAP_PANELS: Mapping[str, float | int] = {
+    "columns": 4,
+    "max_panels_per_figure": 12,
+    "width_mm": 190.0,
+    "horizontal_gap_mm": 1.5,
+    "vertical_gap_mm": 2.0,
+    "outer_padding_mm": 3.0,
+    "heading_space_mm": 4.0,
+    "heading_pad_pt": 2.0,
+    "row_label_space_mm": 30.0,
+    "key_space_mm": 16.0,
+    "key_gap_mm": 4.0,
+    "key_width_mm": 2.3,
+    "key_height_fraction": 0.64,
+    "overlay_reference_width_mm": 150.0,
+    "overlay_min_scale": 0.5,
+}
+
 
 @dataclass(frozen=True)
 class Preset:
@@ -49,7 +67,8 @@ class Preset:
     padding ``x/y``; fonts ``label/tick/note``; colors ``ink/muted/axis/grid/boundary``;
     lines ``line/mean/ref/edge/range/iqr/stem/boundary``; markers ``line/point/scatter``;
     maps: the keys of ``NEUTRAL_MAPS``, where ``river_order`` is
-    ``((width_pt, colour), ...)`` lowest order first.
+    ``((width_pt, colour), ...)`` lowest order first. ``map_panels`` holds the
+    geometry, page cap and mark-scaling keys in ``NEUTRAL_MAP_PANELS``.
     """
 
     widths: Mapping[str, float]
@@ -63,6 +82,9 @@ class Preset:
     label_box: Mapping[str, Any]
     rcparams: Mapping[str, Any]
     maps: Mapping[str, Any] = field(default_factory=lambda: dict(NEUTRAL_MAPS))
+    map_panels: Mapping[str, float | int] = field(
+        default_factory=lambda: dict(NEUTRAL_MAP_PANELS)
+    )
 
 
 def chart_rcparams(

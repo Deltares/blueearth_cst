@@ -125,4 +125,5 @@ CST_PRESET = Preset(
     label_box=LABEL_BOX,
     rcparams=STYLE,
     maps=MAPS,
+    map_panels=dict(_MAP_STYLE["panels"]),
 )

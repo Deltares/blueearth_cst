@@ -303,7 +303,16 @@ def current_indicator_requests(experiment_root, calculation_sets, anchor):
         )
     environment = resolve_indicator_environment()
     validation = return_level_validation.build_declaration()
-    response_request = read_simulation_intent_v2(root)["documents"]["response_request"]
+    frozen_intent = read_simulation_intent_v2(root)
+    response_request = frozen_intent["documents"]["response_request"]
+    from blueearth_cst.shared.workflow_config_snapshot import resolve_file_reference
+
+    collection = read_canonical_json(
+        resolve_file_reference(
+            frozen_intent["collection"]["manifest"],
+            {"project_root": root.parent.parent},
+        )
+    )
     code_by_sets = {}
     requests = []
     for calculations in calculation_sets:
@@ -324,8 +333,20 @@ def current_indicator_requests(experiment_root, calculation_sets, anchor):
             code_inventory=code_by_sets[contributing],
         )
         request["simulation_schema_version"] = schema
+        request = _provider_request(request, collection)
         requests.append(request)
     return requests
+
+
+def _provider_request(request, collection):
+    """Freeze grouping meaning before naming the request or verifying its plan."""
+    if collection["schema_version"] == "delta-scenario-collection/1":
+        return {
+            **request,
+            "grouping": "delta-change/model/scenario; collection-fixed periods and method; separate controls",
+            "reference": "historical control; first native q location; monthly sum; first month on ties",
+        }
+    return request
 
 
 def split_availability(calculations, response_request):
@@ -516,6 +537,24 @@ def _v2_scenario_rows(records):
     """Adapt v2's compact scenario lookup to the legacy indicator grouping rows."""
     expected = {"run_id", "evaluate", "type", "rlz", "st_id"}
     values = list(records)
+    if values and values[0].get("type") == "delta-change":
+        from blueearth_cst.experiment.delta_scenarios import ROW_FIELDS
+
+        if any(set(record) != set(ROW_FIELDS) for record in values):
+            raise IndicatorPlanStale("delta scenario lookup has unknown fields")
+        return tuple(
+            ScenarioRow(
+                record["run_id"],
+                "",
+                record["evaluate"] == "true",
+                "delta-change",
+                tuple(
+                    (key, record[key])
+                    for key in ("role", "model", "scenario", "member")
+                ),
+            )
+            for record in values
+        )
     if any(set(record) != expected for record in values):
         raise IndicatorPlanStale("v2 scenario lookup has unknown fields")
     roots = {}
@@ -606,12 +645,13 @@ def build_indicator_plan(experiment_root, request, *, _observed_code=None):
         code_inventory=_observed_code,
     )
     live["simulation_schema_version"] = "simulation/3"
+    collection, intent, rows = _collection(simulation)
+    live = _provider_request(live, collection)
     if live != request:
         raise IndicatorPlanStale("indicator declarations or invoked code changed")
     inventory = read_canonical_json(
         resolve_file_reference(simulation["response_inventory"], anchors)
     )
-    collection, intent, rows = _collection(simulation)
     source_descriptors = [item["descriptor"] for item in collection["series"]]
     if any(
         item["source_calendar"] != inventory["temporal_preparation"]["source_calendar"]
@@ -620,13 +660,21 @@ def build_indicator_plan(experiment_root, request, *, _observed_code=None):
         raise IndicatorPlanStale(
             "response source calendar differs from retained collection"
         )
-    specification = intent["scenario_spec"]
-    groups, reference_runs, _ = indicator_groups(
-        rows,
-        n_realizations=specification["n_realizations"],
-        st_num=specification["n_design_points"],
-        unit_id_capacity=intent["run_group_id_capacity"],
-    )
+    delta = collection["schema_version"] == "delta-scenario-collection/1"
+    if delta:
+        from blueearth_cst.experiment.delta_scenarios import delta_groups
+
+        groups, reference_runs = delta_groups(
+            [{"run_id": row.run_id, **dict(row.payload)} for row in rows]
+        )
+    else:
+        specification = intent["scenario_spec"]
+        groups, reference_runs, _ = indicator_groups(
+            rows,
+            n_realizations=specification["n_realizations"],
+            st_num=specification["n_design_points"],
+            unit_id_capacity=intent["run_group_id_capacity"],
+        )
     selected = set(intent_v2["collection"]["run_ids"])
     groups = {
         key: tuple(run for run in members if run in selected)
@@ -645,7 +693,8 @@ def build_indicator_plan(experiment_root, request, *, _observed_code=None):
             "with include_unperturbed: true."
         )
     bundles = tuple(
-        DeclaredBundle("st_id", key, members) for key, members in groups.items()
+        DeclaredBundle("model/scenario" if delta else "st_id", key, members)
+        for key, members in groups.items()
     )
     unit_rows = indicator_unit_index(
         [row.run_id for row in rows],
@@ -1174,12 +1223,14 @@ def _publish_indicator_set_v2(experiment_root, plan):
         for row in plan["units"]
         if row["grain"] == "bundle"
     ]
-    metadata = [
-        {"group_id": identity, "st_id": key, "is_reference": str(not key).lower()}
-        for key, identity in plan["bundle_run_group_ids"].items()
-    ]
+    from blueearth_cst.experiment.indicator_groups import group_metadata
+
+    metadata_fields, metadata = group_metadata(
+        plan["bundle_run_group_ids"],
+        delta=plan["request"].get("grouping", "").startswith("delta-change/"),
+    )
     lookup = _csv_bytes(["group_id", "run_id"], memberships)
-    metadata_payload = _csv_bytes(["group_id", "st_id", "is_reference"], metadata)
+    metadata_payload = _csv_bytes(metadata_fields, metadata)
     environment = canonical_json_bytes(plan["request"]["indicator_environment"])
     # Each return level's provenance: usable block counts per member against
     # the required minimum, the fitted parameters, fit and shape coverage, and

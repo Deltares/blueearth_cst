@@ -146,13 +146,45 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
   too tall. Put colourbar units on a separate title line. Use `fundamentals.style_colourbar`, shared
   with heatmaps.
 
+### Spatial map panels
+
+Use `prepared_maps.draw_raster_panels` and `Preset.map_panels` for continuous spatial panel figures;
+do not duplicate panel geometry in workflow adapters. `config/plotting/style.yml` → `maps.panels` owns
+the shared CST defaults: four columns (three supported), 190 mm figure width, 1.5 mm horizontal gutters,
+2 mm between heading/map row blocks, 3 mm outside padding and 4 mm heading space. Frames keep geographic
+aspect; figure height follows their aspect and row count. Fill panels left-to-right, then down, without
+dropping fields or creating empty map frames in an incomplete last row. `max_panels_per_figure` defaults
+to 12. Larger sets split into ordered figures/pages; a partial final page retains identical map sizes,
+geographic extent and colour classes. Export all pages with numbered filenames or to a multipage PDF;
+captions identify page number and included fields. Never silently truncate excess panels.
+
+For model-by-scenario or other labelled matrices, use `draw_raster_matrix`. It retains explicit row/column
+labels, reserves `row_label_space_mm` (30 mm by default), and splits large matrices into rectangular page
+blocks. A row never wraps into another model or category; map sizes and scales stay fixed across pages.
+Unavailable combinations occupy explicit labelled tiles and count toward the page cap.
+When per-tile headings are empty, omit their reserved height so column headings sit close to the maps.
+
+Omit coordinate titles/ticks, repeated scale bars and location names. Retain basin outlines, dashed divides,
+rivers and location markers. Scale markers, marker edges, lines, halos and frame borders by the square root
+of panel width relative to 150 mm, bounded to 0.5–1 of full-map sizes. At the default twelve-panel layout,
+6 pt diamonds become about 3.1 pt, basin lines 0.47 pt, divide lines 0.37 pt and marker edges 0.31 pt.
+Month/panel headings use the readable 6 pt tick-font token, not the geometric scale factor. Colours and
+stream-order distinctions are preserved. Full-size standalone maps retain their existing style.
+
+Use one vertical colourbar at the right, aligned with the bottom map frame, with title and units above.
+The shared preset reserves 16 mm for the key and labels; the bar is 2.3 mm wide and 64% of canvas height.
+Use `style_colourbar` for its typography and outline. Keep identical classes across comparable panels and
+figures. Prefer outward-rounded whole-number limits/steps when the quantity supports them (as for t003
+delta maps); retain scientifically necessary fractional scales. The renderer consumes an explicit scale
+and never reclassifies supplied scientific values. Missing-data meaning belongs in the caption.
+
 ## Figure-specific decisions
 
 ### Annual spatial anomalies
 
 - Optional historical P/T anomaly maps show every comparison reporting year, six per page in at most
   three columns and two rows. Retain trailing empty slots and labelled unavailable years. Shared
-  `prepared_maps.draw_raster_panels` preserves native cells, geographic aspect and map overlays.
+  `prepared_maps.draw_raster_panels_detailed` preserves native cells, geographic aspect and map overlays.
 - Use absolute departures (mm, °C), symmetric limits over finite cells intersecting each displayed
   native frame across all sources and comparison years, without clipping. Precipitation uses the
   shared precipitation-anomaly palette; temperature uses `climate_maps.temp_crossing_freezing` as

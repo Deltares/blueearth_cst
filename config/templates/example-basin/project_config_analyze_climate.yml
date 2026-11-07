@@ -2,6 +2,20 @@
 # Subbasin plots are optional. Basin maps still show subbasin boundaries.
 # Generate individual subbasin climate figures. Options: true | false.
 subbasin_figures: false
+# Historical climate diagnostic settings. Input: mapping.
+diagnostics:
+  # Configure optional historical climate indices. Input: mapping.
+  climate_indices:
+    # Calculate historical climate indices. Options: true | false.
+    enabled: false
+    # Select index reference calendar years. Input: inclusive year mapping or null for climate.window.
+    reference_period: null
+    # Require reference-period daily coverage. Input: fraction between zero and one.
+    reference_minimum_fraction: 0.9
+    # Count days above this mean temperature. Input: degrees Celsius.
+    mean_temperature_threshold_degc: 25.0
+    # Define contiguous seasonal reporting periods. Input: mapping, e.g. {DJF: [12, 1, 2]}; start-year labels.
+    seasons: {}
 
 # Optional user-prepared daily rain gauges; omitted/null disables evaluation.
 # Both paths and time_label are required when enabled. Paths resolve beside this YAML.
@@ -15,8 +29,7 @@ subbasin_figures: false
 # Optional settings (omitted periods use climate.window):
 # Custom completeness must also be set in the project's climate.map_reference.
 # Shared maps require matching tolerances and at most 27 missing days per month.
-# Historical climate diagnostic settings. Input: mapping.
-#diagnostics:
+# Add these optional keys inside the diagnostics mapping above.
 # Plot all comparison years as native-grid P/T anomaly panels. Options: true | false (default).
 #  annual_spatial_anomalies: false
 # Select reference water years. Input: inclusive year mapping.

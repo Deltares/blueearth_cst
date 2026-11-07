@@ -19,6 +19,7 @@ The runners prepare inputs and check results as well as schedule Snakemake rules
 | `scripts/run_workflows.py` | Enabled workflows in the project file, including scenario generation. |
 | `scripts/run_workflow.py` | One explicitly named workflow; accepts all five workflow names. |
 | `scripts/simulate_system.py` | Hydrological simulations and/or indicators for a selected experiment. |
+| `scripts/generate_delta_scenarios.py` | Optional [projection-conditioned delta collection](delta-change-scenarios.md) for WF4. |
 
 The all-workflow runner follows a fixed order: historical climate analysis, model building, projection
 analysis, scenario generation and hydrological simulation. It skips disabled workflows and stops at
