@@ -21,7 +21,7 @@ def plot_delta_collection(
     import matplotlib.pyplot as plt
 
     from blueearth_cst.plotting.export import export_figure
-    from blueearth_cst.plotting.fundamentals import MONTH_ABBR, new_fig
+    from blueearth_cst.plotting.fundamentals import MONTH_ABBR, new_fig, style_colourbar
     from blueearth_cst.plotting.prepared_maps import (
         MapScale,
         RasterMap,
@@ -218,7 +218,11 @@ def plot_delta_collection(
                         )
                         ax.set_title(MONTH_ABBR[month], loc="left", pad=2)
                         axes.append(ax)
-                    cax = fig.add_axes((175 / 190, 0.18, 2.3 / 190, 0.64))
+                    # Match the shared map/heatmap convention: key flush with the
+                    # bottom map frame, retaining room above for its title.
+                    cax = fig.add_axes(
+                        (175 / 190, axes[-1].get_position().y0, 2.3 / 190, 0.64)
+                    )
                     colorbar = fig.colorbar(
                         axes[0].collections[0],
                         cax=cax,
@@ -226,9 +230,7 @@ def plot_delta_collection(
                         extend="both",
                         extendrect=True,
                     )
-                    colorbar.ax.set_title(
-                        f"{label}\nchange ({unit})", fontsize=6, pad=7
-                    )
+                    style_colourbar(colorbar, f"{label}\nchange ({unit})")
                     path = output / (
                         f"run_{index + 3:0{intent['run_group_id_width']}d}_{key.lower()}"
                         "_monthly_map_basin_ext.png"

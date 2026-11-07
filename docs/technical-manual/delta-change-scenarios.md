@@ -187,7 +187,8 @@ without pooling. Grid comparison lines are unweighted active-cell means; shaded 
 confidence intervals. Maps share each variable's colour scale across members and months, and use the
 standard climate-map renderer with basin boundaries, subbasin divides, rivers and location markers.
 Each member/variable figure places January–December in four columns and three rows, with narrow
-gutters and one shared colourbar. Coordinate titles/tick labels, location labels and repeated scale bars
+gutters and one shared colourbar on the right, bottom-aligned with the map panels. Coordinate titles/tick
+labels, location labels and repeated scale bars
 are omitted to keep panels compact; location markers remain. Geometry comes from
 `<project>/models/hydrology/wflow/staticgeoms`; use
 `--model-root <wflow-model>` for a different model location. Basin geometry with an explicit CRS is required
