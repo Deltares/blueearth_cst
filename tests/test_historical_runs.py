@@ -1,5 +1,6 @@
 """Historical publications retain executed provenance and survive mutable runs."""
 
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -14,7 +15,7 @@ from blueearth_cst.model.historical_runs import (
     run_directory,
     write_forcing_record,
 )
-from blueearth_cst.shared.provenance import file_sha256
+from blueearth_cst.shared.provenance import collection_sha256, file_sha256
 
 
 @pytest.fixture
@@ -146,6 +147,57 @@ def test_damaged_payload_refuses(historical_model):
     (run_directory(model["project_dir"], "a") / "discharge.csv").write_text("damaged")
     with pytest.raises(ValueError, match="damaged"):
         read_historical_run(model["project_dir"], "a")
+
+
+@pytest.mark.parametrize(
+    "binding",
+    [
+        'name="rain"\nscale=1.0\noffset=0.0',
+        'name="precip"\nscale=2.0\noffset=0.0',
+        'name="precip"\nscale=1.0\noffset=3.0',
+    ],
+)
+def test_forcing_variable_scale_and_offset_affect_model_identity(
+    historical_model, binding
+):
+    model = historical_model
+    toml = model["toml_path"]
+    original = toml.read_text()
+    section = "\n[input.forcing.atmosphere_water__precipitation_volume_flux]\n"
+    toml.write_text(original + section + 'name="precip"\nscale=1.0\noffset=0.0\n')
+    baseline = execution_inputs(toml, model["registry_path"])[1]["model_sha256"]
+    toml.write_text(original + section + binding + "\n")
+    assert execution_inputs(toml, model["registry_path"])[1]["model_sha256"] != baseline
+
+
+def test_legacy_identity_recovers_forcing_mapping_without_archive_changes(
+    historical_model,
+):
+    model = historical_model
+    toml = model["toml_path"]
+    toml.write_text(
+        toml.read_text() + '\n[input.forcing]\natmosphere_air__temperature="temp"\n'
+    )
+    with retain_historical_run(name="old", **model):
+        write_response(model)
+    root = run_directory(model["project_dir"], "old")
+    record_path = root / "run.json"
+    record = json.loads(record_path.read_text())
+    expected = record["model_sha256"]
+    record["model"]["input"].pop("forcing")
+    record["model_sha256"] = collection_sha256(record["model"])
+    record_path.write_text(json.dumps(record))
+    marker = root / "complete.json"
+    complete = json.loads(marker.read_text())
+    complete["payloads"]["run.json"] = file_sha256(record_path)
+    marker.write_text(json.dumps(complete))
+    before = {p.name: file_sha256(p) for p in root.iterdir()}
+    toml.unlink()
+    restored, _, _ = read_historical_run(model["project_dir"], "old")
+    assert restored["model_sha256"] == expected
+    assert restored["archived_model_sha256"] == record["model_sha256"]
+    assert restored["forcing_mapping"] == {"atmosphere_air__temperature": "temp"}
+    assert before == {p.name: file_sha256(p) for p in root.iterdir()}
 
 
 def test_cold_state_pointer_is_unused_but_warm_state_is_required(historical_model):

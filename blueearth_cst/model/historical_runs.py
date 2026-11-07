@@ -101,7 +101,8 @@ def execution_inputs(toml_path: Path, registry_path: Path) -> tuple[dict, dict]:
     for key in ("dir_input", "dir_output", "time", "logging", "output"):
         model.pop(key, None)
     model.get("input", {}).pop("path_forcing", None)
-    model.get("input", {}).pop("forcing", None)
+    # Variable bindings and transformations are scientific model semantics.
+    # Only the forcing file itself varies independently between comparisons.
     model.get("state", {}).pop("path_output", None)
     if model.get("model", {}).get("cold_start__flag", True):
         # HydroMT declares an input-state path even for cold runs. Wflow does not
@@ -336,6 +337,19 @@ def read_historical_run(
     record = json.loads((target / "run.json").read_text(encoding="utf-8"))
     if record.get("schema_version") != SCHEMA or record.get("name") != name:
         raise ValueError("historical run identity mismatch")
+    if collection_sha256(record["model"]) != record["model_sha256"]:
+        raise ValueError("historical scientific model digest mismatch")
+    native = tomllib.loads((target / "wflow_sbm.toml").read_text(encoding="utf-8"))
+    record["forcing_mapping"] = native.get("input", {}).get("forcing", {})
+    if (
+        "forcing" in native.get("input", {})
+        and "forcing" not in record["model"]["input"]
+    ):
+        # Early historical-run/1 writers excluded the entire forcing mapping.
+        # Recover it from the verified snapshot, never from the mutable model.
+        record["archived_model_sha256"] = record["model_sha256"]
+        record["model"]["input"]["forcing"] = record["forcing_mapping"]
+        record["model_sha256"] = collection_sha256(record["model"])
     with (target / "discharge.csv").open(encoding="utf-8", newline="") as stream:
         header = next(csv.reader(stream))
     if len(set(header)) != len(header):

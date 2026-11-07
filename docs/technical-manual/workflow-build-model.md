@@ -165,8 +165,10 @@ a hidden `.lock` reservation; inspect it and confirm no writer is active before 
 Choose a new run name when uncertain. Readers never treat either location as a completed run.
 
 The fixed-model identity covers scientific TOML settings and referenced static, cyclic, waterbody and
-initial-state inputs. It excludes forcing contents and mappings, simulation dates, output configuration
-and logging paths; those have separate provenance and compatibility checks. NetCDF inputs use content
+initial-state inputs, including forcing variable bindings, scales and offsets. It excludes the forcing file
+contents and pointer, simulation dates, output configuration and logging paths; those have separate provenance
+and compatibility checks. Older retained identities recover forcing mappings from their verified TOML snapshot
+in memory, preserving archived bytes. NetCDF inputs use content
 hashes independent of compression and container timestamps. Station identities are checked separately.
 
 Retention supports comparison after the current model or `run_default` changes. It is **not a complete
@@ -201,7 +203,7 @@ output_dir: ./my-basin/comparisons/historical/forcing_comparison
 The requested dates must all exist in every run. The comparison requires identical fixed-model identity,
 simulation dates, timestep, initialization and station identity; only daily Gregorian responses are supported.
 Recipe names select runs, not new forcing settings. The inventory retains each executed recipe and provenance.
-The window uses explicit dates rather than the inclusive years of `climate.window`; no water-year trimming
+The window expands inclusive integer reporting-year labels using `water_year_start`; no water-year trimming
 or endpoint shortening occurs. Water-year labels use their starting year and seasonal months start at
 `water_year_start`. Exact requested and warm-up boundaries are retained in `comparison.json`.
 
