@@ -127,7 +127,34 @@ def inventory(root, sources, settings, comparison=False):
         "captions_md": str(root / "plots" / "figure_captions.md"),
     }
     render.update({f"figure_{k}": v for k, v in figures.items()})
-    return {"root": str(root), "compute": compute, "render": render, "figures": figures}
+    paths = {
+        "root": str(root),
+        "compute": compute,
+        "render": render,
+        "figures": figures,
+    }
+    if not comparison and settings.get("annual_spatial_anomalies", False):
+        from blueearth_cst.climate_analysis.annual_spatial_anomalies import (
+            anomaly_paths,
+            page_years,
+        )
+
+        paths["annual_spatial"] = anomaly_paths(root)
+        for page, _ in enumerate(page_years(settings), 1):
+            for variable in ("precip", "temp") if temp else ("precip",):
+                key = f"annual-map-{variable}-{page:03d}"
+                filename = str(
+                    root
+                    / "plots"
+                    / "annual_anomalies"
+                    / f"page_{page:03d}"
+                    / figure_filename(
+                        scope, variable, "annual_anomaly_map", "basin_ext"
+                    )
+                )
+                figures[key] = filename
+                render[f"figure_{key}"] = filename
+    return paths
 
 
 def retarget_render(paths, render_root):

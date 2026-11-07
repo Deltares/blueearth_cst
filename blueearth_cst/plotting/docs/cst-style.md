@@ -148,6 +148,19 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
 
 ## Figure-specific decisions
 
+### Annual spatial anomalies
+
+- Optional historical P/T anomaly maps show every comparison reporting year, six per page in at most
+  three columns and two rows. Retain trailing empty slots and labelled unavailable years. Shared
+  `prepared_maps.draw_raster_panels` preserves native cells, geographic aspect and map overlays.
+- Use absolute departures (mm, °C), symmetric limits over finite cells intersecting each displayed
+  native frame across all sources and comparison years, without clipping. Precipitation uses the
+  shared precipitation-anomaly palette; temperature uses `climate_maps.temp_crossing_freezing` as
+  the shared cool-negative/warm-positive ramp. Missing cells use the shared map missing colour.
+  With all finite departures zero, display ±1 in the relevant units and disclose the display fallback;
+  with none finite, omit the numerical key. Captions state exact dates, per-cell reference support,
+  completeness/infill, native support, counts and unavailable reasons.
+
 ### Rain-gauge comparisons
 
 - Use the shared CST preset for coverage, annual totals, monthly climatology and daily agreement.

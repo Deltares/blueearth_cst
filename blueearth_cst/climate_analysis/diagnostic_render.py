@@ -243,6 +243,12 @@ def render(
     """
     root = Path(paths["root"])
     out_root = Path(paths.get("render_root", root))
+    previous_path = Path(paths["render"]["captions_json"])
+    previous = (
+        json.loads(previous_path.read_text(encoding="utf-8"))["figures"]
+        if previous_path.is_file()
+        else {}
+    )
     has_maps = any(form.startswith("map-") for form in paths["figures"])
     arguments = (
         reference_arguments(map_reference_params)
@@ -322,6 +328,8 @@ def render(
     )
     records = {}
     for form, filename in paths["figures"].items():
+        if form.startswith("annual-map-"):
+            continue
         availability = "available"
         support = (
             "native source cells intersecting the displayed map frame"
@@ -527,6 +535,19 @@ def render(
                 }
     if retained is not None:
         retained.close()
+    if len(sources) == 1:
+        from blueearth_cst.climate_analysis.annual_spatial_render import (
+            render_pages,
+            retire_pages,
+        )
+
+        if settings.get("annual_spatial_anomalies", False):
+            records.update(
+                render_pages(
+                    paths, settings, pooled_roots, reference, features, annotation
+                )
+            )
+        retire_pages(out_root, previous, records, sources[0])
     write_json(
         paths["render"]["captions_json"],
         {

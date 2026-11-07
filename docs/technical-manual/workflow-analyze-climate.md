@@ -38,6 +38,7 @@ extraction requires overlap between the source record and that period.
 |---|---|
 | `diagnostics.reference_period` | Reference water years for anomalies and SPI fitting. |
 | `diagnostics.comparison_period` | Requested period for comparing sources. |
+| `diagnostics.annual_spatial_anomalies` | Native-grid annual P/T departure panels; default `false`. |
 | `diagnostics.max_missing_days_month` | Allowed missing days per month; default 3. |
 | `diagnostics.max_missing_days_year` | Allowed missing days per water year; default 15. |
 | `diagnostics.wet_day_threshold_mm` | Wet-day threshold; default 1 mm/day. |
@@ -47,6 +48,47 @@ extraction requires overlap between the source record and that period.
 The reference period defaults to the climate window, and the comparison period defaults to the
 reference period. Missing-day tolerances must match the project settings in `climate.map_reference`.
 See [execution and run management](configuration-and-execution.md) for running the workflow.
+
+### Map annual departures {#annual-spatial-anomalies}
+
+Set `diagnostics.annual_spatial_anomalies: true` in the historical analysis YAML to show where each
+comparison reporting year was wetter, drier, warmer or cooler than the reference climate. This optional
+product uses the existing reference/comparison periods, sources, reporting-year start and missing-day
+tolerances. Omitted or `false` disables it; other types are rejected. Precipitation-only sources produce
+precipitation panels without borrowed temperature. PET and percentage anomalies are outside this product.
+
+At each native cell, precipitation is the annual total (mm), temperature the daily annual mean (°C),
+and the anomaly is that value minus its arithmetic reference mean. Reporting-year labels name the
+starting year: an October year labelled 2000 spans October 2000 through September 2001. Missing dates
+count as gaps. Eligible years allow the configured missing-day tolerances (defaults: three per month,
+fifteen per year); tolerated gaps use that calendar month's observed mean for both variables. Set both
+tolerances to zero, also in `climate.map_reference`, for strict no-infill summaries.
+
+Only reference years fully contained in the stored daily span enter the baseline; excluded incomplete
+or out-of-span years are reported. A cell needs a valid annual aggregate in **every** eligible reference year,
+giving fixed reference support across all plotted years. No eligible reference year is an error. One eligible
+year is allowed and identified explicitly; it does not constitute a climate normal. Invalid cell-years
+and unavailable baselines remain missing. Every requested comparison year has a labelled panel,
+including partial boundary years and wholly unavailable years.
+
+Maps retain native cells and existing basin/subbasin/river overlays, including cells outside the basin
+that intersect the displayed frame. No polygon mask, spatial averaging or regridding is applied. Each
+variable uses one symmetric zero-centred scale across finite displayed cells of all candidate sources
+and comparison years, without clipping. All-zero data use a disclosed display-only range of ±1 mm or
+±1 °C; wholly unavailable data have no numerical key. Gray denotes missing cells, white uncovered area.
+These are descriptive departures, not trends or significance estimates.
+
+Each source store retains `tables/annual_spatial_anomalies.nc` with native annual values, anomalies,
+reference means/counts and validity masks. `_engine/annual_spatial_anomalies.json` records settings,
+source/input identity, requested/eligible/excluded years, exact dates, availability and page inventory.
+Figures live under `plots/annual_anomalies/page_001/`, `page_002/`, etc., with filenames
+`<source>_<variable>_annual_anomaly_map_basin_ext.png`. Six chronological years fit each page; all pages
+are produced. Ordinary title/caption inventories and `plotting.annotation` modes apply.
+
+Run the usual historical analysis entry point. Retained rerendering through
+`scripts/render_figures.py wf0 --project <run> --out <review>` uses saved annual fields without
+daily source data. Disabling the option or shortening the comparison period retires only previously
+managed anomaly figures and their inventory entries, preserving unrelated files and retained data.
 
 ### Compare daily rain gauges {#rain-gauges}
 

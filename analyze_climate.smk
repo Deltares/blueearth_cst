@@ -17,7 +17,7 @@ from blueearth_cst.shared.config_composition import compose_config
 from blueearth_cst.shared.workflow_archive_launch import captured_projection, require_capture
 from blueearth_cst.spatial.config import parse_spatial_config
 from blueearth_cst.climate_analysis.diagnostic_outputs import diagnostic_source_outputs, diagnostic_comparison_outputs
-from blueearth_cst.climate_analysis.diagnostic_settings import parse_settings
+from blueearth_cst.climate_analysis.annual_spatial_anomalies import parse_settings
 from blueearth_cst.shared.map_reference import historical_map_reference_rule, require_wf0_completeness, source_map_inputs
 
 # --- figure filenames ---------------------------------------------------------
@@ -300,6 +300,9 @@ EXTRACT_CLIMATE_DATASETS = RULES.logged("0.03", "extract_climate_datasets", summ
 PRODUCE_MAP_REFERENCE = RULES.logged("0.03b", "produce_historical_map_reference", summary="prepare the shared display reference")
 PREPARE_SOURCE_MAPS = RULES.logged("0.03c", "prepare_historical_map_fields", summary="prepare shared native-grid map fields")
 COMPUTE_DIAGNOSTICS = RULES.logged("0.04", "compute_climate_diagnostics", summary="compute source diagnostic tables")
+DIAGNOSTIC_SETTINGS = parse_settings(my_cfg.get("diagnostics"), historical_window, CANDIDATE_SOURCES)
+if DIAGNOSTIC_SETTINGS["annual_spatial_anomalies"]:
+    PREPARE_ANNUAL_ANOMALIES = RULES.logged("0.04a", "prepare_annual_spatial_anomalies", summary="prepare native annual anomalies")
 PLOT_DIAGNOSTICS = RULES.logged("0.04b", "plot_climate_diagnostics", summary="render historical climate diagnostics")
 
 # Rule 0.05 exists only when there is more than one source to compare, so it
@@ -316,11 +319,13 @@ GATHER_BENCHMARKS = RULES.banner_only("0.06", "gather_benchmarks", summary="merg
 GATHER_LOGS = RULES.banner_only("0.07", "gather_logs", summary="merge rule logs")
 
 
-DIAGNOSTIC_SETTINGS = parse_settings(my_cfg.get("diagnostics"), historical_window, CANDIDATE_SOURCES)
+# The opt-in owns a separate product; it does not change existing numerical diagnostics.
+BASE_DIAGNOSTIC_SETTINGS = {k: v for k, v in DIAGNOSTIC_SETTINGS.items() if k != "annual_spatial_anomalies"}
 _subbasin_figures = my_cfg.get("subbasin_figures", False)
 if type(_subbasin_figures) is not bool:
     raise ValueError("subbasin_figures must be a boolean")
 DIAGNOSTIC_SETTINGS["subbasin_figures"] = _subbasin_figures
+BASE_DIAGNOSTIC_SETTINGS["subbasin_figures"] = _subbasin_figures
 from blueearth_cst.shared.wf3_science import water_year_start_number
 DIAGNOSTIC_M0 = water_year_start_number(WATER_YEAR_START)
 MAP_REFERENCE = historical_map_reference_rule(
@@ -453,7 +458,7 @@ for _source in CANDIDATE_SOURCES:
         input: **_compute_inputs,
         output: **_compute_outputs,
         params:
-            settings=DIAGNOSTIC_SETTINGS, source=_source, store_dir=_spec.store_dir,
+            settings=BASE_DIAGNOSTIC_SETTINGS, source=_source, store_dir=_spec.store_dir,
             m0=DIAGNOSTIC_M0, data_sources=DATA_SOURCES,
             forcing=climate_cfg.get("forcing") if _source == clim_source else None,
             preparation_code_digest=MAP_REFERENCE.params["preparation_code_digest"],
@@ -462,12 +467,31 @@ for _source in CANDIDATE_SOURCES:
         benchmark: COMPUTE_DIAGNOSTICS.benchmark(_source),
         script: "blueearth_cst/climate_analysis/compute_climate_diagnostics.py"
 
+    if DIAGNOSTIC_SETTINGS["annual_spatial_anomalies"]:
+        # 0.04a  prepare_annual_spatial_anomalies — no PET or climatology dependency.
+        rule:
+            name: PREPARE_ANNUAL_ANOMALIES.job_name(_source)
+            message: PREPARE_ANNUAL_ANOMALIES.banner(part=_source)
+            input: **_compute_inputs,
+            output: **_diag["annual_spatial"],
+            params:
+                source=_source, m0=DIAGNOSTIC_M0, data_sources=DATA_SOURCES,
+                settings={k: DIAGNOSTIC_SETTINGS[k] for k in ("reference_period", "comparison_period", "max_missing_days_month", "max_missing_days_year")},
+                forcing=climate_cfg.get("forcing") if _source == clim_source else None,
+                code_digest={path: file_sha256(path) for path in ("blueearth_cst/climate_analysis/annual_spatial_anomalies.py", "blueearth_cst/climate_analysis/diagnostics.py", "blueearth_cst/climate_analysis/diagnostic_tables.py")},
+                environment=MAP_REFERENCE.params["environment"],
+            log: PREPARE_ANNUAL_ANOMALIES.log(_source),
+            benchmark: PREPARE_ANNUAL_ANOMALIES.benchmark(_source),
+            script: "blueearth_cst/climate_analysis/annual_spatial_anomalies.py"
+
     _render_outputs = dict(_diag["render"])
     _render_inputs = {"tables": list(_diag["compute"].values()),
         "pooled": [p for spec in SOURCE_DIAGNOSTICS.values() for key, p in spec["compute"].items() if key in {"monthly_values", "metadata"}],
         "map_reference": MAP_REFERENCE.outputs["reference"],
         **MAP_REFERENCE.inputs,
         **{key: SPATIAL_UNITS.outputs[key] for key in ("basins", "subbasins", "rivers", "locations")}}
+    if DIAGNOSTIC_SETTINGS["annual_spatial_anomalies"]:
+        _render_inputs["annual_spatial"] = [p for spec in SOURCE_DIAGNOSTICS.values() for p in spec["annual_spatial"].values()]
     if DIAGNOSTIC_SETTINGS["subbasin_figures"]:
         _render_inputs["subbasin_tables"] = f"{_diag['root']}/tables/subbasins"
         _render_outputs["subbasin_figures"] = directory(f"{_diag['root']}/plots/subbasins")
@@ -484,6 +508,7 @@ for _source in CANDIDATE_SOURCES:
             m0=DIAGNOSTIC_M0, pooled_roots=POOLED_ROOTS,
             subbasin_table_dirs=[f"{_diag['root']}/tables/subbasins"],
             map_reference_params=dict(MAP_REFERENCE.params),
+            **({"annual_render_code_digest": {path: file_sha256(path) for path in ("blueearth_cst/climate_analysis/annual_spatial_render.py", "blueearth_cst/plotting/prepared_maps.py", "blueearth_cst/plotting/export.py")}} if DIAGNOSTIC_SETTINGS["annual_spatial_anomalies"] else {}),
         log: PLOT_DIAGNOSTICS.log(_source),
         benchmark: PLOT_DIAGNOSTICS.benchmark(_source),
         script: "blueearth_cst/climate_analysis/plot_climate_diagnostics.py"

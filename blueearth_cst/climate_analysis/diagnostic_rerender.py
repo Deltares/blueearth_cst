@@ -85,6 +85,11 @@ def rerender_sources(
             (store / "_engine" / "diagnostics.json").read_text(encoding="utf-8")
         )
         settings = metadata["settings"]
+        from blueearth_cst.climate_analysis.annual_spatial_render import (
+            retained_enabled,
+        )
+
+        settings["annual_spatial_anomalies"] = retained_enabled(store)
         paths = retarget_render(
             diagnostic_source_outputs(store, source, settings), out_dir / store.name
         )

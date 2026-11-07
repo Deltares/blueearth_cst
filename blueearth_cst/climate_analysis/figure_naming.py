@@ -53,6 +53,7 @@ COMPARISON_SCOPE = "comparison"
 #: climatology, ``box`` distribution box plot -- so a reader who knows four
 #: tokens can read every name.
 PLOT_CONTEXTS = {
+    "annual_anomaly_map": "annual native-cell departure from the reference mean",
     "daily_agreement": "paired observed and native-cell daily precipitation",
     "monthly_coverage": "reporting-year monthly completeness calendar",
     "monthly_clim_band": "monthly climatology and 10th–90th percentile band",

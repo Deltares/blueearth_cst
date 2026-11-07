@@ -18,6 +18,7 @@ See [historical climate analysis](workflow-analyze-climate.md) for inputs, setti
 | `produce_historical_map_reference` | Prepare the shared map extent and color classes. |
 | `prepare_historical_map_fields_<source>` | Prepare native-grid map fields for each source. |
 | `compute_climate_diagnostics_<source>` | Calculate and save temporal diagnostics. |
+| `prepare_annual_spatial_anomalies_<source>` | Retain optional native annual P/T anomalies. |
 | `plot_climate_diagnostics_<source>` | Produce source figures and captions. |
 | `plot_climate_comparison` | Calculate and plot the common-period comparison. |
 | `prepare_rain_gauges` | Sample native cells and calculate observed-only station comparisons. |

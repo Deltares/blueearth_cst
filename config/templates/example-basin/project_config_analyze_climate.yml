@@ -17,6 +17,8 @@ subbasin_figures: false
 # Shared maps require matching tolerances and at most 27 missing days per month.
 # Historical climate diagnostic settings. Input: mapping.
 #diagnostics:
+# Plot all comparison years as native-grid P/T anomaly panels. Options: true | false (default).
+#  annual_spatial_anomalies: false
 # Select reference water years. Input: inclusive year mapping.
 #  reference_period:
 # First reference water year. Input: integer year, <= end.

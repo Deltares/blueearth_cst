@@ -84,6 +84,7 @@ Canonical WF0 plot-context tokens:
 
 ```text
 annual_clim_map
+annual_anomaly_map
 monthly_coverage
 monthly_clim_band
 annual_timing
@@ -108,6 +109,10 @@ The machine vocabulary and descriptions live in `figure_naming.py`. `annual_ts`,
 `monthly_clim_line` remain registered for the WF1 source producer; WF0 does not emit them. WF0 emits
 PNGs only. Optional captioned copies use the
 same filename under `plots/captioned/`; captions never add a fifth field.
+
+Optional annual spatial anomalies use `annual_anomaly_map` under
+`plots/annual_anomalies/page_001/`, `page_002/`, etc. Each page retains the ordinary four-field filename;
+dates and page membership live in titles, captions and the source's retained anomaly record.
 
 Recommended spatial-scope tokens:
 
