@@ -49,6 +49,7 @@ NEUTRAL_MAP_PANELS: Mapping[str, float | int] = {
     "outer_padding_mm": 3.0,
     "heading_space_mm": 4.0,
     "heading_pad_pt": 2.0,
+    "row_label_space_mm": 30.0,
     "key_space_mm": 16.0,
     "key_gap_mm": 4.0,
     "key_width_mm": 2.3,

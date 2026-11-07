@@ -32,6 +32,41 @@ def _classes(**kwargs):
     )
 
 
+def test_matrix_pagination_preserves_row_column_semantics_and_map_sizes():
+    import matplotlib.pyplot as plt
+
+    from blueearth_cst.plotting.prepared_maps import MapScale, draw_raster_matrix
+
+    scale = MapScale(
+        "%", (-2, 0, 2), (-2, 0, 2), ("blue", "red"), "blue", "red", "gray", "available"
+    )
+    fields = [[_raster([1, 0, -1, 1]) for _ in range(5)] for _ in range(5)]
+    titles = [[f"{r}:{c}" for c in range(5)] for r in range(5)]
+    figures = draw_raster_matrix(
+        fields,
+        [f"Model {i}" for i in range(5)],
+        [f"SSP {i}" for i in range(5)],
+        titles,
+        _FRAME,
+        scale,
+        {},
+    )
+    try:
+        assert [len(fig.axes) - 1 for fig in figures] == [12, 3, 8, 2]
+        drawn, widths = [], []
+        for fig in figures:
+            fig.canvas.draw()
+            drawn.extend(ax.get_title(loc="left") for ax in fig.axes[:-1])
+            widths.extend(ax.bbox.width / fig.dpi for ax in fig.axes[:-1])
+            assert any("Model" in text.get_text() for text in fig.texts)
+            assert any("SSP" in text.get_text() for text in fig.texts)
+        assert sorted(drawn) == sorted(title for row in titles for title in row)
+        np.testing.assert_allclose(widths, widths[0])
+    finally:
+        for fig in figures:
+            plt.close(fig)
+
+
 def _raster(values):
     return RasterMap(
         np.array([values], dtype=float), np.arange(5.0), np.array([0.0, 1.0])

@@ -14,13 +14,25 @@ def main() -> None:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument(
+        "--annual-matrix",
+        action="store_true",
+        help="Add annual projection-change maps by model and scenario",
+    )
+    parser.add_argument(
+        "--member-summary", choices=("median", "mean"), default="median"
+    )
+    parser.add_argument(
         "--model-root",
         type=Path,
         help="Wflow model with staticgeoms; defaults to <project>/models/hydrology/wflow",
     )
     args = parser.parse_args()
     for path in plot_delta_collection(
-        args.manifest, args.output_dir, model_root=args.model_root
+        args.manifest,
+        args.output_dir,
+        model_root=args.model_root,
+        annual_matrix=args.annual_matrix,
+        member_summary=args.member_summary,
     ):
         print(path)
 

@@ -45,6 +45,7 @@ maps:
     outer_padding_mm: 3
     heading_space_mm: 4
     heading_pad_pt: 2
+    row_label_space_mm: 30
     key_space_mm: 16
     key_gap_mm: 4
     key_width_mm: 2.3

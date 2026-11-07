@@ -200,6 +200,23 @@ viewport does not interpolate or refine the climate factors. Existing old grid-p
 Colour classes and ticks use evenly spaced whole numbers, with symmetric limits rounded outward to cover
 all members and months for each variable. Display rounding does not alter the retained factors.
 
+Add `--annual-matrix` for an annual-change comparison with models on rows and scenarios on columns.
+`--member-summary median` (default) takes the cell-wise median of the individual member changes;
+`--member-summary mean` uses an equal-member arithmetic mean. Each tile reports its paired member count.
+Missing model/scenario combinations remain labelled unavailable tiles, not interpolated values. Matrix
+pages retain row/column meanings and obey the shared panel cap; `annual_change_summary.csv` retains the
+displayed values, units, member counts and summary method.
+
+These diagnostics use the retained reference/future projection inputs: day-weighted annual mean temperature
+and mean annual precipitation/PET totals. Compute each year's value using its own calendar, average years,
+then calculate the paired temperature difference or percentage change. Do not average monthly percentage
+changes. Map each member's annual change to the historical grid before summarizing members. Missing months
+or active-cell coverage are errors. Different calendars can contribute to annual-total differences.
+These are projection-climatology changes, not annual changes of the transformed historical forcing.
+Basin-scalar inputs produce spatially uniform tiles and are labelled accordingly; PET appears only when
+the retained collection contains projection PET. Median aggregation reduces sensitivity to extreme members
+but does not imply member independence, model skill or equal representation across models.
+
 Identity includes resolved settings, input bytes, producer revision and environment. A repeated identical
 completed request verifies retained artifacts before reuse. Changed inputs produce a new identity. A partial
 directory without a ready marker is refused; inspect and preserve it before explicitly removing task-owned

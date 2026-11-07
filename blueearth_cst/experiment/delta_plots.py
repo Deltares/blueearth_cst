@@ -12,7 +12,12 @@ from blueearth_cst.shared.workflow_config_snapshot import resolve_file_reference
 
 
 def plot_delta_collection(
-    manifest: Path, output: Path, *, model_root: Path | None = None
+    manifest: Path,
+    output: Path,
+    *,
+    model_root: Path | None = None,
+    annual_matrix: bool = False,
+    member_summary: str = "median",
 ) -> list[Path]:
     """Render every member without pooling across models or implying probabilities."""
     import matplotlib
@@ -26,6 +31,7 @@ def plot_delta_collection(
     from blueearth_cst.plotting.prepared_maps import (
         MapScale,
         RasterMap,
+        draw_raster_matrix,
         draw_raster_panels,
     )
     from blueearth_cst.plotting.preset import use_preset
@@ -52,14 +58,18 @@ def plot_delta_collection(
     if output.is_relative_to(project / "scenarios/_engine"):
         raise ValueError("plots must be outside immutable collection storage")
     settings = intent["settings"]
+    if member_summary not in {"median", "mean"}:
+        raise ValueError("member_summary must be median or mean")
     with xr.open_dataset(data / settings["historical_path"]) as historical:
+        if annual_matrix:
+            historical.load()
         active = historical.precip.notnull().any("time")
         if settings.get("factor_layout") == "grid":
             active = active.transpose("latitude", "longitude")
         active = active.values
-        if settings.get("factor_layout") == "grid":
+        if settings.get("factor_layout") == "grid" or annual_matrix:
             xedges, yedges = grid_edges(historical.precip.isel(time=0))
-    if settings.get("factor_layout") == "grid":
+    if settings.get("factor_layout") == "grid" or annual_matrix:
         import geopandas as gpd
 
         geometry_root = (
@@ -225,6 +235,131 @@ def plot_delta_collection(
                             f"Unavailable optional layers: {', '.join(missing_layers) or 'none'}. "
                             f"Empty geometry records omitted: {', '.join(empty_features) or 'none'}."
                         )
+        if annual_matrix:
+            import csv
+
+            from blueearth_cst.experiment.delta_annual import (
+                annual_member_maps,
+                summarize_members,
+            )
+
+            fields = annual_member_maps(data, settings, historical)
+            models = list(
+                dict.fromkeys(member["model"] for member in settings["members"])
+            )
+            scenarios = list(
+                dict.fromkeys(member["scenario"] for member in settings["members"])
+            )
+            rows = []
+            for key, groups in fields.items():
+                summaries = {
+                    group: summarize_members(values, member_summary)
+                    for group, values in groups.items()
+                }
+                limit = max(
+                    1.0,
+                    max(
+                        float(np.nanmax(np.abs(values)))
+                        for values in summaries.values()
+                    ),
+                )
+                boundaries = MaxNLocator(
+                    nbins=10, integer=True, symmetric=True, steps=[1, 2, 5, 10]
+                ).tick_values(-limit, limit)
+                label = {
+                    "temp_offset_degc": "Temp.",
+                    "precip_change_percent": "Precip.",
+                    "pet_change_percent": "PET",
+                }[key]
+                unit = "°C" if key == "temp_offset_degc" else "%"
+                cmap = plt.get_cmap(
+                    PRECIP_ANOMALY_COLORMAP
+                    if key.startswith("precip")
+                    else CLIMATE_COLORMAPS["temp_crossing_freezing"]
+                )
+                scale = MapScale(
+                    unit,
+                    boundaries,
+                    boundaries,
+                    cmap(np.linspace(0.05, 0.95, len(boundaries) - 1)),
+                    cmap(0.0),
+                    cmap(1.0),
+                    "#dddddd",
+                    "available",
+                )
+                empty = np.full((len(yedges) - 1, len(xedges) - 1), np.nan)
+                rasters, titles = [], []
+                for model in models:
+                    rasters.append([])
+                    titles.append([])
+                    for scenario in scenarios:
+                        values = summaries.get((model, scenario), empty)
+                        count = len(groups.get((model, scenario), []))
+                        rasters[-1].append(RasterMap(values, xedges, yedges))
+                        titles[-1].append(f"n = {count}" if count else "No members")
+                        for iy, lat in enumerate(historical.latitude.values):
+                            for ix, lon in enumerate(historical.longitude.values):
+                                if np.isfinite(values[iy, ix]):
+                                    rows.append(
+                                        (
+                                            model,
+                                            scenario,
+                                            key,
+                                            member_summary,
+                                            count,
+                                            float(lat),
+                                            float(lon),
+                                            float(values[iy, ix]),
+                                            unit,
+                                        )
+                                    )
+                figures = draw_raster_matrix(
+                    rasters,
+                    models,
+                    scenarios,
+                    titles,
+                    frame,
+                    scale,
+                    overlays,
+                    colorbar_title=f"{label}\nchange ({unit})",
+                )
+                for page, fig in enumerate(figures, 1):
+                    suffix = f"_page_{page:02d}" if len(figures) > 1 else ""
+                    path = (
+                        output
+                        / f"comparison_{key}_annual_{member_summary}_map_matrix{suffix}.png"
+                    )
+                    export_figure(fig, path, dpi=200)
+                    plt.close(fig)
+                    paths.append(path)
+                    captions.append(
+                        f"{path.name}: Annual projection change, {settings['future_period']} versus {settings['reference_period']}; "
+                        f"cell-wise {member_summary} of member changes; model rows and scenario columns; page {page}/{len(figures)}. "
+                        "Temperature uses day-weighted annual means; precipitation/PET use mean annual totals, not averaged monthly percentages. "
+                        "Each input uses its own calendar; annual changes are mapped before member aggregation. "
+                        f"Source layout: {settings.get('factor_layout', 'basin_scalar')}; basin-scalar inputs produce spatially uniform maps. "
+                        "n denotes available paired members, equally weighted; no cross-model pooling or independence claim. "
+                        "Grey panels labelled No members identify absent combinations. These are projection climatology changes, "
+                        "not annual changes of the transformed historical simulation forcing."
+                    )
+            with (output / "annual_change_summary.csv").open(
+                "w", encoding="utf-8", newline=""
+            ) as handle:
+                writer = csv.writer(handle)
+                writer.writerow(
+                    (
+                        "model",
+                        "scenario",
+                        "variable",
+                        "member_summary",
+                        "member_count",
+                        "latitude",
+                        "longitude",
+                        "change",
+                        "units",
+                    )
+                )
+                writer.writerows(rows)
     (output / "figure_captions.md").write_text(
         "\n\n".join(captions) + "\n", encoding="utf-8"
     )

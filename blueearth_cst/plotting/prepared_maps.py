@@ -8,6 +8,7 @@ active preset's ``maps`` tokens.
 """
 
 import math
+import textwrap
 import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -1077,6 +1078,9 @@ def _draw_raster_panel_page(
     *,
     columns: int,
     colorbar_title: str | None,
+    row_labels: Sequence[str] = (),
+    column_labels: Sequence[str] = (),
+    geometry_columns: int | None = None,
 ) -> Figure:
     """Draw one page with column geometry fixed across the complete panel set."""
     preset = active()
@@ -1086,23 +1090,34 @@ def _draw_raster_panel_page(
     padding = settings["outer_padding_mm"]
     xgap, ygap = settings["horizontal_gap_mm"], settings["vertical_gap_mm"]
     heading = settings["heading_space_mm"]
+    label_space = settings["row_label_space_mm"] if row_labels else 0.0
+    geometry_columns = columns if geometry_columns is None else geometry_columns
     map_width = (
-        width - 2 * padding - settings["key_space_mm"] - (columns - 1) * xgap
-    ) / columns
+        width
+        - 2 * padding
+        - label_space
+        - settings["key_space_mm"]
+        - (geometry_columns - 1) * xgap
+    ) / geometry_columns
+    if map_width <= 0:
+        raise ValueError("spatial panel preset leaves no room after matrix row labels")
     west, east, south, north = frame.extent
     map_height = map_width * frame.aspect * (north - south) / (east - west)
     height = 2 * padding + rows * (map_height + heading) + (rows - 1) * ygap
+    column_heading = heading if column_labels else 0.0
+    height += column_heading
     fig = plt.figure(figsize=(width / 25.4, height / 25.4), layout="none")
     axes = []
     for index, (raster, title) in enumerate(zip(rasters, titles, strict=True)):
         row, column = divmod(index, columns)
-        left = padding + column * (map_width + xgap)
+        left = padding + label_space + column * (map_width + xgap)
         bottom = (
             height
             - padding
             - row * (map_height + heading + ygap)
             - heading
             - map_height
+            - column_heading
         )
         ax = fig.add_axes(
             (left / width, bottom / height, map_width / width, map_height / height)
@@ -1115,6 +1130,26 @@ def _draw_raster_panel_page(
             fontsize=preset.fonts["tick"],
         )
         axes.append(ax)
+        if row_labels and column == 0:
+            fig.text(
+                (padding + label_space - 2) / width,
+                (bottom + map_height / 2) / height,
+                textwrap.fill(row_labels[row], 22),
+                ha="right",
+                va="center",
+                fontsize=preset.fonts["tick"],
+                color=preset.colors["ink"],
+            )
+        if column_labels and row == 0:
+            fig.text(
+                (left + map_width / 2) / width,
+                (height - padding) / height,
+                column_labels[column],
+                ha="center",
+                va="top",
+                fontsize=preset.fonts["tick"],
+                color=preset.colors["ink"],
+            )
     if scale.status == "available":
         key_left = width - padding - settings["key_space_mm"] + settings["key_gap_mm"]
         cax = fig.add_axes(
@@ -1136,3 +1171,69 @@ def _draw_raster_panel_page(
             colorbar, scale.units if colorbar_title is None else colorbar_title
         )
     return fig
+
+
+def draw_raster_matrix(
+    rasters: Sequence[Sequence[RasterMap]],
+    row_labels: Sequence[str],
+    column_labels: Sequence[str],
+    panel_titles: Sequence[Sequence[str]],
+    frame: MapFrame,
+    scale: MapScale,
+    overlays: Mapping[str, Sequence[Mapping[str, Any]]],
+    *,
+    colorbar_title: str | None = None,
+) -> list[Figure]:
+    """Labelled spatial matrix, paginated in rectangular blocks without reflow.
+
+    Row and column meanings survive page breaks. All tiles, including explicitly
+    unavailable combinations, count toward the common page cap.
+    """
+    rows, columns = len(row_labels), len(column_labels)
+    if (
+        not rows
+        or not columns
+        or len(rasters) != rows
+        or len(panel_titles) != rows
+        or any(len(row) != columns for row in (*rasters, *panel_titles))
+    ):
+        raise ValueError(
+            "map matrix requires matching nonempty rectangular fields and labels"
+        )
+    for row in rasters:
+        for raster in row:
+            _validate(raster, frame, scale)
+    settings = active().map_panels
+    maximum = settings["max_panels_per_figure"]
+    if type(maximum) is not int or maximum <= 0:
+        raise ValueError("max_panels_per_figure must be a positive integer")
+    page_columns = min(int(settings["columns"]), columns, maximum)
+    if page_columns < 1:
+        raise ValueError("map matrix requires a positive page capacity")
+    page_rows = max(1, maximum // page_columns)
+    figures = []
+    for start_row in range(0, rows, page_rows):
+        selected_rows = range(start_row, min(start_row + page_rows, rows))
+        for start_column in range(0, columns, page_columns):
+            selected_columns = range(
+                start_column, min(start_column + page_columns, columns)
+            )
+            figures.append(
+                _draw_raster_panel_page(
+                    [rasters[r][c] for r in selected_rows for c in selected_columns],
+                    [
+                        panel_titles[r][c]
+                        for r in selected_rows
+                        for c in selected_columns
+                    ],
+                    frame,
+                    scale,
+                    overlays,
+                    columns=len(selected_columns),
+                    geometry_columns=page_columns,
+                    row_labels=[row_labels[r] for r in selected_rows],
+                    column_labels=[column_labels[c] for c in selected_columns],
+                    colorbar_title=colorbar_title,
+                )
+            )
+    return figures

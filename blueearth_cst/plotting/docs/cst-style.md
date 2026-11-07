@@ -154,6 +154,11 @@ to 12. Larger sets split into ordered figures/pages; a partial final page retain
 geographic extent and colour classes. Export all pages with numbered filenames or to a multipage PDF;
 captions identify page number and included fields. Never silently truncate excess panels.
 
+For model-by-scenario or other labelled matrices, use `draw_raster_matrix`. It retains explicit row/column
+labels, reserves `row_label_space_mm` (30 mm by default), and splits large matrices into rectangular page
+blocks. A row never wraps into another model or category; map sizes and scales stay fixed across pages.
+Unavailable combinations occupy explicit labelled tiles and count toward the page cap.
+
 Omit coordinate titles/ticks, repeated scale bars and location names. Retain basin outlines, dashed divides,
 rivers and location markers. Scale markers, marker edges, lines, halos and frame borders by the square root
 of panel width relative to 150 mm, bounded to 0.5–1 of full-map sizes. At the default twelve-panel layout,

@@ -107,6 +107,7 @@ def _check_maps(maps: dict[str, Any], path: Path) -> None:
         "outer_padding_mm",
         "heading_space_mm",
         "heading_pad_pt",
+        "row_label_space_mm",
         "key_space_mm",
         "key_gap_mm",
         "key_width_mm",
