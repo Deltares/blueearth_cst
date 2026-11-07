@@ -76,6 +76,91 @@ def test_compact_map_keeps_callers_canvas_and_omits_repeated_decorations():
         plt.close(fig)
 
 
+@pytest.mark.parametrize("columns", [3, 4])
+def test_shared_map_panels_follow_preset_and_keep_every_field(columns):
+    from dataclasses import replace
+
+    import matplotlib.pyplot as plt
+
+    from blueearth_cst.plotting.prepared_maps import MapScale, draw_raster_panels
+    from blueearth_cst.plotting.preset import NEUTRAL, use_preset
+
+    preset = replace(NEUTRAL, map_panels={**NEUTRAL.map_panels, "columns": columns})
+    scale = MapScale(
+        "%", (-2, 0, 2), (-2, 0, 2), ("blue", "red"), "blue", "red", "gray", "available"
+    )
+    with use_preset(preset):
+        (fig,) = draw_raster_panels(
+            [_raster([1, -1, 0, 1])] * 11,
+            [str(i) for i in range(11)],
+            _FRAME,
+            scale,
+            {},
+        )
+        try:
+            fig.canvas.draw()
+            assert len(fig.axes) == 12  # eleven supplied maps, one shared key
+            assert fig.get_figwidth() * 25.4 == pytest.approx(190)
+            axes, key = fig.axes[:-1], fig.axes[-1]
+            np.testing.assert_allclose(
+                [ax.bbox.width for ax in axes], axes[0].bbox.width
+            )
+            assert [ax.get_title(loc="left") for ax in axes] == [
+                str(i) for i in range(11)
+            ]
+            assert axes[columns].bbox.y0 < axes[0].bbox.y0
+            assert key.spines["outline"].get_window_extent().y0 == pytest.approx(
+                axes[-1].bbox.y0
+            )
+            assert all(not ax.get_xticks().size for ax in axes)
+        finally:
+            plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    "count,maximum,expected",
+    [(12, 12, [12]), (13, 12, [12, 1]), (25, 12, [12, 12, 1]), (12, 6, [6, 6])],
+)
+def test_map_panels_paginate_without_loss_or_resizing(count, maximum, expected):
+    from dataclasses import replace
+
+    import matplotlib.pyplot as plt
+
+    from blueearth_cst.plotting.prepared_maps import MapScale, draw_raster_panels
+    from blueearth_cst.plotting.preset import NEUTRAL, use_preset
+
+    preset = replace(
+        NEUTRAL, map_panels={**NEUTRAL.map_panels, "max_panels_per_figure": maximum}
+    )
+    scale = MapScale(
+        "%", (-2, 0, 2), (-2, 0, 2), ("blue", "red"), "blue", "red", "gray", "available"
+    )
+    with use_preset(preset):
+        figures = draw_raster_panels(
+            [_raster([1, -1, 0, 1])] * count,
+            [str(i) for i in range(count)],
+            _FRAME,
+            scale,
+            {},
+        )
+        try:
+            assert [len(fig.axes) - 1 for fig in figures] == expected
+            titles, widths = [], []
+            for fig in figures:
+                fig.canvas.draw()
+                for ax in fig.axes[:-1]:
+                    titles.append(ax.get_title(loc="left"))
+                    widths.append(ax.bbox.width / fig.dpi)
+                    np.testing.assert_array_equal(
+                        ax.collections[0].norm.boundaries, scale.boundaries
+                    )
+            assert titles == [str(i) for i in range(count)]
+            np.testing.assert_allclose(widths, widths[0])
+        finally:
+            for fig in figures:
+                plt.close(fig)
+
+
 @pytest.mark.parametrize("extent", [(0, 4, 0, 1), (0, 1, 0, 4), (0, 2, 0, 2)])
 def test_keys_extend_canvas_without_resizing_map(extent):
     import matplotlib.pyplot as plt

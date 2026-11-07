@@ -186,15 +186,13 @@ for each gridded member and variable, and `figure_captions.md`. Members are grou
 without pooling. Grid comparison lines are unweighted active-cell means; shaded spatial ranges are not
 confidence intervals. Maps share each variable's colour scale across members and months, and use the
 standard climate-map renderer with basin boundaries, subbasin divides, rivers and location markers.
-Each member/variable figure places January–December in four columns and three rows, with narrow
-gutters and one shared colourbar on the right, bottom-aligned with the map panels. Coordinate titles/tick
-labels, location labels and repeated scale bars
-are omitted to keep panels compact; location markers remain. Geometry comes from
-the model described below. Compact markers, line weights and halos scale with the square root of panel
-width relative to the standard 150 mm map, bounded to half/full size; text stays at readable preset sizes.
-At the current 41 mm panel width, location diamonds are about 3.1 pt rather than the full-map 6 pt.
-Geometry comes from
-`<project>/models/hydrology/wflow/staticgeoms`; use
+Each member/variable figure places January–December using the
+[shared spatial-panel preset](../../blueearth_cst/plotting/docs/cst-style.md#spatial-map-panels), by default
+four columns and three rows, compact overlays and one bottom-aligned colourbar. Layout and mark proportions
+come from `config/plotting/style.yml` → `maps.panels`, not delta-specific settings.
+`max_panels_per_figure` defaults to 12. Lower limits split monthly sets into numbered `_page_01`,
+`_page_02`, … PNGs; every page appears in the caption inventory with its included months.
+Geometry comes from `<project>/models/hydrology/wflow/staticgeoms`; use
 `--model-root <wflow-model>` for a different model location. Basin geometry with an explicit CRS is required
 for gridded plots. Missing optional subbasin, river or location layers are reported in captions. The basin
 viewport does not interpolate or refine the climate factors. Existing old grid-panel files are not deleted;

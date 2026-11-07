@@ -81,7 +81,7 @@ _MAP_LISTS = ("river_order_widths", "divide_dash")
 
 
 def _check_maps(maps: dict[str, Any], path: Path) -> None:
-    expected = {*_MAP_NUMBERS, *_MAP_LISTS, "location_marker"}
+    expected = {*_MAP_NUMBERS, *_MAP_LISTS, "location_marker", "panels"}
     if set(maps) != expected:
         raise ValueError(f"{path}: maps requires exactly {sorted(expected)}")
 
@@ -97,6 +97,42 @@ def _check_maps(maps: dict[str, Any], path: Path) -> None:
             raise ValueError(f"{path}: maps.{name} must be a list of positive numbers")
     if not isinstance(maps["location_marker"], str) or not maps["location_marker"]:
         raise ValueError(f"{path}: maps.location_marker must be a marker string")
+    panels = maps["panels"]
+    panel_keys = {
+        "columns",
+        "max_panels_per_figure",
+        "width_mm",
+        "horizontal_gap_mm",
+        "vertical_gap_mm",
+        "outer_padding_mm",
+        "heading_space_mm",
+        "heading_pad_pt",
+        "key_space_mm",
+        "key_gap_mm",
+        "key_width_mm",
+        "key_height_fraction",
+        "overlay_reference_width_mm",
+        "overlay_min_scale",
+    }
+    if not isinstance(panels, dict) or set(panels) != panel_keys:
+        raise ValueError(f"{path}: maps.panels requires exactly {sorted(panel_keys)}")
+    if not all(positive(value) for value in panels.values()):
+        raise ValueError(f"{path}: maps.panels values must be positive finite numbers")
+    if type(panels["columns"]) is not int or panels["columns"] not in (3, 4):
+        raise ValueError(f"{path}: maps.panels.columns must be 3 or 4")
+    if type(panels["max_panels_per_figure"]) is not int:
+        raise ValueError(
+            f"{path}: maps.panels.max_panels_per_figure must be a positive integer"
+        )
+    if panels["key_height_fraction"] > 1 or panels["overlay_min_scale"] > 1:
+        raise ValueError(f"{path}: maps.panels fractions cannot exceed 1")
+    available = (
+        panels["width_mm"] - 2 * panels["outer_padding_mm"] - panels["key_space_mm"]
+    )
+    if available <= (panels["columns"] - 1) * panels["horizontal_gap_mm"]:
+        raise ValueError(f"{path}: maps.panels leaves no room for map frames")
+    if panels["key_space_mm"] <= panels["key_gap_mm"] + panels["key_width_mm"]:
+        raise ValueError(f"{path}: maps.panels leaves no room for colourbar labels")
 
 
 def setup_digest() -> str:

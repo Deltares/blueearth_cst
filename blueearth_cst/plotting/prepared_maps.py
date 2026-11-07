@@ -933,7 +933,14 @@ def draw_raster_map(
     overlay_scale = 1.0
     if compact:
         width_mm = ax.get_position().width * fig.get_figwidth() * 25.4
-        overlay_scale = min(1.0, max(0.5, math.sqrt(width_mm / MAP_WIDTH_MM)))
+        panels = active().map_panels
+        overlay_scale = min(
+            1.0,
+            max(
+                panels["overlay_min_scale"],
+                math.sqrt(width_mm / panels["overlay_reference_width_mm"]),
+            ),
+        )
         for spine in ax.spines.values():
             spine.set_linewidth(active().lines["boundary"] * overlay_scale)
     labels = _draw_overlays(ax, overlays, overlay_scale)
@@ -1014,4 +1021,118 @@ def draw_raster_map(
     _place_point_labels(fig, ax, labels)
     if owns_canvas:
         _fit_map_canvas(fig, ax)
+    return fig
+
+
+def draw_raster_panels(
+    rasters: Sequence[RasterMap],
+    titles: Sequence[str],
+    frame: MapFrame,
+    scale: MapScale,
+    overlays: Mapping[str, Sequence[Mapping[str, Any]]],
+    *,
+    colorbar_title: str | None = None,
+) -> list[Figure]:
+    """Draw compact spatial panels using the active preset's ``map_panels``.
+
+    Panels share the supplied geographic frame and scientific scale. The caller
+    owns units, class boundaries, colour meaning, missing-data explanation and
+    ordering; this helper never rounds or recalculates their values. Default
+    geometry is four columns, narrow gutters and a bottom-aligned shared key.
+    Return ordered figures, each containing at most ``max_panels_per_figure``
+    fields. All pages keep identical map sizes and the supplied scale, including
+    a partially filled final page. The caller owns page filenames or PDF export.
+    """
+    if not rasters or len(rasters) != len(titles):
+        raise ValueError(
+            "map panels require a nonempty raster list and matching titles"
+        )
+    for raster in rasters:
+        _validate(raster, frame, scale)
+    settings = active().map_panels
+    maximum = settings["max_panels_per_figure"]
+    if type(maximum) is not int or maximum <= 0:
+        raise ValueError("max_panels_per_figure must be a positive integer")
+    columns = min(int(settings["columns"]), maximum, len(rasters))
+    return [
+        _draw_raster_panel_page(
+            rasters[start : start + maximum],
+            titles[start : start + maximum],
+            frame,
+            scale,
+            overlays,
+            columns=columns,
+            colorbar_title=colorbar_title,
+        )
+        for start in range(0, len(rasters), maximum)
+    ]
+
+
+def _draw_raster_panel_page(
+    rasters: Sequence[RasterMap],
+    titles: Sequence[str],
+    frame: MapFrame,
+    scale: MapScale,
+    overlays: Mapping[str, Sequence[Mapping[str, Any]]],
+    *,
+    columns: int,
+    colorbar_title: str | None,
+) -> Figure:
+    """Draw one page with column geometry fixed across the complete panel set."""
+    preset = active()
+    settings = preset.map_panels
+    rows = math.ceil(len(rasters) / columns)
+    width = settings["width_mm"]
+    padding = settings["outer_padding_mm"]
+    xgap, ygap = settings["horizontal_gap_mm"], settings["vertical_gap_mm"]
+    heading = settings["heading_space_mm"]
+    map_width = (
+        width - 2 * padding - settings["key_space_mm"] - (columns - 1) * xgap
+    ) / columns
+    west, east, south, north = frame.extent
+    map_height = map_width * frame.aspect * (north - south) / (east - west)
+    height = 2 * padding + rows * (map_height + heading) + (rows - 1) * ygap
+    fig = plt.figure(figsize=(width / 25.4, height / 25.4), layout="none")
+    axes = []
+    for index, (raster, title) in enumerate(zip(rasters, titles, strict=True)):
+        row, column = divmod(index, columns)
+        left = padding + column * (map_width + xgap)
+        bottom = (
+            height
+            - padding
+            - row * (map_height + heading + ygap)
+            - heading
+            - map_height
+        )
+        ax = fig.add_axes(
+            (left / width, bottom / height, map_width / width, map_height / height)
+        )
+        draw_raster_map(raster, frame, scale, overlays, ax=ax, compact=True)
+        ax.set_title(
+            title,
+            loc="left",
+            pad=settings["heading_pad_pt"],
+            fontsize=preset.fonts["tick"],
+        )
+        axes.append(ax)
+    if scale.status == "available":
+        key_left = width - padding - settings["key_space_mm"] + settings["key_gap_mm"]
+        cax = fig.add_axes(
+            (
+                key_left / width,
+                padding / height,
+                settings["key_width_mm"] / width,
+                settings["key_height_fraction"],
+            )
+        )
+        colorbar = fig.colorbar(
+            axes[0].collections[0],
+            cax=cax,
+            ticks=scale.ticks,
+            extend=scale.extend,
+            extendrect=True,
+        )
+        style_colourbar(
+            colorbar, scale.units if colorbar_title is None else colorbar_title
+        )
     return fig

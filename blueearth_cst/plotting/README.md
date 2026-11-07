@@ -22,6 +22,14 @@ supports its climate and spatial labels. [figure_titles.py](figure_titles.py) an
 [figure_captions.py](figure_captions.py) write CST figure inventories. Those modules carry workflow
 conventions and are not general plotting APIs.
 
+Use `prepared_maps.draw_raster_panels` for continuous spatial panel figures. Supply ordered `RasterMap`
+fields and headings, one `MapFrame`, one `MapScale` and shared overlays. The helper owns compact panel
+geometry, proportionate overlay marks and the bottom-aligned colourbar. `Preset.map_panels` carries its
+defaults; CST loads them from `config/plotting/style.yml` → `maps.panels`. It returns an ordered list of
+figures, capped by `max_panels_per_figure` (default 12); export every figure as a numbered file or PDF page.
+The final partial page keeps the same map sizes and scale. Keep class boundaries and
+scientific meaning in the caller. See the [spatial-panel style](docs/cst-style.md#spatial-map-panels).
+
 ## Prepared drawing, presets and export
 
 The drawing helpers accept prepared data. [prepared_charts.py](prepared_charts.py) provides `annual_series`

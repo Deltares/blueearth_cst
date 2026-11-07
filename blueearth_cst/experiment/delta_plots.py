@@ -22,11 +22,11 @@ def plot_delta_collection(
     from matplotlib.ticker import MaxNLocator
 
     from blueearth_cst.plotting.export import export_figure
-    from blueearth_cst.plotting.fundamentals import MONTH_ABBR, new_fig, style_colourbar
+    from blueearth_cst.plotting.fundamentals import MONTH_ABBR, new_fig
     from blueearth_cst.plotting.prepared_maps import (
         MapScale,
         RasterMap,
-        draw_raster_map,
+        draw_raster_panels,
     )
     from blueearth_cst.plotting.preset import use_preset
     from blueearth_cst.shared.map_frames import (
@@ -192,73 +192,39 @@ def plot_delta_collection(
                         "#dddddd",
                         "available",
                     )
-                    # Fixed map rectangles preserve geographic aspect with 1.5 mm gutters.
-                    west, east, south, north = frame.extent
-                    panel_width = 40.875
-                    panel_height = (
-                        panel_width * frame.aspect * (north - south) / (east - west)
+                    figures = draw_raster_panels(
+                        [
+                            RasterMap(values[month], xedges, yedges)
+                            for month in range(12)
+                        ],
+                        MONTH_ABBR,
+                        frame,
+                        scale,
+                        overlays,
+                        colorbar_title=f"{label}\nchange ({unit})",
                     )
-                    row_height = panel_height + 6
-                    height = 3 * row_height + 3
-                    fig = plt.figure(figsize=(190 / 25.4, height / 25.4), layout="none")
-                    axes = []
-                    for month in range(12):
-                        row, column = divmod(month, 4)
-                        left = 3 + column * (panel_width + 1.5)
-                        bottom = height - 3 - row * row_height - 4 - panel_height
-                        ax = fig.add_axes(
-                            (
-                                left / 190,
-                                bottom / height,
-                                panel_width / 190,
-                                panel_height / height,
-                            )
+                    maximum = CST_PRESET.map_panels["max_panels_per_figure"]
+                    for page, fig in enumerate(figures, 1):
+                        suffix = f"_page_{page:02d}" if len(figures) > 1 else ""
+                        path = output / (
+                            f"run_{index + 3:0{intent['run_group_id_width']}d}_{key.lower()}"
+                            f"_monthly_map_basin_ext{suffix}.png"
                         )
-                        draw_raster_map(
-                            RasterMap(values[month], xedges, yedges),
-                            frame,
-                            scale,
-                            overlays,
-                            ax=ax,
-                            compact=True,
+                        export_figure(fig, path, dpi=200)
+                        plt.close(fig)
+                        paths.append(path)
+                        page_months = MONTH_ABBR[(page - 1) * maximum : page * maximum]
+                        captions.append(
+                            f"{path.name}: {member['model']} / {member['scenario']} / {member['member']}; "
+                            f"{', '.join(page_months)}, left to right by row; page {page}/{len(figures)}; "
+                            f"future {settings['future_period']}. "
+                            "Factors on the historical forcing grid; common scale across members and months. "
+                            f"Compact {CST_PRESET.map_panels['columns']}-column panels retain basin outline, subbasin divides, rivers "
+                            "and location markers; coordinate and location labels are omitted. "
+                            "Basin zoom does not add subgrid climate information. "
+                            f"Unavailable optional layers: {', '.join(missing_layers) or 'none'}. "
+                            f"Empty geometry records omitted: {', '.join(empty_features) or 'none'}."
                         )
-                        ax.set_title(
-                            MONTH_ABBR[month],
-                            loc="left",
-                            pad=2,
-                            fontsize=CST_PRESET.fonts["tick"],
-                        )
-                        axes.append(ax)
-                    # Match the shared map/heatmap convention: key flush with the
-                    # bottom map frame, retaining room above for its title.
-                    cax = fig.add_axes(
-                        (175 / 190, axes[-1].get_position().y0, 2.3 / 190, 0.64)
-                    )
-                    colorbar = fig.colorbar(
-                        axes[0].collections[0],
-                        cax=cax,
-                        ticks=scale.ticks,
-                        extend="both",
-                        extendrect=True,
-                    )
-                    style_colourbar(colorbar, f"{label}\nchange ({unit})")
-                    path = output / (
-                        f"run_{index + 3:0{intent['run_group_id_width']}d}_{key.lower()}"
-                        "_monthly_map_basin_ext.png"
-                    )
-                    export_figure(fig, path, dpi=200)
-                    plt.close(fig)
-                    paths.append(path)
-                    captions.append(
-                        f"{path.name}: {member['model']} / {member['scenario']} / {member['member']}; "
-                        f"January–December, left to right by row; future {settings['future_period']}. "
-                        "Factors on the historical forcing grid; common scale across members and months. "
-                        "Compact 4-column × 3-row panels retain basin outline, subbasin divides, rivers "
-                        "and location markers; coordinate and location labels are omitted. "
-                        "Basin zoom does not add subgrid climate information. "
-                        f"Unavailable optional layers: {', '.join(missing_layers) or 'none'}. "
-                        f"Empty geometry records omitted: {', '.join(empty_features) or 'none'}."
-                    )
     (output / "figure_captions.md").write_text(
         "\n\n".join(captions) + "\n", encoding="utf-8"
     )

@@ -163,6 +163,29 @@ def test_invalid_style_reports_the_setting(tmp_path, section, key, value):
         plot_setup.load_style(path)
 
 
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("columns", 2),
+        ("columns", True),
+        ("max_panels_per_figure", 0),
+        ("max_panels_per_figure", 1.5),
+        ("max_panels_per_figure", True),
+        ("overlay_min_scale", 1.5),
+        ("width_mm", 5),
+        ("key_space_mm", 2),
+        ("unknown", 1),
+    ],
+)
+def test_invalid_spatial_panel_preset_is_refused(tmp_path, key, value):
+    style = plot_setup.load_style()
+    style["maps"]["panels"][key] = value
+    path = tmp_path / "style.yml"
+    path.write_text(yaml.safe_dump(style), encoding="utf-8")
+    with pytest.raises(ValueError, match="maps.panels"):
+        plot_setup.load_style(path)
+
+
 @pytest.mark.process_isolation
 def test_palette_and_workflow_contract_imports_stay_matplotlib_free():
     result = subprocess.run(
