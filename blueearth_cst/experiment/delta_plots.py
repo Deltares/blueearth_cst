@@ -19,6 +19,7 @@ def plot_delta_collection(
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib.ticker import MaxNLocator
 
     from blueearth_cst.plotting.export import export_figure
     from blueearth_cst.plotting.fundamentals import MONTH_ABBR, new_fig, style_colourbar
@@ -175,12 +176,17 @@ def plot_delta_collection(
                         if key == "precip_ratio"
                         else CLIMATE_COLORMAPS["temp_crossing_freezing"]
                     )
-                    boundaries = np.linspace(-limit, limit, 11)
+                    # Round outward to readable whole-number classes, retaining
+                    # one symmetric scale for every member and month.
+                    limit = max(limit, 1.0)
+                    boundaries = MaxNLocator(
+                        nbins=10, integer=True, symmetric=True, steps=[1, 2, 5, 10]
+                    ).tick_values(-limit, limit)
                     scale = MapScale(
                         unit,
                         boundaries,
-                        np.linspace(-limit, limit, 5),
-                        cmap(np.linspace(0.05, 0.95, 10)),
+                        boundaries,
+                        cmap(np.linspace(0.05, 0.95, len(boundaries) - 1)),
                         cmap(0.0),
                         cmap(1.0),
                         "#dddddd",

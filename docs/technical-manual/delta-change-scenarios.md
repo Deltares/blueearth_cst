@@ -195,6 +195,8 @@ are omitted to keep panels compact; location markers remain. Geometry comes from
 for gridded plots. Missing optional subbasin, river or location layers are reported in captions. The basin
 viewport does not interpolate or refine the climate factors. Existing old grid-panel files are not deleted;
 `figure_captions.md` lists the current exports.
+Colour classes and ticks use evenly spaced whole numbers, with symmetric limits rounded outward to cover
+all members and months for each variable. Display rounding does not alter the retained factors.
 
 Identity includes resolved settings, input bytes, producer revision and environment. A repeated identical
 completed request verifies retained artifacts before reuse. Changed inputs produce a new identity. A partial
