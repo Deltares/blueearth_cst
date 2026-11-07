@@ -158,6 +158,7 @@ For model-by-scenario or other labelled matrices, use `draw_raster_matrix`. It r
 labels, reserves `row_label_space_mm` (30 mm by default), and splits large matrices into rectangular page
 blocks. A row never wraps into another model or category; map sizes and scales stay fixed across pages.
 Unavailable combinations occupy explicit labelled tiles and count toward the page cap.
+When per-tile headings are empty, omit their reserved height so column headings sit close to the maps.
 
 Omit coordinate titles/ticks, repeated scale bars and location names. Retain basin outlines, dashed divides,
 rivers and location markers. Scale markers, marker edges, lines, halos and frame borders by the square root

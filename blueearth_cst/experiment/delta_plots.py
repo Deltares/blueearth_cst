@@ -1,5 +1,6 @@
 """Member-resolved monthly and spatial diagnostics of retained delta factors."""
 
+import re
 from collections import defaultdict
 from pathlib import Path
 
@@ -9,6 +10,12 @@ import xarray as xr
 from blueearth_cst.experiment.content_identity import read_canonical_json
 from blueearth_cst.experiment.delta_scenarios import read_delta_collection
 from blueearth_cst.shared.workflow_config_snapshot import resolve_file_reference
+
+
+def _scenario_title(scenario: str) -> str:
+    """Format standard ScenarioMIP IDs; preserve unrecognized identifiers."""
+    match = re.fullmatch(r"ssp([1-5])([0-9]{2})", scenario)
+    return f"SSP{match[1]}-{int(match[2]) / 10:.1f}" if match else scenario
 
 
 def plot_delta_collection(
@@ -296,7 +303,7 @@ def plot_delta_collection(
                         values = summaries.get((model, scenario), empty)
                         count = len(groups.get((model, scenario), []))
                         rasters[-1].append(RasterMap(values, xedges, yedges))
-                        titles[-1].append(f"n = {count}" if count else "No members")
+                        titles[-1].append("" if count else "No members")
                         for iy, lat in enumerate(historical.latitude.values):
                             for ix, lon in enumerate(historical.longitude.values):
                                 if np.isfinite(values[iy, ix]):
@@ -316,7 +323,7 @@ def plot_delta_collection(
                 figures = draw_raster_matrix(
                     rasters,
                     models,
-                    scenarios,
+                    [_scenario_title(scenario) for scenario in scenarios],
                     titles,
                     frame,
                     scale,
@@ -338,7 +345,13 @@ def plot_delta_collection(
                         "Temperature uses day-weighted annual means; precipitation/PET use mean annual totals, not averaged monthly percentages. "
                         "Each input uses its own calendar; annual changes are mapped before member aggregation. "
                         f"Source layout: {settings.get('factor_layout', 'basin_scalar')}; basin-scalar inputs produce spatially uniform maps. "
-                        "n denotes available paired members, equally weighted; no cross-model pooling or independence claim. "
+                        "Paired member counts: "
+                        + "; ".join(
+                            f"{model} / {_scenario_title(scenario)}: {len(groups.get((model, scenario), []))}"
+                            for model in models
+                            for scenario in scenarios
+                        )
+                        + ". Members are equally weighted; no cross-model pooling or independence claim. "
                         "Grey panels labelled No members identify absent combinations. These are projection climatology changes, "
                         "not annual changes of the transformed historical simulation forcing."
                     )

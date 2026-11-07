@@ -1089,7 +1089,7 @@ def _draw_raster_panel_page(
     width = settings["width_mm"]
     padding = settings["outer_padding_mm"]
     xgap, ygap = settings["horizontal_gap_mm"], settings["vertical_gap_mm"]
-    heading = settings["heading_space_mm"]
+    heading = settings["heading_space_mm"] if any(titles) else 0.0
     label_space = settings["row_label_space_mm"] if row_labels else 0.0
     geometry_columns = columns if geometry_columns is None else geometry_columns
     map_width = (
@@ -1104,7 +1104,7 @@ def _draw_raster_panel_page(
     west, east, south, north = frame.extent
     map_height = map_width * frame.aspect * (north - south) / (east - west)
     height = 2 * padding + rows * (map_height + heading) + (rows - 1) * ygap
-    column_heading = heading if column_labels else 0.0
+    column_heading = settings["heading_space_mm"] if column_labels else 0.0
     height += column_heading
     fig = plt.figure(figsize=(width / 25.4, height / 25.4), layout="none")
     axes = []

@@ -202,7 +202,9 @@ all members and months for each variable. Display rounding does not alter the re
 
 Add `--annual-matrix` for an annual-change comparison with models on rows and scenarios on columns.
 `--member-summary median` (default) takes the cell-wise median of the individual member changes;
-`--member-summary mean` uses an equal-member arithmetic mean. Each tile reports its paired member count.
+`--member-summary mean` uses an equal-member arithmetic mean. Paired member counts appear in captions and
+the CSV, leaving maps free of count annotations. Scenario column headings use labels such as `SSP2-4.5`
+and sit directly above the maps, without reserving empty per-panel heading space.
 Missing model/scenario combinations remain labelled unavailable tiles, not interpolated values. Matrix
 pages retain row/column meanings and obey the shared panel cap; `annual_change_summary.csv` retains the
 displayed values, units, member counts and summary method.
