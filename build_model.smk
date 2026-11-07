@@ -90,9 +90,13 @@ climate_cfg = config.get("climate") or {}
 # number -- but a figure labelled 'annual' should mean the basin's year.
 WATER_YEAR_START = resolve_water_year_start(get_config(climate_cfg, "water_year_start"))
 my_cfg = config["workflows"]["build_model"]
+from blueearth_cst.model.historical_runs import historical_run_name, require_new_run
+historical_name = historical_run_name(my_cfg.get("historical_run"))
 
 # Project — paths and external resources
 project_dir = get_config(project_cfg, "project_dir", optional=False)
+if historical_name:
+    require_new_run(project_dir, historical_name)
 # O-22: make the two-tier project_dir rule mechanical rather than
 # documentary. Warns, never raises; test_case/ is the one exemption.
 warn_if_project_dir_in_repo(project_dir, workflow.basedir)
@@ -836,6 +840,7 @@ rule add_climate_forcing:
         # incidental: the script writes it, so an undeclared file here would be
         # invisible to Snakemake exactly as `output_gwr.csv` was.
         store_catalog = f"{basin_dir}/config/climate_store_catalog.yml",
+        forcing_record = [f"{basin_dir}/config/historical_forcing.json"] if historical_name else [],
         forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
         # TERMINAL BUILD SENTINEL. `hydromt update wflow_sbm` calls
         # mod.write(), which rewrites the WHOLE model root -- measured on the R9
@@ -889,6 +894,8 @@ rule run_historical_simulation:
     message: RUN_HISTORICAL_SIMULATION.banner()
     input:
         forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
+        forcing_record = [f"{basin_dir}/config/historical_forcing.json"] if historical_name else [],
+        registry_path = [f"{spatial_dir}/location_registry.csv"] if historical_name else [],
         # the model-root ordering contract. Already ordered after 1.09 through forcing_path; declared
         # anyway so the invariant is LOCAL rather than transitive -- a reader is
         # correct because of what it declares, not because of a chain someone
@@ -899,7 +906,7 @@ rule run_historical_simulation:
             "blueearth_cst/shared/wflow_grid.jl",
             # This helper constructs Wflow.Config and invokes Wflow.run.
             "blueearth_cst/shared/wflow_progress.jl",
-        ],
+        ] + (["blueearth_cst/model/historical_runs.py"] if historical_name else []),
     output:
         # Retain full-precision native responses so evaluation and table exports
         # can rerun without another historical simulation. Rounded exports are
@@ -941,6 +948,8 @@ rule run_historical_simulation:
         wflow_log = f"{basin_dir}/run_default/log.txt",
     params:
         toml_path = f"{basin_dir}/wflow_sbm.toml",
+        historical_name = historical_name,
+        retained_config = config if historical_name else {},
         driver = str(Path(workflow.basedir) / "blueearth_cst" / "model" / "run_wflow.jl"),
         netcdf_grid = grid_output,
     log:
@@ -955,11 +964,22 @@ rule run_historical_simulation:
         # toolbox animates. It is also the shape rule 3.15 already has.
         import shlex
         import subprocess
-        subprocess.run([sys.executable, "-u", run_logged, str(log[0]), "--",
-            *shlex.split(wflow_julia), params.driver, params.toml_path], check=True)
-        if params.netcdf_grid:
-            from blueearth_cst.shared.grid_output import validate_grid
-            validate_grid(output.grid_path[0], params.toml_path)
+        from contextlib import nullcontext
+        from blueearth_cst.model.historical_runs import retain_historical_run
+        retention = retain_historical_run(
+            project_dir=project_dir, name=params.historical_name,
+            toml_path=Path(params.toml_path), registry_path=Path(input.registry_path[0]),
+            forcing_record_path=Path(input.forcing_record[0]), config=params.retained_config,
+            config_path=Path(config_path),
+            workflow_config_path=WORKFLOW_CONFIG_PATHS.get("build_model"),
+            repo_root=Path(workflow.basedir),
+        ) if params.historical_name else nullcontext()
+        with retention:
+            subprocess.run([sys.executable, "-u", run_logged, str(log[0]), "--",
+                *shlex.split(wflow_julia), params.driver, params.toml_path], check=True)
+            if params.netcdf_grid:
+                from blueearth_cst.shared.grid_output import validate_grid
+                validate_grid(output.grid_path[0], params.toml_path)
 
 # 1.03  extract_climate_datasets — the SHARED historical-climate store producer
 # (R07 B1). This declaration and rule 3.08 in run_stress_test.smk are

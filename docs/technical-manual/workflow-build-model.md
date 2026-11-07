@@ -136,3 +136,39 @@ Water and energy limits describe long-term equilibrium assumptions. Short/discon
 storage changes, regulation, transfers, basin area and forcing/observation errors can explain departures.
 The residual `1-Q/P` is not measured ET. Unusual points remain visible; no automatic pass/fail or source
 ranking is supplied. Tables retain counts, actual years and exclusion reasons for inspection.
+
+## Retain historical simulations
+
+By default, historical simulation writes the current `run_default` results. To keep a named response
+for later forcing comparisons, add this optional setting to the model workflow configuration:
+
+```yaml
+# project_config_build_model.yml
+historical_run:
+  # Unique lowercase label; changing the forcing does not change this label automatically.
+  name: era5_reference
+```
+
+Run the model workflow through the usual runner. Retention requires a fresh historical simulation;
+it does not attach today's configuration to an older `output.csv`. Choose a new name for each run.
+Names use lowercase letters, digits and underscores, start with a letter, and contain at most 64 characters.
+An existing name is refused before execution, including when its retained files are damaged.
+Omitting `historical_run` or setting it to null preserves the existing behavior.
+
+Completed runs live under `simulations/historical/<name>/` in the project. Each contains the unrounded
+native `output.csv`, full-precision discharge keyed by registry ID in `discharge.csv`, the executed TOML,
+station registry and crosswalk, effective forcing recipe, composed configuration, input fingerprints,
+and completion evidence. Publication is atomic; incomplete staging directories are not readable runs.
+Source changes during execution prevent publication. Retained readers verify every payload hash.
+Failed stages remain as hidden `.partial` directories for inspection. A killed process can also leave
+a hidden `.lock` reservation; inspect it and confirm no writer is active before removing that reservation.
+Choose a new run name when uncertain. Readers never treat either location as a completed run.
+
+The fixed-model identity covers scientific TOML settings and referenced static, cyclic, waterbody and
+initial-state inputs. It excludes forcing contents and mappings, simulation dates, output configuration
+and logging paths; those have separate provenance and compatibility checks. NetCDF inputs use content
+hashes independent of compression and container timestamps. Station identities are checked separately.
+
+Retention supports comparison after the current model or `run_default` changes. It is **not a complete
+model archive for re-execution**: the fingerprints identify model and forcing inputs but do not copy them.
+Keep those inputs and the recorded software environment separately if model re-execution is required.

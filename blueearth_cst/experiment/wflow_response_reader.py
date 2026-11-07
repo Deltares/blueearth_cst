@@ -97,7 +97,12 @@ def open_responses(
         if static_path is not None and static_path.is_file()
         else None
     )
-    frame = pd.read_csv(native_artifacts.csv_path, index_col=0, parse_dates=True)
+    frame = pd.read_csv(
+        native_artifacts.csv_path,
+        index_col=0,
+        parse_dates=True,
+        float_precision="round_trip",
+    )
     expected_first = pd.Timestamp(time_config["starttime"]) + step
     expected_last = pd.Timestamp(time_config["endtime"])
     if (

@@ -1060,6 +1060,10 @@ def compose_config(
     # missing `trajectory:` for an axis still spelled `stress_test:`.
     bodies = {probe.name: probe.body for probe in probes if probe.status == "ok"}
     for owner, body in bodies.items():
+        if owner == "build_model":
+            from blueearth_cst.model.historical_runs import historical_run_name
+
+            historical_run_name(body.get("historical_run"))
         if owner in {"build_model", "simulate_system"}:
             from blueearth_cst.shared.grid_output import normalize_grid_output
 

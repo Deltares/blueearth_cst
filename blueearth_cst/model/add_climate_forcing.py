@@ -315,6 +315,15 @@ if __name__ == "__main__":
                 oro_path=sm.input.oro_nc or None,
                 forcing=getattr(sm.params, "forcing", None),
             )
+            if getattr(sm.output, "forcing_record", []):
+                from blueearth_cst.model.historical_runs import write_forcing_record
+
+                write_forcing_record(
+                    Path(sm.params.basin_dir) / "wflow_sbm.toml",
+                    Path(sm.output.forcing_record[0]),
+                    sm.params.clim_source,
+                    getattr(sm.params, "forcing", None),
+                )
             log_row(
                 # Dates only: the run window is whole days, so the `T00:00:00`
                 # both stamps carry is 18 chars of constant on a row that was
