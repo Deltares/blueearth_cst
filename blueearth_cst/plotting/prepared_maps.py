@@ -811,6 +811,9 @@ def draw_raster_map(
     locator: LocatorMap | None = None,
     show_key: bool = True,
     locator_in_map: bool = False,
+    *,
+    ax: Axes | None = None,
+    compact: bool = False,
 ) -> Figure:
     """Draw supplied classes or honest unscaled hatching; never change input arrays.
 
@@ -824,9 +827,17 @@ def draw_raster_map(
     ``colorbar_title`` defaults to the scale's units; ``show_key=False`` omits
     the key. The map frame fits within 150 × 95 mm at its geographic aspect;
     labels, keys and external locators extend the canvas without shrinking it.
+    With ``ax``, draw into the caller's figure without resizing its canvas.
+    ``compact`` retains spatial layers and location markers but omits coordinate
+    labels/ticks, point labels, scale bar and key; the caller owns panel headings
+    and the shared key.
     """
     _validate(raster, frame, scale)
-    fig, ax = _map_figure(frame)
+    owns_canvas = ax is None
+    if owns_canvas:
+        fig, ax = _map_figure(frame)
+    else:
+        fig = ax.figure
     values = np.ma.masked_invalid(raster.values)
     inside = (
         np.ones(values.shape, dtype=bool)
@@ -912,6 +923,12 @@ def draw_raster_map(
     ax.set_xlim(west, east)
     ax.set_ylim(south, north)
     ax.set_aspect(frame.aspect)
+    if compact:
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlabel("")
+        ax.set_ylabel("")
+        return fig
     ax.set_xticks(frame.longitude_ticks)
     ax.set_yticks(frame.latitude_ticks)
     ax.set_xlabel("Longitude (°)")
@@ -981,5 +998,6 @@ def draw_raster_map(
             ax, [_swatch(missing_color, MISSING_LABEL)], None, active().fonts["tick"]
         )
     _place_point_labels(fig, ax, labels)
-    _fit_map_canvas(fig, ax)
+    if owns_canvas:
+        _fit_map_canvas(fig, ax)
     return fig

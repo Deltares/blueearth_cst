@@ -186,30 +186,66 @@ def plot_delta_collection(
                         "#dddddd",
                         "available",
                     )
+                    # Fixed map rectangles preserve geographic aspect with 1.5 mm gutters.
+                    west, east, south, north = frame.extent
+                    panel_width = 40.875
+                    panel_height = (
+                        panel_width * frame.aspect * (north - south) / (east - west)
+                    )
+                    row_height = panel_height + 6
+                    height = 3 * row_height + 3
+                    fig = plt.figure(figsize=(190 / 25.4, height / 25.4), layout="none")
+                    axes = []
                     for month in range(12):
-                        fig = draw_raster_map(
+                        row, column = divmod(month, 4)
+                        left = 3 + column * (panel_width + 1.5)
+                        bottom = height - 3 - row * row_height - 4 - panel_height
+                        ax = fig.add_axes(
+                            (
+                                left / 190,
+                                bottom / height,
+                                panel_width / 190,
+                                panel_height / height,
+                            )
+                        )
+                        draw_raster_map(
                             RasterMap(values[month], xedges, yedges),
                             frame,
                             scale,
                             overlays,
-                            colorbar_title=f"{label} change\n({unit})",
+                            ax=ax,
+                            compact=True,
                         )
-                        path = output / (
-                            f"run_{index + 3:0{intent['run_group_id_width']}d}_{key.lower()}"
-                            f"_month_{month + 1:02d}_map_basin_ext.png"
-                        )
-                        export_figure(fig, path, dpi=200)
-                        plt.close(fig)
-                        paths.append(path)
-                        captions.append(
-                            f"{path.name}: {member['model']} / {member['scenario']} / {member['member']}; "
-                            f"{MONTH_ABBR[month]}, future {settings['future_period']}. "
-                            "Factors on the historical forcing grid; common scale across members and months. "
-                            "Basin outline, available subbasin divides, rivers and named locations use model geometry. "
-                            "Basin zoom does not add subgrid climate information. "
-                            f"Unavailable optional layers: {', '.join(missing_layers) or 'none'}."
-                            f" Empty geometry records omitted: {', '.join(empty_features) or 'none'}."
-                        )
+                        ax.set_title(MONTH_ABBR[month], loc="left", pad=2)
+                        axes.append(ax)
+                    cax = fig.add_axes((175 / 190, 0.18, 2.3 / 190, 0.64))
+                    colorbar = fig.colorbar(
+                        axes[0].collections[0],
+                        cax=cax,
+                        ticks=scale.ticks,
+                        extend="both",
+                        extendrect=True,
+                    )
+                    colorbar.ax.set_title(
+                        f"{label}\nchange ({unit})", fontsize=6, pad=7
+                    )
+                    path = output / (
+                        f"run_{index + 3:0{intent['run_group_id_width']}d}_{key.lower()}"
+                        "_monthly_map_basin_ext.png"
+                    )
+                    export_figure(fig, path, dpi=200)
+                    plt.close(fig)
+                    paths.append(path)
+                    captions.append(
+                        f"{path.name}: {member['model']} / {member['scenario']} / {member['member']}; "
+                        f"January–December, left to right by row; future {settings['future_period']}. "
+                        "Factors on the historical forcing grid; common scale across members and months. "
+                        "Compact 4-column × 3-row panels retain basin outline, subbasin divides, rivers "
+                        "and location markers; coordinate and location labels are omitted. "
+                        "Basin zoom does not add subgrid climate information. "
+                        f"Unavailable optional layers: {', '.join(missing_layers) or 'none'}. "
+                        f"Empty geometry records omitted: {', '.join(empty_features) or 'none'}."
+                    )
     (output / "figure_captions.md").write_text(
         "\n\n".join(captions) + "\n", encoding="utf-8"
     )
