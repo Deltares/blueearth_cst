@@ -316,7 +316,9 @@ def _river_order(properties: Mapping[str, Any]) -> float | None:
     return None
 
 
-def _draw_rivers(ax: Axes, rivers: Sequence[Mapping[str, Any]]) -> None:
+def _draw_rivers(
+    ax: Axes, rivers: Sequence[Mapping[str, Any]], scale: float = 1.0
+) -> None:
     """Blue reaches stepped by stream order; thin reaches first, round joins.
 
     The layer's lowest order takes the first step and orders past the last
@@ -343,13 +345,13 @@ def _draw_rivers(ax: Axes, rivers: Sequence[Mapping[str, Any]]) -> None:
                 points[:, 0],
                 points[:, 1],
                 color=color,
-                lw=width,
+                lw=width * scale,
                 solid_capstyle="round",
                 solid_joinstyle="round",
                 zorder=3,
                 path_effects=[
                     Stroke(
-                        linewidth=width + maps["river_halo_width"],
+                        linewidth=(width + maps["river_halo_width"]) * scale,
                         foreground=halo,
                         capstyle="round",
                         joinstyle="round",
@@ -360,12 +362,12 @@ def _draw_rivers(ax: Axes, rivers: Sequence[Mapping[str, Any]]) -> None:
 
 
 def _draw_overlays(
-    ax: Axes, overlays: Mapping[str, Sequence[Mapping[str, Any]]]
+    ax: Axes, overlays: Mapping[str, Sequence[Mapping[str, Any]]], scale: float = 1.0
 ) -> list[tuple[float, float, str]]:
     """Draw rivers, divides, the basin outline and locations; return labels."""
     maps = active().maps
     halo = maps["halo"]
-    _draw_rivers(ax, overlays.get("rivers", []))
+    _draw_rivers(ax, overlays.get("rivers", []), scale)
     for key, color, width, dashes, zorder in (
         ("divides", maps["divide"], maps["divide_width"], maps["divide_dash"], 4),
         ("basins", maps["basin_outline"], maps["basin_outline_width"], None, 4.5),
@@ -374,12 +376,16 @@ def _draw_overlays(
             for coordinates in _geometry_lines(feature["geometry"]):
                 points = np.asarray(coordinates)
                 (artist,) = ax.plot(
-                    points[:, 0], points[:, 1], color=color, lw=width, zorder=zorder
+                    points[:, 0],
+                    points[:, 1],
+                    color=color,
+                    lw=width * scale,
+                    zorder=zorder,
                 )
                 if dashes is not None:
                     artist.set_dashes(dashes)
                 artist.set_path_effects(
-                    [Stroke(linewidth=width + 1.0, foreground=halo), Normal()]
+                    [Stroke(linewidth=(width + 1.0) * scale, foreground=halo), Normal()]
                 )
     labels = []
     for feature in overlays.get("locations", []):
@@ -393,8 +399,8 @@ def _draw_overlays(
             maps["location_marker"],
             color=maps["location"],
             mec=maps["marker_edge"],
-            mew=0.6,
-            ms=maps["location_size"],
+            mew=0.6 * scale,
+            ms=maps["location_size"] * scale,
             zorder=5,
         )
         label = location_label(feature.get("properties") or {})
@@ -831,6 +837,8 @@ def draw_raster_map(
     ``compact`` retains spatial layers and location markers but omits coordinate
     labels/ticks, point labels, scale bar and key; the caller owns panel headings
     and the shared key.
+    Compact overlay marks and strokes scale by the square root of panel width
+    relative to 150 mm, bounded to 0.5–1; text sizes remain controlled by the caller.
     """
     _validate(raster, frame, scale)
     owns_canvas = ax is None
@@ -918,11 +926,17 @@ def draw_raster_map(
             edgecolors="none",
             linewidth=0,
         )
-    labels = _draw_overlays(ax, overlays)
     west, east, south, north = frame.extent
     ax.set_xlim(west, east)
     ax.set_ylim(south, north)
     ax.set_aspect(frame.aspect)
+    overlay_scale = 1.0
+    if compact:
+        width_mm = ax.get_position().width * fig.get_figwidth() * 25.4
+        overlay_scale = min(1.0, max(0.5, math.sqrt(width_mm / MAP_WIDTH_MM)))
+        for spine in ax.spines.values():
+            spine.set_linewidth(active().lines["boundary"] * overlay_scale)
+    labels = _draw_overlays(ax, overlays, overlay_scale)
     if compact:
         ax.set_xticks([])
         ax.set_yticks([])

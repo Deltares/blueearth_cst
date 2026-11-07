@@ -222,7 +222,12 @@ def plot_delta_collection(
                             ax=ax,
                             compact=True,
                         )
-                        ax.set_title(MONTH_ABBR[month], loc="left", pad=2)
+                        ax.set_title(
+                            MONTH_ABBR[month],
+                            loc="left",
+                            pad=2,
+                            fontsize=CST_PRESET.fonts["tick"],
+                        )
                         axes.append(ax)
                     # Match the shared map/heatmap convention: key flush with the
                     # bottom map frame, retaining room above for its title.

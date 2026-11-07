@@ -46,15 +46,30 @@ def test_compact_map_keeps_callers_canvas_and_omits_repeated_decorations():
     fig, axes = plt.subplots(1, 2, figsize=(6, 2))
     try:
         original_size = fig.get_size_inches().copy()
+        overlays = {
+            "locations": [
+                {
+                    "geometry": {"type": "Point", "coordinates": [2, 0.5]},
+                    "properties": {"station_name": "Control"},
+                }
+            ]
+        }
         for ax in axes:
             returned = draw_raster_map(
-                _raster([10, 20, 30, 10]), _FRAME, _classes(), {}, ax=ax, compact=True
+                _raster([10, 20, 30, 10]),
+                _FRAME,
+                _classes(),
+                overlays,
+                ax=ax,
+                compact=True,
             )
             assert returned is fig
             assert len(ax.collections) == 1
             assert not ax.get_xlabel() and not ax.get_ylabel()
             assert len(ax.get_xticks()) == len(ax.get_yticks()) == 0
             assert not ax.texts and not ax.child_axes
+            assert 3 <= ax.lines[0].get_markersize() < 6
+            assert ax.lines[0].get_markeredgewidth() < 0.6
         np.testing.assert_array_equal(fig.get_size_inches(), original_size)
         assert len(fig.axes) == 2
     finally:

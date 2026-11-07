@@ -190,6 +190,10 @@ Each member/variable figure places January–December in four columns and three 
 gutters and one shared colourbar on the right, bottom-aligned with the map panels. Coordinate titles/tick
 labels, location labels and repeated scale bars
 are omitted to keep panels compact; location markers remain. Geometry comes from
+the model described below. Compact markers, line weights and halos scale with the square root of panel
+width relative to the standard 150 mm map, bounded to half/full size; text stays at readable preset sizes.
+At the current 41 mm panel width, location diamonds are about 3.1 pt rather than the full-map 6 pt.
+Geometry comes from
 `<project>/models/hydrology/wflow/staticgeoms`; use
 `--model-root <wflow-model>` for a different model location. Basin geometry with an explicit CRS is required
 for gridded plots. Missing optional subbasin, river or location layers are reported in captions. The basin
