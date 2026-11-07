@@ -46,6 +46,10 @@ PET_INPUTS = {
     "makkink": ("temp", "press", "kin"),
     "debruin": ("temp", "press", "kin", "kout"),
 }
+STATE_INPUTS = {
+    "tdew": {"specific_humidity": ("sh", "press")},
+    "wind": {"sfcwind": ("wind10",), "components": ("wind10_u", "wind10_v")},
+}
 
 
 class VariableSpec(NamedTuple):
@@ -191,6 +195,35 @@ def parse(variables) -> dict[str, VariableSpec]:
 
     spec: dict[str, VariableSpec] = {}
     for name, body in variables.items():
+        if name in STATE_INPUTS and (
+            body is None or body == {} or isinstance(body, dict) and "method" in body
+        ):
+            methods = STATE_INPUTS[name]
+            if (
+                not isinstance(body, dict)
+                or not isinstance(body.get("method"), str)
+                or body["method"] not in methods
+            ):
+                raise ValueError(
+                    f"variables.{name}.method must be one of {sorted(methods)}"
+                )
+            if (
+                set(body) - {"method", "change"}
+                or body.get("change", "absolute") != "absolute"
+            ):
+                raise ValueError(
+                    f"variables.{name} supports method and absolute change only"
+                )
+            spec[name] = VariableSpec(
+                name,
+                name,
+                "state",
+                "degC" if name == "tdew" else "m/s",
+                "absolute",
+                None,
+                body["method"],
+            )
+            continue
         if name == "pet" and (body is None or body == {}):
             raise ValueError(
                 "variables.pet requires {method: makkink} or {method: debruin}; "
@@ -278,7 +311,11 @@ def source_names(spec: dict[str, VariableSpec]) -> list[str]:
     sources = set()
     for value in spec.values():
         if value.method:
-            sources.update(PET_INPUTS[value.method])
+            sources.update(
+                STATE_INPUTS[value.name][value.method]
+                if value.name in STATE_INPUTS
+                else PET_INPUTS[value.method]
+            )
         else:
             sources.add(value.source)
     return sorted(sources)
@@ -287,11 +324,33 @@ def source_names(spec: dict[str, VariableSpec]) -> list[str]:
 def source_units(spec: dict[str, VariableSpec]) -> dict[str, str]:
     """Canonical labels for acquired inputs, excluding calculated outputs."""
     units = {v.source: v.units for v in spec.values() if not v.method}
-    if any(v.method for v in spec.values()):
+    if spec.get("pet") and spec["pet"].method:
         units.update(temp="degC", press="hPa", kin="W m-2")
         if spec["pet"].method == "debruin":
             units["kout"] = "W m-2"
+    for name in STATE_INPUTS:
+        if name in spec and spec[name].method:
+            for source in STATE_INPUTS[name][spec[name].method]:
+                units[source] = {"sh": "1", "press": "hPa"}.get(source, "m/s")
     return units
+
+
+def derived_state_identity(spec: dict[str, VariableSpec]) -> dict | None:
+    """Scientific methods and selected outputs, excluding presentation settings."""
+    methods = {
+        name: value.method
+        for name, value in spec.items()
+        if name in STATE_INPUTS and value.method
+    }
+    if not methods:
+        return None
+    return {
+        "methods": methods,
+        "outputs": {
+            name: {"source": value.source, "units": value.units}
+            for name, value in sorted(spec.items())
+        },
+    }
 
 
 def derived_pet_identity(spec: dict[str, VariableSpec]) -> dict | None:

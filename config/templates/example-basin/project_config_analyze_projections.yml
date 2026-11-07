@@ -56,6 +56,12 @@ variables:
   #   method: makkink
   #   change: relative          # default; alternative: absolute
   #   min_denominator: 0.1      # mm/day; relative only, default reporting safeguard
+  # Optional liquid-water dew point from monthly huss and ps; absolute degC changes only.
+  # tdew: {method: specific_humidity}
+  # Optional 10 m monthly mean scalar wind speed; absolute m/s changes only.
+  # wind: {method: sfcwind}
+  # Alternative wind method: components (magnitude of monthly mean uas/vas vector,
+  # not mean wind speed). Requires documented 10 m height; no automatic substitution.
   # Define another projection variable. Input: mapping.
   #'custom_variable':
   # Select the catalog's renamed variable. Input: post-rename variable name, such as temp.

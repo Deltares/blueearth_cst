@@ -207,6 +207,14 @@ the established `basin_avg` filenames do not imply polygon weighting. PET requir
 meteorological support throughout this box. Near-zero reference rates flag unavailable percentages
 while absolute differences remain inspectable. Source paths, units, calendar, method/library and
 spatial support are retained in scalar attributes and `_engine/analysis_record.json`.
+Optional calculated dew point (`tdew`) and 10 m wind (`wind`) add rows to the same tables and
+three figure families: annual anomalies, monthly climatologies and annual/seasonal mean differences.
+These are duration-weighted states in degC and m/s. Captions and the analysis inventory distinguish
+supplied monthly mean wind speed from magnitude of the monthly mean vector; they preserve method,
+height and monthly/buffered-bbox approximations. No derived native-grid files are retained.
+See [dew point and wind](../technical-manual/workflow-analyze-projections.md#optional-projected-dew-point-and-wind)
+for opt-ins and input qualification limits.
+
 See [projected PET](../technical-manual/workflow-analyze-projections.md#optional-projected-pet)
 for configuration, source requirements and qualification limits. PET does not add a stress-test axis.
 

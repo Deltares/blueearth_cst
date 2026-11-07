@@ -281,7 +281,13 @@ def analysis_change_table(
     supported = [
         variable
         for variable in variables
-        if variable in {"temp", "precip"} or (variable == "pet" and calculated_pet)
+        if variable in {"temp", "precip"}
+        or (variable == "pet" and calculated_pet)
+        or (
+            variable in {"tdew", "wind"}
+            and spec.get(variable)
+            and spec[variable].method
+        )
     ]
     calendar = (
         assert_calendar_agreement(hist, fut, base["model"] + " " + base["scenario"])
@@ -322,7 +328,7 @@ def analysis_change_table(
     rows = []
     for variable in variables:
         unavailable = reason or (
-            "analysis covers precip/temp and calculated PET only"
+            "analysis covers precip/temp and configured calculated variables only"
             if variable not in supported
             else ""
         )
@@ -1273,7 +1279,7 @@ def member_null_bands(ratios):
     return result
 
 
-def product_availability(tables, windows=None, *, pet_change=None):
+def product_availability(tables, windows=None, *, pet_change=None, state_variables=()):
     """Actual-data figure predicates, independent of the C0 coverage matrix.
 
     Any scenario satisfying a predicate makes the product available. Missing
@@ -1537,21 +1543,24 @@ def product_availability(tables, windows=None, *, pet_change=None):
         cloud_windows >= 2,
         "fewer than two distinct cloud windows",
     )
-    pet = data["models"].loc[data["models"].variable.eq("pet")]
+    derived = {name: "absolute" for name in state_variables}
     if pet_change is not None:
-        sub = trajectory.loc[trajectory.variable.eq("pet")]
+        derived["pet"] = pet_change
+    for variable, change in derived.items():
+        selected = data["models"].loc[data["models"].variable.eq(variable)]
+        sub = trajectory.loc[trajectory.variable.eq(variable)]
         add(
-            "trajectory-pet.png",
+            f"trajectory-{variable}.png",
             "full_period",
             "",
             np.isfinite(sub.anomaly.astype(float)).any(),
-            "no PET member with valid reference",
+            f"no {variable} member with valid reference",
         )
-        quantity = "change_pct" if pet_change == "relative" else "change"
+        quantity = "change_pct" if change == "relative" else "change"
         for window_id in window_ids:
             climate = data["climatology"]
             climate = climate.loc[
-                climate.variable.eq("pet")
+                climate.variable.eq(variable)
                 & climate.window_id.eq(window_id)
                 & climate.period.isin(MONTHS)
             ]
@@ -1566,24 +1575,26 @@ def product_availability(tables, windows=None, *, pet_change=None):
                 for _, group in climate.groupby(["model", "scenario"])
             )
             add(
-                "seasonal-cycle-pet.png",
+                f"seasonal-cycle-{variable}.png",
                 period_folder(window_id),
                 window_id,
                 complete,
-                "no complete PET monthly climatology",
+                f"no complete {variable} monthly climatology",
             )
-            changes = pet.loc[
-                pet.window_id.eq(window_id)
-                & pet.quantity.eq(quantity)
-                & pet.statistic.eq("mean")
-                & pet.period.isin(PERIODS[:5])
+            changes = selected.loc[
+                selected.window_id.eq(window_id)
+                & selected.quantity.eq(quantity)
+                & selected.statistic.eq("mean")
+                & selected.period.isin(PERIODS[:5])
             ]
             add(
-                "change-pet-pct.png" if quantity == "change_pct" else "change-pet.png",
+                f"change-{variable}-pct.png"
+                if quantity == "change_pct"
+                else f"change-{variable}.png",
                 period_folder(window_id),
                 window_id,
                 np.isfinite(changes.value.astype(float)).any(),
-                "no eligible PET changes; inspect reference thresholds and coverage",
+                f"no eligible {variable} changes; inspect reference thresholds and coverage",
             )
     return pd.DataFrame(
         rows, columns=["filename", "folder", "window_id", "available", "reason"]

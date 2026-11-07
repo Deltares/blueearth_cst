@@ -15,6 +15,12 @@ from blueearth_cst.shared.plot_colors import SCENARIO_COLORS as SCENARIO_COLORS
 
 # Logical product keys remain independent of their public output filenames.
 FIGURE_FILENAMES = {
+    "trajectory-tdew.png": "cmip6_tdew_annual_anomaly_ts_basin_avg.png",
+    "seasonal-cycle-tdew.png": "cmip6_tdew_monthly_clim_basin_avg.png",
+    "change-tdew.png": "cmip6_tdew_annual_seasonal_change_box_basin_avg.png",
+    "trajectory-wind.png": "cmip6_wind_annual_anomaly_ts_basin_avg.png",
+    "seasonal-cycle-wind.png": "cmip6_wind_monthly_clim_basin_avg.png",
+    "change-wind.png": "cmip6_wind_annual_seasonal_change_box_basin_avg.png",
     "trajectory-pet.png": "cmip6_pet_annual_anomaly_ts_basin_avg.png",
     "seasonal-cycle-pet.png": "cmip6_pet_monthly_clim_basin_avg.png",
     "change-pet-pct.png": "cmip6_pet_annual_seasonal_change_pct_box_basin_avg.png",

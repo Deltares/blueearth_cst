@@ -83,8 +83,14 @@ def member_anomalies(
         "reference_end": reference_window[1],
     }
     rows = []
-    for variable in sorted(set(owned.data_vars) & {"temp", "precip", "pet"}):
+    for variable in sorted(
+        set(owned.data_vars) & {"temp", "precip", "pet", "tdew", "wind"}
+    ):
         if variable == "pet" and not owned.pet.attrs.get("cst_pet_method"):
+            continue
+        if variable in {"tdew", "wind"} and not owned[variable].attrs.get(
+            "cst_derived_method"
+        ):
             continue
         annual = period_values(owned, variable, water_year_start)["annual"]
         ref = (
@@ -137,11 +143,17 @@ def member_anomalies(
                     "reference_value": ref_value,
                     "reference_rate": ref_rate,
                     "anomaly": anomaly,
-                    "units": "mm/year" if variable in {"precip", "pet"} else "degC",
+                    "units": "mm/year"
+                    if variable in {"precip", "pet"}
+                    else "m/s"
+                    if variable == "wind"
+                    else "degC",
                     "anomaly_units": "%"
                     if variable == "precip"
                     else "mm/year"
                     if variable == "pet"
+                    else "m/s"
+                    if variable == "wind"
                     else "degC",
                     "status": status,
                     "reason": why,

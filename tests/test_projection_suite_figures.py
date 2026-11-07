@@ -352,8 +352,12 @@ def test_pet_trajectory_caption_has_reference_shading_and_window_notes(suite):
         assert phrase in text
 
 
-def test_pet_opt_out_retires_previous_horizon_without_deleting_other_files(
-    suite, tmp_path
+@pytest.mark.parametrize(
+    "variable,method",
+    [("pet", "makkink"), ("tdew", "specific_humidity"), ("wind", "sfcwind")],
+)
+def test_derived_opt_out_retires_previous_horizon_without_deleting_other_files(
+    suite, tmp_path, variable, method
 ):
     from blueearth_cst.projections.variable_spec import parse
 
@@ -361,10 +365,10 @@ def test_pet_opt_out_retires_previous_horizon_without_deleting_other_files(
     original_availability = tables["availability"].copy()
     for name, table in list(tables.items()):
         if "variable" in table:
-            pet = table.loc[table.variable.eq("temp")].assign(variable="pet")
+            pet = table.loc[table.variable.eq("temp")].assign(variable=variable)
             tables[name] = pd.concat([table, pet], ignore_index=True)
     record["variable_spec"] = parse(
-        {"pet": {"method": "makkink", "change": "absolute"}}
+        {variable: {"method": method, "change": "absolute"}}
     )
     tables["availability"]["available"] = False
     old_folder = "period_2036_2065"
@@ -373,17 +377,23 @@ def test_pet_opt_out_retires_previous_horizon_without_deleting_other_files(
             filename=contract.FIGURE_FILENAMES[key],
             folder="full_period" if key.startswith("trajectory-") else old_folder,
             window_id="" if key.startswith("trajectory-") else "2036-2065",
-            available=key == "seasonal-cycle-pet.png",
+            available=key == f"seasonal-cycle-{variable}.png",
             reason="synthetic unavailable product",
         )
-        for key in ("trajectory-pet.png", "seasonal-cycle-pet.png", "change-pet.png")
+        for key in (
+            f"trajectory-{variable}.png",
+            f"seasonal-cycle-{variable}.png",
+            f"change-{variable}.png",
+        )
     ]
     tables["availability"] = pd.concat(
         [tables["availability"], pd.DataFrame(pet_rows)], ignore_index=True
     )
     plots = tmp_path / "plots"
     manifest, _ = render_suite(tables, record, plots)
-    pet_path = plots / old_folder / contract.FIGURE_FILENAMES["seasonal-cycle-pet.png"]
+    pet_path = (
+        plots / old_folder / contract.FIGURE_FILENAMES[f"seasonal-cycle-{variable}.png"]
+    )
     assert set(manifest) == {f"{old_folder}/{pet_path.name}"}
     assert pet_path.is_file()  # exercise real publication before opt-out
 
@@ -394,7 +404,9 @@ def test_pet_opt_out_retires_previous_horizon_without_deleting_other_files(
         plots / old_folder / "unrelated.png",
         plots
         / old_folder
-        / contract.FIGURE_FILENAMES["change-pet.png"],  # unmanaged PET
+        / contract.FIGURE_FILENAMES[
+            f"change-{variable}.png"
+        ],  # unmanaged derived figure
         tmp_path / "outside" / pet_path.name,
         tmp_path / "raw" / "source.nc",
     ]

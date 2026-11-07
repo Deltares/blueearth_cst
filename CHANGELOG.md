@@ -9,6 +9,10 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Add opt-in monthly liquid-water dew point and explicit 10 m scalar/component wind analysis,
+  with strict native metadata admission, cell-first derivation, absolute state changes and captions.
+  Controlled verification does not qualify live input availability.
+
 - Add opt-in monthly CMIP6 PET analysis using explicit HydroMT Makkink or de Bruin methods,
   native-cell derivation before buffered-bbox averaging, strict source admission, calendar-aware
   totals, inspectable provenance and three PET figure families. Real additional-input qualification

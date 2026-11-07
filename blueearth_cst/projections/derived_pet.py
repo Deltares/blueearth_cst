@@ -17,12 +17,18 @@ SOURCE_UNITS = {
     "ps": "Pa",
     "rsds": "W m-2",
     "rsdt": "W m-2",
+    "huss": "1",
+    "sfcWind": "m s-1",
+    "uas": "m s-1",
+    "vas": "m s-1",
 }
 CANONICAL_UNITS = {"temp": "degC", "press": "hPa", "kin": "W m-2", "kout": "W m-2"}
 INPUT_CONTRACT = "cmip6_amon_pet_v1"
 
 
-def admit_monthly_sources(dataset: xr.Dataset) -> xr.Dataset:
+def admit_monthly_sources(
+    dataset: xr.Dataset, *, admit_states: bool = False
+) -> xr.Dataset:
     """Validate native metadata before HydroMT changes names, values or dates.
 
     Amon and time-mean metadata establish interval semantics; timestamps alone
@@ -42,8 +48,27 @@ def admit_monthly_sources(dataset: xr.Dataset) -> xr.Dataset:
     for name, array in dataset.data_vars.items():
         if "time" not in array.dims:
             continue
+        if admit_states and name in {"sfcWind", "uas", "vas"}:
+            heights = [
+                coord
+                for key, coord in array.coords.items()
+                if key in {"height", "height10m"}
+                or coord.attrs.get("standard_name") == "height"
+            ]
+            if (
+                len(heights) != 1
+                or heights[0].size != 1
+                or heights[0].attrs.get("units") != "m"
+                or float(heights[0].values.item()) != 10
+            ):
+                raise ValueError(
+                    f"monthly source {name}: requires documented scalar 10 m height before harmonisation"
+                )
+            array.attrs["cst_source_height_m"] = 10.0
         units = str(array.attrs.get("units", ""))
         expected = SOURCE_UNITS.get(name)
+        if not admit_states and name in {"huss", "sfcWind", "uas", "vas"}:
+            expected = None
         if expected is not None and units != expected:
             raise ValueError(
                 f"PET source {name}: units {units!r}, expected {expected!r}; correct the source/adapter"
@@ -85,6 +110,10 @@ def validate_pet_adapter(entry: dict, variables: list[str]) -> None:
         "press": ("ps", 0, 0.01),
         "kin": ("rsds", 0, 1),
         "kout": ("rsdt", 0, 1),
+        "sh": ("huss", 0, 1),
+        "wind10": ("sfcWind", 0, 1),
+        "wind10_u": ("uas", 0, 1),
+        "wind10_v": ("vas", 0, 1),
     }
     for target in set(variables) & set(conversions):
         native, add, mult = conversions[target]

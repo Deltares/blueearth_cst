@@ -163,6 +163,11 @@ def prepare_tables(
                     dataset.attrs.get("cst_source_paths", ""),
                 ),
                 "pet": dict(dataset.pet.attrs) if "pet" in dataset else {},
+                "derived_states": {
+                    name: dict(dataset[name].attrs)
+                    for name in ("tdew", "wind")
+                    if name in dataset
+                },
             }
         historical, future = datasets
         assert_calendar_agreement(
@@ -262,7 +267,30 @@ def prepare_tables(
         },
         windows,
         pet_change=pet.change if pet and pet.method else None,
+        state_variables=[
+            name
+            for name, value in (variable_spec or {}).items()
+            if name in {"tdew", "wind"} and VariableSpec(*value).method
+        ],
     )
+    definitions = {
+        name: attrs
+        for item in inventory.values()
+        for name, attrs in item["derived_states"].items()
+        if attrs.get("cst_derived_method")
+    }
+    if definitions:
+        for table in tables.values():
+            if "variable" not in table:
+                continue
+            for column, attribute in (
+                ("method", "cst_derived_method"),
+                ("definition", "cst_statistic"),
+                ("height_m", "cst_height_m"),
+            ):
+                table[column] = table.variable.map(
+                    {name: attrs.get(attribute) for name, attrs in definitions.items()}
+                )
     unavailable = changes.loc[
         changes.status == "unavailable",
         ["model", "scenario", "member", "window_id", "reason"],

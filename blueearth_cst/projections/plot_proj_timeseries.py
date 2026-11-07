@@ -56,8 +56,9 @@ def figure_counts(filename, tables, window_id=""):
     data = tables[name]
     if window_id and "window_id" in data:
         data = data.loc[data.window_id == window_id]
-    if "pet" in filename:
-        data = data.loc[data.variable.eq("pet")]
+    derived = next((name for name in ("pet", "tdew", "wind") if name in filename), None)
+    if derived:
+        data = data.loc[data.variable.eq(derived)]
     elif "temperature" in filename or "precipitation" in filename:
         data = data.loc[
             data.variable == ("temp" if "temperature" in filename else "precip")
@@ -210,6 +211,18 @@ def render_suite(
             expected.update(
                 (folder, FIGURE_FILENAMES[k]) for k in ("seasonal-cycle-pet.png", key)
             )
+    from blueearth_cst.projections.projection_figures import FIGURE_FILENAMES
+
+    for variable in ("tdew", "wind"):
+        fields = record.get("variable_spec", {}).get(variable)
+        if not fields or not VariableSpec(*fields).method:
+            continue
+        expected.add(("full_period", FIGURE_FILENAMES[f"trajectory-{variable}.png"]))
+        for folder in folders[1:]:
+            expected.update(
+                (folder, FIGURE_FILENAMES[f"{kind}-{variable}.png"])
+                for kind in ("seasonal-cycle", "change")
+            )
     if actual != expected or available.duplicated(["folder", "filename"]).any():
         raise ValueError(
             f"availability product contract differs: missing={expected - actual}, extra={actual - expected}"
@@ -243,6 +256,9 @@ def render_suite(
         counts["variability_band"] = bool(
             figure_key(row["filename"]).startswith(("change-", "monthly-change-"))
             and "pet" not in figure_key(row["filename"])
+            and not any(
+                name in figure_key(row["filename"]) for name in ("tdew", "wind")
+            )
             and "cloud" not in row["filename"]
             and "noise_halfwidth" in tables["change_summary"]
         )
@@ -284,7 +300,11 @@ def render_suite(
     # Raw inputs and unrelated products are never cleanup candidates.
     from blueearth_cst.projections.projection_figures import FIGURE_FILENAMES
 
-    pet_names = {value for key, value in FIGURE_FILENAMES.items() if "pet" in key}
+    pet_names = {
+        value
+        for key, value in FIGURE_FILENAMES.items()
+        if any(name in key for name in ("pet", "tdew", "wind"))
+    }
     for relative in set(previous) - set(manifest):
         path = root / relative
         if (

@@ -120,6 +120,7 @@ def get_stats_clim_projections(
 
     if variable_spec:
         from blueearth_cst.projections.derived_pet import calculate_pet
+        from blueearth_cst.projections.derived_states import calculate_state
         from blueearth_cst.projections.variable_spec import VariableSpec
 
         spec = {
@@ -130,7 +131,14 @@ def get_stats_clim_projections(
             outputs = {}
             for name, value in spec.items():
                 outputs[name] = (
-                    calculate_pet(
+                    calculate_state(
+                        data,
+                        name,
+                        value.method,
+                        source=f"{name_model} {name_member} {name_scenario}",
+                    )
+                    if name in {"tdew", "wind"} and value.method
+                    else calculate_pet(
                         data,
                         value.method,
                         source=f"{name_model} {name_member} {name_scenario}",

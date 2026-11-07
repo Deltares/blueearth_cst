@@ -76,6 +76,11 @@ def rerender_projections(
                 },
                 sorted(availability.window_id.dropna().unique()),
                 pet_change=pet.change if pet and pet.method else None,
+                state_variables=[
+                    name
+                    for name, value in record.get("variable_spec", {}).items()
+                    if name in {"tdew", "wind"} and VariableSpec(*value).method
+                ],
             )
         availability["window_id"] = availability.window_id.fillna("")
         tables["availability"] = availability

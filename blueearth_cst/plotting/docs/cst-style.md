@@ -295,6 +295,10 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
 
 ### WF2 annual and variability products
 
+- Calculated dew point and 10 m wind reuse the annual anomaly trajectory, monthly climatology and
+  Annual-plus-four-seasons change strip. Use degC and m/s state means and absolute differences.
+  Captions distinguish liquid-water dew point, supplied scalar wind speed and magnitude of the monthly
+  mean vector; retain method, height, periods/counts and monthly/buffered-bbox approximations.
 - Calculated PET uses the annual anomaly trajectory form in mm/year and the monthly climatology
   form in mm/day. Its change strip contains Annual plus four seasons, with existing model points,
   median ticks and IQR marks; use percent for relative changes and integrated mm for absolute changes.

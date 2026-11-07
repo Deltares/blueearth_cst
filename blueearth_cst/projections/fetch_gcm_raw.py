@@ -704,7 +704,7 @@ def read_variable_slices(
                     f"{entry}: no indexed pin for requested variable {source!r}"
                     + (
                         ". Supply explicit matching source pins on one common grid; "
-                        "calculated PET cannot substitute a different member or method."
+                        "calculated monthly variables cannot substitute a different member or method."
                         if admit_pet
                         else ""
                     )
@@ -741,7 +741,7 @@ def read_variable_slices(
                 if not is_irregular_grid_error(exc):
                     if admit_pet:
                         raise ValueError(
-                            f"{entry}: PET input {source} could not be admitted: {exc}. Supply matching qualified monthly inputs or disable calculated PET."
+                            f"{entry}: monthly input {source} could not be admitted: {exc}. Supply matching qualified monthly inputs or disable the calculated variable."
                         ) from exc
                     raise
                 data = catalog.get_rasterdataset(
@@ -760,11 +760,20 @@ def read_variable_slices(
             if admit_pet:
                 if variable not in data:
                     raise ValueError(
-                        f"{entry}: missing {source}; supply matching monthly PET inputs or disable PET"
+                        f"{entry}: missing {source}; supply matching monthly inputs or disable the calculated variable"
                     )
                 attrs = data[variable].attrs
                 calendars[source] = attrs.get("cst_source_calendar", "unknown")
-                if source in {"tas", "ps", "rsds", "rsdt"}:
+                if source in {
+                    "tas",
+                    "ps",
+                    "rsds",
+                    "rsdt",
+                    "huss",
+                    "sfcWind",
+                    "uas",
+                    "vas",
+                }:
                     model, experiment, expected_member = entry.removeprefix(
                         "cmip6_"
                     ).rsplit("_", 2)
@@ -790,19 +799,29 @@ def read_variable_slices(
                 var: array[var].attrs.get("cst_source_grid", "")
                 for array in slices.values()
                 for var in array.data_vars
-                if var in {"temp", "press", "kin", "kout"}
+                if var
+                in {
+                    "temp",
+                    "press",
+                    "kin",
+                    "kout",
+                    "sh",
+                    "wind10",
+                    "wind10_u",
+                    "wind10_v",
+                }
             }
             if len(set(grids.values())) != 1 or "" in grids.values():
                 raise ValueError(
-                    f"{entry}: unknown or unequal PET source grids: {grids}. "
-                    "Supply matching native grids or disable calculated PET."
+                    f"{entry}: unknown or unequal monthly source grids: {grids}. "
+                    "Supply matching native grids or disable the calculated variable."
                 )
         try:
             merged = merge_variable_slices(slices, calendars, entry)
         except ValueError as exc:
             if admit_pet:
                 raise ValueError(
-                    f"{exc}. Supply matching monthly coordinates/calendars or disable calculated PET."
+                    f"{exc}. Supply matching monthly coordinates/calendars or disable the calculated variable."
                 ) from exc
             raise
         # Materialize within this ownership scope so all sources close on failure too.
@@ -1013,6 +1032,12 @@ def fetch_raw_slice(
 
         validate_pet_adapter(read_spec, variables)
         read_spec["driver"]["options"]["preprocess"] = register_pet_preprocess()
+        if components.get("state_admission_hash"):
+            from blueearth_cst.projections.derived_states import (
+                register_state_preprocess,
+            )
+
+            read_spec["driver"]["options"]["preprocess"] = register_state_preprocess()
     pins_for_member = (components.get("pins") or {}).get(member, {})
     chosen = (
         series_identity.selected_pins(pins_for_member)

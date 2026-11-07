@@ -98,6 +98,10 @@ DEFAULTS_BLOCK = """  data_type: RasterDataset
       rsdt: kout
       ps: press
       psl: press_msl
+      huss: sh
+      sfcWind: wind10
+      uas: wind10_u
+      vas: wind10_v
   metadata:
     category: climate
     paper_doi: 10.1175/BAMS-D-11-00094.1

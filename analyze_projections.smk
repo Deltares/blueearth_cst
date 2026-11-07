@@ -425,6 +425,7 @@ STORE_INDEX = str(Path(DATA_SOURCES).parent / "cmip6_store_index.json")
 # cache whose failure mode is silently wrong numbers.
 from blueearth_cst.projections.get_stats_climate_proj import get_stats_clim_projections, merge_member_series
 from blueearth_cst.projections.derived_pet import calculate_pet, admit_monthly_sources, INPUT_CONTRACT
+from blueearth_cst.projections.derived_states import calculate_state, admit_state_sources
 from blueearth_cst.projections.grid_weights import (
     cell_area_weights,
     latitude_weights,
@@ -441,6 +442,7 @@ REDUCER_KERNEL = [
     get_stats_clim_projections,
     merge_member_series,
     calculate_pet,
+    calculate_state,
     weighted_spatial_mean,
     cell_area_weights,
     latitude_weights,
@@ -757,6 +759,12 @@ def series_digest_components(model, experiment, member):
         components["pet_input_contract"] = INPUT_CONTRACT
         components["pet_admission_hash"] = _si.kernel_hash([admit_monthly_sources])
         components["derived_pet"] = pet_identity
+    state_identity = _vs.derived_state_identity(VARIABLE_SPEC)
+    if state_identity is not None:
+        components["pet_input_contract"] = INPUT_CONTRACT
+        components["pet_admission_hash"] = _si.kernel_hash([admit_monthly_sources])
+        components["derived_states"] = state_identity
+        components["state_admission_hash"] = _si.kernel_hash([admit_state_sources])
     return components
 
 ### Dictionary elements from the config based on wildcards

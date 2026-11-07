@@ -493,7 +493,13 @@ def seasonal_figure(climatology, changes, summary, *, variable, scenarios=None):
     fig, axes = new_fig(H_SINGLE, width_mm=W_MID)
     ax = axes[0, 0]
     scen = _scenarios(data, scenarios)
-    unit = "°C" if variable == "temp" else "mm d⁻¹"
+    unit = (
+        "°C"
+        if variable in {"temp", "tdew"}
+        else "m/s"
+        if variable == "wind"
+        else "mm d⁻¹"
+    )
     historical = (
         data.loc[(data.scenario == scen[0]) & (data.side == "reference")]
         .set_index("period")
@@ -722,7 +728,7 @@ def ipcc_trajectory(
     ax.axhline(0, color=MUTED, lw=LW_REF)
     ax.set(
         xlabel="Year",
-        ylabel=f"Relative to {reference[0]}–{reference[1]} ({'%' if variable == 'precip' else 'mm/year' if variable == 'pet' else '°C'})",
+        ylabel=f"Relative to {reference[0]}–{reference[1]} ({'%' if variable == 'precip' else 'mm/year' if variable == 'pet' else 'm/s' if variable == 'wind' else '°C'})",
     )
     year_ticks(ax, np.arange(int(data.year.min()), int(data.year.max()) + 1))
     if data.year.max() - data.year.min() > 100:
@@ -1293,28 +1299,44 @@ def render_product(filename, tables, record, *, window_id="", scenarios=None):
         if filename == "availability.png":
             return availability_matrix(table("coverage"), scenarios)
         variable = (
-            "pet"
+            "tdew"
+            if "tdew" in filename
+            else "wind"
+            if "wind" in filename
+            else "pet"
             if "pet" in filename
             else "temp"
             if "temperature" in filename
             else "precip"
         )
-        if filename in {"change-pet.png", "change-pet-pct.png"}:
+        if filename in {
+            "change-pet.png",
+            "change-pet-pct.png",
+            "change-tdew.png",
+            "change-wind.png",
+        }:
             quantity = "change_pct" if "-pct" in filename else "change"
             data = table("model_changes")
             data = data.loc[
-                data.variable.eq("pet")
+                data.variable.eq(variable)
                 & data.statistic.eq("mean")
                 & data.quantity.eq(quantity)
             ]
             summary = table("change_summary")
             summary = summary.loc[
-                summary.variable.eq("pet")
+                summary.variable.eq(variable)
                 & summary.statistic.eq("mean")
                 & summary.quantity.eq(quantity)
             ]
             fig, axes = _panels(
-                STRIP_PERIODS, "%" if quantity == "change_pct" else "mm"
+                STRIP_PERIODS,
+                "%"
+                if quantity == "change_pct"
+                else "°C"
+                if variable == "tdew"
+                else "m/s"
+                if variable == "wind"
+                else "mm",
             )
             groups = _scenarios(data, scenarios)
             for ax, period in zip(axes, STRIP_PERIODS, strict=True):
@@ -1345,7 +1367,7 @@ def render_product(filename, tables, record, *, window_id="", scenarios=None):
                         selected.value.to_numpy(float),
                         _color(scenario),
                         row.iloc[0] if len(row) else None,
-                        f"pet:{period}:{scenario}",
+                        f"{variable}:{period}:{scenario}",
                     )
                 ax.set_xticks(
                     range(len(groups)),

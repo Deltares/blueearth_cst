@@ -786,7 +786,7 @@ def raw_components(components: Mapping) -> dict:
     return {
         k: v
         for k, v in components.items()
-        if k not in {"reducer_module_hash", "derived_pet"}
+        if k not in {"reducer_module_hash", "derived_pet", "derived_states"}
     }
 
 
