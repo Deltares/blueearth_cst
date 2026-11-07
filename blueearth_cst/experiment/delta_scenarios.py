@@ -22,6 +22,7 @@ from blueearth_cst.experiment.forcing_descriptor import (
     reader_unit_interpretation,
 )
 from blueearth_cst.shared.provenance import file_sha256
+from blueearth_cst.shared.variable_registry import VARIABLES
 from blueearth_cst.shared.workflow_config_snapshot import (
     file_reference,
     resolve_file_reference,
@@ -192,6 +193,40 @@ def monthly_factors(
     return offsets, ratios
 
 
+def validate_precipitation_reference(
+    reference: xr.Dataset, period: dict, policy: dict
+) -> None:
+    """Refuse near-zero reference months using a retained daily-rate threshold.
+
+    Monthly totals are normalized using their own calendar before averaging.
+    This is admission only: it never clips or changes the calculated factors.
+    """
+    policy = _fields(policy, {"min_denominator", "units"}, "precipitation policy")
+    threshold = policy["min_denominator"]
+    if (
+        type(threshold) not in (int, float)
+        or not np.isfinite(threshold)
+        or threshold <= 0
+        or policy["units"] != "mm/day"
+    ):
+        raise ValueError("precipitation policy requires a positive mm/day threshold")
+    selected = reference.sel(time=slice(str(period["start"]), str(period["end"])))
+    precip = selected.precip.squeeze(drop=True)
+    units = precip.attrs.get("units")
+    if units == "mm/month":
+        precip = precip / selected.time.dt.days_in_month
+    elif units != "mm/day":
+        raise ValueError("projection precipitation must use mm/day or mm/month")
+    means = precip.groupby("time.month").mean("time")
+    flagged = means.month.values[np.asarray(means.values) < threshold]
+    if len(flagged):
+        months = ", ".join(f"{int(month):02d}" for month in flagged)
+        raise ValueError(
+            f"reference precipitation below {threshold:g} mm/day in months {months}; "
+            "relative factors are refused, not clipped"
+        )
+
+
 def apply_factors(
     historical: xr.Dataset, offsets: np.ndarray, ratios: np.ndarray
 ) -> xr.Dataset:
@@ -296,6 +331,13 @@ def generate_collection(config_path: Path, project_root: Path) -> Path:
         paths.extend(Path(member[key]) for key in ("reference_path", "future_path"))
     paths = [(config_path.parent / path).resolve(strict=True) for path in paths]
     factors = []
+    precipitation = VARIABLES["precip"].projections
+    factor_policy = {
+        "precip": {
+            "min_denominator": precipitation.min_denominator,
+            "units": precipitation.units,
+        }
+    }
     for index in range(len(settings["members"])):
         with (
             xr.open_dataset(paths[1 + index * 2]) as reference,
@@ -308,6 +350,9 @@ def generate_collection(config_path: Path, project_root: Path) -> Path:
                     settings["reference_period"],
                     settings["future_period"],
                 )
+            )
+            validate_precipitation_reference(
+                reference, settings["reference_period"], factor_policy["precip"]
             )
     # Observe the physical source before publishing anything. WF4 uses the same
     # evidenced interpretation when binding the existing preparation catalog.
@@ -334,7 +379,8 @@ def generate_collection(config_path: Path, project_root: Path) -> Path:
     for member in resolved["members"]:
         relative.extend(member[key] for key in ("reference_path", "future_path"))
     intent = {
-        "schema_version": "delta-scenario-intent/1",
+        "schema_version": "delta-scenario-intent/2",
+        "factor_policy": factor_policy,
         "settings": resolved,
         "scenario_spec": {"simulation_window": dict(window)},
         "input_hashes": [file_sha256(path) for path in paths],
@@ -458,8 +504,12 @@ def read_delta_collection(marker_path: Path) -> dict:
     intent_path = resolve_file_reference(marker["intent"], anchors)
     if intent_path != directory / "collection_intent.json":
         raise ValueError("delta intent must be the sibling frozen record")
+    retained_intent = read_canonical_json(intent_path)
+    intent_version = (
+        retained_intent.get("schema_version") if type(retained_intent) is dict else None
+    )
     intent = _fields(
-        read_canonical_json(intent_path),
+        retained_intent,
         {
             "schema_version",
             "settings",
@@ -472,12 +522,13 @@ def read_delta_collection(marker_path: Path) -> dict:
             "run_group_id_capacity",
             "run_group_id_width",
             "factors",
-        },
+        }
+        | ({"factor_policy"} if intent_version == "delta-scenario-intent/2" else set()),
         "delta intent",
     )
     identity = content_sha256(intent)
     if (
-        intent["schema_version"] != "delta-scenario-intent/1"
+        intent_version not in {"delta-scenario-intent/1", "delta-scenario-intent/2"}
         or identity != marker["collection_id"]
         or directory.name != identity[:12]
         or marker["data_root"] != f"scenarios/_engine/data/{identity[:12]}"
@@ -540,6 +591,11 @@ def read_delta_collection(marker_path: Path) -> dict:
                 settings["reference_period"],
                 settings["future_period"],
             )
+            if intent_version == "delta-scenario-intent/2":
+                policy = _fields(intent["factor_policy"], {"precip"}, "factor policy")
+                validate_precipitation_reference(
+                    reference, settings["reference_period"], policy["precip"]
+                )
         if content_sha256(factors) != content_sha256(
             {"temp_offset_degC": offsets.tolist(), "precip_ratio": ratios.tolist()}
         ):

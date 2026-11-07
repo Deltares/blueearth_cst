@@ -27,6 +27,10 @@ They do not replace the historical timestamps. The template's 30-year windows ar
 files must cover every month of those periods. Missing months, duplicates, nonfinite samples, negative
 precipitation and nonpositive reference monthly precipitation are errors. Temperature units must match
 between projection files and be K or degrees Celsius; precipitation units must be explicit and match.
+New collections accept projection precipitation in `mm/day` or `mm/month`. Reference monthly means below
+the shared WF2 precipitation threshold (currently 0.1 mm/day) are refused, with affected months reported.
+For this check, monthly totals are divided by each sample's calendar-specific number of days before
+averaging. Equality with the threshold is accepted. Factors are never clipped or silently substituted.
 `simulation_window` selects inclusive historical years for WF4, using its existing January 1 through
 December 31 midnight convention. Historical forcing must cover that interval. This selection does not
 perform or exclude a separate spin-up simulation.
@@ -110,6 +114,9 @@ their profile and validation; experimental pilot collections are not converted i
 The engine directory contains the frozen intent and ready marker. Its matching data directory contains
 input snapshots, the producer source snapshot, scenario lookup and generated NetCDFs. The intent retains
 full-precision monthly factors, resolved configuration, source hashes and numerical package versions.
+New intents also retain the precipitation admission threshold and units. Older version-1 intents remain
+readable under their original positive-denominator policy; reading them does not retroactively qualify
+their dry-month factors. Regeneration applies the current policy and creates a new collection identity.
 WF4 retains its own simulation and indicator provenance through the normal execution path.
 
 Identity includes resolved settings, input bytes, producer revision and environment. A repeated identical

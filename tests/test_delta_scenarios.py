@@ -1,5 +1,6 @@
 """Independent arithmetic and admission checks for monthly delta collections."""
 
+import json
 from copy import deepcopy
 
 import numpy as np
@@ -15,6 +16,7 @@ from blueearth_cst.experiment.delta_scenarios import (
     generate_collection,
     monthly_factors,
     scenario_records,
+    validate_precipitation_reference,
 )
 from blueearth_cst.experiment.scenario_collection_v2 import read_collection_v2
 from blueearth_cst.experiment.simulation_runs import selected_run_ids
@@ -80,6 +82,37 @@ def test_invalid_projection_inputs_fail(problem):
             future,
             {"start": 2000, "end": 2001},
             {"start": 2000, "end": 2001},
+        )
+
+
+@pytest.mark.parametrize("units", ["mm/day", "mm/month"])
+@pytest.mark.parametrize("daily_rate", [0.099, 0.1, 0.101])
+def test_dry_month_admission_uses_daily_units_and_strict_boundary(units, daily_rate):
+    reference = monthly()
+    reference.precip.data[:] = daily_rate
+    if units == "mm/month":
+        reference.precip.data *= reference.time.dt.days_in_month.values
+    reference.precip.attrs["units"] = units
+    policy = {"min_denominator": 0.1, "units": "mm/day"}
+    if daily_rate < 0.1:
+        with pytest.raises(ValueError, match="months 01, 02.*refused, not clipped"):
+            validate_precipitation_reference(
+                reference, {"start": 2000, "end": 2001}, policy
+            )
+    else:
+        validate_precipitation_reference(
+            reference, {"start": 2000, "end": 2001}, policy
+        )
+
+
+def test_dry_month_admission_refuses_unknown_projection_units():
+    reference = monthly()
+    reference.precip.attrs["units"] = "unverified"
+    with pytest.raises(ValueError, match="mm/day or mm/month"):
+        validate_precipitation_reference(
+            reference,
+            {"start": 2000, "end": 2001},
+            {"min_denominator": 0.1, "units": "mm/day"},
         )
 
 
@@ -175,6 +208,11 @@ def test_collection_roundtrip_reuse_selection_and_corruption(tmp_path):
     project = tmp_path / "project"
     manifest = generate_collection(config, project)
     marker = read_collection_v2(manifest)
+    intent = json.loads(manifest.with_name("collection_intent.json").read_text())
+    assert intent["schema_version"] == "delta-scenario-intent/2"
+    assert intent["factor_policy"] == {
+        "precip": {"min_denominator": 0.1, "units": "mm/day"}
+    }
     from blueearth_cst.experiment.simulation_runner import (
         verify_selected_collection_source,
     )
@@ -218,6 +256,19 @@ def test_duplicate_member_identity_is_rejected():
     config["members"].append(deepcopy(config["members"][0]))
     with pytest.raises(ValueError, match="duplicate"):
         validate_settings(config)
+
+
+def test_generation_refuses_dry_reference_before_creating_collection(tmp_path):
+    historical().to_netcdf(tmp_path / "historical.nc")
+    reference = monthly()
+    reference.precip.data[[0, 12]] = 0.01
+    reference.to_netcdf(tmp_path / "reference.nc")
+    monthly().to_netcdf(tmp_path / "future.nc")
+    config = tmp_path / "delta.yml"
+    config.write_text(yaml.safe_dump(settings()), encoding="utf-8")
+    with pytest.raises(ValueError, match="months 01; relative factors are refused"):
+        generate_collection(config, tmp_path / "project")
+    assert not (tmp_path / "project").exists()
 
 
 @pytest.mark.parametrize(
