@@ -57,6 +57,23 @@ product uses the existing reference/comparison periods, sources, reporting-year 
 tolerances. Omitted or `false` disables it; other types are rejected. Precipitation-only sources produce
 precipitation panels without borrowed temperature. PET and percentage anomalies are outside this product.
 
+For example, in `project_config_analyze_climate.yml`:
+
+```yaml
+diagnostics:
+  reference_period:
+    # First reference reporting year. Input: integer year, <= end.
+    start: 2000
+    # Last reference reporting year. Input: integer year, >= start.
+    end: 2010
+  comparison_period:
+    # First comparison reporting year. Input: integer year, <= end.
+    start: 2000
+    # Last comparison reporting year. Input: integer year, >= start.
+    end: 2016
+  annual_spatial_anomalies: true
+```
+
 At each native cell, precipitation is the annual total (mm), temperature the daily annual mean (°C),
 and the anomaly is that value minus its arithmetic reference mean. Reporting-year labels name the
 starting year: an October year labelled 2000 spans October 2000 through September 2001. Missing dates
