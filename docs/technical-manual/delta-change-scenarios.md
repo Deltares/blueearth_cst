@@ -181,10 +181,16 @@ Plot a completed scalar or gridded collection with:
 python scripts/plot_delta_scenarios.py --manifest <collection.json> --output-dir <case>/plots/delta
 ```
 
-The command validates the collection and writes monthly member comparisons, twelve-month grid panels
+The command validates the collection and writes monthly member comparisons, individual monthly basin maps
 for each gridded member and variable, and `figure_captions.md`. Members are grouped by model and scenario
 without pooling. Grid comparison lines are unweighted active-cell means; shaded spatial ranges are not
-confidence intervals. Grid panels share each variable's colour scale across members and months.
+confidence intervals. Maps share each variable's colour scale across members and months, and use the
+standard climate-map renderer with basin boundaries, subbasin divides, rivers, named locations, geographic
+axes and a scale bar. Geometry comes from `<project>/models/hydrology/wflow/staticgeoms`; use
+`--model-root <wflow-model>` for a different model location. Basin geometry with an explicit CRS is required
+for gridded plots. Missing optional subbasin, river or location layers are reported in captions. The basin
+viewport does not interpolate or refine the climate factors. Existing old grid-panel files are not deleted;
+`figure_captions.md` lists the current exports.
 
 Identity includes resolved settings, input bytes, producer revision and environment. A repeated identical
 completed request verifies retained artifacts before reuse. Changed inputs produce a new identity. A partial

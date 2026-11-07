@@ -11,7 +11,9 @@ from blueearth_cst.experiment.delta_scenarios import read_delta_collection
 from blueearth_cst.shared.workflow_config_snapshot import resolve_file_reference
 
 
-def plot_delta_collection(manifest: Path, output: Path) -> list[Path]:
+def plot_delta_collection(
+    manifest: Path, output: Path, *, model_root: Path | None = None
+) -> list[Path]:
     """Render every member without pooling across models or implying probabilities."""
     import matplotlib
 
@@ -20,7 +22,18 @@ def plot_delta_collection(manifest: Path, output: Path) -> list[Path]:
 
     from blueearth_cst.plotting.export import export_figure
     from blueearth_cst.plotting.fundamentals import MONTH_ABBR, new_fig
+    from blueearth_cst.plotting.prepared_maps import (
+        MapScale,
+        RasterMap,
+        draw_raster_map,
+    )
     from blueearth_cst.plotting.preset import use_preset
+    from blueearth_cst.shared.map_frames import (
+        basin_frame,
+        features,
+        grid_edges,
+        overlay_features,
+    )
     from blueearth_cst.shared.plot_colors import (
         CLIMATE_COLORMAPS,
         PRECIP_ANOMALY_COLORMAP,
@@ -43,11 +56,38 @@ def plot_delta_collection(manifest: Path, output: Path) -> list[Path]:
         if settings.get("factor_layout") == "grid":
             active = active.transpose("latitude", "longitude")
         active = active.values
-        coordinates = {
-            key: historical[key].values
-            for key in ("latitude", "longitude")
-            if key in historical.coords
-        }
+        if settings.get("factor_layout") == "grid":
+            xedges, yedges = grid_edges(historical.precip.isel(time=0))
+    if settings.get("factor_layout") == "grid":
+        import geopandas as gpd
+
+        geometry_root = (
+            model_root or project / "models/hydrology/wflow"
+        ) / "staticgeoms"
+        basins = gpd.read_file(geometry_root / "basins.geojson")
+        if basins.empty or basins.crs is None:
+            raise ValueError(
+                "basin map requires nonempty geometry with an explicit CRS"
+            )
+        basins = basins.to_crs(4326).dissolve()
+        layers = {"basins": features(basins)}
+        missing_layers = []
+        empty_features = []
+        for layer in ("subbasins", "rivers", "locations"):
+            path = geometry_root / f"{layer}.geojson"
+            if path.exists():
+                loaded = gpd.read_file(path)
+                if loaded.crs is None:
+                    raise ValueError(f"map layer requires an explicit CRS: {path}")
+                empty = loaded.geometry.isna() | loaded.geometry.is_empty
+                if empty.any():
+                    empty_features.append(f"{layer}: {int(empty.sum())}")
+                    loaded = loaded.loc[~empty]
+                layers[layer] = features(loaded)
+            else:
+                missing_layers.append(layer)
+        overlays = overlay_features(layers)
+        frame = basin_frame(basins)
     groups = defaultdict(list)
     for index, member in enumerate(settings["members"]):
         groups[(member["model"], member["scenario"])].append(index)
@@ -130,39 +170,46 @@ def plot_delta_collection(manifest: Path, output: Path) -> list[Path]:
                         ),
                         1e-6,
                     )
-                    fig, axes = new_fig(105, nrows=3, ncols=4, width_mm=190)
-                    for month, ax in enumerate(axes.flat):
-                        mesh = ax.pcolormesh(
-                            coordinates["longitude"],
-                            coordinates["latitude"],
-                            values[month],
-                            shading="nearest",
-                            cmap=PRECIP_ANOMALY_COLORMAP
-                            if key == "precip_ratio"
-                            else CLIMATE_COLORMAPS["temp_crossing_freezing"],
-                            vmin=-limit,
-                            vmax=limit,
+                    cmap = plt.get_cmap(
+                        PRECIP_ANOMALY_COLORMAP
+                        if key == "precip_ratio"
+                        else CLIMATE_COLORMAPS["temp_crossing_freezing"]
+                    )
+                    boundaries = np.linspace(-limit, limit, 11)
+                    scale = MapScale(
+                        unit,
+                        boundaries,
+                        np.linspace(-limit, limit, 5),
+                        cmap(np.linspace(0.05, 0.95, 10)),
+                        cmap(0.0),
+                        cmap(1.0),
+                        "#dddddd",
+                        "available",
+                    )
+                    for month in range(12):
+                        fig = draw_raster_map(
+                            RasterMap(values[month], xedges, yedges),
+                            frame,
+                            scale,
+                            overlays,
+                            colorbar_title=f"{label} change\n({unit})",
                         )
-                        ax.set_title(MONTH_ABBR[month], loc="left")
-                        ax.set_aspect("equal")
-                    fig.colorbar(
-                        mesh,
-                        ax=list(axes.flat),
-                        label=f"{label} change ({unit})",
-                        shrink=0.8,
-                    )
-                    path = (
-                        output
-                        / f"run_{index + 3:0{intent['run_group_id_width']}d}_{key.lower()}_monthly_grid.png"
-                    )
-                    export_figure(fig, path, dpi=200)
-                    plt.close(fig)
-                    paths.append(path)
-                    captions.append(
-                        f"{path.name}: {member['model']} / {member['scenario']} / {member['member']}. "
-                        "Monthly factors on the historical forcing grid; common scale across all months. "
-                        "Coordinates are longitude/latitude; blank cells are outside active historical support."
-                    )
+                        path = output / (
+                            f"run_{index + 3:0{intent['run_group_id_width']}d}_{key.lower()}"
+                            f"_month_{month + 1:02d}_map_basin_ext.png"
+                        )
+                        export_figure(fig, path, dpi=200)
+                        plt.close(fig)
+                        paths.append(path)
+                        captions.append(
+                            f"{path.name}: {member['model']} / {member['scenario']} / {member['member']}; "
+                            f"{MONTH_ABBR[month]}, future {settings['future_period']}. "
+                            "Factors on the historical forcing grid; common scale across members and months. "
+                            "Basin outline, available subbasin divides, rivers and named locations use model geometry. "
+                            "Basin zoom does not add subgrid climate information. "
+                            f"Unavailable optional layers: {', '.join(missing_layers) or 'none'}."
+                            f" Empty geometry records omitted: {', '.join(empty_features) or 'none'}."
+                        )
     (output / "figure_captions.md").write_text(
         "\n\n".join(captions) + "\n", encoding="utf-8"
     )
