@@ -133,6 +133,34 @@ readable under their original positive-denominator policy; reading them does not
 their dry-month factors. Regeneration applies the current policy and creates a new collection identity.
 WF4 retains its own simulation and indicator provenance through the normal execution path.
 
+### Optional projection-derived PET
+
+With version 2, add the following optional mapping to use supplied PET change factors:
+
+```yaml
+pet:
+  mode: projection_ratio
+  method: makkink
+```
+
+Omitting `pet` keeps the existing De Bruin recomputation. The method string must match the `pet_method`
+attribute on the `pet` variable in historical, reference and future NetCDFs. It identifies the upstream
+calculation; the delta producer does not calculate PET from projection meteorology. Retain that calculation's
+input and method provenance. Historical PET must have evidenced effective units `mm/day` in `reader`;
+projection units must match and be `mm/day` or `mm/month`. Reference monthly PET must be strictly positive.
+Missing PET, inconsistent methods/units, negative values and nonfinite mapped factors are errors.
+
+Each monthly PET ratio multiplies historical PET once. The historical and neutral controls preserve that
+baseline. WF4 prepares temperature with `skip_pet=True` and uses HydroMT's `setup_pet_forcing` for supplied
+PET, so it does not additionally recompute PET from adjusted temperature. The preparation identity records
+the provided-PET binding and reader, and the collection identity retains PET factors and method provenance.
+
+For sensitivity comparisons, hold the model, shared initial state, evaluation interval, projection member
+and temperature/precipitation inputs fixed. Report baseline PET differences when the supplied method differs
+from the default De Bruin method: that comparison includes a method change, not only future meteorology.
+PET calculated from monthly mean meteorology is an approximation to monthly mean PET because the formula
+is nonlinear. Treat pressure/elevation choices and missing projection-member coverage explicitly.
+
 ### Gridded factors and member diagnostics
 
 Use `schema_version: delta-change/2` with the required `factor_layout: grid` to retain spatial variation.

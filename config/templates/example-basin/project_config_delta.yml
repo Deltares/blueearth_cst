@@ -3,6 +3,9 @@
 # Select the standalone producer schema. Options: delta-change/1, delta-change/2.
 # Version 2 additionally requires factor_layout: basin_scalar or grid.
 # Version 1 remains scalar; omit factor_layout for this version.
+# Version 2 can also add pet: {mode: projection_ratio, method: makkink}.
+# That option requires historical and projection PET, matching pet_method attributes,
+# and [pet, mm/day] in the historical reader's evidenced variables below.
 schema_version: delta-change/1
 # Locate the extracted historical forcing. Input: NetCDF path beside this YAML.
 historical_path: data/extract_historical.nc

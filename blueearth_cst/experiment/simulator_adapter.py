@@ -189,8 +189,8 @@ def validate_forcing(
     context = run_forcing.preparation_context
     if not context.catalogs or not context.ancillary:
         refuse("preparation_context", "catalog and ancillary closure", context)
-    if context.pet_method not in {"makkink", "debruin"}:
-        refuse("pet_method", "existing makkink or debruin binding", context.pet_method)
+    if context.pet_method not in {"makkink", "debruin", "provided"}:
+        refuse("pet_method", "makkink, debruin or provided binding", context.pet_method)
     if not context.forcing_entry or not context.elevation_entry:
         refuse("catalog_entries", "explicit forcing and elevation keys", context)
     for reference in (*context.catalogs, *context.ancillary):

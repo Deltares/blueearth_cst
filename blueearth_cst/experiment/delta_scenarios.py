@@ -65,7 +65,8 @@ def validate_settings(settings: Any) -> dict:
             "members",
             "unit_id_capacity",
         }
-        | ({"factor_layout"} if version == "delta-change/2" else set()),
+        | ({"factor_layout"} if version == "delta-change/2" else set())
+        | ({"pet"} if version == "delta-change/2" and "pet" in settings else set()),
         "delta configuration",
     )
     if version not in {"delta-change/1", "delta-change/2"}:
@@ -82,6 +83,18 @@ def validate_settings(settings: Any) -> dict:
     for name in ("reference_period", "future_period", "simulation_window"):
         _period(value[name], name)
     units = dict(reader_unit_interpretation(value["reader"]).variables)
+    if "pet" in value:
+        pet = _fields(value["pet"], {"mode", "method"}, "PET settings")
+        if (
+            pet["mode"] != "projection_ratio"
+            or not isinstance(pet["method"], str)
+            or not pet["method"].strip()
+        ):
+            raise ValueError(
+                "PET requires projection_ratio mode and an explicit method"
+            )
+        if units.get("pet") != "mm/day":
+            raise ValueError("historical supplied PET requires effective units mm/day")
     # This profile feeds WF4's reviewed extracted-ERA5 reader without conversion.
     expected_units = {
         "temp": "degC",
@@ -235,7 +248,10 @@ def validate_precipitation_reference(
 
 
 def apply_factors(
-    historical: xr.Dataset, offsets: np.ndarray, ratios: np.ndarray
+    historical: xr.Dataset,
+    offsets: np.ndarray,
+    ratios: np.ndarray,
+    pet_ratios: np.ndarray | None = None,
 ) -> xr.Dataset:
     """Apply monthly factors by labelled time; preserve dtype, grid and masks."""
     offsets, ratios = np.asarray(offsets), np.asarray(ratios)
@@ -257,7 +273,19 @@ def apply_factors(
         raise ValueError("factors require twelve finite offsets and nonnegative ratios")
     result = historical.copy(deep=True)
     months = historical.time.dt.month.values - 1
-    for name in ("temp", "temp_min", "temp_max", "precip"):
+    if pet_ratios is not None:
+        pet_ratios = np.asarray(pet_ratios)
+        if (
+            pet_ratios.shape != ratios.shape
+            or not np.isfinite(pet_ratios).all()
+            or (pet_ratios < 0).any()
+        ):
+            raise ValueError(
+                "PET ratios must match the other factor fields and be finite and nonnegative"
+            )
+    for name in ("temp", "temp_min", "temp_max", "precip") + (
+        ("pet",) if pet_ratios is not None else ()
+    ):
         source = historical[name]
         if (
             "time" not in source.dims
@@ -267,16 +295,18 @@ def apply_factors(
             raise ValueError(
                 f"{name}: floating time-dependent historical values required; infinity forbidden"
             )
-        if name == "precip" and (source.values < 0).any():
-            raise ValueError("historical precipitation cannot be negative")
-        values = (ratios if name == "precip" else offsets)[months]
+        if name in {"precip", "pet"} and (source.values < 0).any():
+            raise ValueError(f"historical {name} cannot be negative")
+        values = (
+            pet_ratios if name == "pet" else ratios if name == "precip" else offsets
+        )[months]
         dims = ("time",) if values.ndim == 1 else ("time", "latitude", "longitude")
         factor = xr.DataArray(
             values, dims=dims, coords={key: source[key] for key in dims}
         )
-        transformed = (source * factor if name == "precip" else source + factor).astype(
-            source.dtype
-        )
+        transformed = (
+            source * factor if name in {"precip", "pet"} else source + factor
+        ).astype(source.dtype)
         if (
             not np.array_equal(np.isnan(transformed), np.isnan(source))
             or np.isinf(transformed.values).any()
@@ -297,8 +327,9 @@ def gridded_factors(reference, future, historical, settings, policy):
     """
     import hydromt  # noqa: F401 -- registers the raster accessor
 
-    policy = _fields(policy, {"min_denominator", "units"}, "precipitation policy")
-    if (
+    if policy is not None:
+        policy = _fields(policy, {"min_denominator", "units"}, "precipitation policy")
+    if policy is not None and (
         type(policy["min_denominator"]) not in (int, float)
         or not np.isfinite(policy["min_denominator"])
         or policy["min_denominator"] <= 0
@@ -385,7 +416,12 @@ def gridded_factors(reference, future, historical, settings, policy):
         raise ValueError(
             "reference precipitation does not cover every active historical grid cell"
         )
-    if bool(((mapped_daily < policy["min_denominator"]) & active).any()):
+    invalid = (
+        mapped_daily <= 0
+        if policy is None
+        else mapped_daily < policy["min_denominator"]
+    )
+    if bool((invalid & active).any()):
         raise ValueError(
             "reference precipitation below threshold in active grid; relative factors are refused, not clipped"
         )
@@ -420,6 +456,32 @@ def derive_factors(reference, future, historical, settings, policy):
             reference, settings["reference_period"], policy
         )
     return result
+
+
+def derive_pet_ratios(reference, future, historical, settings):
+    """Require matching PET method provenance, then derive an independent ratio."""
+    method = settings["pet"]["method"]
+    for label, dataset in (
+        ("historical", historical),
+        ("reference", reference),
+        ("future", future),
+    ):
+        if "pet" not in dataset or dataset.pet.attrs.get("pet_method") != method:
+            raise ValueError(f"{label}: supplied PET must declare pet_method={method}")
+        if np.isinf(dataset.pet).any() or (dataset.pet < 0).any():
+            raise ValueError(f"{label}: PET cannot be negative or infinite")
+    if reference.pet.attrs.get("units") not in {"mm/day", "mm/month"}:
+        raise ValueError("projection PET must use mm/day or mm/month")
+    # PET uses the same ratio and grid operations, with a strictly positive
+    # reference. The precipitation dry-month threshold is not a PET rule.
+    datasets = [
+        dataset.drop_vars("precip").rename({"pet": "precip"})
+        for dataset in (reference, future, historical)
+    ]
+    try:
+        return derive_factors(*datasets, settings, None)[1]
+    except ValueError as error:
+        raise ValueError(f"PET ratio: {error}") from error
 
 
 def scenario_records(settings: dict) -> list[dict[str, str]]:
@@ -480,6 +542,7 @@ def generate_collection(config_path: Path, project_root: Path) -> Path:
         paths.extend(Path(member[key]) for key in ("reference_path", "future_path"))
     paths = [(config_path.parent / path).resolve(strict=True) for path in paths]
     factors = []
+    pet_factors = []
     precipitation = VARIABLES["precip"].projections
     factor_policy = {
         "precip": {
@@ -498,6 +561,10 @@ def generate_collection(config_path: Path, project_root: Path) -> Path:
                     reference, future, historical, settings, factor_policy["precip"]
                 )
             )
+            if "pet" in settings:
+                pet_factors.append(
+                    derive_pet_ratios(reference, future, historical, settings)
+                )
     # Observe the physical source before publishing anything. WF4 uses the same
     # evidenced interpretation when binding the existing preparation catalog.
     descriptor = collection_forcing_descriptor(paths[0], settings["reader"])
@@ -543,8 +610,12 @@ def generate_collection(config_path: Path, project_root: Path) -> Path:
         "run_group_id_capacity": settings["unit_id_capacity"],
         "run_group_id_width": len(str(settings["unit_id_capacity"])),
         "factors": [
-            {"temp_offset_degC": offsets.tolist(), "precip_ratio": ratios.tolist()}
-            for offsets, ratios in factors
+            {
+                "temp_offset_degC": offsets.tolist(),
+                "precip_ratio": ratios.tolist(),
+                **({"pet_ratio": pet_factors[i].tolist()} if pet_factors else {}),
+            }
+            for i, (offsets, ratios) in enumerate(factors)
         ],
     }
     identity = content_sha256(intent)
@@ -584,7 +655,18 @@ def generate_collection(config_path: Path, project_root: Path) -> Path:
                 factors[index - 2] if index >= 2 else (np.zeros(12), np.ones(12))
             )
             transformed = (
-                historical if index == 0 else apply_factors(historical, offsets, ratios)
+                historical
+                if index == 0
+                else apply_factors(
+                    historical,
+                    offsets,
+                    ratios,
+                    pet_factors[index - 2]
+                    if index >= 2 and pet_factors
+                    else np.ones(12)
+                    if pet_factors
+                    else None,
+                )
             )
             path = data / "series" / f"{row['run_id']}.nc"
             transformed.to_netcdf(path)
@@ -729,7 +811,12 @@ def read_delta_collection(marker_path: Path) -> dict:
     if len(intent["factors"]) != len(settings["members"]):
         raise ValueError("delta factor count differs")
     for member, factors in zip(settings["members"], intent["factors"], strict=True):
-        _fields(factors, {"temp_offset_degC", "precip_ratio"}, "monthly factors")
+        _fields(
+            factors,
+            {"temp_offset_degC", "precip_ratio"}
+            | ({"pet_ratio"} if "pet" in settings else set()),
+            "monthly factors",
+        )
         with (
             xr.open_dataset(data / member["reference_path"]) as reference,
             xr.open_dataset(data / member["future_path"]) as future,
@@ -742,8 +829,17 @@ def read_delta_collection(marker_path: Path) -> dict:
             offsets, ratios = derive_factors(
                 reference, future, historical, settings, precipitation_policy
             )
+            pet_ratio = (
+                derive_pet_ratios(reference, future, historical, settings)
+                if "pet" in settings
+                else None
+            )
         if content_sha256(factors) != content_sha256(
-            {"temp_offset_degC": offsets.tolist(), "precip_ratio": ratios.tolist()}
+            {
+                "temp_offset_degC": offsets.tolist(),
+                "precip_ratio": ratios.tolist(),
+                **({"pet_ratio": pet_ratio.tolist()} if pet_ratio is not None else {}),
+            }
         ):
             raise ValueError("retained factors differ from projection inputs")
     if (

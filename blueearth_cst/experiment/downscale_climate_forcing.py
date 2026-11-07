@@ -401,8 +401,11 @@ def prepare_model_forcing(run_forcing, model_reference, settings):
         temp_correction=context.temp_correction,
         dem_forcing_fn=oro_source,
         pet_method=pet_method,
+        skip_pet=pet_method == "provided",
         chunksize=chunksize,
     )
+    if pet_method == "provided":
+        mod.setup_pet_forcing(pet_fn=climate_name, chunksize=chunksize)
 
     # Convert forcing time axis from cftime.DatetimeNoLeap (R weathergen
     # default) to numpy datetime64 so hydromt_wflow 1.x's timespan
@@ -500,6 +503,8 @@ def prepare_collection_run(
     )
     if forcing.preparation_context.pet_method == "debruin":
         variables += (("kout", "W/m2"),)
+    elif forcing.preparation_context.pet_method == "provided":
+        variables = (("precip", "mm/day"), ("temp", "degC"), ("pet", "mm/day"))
     requirement = ForcingRequirement(
         variables,
         "EPSG:4326",

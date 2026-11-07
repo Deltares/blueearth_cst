@@ -107,6 +107,7 @@ def _current_preparation():
             Path(project_dir), Path(exp_dir), climate_source=source,
             catalogs=catalogs,
             unit_interpretation=resolved_unit_interpretation(catalogs, source),
+            collection_path=Path(SELECTION["manifest_path"]),
         )
 def _live_simulation_inputs():
     preparation = _current_preparation()

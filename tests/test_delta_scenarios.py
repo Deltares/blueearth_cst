@@ -13,6 +13,7 @@ from pyproj import CRS
 from blueearth_cst.experiment.delta_scenarios import (
     apply_factors,
     delta_groups,
+    derive_pet_ratios,
     generate_collection,
     gridded_factors,
     monthly_factors,
@@ -340,6 +341,58 @@ def test_gridded_factors_refuse_missing_active_cell():
             config,
             {"min_denominator": 0.1, "units": "mm/day"},
         )
+
+
+@pytest.mark.parametrize("layout", ["basin_scalar", "grid"])
+def test_projected_pet_scales_baseline_once_and_roundtrips(tmp_path, layout):
+    if layout == "grid":
+        baseline, reference, future, config = grid_inputs()
+    else:
+        baseline, reference, future = historical(), monthly(), monthly()
+        config = {
+            **settings(),
+            "schema_version": "delta-change/2",
+            "factor_layout": layout,
+        }
+    config["pet"] = {"mode": "projection_ratio", "method": "synthetic-makkink"}
+    config["reader"]["metadata"]["cst_unit_interpretation"]["variables"].append(
+        ["pet", "mm/day"]
+    )
+    for dataset in (baseline, reference, future):
+        dataset["pet"] = xr.ones_like(dataset.precip) * 2
+        dataset.pet.attrs = {"units": "mm/day", "pet_method": "synthetic-makkink"}
+    future.pet.data *= 1.25
+    ratio = derive_pet_ratios(reference, future, baseline, config)
+    offsets = np.full_like(ratio, 4.0)
+    result = apply_factors(baseline, offsets, np.ones_like(ratio), ratio)
+    np.testing.assert_allclose(result.pet.values, 2.5)
+    for name, dataset in (
+        ("historical", baseline),
+        ("reference", reference),
+        ("future", future),
+    ):
+        dataset.to_netcdf(tmp_path / f"{name}.nc")
+    path = tmp_path / "delta.yml"
+    path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    marker = generate_collection(path, tmp_path / "project")
+    assert read_collection_v2(marker)["status"] == "ready"
+
+
+@pytest.mark.parametrize("problem", ["missing", "method", "zero_reference"])
+def test_projection_pet_refuses_inconsistent_inputs(problem):
+    baseline, reference, future = historical(), monthly(), monthly()
+    config = {**settings(), "pet": {"mode": "projection_ratio", "method": "makkink"}}
+    for dataset in (baseline, reference, future):
+        dataset["pet"] = xr.ones_like(dataset.precip)
+        dataset.pet.attrs = {"units": "mm/day", "pet_method": "makkink"}
+    if problem == "missing":
+        future = future.drop_vars("pet")
+    elif problem == "method":
+        future.pet.attrs["pet_method"] = "another-method"
+    else:
+        reference.pet.data[:] = 0
+    with pytest.raises(ValueError, match="pet_method|PET ratio"):
+        derive_pet_ratios(reference, future, baseline, config)
 
 
 def test_generation_refuses_dry_reference_before_creating_collection(tmp_path):
