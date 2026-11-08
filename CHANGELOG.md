@@ -9,6 +9,8 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Admit historical evaluation and named-run retention settings during all-workflow experiment preflight.
+
 - Preserve shared axes in the weather generator's conditional precipitation-correlation diagnostic,
   avoiding a plot-export assertion that stopped scenario generation after evaluation.
 

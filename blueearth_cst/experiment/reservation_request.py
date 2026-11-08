@@ -194,7 +194,12 @@ def capture_request(
     model_request = None
     if execute_model:
         model_settings = config["workflows"]["build_model"]
-        allowed = {"enabled", "engine", "observations", "simulation_window", "output"}
+        # Evaluation and named retention consume historical responses; neither
+        # changes the physical model or the stress-test simulation request.
+        allowed = {
+            "enabled", "engine", "observations", "simulation_window", "output",
+            "evaluation", "historical_run",
+        }
         unknown = set(model_settings) - allowed
         if unknown:
             raise ValueError(f"unclassified build_model fields: {sorted(unknown)}")
