@@ -2,7 +2,7 @@
 
 Copying the starter begins a new case history. Record only runs with unique
 retained value or setup. Keep
-generated evidence under `runs/<basin>/`; summarize enough here to make the
+generated evidence under the trial's `outputs/`; summarize enough here to make the
 finding understandable from a clone.
 
 ## Run record template
@@ -13,5 +13,5 @@ finding understandable from a clone.
 - Toolbox revision: `<commit>`; dirty state: `<clean | files and effect>`
 - Workflows: `<names>`
 - Outcome and retained finding: `<result; no unsupported scientific conclusion>`
-- Evidence: `runs/<basin>/<relative-path>`
+- Evidence: `outputs/<relative-path>`
 - Follow-up: `<toolbox task/issue/commit or none>`

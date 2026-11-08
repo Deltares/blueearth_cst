@@ -17,7 +17,7 @@ toolbox folder each time, with only one active command writing to its output dir
 Set the path to your case's project file, replacing the example below with your own:
 
 ```powershell
-$config = 'C:/cst-cases/applications/my-basin/project_config.yml'
+$config = 'C:/cst-cases/my-basin/default/project_config.yml'
 pixi run python scripts/run_workflows.py --config $config --cores 3
 ```
 

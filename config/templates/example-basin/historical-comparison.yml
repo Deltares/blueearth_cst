@@ -1,6 +1,6 @@
 # Standalone input to scripts/compare_historical.py; paths resolve beside this file.
 # Match project.project_dir in project_config.yml after copying/scaffolding.
-project_dir: ../../runs/example-basin
+project_dir: outputs
 runs:
   - era5_reference
   - chirps_reference
@@ -15,4 +15,4 @@ water_year_start: Oct
 # Optional semicolon CSV (time;wflow_id;...), daily discharge in m3/s.
 observations_path: null
 # Must be new; existing comparisons are never overwritten.
-output_dir: ../../runs/example-basin/comparisons/historical/forcing_comparison
+output_dir: outputs/comparisons/historical/forcing_comparison

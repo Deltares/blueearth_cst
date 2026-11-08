@@ -102,7 +102,7 @@ rerun the workflow and check the reported coverage.
    for incomplete jobs, run:
 
    ```powershell
-   $config = 'C:/cst-cases/applications/my-basin/project_config.yml'
+   $config = 'C:/cst-cases/my-basin/default/project_config.yml'
    pixi run python scripts/run_workflows.py --config $config --cores 3 -- --rerun-incomplete
    ```
 

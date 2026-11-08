@@ -14,9 +14,8 @@
 # `basin.output_locations`; columns are matched by wflow_id.
 # Format: data/observed_daily_discharge_template.csv beside this config.
 #
-# ABSOLUTE PATH if you set one -- a relative path resolves against the repo
-# root, not this folder. Put the file in this case's `data/` folder, e.g.
-#   river discharge: /path/to/cst-cases/applications/my-basin/data/observed_discharge.csv
+# Schema 3 resolves relative paths beside this YAML. Use shared case data, e.g.
+#   river discharge: ../data/observed_discharge.csv
 # Observed series for model evaluation. Input: variable-to-file mapping.
 observations:
   # Observed daily series for evaluation. Input: CSV path or null.

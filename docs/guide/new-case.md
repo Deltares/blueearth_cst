@@ -21,7 +21,7 @@ the default catalog uses the Deltares P-drive, and CMIP6 analysis also needs int
 Open PowerShell in `blueearth_cst`. Choose a location for your cases, replacing `C:/cst-cases` below:
 
 ```powershell
-New-Item -ItemType Directory -Force C:/cst-cases/applications
+New-Item -ItemType Directory -Force C:/cst-cases
 ```
 
 Replace `my-basin`, the coordinates and purpose with your own values. Use a lowercase, hyphenated
@@ -31,23 +31,61 @@ case name; longitude comes before latitude:
 pixi run create-case my-basin --cases-root C:/cst-cases --longitude 12.5 --latitude -3 --purpose "Assess sensitivity of seasonal flows to climate change"
 ```
 
-Append `--dry-run` to preview the files. Creating a case does not run workflows or overwrite an existing case.
+Append `--dry-run` to preview files and dependencies without writing. Creation never runs workflows
+or overwrites an existing trial. The default trial is named `default`.
 
-Your case files are created under `C:/cst-cases/applications/my-basin/`:
+Your case contains shared authored inputs and named trials. A trial is a configuration and its outputs;
+it remains a trial after completion:
 
 ```text
 C:/cst-cases/
-└── applications/
-    └── my-basin/
+└── my-basin/
+    ├── README.md                          # Minimal trial inventory
+    ├── .gitignore                         # Trial outputs only
+    ├── data/                              # Shared authored inputs
+    └── default/
         ├── project_config.yml             # Basin, data and enabled workflows
         ├── project_config_<workflow>.yml  # Five workflow settings files
-        ├── data/                          # Output locations and observations
-        ├── INSTRUCTIONS.md                # Case commands and documentation
-        └── notes.md                       # Assessment notes and findings
+        ├── outputs/                       # Created by execution
+        ├── INSTRUCTIONS.md                # Trial commands and dependencies
+        └── notes.md                       # Purpose, revisions and evidence
 ```
 
-Results go to `C:/cst-cases/runs/my-basin/`, set by `project.project_dir` in `project_config.yml`.
-Keep `INSTRUCTIONS.md` with the case: it records the toolbox version and commands.
+Results go to `my-basin/default/outputs/`, set by `project.project_dir: outputs`.
+The outlet reference is `../data/output_locations.csv`. Trial-local inputs may live in a trial's own `data/`.
+Ordinary relative catalog paths resolve beside the destination YAML; use `toolbox:` for bundled catalogs.
+
+### Add a trial
+
+Create another trial from the maintained starter, reusing the default trial's outlet identity:
+
+```powershell
+pixi run create-case my-basin --cases-root C:/cst-cases --trial v2 --purpose "Compare alternative forcing" --dry-run
+```
+
+Or inherit authored scientific settings and workflow enablement from a named trial in the same case:
+
+```powershell
+pixi run create-case my-basin --cases-root C:/cst-cases --trial alternative-forcing --from-trial default --purpose "Compare alternative forcing" --dry-run
+```
+
+Remove `--dry-run` to create it. Supply a new purpose each time. Coordinates are required only for a new case;
+conflicting coordinates are refused. A first trial may have another name, but later creation then needs
+`--from-trial` until a default trial exists. Names accept lowercase kebab-case, `v2` and dates such as `2026-11-08`.
+
+Copying starts a fresh output root and run-note record. It copies referenced authored trial inputs, retains
+shared case-data references and reports external dependencies. It never copies execution history or outputs.
+Missing inputs, links, cross-trial inputs outside shared `data/`, retained-product references and schema-2
+sources are refused with guidance. Migrate a schema-2 copy explicitly before using it as a source.
+Review catalog-internal dataset paths and access separately; catalogs do not bundle their datasets.
+Keep catalogs with relative dataset locators together with their datasets in shared case `data/`.
+Copying a trial-local catalog with relative dataset dependencies is refused, rather than rewriting
+HydroMT's catalog semantics or silently leaving datasets behind.
+
+Creation adds one row to the case README's Trial/Purpose/Status table, initially `working`.
+No central registry is updated. Change status manually to `retained` or `complete`; complete means the
+declared scope was reviewed, not that every workflow ran. Preserve retained evidence for new experiments.
+Toolbox revision, source trial and run-note fields stay with each trial.
 
 **Edit your case files.** Shared settings belong in `project_config.yml`; workflow settings belong
 in the files below. Pass `project_config.yml` to the runner with `--config`.
@@ -148,7 +186,7 @@ before choosing the forcing for your assessment.
 From the `blueearth_cst` folder, run:
 
 ```powershell
-$config = 'C:/cst-cases/applications/my-basin/project_config.yml'
+$config = 'C:/cst-cases/my-basin/default/project_config.yml'
 pixi run python scripts/run_workflows.py --config $config --cores 3
 ```
 
@@ -231,3 +269,25 @@ for execution options and recovery.
 
 For case-creation problems, unexpected basin boundaries or workflow failures, see
 [Troubleshooting](troubleshooting.md).
+
+## Copy and verify an existing case
+
+Existing schema-2 and schema-3 split layouts remain runnable. The scaffold refuses a new case name
+already present under `applications/` or `runs/` to avoid creating an ambiguous second case.
+Migration is a separate, non-destructive operation:
+
+1. Copy authored configurations and sidecars into a new case directory with a `default/` trial.
+   Preserve the original configurations and results until verification is complete.
+2. For schema 2, resolve each file path using its original base before explicitly changing the copy
+   to schema 3. Review the [path reference](../technical-manual/configuration.md#how-paths-are-read).
+3. Set the copied trial's output root to `outputs`, and update copied YAML-relative input references.
+   Keep shared inputs in case `data/`, with distinct inputs under the trial. Retain `toolbox:` locators.
+4. Compose every workflow, inspect resolved input paths, and preview with the owned runner from a
+   different invocation directory. Run a bounded workflow to check downstream execution paths.
+5. Add the minimal README trial row and output ignore rule. Review and archive evidence separately;
+   do not move or rewrite immutable product records as part of configuration migration.
+
+An evidence archive preserves results, checks, configuration snapshots and provenance. A rerunnable
+archive additionally requires the referenced datasets, catalogs and software environment. Record missing
+external dependencies. Git ignore rules are not backups, and moving YAML alone does not relocate runtime
+locators embedded in historical outputs.

@@ -62,6 +62,14 @@ For example, `observations: {river discharge: data/q.csv}` in `settings/wf1.yml`
 Moving YAML files does not relocate retained outputs or datasets. Archives preserve exact source bytes
 and resolved runtime locators. `config_paths.py` and `tests/test_config_paths.py` implement these rules.
 
+The case scaffolder creates `<case>/<trial>/project_config.yml`, defaulting to trial `default`.
+It writes `project.project_dir: outputs` and a shared outlet reference `../data/output_locations.csv`.
+`--from-trial` requires schema 3, preserves scientific settings and workflow enablement, and copies
+referenced authored trial inputs. Shared case data stay shared; external inputs are reported.
+Retained-product references must be removed from a working source copy before scaffolding a fresh trial.
+`--catalog` uses destination-YAML-relative paths or `toolbox:` resources. Existing layouts and schema-2
+execution are unchanged; see [case creation and migration](../guide/new-case.md).
+
 ## Shared fields
 
 | Field | Meaning and constraints |
