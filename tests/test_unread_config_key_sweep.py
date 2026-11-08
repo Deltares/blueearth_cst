@@ -92,6 +92,15 @@ def test_prose_in_a_template_is_not_a_declared_key(tmp_path):
         "n = thresholds['wflow_threads']\n",
         "n = stress_test_cfg['temp']['wflow_threads']\n",
         "n = axis_cfg[axis_name]['wflow_threads']\n",
+        "n = options['wflow_threads']\n",
+        "n = indices['wflow_threads']\n",
+        "n = fields.pop('wflow_threads')\n",
+        "n = grid.get('wflow_threads')\n",
+        "n = value['wflow_threads']\n",
+        "n = member['wflow_threads']\n",
+        "n = reader.get('wflow_threads')\n",
+        "n = binding['wflow_threads']\n",
+        "n = _budyko_evaluation.get('wflow_threads')\n",
     ],
 )
 def test_the_reader_forms_this_repo_actually_uses(tmp_path, reader_body):

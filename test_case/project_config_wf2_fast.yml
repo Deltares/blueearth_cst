@@ -43,7 +43,8 @@ basin:
 climate:
   sources:
   - era5
-  selected: era5
+  forcing:
+    precip_source: era5
   window:
     start: 2000
     end: 2020

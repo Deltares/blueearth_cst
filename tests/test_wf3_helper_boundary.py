@@ -17,6 +17,8 @@ GENERATION_INVENTORY = {
     "blueearth_cst/__init__.py",
     "blueearth_cst/experiment/__init__.py",
     "blueearth_cst/experiment/content_identity.py",
+    # The collection reader validates the delta backend and its variable bindings.
+    "blueearth_cst/experiment/delta_scenarios.py",
     "blueearth_cst/experiment/forcing_descriptor.py",
     "blueearth_cst/experiment/generation_plan.py",
     "blueearth_cst/experiment/generation_sources.py",
@@ -30,6 +32,7 @@ GENERATION_INVENTORY = {
     # Recipe requirements and unit admission affect generated input meaning.
     "blueearth_cst/shared/forcing_recipe.py",
     "blueearth_cst/shared/forcing_data.py",
+    "blueearth_cst/shared/variable_registry.py",
     "blueearth_cst/weathergen/generate_weather.R",
     "blueearth_cst/weathergen/global.R",
     "blueearth_cst/weathergen/impose_climate_change.R",

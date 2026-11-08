@@ -151,14 +151,16 @@ def test_N5_zero_flagged_months_is_not_flagged():
 def test_thresholds_resolve_from_the_plain_field_lists_params_carry():
     """Params serialise the spec as lists, so the resolver must accept both.
 
-    Six fields since `C-64`, and the threshold is the last one. Built from
+    The legacy six fields retain their positions; the derivation method is appended. Built from
     `VariableSpec` rather than hand-written, so this test cannot drift out of
     step with the shape `analyze_projections.smk` actually sends -- which is how
     it drifted into asserting the five-field shape in the first place.
     """
     params_shape = {name: list(spec) for name, spec in SEED_SPEC.items()}
 
-    assert [len(fields) for fields in params_shape.values()] == [6, 6]
+    assert [len(fields) for fields in params_shape.values()] == [7, 7]
+    legacy = {name: fields[:6] for name, fields in params_shape.items()}
+    assert resolve_thresholds(legacy) == {"precip": 0.1}
     assert resolve_thresholds(params_shape) == {"precip": 0.1}
 
 

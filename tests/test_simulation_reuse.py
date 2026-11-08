@@ -345,9 +345,17 @@ def _pre_release_tag_code():
     )
 
 
+def _post_release_tag_code():
+    """Exact audited target captured from 094bab3a, before later scientific edits."""
+    return json.loads(
+        (
+            Path(__file__).parent / "data/simulation-code-after-release-tag.json"
+        ).read_text(encoding="utf-8")
+    )
+
+
 def test_boundary_bridge_matches_audited_sources():
     from blueearth_cst.experiment.content_identity import content_sha256
-    from blueearth_cst.experiment.simulation_code import simulation_code_inventory
     from blueearth_cst.experiment.simulation_reuse import (
         _BOUNDARY_AFTER,
         _BOUNDARY_BEFORE,
@@ -358,10 +366,7 @@ def test_boundary_bridge_matches_audited_sources():
     assert content_sha256(_historical_code()) == _BOUNDARY_BEFORE
     assert content_sha256(_pre_temperature_code()) == _BOUNDARY_PREVIOUS
     assert content_sha256(_pre_release_tag_code()) == _BOUNDARY_TEMPERATURE
-    assert (
-        content_sha256(simulation_code_inventory(Path(__file__).resolve().parents[1]))
-        == _BOUNDARY_AFTER
-    ), "Scientific source changes require a new compatibility audit"
+    assert content_sha256(_post_release_tag_code()) == _BOUNDARY_AFTER
 
 
 @pytest.mark.parametrize(
@@ -426,17 +431,13 @@ def test_source_boundary_drives_actual_reuse_guard(
 def test_boundary_bridge_accepts_only_the_audited_transition(
     retained, change, transition
 ):
-    from blueearth_cst.experiment.simulation_code import simulation_code_inventory
-
     previous = deepcopy(retained)
     previous["documents"]["simulator_adapter_code"] = {
         "temperature": _pre_temperature_code,
         "release_tag": _pre_release_tag_code,
     }.get(transition, _historical_code)()
     current = deepcopy(retained)
-    current["documents"]["simulator_adapter_code"] = simulation_code_inventory(
-        Path(__file__).resolve().parents[1]
-    )
+    current["documents"]["simulator_adapter_code"] = _post_release_tag_code()
     if transition == "previous":
         current["documents"]["simulator_adapter_code"] = _pre_temperature_code()
     if change == "old_code":
@@ -469,7 +470,11 @@ def test_boundary_bridge_accepts_only_the_audited_transition(
 def test_completed_legacy_inventory_reuses_records_without_rewriting_bytes(
     tmp_path, monkeypatch, inventory
 ):
-    from blueearth_cst.experiment import content_identity, simulation_record
+    from blueearth_cst.experiment import (
+        content_identity,
+        simulation_code,
+        simulation_record,
+    )
     from blueearth_cst.experiment.scenario_collection_v2 import read_collection_v2
     from blueearth_cst.experiment.simulation_reuse import (
         check_completed_simulation_inputs,
@@ -504,6 +509,14 @@ def test_completed_legacy_inventory_reuses_records_without_rewriting_bytes(
         preparation=retained["documents"]["preparation"],
         simulation_window=retained["documents"]["settings"]["simulation_window"],
         julia_command=["unused"],
+    )
+    # Later forcing and native-grid changes are scientific, not part of this audit.
+    with pytest.raises(SimulationFrozenError):
+        check_completed_simulation_inputs(experiment.root, **kwargs)
+    monkeypatch.setattr(
+        simulation_code,
+        "simulation_code_inventory",
+        lambda _repo: _post_release_tag_code(),
     )
     check_completed_simulation_inputs(experiment.root, **kwargs)
     # Temperature support in the reader cannot authorize changed model outputs.

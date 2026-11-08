@@ -52,7 +52,8 @@ basin:
 climate:
   sources:
   - era5
-  selected: era5
+  forcing:
+    precip_source: era5
   # 17 years: one more than the 16-year minimum.
   window:
     start: 2000
