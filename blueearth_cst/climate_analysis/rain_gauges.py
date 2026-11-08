@@ -16,13 +16,23 @@ def parse_rain_gauges(block: object) -> dict | None:
     if block is None:
         return None
     keys = {"stations_path", "precip_path", "time_label"}
-    if not isinstance(block, dict) or set(block) != keys:
-        raise ValueError(f"rain_gauges requires exactly {sorted(keys)}")
+    if (
+        not isinstance(block, dict)
+        or not keys.issubset(block)
+        or set(block) - keys - {"temp_path"}
+    ):
+        raise ValueError(
+            f"rain_gauges requires {sorted(keys)}; only temp_path is optional"
+        )
     if block["time_label"] not in ("interval_start", "interval_end"):
         raise ValueError(
             "rain_gauges.time_label requires interval_start or interval_end"
         )
-    for key in ("stations_path", "precip_path"):
+    for key in (
+        "stations_path",
+        "precip_path",
+        *(["temp_path"] if "temp_path" in block else []),
+    ):
         if not isinstance(block[key], str) or not block[key].strip():
             raise ValueError(f"rain_gauges.{key} requires a nonempty path string")
         if not Path(block[key]).is_file():
@@ -70,11 +80,11 @@ def read_stations(path: str | Path) -> pd.DataFrame:
     return frame.set_index("id", drop=False)
 
 
-def read_precip(path: str | Path, time_label: str) -> pd.DataFrame:
-    """Read mm per midnight UTC interval, normalizing start labels to ends."""
+def _read_daily(path: str | Path, time_label: str, variable: str) -> pd.DataFrame:
+    """Read daily UTC measurements, preserving missing dates and station IDs."""
     frame = _read_csv(path)
     if "time" not in frame or len(frame.columns) < 2:
-        raise ValueError("Precipitation CSV requires time and station columns")
+        raise ValueError(f"{variable.title()} CSV requires time and station columns")
     times = pd.DatetimeIndex(
         pd.to_datetime(frame.pop("time"), errors="raise", utc=True)
     )
@@ -83,9 +93,11 @@ def read_precip(path: str | Path, time_label: str) -> pd.DataFrame:
     values = (
         frame.replace("", np.nan).apply(pd.to_numeric, errors="raise").astype(float)
     )
-    if np.isinf(values.to_numpy()).any() or (values < 0).any().any():
+    if np.isinf(values.to_numpy()).any() or (
+        variable == "precipitation" and (values < 0).any().any()
+    ):
         raise ValueError(
-            "Observed precipitation must be finite nonnegative mm or blank"
+            f"Observed {variable} must be finite {'nonnegative mm' if variable == 'precipitation' else 'degrees Celsius'} or blank"
         )
     if time_label not in ("interval_start", "interval_end"):
         raise ValueError("Unknown observation time_label")
@@ -95,13 +107,25 @@ def read_precip(path: str | Path, time_label: str) -> pd.DataFrame:
     return values.sort_index()
 
 
-def matched_tables(daily: pd.DataFrame, m0: int) -> dict[str, pd.DataFrame]:
+def read_precip(path: str | Path, time_label: str) -> pd.DataFrame:
+    """Read mm per midnight UTC interval, normalizing start labels to ends."""
+    return _read_daily(path, time_label, "precipitation")
+
+
+def read_temperature(path: str | Path, time_label: str) -> pd.DataFrame:
+    """Read daily mean degrees Celsius, normalizing start labels to ends."""
+    return _read_daily(path, time_label, "temperature")
+
+
+def matched_tables(
+    daily: pd.DataFrame, m0: int, *, observed: bool = True
+) -> dict[str, pd.DataFrame]:
     """Calculate metrics and strictly complete totals on one common valid-day mask.
 
     Input labels are interval ends. Calendar attribution uses the preceding day.
     The caller supplies the full expected daily axis, including absent rows.
     """
-    if "observed" not in daily:
+    if observed and "observed" not in daily:
         raise ValueError("Daily values require an observed column")
     valid = np.isfinite(daily) & (daily >= 0)
     joint = valid.all(axis=1)
@@ -119,11 +143,11 @@ def matched_tables(daily: pd.DataFrame, m0: int) -> dict[str, pd.DataFrame]:
         {"source": key, "valid_days": int(valid[key].sum()), **bounds} for key in daily
     ]
     metrics = []
-    observed = paired.observed.dropna()
-    for key in daily.columns.drop("observed"):
+    reference = paired.observed.dropna() if observed else pd.Series(dtype=float)
+    for key in daily.columns.drop("observed") if observed else []:
         source = paired[key].dropna()
-        errors = source - observed
-        corr_ok = n >= 2 and observed.nunique() > 1 and source.nunique() > 1
+        errors = source - reference
+        corr_ok = n >= 2 and reference.nunique() > 1 and source.nunique() > 1
         metrics.append(
             {
                 "source": key,
@@ -131,14 +155,14 @@ def matched_tables(daily: pd.DataFrame, m0: int) -> dict[str, pd.DataFrame]:
                 "bias_mm": errors.mean(),
                 "mae_mm": errors.abs().mean(),
                 "rmse_mm": np.sqrt((errors**2).mean()),
-                "percentage_bias": 100 * errors.sum() / observed.sum()
-                if n and observed.sum()
+                "percentage_bias": 100 * errors.sum() / reference.sum()
+                if n and reference.sum()
                 else np.nan,
-                "pearson_r": source.corr(observed) if corr_ok else np.nan,
+                "pearson_r": source.corr(reference) if corr_ok else np.nan,
                 "reason": "" if n else "no_common_valid_days",
                 "correlation_reason": "" if corr_ok else "too_few_pairs_or_constant",
                 "percentage_bias_reason": ""
-                if n and observed.sum()
+                if n and reference.sum()
                 else "zero_or_missing_observed_total",
             }
         )
@@ -183,7 +207,21 @@ def matched_tables(daily: pd.DataFrame, m0: int) -> dict[str, pd.DataFrame]:
     ].transform("count")
     return {
         "coverage": pd.DataFrame(coverage),
-        "agreement": pd.DataFrame(metrics),
+        "agreement": pd.DataFrame(
+            metrics,
+            columns=[
+                "source",
+                *bounds,
+                "bias_mm",
+                "mae_mm",
+                "rmse_mm",
+                "percentage_bias",
+                "pearson_r",
+                "reason",
+                "correlation_reason",
+                "percentage_bias_reason",
+            ],
+        ),
         "monthly": monthly_df,
         "annual": pd.DataFrame(annual),
     }

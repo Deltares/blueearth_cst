@@ -218,6 +218,23 @@ def diagnostic_comparison_outputs(comparison_dir, sources, settings):
     if len(sources) < 2:
         raise ValueError("A comparison requires at least two sources")
     paths = inventory(comparison_dir, sources, settings, True)
+    root = Path(comparison_dir)
+    # Comparison views share one root; source-store layouts remain unchanged.
+    for section, folder in (
+        ("compute", "tables"),
+        ("render", "plots"),
+        ("figures", "plots"),
+    ):
+        for key, value in paths[section].items():
+            relative = Path(value).relative_to(root)
+            if relative.parts[0] == folder:
+                paths[section][key] = str(
+                    root / folder / "basin-average" / Path(*relative.parts[1:])
+                )
+    for key in ("titles_json", "captions_json"):
+        paths["render"][key] = str(
+            root / "_engine/basin-average" / Path(paths["render"][key]).name
+        )
     # These summaries describe extracted stores alongside their diagnostics.
     paths["source_summary"] = {
         f"dataset_comparison_{suffix}": str(
@@ -226,3 +243,21 @@ def diagnostic_comparison_outputs(comparison_dir, sources, settings):
         for suffix in ("csv", "md")
     }
     return paths
+
+
+def location_comparison_outputs(root):
+    """Dynamic location inventories are bounded by declared output directories."""
+    root = Path(root)
+    return {
+        "compute": {
+            "locations": str(root / "locations.csv"),
+            "tables": str(root / "tables/locations"),
+            "daily": str(root / "_engine/locations/daily.nc"),
+            "metadata": str(root / "_engine/locations/evaluation.json"),
+            "exclusions": str(root / "_engine/locations/exclusions.csv"),
+        },
+        "render": {
+            "plots": str(root / "plots/locations"),
+            "manifests": str(root / "_engine/locations/figures"),
+        },
+    }

@@ -21,8 +21,8 @@ See [historical climate analysis](workflow-analyze-climate.md) for inputs, setti
 | `prepare_annual_spatial_anomalies_<source>` | Retain optional native annual P/T anomalies. |
 | `plot_climate_diagnostics_<source>` | Produce source figures and captions. |
 | `plot_climate_comparison` | Calculate and plot the common-period comparison. |
-| `prepare_rain_gauges` | Sample native cells and calculate observed-only station comparisons. |
-| `plot_rain_gauges` | Render coverage, totals, climatology and daily agreement from retained tables. |
+| `prepare_location_comparisons` | Sample cells at locations and gauge sites; save matched summaries. |
+| `plot_location_comparisons` | Render coverage, annual overlays, climatology and monthly agreement. |
 
 ## Hydrological model building {#build-model}
 

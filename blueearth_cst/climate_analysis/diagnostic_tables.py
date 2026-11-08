@@ -56,6 +56,58 @@ def write_json(path, value):
     )
 
 
+def verified_temperature(
+    values, attrs, extraction_attrs, source, data_sources=None, *, recipe=None
+):
+    """Verify Celsius or the provenance-backed legacy Kelvin label without reconversion."""
+    units = str(attrs.get("units", attrs.get("unit", ""))).lower()
+    declared_celsius = units in {
+        "degc",
+        "celsius",
+        "degree_celsius",
+        "degrees_celsius",
+        "°c",
+        "degree c",
+        "degree c.",
+        "c",
+    }
+    catalog_offset = None
+    if data_sources:
+        import yaml
+
+        catalogs = [data_sources] if isinstance(data_sources, str) else data_sources
+        for path in catalogs:
+            spec = yaml.safe_load(Path(path).read_text(encoding="utf-8")).get(
+                recipe.temp_pet_source if recipe is not None else source,
+                {},
+            )
+            if spec:
+                adapter = spec.get("data_adapter", spec)
+                catalog_offset = adapter.get("unit_add", {}).get("temp")
+    normalized_legacy = (
+        units in {"k", "kelvin"}
+        and catalog_offset == -273.15
+        and bool(extraction_attrs.get("region_geojson_sha256"))
+    )
+    finite = np.asarray(values)[~np.isnan(values)]
+    if (
+        not (declared_celsius or normalized_legacy)
+        or not len(finite)
+        or finite.min() < -100
+        or finite.max() > 70
+    ):
+        return (
+            False,
+            f"{source}: temperature diagnostics unavailable because units or values could not be verified",
+        )
+    if normalized_legacy:
+        return (
+            True,
+            f"{source}: temperature values are already in °C despite the K label; using as °C",
+        )
+    return True, ""
+
+
 def daily_series(climate_nc, cells_csv, source, data_sources=None, *, recipe=None):
     """Exact basin-mask reduction; no buffered extraction fallback."""
     with xr.open_dataset(climate_nc) as ds:
@@ -88,60 +140,18 @@ def daily_series(climate_nc, cells_csv, source, data_sources=None, *, recipe=Non
                 field = ds[var].where(mask)
                 values = field.mean([LAT, LON], skipna=True).to_series()
                 if var == "temp":
-                    finite = values.dropna()
-                    units = str(
-                        ds[var].attrs.get("units", ds[var].attrs.get("unit", ""))
-                    ).lower()
-                    declared_celsius = units in {
-                        "degc",
-                        "celsius",
-                        "degree_celsius",
-                        "degrees_celsius",
-                        "°c",
-                        "degree c",
-                        "degree c.",
-                        "c",
-                    }
-                    catalog_offset = None
-                    if data_sources:
-                        import yaml
-
-                        catalogs = (
-                            [data_sources]
-                            if isinstance(data_sources, str)
-                            else data_sources
-                        )
-                        for path in catalogs:
-                            spec = yaml.safe_load(
-                                Path(path).read_text(encoding="utf-8")
-                            ).get(
-                                recipe.temp_pet_source
-                                if recipe is not None
-                                else source,
-                                {},
-                            )
-                            if spec:
-                                adapter = spec.get("data_adapter", spec)
-                                catalog_offset = adapter.get("unit_add", {}).get("temp")
-                    normalized_legacy = (
-                        units in {"k", "kelvin"}
-                        and catalog_offset == -273.15
-                        and bool(ds.attrs.get("region_geojson_sha256"))
+                    verified, note = verified_temperature(
+                        values,
+                        ds[var].attrs,
+                        ds.attrs,
+                        source,
+                        data_sources,
+                        recipe=recipe,
                     )
-                    if (
-                        not (declared_celsius or normalized_legacy)
-                        or finite.empty
-                        or finite.min() < -100
-                        or finite.max() > 70
-                    ):
+                    if not verified:
                         values[:] = np.nan
-                        warning.append(
-                            f"{source}: temperature diagnostics unavailable because units or values could not be verified"
-                        )
-                    elif normalized_legacy:
-                        warning.append(
-                            f"{source}: temperature values are already in °C despite the K label; using as °C"
-                        )
+                    if note:
+                        warning.append(note)
                 daily[var] = values
                 daily[f"{var}_cells"] = field.notnull().sum([LAT, LON]).to_series()
             else:
@@ -638,7 +648,8 @@ def write_tables(paths, tables_by_source, settings, m0, period, lineage):
             )
         )
     metadata["figure_encoding_record"] = (
-        "plots/_engine/figure_captions.json (pooled anomaly bounds and rendered availability)"
+        f"{Path(paths['render']['captions_json']).relative_to(paths['root']).as_posix()} "
+        "(pooled anomaly bounds and rendered availability)"
     )
     metadata["limitations"] = [
         "Input homogeneity unverified; assimilation and gauge density changes can create spurious trends",

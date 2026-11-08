@@ -55,6 +55,7 @@ COMPARISON_SCOPE = "comparison"
 PLOT_CONTEXTS = {
     "annual_anomaly_map": "annual native-cell departure from the reference mean",
     "daily_agreement": "paired observed and native-cell daily precipitation",
+    "monthly_agreement": "complete paired monthly observations and native-cell values",
     "annual_indices_ts": "annual climate-index series with explicit units",
     "seasonal_indices_ts": "configured-season climate-index series",
     "wet_spell_exceedance": "complete wet-spell empirical exceedance",
@@ -101,6 +102,7 @@ FIXED_SPATIAL_SCOPES = {
 ID_SPATIAL_SCOPES = {
     "subbasin": ("avg", "ext"),
     "station": ("avg",),
+    "location": ("point",),
 }
 
 

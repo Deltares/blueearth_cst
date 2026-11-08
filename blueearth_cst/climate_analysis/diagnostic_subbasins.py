@@ -9,7 +9,7 @@ import pandas as pd
 
 from blueearth_cst.climate_analysis import diagnostic_figures as artists
 from blueearth_cst.climate_analysis.diagnostic_captions import caption, title
-from blueearth_cst.climate_analysis.diagnostic_tables import compute, write_json
+from blueearth_cst.climate_analysis.diagnostic_tables import write_json
 from blueearth_cst.climate_analysis.figure_naming import figure_filename
 from blueearth_cst.plotting.export import export_figure
 from blueearth_cst.plotting.figure_titles import write_figure_titles
@@ -18,7 +18,11 @@ from blueearth_cst.shared.plot_preset import CST_PRESET
 
 
 def render_subbasins(sm, settings, sources):
-    """Source render reuses tables; comparisons recompute matched-period tables."""
+    """Render optional per-source area averages from retained subbasin tables."""
+    if len(sources) != 1:
+        raise ValueError(
+            "Subbasin figures require one source; comparisons now use locations"
+        )
     folders = list(sm.params.subbasin_table_dirs)
     ids = sorted(
         set.intersection(
@@ -28,8 +32,7 @@ def render_subbasins(sm, settings, sources):
             ]
         )
     )
-    comparison = len(sources) > 1
-    dataset = "comparison" if comparison else sources[0]
+    dataset = sources[0]
     target = Path(sm.output.subbasin_figures)
     target.mkdir(parents=True, exist_ok=True)
     root = target.parent.parent
@@ -46,53 +49,26 @@ def render_subbasins(sm, settings, sources):
         for id_ in declared_ids - set(ids)
     }
     m0 = int(sm.params.m0)
-    table_root = Path(sm.output.subbasin_tables) if comparison else Path(folders[0])
-    if comparison:
-        table_root.mkdir(parents=True, exist_ok=True)
     for id_ in ids:
         results = {}
-        if comparison:
-            period = tuple(settings["comparison_period"][k] for k in ("start", "end"))
-            output_tables = table_root / id_
-            output_tables.mkdir(parents=True, exist_ok=True)
-            tables = []
-            for s, folder in zip(sources, folders):
-                frame = pd.read_csv(
-                    Path(folder) / id_ / "daily_basin.csv",
-                    index_col="date",
-                    parse_dates=["date"],
-                )
-                result, table = compute(frame, settings, m0, period)
-                results[s] = result
-                tables.append((s, table))
-            for name in (
-                "precip_climatology",
-                "temp_climatology",
-                "annual_indices",
-                "trends",
-            ):
-                pd.concat(
-                    [t[name].assign(source=s) for s, t in tables], ignore_index=True
-                ).to_csv(output_tables / f"{name}.csv", index=False)
-        else:
-            folder = Path(folders[0]) / id_
+        folder = Path(folders[0]) / id_
 
-            def read(name):
-                return pd.read_csv(folder / f"{name}.csv")
+        def read(name):
+            return pd.read_csv(folder / f"{name}.csv")
 
-            annual = read("annual_indices").set_index("reporting_year")
-            period = (
-                (int(annual.index.min()), int(annual.index.max()))
-                if len(annual)
-                else tuple(settings["reference_period"][k] for k in ("start", "end"))
-            )
-            temp = read("temp_climatology").set_index("calendar_month")
-            results[sources[0]] = {
-                "clim": read("precip_climatology").set_index("calendar_month"),
-                "tclim": temp if len(temp) else None,
-                "annual": annual,
-                "trends": read("trends").set_index("indicator").to_dict(orient="index"),
-            }
+        annual = read("annual_indices").set_index("reporting_year")
+        period = (
+            (int(annual.index.min()), int(annual.index.max()))
+            if len(annual)
+            else tuple(settings["reference_period"][k] for k in ("start", "end"))
+        )
+        temp = read("temp_climatology").set_index("calendar_month")
+        results[sources[0]] = {
+            "clim": read("precip_climatology").set_index("calendar_month"),
+            "tclim": temp if len(temp) else None,
+            "annual": annual,
+            "trends": read("trends").set_index("indicator").to_dict(orient="index"),
+        }
         view = artists.View(
             sources,
             {
@@ -117,7 +93,7 @@ def render_subbasins(sm, settings, sources):
             ("temperature", "temp", "monthly_clim_band"),
         ):
             carriers = [s for s, r in results.items() if r["tclim"] is not None]
-            if variable == "temp" and len(carriers) < (2 if comparison else 1):
+            if variable == "temp" and not carriers:
                 continue
             with use_preset(CST_PRESET):
                 fig = artists.CHARTS[form](view)
@@ -176,14 +152,6 @@ def render_subbasins(sm, settings, sources):
     ]
     write_json(captions_path, inventory)
     write_figure_titles(root / "plots", inventory["figures"])
-    if comparison and inventory["unavailable_subbasins"]:
-        from blueearth_cst.shared.snake_utils import log_row, plural
-
-        log_row(
-            f"Subbasin comparison omitted for {plural(len(inventory['unavailable_subbasins']), 'subbasin')}: "
-            "not all sources have intersecting cells; details → plots/_engine/figure_captions.json",
-            module="compare",
-        )
     (root / "plots" / "figure_captions.md").write_text(
         "# Figure captions\n\n"
         + "\n\n".join(

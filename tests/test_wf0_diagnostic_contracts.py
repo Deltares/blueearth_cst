@@ -154,16 +154,16 @@ def test_canonical_inventory_and_one_source_refusal():
         "comparison", ["era5", "chirps"], settings
     )
     for name, paths in (("era5", era5), ("chirps", chirps), ("comparison", comparison)):
+        plot_root = Path(name) / "plots"
+        table_root = Path(name) / "tables"
+        if name == "comparison":
+            plot_root /= "basin-average"
+            table_root /= "basin-average"
         assert Path(paths["root"]) == Path(name)
-        assert all(
-            Path(p).parent == Path(name) / "plots" for p in paths["figures"].values()
-        )
-        assert Path(paths["compute"]["coverage"]).parent == Path(name) / "tables"
+        assert all(Path(p).parent == plot_root for p in paths["figures"].values())
+        assert Path(paths["compute"]["coverage"]).parent == table_root
         assert Path(paths["compute"]["metadata"]).parent == Path(name) / "_engine"
-        assert (
-            Path(paths["render"]["captions_md"])
-            == Path(name) / "plots" / "figure_captions.md"
-        )
+        assert Path(paths["render"]["captions_md"]) == plot_root / "figure_captions.md"
     assert comparison["source_summary"] == {
         "dataset_comparison_csv": str(Path("comparison/dataset_comparison.csv")),
         "dataset_comparison_md": str(Path("comparison/dataset_comparison.md")),
@@ -259,8 +259,8 @@ def test_opt_in_subbasin_tables_pngs_and_caption_inventory(tmp_path):
             "trends",
         ):
             tables[name].to_csv(sub / f"{name}.csv", index=False)
-    for sources in (["era5"], ["era5", "chirps"]):
-        root = tmp_path / ("era5" if len(sources) == 1 else "comparison")
+    for sources in (["era5"], ["chirps"]):
+        root = tmp_path / sources[0]
         write_json(
             root / "plots" / "_engine" / "figure_captions.json",
             {"schema_version": 1, "figures": {}},
@@ -271,7 +271,9 @@ def test_opt_in_subbasin_tables_pngs_and_caption_inventory(tmp_path):
         )
         sm = SimpleNamespace(
             params=SimpleNamespace(
-                subbasin_table_dirs=folders[: len(sources)], m0=1, annotation="caption"
+                subbasin_table_dirs=[folders[0 if sources[0] == "era5" else 1]],
+                m0=1,
+                annotation="caption",
             ),
             output=output,
         )
@@ -281,7 +283,7 @@ def test_opt_in_subbasin_tables_pngs_and_caption_inventory(tmp_path):
         records = json.loads(
             (root / "plots" / "_engine" / "figure_captions.json").read_text()
         )["figures"]
-        assert len(records) == (3 if len(sources) == 1 else 2)
+        assert len(records) == (3 if sources == ["era5"] else 2)
         assert all(
             (root / path).is_file() and r["captioned_path"] is None
             for path, r in records.items()

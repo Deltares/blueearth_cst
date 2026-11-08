@@ -144,9 +144,9 @@ def prepared_map(
     return fig, info, notes
 
 
-def load_result(root, source):
+def load_result(root, source, *, table_dir=None):
     """Restore artist inputs from explicit plot-ready tables, never raw climate."""
-    folder = Path(root) / "tables"
+    folder = Path(table_dir) if table_dir is not None else Path(root) / "tables"
     metadata = json.loads(
         (Path(root) / "_engine" / "diagnostics.json").read_text(encoding="utf-8")
     )
@@ -284,7 +284,10 @@ def render(
         Path(paths["compute"]["metadata"]).read_text(encoding="utf-8")
     )
     period = metadata["period"]
-    results = {s: load_result(root, s) for s in sources}
+    results = {
+        s: load_result(root, s, table_dir=Path(paths["compute"]["coverage"]).parent)
+        for s in sources
+    }
     months = artists.month_order(m0)
     calendar = pd.date_range(
         pd.Timestamp(year=period[0], month=m0, day=1),
@@ -556,10 +559,8 @@ def render(
             "anomaly_bounds": bounds,
             "produced_paths": list(records)
             + [
-                "plots/_engine/figure_titles.json",
-                "plots/figure_titles.md",
-                "plots/_engine/figure_captions.json",
-                "plots/figure_captions.md",
+                Path(paths["render"][key]).relative_to(out_root).as_posix()
+                for key in ("titles_json", "titles_md", "captions_json", "captions_md")
             ],
         },
     )
@@ -571,7 +572,11 @@ def render(
         + "\n",
         encoding="utf-8",
     )
-    write_figure_titles(out_root / "plots", records)
+    write_figure_titles(
+        Path(paths["render"]["titles_md"]).parent,
+        records,
+        manifest_path=paths["render"]["titles_json"],
+    )
     unavailable = Counter(
         item["availability"]
         for item in records.values()
@@ -579,7 +584,7 @@ def render(
     )
     log_row(
         f"Wrote {plural(len(records), 'diagnostic figure')} for {listed(sources)} "
-        "→ plots/_engine/figure_captions.json",
+        f"→ {Path(paths['render']['captions_json']).relative_to(out_root).as_posix()}",
         module="diagnostics",
     )
     for reason, count in unavailable.items():

@@ -51,12 +51,27 @@ def _rain_gauges(args):
     if args.source:
         raise ValueError("--source does not apply to rain-gauges (common source mask)")
     historical = args.project / "data/climate/historical"
+    if (historical / "comparison/locations.csv").is_file():
+        from blueearth_cst.climate_analysis.plot_location_comparison import (
+            render as render_locations,
+        )
+
+        render_locations(historical / "comparison", args.out, args.annotation)
+        return {"locations": args.out / "plots/locations"}
     root = historical / "comparison/stations"
     if not root.exists():
         # Retained runs created before station comparisons joined comparison/.
         root = historical / "rain_gauges"
     render(root, args.out, args.annotation)
     return {"rain_gauges": args.out / "plots"}
+
+
+def _wf0_comparison(args):
+    from blueearth_cst.climate_analysis.diagnostic_rerender import rerender_comparisons
+
+    if args.source or args.scenario:
+        raise ValueError("wf0-comparison uses the retained complete source selection")
+    return rerender_comparisons(args.project, args.out, args.annotation)
 
 
 def _budyko(args):
@@ -112,6 +127,10 @@ FAMILIES = {
     "wf0": (
         "WF0 per-source diagnostics and climatology maps (no subbasin or comparison figures)",
         _wf0,
+    ),
+    "wf0-comparison": (
+        "WF0 basin-average and per-location comparisons from retained products",
+        _wf0_comparison,
     ),
     "wf1-forcing": (
         "WF1 rule 1.12 forcing maps, annual series and monthly cycles (re-reduces forcing; minutes)",
