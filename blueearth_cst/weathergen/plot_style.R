@@ -46,14 +46,26 @@ export_cst_weather_plots <- function(run, output_dir, root = "config/plotting") 
     if (id == "obs_power_spectra") {
       effective$colors[["observed"]] <- weather$colors$wavelet_observed
     }
-    p <- weathergenr::style_weather_plot(plots[[id]], id,
-      plot_style = effective, panel_layout = layout)
+    if (id == "precip_cond_cor") {
+      # The native facet_grid shares x scales by variable and y scales by regime.
+      # weathergenr 2.1.0's panel arranger retrains each panel independently,
+      # then fails its axis-range assertion. Preserve the grid and its scales.
+      p <- plots[[id]] + effective$theme
+    } else {
+      p <- weathergenr::style_weather_plot(plots[[id]], id,
+        plot_style = effective, panel_layout = layout)
+    }
     stem <- if (id %in% names(filenames)) filenames[[id]] else id
     faceted <- !is.null(attr(p, "weathergenr_panel_layout"))
+    height <- style$charts$heights$single
+    if (id == "precip_cond_cor") {
+      panels <- ggplot2::ggplot_build(p)$layout$layout
+      height <- length(unique(panels$ROW)) * layout$panel_height_mm
+    }
     weathergenr::export_weather_plot(p,
       file.path(output_dir, paste0(stem, ".png")),
       width = if (faceted) NULL else style$page$figure_width_mm,
-      height = if (faceted) NULL else style$charts$heights$single,
+      height = if (faceted) NULL else height,
       dpi = style$page$raster_dpi)
     plots[[id]] <- p
   }

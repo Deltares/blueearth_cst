@@ -9,6 +9,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Preserve shared axes in the weather generator's conditional precipitation-correlation diagnostic,
+  avoiding a plot-export assertion that stopped scenario generation after evaluation.
+
 - Remove workflow log/benchmark gather rules from WF0–WF4. Owned launchers finalize diagnostics,
   including partial failures; direct Snakemake execution no longer gathers diagnostic reports.
 
