@@ -216,3 +216,15 @@ def test_indices_and_anomalies_share_inventory_and_retained_rerender(
     assert all(
         str(path).startswith(str(destination)) for path in paths["render"].values()
     )
+
+
+def test_chirps_native_daily_units_are_verified(tmp_path):
+    climate, cells, settings = inputs(tmp_path)
+    with xr.open_dataset(climate) as source:
+        data = source.load()
+    data.precip.attrs['units'] = 'mm d**-1'
+    data.to_netcdf(climate)
+    pointer = publish(climate, cells, 'chirps', tmp_path / 'chirps', settings, 1)
+    folder, _ = load_publication(pointer)
+    with xr.open_dataset(folder / 'annual_grid.nc') as result:
+        assert 'r95p_amount' in result

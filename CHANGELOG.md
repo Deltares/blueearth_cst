@@ -9,6 +9,8 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Accept native CHIRPS `mm d**-1` precipitation units when computing historical climate indices.
+
 - Admit historical evaluation and named-run retention settings during all-workflow experiment preflight.
 
 - Preserve shared axes in the weather generator's conditional precipitation-correlation diagnostic,

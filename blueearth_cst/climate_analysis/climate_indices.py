@@ -165,6 +165,7 @@ def publish(
                 "mm/day",
                 "mm/d",
                 "mm d-1",
+                "mm d**-1",
                 "mm day-1",
                 "mm day**-1",
             }
