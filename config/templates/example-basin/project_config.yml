@@ -16,7 +16,7 @@ schema_version: 3
 # Define shared project storage and data access. Input: mapping.
 project:
   # Store project inputs and generated outputs. Input: directory path relative to this file or absolute; keep outputs outside the toolbox.
-  project_dir: "../../runs/example-basin"
+  project_dir: "outputs"
   # This template's default catalog requires the Deltares P-drive.
   # Locate source datasets by catalog name. Input: HydroMT catalog YAML path.
   catalog: toolbox:config/catalogs/deltares_data_pdrive.yml

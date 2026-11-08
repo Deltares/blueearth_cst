@@ -8,12 +8,15 @@ not assessment recommendations.
 ## Copy and configure
 
 Prefer the toolbox's case scaffolder; see [Creating a project](../../../docs/guide/new-case.md).
-It produces `INSTRUCTIONS.md` in the external case instead of this README.
-For manual setup, copy this entire directory to `applications/<basin>/` in your cases repository.
+It creates `<basin>/default/`, shared case `data/`, a small trial table in the case README,
+and trial-local `INSTRUCTIONS.md`. For manual setup, copy this directory to `<basin>/default/`.
+Manual copies keep their local `data/`; the scaffolder places the outlet in shared case data.
+Scaffolding copies the project and declared workflow files plus their referenced inputs.
+Copy optional standalone examples below separately when needed, then review their input paths.
 
 In either case, review these replacements:
 
-1. In `project_config.yml`, set `project.project_dir` to `../../runs/<basin>/` or another external root.
+1. Keep `project.project_dir: outputs` so each trial owns its generated results.
 2. Set `basin.region` to your outlet and review `uparea` in km² and `basin.resolution`.
    The delineation threshold is not measured basin area. Inspect the produced basin geometry.
 3. Replace `data/output_locations.csv` with intended locations consistent with that drainage network.

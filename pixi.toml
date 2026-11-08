@@ -228,7 +228,7 @@ env-check = { cmd = "python dev/scripts/check_env.py", description = "Report whe
 # source. The development-only session_runtime.py helper uses executable mode.
 run-workflows = { cmd = "python scripts/run_workflows.py", description = "Run the enabled workflows in fixed order (climate -> model -> projections -> experiment); requires --config" }
 
-create-case = { cmd = "python scripts/create_case.py", description = "Create an external case from the cases repository template; requires case slug, --cases-root, outlet coordinates, and --purpose" }
+create-case = { cmd = "python scripts/create_case.py", description = "Create a named case trial from the toolbox starter or --from-trial; new cases require outlet coordinates" }
 
 # Documentation site, scoped by docs/site/_quarto.yml. These tasks render locally;
 # .github/workflows/docs.yml publishes after successful main CI. Build commands

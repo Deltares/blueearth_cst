@@ -9,6 +9,10 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Scaffold external cases with named peer trials (`default` by default), portable schema-3 paths,
+  explicit `--from-trial` configuration copying, and a minimal case README inventory.
+  Existing split-layout configurations remain runnable; migration is copy-and-verify, not automatic.
+
 - Add opt-in monthly liquid-water dew point and explicit 10 m scalar/component wind analysis,
   with strict native metadata admission, cell-first derivation, absolute state changes and captions.
   Controlled verification does not qualify live input availability.
