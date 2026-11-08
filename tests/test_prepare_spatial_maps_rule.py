@@ -156,11 +156,15 @@ def test_native_simulation_csv_is_retained_for_evaluation(model_workflow):
         ("add_reservoirs_lakes_glaciers", {"shared/wflow_write.py"}),
         (
             "run_historical_simulation",
-            {"model/run_wflow.jl", "shared/wflow_progress.jl"},
+            {"model/run_wflow.jl", "shared/wflow_progress.jl", "shared/wflow_grid.jl"},
         ),
         (
             "declare_gauges_and_outputs",
-            {"shared/wflow_write.py", "shared/wflow_outputs.py"},
+            {
+                "shared/wflow_write.py",
+                "shared/wflow_outputs.py",
+                "shared/grid_output.py",
+            },
         ),
     ],
 )
