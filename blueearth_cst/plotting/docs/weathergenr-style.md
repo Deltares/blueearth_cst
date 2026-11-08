@@ -14,6 +14,11 @@ on returned plots. It reads [style](../../../config/plotting/style.yml),
 [overrides](../../../config/plotting/weathergenr.yml) at render time, after scientific identity is resolved.
 These presentation settings do not enter generator or scenario identity.
 
+The conditional precipitation-correlation diagnostic retains its native facet grid and receives
+the shared theme directly. Its x axes remain shared by variable and its y axes by wet/dry regime.
+This avoids weathergenr 2.1.0's assertion when independently arranging panels with shared scales.
+Native marks and facet strips are retained; canvas height follows the number of regime rows.
+
 ## Figure conventions
 
 - Observations and agreement guides are blue; stochastic traces/ranges are gray; central ensemble
