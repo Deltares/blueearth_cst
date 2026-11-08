@@ -315,22 +315,3 @@ def test_simulation_labels_match_producers_and_order(tmp_path, monkeypatch, mana
     declared = _declared_log_rules(workflow, "simulate_system.smk")
     assert set(declared) == _labels_with_producers(workflow)
     assert declared == sorted(set(declared))
-    targets = {str(item) for item in workflow.get_rule("all").input}
-    assert (workflow.globals["WORKFLOW_LOG_PATH"] in targets) == (not managed)
-    assert (workflow.globals["BENCHMARK_OUTPUT_PATH"] in targets) == (not managed)
-
-
-@pytest.mark.parametrize("snakefile", WORKFLOWS)
-def test_managed_workflow_targets_exclude_fresh_diagnostic_files(
-    tmp_path, monkeypatch, snakefile
-):
-    config = load_composed_config(CONFIG_FN)
-    project = tmp_path / "project"
-    config["project"]["project_dir"] = project.as_posix()
-    config_path = write_config(tmp_path, config, stem="managed")
-    monkeypatch.setenv("CST_EXECUTION_DIRECTORY", str(project / "logs/run"))
-    monkeypatch.setenv("CST_EXECUTION_RECORD", str(tmp_path / "invocation.json"))
-    workflow = _parse_workflow(snakefile, config_path)
-    targets = {str(item) for item in workflow.get_rule("all").input}
-    assert workflow.globals["WORKFLOW_LOG_PATH"] not in targets
-    assert workflow.globals["BENCHMARK_OUTPUT_PATH"] not in targets

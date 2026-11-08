@@ -37,7 +37,7 @@ check selection, and the [record lifecycle](dev-record-lifecycle.md) owns develo
 - Document HydroMT and CMIP6 catalogs in the Technical Manual. The ERA5 daily Zarr override is a
   development aid, outside its user-facing catalog inventory.
 - Keep processing-rule tables in the dedicated workflow-rule reference, grouped by workflow. Link
-  from workflow pages; omit `all`, `gather_benchmarks` and `gather_logs` rows.
+  from workflow pages; omit the `all` target row.
 - Use official HydroMT and HydroMT-Wflow manuals for upstream schemas, handling and setup methods;
   explain CST choices locally. Check current runners, seed configurations and contracts before
   treating older technical material as supported behavior.

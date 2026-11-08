@@ -16,11 +16,7 @@ engine_dir = f"{exp_dir}/_engine"
 experiment = _indicator_root.name
 project_dir = _indicator_root.parent.parent.as_posix()
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts/simulate_system/{experiment}"
-# None, not a filename: this branch declares no `gather_logs`/`gather_benchmarks`
-# rule, so neither artifact is written by an indicators-only run. `run_summary`
-# ignores both arguments today -- the success block is one line and the failure
-# block names only the parts directory -- and naming files that the run cannot
-# produce would be a lie waiting for the day it starts printing them again.
+# The shared console summary accepts optional legacy report names.
 WORKFLOW_LOG_NAME = None
 BENCHMARKS_NAME = None
 from blueearth_cst.shared.execution_outputs import workflow_paths

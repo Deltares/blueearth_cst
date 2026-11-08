@@ -482,7 +482,6 @@ WORKFLOW_LOG_NAME = "wf1_build_model.log"
 declare_warning_tally(project_dir, WORKFLOW_LOG_NAME)
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
 _paths = workflow_paths(project_dir, "wf1", WORKFLOW_LOG_NAME, "wf1_benchmarks.md", LOG_PARTS_DIR, f"{project_dir}/benchmarks/_parts")
-WORKFLOW_LOG_PATH, BENCHMARK_OUTPUT_PATH = _paths.log, _paths.benchmark
 LOG_PARTS_DIR, BENCH_PARTS_DIR = _paths.log_parts, _paths.benchmark_parts
 
 # The run's key folders, stated ONCE. `run_header` prints them at the top of the
@@ -527,8 +526,6 @@ RUN_HISTORICAL_SIMULATION = RULES.logged("1.13", "run_historical_simulation", su
 EXPORT_SIMULATION_TABLES = RULES.logged("1.14", "export_simulation_tables", summary="export simulation time-series tables")
 PLOT_MODEL_EVALUATION = RULES.logged("1.15", "plot_model_evaluation", summary="compare simulation outputs with available discharge observations")
 WRITE_RUN_METADATA = RULES.banner_only("1.16", "write_run_metadata", summary="record configuration and input digests for these outputs")
-GATHER_BENCHMARKS = RULES.banner_only("1.17", "gather_benchmarks", summary="merge rule timing and resource-use records")
-GATHER_LOGS = RULES.banner_only("1.18", "gather_logs", summary="merge rule logs")
 
 # WF1_TERMINALS — the artifacts with no WF1 consumer: every producing rule is
 # upstream of them and none of them feeds another rule. That is exactly the
@@ -576,7 +573,6 @@ WF1_TERMINALS = [
 WF1_TARGETS = [
     *WF1_TERMINALS,
     *([RUN_RECORD] if os.environ.get("BLUEEARTH_WF012_CAPTURE_CONTEXT") else []),
-    *_paths.gather_targets.values(),
 ]
 
 # Figures are deliberately not targets: Snakemake's per-figure change checks
@@ -1215,13 +1211,6 @@ rule plot_model_evaluation:
 
 # 1.16 write_run_metadata — the staleness sidecar (design §5.8).
 #
-# `1.16`, not `1.17`: that number is gather_benchmarks and `dev/reference/
-# dev-naming-conventions.md` §9 forbids renumbering to insert a rule. Placed BEFORE the two
-# gather rules so its log part -- if it ever grows one -- is still gathered.
-#
-# It takes the indicators table as input rather than writing into it: that table
-# and WF3's indicator CSV are baseline-fingerprinted, so embedding the digests
-# in either would falsify the design's no-baseline-re-record claim.
 rule write_run_metadata:
     message: WRITE_RUN_METADATA.banner()
     input:
@@ -1397,47 +1386,6 @@ if _budyko_settings is not None:
         log: EVALUATE_BUDYKO.log(),
         benchmark: EVALUATE_BUDYKO.benchmark(),
         script: "blueearth_cst/model/evaluate_budyko.py"
-
-# --- benchmark gather ---------------------------------------------------------
-# Per-rule benchmarks land under benchmarks/_parts/. This runs once, after the
-# terminal outputs (so all WF1 rules ran), and merges the WF1 parts into one
-# benchmarks/wf1_benchmarks.md (rule column + TOTAL row), fresh each run.
-rule gather_benchmarks:
-    message: GATHER_BENCHMARKS.banner()
-    input:
-        WF1_TERMINALS,
-    output:
-        BENCHMARK_OUTPUT_PATH,
-        BENCHMARK_OUTPUT_PATH.removesuffix(".md") + ".tsv",
-    params:
-        parts_dir = BENCH_PARTS_DIR,
-        workflow_num = 1,
-    script: "blueearth_cst/shared/merge_benchmarks.py"
-
-# 1.18  gather_logs — merge every WF1 log part into ONE workflow log.
-#
-# Same rule as WF2's 2.08 and WF3's 3.18, against the same script; only the label
-# list, the parts dir and the output name differ. `input:` is WF1_TERMINALS, the
-# same set gather_benchmarks takes, which is what schedules it LAST: every
-# logging rule is upstream of it. The parts stay in `params:` — they are
-# `log:` files, and Snakemake does not track those in the DAG, so naming them as
-# `input:` would demand them as buildable targets.
-#
-# The merge DELETES the parts it consumed and prunes the emptied dirs, so a clean
-# full run leaves no logs/_parts/ at all. After a PARTIAL re-run only the re-run
-# rules have parts, so the rewritten log marks the rest "no part from this run" —
-# the same trade `merge_benchmarks` makes (pre-board record 45e3a564 R7-9).
-rule gather_logs:
-    message: GATHER_LOGS.banner()
-    input:
-        WF1_TERMINALS,
-    output:
-        WORKFLOW_LOG_PATH,
-    params:
-        rules = LOG_RULES,
-        parts_dir = LOG_PARTS_DIR,
-    script: "blueearth_cst/shared/merge_logs.py"
-
 
 # --- Run journal (design §5.7) ------------------------------------------------
 #

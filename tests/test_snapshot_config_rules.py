@@ -171,4 +171,3 @@ def test_the_sidecar_rule_is_numbered_in_sequence():
     wf1 = (REPO / "build_model.smk").read_text(encoding="utf-8")
 
     assert 'RULES.banner_only("1.16", "write_run_metadata"' in wf1
-    assert 'RULES.banner_only("1.17", "gather_benchmarks"' in wf1

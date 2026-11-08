@@ -487,9 +487,7 @@ class RuleIdentity:
     def benchmark(self, part=None) -> str:
         """The ``benchmark:`` path, in the same two shapes as :meth:`log`.
 
-        Not gated on ``logged``: the two are independent, and WF0's and WF3's
-        ``gather_benchmarks`` writes a log part and no benchmark -- deliberately,
-        since a rule that gathers benchmarks should not benchmark itself.
+        Logging and benchmarking declarations are independent.
         """
         return f"{self.benchmark_parts_dir}/{self._stem(part)}.tsv"
 

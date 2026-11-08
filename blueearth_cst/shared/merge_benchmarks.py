@@ -243,14 +243,3 @@ def _remove_parts(tsvs, parts_dir):
                 os.rmdir(root)
         except OSError:
             pass
-
-
-if __name__ == "__main__":
-    if "snakemake" in globals():
-        sm = globals()["snakemake"]
-        merge_benchmarks(
-            sm.params.parts_dir,
-            str(sm.params.workflow_num),
-            sm.output[0],
-            invocation_path=os.environ.get("CST_EXECUTION_RECORD"),
-        )

@@ -62,7 +62,6 @@ WORKFLOW_LOG_NAME = f"wf4_simulate_system_{experiment}.log"
 BENCHMARKS_NAME = f"wf4_benchmarks_{experiment}.md"
 from blueearth_cst.shared.execution_outputs import workflow_paths
 _paths = workflow_paths(project_dir, "wf4", WORKFLOW_LOG_NAME, BENCHMARKS_NAME, LOG_PARTS_DIR, BENCH_PARTS_DIR)
-WORKFLOW_LOG_PATH, BENCHMARK_OUTPUT_PATH = _paths.log, _paths.benchmark
 LOG_PARTS_DIR, BENCH_PARTS_DIR = _paths.log_parts, _paths.benchmark_parts
 RULES = RuleRegistry(LOG_PARTS_DIR, BENCH_PARTS_DIR)
 LOG_RULES = RULES.log_rules
@@ -72,8 +71,6 @@ SNAPSHOT_SIMULATION_INPUTS = RULES.banner_only("4.03", "snapshot_simulation_inpu
 DOWNSCALE_SCENARIO_SERIES = RULES.logged("4.04", "downscale_scenario_series", summary="prepare model-grid forcing for the selected scenario run")
 RUN_WFLOW_SIMULATIONS = RULES.logged("4.05", "run_wflow_simulations", summary="run Wflow for selected scenario runs")
 PUBLISH_WFLOW_OUTPUTS = RULES.banner_only("4.06", "publish_wflow_outputs", summary="verify and retain the native simulation responses")
-GATHER_LOGS = RULES.banner_only("4.09", "gather_logs", after_checkpoint=True, summary="merge simulation workflow logs")
-GATHER_BENCHMARKS = RULES.banner_only("4.10", "gather_benchmarks", after_checkpoint=True, summary="merge simulation timing and resource-use records")
 # Resolved once per invocation from the runner's selection snapshot. Legacy
 # configs keep the old indicators/outvars precedence (indicator_sets.legacy_tokens).
 INDICATOR_SETS = simulation_indicator_sets(project, my_cfg, _selection) if _selection.indicators else ()
@@ -163,7 +160,6 @@ rule all:
         lambda wc: _indicator_plan_paths(wc),
         lambda wc: _selected_indicator_outputs(wc),
         # Managed invocations merge diagnostics in the launcher's finalizer.
-        *_paths.gather_targets.values(),
 
 if not _simulation_complete:
     # 4.01  write_model_fingerprint
@@ -371,30 +367,3 @@ rule simulations_only:
     input:
         f"{engine_dir}/response_inventory.json",
         f"{engine_dir}/simulation.json",
-
-# 4.09  gather_logs
-rule gather_logs:
-    message: GATHER_LOGS.banner()
-    input:
-        lambda wc: _indicator_plan_paths(wc),
-        lambda wc: _selected_indicator_outputs(wc),
-    output:
-        WORKFLOW_LOG_PATH,
-    params:
-        rules=LOG_RULES,
-        parts_dir=LOG_PARTS_DIR,
-    script: "../../shared/merge_logs.py"
-
-# 4.10  gather_benchmarks
-rule gather_benchmarks:
-    message: GATHER_BENCHMARKS.banner()
-    input:
-        lambda wc: _indicator_plan_paths(wc),
-        lambda wc: _selected_indicator_outputs(wc),
-    output:
-        BENCHMARK_OUTPUT_PATH,
-        BENCHMARK_OUTPUT_PATH.removesuffix(".md") + ".tsv",
-    params:
-        parts_dir=BENCH_PARTS_DIR,
-        workflow_num=4,
-    script: "../../shared/merge_benchmarks.py"
