@@ -341,7 +341,7 @@ COMPARISON_DIR = f"{project_dir}/data/climate/historical/comparison"
 COMPARISON_DIAGNOSTICS = diagnostic_comparison_outputs(COMPARISON_DIR, CANDIDATE_SOURCES, DIAGNOSTIC_SETTINGS) if len(CANDIDATE_SOURCES) > 1 else None
 WF0_TERMINALS = [p for spec in SOURCE_DIAGNOSTICS.values() for p in spec["render"].values()]
 if rain_gauge_settings is not None:
-    rain_gauge_root = f"{project_dir}/data/climate/historical/rain_gauges"
+    rain_gauge_root = f"{COMPARISON_DIR}/stations"
     rain_gauge_inventory = rain_gauge_outputs(rain_gauge_root, read_stations(rain_gauge_settings["stations_path"]).token)
     WF0_TERMINALS += list(rain_gauge_inventory["compute"].values()) + list(rain_gauge_inventory["render"].values())
 if COMPARISON_DIAGNOSTICS:

@@ -50,9 +50,12 @@ def _rain_gauges(args):
 
     if args.source:
         raise ValueError("--source does not apply to rain-gauges (common source mask)")
-    render(
-        args.project / "data/climate/historical/rain_gauges", args.out, args.annotation
-    )
+    historical = args.project / "data/climate/historical"
+    root = historical / "comparison/stations"
+    if not root.exists():
+        # Retained runs created before station comparisons joined comparison/.
+        root = historical / "rain_gauges"
+    render(root, args.out, args.annotation)
     return {"rain_gauges": args.out / "plots"}
 
 

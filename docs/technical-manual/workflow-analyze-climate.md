@@ -149,12 +149,18 @@ for every series; `monthly.csv` retains contributing months for counting. These 
 to rain gauges and do not change basin diagnostics' existing tolerated-gap summaries.
 
 Run the usual historical analysis entry point. Products appear in
-`data/climate/historical/rain_gauges/`: `tables/{stations,exclusions,coverage,agreement,monthly,annual}.csv`,
+`data/climate/historical/comparison/stations/`:
+`tables/{stations,exclusions,coverage,agreement,monthly,annual}.csv`,
 four comparison PNGs per supplied station under `plots/`, and one `_engine/` containing sampled daily
 values/masks, evaluation provenance and figure manifests. Station metadata records safe filename tokens,
 sampled-cell coordinates/CRS and distance. Figures show unavailable comparisons explicitly.
 Titles and captions remain available in `plots/figure_titles.md` and `plots/figure_captions.md`.
 Rerender retained products with `scripts/render_figures.py rain-gauges --project <run> --out <review>`.
+Each station's figures compare observations with all configured gridded candidates sampled at that
+station. Basin-average dataset comparisons remain beside these products in `comparison/`; station
+observations are not treated as basin averages. Older runs retained these station products under
+`data/climate/historical/rain_gauges/`; the rerender command still reads that location when the new
+directory is absent. Rerunning historical analysis writes the new location and leaves older products intact.
 
 This comparison supports forcing choice; it does not select or correct forcing. Point/grid support
 differs, and gridded products may already incorporate these observations, so agreement is not independent

@@ -12,6 +12,31 @@ from blueearth_cst.climate_analysis.rain_gauges import (
 )
 
 
+@pytest.mark.parametrize("new_location", [True, False])
+def test_rerender_station_comparison_location(tmp_path, monkeypatch, new_location):
+    import runpy
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    from blueearth_cst.climate_analysis import plot_rain_gauges
+
+    historical = tmp_path / "data/climate/historical"
+    legacy = historical / "rain_gauges"
+    legacy.mkdir(parents=True)
+    current = historical / "comparison/stations"
+    if new_location:
+        current.mkdir(parents=True)
+    calls = []
+    monkeypatch.setattr(plot_rain_gauges, "render", lambda *args: calls.append(args))
+    script = Path(__file__).resolve().parents[1] / "scripts/render_figures.py"
+    rerender = runpy.run_path(str(script))["_rain_gauges"]
+    args = SimpleNamespace(
+        project=tmp_path, out=tmp_path / "review", source=[], annotation="none"
+    )
+    rerender(args)
+    assert calls == [(current if new_location else legacy, args.out, "none")]
+
+
 def test_station_identity_and_validation(tmp_path):
     path = tmp_path / "stations.csv"
     path.write_text("id,name,x,y\n001,Same,1,2\n002,Same,2,3\na/b,Other,3,4\n")
@@ -177,7 +202,7 @@ def test_actual_sampling_and_render(tmp_path, case):
         "precip_path": str(precip),
         "time_label": "interval_end",
     }
-    root = tmp_path / "rain_gauges"
+    root = tmp_path / "comparison/stations"
     evaluate(
         settings,
         {"era5": str(source)},
