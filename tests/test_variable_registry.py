@@ -97,15 +97,16 @@ def test_an_unknown_short_form_variable_refuses_with_both_remedies():
     assert "declare it in full" in message
 
 
-def test_a_registered_variable_with_no_projection_spec_refuses_differently():
-    """`pet` is IN the registry, so "add it to the registry" would be false.
+def test_a_registered_variable_with_no_projection_spec_refuses_differently(monkeypatch):
+    """A presentation-only variable is registered but has no projection defaults.
 
     Two faults need two remedies. Telling a user to add a variable that is
     already there sends them to a file where they will find it and conclude the
     error is wrong about something else.
     """
+    monkeypatch.setitem(VARIABLES, "presentation_only", VARIABLES["pet"])
     with pytest.raises(ValueError) as excinfo:
-        parse({"pet": None})
+        parse({"presentation_only": None})
     message = str(excinfo.value)
     assert "IS in the variable registry" in message
     assert "does not difference" in message
@@ -292,5 +293,13 @@ def test_the_threshold_survives_the_snakemake_params_boundary():
     flattened = {name: list(value) for name, value in spec.items()}
 
     assert resolve_thresholds(flattened) == resolve_thresholds(spec)
-    assert VariableSpec._fields[-1] == "min_denominator"
+    assert VariableSpec._fields[:6] == (
+        "name",
+        "source",
+        "canonical",
+        "units",
+        "change",
+        "min_denominator",
+    )
+    assert VariableSpec._fields[6:] == ("method",)
     assert VariableSpec._fields.index("change") == 4

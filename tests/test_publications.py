@@ -27,6 +27,7 @@ def publication_source(tmp_path: Path) -> Path:
         "docs/guide/assets/shape-of-a-run.html",
         "docs/guide/outputs.md",
         "docs/guide/new-case.md",
+        "blueearth_cst/indicators/climate/README.md",
     ]
     paths += [entry["path"] for entry in appendix["external_evidence"]]
     paths += [s["path"] for s in appendix["sources"]]

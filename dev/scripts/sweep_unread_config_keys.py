@@ -96,7 +96,9 @@ _PROSE_REST = re.compile(r"^\s+[A-Z][a-z]+\s+[a-z]")
 #: the spell factors, one `variables:` entry, one `future_windows` entry.
 #: `climate` is the project climate section passed to the shared map producer.
 #: `thresholds` holds the crop-water historical quantile or fixed thresholds.
-_CFG_NAME = r"(?:[a-z_]*(?:cfg|config|settings|stanza|section|params)[a-z_]*|t1|t2|raw|workflows|perturbations|compute|spells|body|entry|climate|thresholds)"
+#: The newer adapters name validated mappings `options`, `indices`, `fields`,
+#: `grid`, `value`, `reader`, `member` and `binding`; pop also consumes a key.
+_CFG_NAME = r"(?:[a-z_]*(?:cfg|config|settings|stanza|section|params|evaluation)[a-z_]*|t1|t2|raw|workflows|perturbations|compute|spells|body|entry|climate|thresholds|options|indices|fields|grid|value|reader|member|binding)"
 
 #: A subscript chain, and EVERY segment of it counts as a read. `min` reaches a
 #: reader only through `stress_test_cfg["temp"]["mean"]["min"]`, and so do
@@ -112,7 +114,7 @@ _CHAIN_HEAD = re.compile(rf"{_CFG_NAME}\s*(?=\[)")
 
 _GET_CONFIG = re.compile(rf"""get_config\(\s*{_CFG_NAME}[^,]*,\s*["']([\w-]+)["']""")
 _DOT_GET = re.compile(
-    rf"""{_CFG_NAME}(?:\[[^]\n]{{0,40}}\])*\s*\.\s*get\(\s*["']([\w-]+)["']"""
+    rf"""{_CFG_NAME}(?:\[[^]\n]{{0,40}}\])*\s*\.\s*(?:get|pop)\(\s*["']([\w-]+)["']"""
 )
 #: A key handed to an accessor, not subscripted: `_source_name(sources_cfg,
 #: "lai", ...)` in `spatial/config.py`, and batch sizing's local
@@ -125,6 +127,24 @@ _R_DOLLAR = re.compile(rf"{_CFG_NAME}\$([A-Za-z_][\w.]*)")
 _R_SUBSCRIPT = re.compile(rf"""{_CFG_NAME}\[\[\s*["']([\w-]+)["']\s*\]\]""")
 
 ALLOWANCES = (
+    Allowance(
+        name="native Wflow variable identifiers",
+        reason=(
+            "netcdf_grid.variables is consumed by iterating standard-name/output-name "
+            "pairs in shared/grid_output.py; Wflow resolves each standard name, "
+            "so these identifiers are not individually hardcoded config keys"
+        ),
+        line_patterns=(r"^[a-z][a-z0-9_]*__[a-z0-9_]+$",),
+    ),
+    Allowance(
+        name="derived projection variable selectors",
+        reason=(
+            "tdew and wind select entries of projections/variable_spec.STATE_INPUTS "
+            "through the configured variable name; parse validates their method "
+            "and constructs the specification rather than subscripting these names"
+        ),
+        line_patterns=(r"^(tdew|wind)$",),
+    ),
     Allowance(
         name="a key pair read by iterating a literal tuple",
         reason=(
