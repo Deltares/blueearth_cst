@@ -78,6 +78,25 @@ def project_request(case, **kwargs):
     return request_module.capture_request(case[0], Path.cwd(), **kwargs)
 
 
+def test_historical_evaluation_and_retention_are_not_simulation_identity(case):
+    before, original_captures = project_request(case, execute_model=True)
+    settings = yaml.safe_load(case[3].read_bytes())
+    settings["evaluation"] = {"subbasin_plots": True, "budyko": False}
+    settings["historical_run"] = {"name": "era5_reference"}
+    case[3].write_text(yaml.safe_dump(settings), encoding="utf-8")
+    after, captures = project_request(case, execute_model=True)
+    assert after == before
+    assert captures != original_captures
+
+
+def test_model_admission_still_rejects_unknown_fields(case):
+    settings = yaml.safe_load(case[3].read_bytes())
+    settings["evalution"] = {}
+    case[3].write_text(yaml.safe_dump(settings), encoding="utf-8")
+    with pytest.raises(ValueError, match="unclassified build_model fields"):
+        project_request(case, execute_model=True)
+
+
 def test_unperturbed_switch_is_frozen_but_default_identity_is_unchanged(case):
     from blueearth_cst.experiment.reservation import validate_request
 
