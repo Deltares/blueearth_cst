@@ -790,10 +790,7 @@ def get_horizon(wildcards):
 # dev/records/milestones/r10/rule-numbering-crosswalks.md.
 
 # --- log layout ---------------------------------------------------------------
-# EVERY WF2 rule that logs writes a PART under logs/_parts/, and rule 2.08 merges
-# the parts into ONE logs/wf2_analyze_projections.log, then deletes them. So the
-# only WF2 file left in logs/ after a full run is that merged log — the same deal
-# benchmarks/wf2_benchmarks.md already gets from `gather_benchmarks`.
+# The owned launcher merges per-rule log and benchmark parts after execution.
 #
 # LOG_RULES is the merge order: rule LABELS, not part paths. merge_logs lists
 # each label's part dir to find its members, so the fan-out width lives in one
@@ -833,7 +830,6 @@ WORKFLOW_LOG_NAME = "wf2_analyze_projections.log"
 declare_warning_tally(project_dir, WORKFLOW_LOG_NAME)
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
 _paths = workflow_paths(project_dir, "wf2", WORKFLOW_LOG_NAME, "wf2_benchmarks.md", LOG_PARTS_DIR, f"{project_dir}/benchmarks/_parts")
-WORKFLOW_LOG_PATH, BENCHMARK_OUTPUT_PATH = _paths.log, _paths.benchmark
 LOG_PARTS_DIR, BENCH_PARTS_DIR = _paths.log_parts, _paths.benchmark_parts
 
 # The run's key folders, stated once -- see the same block in
@@ -854,8 +850,6 @@ REDUCE_TO_BASIN_AVERAGES = RULES.logged("2.04", "reduce_to_basin_averages", summ
 DERIVE_CHANGE_FACTORS = RULES.logged("2.05", "derive_change_factors", summary="compare each future window with the reference period")
 PREPARE_PROJECTION_ANALYSIS = RULES.logged("2.05b", "prepare_projection_analysis", summary="compute projection diagnostics and figure eligibility")
 PLOT_CLIMATE_PROJECTIONS = RULES.logged("2.06", "plot_climate_projections", summary="render eligible projection figures")
-GATHER_BENCHMARKS = RULES.banner_only("2.07", "gather_benchmarks", summary="merge rule timing and resource-use records")
-GATHER_LOGS = RULES.banner_only("2.08", "gather_logs", summary="merge rule logs")
 
 # all — target aggregator: change-factor summaries + projection plots
 #
@@ -911,7 +905,6 @@ WF2_TARGETS = {
     # alongside four rules writing logs/2.NN_*.log directly -- five files a
     # reader had to open in the right order to follow one run). Every rule
     # now logs into logs/_parts/ and rule 2.08 merges the lot.
-    **_paths.gather_targets,
 }
 
 rule all:
@@ -1317,73 +1310,6 @@ rule plot_climate_projections:
     benchmark:
         PLOT_CLIMATE_PROJECTIONS.benchmark(),
     script: "blueearth_cst/projections/plot_proj_timeseries.py"
-
-# --- log gather ---------------------------------------------------------------
-# 2.08  gather_logs — merge every WF2 log part into ONE workflow log.
-#
-# Replaces the two per-stage gathers (`gather_series_logs` 2.08 /
-# `gather_raw_logs` 2.07). Those merged only the fan-out rules, each into its own
-# logs/2.NN_<rule>.log, while the four single-job rules wrote their logs straight
-# to logs/ — so following one run meant opening five files and knowing their
-# order. One workflow log with `==` rule banners is the same information in
-# reading order.
-#
-# `input:` is the terminal artifact set (identical to `gather_benchmarks`), which
-# is what schedules this LAST: every logging rule is upstream of it. The parts
-# themselves stay in `params:` — they are `log:` files, and Snakemake does not
-# track those in the DAG, so naming them as `input:` would demand them as
-# buildable targets.
-#
-# The merge DELETES the parts it consumed and prunes the emptied dirs, so a clean
-# full run leaves no logs/_parts/ at all. Consequence to know: after a PARTIAL
-# re-run only the re-run rules have parts, so the merged log rewrites with the
-# untouched sections marked "no part from this run" rather than resurrecting text
-# it no longer has. That is the same trade `merge_benchmarks` already makes
-# (pre-board record 45e3a564 R7-9) — the artifact describes the run that produced it, not
-# an accumulated history.
-#
-# WF1 (1.18) and WF3 (3.18) declare the same rule against the same script; only
-# the label list, the parts dir and the output name differ.
-rule gather_logs:
-    message: GATHER_LOGS.banner()
-    input:
-        (clim_project_dir + f"/summary/{clim_project}_change_factors_annual.csv"),
-        FIGURE_CAPTIONS_JSON,
-        ANALYSIS_OUTPUTS["analysis_record"],
-        # rule 2.02 is a LEAF here — nothing in WF2 consumes the
-        # vector layers yet — so it is not upstream of the three terminals
-        # above the way 2.01 is. Without this edge it would run in parallel
-        # with the merge and its part would be stranded under `_parts/`, the
-        # exact defect the LOG_RULES block records for 1.01, 2.01 and 3.03.
-        SPATIAL_UNITS.outputs["basins"],
-    output:
-        WORKFLOW_LOG_PATH,
-    params:
-        rules = LOG_RULES,
-        parts_dir = LOG_PARTS_DIR,
-    script: "blueearth_cst/shared/merge_logs.py"
-
-# --- benchmark gather ---------------------------------------------------------
-# Merge WF2's per-rule benchmark parts (benchmarks/_parts/2.*) into one
-# benchmarks/wf2_benchmarks.md (rule column + TOTAL row) once the summary +
-# plots are built (all WF2 rules ran).
-rule gather_benchmarks:
-    message: GATHER_BENCHMARKS.banner()
-    input:
-        (clim_project_dir + f"/summary/{clim_project}_change_factors_annual.csv"),
-        FIGURE_CAPTIONS_JSON,
-        ANALYSIS_OUTPUTS["analysis_record"],
-        # Same reason as gather_logs above: 2.02 is a leaf, and the benchmark
-        # gather has to wait for it or its `_parts/` row misses this run.
-        SPATIAL_UNITS.outputs["basins"],
-    output:
-        BENCHMARK_OUTPUT_PATH,
-        BENCHMARK_OUTPUT_PATH.removesuffix(".md") + ".tsv",
-    params:
-        parts_dir = BENCH_PARTS_DIR,
-        workflow_num = 2,
-    script: "blueearth_cst/shared/merge_benchmarks.py"
-
 
 # --- Run journal (design §5.7) ------------------------------------------------
 #

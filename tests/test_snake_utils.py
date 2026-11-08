@@ -4733,7 +4733,7 @@ def test_log_rules_is_the_live_list_a_snakefile_aliases():
     """A Snakefile does `LOG_RULES = RULES.log_rules` BEFORE the last rule.
 
     It must stay the same object, or a conditionally-registered rule would be
-    missing from what `gather_logs` merges.
+    missing from the registered log labels.
     """
     reg = _registry()
     alias = reg.log_rules
@@ -4743,7 +4743,7 @@ def test_log_rules_is_the_live_list_a_snakefile_aliases():
 
 
 def test_a_banner_only_rule_is_not_in_log_rules():
-    """snapshot_config and gather_logs write no part; nothing must merge one."""
+    """Banner-only rules write no part; nothing must merge one."""
     reg = _registry()
     reg.banner_only("0.01", "snapshot_config")
     assert reg.log_rules == []
@@ -4802,8 +4802,7 @@ def test_the_banner_carries_the_rules_summary_and_the_fanned_name():
 
 
 def test_benchmark_is_available_to_a_banner_only_rule():
-    """log and benchmark are independent -- gather_benchmarks logs and does not
-    benchmark itself, and the inverse must stay expressible too."""
+    """Logging and benchmarking declarations remain independent."""
     assert _registry().banner_only("0.10", "x").benchmark() == (
         "PROJ/benchmarks/_parts/0.10_x.tsv"
     )

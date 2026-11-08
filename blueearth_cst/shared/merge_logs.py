@@ -1,15 +1,7 @@
-"""Merge a workflow's per-rule log parts into ONE log for the whole workflow.
+"""Merge execution-owned per-rule log parts into one workflow log.
 
-Every logging rule writes its log under ``<logs>/_parts/<W.NN>_<rule>[/<member>].log``.
-This gather step -- one job per workflow, scheduled after every logging rule --
-concatenates those parts, in rule order, into a single ``<logs>/<workflow>.log``,
-then deletes the parts it merged. All five workflows use it; examples:
-
-=========================== ==================================================
-``build_model.smk``         ``logs/wf1_build_model.log`` (1.17)
-``analyze_projections.smk`` ``logs/wf2_analyze_projections.log`` (2.09)
-``simulate_system.smk``    ``logs/wf4_simulate_system_<experiment>.log`` (4.11)
-=========================== ==================================================
+The launcher finalizes diagnostics after success or failure, retaining raw parts
+on failure. Sections follow rule labels; fan-out members use natural ordering.
 
 Shape of the merged file (the same pattern ``merge_benchmarks.py`` applies to the
 benchmark tables):
@@ -205,14 +197,3 @@ def merge_logs(rules, out_path, parts_dir, remove_parts=False):
                 merged.append(path)
     if remove_parts:
         _remove_parts(merged, parts_dir)
-
-
-if __name__ == "__main__":
-    if "snakemake" in globals():
-        sm = globals()["snakemake"]
-        merge_logs(
-            list(sm.params.rules),
-            sm.output[0],
-            sm.params.parts_dir,
-            remove_parts=True,
-        )

@@ -23,8 +23,6 @@ report saved simulations without implying that new simulations will run.
 | `simulations_only` (target) | Collect simulation outputs without indicators. |
 | 4.07 `prepare_indicator_plan` | Resolve each distinct indicator request's identity and targets. |
 | 4.08 `derive_system_indicators` | Produce each immutable indicator set: tables, coverage evidence and marker. |
-| 4.09 `gather_logs` | Merge experiment logs. |
-| 4.10 `gather_benchmarks` | Merge experiment benchmarks. |
 | `simulations_and_indicators` (target) | Collect the selected indicator set. |
 
 The runner infers its target from `operations`: both operations run `all`, simulations alone stop at `simulations_only`, and indicators alone read completed responses without rerunning Wflow. Sets with identical numerical requests share one plan and one immutable indicator set. After Snakemake, the runner publishes each set separately; a failed set keeps its previous publication, and the command exits nonzero unless every set is current. With several sets, Snakemake runs with `--keep-going`, which also lets independent Wflow batches continue after one fails.

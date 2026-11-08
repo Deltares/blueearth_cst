@@ -132,7 +132,6 @@ def test_retry_directories_and_child_parts_are_isolated(tmp_path, monkeypatch):
     assert Path(paths.log).name == "wf1.log"
     assert child["invocation_id"] in paths.log_parts
     assert "_parts" in paths.benchmark_parts
-    assert paths.gather_targets == {}
     assert first != child_path != second
 
 
@@ -263,10 +262,6 @@ def test_unowned_parse_keeps_legacy_paths_and_rejects_foreign_execution(
         tmp_path, "wf0", "old.log", "old.md", "parts", "benchparts"
     )
     assert paths.log == f"{tmp_path}/logs/old.log"
-    assert paths.gather_targets == {
-        "workflow_log": paths.log,
-        "benchmarks": paths.benchmark,
-    }
     monkeypatch.setenv(outputs.DIRECTORY_ENV, str(tmp_path.parent / "other/logs/run"))
     with pytest.raises(ValueError, match="another project"):
         outputs.workflow_paths(
@@ -275,7 +270,7 @@ def test_unowned_parse_keeps_legacy_paths_and_rejects_foreign_execution(
 
 
 @pytest.mark.process_isolation
-def test_new_execution_does_not_schedule_gathers_for_existing_outputs(tmp_path):
+def test_new_execution_preserves_existing_outputs(tmp_path):
     """Fresh diagnostics must not turn an unchanged scientific DAG into work."""
     repo = Path(__file__).resolve().parents[1]
     snakefile = tmp_path / "Snakefile"
@@ -285,29 +280,29 @@ def test_new_execution_does_not_schedule_gathers_for_existing_outputs(tmp_path):
         "from blueearth_cst.shared.execution_outputs import workflow_paths\n"
         "paths = workflow_paths(Path.cwd(), 'wf0', 'wf0.log', 'wf0.md', 'logs', 'benchmarks')\n"
         "rule all:\n"
-        "    input: 'result.txt', *paths.gather_targets.values()\n"
+        "    input: 'result.txt'\n"
         "rule calculate:\n"
         "    output: 'result.txt'\n"
         "    log: paths.log_parts + '/0.01_calculate.log'\n"
         "    benchmark: paths.benchmark_parts + '/0.01_calculate.tsv'\n"
         "    run:\n"
         "        Path(output[0]).write_text('result')\n"
-        "        Path(log[0]).write_text('calculated\\n')\n"
-        "rule gather_logs:\n"
-        "    input: 'result.txt'\n"
-        "    output: paths.log\n"
-        "    run: raise AssertionError('launcher owns log gathering')\n"
-        "rule gather_benchmarks:\n"
-        "    input: 'result.txt'\n"
-        "    output: paths.benchmark\n"
-        "    run: raise AssertionError('launcher owns benchmark gathering')\n",
+        "        Path(log[0]).write_text('calculated\\n')\n",
         encoding="utf-8",
     )
     first_diagnostics = None
     for attempt in range(2):
         path, record = _start(tmp_path, workflow="analyze_climate")
         result = subprocess.run(
-            ["snakemake", "--snakefile", str(snakefile), "--cores", "1"],
+            [
+                sys.executable,
+                "-m",
+                "snakemake",
+                "--snakefile",
+                str(snakefile),
+                "--cores",
+                "1",
+            ],
             cwd=tmp_path,
             env={**os.environ, **outputs.environment(path, record)},
             capture_output=True,

@@ -38,10 +38,8 @@ WF2_RULEGRAPH = """digraph snakemake_dag {
     6[label = "snapshot_config", color = "0.07 0.6 0.85", style="rounded"];
     7[label = "gather_raw_logs", color = "0.33 0.6 0.85", style="rounded"];
     8[label = "gather_series_logs", color = "0.40 0.6 0.85", style="rounded"];
-    9[label = "gather_benchmarks", color = "0.53 0.6 0.85", style="rounded"];
     8 -> 0
     6 -> 0
-    9 -> 0
     1 -> 0
     5 -> 0
     7 -> 0
@@ -54,8 +52,6 @@ WF2_RULEGRAPH = """digraph snakemake_dag {
     2 -> 5
     4 -> 7
     2 -> 8
-    1 -> 9
-    5 -> 9
 }
 """
 
@@ -78,8 +74,8 @@ WF2_DAG = """digraph snakemake_dag {
 
 def test_parse_dot_reads_every_node_and_edge():
     nodes, edges = rdl.parse_dot(WF2_RULEGRAPH)
-    assert len(nodes) == 10
-    assert len(edges) == 17
+    assert len(nodes) == 9
+    assert len(edges) == 14
     assert nodes[4].rule == "fetch_cmip6_projections"
     # Direction: snakemake draws dependency -> dependent.
     assert (3, 4) in edges, (
@@ -145,8 +141,7 @@ def test_wf2_rule_levels_match_the_measured_topology():
         "derive_change_factors": 3,
         "gather_series_logs": 3,
         "plot_climate_projections": 4,
-        "gather_benchmarks": 5,
-        "all": 6,
+        "all": 5,
     }
 
 

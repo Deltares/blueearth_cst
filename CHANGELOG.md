@@ -9,6 +9,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Remove workflow log/benchmark gather rules from WF0–WF4. Owned launchers finalize diagnostics,
+  including partial failures; direct Snakemake execution no longer gathers diagnostic reports.
+
 - Scaffold external cases with named peer trials (`default` by default), portable schema-3 paths,
   explicit `--from-trial` configuration copying, and a minimal case README inventory.
   Existing split-layout configurations remain runnable; migration is copy-and-verify, not automatic.

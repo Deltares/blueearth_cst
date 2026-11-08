@@ -58,8 +58,6 @@ WF0 = Workflow(
             "compare_climate_datasets",
             summary="compare the candidate climate datasets",
         ),
-        Rule("0.06", "gather_benchmarks"),
-        Rule("0.07", "gather_logs"),
     ],
     stats="""Job stats:
 job                                count
@@ -73,8 +71,6 @@ derive_plot_scales                     1
 plot_climate_datasets_era5               1
 plot_climate_datasets_chirps             1
 compare_climate_datasets                1
-gather_benchmarks                      1
-gather_logs                            1
 total                                 11
 """,
     targets=[
@@ -232,8 +228,6 @@ total                                 11
                 ),
             ),
         ),
-        Job("gather_benchmarks", seconds=1),
-        Job("gather_logs", seconds=1),
         Job("all", seconds=0),
     ],
 )
@@ -278,8 +272,6 @@ WF2 = Workflow(
             summary="prepare analysis-window diagnostics",
         ),
         Rule("2.06", "plot_climate_projections"),
-        Rule("2.07", "gather_benchmarks"),
-        Rule("2.08", "gather_logs"),
     ],
     stats="""Job stats:
 job                       count
@@ -290,8 +282,6 @@ reduce_to_basin_averages             4
 derive_change_factors         1
 prepare_projection_analysis  1
 plot_climate_projections           1
-gather_benchmarks             1
-gather_logs                   1
 total                        14
 """,
     targets=[
@@ -424,8 +414,6 @@ total                        14
                 ),
             ),
         ),
-        Job("gather_benchmarks", seconds=1),
-        Job("gather_logs", seconds=1),
         Job("all", seconds=0),
     ],
 )
@@ -489,8 +477,6 @@ WF1 = Workflow(
         Rule("1.14", "export_simulation_tables"),
         Rule("1.15", "plot_model_evaluation"),
         Rule("1.16", "write_run_metadata"),
-        Rule("1.17", "gather_benchmarks"),
-        Rule("1.18", "gather_logs"),
     ],
     stats="""Job stats:
 job                      count
@@ -499,8 +485,6 @@ all                          1
 run_historical_simulation                    1
 export_simulation_tables          1
 plot_model_evaluation        1
-gather_benchmarks            1
-gather_logs                  1
 total                        6
 """,
     targets=[
@@ -550,8 +534,6 @@ total                        6
                 ("plot", "6 figures -> <model>/plots/evaluation", 18),
             ),
         ),
-        Job("gather_benchmarks", seconds=2),
-        Job("gather_logs", seconds=2),
         Job("all", seconds=0),
     ],
     # WF1 carries the failure shape because 1.14 is where a run of this
@@ -639,8 +621,6 @@ WF3 = Workflow(
             "collection {collection_id}",
             "seal the collection and make it immutable",
         ),
-        Rule("3.11", "gather_logs"),
-        Rule("3.10", "gather_benchmarks"),
     ],
     stats="""Job stats:
 job                              count
@@ -653,8 +633,6 @@ generate_weather_realizations        1
 perturb_climate_realization          8
 retain_scenario_forcing              8
 publish_scenario_collection          1
-gather_logs                          1
-gather_benchmarks                    1
 total                               24
 """,
     targets=[
@@ -793,8 +771,6 @@ total                               24
                 ),
             ),
         ),
-        Job("gather_logs", seconds=1),
-        Job("gather_benchmarks", seconds=1),
         Job("all", seconds=0),
     ],
 )
@@ -859,8 +835,6 @@ WF4 = Workflow(
             "indicator_set {indicator_set_id}",
             "reduce the retained responses to the immutable indicator set",
         ),
-        Rule("4.09", "gather_logs"),
-        Rule("4.10", "gather_benchmarks"),
     ],
     stats="""Job stats:
 job                             count
@@ -876,8 +850,6 @@ simulations_only                    1
 prepare_indicator_plan                 1
 derive_system_indicators                  1
 simulations_and_indicators          1
-gather_logs                         1
-gather_benchmarks                   1
 total                              20
 """,
     targets=[],
@@ -959,8 +931,6 @@ total                              20
             ),
         ),
         Job("simulations_and_indicators", seconds=1),
-        Job("gather_logs", seconds=2),
-        Job("gather_benchmarks", seconds=2),
     ],
 )
 

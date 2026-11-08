@@ -130,18 +130,6 @@ class WorkflowPaths:
     benchmark: str
     log_parts: str
     benchmark_parts: str
-    managed: bool = False
-
-    @property
-    def gather_targets(self) -> dict[str, str]:
-        """Require gathered files only when no launcher will finalize diagnostics.
-
-        Managed diagnostics belong to a fresh directory on every invocation.
-        Requiring them in the DAG would schedule gather jobs on an unchanged run.
-        """
-        if self.managed:
-            return {}
-        return {"workflow_log": self.log, "benchmarks": self.benchmark}
 
 
 def workflow_paths(
@@ -171,7 +159,6 @@ def workflow_paths(
         (base / f"{workflow}-benchmarks.md").as_posix(),
         (parts / "logs").as_posix(),
         (parts / "benchmarks").as_posix(),
-        managed=True,
     )
 
 

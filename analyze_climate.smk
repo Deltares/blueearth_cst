@@ -272,7 +272,6 @@ WORKFLOW_LOG_NAME = "wf0_analyze_climate.log"
 declare_warning_tally(project_dir, WORKFLOW_LOG_NAME)
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
 _paths = workflow_paths(project_dir, "wf0", WORKFLOW_LOG_NAME, "wf0_benchmarks.md", LOG_PARTS_DIR, f"{project_dir}/benchmarks/_parts")
-WORKFLOW_LOG_PATH, BENCHMARK_OUTPUT_PATH = _paths.log, _paths.benchmark
 LOG_PARTS_DIR, BENCH_PARTS_DIR = _paths.log_parts, _paths.benchmark_parts
 
 # The run's key folders, stated ONCE. `run_header` prints them at the top of the
@@ -315,8 +314,6 @@ rain_gauge_settings = parse_rain_gauges(my_cfg.get("rain_gauges"))
 if rain_gauge_settings is not None:
     PREPARE_RAIN_GAUGES = RULES.logged("0.05b", "prepare_rain_gauges", summary="sample and compare daily rain gauges")
     PLOT_RAIN_GAUGES = RULES.logged("0.05c", "plot_rain_gauges", summary="render rain-gauge comparisons")
-GATHER_BENCHMARKS = RULES.banner_only("0.06", "gather_benchmarks", summary="merge rule timing and resource-use records")
-GATHER_LOGS = RULES.banner_only("0.07", "gather_logs", summary="merge rule logs")
 
 
 # The opt-in owns a separate product; it does not change existing numerical diagnostics.
@@ -358,7 +355,6 @@ WF0_TERMINALS.append(SPATIAL_UNITS.outputs["basins"])
 WF0_TARGETS = [
     *WF0_TERMINALS,
     *([RUN_RECORD] if os.environ.get("BLUEEARTH_WF012_CAPTURE_CONTEXT") else []),
-    *_paths.gather_targets.values(),
 ]
 
 # all — target aggregator: the canonical climate figure set per source
@@ -585,40 +581,6 @@ if COMPARISON_DIAGNOSTICS:
         log: COMPARE_DIAGNOSTICS.log(),
         benchmark: COMPARE_DIAGNOSTICS.benchmark(),
         script: "blueearth_cst/climate_analysis/compare_climate_diagnostics.py"
-
-
-# --- benchmark gather ---------------------------------------------------------
-# 0.06  gather_benchmarks — merge the WF0 parts into one benchmarks table.
-rule gather_benchmarks:
-    message: GATHER_BENCHMARKS.banner()
-    input:
-        WF0_TERMINALS,
-    output:
-        BENCHMARK_OUTPUT_PATH,
-        BENCHMARK_OUTPUT_PATH.removesuffix(".md") + ".tsv",
-    params:
-        parts_dir = BENCH_PARTS_DIR,
-        workflow_num = 0,
-    script: "blueearth_cst/shared/merge_benchmarks.py"
-
-# --- log gather ---------------------------------------------------------------
-# 0.07  gather_logs — merge every WF0 log part into ONE workflow log.
-#
-# Same rule as WF1's 1.18, WF2's 2.08 and WF3's 3.18, against the same script;
-# only the label list, the parts dir and the output name differ. `input:` is
-# WF0_TERMINALS, which is what schedules it LAST. The parts stay in `params:` --
-# they are `log:` files, which Snakemake does not track in the DAG, so naming
-# them as `input:` would demand them as buildable targets.
-rule gather_logs:
-    message: GATHER_LOGS.banner()
-    input:
-        WF0_TERMINALS,
-    output:
-        WORKFLOW_LOG_PATH,
-    params:
-        rules = LOG_RULES,
-        parts_dir = LOG_PARTS_DIR,
-    script: "blueearth_cst/shared/merge_logs.py"
 
 
 # --- Run journal --------------------------------------------------------------

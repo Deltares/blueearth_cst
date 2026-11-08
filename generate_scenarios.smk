@@ -69,7 +69,6 @@ from blueearth_cst.shared.execution_outputs import workflow_paths, declare_warni
 declare_warning_tally(project_dir, WORKFLOW_LOG_NAME)
 BENCHMARKS_NAME = f"wf3_benchmarks_{_plan_key}.md"
 _paths = workflow_paths(project_dir, "wf3", WORKFLOW_LOG_NAME, BENCHMARKS_NAME, LOG_PARTS_DIR, BENCH_PARTS_DIR)
-WORKFLOW_LOG_PATH, BENCHMARK_OUTPUT_PATH = _paths.log, _paths.benchmark
 LOG_PARTS_DIR, BENCH_PARTS_DIR = _paths.log_parts, _paths.benchmark_parts
 RULES = RuleRegistry(LOG_PARTS_DIR, BENCH_PARTS_DIR)
 LOG_RULES = RULES.log_rules
@@ -86,8 +85,6 @@ if V2_MODE:
         summary="produce one scenario per stochastic realization",
     )
 PUBLISH_SCENARIO_COLLECTION = RULES.banner_only("3.09", "publish_scenario_collection", summary="validate the scenario artifacts and mark the collection ready")
-GATHER_BENCHMARKS = RULES.banner_only("3.10", "gather_benchmarks", summary="merge generation timing and resource-use records")
-GATHER_LOGS = RULES.banner_only("3.11", "gather_logs", summary="merge generation logs")
 INVOCATION_ID = os.environ.setdefault("CST_GENERATION_INVOCATION_ID", uuid.uuid4().hex)
 RLZ_NUM = GENERATION["n_realizations"]
 ST_NUM = GENERATION["n_design_points"]
@@ -129,7 +126,6 @@ V2_TARGET = (
 )
 WF3_TARGETS = SOURCE_TARGETS if SOURCE_ONLY else [
     V2_TARGET,
-    *_paths.gather_targets.values(),
 ]
 
 # all
@@ -348,40 +344,6 @@ if V2_MODE and V2_PLAN["decision"] == "create":
             )
             from blueearth_cst.shared.run_log_core import log_row, plural
             log_row(f"Scenario collection ready: {plural(len(V2_PLAN['rows']), 'run')}", module="generation")
-
-
-# 3.10 / 3.11 -- merge the run's benchmark and log parts, generation phase only:
-# the source phase runs first, and merging there would consume its parts before
-# the generation rules wrote theirs. The terminal is the ready marker (create)
-# or this invocation's receipt (reuse); both are new per run, so the merge is too.
-# The gathers re-run when the COLLECTION or its sources change -- never on
-# V2_TARGET alone, which on a reuse is the per-invocation receipt: a new file
-# every run, so the gathers re-ran on every otherwise up-to-date invocation.
-GATHER_INPUTS = [V2_MARKER, *SOURCE_TARGETS] if V2_MODE else []
-
-if V2_MODE:
-    rule gather_benchmarks:
-        message: GATHER_BENCHMARKS.banner()
-        input:
-            GATHER_INPUTS,
-        output:
-            BENCHMARK_OUTPUT_PATH,
-            BENCHMARK_OUTPUT_PATH.removesuffix(".md") + ".tsv",
-        params:
-            parts_dir = BENCH_PARTS_DIR,
-            workflow_num = 3,
-        script: "blueearth_cst/shared/merge_benchmarks.py"
-
-    rule gather_logs:
-        message: GATHER_LOGS.banner()
-        input:
-            GATHER_INPUTS,
-        output:
-            WORKFLOW_LOG_PATH,
-        params:
-            rules = LOG_RULES,
-            parts_dir = LOG_PARTS_DIR,
-        script: "blueearth_cst/shared/merge_logs.py"
 
 
 # --------------------------------------------------------------------------
