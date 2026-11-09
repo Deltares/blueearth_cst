@@ -2,11 +2,15 @@
 
 NOTE: Snakemake ``script:`` module; inputs, outputs and settings come from
 ``snakemake.input/output/params``. No standalone CLI or future-import preamble.
+
+Timing rows report successful phases; total rows overlap their named substages.
+CPU seconds cover this process only, including its threads, not child processes.
 """
 
 import json
 import os
 from pathlib import Path
+from time import perf_counter, process_time
 
 import numpy as np
 import pandas as pd
@@ -26,6 +30,15 @@ from blueearth_cst.projections.series_checks import (
 )
 from blueearth_cst.projections.variable_spec import VariableSpec
 from blueearth_cst.shared.snake_utils import listed, log_row, plural, tee_to_log
+
+
+def _log_timing(stage: str, started: tuple[float, float]) -> None:
+    """Report successful phase duration; CPU covers this process only."""
+    log_row(
+        f"Timing {stage}: wall={perf_counter() - started[0]:.3f}s, "
+        f"cpu={process_time() - started[1]:.3f}s",
+        module="analysis",
+    )
 
 
 def distinct_windows(windows):
@@ -133,6 +146,7 @@ def prepare_tables(
         raise ValueError("full_period trajectories require one analysis reference")
     reference = next(iter(references))
     cache, change_rows, anomaly_rows, inventory, coverage_points = {}, [], [], {}, []
+    started = perf_counter(), process_time()
     for point in points:
         datasets = []
         for role, path_key, components_key, series_key in (
@@ -212,6 +226,8 @@ def prepare_tables(
                 min_reference=min_reference,
             )
         )
+    _log_timing("member loading, changes and anomalies", started)
+    started = perf_counter(), process_time()
     changes = (
         pd.concat(change_rows, ignore_index=True)
         if change_rows
@@ -229,8 +245,14 @@ def prepare_tables(
     )
     models = analysis.model_changes(changes, statistic=None)
     climate = analysis.climatology(changes)
+    _log_timing("coverage and climatology", started)
+    started = perf_counter(), process_time()
     ratios = analysis.member_null_bands(analysis.member_ratios(changes))
+    _log_timing("member null bands", started)
+    started = perf_counter(), process_time()
     model_ratios = analysis.model_ratios(ratios)
+    _log_timing("model ratios and null bands", started)
+    started = perf_counter(), process_time()
     tables = {
         "coverage": coverage,
         "changes": changes,
@@ -295,6 +317,8 @@ def prepare_tables(
         changes.status == "unavailable",
         ["model", "scenario", "member", "window_id", "reason"],
     ].drop_duplicates()
+    _log_timing("summary tables and availability", started)
+    started = perf_counter(), process_time()
     record = {
         "schema_version": 1,
         "water_year_start": water_year_start,
@@ -359,6 +383,7 @@ def prepare_tables(
             _model_ratio_summary(model_ratios).to_json(orient="records")
         ),
     }
+    _log_timing("record and display null bands", started)
     return tables, record
 
 
@@ -426,6 +451,7 @@ def run(sm):
         raise RuntimeError(
             f"analysis series set differs from declared inputs: unused={sorted(declared - opened)}, undeclared={sorted(opened - declared)}"
         )
+    started = perf_counter(), process_time()
     tables, record = prepare_tables(
         points,
         sm.params.windows,
@@ -435,12 +461,15 @@ def run(sm):
         min_reference=dict(sm.params.min_reference),
         combinations=[dict(item) for item in sm.params.combinations],
     )
+    _log_timing("table preparation total", started)
+    started = perf_counter(), process_time()
     if set(tables) != set(sm.params.table_names):
         raise RuntimeError("analysis table names differ from declared output contract")
     for name, table in tables.items():
         path = Path(sm.output[name])
         path.parent.mkdir(parents=True, exist_ok=True)
         table.to_csv(path, index=False, na_rep="")
+    _log_timing("table publication", started)
     from blueearth_cst.projections.spatial_diagnostics import prepare_spatial_changes
 
     raw_declared = {os.path.abspath(str(path)) for path in sm.input.raw_nc}
@@ -451,6 +480,7 @@ def run(sm):
     }
     if raw_declared != raw_used:
         raise RuntimeError("spatial diagnostic raw inputs differ from the declared set")
+    started = perf_counter(), process_time()
     spatial = prepare_spatial_changes(
         points,
         record["windows"],
@@ -460,6 +490,8 @@ def run(sm):
         min_reference=dict(sm.params.min_reference),
         region_fp=series_identity.region_fingerprint(sm.input.region_path),
     )
+    _log_timing("spatial preparation and publication", started)
+    started = perf_counter(), process_time()
     record["spatial_diagnostics"] = {
         "inventory": "analysis/gridded_changes/inventory.json",
         "members": len(spatial["members"]),
@@ -472,6 +504,7 @@ def run(sm):
         json.dumps(record, indent=2, allow_nan=False, default=_numpy_json) + "\n",
         encoding="utf-8",
     )
+    _log_timing("record publication", started)
     log_row(
         f"Analysis windows: {listed([w['window_id'] for w in record['windows']])}",
         module="analysis",

@@ -1018,7 +1018,9 @@ rule fetch_cmip6_projections:
         ),
     threads: 1
     resources:
-        mem_mb = 1024,
+        # Ntoum six-variable fetch peaked at 1201 MB (2026-11-09); provisional
+        # reservation adds about 28% headroom, not a bound for every source grid.
+        mem_mb = 1536,
     log:
         FETCH_CMIP6_PROJECTIONS.log("{series_key}"),
     benchmark:

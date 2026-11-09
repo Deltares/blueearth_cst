@@ -29,6 +29,9 @@ Contract with the reduce stage:
 
 Invoked from ``analyze_projections.smk`` via ``script:``; reads
 ``snakemake.input/output/params``, never ``sys.argv``.
+
+Timing rows report successful phases; total rows overlap their named substages.
+CPU seconds cover this process only, including its threads, not child processes.
 """
 # NOTE: no `from __future__ import annotations` here. Snakemake's `script:`
 # directive prepends its own preamble to a copy of this file, so a __future__
@@ -39,6 +42,7 @@ Invoked from ``analyze_projections.smk`` via ``script:``; reads
 import contextlib
 import json
 import os
+from time import perf_counter, process_time
 
 # MUST precede any import that transitively imports gcsfs (hydromt does). gcsfs
 # >= 2026.4 turns on an experimental Extended filesystem BY DEFAULT and reads this
@@ -58,6 +62,16 @@ import numpy as np
 
 from blueearth_cst.projections import grid_weights, series_identity
 from blueearth_cst.shared.snake_utils import log_row, tee_to_log
+
+
+def _log_timing(stage: str, started: tuple[float, float]) -> None:
+    """Report successful phase duration; CPU covers this process only."""
+    log_row(
+        f"Timing {stage}: wall={perf_counter() - started[0]:.3f}s, "
+        f"cpu={process_time() - started[1]:.3f}s",
+        module="fetch",
+    )
+
 
 # ---------------------------------------------------------------------------
 # The decisions, lifted out of the `script:` body so they can be tested.
@@ -763,6 +777,7 @@ def read_variable_slices(
             log_row(f"Using source {source}: {store_uri}", module="fetch")
             catalog = hydromt.DataCatalog()
             catalog.from_dict({catalog_entry: spec})
+            started = perf_counter(), process_time()
             try:
                 data = catalog.get_rasterdataset(
                     entry,
@@ -778,6 +793,8 @@ def read_variable_slices(
                             f"{entry}: monthly input {source} could not be admitted: {exc}. Supply matching qualified monthly inputs or disable the calculated variable."
                         ) from exc
                     raise
+                _log_timing(f"{source} regular-grid refusal", started)
+                started = perf_counter(), process_time()
                 data = catalog.get_rasterdataset(
                     entry, time_range=window, variables=[variable]
                 )
@@ -789,6 +806,9 @@ def read_variable_slices(
                     data.raster.x_dim,
                     source=entry,
                 )
+                _log_timing(f"{source} fallback open and clip", started)
+            else:
+                _log_timing(f"{source} open", started)
             if isinstance(data, xr.DataArray):
                 data = data.to_dataset(name=variable)
             if admit_pet:
@@ -850,6 +870,7 @@ def read_variable_slices(
                     f"{entry}: unknown or unequal monthly source grids: {grids}. "
                     "Supply matching native grids or disable the calculated variable."
                 )
+        started = perf_counter(), process_time()
         try:
             merged = merge_variable_slices(slices, calendars, entry)
         except ValueError as exc:
@@ -858,8 +879,12 @@ def read_variable_slices(
                     f"{exc}. Supply matching monthly coordinates/calendars or disable the calculated variable."
                 ) from exc
             raise
+        _log_timing("variable compatibility and merge", started)
         # Materialize within this ownership scope so all sources close on failure too.
-        return merged.load(), next(iter(calendars.values()))
+        started = perf_counter(), process_time()
+        merged = merged.load()
+        _log_timing("merged load", started)
+        return merged, next(iter(calendars.values()))
     finally:
         for data in slices.values():
             data.close()
@@ -926,6 +951,7 @@ def fetch_raw_slice(
     # series_identity.raw_components — the Snakefile must keep it that way, or a
     # formula edit re-downloads and the split buys nothing.
 
+    cache_started = perf_counter(), process_time()
     region_fp = series_identity.region_fingerprint(region_path)
     expected_raw_digest = series_identity.raw_digest(components, region_fp)
 
@@ -973,7 +999,10 @@ def fetch_raw_slice(
                 module="fetch",
             )
         os.utime(raw_nc_out, None)
+        _log_timing("cache validation and reuse", cache_started)
         return
+
+    _log_timing("cache validation (miss)", cache_started)
 
     if os.environ.get("BLUEEARTH_CST_LOCAL_INPUTS") == "1":
         raise RuntimeError(
@@ -1158,6 +1187,7 @@ def fetch_raw_slice(
     # cleanly and still stages. The duplicate-axis face of the same ambiguity
     # is caught by `check_time_axis` below, which carries its own message.
     split_calendar = None
+    read_started = perf_counter(), process_time()
     if split_pins:
         data, split_calendar = read_variable_slices(
             read_spec,
@@ -1217,6 +1247,7 @@ def fetch_raw_slice(
                         f"{entry}: the irregular-grid read path failed after hydromt "
                         f"refused the grid ({type(fallback_exc).__name__}: {fallback_exc})"
                     ) from fallback_exc
+    _log_timing("source read and admission total", read_started)
     # Kept for the empty-window error below: `time_range` is applied by the
     # driver and `.sel` narrows it again, so "the driver returned 1850..2014"
     # is the diagnostic that tells the two apart.
@@ -1247,7 +1278,9 @@ def fetch_raw_slice(
     # Eager, and not only for speed: a lazy slice written by to_netcdf reads from
     # dask's thread pool and deadlocks on the HDF5 lock (measured, commit
     # bf1f4a5). After bbox/time slicing this is well under a megabyte.
+    started = perf_counter(), process_time()
     data = data.load()
+    _log_timing("outer load (already materialized)" if split_pins else "load", started)
 
     # --- the model's TRUE calendar, read from the store ---------------------
     # `index` is a DatetimeIndex by now and has no `.calendar`: our catalog
@@ -1267,11 +1300,13 @@ def fetch_raw_slice(
         calendar_var,
         pins_for_member,
     )
+    started = perf_counter(), process_time()
     store_calendar = split_calendar or (
         series_identity.read_store_calendar(store_uri)
         if store_uri
         else series_identity.CALENDAR_UNKNOWN
     )
+    _log_timing("calendar lookup", started)
     log_row(
         f"Source calendar: {store_calendar}; calendar check: {calendar_var or 'no pin'}",
         module="fetch",
@@ -1307,7 +1342,9 @@ def fetch_raw_slice(
     # per-variable provenance (R9 P2 F4).
     series_identity.drop_inherited_single_source_attrs(data)
 
+    started = perf_counter(), process_time()
     series_identity.write_netcdf_atomic(data, raw_nc_out)
+    _log_timing("raw publication", started)
     log_row(
         f"Basin slice written → {os.path.basename(raw_nc_out)} "
         f"({os.path.getsize(raw_nc_out) / 1e6:.2f} MB, {len(index) if index is not None else 0} time steps)",
