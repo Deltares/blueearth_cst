@@ -9,6 +9,8 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Handle a single catalog path correctly when hashing WF0 annual spatial anomaly inputs.
+
 - Validate named simulation indicator settings before upstream workflows start, while keeping forcing
   validation and experiment admission at the first forcing consumer.
 

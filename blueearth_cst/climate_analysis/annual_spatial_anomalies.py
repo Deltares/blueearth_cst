@@ -217,7 +217,9 @@ def run(sm) -> None:
     from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
 
     recipe = normalize_forcing_recipe(source, getattr(sm.params, "forcing", None))
-    inputs = [sm.input.climate_nc, sm.input.basin_cells, *sm.params.data_sources]
+    data_sources = sm.params.data_sources
+    catalogs = [data_sources] if isinstance(data_sources, str) else data_sources
+    inputs = [sm.input.climate_nc, sm.input.basin_cells, *catalogs]
     hashes = {str(path): file_hash(path) for path in inputs}
     daily, lineage = daily_series(
         sm.input.climate_nc,
