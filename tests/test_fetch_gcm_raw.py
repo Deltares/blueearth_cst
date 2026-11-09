@@ -88,6 +88,59 @@ def test_compatible_variable_slices_merge_without_alignment(variable_slices):
     np.testing.assert_array_equal(merged.temp, variable_slices["temp"].temp)
 
 
+@pytest.mark.parametrize(
+    "wind_height_name", ["height", "height10m", "measurement_level"]
+)
+def test_variable_merge_preserves_source_specific_heights(
+    variable_slices, wind_height_name, tmp_path
+):
+    temperature = variable_slices["temp"].assign_coords(
+        height=xr.DataArray(2.0, attrs={"units": "m", "standard_name": "height"})
+    )
+    wind = (
+        variable_slices["temp"]
+        .rename(temp="wind10")
+        .assign_coords(
+            {
+                wind_height_name: xr.DataArray(
+                    10.0,
+                    attrs={"units": "m", "standard_name": "height", "positive": "up"},
+                )
+            }
+        )
+    )
+    wind.wind10.attrs["cst_source_height_m"] = 10.0
+    temperature.temp.encoding["coordinates"] = "height"
+    wind.wind10.encoding["coordinates"] = wind_height_name
+    slices = {"pr": variable_slices["precip"], "tas": temperature, "sfcWind": wind}
+    merged = merge_variable_slices(
+        slices, {name: "noleap" for name in slices}, "source"
+    )
+    path = tmp_path / "raw.nc"
+    merged.to_netcdf(path)
+    with xr.open_dataset(path) as retained:
+        assert retained.tas_height.item() == 2.0
+        height = retained[f"sfcWind_{wind_height_name}"]
+        assert height.item() == 10.0
+        assert height.attrs == wind[wind_height_name].attrs
+        assert retained.wind10.attrs["cst_source_height_m"] == 10.0
+        assert retained.temp.encoding["coordinates"] == "tas_height"
+        assert retained.wind10.encoding["coordinates"] == f"sfcWind_{wind_height_name}"
+        for name in ("precip", "temp", "wind10"):
+            np.testing.assert_array_equal(retained[name], merged[name])
+    assert "height" in temperature.coords
+    assert wind_height_name in wind.coords
+
+
+def test_variable_merge_still_rejects_other_auxiliary_conflicts(variable_slices):
+    variable_slices["temp"] = variable_slices["temp"].assign_coords(level=2.0)
+    variable_slices["precip"] = variable_slices["precip"].assign_coords(level=10.0)
+    with pytest.raises(ValueError, match="conflicting values.*level"):
+        merge_variable_slices(
+            variable_slices, {"pr": "noleap", "tas": "noleap"}, "source"
+        )
+
+
 @pytest.mark.parametrize("coordinate", ["lat", "lon", "time"])
 def test_variable_merge_rejects_shifted_coordinates(variable_slices, coordinate):
     delta = pd.Timedelta(days=1) if coordinate == "time" else 0.1

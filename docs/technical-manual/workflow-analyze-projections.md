@@ -128,6 +128,9 @@ magnitude. Alternatively, `wind: {method: components}` requests `uas` and `vas` 
 `sqrt(u_mean^2 + v_mean^2)`: the magnitude of the monthly mean vector, a different statistic that
 can be smaller due to directional cancellation. Methods are never silently substituted across models.
 All wind inputs require documented 10 m height before source harmonisation. No 2 m conversion is applied.
+When separately read variables are merged, scalar height coordinates retain their source names as
+prefixes (for example, `tas_height` and `sfcWind_height`), preserving values and coordinate metadata.
+Different measurement heights do not relax the matching grid, time, calendar or CRS requirements.
 See the [CMIP6 Amon definitions](https://raw.githubusercontent.com/PCMDI/cmip6-cmor-tables/main/Tables/CMIP6_Amon.json)
 for native units, dimensions and temporal statistics.
 

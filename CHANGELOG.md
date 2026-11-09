@@ -9,6 +9,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Preserve source-specific scalar measurement heights when merging WF2 monthly inputs, allowing
+  2 m temperature/humidity and 10 m wind on matching grids without overriding coordinate conflicts.
+
 - Ignore Python checkout line endings in historical map identities; existing preparations require
   one regeneration after this identity change. Data and environment lock hashes remain byte-exact.
 

@@ -645,7 +645,7 @@ def raw_slice_attrs(
 
 
 def merge_variable_slices(slices, calendars, entry):
-    """Merge only spatially and temporally identical, calendar-compatible reads."""
+    """Merge compatible reads, retaining source-specific scalar height coordinates."""
     import xarray as xr
 
     if (
@@ -670,9 +670,29 @@ def merge_variable_slices(slices, calendars, entry):
                 raise ValueError(
                     f"{entry}: incompatible coordinate {name!r} for {variable}"
                 )
-    return xr.merge(
-        list(slices.values()), join="exact", compat="equals", combine_attrs="override"
-    )
+    prepared = []
+    for variable, data in slices.items():
+        # Surface temperature/humidity and wind legitimately use different
+        # measurement heights. Preserve their values/metadata without making
+        # either height a shared coordinate of the merged source fields.
+        heights = {
+            name: f"{variable}_{name}"
+            for name, coord in data.coords.items()
+            if not coord.dims
+            and (
+                name in {"height", "height10m"}
+                or coord.attrs.get("standard_name") == "height"
+            )
+        }
+        renamed = data.rename(heights)
+        for name in data.data_vars:
+            coordinates = data[name].encoding.get("coordinates")
+            if isinstance(coordinates, str):
+                renamed[name].encoding["coordinates"] = " ".join(
+                    heights.get(coord, coord) for coord in coordinates.split()
+                )
+        prepared.append(renamed)
+    return xr.merge(prepared, join="exact", compat="equals", combine_attrs="override")
 
 
 def read_variable_slices(
