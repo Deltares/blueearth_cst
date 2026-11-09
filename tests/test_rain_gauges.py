@@ -292,8 +292,10 @@ def test_actual_sampling_and_render(tmp_path, case):
 
     inventory = json.loads((root / "_engine/evaluation.json").read_text())["outputs"]
     assert "_engine/evaluation.json" in inventory
-    figure_count = 4 if case == "all_excluded" else 20
+    # Monthly coverage remains tabular; each station emits three figure families.
+    figure_count = 3 if case == "all_excluded" else 15
     assert len([path for path in inventory if path.endswith(".png")]) == figure_count
+    assert not any("coverage" in path for path in inventory if path.endswith(".png"))
     render(root)
     assert len(list((root / "plots").glob("*.png"))) == figure_count
     # Obsolete files must never enter the declared inventory on reevaluation.

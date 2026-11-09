@@ -949,7 +949,8 @@ def compose_config(
     validate_forcing : bool, optional
         False for structural runner admission before a forcing consumer is
         reached. Historical comparison and projection entry points always
-        use candidate datasets independently of model-forcing selection.
+        omit model-forcing adjustments and validation; with validation enabled,
+        they retain an unambiguous source hint for native shared producers.
 
     Returns
     -------
@@ -1117,7 +1118,7 @@ def compose_config(
         retained_only = not required
     comparison_only = entry in {"analyze_climate", "analyze_projections"}
     if not validate_forcing or comparison_only:
-        # Comparison/projection workflows do not select model forcing. Startup
+        # Comparison/projection workflows do not validate model forcing. Startup
         # may also check structural configuration before a consumer is reached.
         candidates = dict(composed.get("climate", {}))
         if "sources" not in candidates and isinstance(candidates.get("selected"), str):
@@ -1125,6 +1126,20 @@ def compose_config(
         candidates.pop("selected", None)
         candidates.pop("forcing", None)
         climate, recipe = resolve_climate_forcing(candidates, required=False)
+        if comparison_only and validate_forcing:
+            # A source hint keeps native shared producers aligned without
+            # validating or applying a draft model-forcing recipe.
+            declared = composed.get("climate", {})
+            forcing = declared.get("forcing", {})
+            public = forcing if isinstance(forcing, Mapping) else {}
+            selected = public.get("precip_source", declared.get("selected"))
+            if "precip_source" in public and "selected" in declared:
+                selected = None
+            elif "precip_source" not in public and declared.get("selected") is None:
+                sources = climate.get("sources", [])
+                selected = sources[0] if len(sources) == 1 else None
+            if isinstance(selected, str) and selected in climate.get("sources", []):
+                climate["selected"] = selected
     elif retained_only:
         climate, recipe = composed.get("climate", {}), None
     else:

@@ -63,7 +63,7 @@ def test_render_checks_inputs_before_export_then_uses_loaded_snapshot(
     paths["figures"] = {
         key: value
         for key, value in paths["figures"].items()
-        if key in {"coverage", "anomaly"}
+        if key in {"seasonal", "anomaly"}
     }
     checks = []
 
@@ -168,7 +168,8 @@ def test_canonical_inventory_and_one_source_refusal():
         "dataset_comparison_csv": str(Path("comparison/dataset_comparison.csv")),
         "dataset_comparison_md": str(Path("comparison/dataset_comparison.md")),
     }
-    assert [len(x["figures"]) for x in (era5, chirps, comparison)] == [21, 17, 17]
+    assert [len(x["figures"]) for x in (era5, chirps, comparison)] == [20, 16, 16]
+    assert all("coverage" not in x["figures"] for x in (era5, chirps, comparison))
     assert all("percentile" not in x["figures"] for x in (era5, chirps, comparison))
     assert all(
         p.endswith(".png")
@@ -220,7 +221,7 @@ def test_unavailable_records_keep_table_headers_and_round_trip(tmp_path, kind, c
         assert "no usable data or reference fit" in series["caption"]
         output = capsys.readouterr().out
         assert (
-            "Wrote 16 diagnostic figures for chirps → plots/_engine/figure_captions.json"
+            "Wrote 15 diagnostic figures for chirps → plots/_engine/figure_captions.json"
         ) in output
         assert "no native temperature" in output
 

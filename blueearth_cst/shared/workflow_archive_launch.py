@@ -275,6 +275,8 @@ def _execution_climate_config(climate: Mapping[str, Any]) -> dict[str, Any]:
     selected = result.pop("selected", None)
     if selected is not None:
         forcing["precip_source"] = selected
+        # Legacy selection also supplied the candidate when sources was omitted.
+        result.setdefault("sources", [selected])
     if "temp_pet_source" in forcing:
         forcing["temp_source"] = forcing.pop("temp_pet_source")
     if forcing or "forcing" in result:

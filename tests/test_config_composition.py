@@ -238,22 +238,42 @@ def test_repeated_forcing_validation_does_not_emit_workflow_rows(tmp_path, capsy
 
 
 @pytest.mark.parametrize("entry", ["analyze_climate", "analyze_projections"])
-def test_comparisons_do_not_require_or_apply_a_draft_forcing_recipe(tmp_path, entry):
+@pytest.mark.parametrize(
+    "sources,selection,expected",
+    [
+        (["era5", "chirps"], {}, None),
+        (["era5"], {}, "era5"),
+        (["era5", "chirps"], {"forcing": {"precip_source": "chirps"}}, "chirps"),
+        (["era5", "chirps"], {"selected": "era5"}, "era5"),
+        (["era5"], {"forcing": {"precip_source": "unknown"}}, None),
+        (["era5"], {"selected": ["era5"]}, None),
+        (["era5"], {"forcing": {"precip_source": None}}, None),
+        (["era5"], {"selected": "era5", "forcing": {"precip_source": "era5"}}, None),
+    ],
+)
+def test_comparisons_do_not_require_or_apply_a_draft_forcing_recipe(
+    tmp_path, entry, sources, selection, expected
+):
+    climate = {
+        "sources": sources,
+        **selection,
+        "forcing": {"temp_source": "invalid-draft", **selection.get("forcing", {})},
+    }
     path = write_split(
         tmp_path,
         bodies={entry: {}},
         sections={
             "basin": {"region": "x"},
-            "climate": {
-                "sources": ["era5", "chirps"],
-                "forcing": {"temp_source": "era5"},
-            },
+            "climate": climate,
         },
     )
     compared = cc.load_composed_config(path, entry=entry)
-    assert compared["climate"]["sources"] == ["era5", "chirps"]
-    assert compared["climate"]["selected"] is None
+    assert compared["climate"]["sources"] == sources
+    assert compared["climate"]["selected"] == expected
     assert "forcing" not in compared["climate"]
+    startup = cc.load_composed_config(path, entry=entry, validate_forcing=False)
+    assert startup["climate"]["selected"] is None
+    assert "forcing" not in startup["climate"]
 
 
 def test_general_configuration_admission_defers_forcing_selection(tmp_path):

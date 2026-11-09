@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 import run_workflows as rw  # noqa: E402
 
 CONSUMER_FORCING_ROWS = rw._consumer_forcing_rows
+PREFLIGHT_CONFIGURATION = rw._preflight_configuration
 
 
 class FakeResult:
@@ -259,8 +260,13 @@ def _inline_q90_config(tmp_path):
 
 
 def test_inline_duplicate_indicator_keys_are_not_silently_overwritten(
-    tmp_path, capture_runs
+    tmp_path, capture_runs, monkeypatch
 ):
+    from blueearth_cst.shared import config_composition
+
+    # Exercise real startup validation; other workflow files are omitted by this fixture.
+    monkeypatch.setattr(rw, "_preflight_configuration", PREFLIGHT_CONFIGURATION)
+    monkeypatch.setattr(config_composition, "load_composed_config", lambda *a, **k: {})
     cfg, _ = _q90_config(tmp_path)
     _inline_q90_config(tmp_path)
     path = tmp_path / "q90-project-simulation.yml"
@@ -352,9 +358,14 @@ def test_combined_q90_dry_run_does_not_hide_corrupt_existing_toml(
 
 
 def test_combined_q90_refuses_malformed_rule_before_upstream_execution(
-    tmp_path, capture_runs
+    tmp_path, capture_runs, monkeypatch
 ):
     import yaml
+
+    from blueearth_cst.shared import config_composition
+
+    monkeypatch.setattr(rw, "_preflight_configuration", PREFLIGHT_CONFIGURATION)
+    monkeypatch.setattr(config_composition, "load_composed_config", lambda *a, **k: {})
 
     cfg, _ = _q90_config(tmp_path)
     path = tmp_path / "crop-water-q90.yml"
@@ -417,7 +428,7 @@ def test_missing_forcing_choice_allows_comparison_but_stops_before_model(
         },
     )
     cfg.write_text(
-        "schema_version: 3\nbasin:\n  region: x\n"
+        "schema_version: 3\nbasin:\n  region: {bbox: [9, 0, 10, 1]}\n"
         + cfg.read_text().replace("sources: [era5]", "sources: [era5, chirps]"),
         encoding="utf-8",
     )
@@ -1387,7 +1398,6 @@ def test_the_basin_rows_are_omitted_when_the_config_declares_no_basin(
     rows = _group_rows(out, "settings")
     assert set(rows) == {
         "project",
-        "experiment",
         "toolbox",
         "repository",
         "folder",

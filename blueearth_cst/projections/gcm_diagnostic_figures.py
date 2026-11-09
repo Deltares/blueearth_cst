@@ -14,8 +14,8 @@ from matplotlib.ticker import MaxNLocator
 
 from blueearth_cst.plotting.fundamentals import MONTH_ABBR
 from blueearth_cst.plotting.preset import use_preset
-from blueearth_cst.projections.projection_figures import period_folder
 from blueearth_cst.projections.grid_weights import midpoint_edges
+from blueearth_cst.projections.projection_figures import period_folder
 from blueearth_cst.shared.plot_colors import (
     PROJECTION_CHANGE_COLORS,
 )
@@ -84,6 +84,7 @@ def render_gcm_diagnostics(
 
 def _spatial_maps(grids, geometries, record, publish, scenarios):
     import geopandas as gpd
+
     from blueearth_cst.plotting.prepared_maps import (
         MapScale,
         RasterMap,

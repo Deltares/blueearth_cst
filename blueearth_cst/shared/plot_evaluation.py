@@ -662,8 +662,8 @@ def _hydrograph_fdc(ax, prepared, log_scale):
     """Finite-only Weibull positions, retaining zero mass on the log panel."""
     import numpy as np
 
-    from blueearth_cst.shared.plot_preset import FS_NOTE, LABEL_BOX, MUTED
     from blueearth_cst.plotting.fundamentals import time_series_style
+    from blueearth_cst.shared.plot_preset import FS_NOTE, LABEL_BOX, MUTED
 
     positive = []
     for key, color, style in (

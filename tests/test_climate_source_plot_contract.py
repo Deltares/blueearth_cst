@@ -213,6 +213,7 @@ def _resolved_annotation_params(rule):
                 "plot_climate_diagnostics_era5",
                 "plot_climate_diagnostics_chirps",
                 "plot_climate_comparison",
+                "plot_location_comparisons",
             },
         ),
         (

@@ -225,6 +225,11 @@ def test_schema3_archive_stages_original_relative_inputs(tmp_path, monkeypatch):
         )[0]
 
     execution = prepare(path)
+    staged_climate = yaml.safe_load(execution.read_bytes())["climate"]
+    assert staged_climate == {
+        "sources": ["era5"],
+        "forcing": {"precip_source": "era5"},
+    }
     loaded = load_composed_config(execution)
     observed = Path(
         loaded["workflows"]["build_model"]["observations"]["river discharge"]

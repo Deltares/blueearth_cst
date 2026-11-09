@@ -84,8 +84,8 @@ from blueearth_cst.shared.run_log_core import (  # noqa: E402
     _line_reset,
 )
 from blueearth_cst.shared.snake_utils import (  # noqa: E402
-    _ANSI_FAIL,
     _ANSI_DIM,
+    _ANSI_FAIL,
     ADVANCED_SETTINGS,
     _ansi,
     _console_colour,
@@ -189,9 +189,18 @@ def _preflight_configuration(config_path: str, flags: Mapping[str, bool]) -> Non
         if enabled and name != "simulate_system":
             load_composed_config(config_path, entry=name, validate_forcing=False)
     if flags.get("simulate_system"):
-        from blueearth_cst.experiment.simulation_runner import simulation_settings
+        from blueearth_cst.experiment.simulation_runner import (
+            simulation_indicator_sets,
+            simulation_selection,
+        )
 
-        simulation_settings(config_path, validate_forcing=False)
+        project, settings, selection = simulation_selection(
+            config_path, validate_forcing=False
+        )
+        if selection.simulations and selection.indicators:
+            simulation_indicator_sets(
+                project, settings, selection, prepare_baseline=False
+            )
 
 
 def _read_config(config_path: str) -> Mapping[str, Any]:
@@ -1725,11 +1734,11 @@ def _run_owned(
                 # instead of the snakemake invocation it launches. Re-derive
                 # the real command at the WF4 boundary. Preparation errors must
                 # surface here, including corrupt existing historical inputs.
-                from blueearth_cst.experiment.simulation_runner import (
-                    simulation_command,
-                )
                 from blueearth_cst.experiment.baseline_qcrit import (
                     HistoricalQcritUnavailable,
+                )
+                from blueearth_cst.experiment.simulation_runner import (
+                    simulation_command,
                 )
 
                 try:

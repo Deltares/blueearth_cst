@@ -51,8 +51,9 @@ def test_execution_yaml_uses_public_forcing_keys(tmp_path, schema_version, legac
     project = {
         "schema_version": schema_version,
         "project": {"project_dir": str(root), "catalog": []},
-        "basin": {"region": "x"},
+        "basin": {"region": "{'subbasin': [1, 2]}"},
         "climate": climate,
+        "model": {"outvars": ["river discharge"]},
         "workflows": {"build_model": {"enabled": True, "config_path": "workflow.yml"}},
     }
     (tmp_path / "workflow.yml").write_text("{}\n", encoding="utf-8")
