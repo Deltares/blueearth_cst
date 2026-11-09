@@ -62,6 +62,56 @@ def test_compatible_command_keeps_source_cwd_and_exit_status(roots, monkeypatch)
     assert command[command.index("--source-root") + 1] == str(source)
 
 
+@pytest.mark.parametrize(
+    "scope",
+    [
+        "tasks",
+        "target.win-64.tasks",
+        "feature.dev.tasks",
+        "feature.dev.target.win-64.tasks",
+    ],
+)
+@pytest.mark.parametrize("description", ['description = "New wording"', ""])
+def test_task_description_changes_are_compatible(roots, scope, description):
+    source, owner = roots
+    task = f'[{scope}.check]\ncmd = "python check.py"\n'
+    (owner / "pixi.toml").write_text(
+        task + 'description = "Old wording"\n', encoding="utf-8"
+    )
+    (source / "pixi.toml").write_text(task + description + "\n", encoding="utf-8")
+    runtime.check_compatibility(source, owner)
+    runtime.check_compatibility(owner, source)
+
+
+@pytest.mark.parametrize(
+    "table, before, after",
+    [
+        ("tasks.check", 'cmd = "python old.py"', 'cmd = "python new.py"'),
+        ("tasks.check.env", 'MODE = "old"', 'MODE = "new"'),
+        ("dependencies", 'python = "3.12.*"', 'python = "3.13.*"'),
+        ("activation.env", 'MODE = "old"', 'MODE = "new"'),
+        ("feature.dev.dependencies", 'python = "3.12.*"', 'python = "3.13.*"'),
+        ("target.win-64.activation", 'scripts = ["old.bat"]', 'scripts = ["new.bat"]'),
+    ],
+)
+def test_runtime_settings_remain_strict(roots, table, before, after):
+    source, owner = roots
+    (owner / "pixi.toml").write_text(f"[{table}]\n{before}\n", encoding="utf-8")
+    (source / "pixi.toml").write_text(f"[{table}]\n{after}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="pixi.toml differs"):
+        runtime.check_compatibility(source, owner)
+
+
+def test_julia_task_description_is_not_exempt(roots):
+    source, owner = roots
+    (source / "Project.toml").write_text(
+        '[tasks.check]\ndescription = "changed"\n', encoding="utf-8"
+    )
+    (owner / "Project.toml").write_text("[tasks.check]\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Project.toml differs"):
+        runtime.check_compatibility(source, owner)
+
+
 def test_session_caches_and_context_replace_ambient_checkout(roots, monkeypatch):
     source, owner = roots
     monkeypatch.setenv("PYTHONPATH", str(owner))

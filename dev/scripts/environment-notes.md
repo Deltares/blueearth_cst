@@ -256,8 +256,9 @@ $runtime = 'C:/workspace/blueearth_cst'
 Use the corresponding `<runtime>/.pixi/envs/default/bin/python` bootstrap on Linux. The bootstrap runs
 only standard-library coordination code; the child receives Pixi activation. The helper compares
 TOML values in `pixi.toml` and both Julia project files, and newline-normalized text in `pixi.lock`,
-the R installer and Windows activation script. Any difference fails before Pixi is invoked. This conservative
-check also rejects task-only manifest changes. It checks contract equality, not the health of an
+the R installer and Windows activation script. Pixi task descriptions are ignored, including descriptions
+in feature and platform task tables. Task commands, task environments and all other settings remain strict;
+any difference fails before Pixi is invoked. It checks contract equality, not the health of an
 arbitrarily modified installation; the owner's provisioning and verification remain prerequisites.
 
 TOML comments and formatting do not affect this contract comparison.
