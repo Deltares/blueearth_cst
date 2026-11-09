@@ -26,6 +26,23 @@ CONTRACT_FILES = (
 )
 
 
+def _toml_contract(text: str, *, pixi: bool) -> dict:
+    """Ignore descriptive task text, retaining every executable/runtime setting."""
+    contract = tomllib.loads(text)
+    if pixi:
+        scopes = [contract, *contract.get("feature", {}).values()]
+        scopes += [
+            target
+            for scope in list(scopes)
+            for target in scope.get("target", {}).values()
+        ]
+        for scope in scopes:
+            for task in scope.get("tasks", {}).values():
+                if isinstance(task, dict):
+                    task.pop("description", None)
+    return contract
+
+
 def check_compatibility(source: Path, runtime: Path) -> None:
     """Reject changed dependencies/activation before invoking Pixi at all."""
     for relative in CONTRACT_FILES:
@@ -34,7 +51,8 @@ def check_compatibility(source: Path, runtime: Path) -> None:
         left_text = left.read_text(encoding="utf-8")
         right_text = right.read_text(encoding="utf-8")
         matches = (
-            tomllib.loads(left_text) == tomllib.loads(right_text)
+            _toml_contract(left_text, pixi=relative == "pixi.toml")
+            == _toml_contract(right_text, pixi=relative == "pixi.toml")
             if relative.endswith(".toml")
             else left_text == right_text
         )
