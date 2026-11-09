@@ -404,6 +404,15 @@ def skipped_product_messages(availability):
         yield f"{label[0].upper() + label[1:]} skipped{scope}{detail}"
 
 
+def _numpy_json(value):
+    """Preserve NumPy-valued NetCDF metadata as native JSON arrays/scalars."""
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, np.generic):
+        return value.item()
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+
 def run(sm):
     """Assert declared inputs, write every table, and log bounded summaries."""
     points = [dict(point) for point in sm.params.points]
@@ -460,7 +469,8 @@ def run(sm):
     record_path = Path(sm.output.analysis_record)
     record_path.parent.mkdir(parents=True, exist_ok=True)
     record_path.write_text(
-        json.dumps(record, indent=2, allow_nan=False) + "\n", encoding="utf-8"
+        json.dumps(record, indent=2, allow_nan=False, default=_numpy_json) + "\n",
+        encoding="utf-8",
     )
     log_row(
         f"Analysis windows: {listed([w['window_id'] for w in record['windows']])}",

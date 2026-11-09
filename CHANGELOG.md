@@ -9,6 +9,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Serialize NumPy-valued NetCDF metadata in WF2 analysis records without dropping attributes or
+  relaxing strict non-finite JSON checks.
+
 - Reorder unsorted CMIP6 time blocks before temporal slicing, retaining timestamp/value pairs and
   all records for the existing duplicate and coverage checks; report the reordering in fetch logs.
 

@@ -47,6 +47,69 @@ def test_skipped_product_messages_explain_and_group_windows():
     ]
 
 
+def test_run_publishes_numpy_netcdf_metadata(tmp_path, monkeypatch):
+    from blueearth_cst.projections import spatial_diagnostics
+
+    class Outputs(dict):
+        __getattr__ = dict.__getitem__
+
+    tables = {
+        "availability": pd.DataFrame(
+            {
+                "available": [True],
+                "filename": ["availability.png"],
+                "reason": [""],
+                "window_id": [""],
+            }
+        )
+    }
+    record = {
+        "windows": [],
+        "unavailable_members": [],
+        "series": [
+            {
+                "pet": {
+                    "_ChunkSizes": np.array([1, 96, 192]),
+                    "coefficient": np.float32(0.65),
+                }
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        producer, "prepare_tables", lambda *args, **kwargs: (tables, record)
+    )
+    monkeypatch.setattr(series_identity, "region_fingerprint", lambda path: "region")
+    monkeypatch.setattr(
+        spatial_diagnostics,
+        "prepare_spatial_changes",
+        lambda *args, **kwargs: {"members": [], "unavailable": [], "methods": {}},
+    )
+    sm = SimpleNamespace(
+        params=SimpleNamespace(
+            points=[],
+            windows=[],
+            water_year_start="Jan",
+            variable_spec={},
+            min_reference={},
+            combinations=[],
+            table_names=["availability"],
+        ),
+        input=SimpleNamespace(series_nc=[], raw_nc=[], region_path="region.geojson"),
+        output=Outputs(
+            availability=tmp_path / "availability.csv",
+            analysis_record=tmp_path / "analysis_record.json",
+            gridded_changes=tmp_path / "gridded_changes",
+        ),
+    )
+    producer.run(sm)
+    metadata = json.loads(sm.output.analysis_record.read_text())["series"][0]["pet"]
+    assert metadata["_ChunkSizes"] == [1, 96, 192]
+    assert metadata["coefficient"] == pytest.approx(0.65)
+    record["series"][0]["pet"]["invalid"] = np.array([np.nan])
+    with pytest.raises(ValueError, match="Out of range float"):
+        producer.run(sm)
+
+
 def _series(path, start, count, scenario, components, region):
     years = np.arange(count) // 12
     dataset = xr.Dataset(
