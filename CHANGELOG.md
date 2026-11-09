@@ -9,6 +9,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Ignore Python checkout line endings in historical map identities; existing preparations require
+  one regeneration after this identity change. Data and environment lock hashes remain byte-exact.
+
 - Handle a single catalog path correctly when hashing WF0 annual spatial anomaly inputs.
 
 - Validate named simulation indicator settings before upstream workflows start, while keeping forcing

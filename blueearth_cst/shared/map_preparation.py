@@ -171,8 +171,16 @@ def _repo_root() -> Path:
 
 def _code_identity(paths: Sequence[str]) -> list[dict[str, str]]:
     return [
-        {"path": path, "sha256": file_digest(_repo_root() / path)} for path in paths
+        {"path": path, "sha256": code_digest(_repo_root() / path)} for path in paths
     ]
+
+
+def code_digest(path: str | Path) -> str:
+    """Ignore checkout line endings in Python code; keep lock-file bytes exact."""
+    path = Path(path)
+    if path.suffix != ".py":
+        return file_digest(path)
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
 def environment_identity() -> dict[str, Any]:

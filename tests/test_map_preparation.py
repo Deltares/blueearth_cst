@@ -113,7 +113,7 @@ def test_source_edits_preserve_only_compatible_preparations(
     before = mp.preparation_identity(spec, 1, policy)
     path = mp.source_fields_path(spec)
     saved = path.read_bytes()
-    original = mp.file_digest
+    original = mp.code_digest
     changed_path = Path(__file__).resolve().parents[1] / "blueearth_cst" / changed
 
     def edited_digest(source):
@@ -122,7 +122,7 @@ def test_source_edits_preserve_only_compatible_preparations(
             return hashlib.sha256(source.read_bytes() + b"\n# edit\n").hexdigest()
         return original(source)
 
-    monkeypatch.setattr(mp, "file_digest", edited_digest)
+    monkeypatch.setattr(mp, "code_digest", edited_digest)
     after = mp.preparation_identity(spec, 1, policy)
     if scientific:
         assert after != before
@@ -158,6 +158,34 @@ def test_display_reference_reuses_fields_without_scientific_execution(
         mp.read_source_fields(spec, 1, policy)[0].precip_valid_years, np.ones((2, 2))
     )
     assert target.read_bytes() == before
+
+
+def test_checkout_line_endings_preserve_prepared_fields(prepared, monkeypatch):
+    spec, policy = prepared
+    source = mp._repo_root() / "blueearth_cst/shared/forcing_data.py"
+    read_bytes = Path.read_bytes
+    source_bytes = read_bytes(source).replace(b"\r\n", b"\n")
+    changed = source_bytes.replace(b"\n", b"\r\n")
+
+    def checkout_bytes(path):
+        return changed if path == source else read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", checkout_bytes)
+    fields, _ = mp.read_source_fields(spec, 1, policy)
+    np.testing.assert_array_equal(fields.precip.values, np.full((2, 2), 730.0))
+
+    changed += b"\r\n# scientific code edit\r\n"
+    with pytest.raises(ValueError, match="stale preparation"):
+        mp.read_source_fields(spec, 1, policy)
+
+
+def test_code_identity_keeps_lock_file_bytes_exact(tmp_path):
+    lock = tmp_path / "Manifest.toml"
+    lock.write_bytes(b"version = 1\n")
+    before = mp.code_digest(lock)
+    lock.write_bytes(b"version = 1\r\n")
+    assert mp.code_digest(lock) != before
+    assert mp.code_digest(lock) == mp.file_digest(lock)
 
 
 def test_changed_input_and_corrupt_payload_are_refused(prepared):
