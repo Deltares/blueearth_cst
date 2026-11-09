@@ -95,7 +95,8 @@ the rates with native-calendar day counts and report mm; monthly changes retain 
 PET adds annual anomalies (mm/year), monthly climatology (mm/day), and annual/seasonal change figures
 (percent by default, mm with absolute change), with method and approximation in captions. It remains
 an analytical output: precipitation–temperature clouds and stress-test axes are unchanged.
-Raw meteorological grids remain in `raw/`; calculated cell-wise grids are not retained. Monthly PET
+Raw meteorological grids remain in `raw/`; member-resolved annual/monthly diagnostic changes are
+retained in `analysis/gridded_changes/`, including calculated PET when configured. Monthly PET
 series share `scalar/`, tidy tables share `analysis/`, and the existing summary CSVs include PET rows.
 Source units, paths, calendar, method/library and support are recorded with the series and in
 `_engine/analysis_record.json`. Changing method refreshes current derived products in place; use
@@ -143,8 +144,9 @@ attributes and `_engine/analysis_record.json`. Figures add annual anomalies, mon
 annual/seasonal mean differences. Analysis tables also carry `method`, `definition` and `height_m`;
 these fields distinguish the two wind statistics when tables circulate independently. Figures use
 `cmip6_tdew_*_basin_avg.png` and `cmip6_wind_*_basin_avg.png`.
-Standalone captions explain methods, periods, counts and approximations. There is no persistent derived
-native-grid export. Removing opt-ins retires only their previously managed figures/captions, including
+Standalone captions explain methods, periods, counts and approximations. Derived annual/monthly native-grid
+changes are retained with the spatial diagnostics; full derived monthly meteorological series remain
+basin averages in `scalar/`. Removing opt-ins retires only their previously managed figures/captions, including
 removed horizons. Scientific choices refresh derived identities; presentation changes do not reacquire
 inputs. Separate project roots retain alternative analyses. The P/T cloud and stressor axes are unchanged.
 Controlled fixtures exercise these methods; matching live input availability remains unqualified.
@@ -169,11 +171,33 @@ The main outputs are:
   model–scenario–member comparisons; `summary/provenance.json` records their sources.
 - **Diagnostic tables (`analysis/`).** Coverage, changes, seasonal cycles, model agreement and
   variability, with effective periods and availability in `_engine/analysis_record.json`.
+- **Native-grid diagnostics (`analysis/gridded_changes/`).** Annual and monthly changes for each
+  paired model–scenario–member and analysis window. NetCDFs preserve source-grid coordinates;
+  `inventory.json` identifies members, sources, windows, methods and unavailable comparisons.
 - **Figures (`plots/full_period/` and `plots/period_<start>_<end>/`).** Available figures for the full
   record and analysis windows. `plots/figure_captions.md` and `_engine/figure_captions.json` explain
   produced and unavailable figures; title inventories accompany them.
 
 Figures use the diagnostic tables, whose effective periods may differ from the change-factor tables.
+By default, each window also includes annual spatial matrices with model rows and scenario columns, and
+twelve-month spatial sheets per model/scenario/variable. Basin-average monthly changes are summarized by
+the existing box plots; individual `cmip6_delta_monthly_*.png` curve sheets are no longer produced.
+Previously managed copies are removed when their figure directory is regenerated.
+Spatial sheets summarize members by cell-wise median and retain
+their counts in captions. Every available combination is shown, including ensembles smaller than ten models.
+Maps use native GCM cells, clipped to the basin outline for display without interpolation. A small basin may
+fall entirely inside one coarse cell. Annual temperature changes use day-weighted means; annual precipitation
+changes compare duration integrals, rather than averaging monthly percentages. Monthly precipitation factors
+are retained as future/reference ratios; display changes are `100 × (factor − 1)`. Each cell must have all
+monthly inputs in both complete analysis windows; dry or incomplete cells remain unavailable.
+
+These are projection diagnostics, independent of stochastic or delta scenario generation and requiring no
+scenario collection or Wflow model. Native-grid changes reuse local raw slices and existing WF2 kernels.
+Figure rerendering uses retained gridded changes when available, checking recorded member hashes.
+For older runs without these products, it reconstructs spatial changes from their local raw slices and
+scalar provenance in the review destination; those inputs must still be available.
+Temperature and precipitation map ramps follow UNESCO draft report Figure 13, with explicit signed scales
+and zero ticks. Maps share a scale across models/scenarios for each variable, window and temporal scope.
 Project `plotting.annotation` selects a title, caption or neither. See
 [execution records](execution-and-provenance.md#wf2-product-attribution) for production records and
 [results transfer](results-transfer.md) for export and import.

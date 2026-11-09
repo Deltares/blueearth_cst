@@ -9,10 +9,11 @@ development milestones do not create one.
 
 Git release tags `vX.Y.Z` are the version authority; new tags are annotated. Earlier `v0.1.0-alpha` and
 `v0.2.0-alpha` tags remain valid historical releases; new tags use plain `vX.Y.Z`. Do not rewrite tags
-or infer a release from a branch name. The runner reports the nearest ancestral release tag and current
-short commit in its `toolbox` row and invocation JSON. It marks local changes or unknown worktree status;
-without a release tag it says `unversioned (<short-commit>)`, and without a commit, `version unavailable`.
-The commit identifies the exact checkout; the preceding tag does not version its later changes.
+or infer a release from a branch name. The runner shows a release label only for a clean checkout at
+an exact release tag. Other checkouts show `development (<short-commit>)`, with `local changes` or
+`working tree unknown` when applicable. Without a commit it says `version unavailable`.
+Invocation JSON retains both the nearest ancestral `release_tag` and any `exact_release_tag`.
+The commit identifies the checkout; an ancestral tag does not version its later changes.
 
 Compatibility covers documented commands, configuration keys and meaning, durable output paths and formats,
 and scientific calculation methods. Internal refactors and disposable intermediates are outside that surface.

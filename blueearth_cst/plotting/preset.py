@@ -69,6 +69,7 @@ class Preset:
     maps: the keys of ``NEUTRAL_MAPS``, where ``river_order`` is
     ``((width_pt, colour), ...)`` lowest order first. ``map_panels`` holds the
     geometry, page cap and mark-scaling keys in ``NEUTRAL_MAP_PANELS``.
+    ``time_series`` holds data-line and marker weights, opacity and horizontal-grid settings.
     """
 
     widths: Mapping[str, float]
@@ -84,6 +85,17 @@ class Preset:
     maps: Mapping[str, Any] = field(default_factory=lambda: dict(NEUTRAL_MAPS))
     map_panels: Mapping[str, float | int] = field(
         default_factory=lambda: dict(NEUTRAL_MAP_PANELS)
+    )
+    time_series: Mapping[str, float] = field(
+        default_factory=lambda: {
+            "line_width": 0.65,
+            "marker_size": 1.3,
+            "alpha": 0.95,
+            "secondary_alpha": 0.8,
+            "observed_width": 1.5,
+            "grid_width": 0.5,
+            "grid_alpha": 0.55,
+        }
     )
 
 

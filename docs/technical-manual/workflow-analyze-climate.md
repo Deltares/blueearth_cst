@@ -16,7 +16,7 @@ using maps, time series and diagnostics of coverage, seasonality and extremes.
 
 See [input formats](data-formats-and-conventions.md) for file conventions.
 
-The selected forcing must supply at least 16 years. Source coverage can shorten the requested period;
+Historical candidate datasets must supply at least 16 years. Source coverage can shorten the requested period;
 extraction requires overlap between the source record and that period.
 
 ## Configuration {#configuration}
@@ -27,7 +27,7 @@ extraction requires overlap between the source record and that period.
 |---|---|
 | `basin.region`, `basin.resolution` | Basin extent and analysis resolution. |
 | `climate.sources` | Candidate historical datasets to analyze. |
-| `climate.forcing.precip_source` | Optional forcing choice; comparison-only analysis needs none. |
+| `climate.forcing.precip_source` | Used by downstream forcing consumers; not required for comparisons. |
 | `climate.window` | Requested historical period. |
 | `climate.water_year_start` | Month that begins the reporting year. |
 
@@ -179,7 +179,7 @@ comparison. Outside-basin and outside-grid sites remain indexed with explicit ex
 An alternate temperature companion retains its true source label and its configured preparation;
 its figures identify the retained extraction grid instead of claiming the original companion grid.
 
-Each location has precipitation coverage, annual overlays and monthly climatology figures. Where
+Each location has annual overlays and monthly climatology figures. Where
 observations exist, a monthly agreement figure adds one panel per gridded dataset, common axis limits,
 a 1:1 line, Pearson r and the number of complete paired months. Annual overlays and monthly panels adapt
 the comparison forms of Figures 8–12 in *Development of a Climate Stress Test and Case Study for Zimbabwe*
@@ -187,6 +187,9 @@ the comparison forms of Figures 8–12 in *Development of a Climate Stress Test 
 Temperature annual means and climatologies use only genuine temperature carriers; monthly agreement requires
 `temp_path`. The temperature scatter explicitly compares monthly means. Correlation includes the seasonal
 cycle and does not measure anomaly skill or establish accuracy.
+
+Precipitation monthly-coverage plots are omitted throughout historical climate analysis. Coverage and
+completeness remain available in the retained tables.
 
 Per-location tables retain coverage, daily agreement, monthly/annual precipitation, native-cell
 coordinates/CRS, exclusions and optional temperature means. Monthly agreement metrics retain paired-month
@@ -370,10 +373,16 @@ written last. Readers verify its manifest and payloads before rendering. Changed
 settings create a new bundle; unchanged evaluations reuse verified products. Existing schema-2 diagnostic
 tables and formulas retain their previous meaning, including their legacy precipitation totals.
 
-Figures under `plots/indices/` include annual and configured-season basin panels, complete wet-spell
-exceedance and one native-grid map per metric, retaining unavailable panels. The adjacent captions JSON
-records interpretation and evaluation identity. This first bundle is source/basin based; existing optional
-subbasin diagnostics continue separately. Comparison tables do not acquire new climate-index columns.
+Figures under `plots/indices/` split annual and configured-season basin panels into dry/wet spells,
+heavy rainfall, rainfall amount and frequency, temperature extremes, and heatwaves. Only available
+indices, scopes and native-grid maps are emitted, alongside complete wet-spell exceedance when available.
+Compact sheets share unit labels within compatible rows and year titles by column. Single-source plots
+omit empty boundary periods while preserving internal gaps. `figure_availability.json` lists emitted
+PNGs and omitted indices; the adjacent captions JSON records interpretation and evaluation identity.
+The workflow owns this directory as one availability-dependent rendering product, replacing the former
+combined annual/seasonal sheets and individually declared index maps. This bundle is source/basin based;
+existing optional subbasin diagnostics continue separately. Comparison tables do not acquire new
+climate-index columns.
 The retained-source mode of `scripts/render_figures.py` also renders enabled index bundles into its
 separate output directory, preserving the original publication and its reference.
 

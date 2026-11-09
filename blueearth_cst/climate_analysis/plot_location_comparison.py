@@ -14,10 +14,19 @@ import xarray as xr
 
 from blueearth_cst.climate_analysis.diagnostic_figures import source_styles
 from blueearth_cst.climate_analysis.diagnostics import month_order
-from blueearth_cst.climate_analysis.figure_naming import figure_filename
+from blueearth_cst.climate_analysis.figure_naming import (
+    figure_filename,
+    location_name_token,
+)
+from blueearth_cst.climate_analysis.rain_gauges import matched_tables
 from blueearth_cst.plotting.export import export_figure
 from blueearth_cst.plotting.figure_titles import write_figure_titles
-from blueearth_cst.plotting.fundamentals import new_fig
+from blueearth_cst.plotting.fundamentals import (
+    new_fig,
+    time_series_grid,
+    time_series_style,
+    year_ticks,
+)
 from blueearth_cst.plotting.panel_layout import arrange_panels
 from blueearth_cst.plotting.preset import use_preset
 from blueearth_cst.shared.plot_preset import CST_PRESET
@@ -112,7 +121,7 @@ def series_figure(
     form: str,
     variable: str,
 ):
-    """Matched annual overlays or monthly climatologies, retaining unavailable gaps."""
+    """Annual overlays or monthly climatologies, retaining unavailable gaps."""
     fig, axes = new_fig(80, width_mm=150)
     ax = axes[0, 0]
     monthly = form == "monthly_clim_line"
@@ -130,63 +139,24 @@ def series_figure(
             x,
             data,
             label=labels[source],
-            color=color,
             marker=marker,
-            ms=3,
-            linestyle=(
-                "--"
-                if source == "observed"
-                else ("-", ":", "-.")[list(styles).index(source) % 3]
-            ),
+            **time_series_style(source, color),
         )
     if monthly:
         ax.set_xticks(
             range(12), [pd.Timestamp(2000, month, 1).strftime("%b") for month in order]
         )
     else:
-        years = sorted(pd.to_numeric(table.period.unique()))
-        ax.set_xticks(years[:: max(1, len(years) // 10)])
-        ax.set_xlim(years[0] - 0.5, years[-1] + 0.5)
+        years = np.sort(pd.to_numeric(table.period.unique()))
+        year_ticks(ax, years)
     ax.set(
-        ylabel="Precipitation (mm)"
-        if variable == "precip"
-        else "Mean temperature (°C)",
-        xlabel="Calendar month" if monthly else "Reporting year (start)",
+        ylabel=("mm/month" if monthly else "mm/year") if variable == "precip" else "°C",
+        xlabel="Calendar month" if monthly else "Year",
     )
     if not table[value].notna().any():
-        ax.text(
-            0.5, 0.5, "No complete matched periods", ha="center", transform=ax.transAxes
-        )
+        ax.text(0.5, 0.5, "No complete periods", ha="center", transform=ax.transAxes)
     ax.legend(fontsize=7)
-    ax.grid(axis="y", alpha=0.15)
-    return fig
-
-
-def coverage_figure(frame: pd.DataFrame, labels: dict, styles: dict):
-    """Show individual coverage and the common-valid-day fraction for precipitation."""
-    fractions = (
-        frame.notna()
-        .assign(joint=frame.notna().all(axis=1))
-        .set_axis(frame.index - pd.Timedelta(days=1))
-        .resample("MS")
-        .mean()
-    )
-    fig, axes = new_fig(80, width_mm=150)
-    ax = axes[0, 0]
-    for source in fractions:
-        color, marker = styles.get(source, ("0.5", "x"))
-        ax.plot(
-            fractions.index,
-            fractions[source],
-            color=color,
-            marker=marker,
-            ms=2,
-            linestyle="--" if source == "observed" else "-",
-            label=labels.get(source, "Common valid days"),
-        )
-    ax.set(ylabel="Fraction of expected days", ylim=(-0.03, 1.05))
-    ax.legend(fontsize=7)
-    ax.grid(axis="y", alpha=0.15)
+    time_series_grid(ax)
     return fig
 
 
@@ -210,7 +180,17 @@ def render(
         xr.open_dataset(root / "_engine/locations/daily.nc") as ds,
         use_preset(CST_PRESET),
     ):
+        name_counts = registry.name.map(location_name_token).value_counts()
         for location in registry.itertuples():
+            name_token = location_name_token(location.name)
+            meaningful_name = (
+                location.name
+                if name_token
+                and not str(location.kind).startswith("automatic")
+                and not name_token.startswith("auto_")
+                and name_counts[name_token] == 1
+                else None
+            )
             target = destination / "plots/locations" / location.id
             target.mkdir(parents=True, exist_ok=True)
             tables = root / "tables/locations" / location.id
@@ -250,25 +230,33 @@ def render(
                 styles["observed"] = ("#333333", "o")
                 prefix = "" if variable == "precip" else "temp_"
                 monthly = pd.read_csv(tables / f"{prefix}monthly.csv")
-                annual = pd.read_csv(tables / f"{prefix}annual.csv")
                 value = "total_mm" if variable == "precip" else "mean_degC"
+                # Overlays retain each source's full complete-year record.
+                # Agreement tables and monthly climatologies keep paired support.
+                if variable == "temp":
+                    # Keep the HydroMT sampling imports out of drawing-only use.
+                    from blueearth_cst.climate_analysis.location_comparison import (
+                        temperature_tables,
+                    )
+
+                frame = ds[variable].sel(location=location.id, source=names).to_pandas()
+                annual = pd.concat(
+                    [
+                        matched_tables(frame[[source]], m0, observed=False)["annual"]
+                        if variable == "precip"
+                        else temperature_tables(frame[[source]], m0)["annual"]
+                        for source in names
+                    ],
+                    ignore_index=True,
+                )
                 if variable == "precip":
                     monthly = monthly.rename(columns={"month": "period"})
                     annual = annual.rename(columns={"reporting_year": "period"})
                 forms = ["monthly_clim_line", "annual_ts"]
-                if variable == "precip":
-                    forms.insert(0, "monthly_coverage")
                 if has_observed:
                     forms.append("monthly_agreement")
                 for form in forms:
-                    if form == "monthly_coverage":
-                        frame = (
-                            ds[variable]
-                            .sel(location=location.id, source=names)
-                            .to_pandas()
-                        )
-                        fig = coverage_figure(frame, labels, styles)
-                    elif form == "monthly_agreement":
+                    if form == "monthly_agreement":
                         metrics = pd.read_csv(tables / f"{prefix}monthly_agreement.csv")
                         fig = agreement_figure(
                             monthly,
@@ -294,17 +282,25 @@ def render(
                         variable,
                         form,
                         f"location_{location.id.removeprefix('location_')}_point",
+                        location_name=meaningful_name,
                     )
                     title = (
                         f"{variable.title()} {form.replace('_', ' ')} — {location.name} "
                         f"[{location.id}] ({record['comparison_period']['start']}–{record['comparison_period']['end']})"
                     )
+                    support_note = (
+                        "No infill: each source shows its own complete reporting years; "
+                        "missing or incomplete years remain gaps. Retained agreement tables "
+                        "continue to use matched support. "
+                        if form == "annual_ts"
+                        else "No infill: totals and temperature means require complete matched months or reporting years. "
+                        "Climatologies average the same complete months across series. "
+                    )
                     caption = (
                         f"{title}. Sources: {', '.join(labels.values())}. "
                         "Retained grid cells sampled at original location coordinates; point/grid support differs. "
                         "Midnight UTC interval ends are attributed to the preceding day. "
-                        "No infill: totals and temperature means require complete matched months or reporting years. "
-                        "Climatologies average the same complete months across series. "
+                        f"{support_note}"
                         "Comparison diagnoses consistency; correlation alone does not establish accuracy. "
                         "Gridded products may incorporate gauge observations."
                     )

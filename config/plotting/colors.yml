@@ -38,6 +38,11 @@ climate_maps:
   pet: Oranges
 precip_anomaly: BrBG
 
+# UNESCO draft report Figure 13 legend swatches, adapted to signed WF2 changes.
+projection_changes:
+  precip: ["#00f5f5", "#31bff7", "#398bf7", "#345bf7", "#202bf7", "#3500f5", "#6e00f5", "#9b00f5", "#c800f5", "#f500f5"]
+  temp: ["#0000ff", "#3874ff", "#29dbff", "#8affbe", "#daff61", "#ffe100", "#ff8400", "#ff0000"]
+
 # Current WF0/WF1 historical display-reference maps use these reviewed ramps.
 # Precipitation and PET share the water-quantity ramp; preserve their endpoints.
 historical_maps:
@@ -55,6 +60,8 @@ neutral:
   muted: "#536875"
   axis: "#82939b"
   grid: "#e6edef"
+  time_series_grid: "#c7d1d8"
+  time_series_observed: "#777777"
   boundary: "#c6d2d8"
   missing: "#a0a0a0"
   qa: "#882255"

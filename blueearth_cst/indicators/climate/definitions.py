@@ -28,3 +28,76 @@ INDEX_METADATA = {
     "prcptot": ("Wet-day precipitation", "mm"),
     "sdii": ("SDII", "mm/day"),
 }
+
+# Presentation scopes; unavailable metrics and wholly unavailable scopes are omitted.
+INDEX_GROUPS = {
+    "spells": (
+        "Dry and wet spells",
+        3,
+        (
+            "cdd",
+            "cwd",
+            "wet_spell_mean",
+            "wet_spell_median",
+            "wet_spell_p90",
+        ),
+    ),
+    "heavy_rainfall": (
+        "Heavy rainfall",
+        2,
+        (
+            "r10mm",
+            "r20mm",
+            "rx1day",
+            "rx5day",
+            "r95p_amount",
+            "r95p_fraction",
+        ),
+    ),
+    "rainfall_characteristics": (
+        "Rainfall amount and frequency",
+        3,
+        (
+            "prcptot",
+            "wet_days",
+            "sdii",
+        ),
+    ),
+    "temperature_extremes": (
+        "Temperature extremes",
+        2,
+        (
+            "txx",
+            "tnx",
+            "mean_temp_below_zero_days",
+            "mean_temp_above_threshold_days",
+            "tx90p",
+            "tn90p",
+        ),
+    ),
+    "heatwaves": (
+        "Heatwaves",
+        3,
+        (
+            "wsdi",
+            "heatwave_days",
+            "longest_heatwave",
+            "heatwave_count",
+        ),
+    ),
+}
+
+INDEX_SERIES_LABELS = {
+    "cdd": "Longest dry spell · CDD",
+    "cwd": "Longest wet spell · CWD",
+    "wet_spell_mean": "Mean wet-spell duration",
+    "wet_spell_median": "Median wet-spell duration",
+    "wet_spell_p90": "90th-percentile wet spell",
+    "r10mm": "Days ≥10 mm · R10mm",
+    "r20mm": "Days ≥20 mm · R20mm",
+    "rx1day": "Maximum 1-day rain · Rx1day",
+    "rx5day": "Maximum 5-day rain · Rx5day",
+    "prcptot": "Wet-day rain · PRCPTOT",
+    "wet_days": "Wet days",
+    "sdii": "Wet-day intensity · SDII",
+}

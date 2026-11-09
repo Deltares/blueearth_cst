@@ -4,14 +4,14 @@
 One station, four figures, split by the question a reader is asking:
 
 * ``hydrograph_<wflow_id>`` — what the model produces. Daily series, annual
-  means, the mean annual cycle and both flow-duration curves. The ONLY sheet
+  means, the mean annual cycle, daily agreement and log flow duration. The ONLY sheet
   that needs no observations, so it is drawn for every station on every run.
 * ``signatures_peaks_<wflow_id>`` — the high end. Flood frequency, the
-  year-by-year annual maximum against observed, and the full record with its wettest year highlighted.
+  year-by-year annual maximum against observed, and the full record with wet years highlighted.
 * ``signatures_lows_<wflow_id>`` — the dry end, in the same three places, so the
   two sheets read against each other without re-learning the layout.
-* ``performance_<wflow_id>`` — goodness of fit: the daily scatter, the
-  cumulative volume that shows WHEN a bias accrues, and the indicators table.
+* ``performance_<wflow_id>`` — goodness of fit: a separate indicators table,
+  with metrics in rows and daily, monthly and ideal values in columns.
 
 This replaces ``func_plot_signature.plot_hydro`` (five stacked panels) and
 ``plot_signatures`` (ten untitled ones). What changed beyond the layout:
@@ -25,8 +25,7 @@ This replaces ``func_plot_signature.plot_hydro`` (five stacked panels) and
   ``resample(...).sum()`` of a series in m3 s-1 and labelled the result
   ``m3 yr-1`` / ``m3 month-1`` — wrong by 86400, since a sum of daily mean
   discharges is not a volume. They are means now, in m3 s-1, which is also the
-  unit of the daily panel above them. Cumulative discharge, labelled
-  ``m3 s-1``, is a real volume here.
+  unit of the daily panel above them.
 * **The performance panel can show failure.** Its predecessor pinned the y axis
   to [0, 1], so a model with NSE = -3 plotted off the bottom and looked
   identical to one scoring 0. It is a table now, and the table prints what the
@@ -69,8 +68,7 @@ STATION_PLOT_DIRNAME = "stations"
 # TUNABLE CONSTANTS
 # ===========================================================================
 
-#: Expanded original blue for observed, Terracotta for simulated. Preserve
-#: dashed/solid distinctions; this palette is not certified for colour vision.
+#: WF1 retains blue dashed observations; simulations use solid Terracotta.
 COLOR_OBSERVED = EVALUATION_COLORS["observed"]
 COLOR_SIMULATED = EVALUATION_COLORS["simulated"]
 #: Marks that belong to neither series — the period mean, a 1:1 line's anchor.
@@ -94,8 +92,8 @@ HEIGHT_EXTREMES_MM = STYLE_SETTINGS["evaluation"]["heights"]["extremes"]
 HEIGHT_PERFORMANCE_MM = STYLE_SETTINGS["evaluation"]["heights"]["performance"]
 
 #: Return periods marked on the frequency panels.
-RETURN_PERIODS = (2.0, 5.0, 10.0, 30.0)
-#: Gringorten plotting-position constants, as the previous implementation used.
+RETURN_PERIODS = (2.0, 5.0, 10.0, 20.0)
+#: Empirical plotting-position constant, as the previous implementation used.
 _PLOTTING_POSITION_A = 0.3
 
 #: A log axis cannot show a zero, and this toolbox runs on basins that dry out.
@@ -124,7 +122,6 @@ INDICATOR_GROUPS = (
 #: Seconds per day: the daily mean discharge to volume conversion, and the
 #: reason the cumulative panel is in m3 rather than in the "cumulative m3 s-1"
 #: its predecessor printed.
-SECONDS_PER_DAY = 86400.0
 
 _MONTH_INITIALS = list("JFMAMJJASOND")
 
@@ -179,24 +176,28 @@ def _figure_size(height_mm):
 
 def _draw_series(ax, simulated, observed, x_sim=None, x_obs=None):
     """Observed then simulated, so the dense simulated line reads on top."""
+    from blueearth_cst.plotting.fundamentals import time_series_grid, time_series_style
+
     if observed is not None:
+        observed_style = time_series_style("observed", COLOR_OBSERVED)
+        observed_style.update(
+            color=COLOR_OBSERVED, linestyle=DASH_OBSERVED, linewidth=LINE_WIDTH
+        )
         ax.plot(
             x_obs if x_obs is not None else observed["time"],
             observed,
-            color=COLOR_OBSERVED,
-            lw=LINE_WIDTH,
-            ls=DASH_OBSERVED,
+            **observed_style,
             label="observed",
             zorder=3,
         )
     ax.plot(
         x_sim if x_sim is not None else simulated["time"],
         simulated,
-        color=COLOR_SIMULATED,
-        lw=LINE_WIDTH,
+        **time_series_style("simulated", COLOR_SIMULATED),
         label="simulated",
         zorder=4,
     )
+    time_series_grid(ax)
 
 
 def _reference_line(ax, high):
@@ -246,12 +247,7 @@ def _draw_fdc(ax, simulated, observed, log_scale):
 
 
 def _draw_frequency(ax, observed, simulated, ylabel, ascending):
-    """Extremes on a Gumbel reduced variate, with return periods at the frame.
-
-    The labels sit AT the top of the frame with a halo, not rotated 45 degrees
-    across the middle of the panel as they were — where they crossed the points
-    they were meant to annotate.
-    """
+    """Ranked extremes on a probability scale labelled in return-period years."""
     import numpy as np
 
     from blueearth_cst.shared import plot_preset as cst
@@ -266,40 +262,33 @@ def _draw_frequency(ax, observed, simulated, ylabel, ascending):
             observed.sortby(observed, ascending=ascending),
             "+",
             color=COLOR_OBSERVED,
-            ms=4,
-            label="observed",
+            ms=5,
+            mew=0.9,
+            alpha=0.9,
+            label="Observed",
         )
     ax.plot(
         reduced,
         simulated.sortby(simulated, ascending=ascending),
-        "o",
-        ms=cst.MS_POINT,
-        mfc=COLOR_SIMULATED,
-        mec=COLOR_NEUTRAL,
-        mew=0.5,
-        alpha=0.7,
-        label="simulated",
+        "+",
+        color=COLOR_SIMULATED,
+        ms=5,
+        mew=0.9,
+        alpha=0.9,
+        label="Simulated",
     )
-    # Reserve headroom for the return-period labels without covering the largest mark.
+    # Reserve headroom for the inside legend without covering the largest mark.
     bottom, top = ax.get_ylim()
     ax.set_ylim(bottom, top + 0.22 * (top - bottom))
-    top = ax.get_ylim()[1]
+    positions = []
     for period in RETURN_PERIODS:
         position = -np.log(-np.log(1 - 1.0 / period))
+        positions.append(position)
         ax.axvline(position, color=cst.BOUNDARY, lw=0.5, alpha=0.7, zorder=1)
-        ax.text(
-            position,
-            top,
-            f"T={period:.0f}y",
-            rotation=90,
-            va="top",
-            ha="right",
-            fontsize=cst.FS_NOTE,
-            color=cst.MUTED,
-            bbox=cst.LABEL_BOX,
-        )
-    ax.set_xlabel("Gumbel reduced variate (–)")
+    ax.set_xticks(positions, [f"{period:g}" for period in RETURN_PERIODS])
+    ax.set_xlabel("Return period (years)")
     ax.set_ylabel(ylabel)
+    ax.legend(loc="upper right", frameon=True, edgecolor="none", framealpha=0.88)
 
 
 def annual_extremes(simulated, observed):
@@ -373,11 +362,10 @@ def _save(fig, plot_dir, stem, annotation="none", record=None):
 def plot_hydrograph(
     simulated, station, plot_dir, observed=None, caveat=None, *, annotation="none"
 ):
-    """What the model produces: daily, annual, seasonal, and both FDCs.
+    """Daily, annual and seasonal discharge, daily agreement and log FDC.
 
     The one sheet drawn for EVERY station on every run — every panel is
-    computable from the simulation alone, so ``observed`` only adds a second
-    line where one exists.
+    Daily agreement is marked unavailable when observations are absent.
     """
     import matplotlib.pyplot as plt
     import numpy as np
@@ -406,7 +394,7 @@ def plot_hydrograph(
         ax_daily = fig.add_subplot(grid[0, :])
         ax_annual = fig.add_subplot(grid[1, 0])
         ax_cycle = fig.add_subplot(grid[1, 1])
-        ax_fdc = fig.add_subplot(grid[2, 0])
+        ax_scatter = fig.add_subplot(grid[2, 0])
         ax_fdc_log = fig.add_subplot(grid[2, 1])
 
         _draw_series(ax_daily, prepared["daily_simulated"], prepared["daily_observed"])
@@ -428,6 +416,7 @@ def plot_hydrograph(
             np.setdiff1d(np.arange(first_tick, years[-1] + 1), major), minor=True
         )
         ax_annual.set_xlim(first_tick - 0.5, years[-1] + 0.5)
+        ax_annual.set_xlabel("Year")
 
         _draw_series(
             ax_cycle,
@@ -440,22 +429,58 @@ def plot_hydrograph(
         ax_cycle.set_xticks(np.arange(1, 13))
         ax_cycle.set_xticklabels(artists.MONTH_ABBR)
 
-        _hydrograph_fdc(ax_fdc, prepared, log_scale=False)
-        ax_fdc.set_title("d) Flow duration", loc="left", y=1.0)
+        ax_scatter.set_title("d) Daily discharge agreement", loc="left", y=1.0)
+        if observed is not None:
+            pairs, _ = _performance_pairs(simulated, observed)
+            finite = pairs.dropna()
+            high = 1.04 * (
+                max(float(np.ceil(finite.to_numpy().max())), 1.0)
+                if len(finite)
+                else 1.0
+            )
+            ax_scatter.plot(
+                finite["observed"],
+                finite["simulated"],
+                "o",
+                ms=1.3,
+                mfc=COLOR_SIMULATED,
+                mec="none",
+                alpha=0.4,
+                ls="none",
+            )
+            _reference_line(ax_scatter, high)
+            message = "No valid concurrent discharge" if finite.empty else None
+        else:
+            message = "Observations unavailable"
+        if message:
+            ax_scatter.text(
+                0.5,
+                0.5,
+                message,
+                transform=ax_scatter.transAxes,
+                ha="center",
+                va="center",
+                fontsize=cst.FS_NOTE,
+                color=cst.MUTED,
+            )
         _hydrograph_fdc(ax_fdc_log, prepared, log_scale=True)
         ax_fdc_log.set_title("e) Flow duration (log)", loc="left", y=1.0)
 
         for ax in fig.axes:
             ax.set_ylabel("m³ s⁻¹")
             ax.grid(axis="y", alpha=0.7)
-        for ax in (ax_fdc, ax_fdc_log):
-            ax.set_xlabel("Exceedance probability (%)")
-            ax.xaxis.set_major_formatter(
-                PercentFormatter(xmax=1, decimals=0, symbol="")
-            )
+        ax_scatter.set_xlabel("Observed (m³ s⁻¹)")
+        ax_scatter.set_ylabel("Simulated (m³ s⁻¹)")
+        ax_scatter.grid(axis="y", alpha=0.4, linewidth=0.5)
+        ax_fdc_log.set_xlabel("Exceedance probability (%)")
+        ax_fdc_log.xaxis.set_major_formatter(
+            PercentFormatter(xmax=1, decimals=0, symbol="")
+        )
 
         for ax in (ax_daily, ax_annual, ax_cycle):
             ax.margins(x=0.01)
+            artists.time_series_grid(ax)
+        artists.date_year_ticks(ax_daily)
         handles, _ = ax_daily.get_legend_handles_labels()
         for handle, label in zip(
             handles,
@@ -638,6 +663,7 @@ def _hydrograph_fdc(ax, prepared, log_scale):
     import numpy as np
 
     from blueearth_cst.shared.plot_preset import FS_NOTE, LABEL_BOX, MUTED
+    from blueearth_cst.plotting.fundamentals import time_series_style
 
     positive = []
     for key, color, style in (
@@ -650,12 +676,13 @@ def _hydrograph_fdc(ax, prepared, log_scale):
         values, probability = result["fdc"], result["probability"]
         selected = values > 0 if log_scale else np.ones(len(values), dtype=bool)
         if selected.any():
+            line_style = time_series_style(key, color)
+            if key == "observed":
+                line_style.update(color=color, linewidth=LINE_WIDTH, linestyle=style)
             ax.plot(
                 probability[selected],
                 values[selected],
-                color=color,
-                lw=LINE_WIDTH,
-                ls=style,
+                **line_style,
             )
         positive.extend(values[values > 0].tolist())
     if log_scale:
@@ -720,25 +747,26 @@ def _hydrograph_caption(prepared, station, plot_dir, caveat):
     caption = (
         f"Discharge at {station.caption}, {start}–{end}. "
         "a) Daily discharge; b) annual mean; c) mean seasonal cycle; "
-        "d) flow-duration curve; e) flow-duration curve on a logarithmic discharge axis. "
+        "d) simulated versus observed daily discharge with a dashed 1:1 reference; "
+        "e) flow-duration curve on a logarithmic discharge axis. "
         "Discharge is in m³ s⁻¹. The vermillion solid line shows simulated discharge"
         + (
             " and the blue dashed line shows observed discharge. "
             if observed is not None
-            else "; observations were not supplied. "
+            else "; observations were not supplied and daily agreement is unavailable. "
         )
         + "The daily panel retains each series' available context; "
         + (
             "panels b–e use only concurrent finite, nonnegative observed–simulated pairs. "
             if observed is not None
-            else "panels b–e use finite, nonnegative simulation values. "
+            else "panels b, c and e use finite, nonnegative simulation values. "
         )
         + "Omitted dates are restored as missing days on a regular daily calendar. "
         + f"Annual means require full calendar-year boundaries, at most {prepared['methods']['max_missing_days_month']} missing days "
         f"in every month and {prepared['methods']['max_missing_days_year']} in the year. Monthly means require full calendar-month "
         "boundaries and the same monthly gap limit. Means use observed days without infilling. "
         "The seasonal cycle gives each eligible monthly mean equal weight across years; a month can be eligible "
-        "even when its year is not. FDCs rank valid days with Weibull positions r/(n+1), including zeros. "
+        "even when its year is not. The FDC ranks valid days with Weibull positions r/(n+1), including zeros. "
         "The log panel shows positive flows at those original positions, retains all positive tails down to "
         "the minimum across both series and reports zero-flow shares separately."
         + (f" {caveat}" if caveat else "")
@@ -825,11 +853,11 @@ def _hydrograph_caption(prepared, station, plot_dir, caveat):
 def plot_extremes(
     simulated, observed, station, plot_dir, kind, caveat=None, *, annotation="none"
 ):
-    """One end of the distribution: frequency, year-by-year, and one year.
+    """One end of the distribution: frequency, paired extremes and daily context.
 
     ``kind`` is ``"peaks"`` or ``"lows"``. The two sheets are deliberately
     identical in shape — analysis on the top row, the full daily record with
-    the selected year highlighted below.
+    wet or dry calendar years highlighted below.
 
     Both need observations: two of the three panels compare against them.
     """
@@ -847,8 +875,14 @@ def plot_extremes(
     peaks = kind == "peaks"
     sim_max, obs_max, sim_nm7q, obs_nm7q = annual_extremes(simulated, observed)
     sim_extreme, obs_extreme = (sim_max, obs_max) if peaks else (sim_nm7q, obs_nm7q)
-    wet, dry = wettest_and_driest_year(simulated)
-    year = wet if peaks else dry
+    # Year shading describes mean simulated flow, independently of observed gaps.
+    annual = _hydrograph_data(simulated)["simulated"]["annual"].to_series().dropna()
+    quantile = 0.75 if peaks else 0.25
+    threshold = float(annual.quantile(quantile)) if len(annual) else None
+    selected_years = []
+    if threshold is not None:
+        selected = annual > threshold if peaks else annual < threshold
+        selected_years = [int(year) for year in annual.index[selected]]
 
     with use_preset(cst.CST_PRESET):
         fig = plt.figure(figsize=_figure_size(HEIGHT_EXTREMES_MM), layout="constrained")
@@ -923,17 +957,20 @@ def plot_extremes(
         )
 
         _draw_series(ax_year, simulated, observed)
-        ax_year.axvspan(
-            pd.Timestamp(year, 1, 1),
-            pd.Timestamp(year + 1, 1, 1),
-            facecolor=cst.MUTED,
-            edgecolor=cst.MUTED,
-            alpha=0.16,
-            linewidth=0.6,
-            label=f"{'Wettest' if peaks else 'Driest'} year ({year})",
-            zorder=1,
-        )
+        for i, year in enumerate(selected_years):
+            ax_year.axvspan(
+                pd.Timestamp(year, 1, 1),
+                pd.Timestamp(year + 1, 1, 1),
+                facecolor=cst.MUTED,
+                edgecolor="none",
+                alpha=0.16,
+                label=("Wet years" if peaks else "Dry years")
+                if i == 0
+                else "_nolegend_",
+                zorder=0,
+            )
         ax_year.set_ylabel("m³ s⁻¹")
+        ax_year.set_xlabel("Year")
         start, end = (
             pd.Timestamp(simulated.time.values[0]),
             pd.Timestamp(simulated.time.values[-1]),
@@ -961,26 +998,28 @@ def plot_extremes(
                 bbox=cst.LABEL_BOX,
                 zorder=5,
             )
-        handles, _ = ax_year.get_legend_handles_labels()
-        artists.inside_legend(
-            fig,
-            ax_year,
-            handles=handles,
-            lines=ax_year.lines,
+        artists.time_series_grid(ax_year)
+        ax_year.legend(
+            loc="upper right",
+            ncol=1,
+            frameon=True,
+            edgecolor="none",
+            framealpha=0.88,
         )
-        legend = ax_year.get_legend()
-        if (
-            legend.get_window_extent().x0
-            < ax_year.get_window_extent().x0 + ax_year.bbox.width / 2
-        ):
-            # Leave room for c) only when the less occupied corner is on the left.
-            legend.set_bbox_to_anchor((0, 0, 1, 0.88))
         stem = f"signatures_{'peaks' if peaks else 'lows'}_{station.wflow_id}"
-        record = _extremes_caption(simulated, station, plot_dir, kind, year, caveat)
+        selection = {
+            "years": selected_years,
+            "quantile": quantile,
+            "threshold_m3_s": threshold,
+            "eligible_years": [int(year) for year in annual.index],
+        }
+        record = _extremes_caption(
+            simulated, station, plot_dir, kind, selection, caveat
+        )
         return _save(fig, plot_dir, stem, annotation, record)
 
 
-def _extremes_caption(simulated, station, plot_dir, kind, year, caveat):
+def _extremes_caption(simulated, station, plot_dir, kind, selection, caveat):
     """Keep signature context and methods in the station caption inventory."""
     import json
     from pathlib import Path
@@ -988,17 +1027,28 @@ def _extremes_caption(simulated, station, plot_dir, kind, year, caveat):
     peaks = kind == "peaks"
     period = [str(value)[:10] for value in simulated.time.values[[0, -1]]]
     extreme = "annual maximum" if peaks else "annual minimum seven-day mean"
+    relation = "above the 75th" if peaks else "below the 25th"
+    threshold = selection["threshold_m3_s"]
+    selection_text = (
+        f"{'Wet' if peaks else 'Dry'} years have complete-calendar-year mean simulated "
+        f"discharge strictly {relation} percentile ({threshold:.2f} m³ s⁻¹). "
+        f"Selected years: {', '.join(map(str, selection['years'])) or 'none'}. "
+        if threshold is not None
+        else "No complete calendar years are available for year shading. "
+    )
     caption = (
         f"{'High' if peaks else 'Low'} flows at {station.caption}, {'–'.join(period)}. "
-        f"a) {extreme.capitalize()} discharge on a Gumbel reduced-variate axis; "
-        "T marks return periods in years. Blue crosses denote observations and "
-        "vermillion circles simulations. "
+        f"a) {extreme.capitalize()} discharge against return period in years on a probability scale; "
+        "vertical guides mark labeled return periods. Blue + symbols denote observations and "
+        "terracotta + symbols simulations, ranked independently. "
         f"b) Simulated versus observed {extreme} discharge; the dashed line denotes "
         "1:1 agreement and R² is squared Pearson correlation. "
         + ("The black diamond marks the period mean. " if peaks else "")
-        + "c) Daily discharge over the full supplied simulation period; the shaded vertical band "
-        f"marks the {'wettest' if peaks else 'driest'} simulated calendar year ({year}), "
-        "selected by annual mean discharge. "
+        + "c) Daily discharge over the full supplied simulation period; pale gray bands mark "
+        f"{'wet' if peaks else 'dry'} years. "
+        + selection_text
+        + "Year selection excludes partial calendar years, allows at most 3 missing days per month "
+        "and 15 per year, and uses simulation values independently of observation availability. "
         "Observations are blue and dashed; simulations are vermillion and solid. "
         "Annual maxima use September–August water years; seven-day minima use calendar years. "
         "Frequency positions use (rank − 0.3)/(n + 0.4), without fitting an extreme-value distribution. "
@@ -1022,7 +1072,15 @@ def _extremes_caption(simulated, station, plot_dir, kind, year, caveat):
         "encoding": f"signatures_{kind}",
         "availability": "available",
         "captioned_path": None,
-        "highlighted_year": int(year),
+        "highlighted_years": selection["years"],
+        "year_selection": selection
+        | {
+            "quantity": "annual mean simulated discharge",
+            "calendar": "calendar years",
+            "comparison": "strictly above" if peaks else "strictly below",
+            "max_missing_days_month": 3,
+            "max_missing_days_year": 15,
+        },
     }
     write_figure_titles(root, inventory["figures"])
     inventory["produced_paths"] = list(inventory["figures"]) + [
@@ -1047,40 +1105,11 @@ def _extremes_caption(simulated, station, plot_dir, kind, year, caveat):
     return inventory["figures"][f"signatures_{kind}_{station.wflow_id}.png"]
 
 
-#: Row positions of the indicators table, in axes fractions: the group band, the
-#: indicator names, then daily / monthly / ideal.
-_TABLE_ROWS = {
-    "group": 0.92,
-    "header": 0.68,
-    "daily": 0.44,
-    "monthly": 0.25,
-    "ideal": 0.06,
-}
-#: Where the row labels sit, and where the indicator columns start.
-_TABLE_LABEL_X = 0.0
-_TABLE_FIRST_X = 0.135
-
-
 def _draw_indicators_table(ax, indicators):
-    """The goodness-of-fit table, laid out as text on a blank axes.
-
-    A blank axes rather than ``ax.table``: matplotlib's table sizes its cells to
-    the axes and ignores the figure's type scale, so it comes out at a different
-    size from every other label on the page.
-
-    INDICATORS ACROSS, aggregations down. The first version had it the other way —
-    seven rows in a narrow column — which was right while the table shared a row
-    with the scatter. It sits on a FULL-WIDTH band now, and seven rows of four
-    narrow columns across 180 mm is mostly whitespace. Transposed, the same
-    numbers fit three short rows, and the daily/monthly pair reads as the
-    comparison it is rather than as two columns to track down the page.
-
-    The ``ideal`` row is not decoration. A reader should not have to remember
-    whether Pbias wants 0 or 1, and the group band says which direction each
-    block is read in.
-    """
+    """Metrics in rows, daily/monthly/ideal values in columns at preset type size."""
     import numpy as np
 
+    ax.set(xlim=(0, 1), ylim=(0, 1))
     ax.axis("off")
     names = [
         name
@@ -1088,100 +1117,45 @@ def _draw_indicators_table(ax, indicators):
         for name in group
         if name in indicators.index
     ]
-    if not names:
-        return
-    span = (1.0 - _TABLE_FIRST_X) / len(names)
-    centres = {
-        name: _TABLE_FIRST_X + span * (position + 0.5)
-        for position, name in enumerate(names)
-    }
-
-    # Group band: which columns are read "higher is better" and which "zero is".
-    for group, members in INDICATOR_GROUPS:
-        present = [name for name in members if name in centres]
-        if not present:
-            continue
-        left = centres[present[0]] - span / 2
-        right = centres[present[-1]] + span / 2
+    xs = (0.04, 0.49, 0.70, 0.91)
+    for i, label in enumerate(("Metric", "Daily", "Monthly", "Ideal")):
         ax.text(
-            (left + right) / 2,
-            _TABLE_ROWS["group"],
-            group.upper(),
-            transform=ax.transAxes,
-            ha="center",
+            xs[i],
+            0.94,
+            label,
+            ha="left" if i == 0 else "right",
             va="center",
-            fontsize=plot_style.FONT_SIZE_CAVEAT,
-            color="0.45",
             fontweight="bold",
         )
-        ax.plot(
-            [left + 0.006, right - 0.006],
-            [_TABLE_ROWS["group"] - 0.085] * 2,
-            transform=ax.transAxes,
-            color="0.65",
-            lw=0.6,
-            clip_on=False,
-        )
-
-    for name in names:
-        ax.text(
-            centres[name],
-            _TABLE_ROWS["header"],
-            name,
-            transform=ax.transAxes,
-            ha="center",
-            va="center",
-            fontsize=plot_style.FONT_SIZE_LEGEND,
-            color="0.2",
-            fontweight="bold",
-        )
-    ax.plot(
-        [_TABLE_LABEL_X, 1.0],
-        [(_TABLE_ROWS["header"] + _TABLE_ROWS["daily"]) / 2] * 2,
-        transform=ax.transAxes,
-        color="0.3",
-        lw=0.7,
-        clip_on=False,
-    )
-
-    for row in ("daily", "monthly", "ideal"):
-        muted = row == "ideal"
-        ax.text(
-            _TABLE_LABEL_X,
-            _TABLE_ROWS[row],
-            row,
-            transform=ax.transAxes,
-            ha="left",
-            va="center",
-            fontsize=plot_style.FONT_SIZE_LEGEND,
-            color="0.45" if muted else "0.2",
-            fontweight="normal" if muted else "bold",
-        )
-        for name in names:
-            ideal, template = INDICATOR_FORMAT[name]
+    ax.axhline(0.885, xmin=0.025, xmax=0.96, color=COLOR_NEUTRAL, lw=0.6)
+    spacing = 0.784 / max(len(names), 1)
+    for i, name in enumerate(names):
+        y = 0.815 - i * spacing
+        ideal, template = INDICATOR_FORMAT[name]
+        values = [name]
+        for aggregation in ("daily", "monthly"):
+            value = indicators.loc[name, aggregation]
+            values.append(template.format(value) if np.isfinite(value) else "—")
+        values.append(ideal)
+        for j, value in enumerate(values):
             ax.text(
-                centres[name],
-                _TABLE_ROWS[row],
-                ideal
-                if muted
-                else template.format(indicators.loc[name, row])
-                if np.isfinite(indicators.loc[name, row])
-                else "—",
-                transform=ax.transAxes,
-                ha="center",
+                xs[j],
+                y,
+                value,
+                ha="left" if j == 0 else "right",
                 va="center",
-                fontsize=plot_style.FONT_SIZE_BASE,
-                color="0.55" if muted else "black",
-                family="monospace",
+                color="#6c7e87" if j == 3 else "#253f4b",
             )
-    ax.plot(
-        [_TABLE_LABEL_X, 1.0],
-        [(_TABLE_ROWS["monthly"] + _TABLE_ROWS["ideal"]) / 2] * 2,
-        transform=ax.transAxes,
-        color=COLOR_GRID,
-        lw=0.5,
-        clip_on=False,
-    )
+        if name == "VE" and any(metric in names for metric in ("RMSE", "MSE", "Pbias")):
+            ax.axhline(
+                y - spacing / 2,
+                xmin=0.025,
+                xmax=0.96,
+                color=COLOR_NEUTRAL,
+                alpha=0.4,
+                lw=0.4,
+            )
+    ax.axhline(0.087, xmin=0.025, xmax=0.96, color=COLOR_NEUTRAL, lw=0.6)
 
 
 def _performance_pairs(simulated, observed):
@@ -1259,142 +1233,18 @@ def plot_performance(
     *,
     annotation="none",
 ):
-    """Paired-day scatter and cumulative volume, with the supplied CSV indicators."""
-    import matplotlib.dates as mdates
+    """Separate table-only sheet using the supplied daily and monthly indicators."""
     import matplotlib.pyplot as plt
     import numpy as np
-    from matplotlib import gridspec
 
-    from blueearth_cst.plotting import fundamentals as artists
     from blueearth_cst.plotting.preset import use_preset
     from blueearth_cst.shared import plot_preset as cst
 
     pairs, support = _performance_pairs(simulated, observed)
-    finite = pairs.dropna()
     with use_preset(cst.CST_PRESET):
-        fig = plt.figure(
-            figsize=_figure_size(HEIGHT_PERFORMANCE_MM), layout="constrained"
-        )
-        fig.get_layout_engine().set(
-            w_pad=cst.OUTER_PAD_X_MM * artists.MM,
-            h_pad=cst.OUTER_PAD_Y_MM * artists.MM,
-        )
-        grid = gridspec.GridSpec(2, 2, figure=fig, height_ratios=[2.0, 1.0])
-        ax_scatter = fig.add_subplot(grid[0, 0])
-        ax_volume = fig.add_subplot(grid[0, 1])
-        ax_table = fig.add_subplot(grid[1, :])
-
-        high = 1.04 * (
-            max(float(np.ceil(finite.to_numpy().max())), 1.0) if len(finite) else 1.0
-        )
-        ax_scatter.plot(
-            finite["observed"],
-            finite["simulated"],
-            "o",
-            ms=cst.MS_POINT,
-            mfc=COLOR_SIMULATED,
-            mec="none",
-            alpha=0.45,
-            ls="none",
-            zorder=2,
-        )
-        _reference_line(ax_scatter, high)
-        ax_scatter.set_xlabel("Observed (m³ s⁻¹)")
-        ax_scatter.set_ylabel("Simulated (m³ s⁻¹)")
-        for ax, label in ((ax_scatter, "a)"), (ax_volume, "b)")):
-            ax.text(
-                0.025,
-                0.975,
-                label,
-                transform=ax.transAxes,
-                ha="left",
-                va="top",
-                fontsize=cst.FS_LABEL,
-                fontweight="bold",
-                bbox=cst.LABEL_BOX,
-                zorder=5,
-            )
-        ax_scatter.grid(alpha=0.7)
-
-        # Pandas cumsum resumes after missing dates while retaining NaN gaps.
-        # Both curves integrate the exact same valid days; no infilling occurs.
-        cumulative = pairs.cumsum() * (SECONDS_PER_DAY / 1e6)
-        lines = []
-        for key, color, style, label in (
-            ("observed", COLOR_OBSERVED, DASH_OBSERVED, "Observed"),
-            ("simulated", COLOR_SIMULATED, "-", "Simulated"),
-        ):
-            (line,) = ax_volume.plot(
-                cumulative.index,
-                cumulative[key],
-                color=color,
-                ls=style,
-                lw=cst.LW_LINE,
-                label=label,
-            )
-            lines.append(line)
-        ax_volume.set_ylabel("10⁶ m³")
-        volumes = cumulative.to_numpy()
-        volumes = volumes[np.isfinite(volumes)]
-        top = float(volumes.max()) if volumes.size else 0.0
-        ax_volume.set_ylim(0, top * 1.08 if top > 0 else 1.0)
-        ax_volume.set_xlabel("")
-        ax_volume.yaxis.get_major_formatter().set_useOffset(False)
-        ax_volume.xaxis.set_major_locator(
-            mdates.AutoDateLocator(minticks=3, maxticks=6)
-        )
-        ax_volume.xaxis.set_major_formatter(
-            mdates.ConciseDateFormatter(ax_volume.xaxis.get_major_locator())
-        )
-        if len(pairs) and pairs.index[-1].year - pairs.index[0].year >= 3:
-            import pandas as pd
-
-            step = 10 if pairs.index[-1].year - pairs.index[0].year > 35 else 5
-            first = pairs.index[0].year // step * step
-            ax_volume.set_xlim(pd.Timestamp(first, 1, 1), pairs.index[-1])
-            ax_volume.xaxis.set_major_locator(mdates.YearLocator(step))
-            ax_volume.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
-            ax_volume.xaxis.set_minor_locator(mdates.YearLocator())
-        elif not len(pairs):
-            from matplotlib.ticker import NullFormatter
-
-            ax_volume.set_xticks([])
-            ax_volume.xaxis.set_major_formatter(NullFormatter())
-        ax_volume.grid(axis="y", alpha=0.7)
-        ax_volume.margins(x=0.01)
-        ax_scatter.legend(
-            handles=lines,
-            loc="upper left",
-            bbox_to_anchor=(0.025, 0.89),
-            borderaxespad=0,
-            ncols=1,
-            frameon=True,
-            facecolor="white",
-            edgecolor="none",
-            framealpha=0.88,
-            borderpad=0.6,
-            labelspacing=0.5,
-            handletextpad=0.5,
-        )
-        if not len(finite):
-            for ax in (ax_scatter, ax_volume):
-                ax.text(
-                    0.5,
-                    0.5,
-                    "No valid concurrent discharge",
-                    transform=ax.transAxes,
-                    ha="center",
-                    va="center",
-                    fontsize=cst.FS_NOTE,
-                    color=cst.MUTED,
-                )
-        _draw_indicators_table(ax_table, indicators)
-        for text in ax_table.texts:
-            text.set_fontsize(
-                cst.FS_TICK
-                if text.get_text() in ("EFFICIENCY", "ERROR")
-                else cst.FS_LABEL
-            )
+        fig, ax = plt.subplots(figsize=_figure_size(HEIGHT_PERFORMANCE_MM))
+        fig.subplots_adjust(left=0.04, right=0.96, top=0.95, bottom=0.06)
+        _draw_indicators_table(ax, indicators)
         score = _performance_r_squared(pairs)
         support["squared_pearson_r"] = float(score) if np.isfinite(score) else None
         record = _performance_caption(support, station, plot_dir, caveat)
@@ -1414,9 +1264,10 @@ def _performance_caption(support, station, plot_dir, caveat):
     span = "–".join(period) if period else "no overlapping record"
     caption = (
         f"Discharge performance at {station.caption}, {span}. "
-        "(a) Simulated versus observed daily discharge; dashed line denotes 1:1 agreement. "
-        "(b) Cumulative volume over paired valid days, retaining data gaps. "
-        "The table summarises daily and monthly performance; dashes denote undefined values. "
+        "Separate performance table with goodness-of-fit metrics in rows and Daily, Monthly and Ideal "
+        "values in columns. Values match performance_indicators.csv; dashes denote undefined values. "
+        "RMSE is in m³ s⁻¹, MSE in (m³ s⁻¹)² and Pbias in percent. "
+        "The daily observed–simulated scatter is shown in hydrograph panel d. "
         + (f"{caveat}" if caveat else "")
     )
     engine = root / "_engine"
@@ -1441,11 +1292,9 @@ def _performance_caption(support, station, plot_dir, caveat):
         "comparison": support,
         "methods": {
             "paired_nonnegative_discharge": True,
-            "volume": "paired days × 86400 s",
             "monthly": "available paired-day means",
             "infill": False,
             "correlation": "squared Pearson r",
-            "volume_gap_handling": "missing paired days remain gaps; cumulative paired-only totals resume without infilling",
             "undefined_scores": "constant/fewer than two pairs yield undefined correlation; zero observed denominators yield undefined efficiencies",
             "caveat": caveat,
         },

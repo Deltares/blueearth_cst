@@ -16,6 +16,8 @@ from matplotlib.ticker import MaxNLocator, MultipleLocator
 from blueearth_cst.plotting.fundamentals import (
     inside_legend,
     new_fig,
+    time_series_grid,
+    time_series_style,
     year_ticks,
     ygrid,
 )
@@ -508,23 +510,27 @@ def seasonal_figure(climatology, changes, summary, *, variable, scenarios=None):
     ax.fill_between(
         range(12), historical["min"], historical["max"], color=MUTED, alpha=0.18, lw=0
     )
-    ax.plot(range(12), historical["median"], color=INK, lw=1.5)
-    handles = [Line2D([], [], color=INK, lw=1.5, label="Historical")]
+    ax.plot(range(12), historical["median"], **time_series_style("historical", INK))
+    handles = [
+        Line2D([], [], label="Historical", **time_series_style("historical", INK))
+    ]
     for s in scen:
         future = (
             data.loc[(data.scenario == s) & (data.side == "future")]
             .set_index("period")
             .reindex(MONTHS)
         )
-        ax.plot(range(12), future["median"], color=_color(s), lw=1.0)
-        handles.append(Line2D([], [], color=_color(s), lw=1.0, label=_label(s)))
+        ax.plot(range(12), future["median"], **time_series_style(s, _color(s)))
+        handles.append(
+            Line2D([], [], label=_label(s), **time_series_style(s, _color(s)))
+        )
     ax.set_xticks(range(12), MONTHS)
     ax.set_xlim(-0.4, 11.4)
     ax.set_ylabel(unit)
     ax.tick_params(axis="both", length=3)
     if variable == "precip":
         ax.set_ylim(bottom=0)
-    ygrid(ax)
+    time_series_grid(ax)
     # Above the axes: the historical range spans both top corners, so an
     # inside legend would cover it.
     fig.legend(handles=handles, loc="outside upper center", ncols=len(handles))
@@ -677,8 +683,12 @@ def ipcc_trajectory(
             alpha=0.12,
             lw=0,
         )
-        ax.plot(years, historical_range["median"], color=INK, lw=1.8)
-        handles.append(Line2D([], [], color=INK, lw=1.4, label="Historical"))
+        ax.plot(
+            years, historical_range["median"], **time_series_style("historical", INK)
+        )
+        handles.append(
+            Line2D([], [], label="Historical", **time_series_style("historical", INK))
+        )
         for _, member in historical.groupby(["model", "member"]):
             member = member.set_index("year").sort_index()
             years = np.arange(member.index.min(), member.index.max() + 1)
@@ -711,8 +721,10 @@ def ipcc_trajectory(
             continue
         years = np.arange(sub.year.min(), sub.year.max() + 1)
         sub = sub.set_index("year").reindex(years)
-        ax.plot(years, sub["median"], color=_color(s), lw=1.5)
-        handles.append(Line2D([], [], color=_color(s), lw=1.4, label=_label(s)))
+        ax.plot(years, sub["median"], **time_series_style(s, _color(s)))
+        handles.append(
+            Line2D([], [], label=_label(s), **time_series_style(s, _color(s)))
+        )
         ax.fill_between(
             years,
             sub["min"].astype(float),
@@ -738,12 +750,12 @@ def ipcc_trajectory(
             )
         )
         ax.set_xticks(
-            np.arange(int(data.year.min()) // 5 * 5, int(data.year.max()) + 1, 5),
+            np.arange(int(data.year.min()), int(data.year.max()) + 1),
             minor=True,
         )
         ax.set_xlim(data.year.min() - 0.5, data.year.max() + 0.5)
     ax.tick_params(axis="y", length=3)
-    ygrid(ax)
+    time_series_grid(ax)
     inside_legend(
         fig,
         ax,
@@ -807,8 +819,7 @@ def annual_overview(
                 ax.plot(
                     years,
                     median.reindex(years),
-                    color="black",
-                    lw=1.2,
+                    **time_series_style("historical", "black"),
                     gid="historical-median",
                 )
             sub = future.loc[future.scenario == s]
@@ -830,7 +841,7 @@ def annual_overview(
                 ax.fill_between(
                     years, env["min"], env["max"], color=_color(s), alpha=0.25, lw=0
                 )
-                ax.plot(years, env["median"], color=_color(s), lw=1.0)
+                ax.plot(years, env["median"], **time_series_style(s, _color(s)))
             ax.axvline(2014.5, color=MUTED, lw=LW_REF, ls="--", gid="scenario-handover")
             for window in windows:
                 a, b = window["used"]
@@ -867,9 +878,7 @@ def annual_overview(
                     )
                 )
                 ax.set_xticks(
-                    np.arange(
-                        int(data.year.min()) // 5 * 5, int(data.year.max()) + 1, 5
-                    ),
+                    np.arange(int(data.year.min()), int(data.year.max()) + 1),
                     minor=True,
                 )
                 ax.set_xlim(data.year.min() - 0.5, data.year.max() + 0.5)
@@ -877,7 +886,7 @@ def annual_overview(
             ax.tick_params(axis="x", labelbottom=bool(r))
             if j % ncols == 0:
                 ax.set_ylabel(labels[r])
-            ygrid(ax)
+            time_series_grid(ax)
     return fig
 
 

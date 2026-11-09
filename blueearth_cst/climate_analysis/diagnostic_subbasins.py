@@ -19,11 +19,25 @@ from blueearth_cst.shared.plot_preset import CST_PRESET
 
 def render_subbasins(sm, settings, sources):
     """Render optional per-source area averages from retained subbasin tables."""
+    return render_retained_subbasins(
+        sm.params.subbasin_table_dirs,
+        sm.output.subbasin_figures,
+        settings,
+        sources,
+        int(sm.params.m0),
+        getattr(sm.params, "annotation", "none"),
+    )
+
+
+def render_retained_subbasins(
+    table_dirs, target, settings, sources, m0, annotation="none"
+):
+    """Render the same optional subbasin products without a workflow runtime object."""
     if len(sources) != 1:
         raise ValueError(
             "Subbasin figures require one source; comparisons now use locations"
         )
-    folders = list(sm.params.subbasin_table_dirs)
+    folders = list(table_dirs)
     ids = sorted(
         set.intersection(
             *[
@@ -33,7 +47,7 @@ def render_subbasins(sm, settings, sources):
         )
     )
     dataset = sources[0]
-    target = Path(sm.output.subbasin_figures)
+    target = Path(target)
     target.mkdir(parents=True, exist_ok=True)
     root = target.parent.parent
     captions_path = root / "plots" / "_engine" / "figure_captions.json"
@@ -48,7 +62,6 @@ def render_subbasins(sm, settings, sources):
         id_: "Not all sources have intersecting cells"
         for id_ in declared_ids - set(ids)
     }
-    m0 = int(sm.params.m0)
     for id_ in ids:
         results = {}
         folder = Path(folders[0]) / id_
@@ -115,7 +128,7 @@ def render_subbasins(sm, settings, sources):
                     fig,
                     target / name,
                     dpi=600,
-                    annotation=getattr(sm.params, "annotation", "none"),
+                    annotation=annotation,
                     title=figure_title,
                     caption=text,
                 )

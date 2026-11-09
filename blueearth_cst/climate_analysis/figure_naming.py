@@ -2,7 +2,7 @@
 
 The WF0 profile in ``blueearth_cst/plotting/docs/figure-naming.md`` defines the shape::
 
-    <dataset_scope>_<variable>_<plot_context>_<spatial_scope>.<extension>
+    <dataset>_<variable-or-scope>_<diagnostic>_<location>.<extension>
 
 with each field drawn from a controlled vocabulary rather than spelled ad hoc at
 each call site. This module IS that vocabulary: every WF0 figure name is built
@@ -21,11 +21,11 @@ Four fields, and what each answers:
     The canonical unabridged name — ``precip``, ``temp``, ``pet``. Never
     abbreviated; the rule says so explicitly.
 ``plot_context``
-    The temporal interpretation AND the plot form together, because the two are
-    not independent: a monthly climatology drawn as boxes and drawn as lines are
-    different figures answering different questions.
+    Stable logical diagnostic key, translated to its shorter exported spelling.
+    Plot-form words remain where they distinguish products, such as maps and boxes.
 ``spatial_scope``
-    What area the figure reduces to, or frames on.
+    Stable support key, exported as basin, source, sub<ID>, loc<ID>, station<ID>,
+    or a meaningful unique location name. Captions retain the precise support.
 
 What is deliberately ABSENT: workflow id, project name, units and analysis
 period. Those belong to the run, not to the figure, and putting them in the name
@@ -40,6 +40,8 @@ consumers. ``climate_figures`` therefore carries both spellings; see its
 """
 
 # NO `from __future__ import annotations`: imported by `script:` modules.
+import re
+import unicodedata
 from typing import Optional
 
 #: ``dataset_scope`` for a figure carrying more than one dataset.
@@ -59,7 +61,7 @@ PLOT_CONTEXTS = {
     "annual_indices_ts": "annual climate-index series with explicit units",
     "seasonal_indices_ts": "configured-season climate-index series",
     "wet_spell_exceedance": "complete wet-spell empirical exceedance",
-    "monthly_coverage": "reporting-year monthly completeness calendar",
+    "monthly_coverage": "legacy monthly completeness view; no longer emitted by WF0",
     "monthly_clim_band": "monthly climatology and 10th–90th percentile band",
     "annual_timing": "cumulative annual precipitation timing",
     "monthly_anomaly": "monthly departure calendar",
@@ -81,12 +83,25 @@ PLOT_CONTEXTS = {
     "monthly_box": "per-calendar-month distribution across years, as boxes",
     "monthly_clim_line": "per-calendar-month mean across years, as lines",
 }
+THEMATIC_SCOPES = (
+    "spells",
+    "heavy_rainfall",
+    "rainfall_characteristics",
+    "temperature_extremes",
+    "heatwaves",
+)
+PLOT_CONTEXTS.update(
+    {
+        f"{period}_{scope}_ts": f"{period} {scope.replace('_', ' ')} climate-index series"
+        for period in ("annual", "seasonal")
+        for scope in THEMATIC_SCOPES
+    }
+)
 
 #: ``spatial_scope`` tokens that name a fixed area.
 #:
-#: ``_avg`` REDUCES the field to one series over that area; ``_ext`` FRAMES a
-#: map on it and reduces nothing. The suffix is the difference between a number
-#: and a picture, so the two are never interchangeable.
+#: Logical support retains avg/ext even though exported filenames shorten both
+#: to the area name. A map diagnostic explicitly retains its map token.
 FIXED_SPATIAL_SCOPES = {
     "basin_avg": "domain mean over the basin's cells",
     "basin_ext": "framed on the basin's extent",
@@ -104,6 +119,58 @@ ID_SPATIAL_SCOPES = {
     "station": ("avg",),
     "location": ("point",),
 }
+
+# Logical contexts stay stable for callers and retained records. Only their
+# exported spelling is shortened; map and trend distinctions remain explicit.
+SHORT_CONTEXTS = {
+    "annual_ts": "annual",
+    "annual_trend_ts": "annual_trend",
+    "annual_clim_map": "annual_mean_map",
+    "monthly_clim_band": "monthly_cycle",
+    "monthly_clim_line": "monthly_cycle",
+    "annual_timing": "timing",
+    "annual_rx1day_ts": "rx1day_annual",
+    "annual_rx5day_ts": "rx5day_annual",
+    "annual_sdii_ts": "sdii_annual",
+    "annual_wet_days_ts": "wet_days_annual",
+    "monthly_anomaly_acf": "anomaly_acf",
+    "monthly_spi": "spi",
+    "monthly_spi_fit": "spi_fit",
+    "annual_trend_interval": "trend_intervals",
+    "annual_trend_sensitivity": "trend_sensitivity",
+    "annual_indices_ts": "annual",
+    "seasonal_indices_ts": "seasonal",
+}
+
+
+def location_name_token(name: str | None) -> str:
+    """Return a portable lowercase filename token for a meaningful location name."""
+    if not isinstance(name, str):
+        return ""
+    ascii_name = (
+        unicodedata.normalize("NFKD", str(name)).encode("ascii", "ignore").decode()
+    )
+    return re.sub(r"[^a-z0-9]+", "_", ascii_name.lower()).strip("_")
+
+
+def _short_spatial_scope(spatial_scope: str, location_name: str | None) -> str:
+    if spatial_scope in FIXED_SPATIAL_SCOPES:
+        return "source" if spatial_scope == "source_ext" else "basin"
+    for prefix, kinds in ID_SPATIAL_SCOPES.items():
+        for kind in kinds:
+            if spatial_scope.startswith(f"{prefix}_") and spatial_scope.endswith(
+                f"_{kind}"
+            ):
+                identifier = spatial_scope[len(prefix) + 1 : -(len(kind) + 1)]
+                if prefix in {"station", "location"} and location_name:
+                    token = location_name_token(location_name)
+                    if token:
+                        return token
+                stem = {"subbasin": "sub", "location": "loc", "station": "station"}[
+                    prefix
+                ]
+                return f"{stem}{identifier}"
+    raise ValueError(f"Cannot shorten spatial scope {spatial_scope!r}")
 
 
 def subbasin_scope(subbasin_id, kind: str = "avg") -> str:
@@ -141,6 +208,8 @@ def figure_filename(
     plot_context: str,
     spatial_scope: str,
     extension: str = "png",
+    *,
+    location_name: str | None = None,
 ) -> str:
     """One figure filename, validated against the controlled vocabulary.
 
@@ -163,7 +232,25 @@ def figure_filename(
     for field, value in (("dataset_scope", dataset_scope), ("variable", variable)):
         if not str(value).strip():
             raise ValueError(f"figure_filename: {field} is empty")
-    return f"{dataset_scope}_{variable}_{plot_context}_{spatial_scope}.{extension}"
+    subject = variable
+    diagnostic = SHORT_CONTEXTS.get(plot_context, plot_context)
+    if variable == "climate_indices":
+        if plot_context == "wet_spell_exceedance":
+            subject = "precip"
+        elif plot_context in {"annual_indices_ts", "seasonal_indices_ts"}:
+            subject = "indices"
+        elif plot_context in {
+            f"{period}_{scope}_ts"
+            for period in ("annual", "seasonal")
+            for scope in THEMATIC_SCOPES
+        }:
+            # Thematic sheets: annual_heavy_rainfall_ts -> heavy_rainfall_annual.
+            period, scope = plot_context.removesuffix("_ts").split("_", 1)
+            subject, diagnostic = scope, period
+        else:
+            subject = "indices"
+    place = _short_spatial_scope(spatial_scope, location_name)
+    return f"{dataset_scope}_{subject}_{diagnostic}_{place}.{extension}"
 
 
 def map_spatial_scope(extent_policy: Optional[str]) -> str:

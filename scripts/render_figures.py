@@ -125,7 +125,7 @@ FAMILIES = {
         _rain_gauges,
     ),
     "wf0": (
-        "WF0 per-source diagnostics and climatology maps (no subbasin or comparison figures)",
+        "WF0 per-source diagnostics, enabled subbasin figures and maps (comparisons use wf0-comparison)",
         _wf0,
     ),
     "wf0-comparison": (

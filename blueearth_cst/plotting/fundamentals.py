@@ -7,6 +7,7 @@ rendering in ``use_preset`` to choose one. Backend selection belongs to callers.
 from collections.abc import Sequence
 
 import matplotlib as mpl
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
@@ -63,8 +64,57 @@ def ygrid(ax: plt.Axes) -> None:
     ax.grid(axis="y")
 
 
+def time_series_style(source: str, color: str) -> dict:
+    """Solid data lines; observations are thicker gray, CHIRPS slightly lighter."""
+    preset = active()
+    tokens = preset.time_series
+    observed = source.lower().strip("_").startswith("observ")
+    alpha = (
+        tokens["secondary_alpha"]
+        if source.lower().startswith("chirps")
+        else tokens["alpha"]
+    )
+    return {
+        "color": preset.colors.get("time_series_observed", "#777777")
+        if observed
+        else color,
+        "linestyle": "-",
+        "linewidth": tokens["observed_width"] if observed else tokens["line_width"],
+        "markersize": tokens["marker_size"],
+        "alpha": 1.0 if observed else alpha,
+    }
+
+
+def time_series_grid(ax: plt.Axes) -> None:
+    """Draw the approved horizontal guides behind data, preserving plot borders."""
+    preset = active()
+    ax.set_axisbelow(True)
+    ax.grid(axis="x", which="both", visible=False)
+    ax.grid(
+        axis="y",
+        which="major",
+        color=preset.colors.get("time_series_grid", "#c7d1d8"),
+        linewidth=preset.time_series["grid_width"],
+        alpha=preset.time_series["grid_alpha"],
+    )
+
+
+def date_year_ticks(ax: plt.Axes) -> None:
+    """Use calendar years for multi-year datetime series; retain finer short-record labels."""
+    first, last = (mdates.num2date(value).year for value in ax.get_xlim())
+    span = last - first
+    if span < 2:
+        return
+    step = 10 if span > 35 else 5 if span > 12 else 2 if span > 4 else 1
+    ax.xaxis.set_major_locator(mdates.YearLocator(step))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    ax.xaxis.set_minor_locator(mdates.YearLocator())
+    ax.tick_params(axis="x", which="minor", length=2, width=0.5)
+    ax.set_xlabel("Year")
+
+
 def year_ticks(ax: plt.Axes, years: np.ndarray, continuous: bool = False) -> None:
-    """Sparse year labels with finer ticks, thinning ticks for long records."""
+    """Calendar-aligned year labels with a tick for every intervening year."""
     if continuous:
         ax.set_xlim(years[0], years[-1] + 1)
     else:
@@ -72,12 +122,12 @@ def year_ticks(ax: plt.Axes, years: np.ndarray, continuous: bool = False) -> Non
     step = 10 if years.size > 35 else 5 if years.size > 12 else 2
     major = np.arange(years[0] + (-years[0]) % step, years[-1] + 1, step)
     ax.set_xticks(major)
-    tick_step = max(1, int(np.ceil((years[-1] - years[0]) / 60)))
-    ticks = np.arange(years[0] + (-years[0]) % tick_step, years[-1] + 1, tick_step)
+    ticks = np.arange(years[0], years[-1] + 1)
     ax.set_xticks(np.setdiff1d(ticks, major), minor=True)
     edge, axis = active().lines["edge"], active().colors["axis"]
     ax.tick_params(axis="x", which="major", length=3, width=edge, color=axis)
     ax.tick_params(axis="x", which="minor", length=2, width=edge, color=axis)
+    ax.set_xlabel("Year")
 
 
 def five_year_ticks(ax: plt.Axes, years: np.ndarray, rotation: int = 0) -> None:

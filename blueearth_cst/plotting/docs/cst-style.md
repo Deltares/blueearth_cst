@@ -1,6 +1,6 @@
 # CST scientific plot style
 
-Last updated: 2026-11-05
+Last updated: 2026-11-08
 
 Use this reference for CST figure appearance and interpretation in WF0, WF1 and WF2. Shared rules apply
 unless a figure-specific exception says otherwise. Plotting changes must preserve calculations and
@@ -49,10 +49,11 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
   `Preset.maps` tokens. `shared.plot_setup`, `shared.plot_preset` and `shared.plot_style` bridge these
   tokens to CST drawing. Figure-specific geometry stays with its renderer.
 - The cycle starts blue, Terracotta, green, amber, violet, rose, cyan and slate; YAML owns exact values
-  and order. ERA5 and observations use blue; CHIRPS and simulations use Terracotta. Named dataset and
+  and order. ERA5 uses blue; CHIRPS and simulations use Terracotta. Time-series observations use gray
+  under the template below; WF1 station evaluation retains blue dashed observations. Named dataset and
   evaluation entries reference cycle colours. Assign unknown datasets remaining colours in config order,
   skipping named colours already present; change marker shapes on repeat. The palette has no certified
-  colour-vision-deficiency claim, so retain line styles, markers and labels.
+  colour-vision-deficiency claim, so retain markers and labels; data time series use solid lines.
 - Both shared Matplotlib contexts apply the cycle. Semantic presets take precedence: IPCC scenario
   colours, climate-map and anomaly colormaps keep their values. `historical_maps` retains WF0/WF1
   reference ramps; `climate_maps` retains the legacy adapter's colormaps. Colours do not alter
@@ -80,7 +81,7 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
   Use modest white padding. Square plotting areas have equal physical axis lengths, not equal data scales.
 - Give each labelled tick a visible mark. Annual series retain yearly ticks and, where appropriate,
   annual minor ticks; reduce labels on long records. Anchor major/minor ticks to the same calendar grid.
-  Long WF2 records use 20-year major and 5-year minor ticks. Comparable panels share limits and ticks.
+  Long WF2 records use 20-year major labels with annual minor ticks. Comparable panels share limits and ticks.
 - Axis titles show units alone, except WF2 reference-relative axes:
   `Relative to [reference-period] (symbol)`, using the actual period, e.g.
   `Relative to 1985–2014 (°C)` or `Relative to 1985–2014 (%)`. Absolute axes use units alone.
@@ -94,7 +95,7 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
 
 - Default to a stacked legend in the less crowded upper corner inside the axes. Use white background,
   alpha 0.88 and no border. In-plot labels use the same background with padding 1.2 and no edge.
-- Trend-interval, SPI-fit, trend-sensitivity and monthly-coverage legends sit outside to the right,
+- Trend-interval, SPI-fit and trend-sensitivity legends sit outside to the right,
   top-aligned with the panels. Narrow panels as needed without changing overall canvas width.
 - Keep slope labels off their lines and point labels clear of map features. Maps prefer `station_name`;
   missing/blank names fall back to `wflow_id`. Keep IDs in data and model output columns.
@@ -193,13 +194,67 @@ and never reclassifies supplied scientific values. Missing-data meaning belongs 
   with none finite, omit the numerical key. Captions state exact dates, per-cell reference support,
   completeness/infill, native support, counts and unavailable reasons.
 
+### Standard time-series template
+
+- The approved annual precipitation preview defines the standard for data time series and monthly cycles.
+  `style.yml` → `charts.time_series` owns 0.65 pt solid lines, 1.3 pt markers, opacity 0.95
+  (CHIRPS 0.8), and 1.5 pt fully opaque gray observations. `colors.yml` → `neutral` owns the
+  time-series observation gray (`#777777`) and horizontal guide color (`#c7d1d8`).
+  WF1 station evaluation is an approved exception: observed discharge retains blue dashed lines
+  at the evaluation line width and blue markers.
+- Horizontal major guides use 0.5 pt and opacity 0.55, behind the data. Retain all plot borders,
+  axis labels and annual minor ticks. Label calendar-year axes `Year`; align major labels to
+  five- or ten-year multiples when the span permits. Short records use closer year labels;
+  long projection records may use twenty-year labels. Annual precipitation units are `mm/year`.
+- Use color, opacity and markers to distinguish sources. Dashed lines remain available for fitted
+  trends, thresholds, 1:1 guides and other reference annotations, rather than source identity.
+  Preserve ensemble trace opacity and uncertainty envelopes; synthetic serial years, month cycles,
+  elapsed time and non-temporal diagnostics retain their scientifically appropriate axis labels.
+- `Preset.time_series`, `fundamentals.time_series_style`, `time_series_grid`, `year_ticks` and
+  `date_year_ticks` supply the Python template. The weather-generator adapter applies the same
+  physical line weights and grid settings to its annual and monthly time-series products.
+- Annual location overlays show every complete reporting year available independently for each source.
+  Missing or incomplete years remain gaps, without partial-year totals or extrapolation.
+  Pairwise agreement statistics continue to use matched periods; an overlay's extent is not its
+  agreement sample size.
+- Single-dataset temporal plots omit empty leading/trailing periods and retain internal gaps.
+  Comparison plots retain their broader display range. Climate-index sheets share a y-axis unit title
+  per compatible row and a `Year` title below each occupied column; only labelled year values have ticks.
+  Mixed-unit rows retain separate unit labels.
+
+### Climate-index scopes and availability
+
+WF0 no longer emits precipitation monthly-coverage figures, including location and legacy gauge plots.
+Coverage and completeness tables remain available for analysis and figure preparation.
+
+- Split annual and configured-season sheets into dry/wet spells, heavy rainfall, rainfall amount and
+  frequency, temperature extremes, and heatwaves. Emit only scopes and indices with finite retained
+  values; omit unavailable climate-index maps as well. Keep original definitions and numerical values.
+- `INDEX_GROUPS` in `indicators/climate/definitions.py` owns membership. `figure_availability.json`
+  records omitted metrics and emitted PNGs. `figure_captions.json` and the title inventories describe
+  the available set, inside the workflow-owned `plots/indices/` directory.
+- These thematic sheets replace the combined `annual_indices_ts` and `seasonal_indices_ts` exports.
+  Earlier run outputs remain historical evidence; use the current render inventory when reviewing a
+  new render rather than treating old unavailable sheets as current products.
+- Export filenames retain dataset and location while shortening diagnostic tokens; thematic sheets use
+  `<dataset>_<scope>_<period>_<location>.png`. The [naming profile](figure-naming.md) owns the mapping
+  and migration; precise scientific support stays in captions and metadata.
+
+### Complete wet-spell exceedance
+
+The complete wet-spell exceedance product also uses the shared thin solid source line and soft
+horizontal guides. Preserve its empirical step geometry, probability scale and complete-spell policy;
+do not smooth or add interpolated values.
+Dry-spell exceedance uses the same line/step/grid styling, retaining its logarithmic probability axis,
+square plotting area and existing 0.002 display cutoff.
+
 ### Rain-gauge comparisons
 
 - Use the shared CST preset for coverage, annual totals, monthly climatology and daily agreement.
-  Annual totals are strict matched reporting-year totals without fitted trends. Monthly climatology
+  Annual overlays use each source's complete reporting-year totals without fitted trends. Monthly climatology
   averages complete matched months; individual and joint daily coverage are shown separately.
 - Retain zero amounts, common-day scatter masks, native-cell support and unavailable-period notes.
-  Distinguish series with line styles/markers as well as colour. Captions carry station identity,
+  Apply the standard time-series template. Captions carry station identity,
   contributing source names, common counts and interval attribution.
 
 ### WF1 forcing QA
@@ -230,9 +285,10 @@ and never reclassifies supplied scientific values. Missing-data meaning belongs 
 
 ### WF1 station hydrographs
 
-- Keep five panels: daily discharge, annual means, seasonal cycle, linear and log flow-duration curves.
+- Keep five panels: daily discharge, annual means, seasonal cycle, daily observed–simulated scatter,
+  and log flow duration. Mark scatter unavailable when observations are absent; omit linear flow duration.
   Use common type, frames, soft horizontal grids, short titles and an inside legend. Observations are
-  blue/dashed; simulation Terracotta/solid. Vertical axes show discharge units alone; months use three
+  blue/dashed at the evaluation line width; simulation thin Terracotta/solid. Vertical axes show discharge units alone; months use three
   letters; exceedance labels show percentages. Annual labels start at the preceding five-year grid
   mark, or ten-year mark for records over 35 years, with annual minor ticks.
 - Put station identity, dates, support and methods in separate station captions, bounded by the
@@ -242,31 +298,36 @@ and never reclassifies supplied scientific values. Missing-data meaning belongs 
   most three missing days. Reindex daily dates so absent timestamps count as missing. Use finite,
   nonnegative discharge without infilling.
 - With observations, summaries use paired valid dates; the daily panel retains available series for
-  context. Flow-duration positions are `rank / (n + 1)` over valid values. Retain zero on the linear
-  panel; omit it from log without changing positions and report its frequency. The log range includes
+  context. Scatter uses concurrent finite, nonnegative pairs, 1.3 pt points at alpha 0.4, and a dashed
+  1:1 reference. Flow-duration positions are `rank / (n + 1)` over valid values. Omit zero from log
+  without changing positions and report its frequency. The log range includes
   all positive values from both series, without percentile clipping. These rules do not replace
   performance-indicator methods.
 
 ### WF1 performance sheets
 
 - Pair finite, nonnegative observed and simulated daily values after date alignment for scatter,
-  count, cumulative volumes and exported indicators. Keep gaps in cumulative curves. Paired-day
-  volumes do not estimate missing-day flow. Monthly indicators compare means on those paired days;
+  counts and exported indicators. Monthly indicators compare means on those paired days;
   hydrograph completeness thresholds do not gate indicator rows. Undefined scores stay unavailable.
-- Keep squared Pearson correlation and sample counts in JSON metadata, off the plot. Label scatter
-  `a)` and cumulative volume `b)`; stack the observed/simulated legend inside the scatter's upper
-  left below its label. Table values must equal `performance_indicators.csv`. Use common type,
-  frames/grids and a caption explaining panels, without displayed title or footer.
+- Keep a separate table-only `performance_<loc>.png` at 180 × 76 mm. Metrics are rows;
+  Daily, Monthly and Ideal are columns. Preserve supplied values from `performance_indicators.csv`.
+  Keep squared Pearson correlation and sample counts in JSON metadata. Daily scatter belongs in
+  hydrograph panel d. Use common type and a separate caption, without displayed title or footer.
 
 ### WF1 peaks and lows signatures
 
 - Keep three panels, regular-weight inside letters with equal physical top-left offsets, an inside
-  daily-series legend, common type/frames/grids and borderless label backgrounds. Panel c shows the
-  full simulation record, calendar-year ticks and a translucent band over the selected wettest or
-  driest calendar year. Preserve upstream warm-up exclusion and observation-overlap selection.
+  daily-series legend stacked inside the upper-right corner, common type/frames/grids and borderless
+  label backgrounds. Panel c shows the full simulation record, calendar-year ticks and pale gray bands
+  over wet/dry calendar years. Wet years have mean simulated flow strictly above its 75th percentile;
+  dry years strictly below its 25th. Use complete calendar years with the hydrograph completeness
+  thresholds, independently of observed gaps. Preserve warm-up and observation-overlap selection.
 - Frequency and daily axes use discharge units alone; scatter axes identify observed and simulated.
-  Use translucent points with dark edges. Put station, selected year, methods and caveats in station
-  captions, without displayed titles/footers. Preserve existing annual extremes and plotting positions.
+  Panel a uses blue observed and Terracotta simulated + symbols, 5 pt with 0.9 pt strokes and a local
+  upper-right legend. Label the probability axis Return period (years), with ticks and vertical guides
+  at 2, 5, 10 and 20 years. Preserve ranked empirical positions and annual-extreme calculations;
+  no extreme-value distribution is fitted. Scatter retains translucent circles with dark edges.
+  Put station, selected years, percentile threshold, methods and caveats in station captions.
 
 ### WF1 hydrological output summaries
 
@@ -298,7 +359,7 @@ and never reclassifies supplied scientific values. Missing-data meaning belongs 
 | WF2 seasonal cycle | Median lines; shade historical range only; one-row legend above axes. |
 | WF2 dry periods | Hatch precipitation %/ratio panels or months retaining at most half the models. |
 | Monthly climatology | Inside stacked legend in less crowded upper corner. |
-| Cumulative timing | Bottom month axis; no top title; `Cumulative (%)`, numeric ticks. |
+| Cumulative timing | Months above; reporting-day numbers below; `Cumulative precipitation (%)`; range/box opacity 0.8, opaque numeric annotations. |
 | Timing boxes | Enlarged unfilled horizontal boxes, thin outlines, no mean dot. |
 | Drought events | Dataset colours; legend distinguishes `Complete` and `Truncated`. |
 | Truncated events | Dense diagonal hatch with thin strokes, not dashed outlines. |
@@ -308,7 +369,6 @@ and never reclassifies supplied scientific values. Missing-data meaning belongs 
 | Seasonal P–T | Square panels; `Temperature anomaly (°C)` / `Precipitation anomaly (%)`. |
 | SPI fit checks | Dataset-hued p-value heatmaps, minimal titles, no `Month` x-axis title. |
 | Trend sensitivity | Slope points and confidence bars for each eligible start year. |
-| Monthly coverage | Compact dataset rows: complete, gapped and unusable cells. |
 
 - Trend-sensitivity panels use sparse calendar-aligned integer labels, minor ticks at other eligible
   start years, a shared start-year extent and the fixed end year in the x-axis title. Retain every
@@ -359,6 +419,18 @@ and never reclassifies supplied scientific values. Missing-data meaning belongs 
   member points show individuals without changing summary weights.
 
 ### WF2 change clouds, agreement and coverage
+
+- Default GCM diagnostics also include annual model-row/scenario-column spatial matrices and
+  monthly spatial sheets. Basin-average monthly changes use the existing box plots; individual
+  `cmip6_delta_monthly_*.png` curve sheets are retired and no longer produced.
+  Maps summarize available paired members by cell-wise median within each model/scenario. Preserve
+  native source grids, including nonuniform Gaussian latitude spacing; clip display at the basin
+  outline without resampling. Captions disclose complete-month masks, dry thresholds and member counts.
+  Small ensembles remain visible in these diagnostics. Existing ensemble-summary eligibility stays unchanged.
+- `colors.yml` → `projection_changes` owns the UNESCO draft report Figure 13 swatches: cyan through
+  blue/purple to magenta for precipitation and blue through cyan/yellow to red for temperature.
+  Adapt these ramps to signed change values with a common symmetric scale and a visible zero tick.
+  Scenario-comparison figures retain IPCC scenario colors.
 
 - Change clouds have square plotting areas and circular, slightly transparent, dark-edged points for
   every scenario. Colour distinguishes scenarios; stack the inset legend in the clearer upper corner.

@@ -19,6 +19,8 @@ from blueearth_cst.experiment import simulation_record
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 import run_workflows as rw  # noqa: E402
 
+CONSUMER_FORCING_ROWS = rw._consumer_forcing_rows
+
 
 class FakeResult:
     def __init__(self, returncode, stdout=""):
@@ -35,7 +37,8 @@ def wrapper_only_admission(monkeypatch):
 
     monkeypatch.setattr(rw, "_console_width", lambda: 240)
     # Scientific entry/composition admission has separate real-config coverage.
-    monkeypatch.setattr(rw, "_preflight_forcing", lambda *_args: None)
+    monkeypatch.setattr(rw, "_preflight_configuration", lambda *_args: None)
+    monkeypatch.setattr(rw, "_consumer_forcing_rows", lambda *_args: ())
 
     monkeypatch.setattr(
         reservation_context,
@@ -401,6 +404,30 @@ def test_all_true_invokes_five_in_fixed_order(tmp_path, capture_runs):
     ]
 
 
+def test_missing_forcing_choice_allows_comparison_but_stops_before_model(
+    tmp_path, capture_runs, monkeypatch
+):
+    calls, _ = capture_runs
+    cfg = tmp_path / "c.yml"
+    _write_cfg(
+        cfg,
+        {
+            name: "true" if name in {"analyze_climate", "build_model"} else "false"
+            for name in rw.WORKFLOW_ORDER
+        },
+    )
+    cfg.write_text(
+        "schema_version: 3\nbasin:\n  region: x\n"
+        + cfg.read_text().replace("sources: [era5]", "sources: [era5, chirps]"),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(rw, "_consumer_forcing_rows", CONSUMER_FORCING_ROWS)
+    with pytest.raises(ValueError, match="precip_source is required"):
+        rw.run(str(cfg), cores=1, extra=[])
+    assert _snakefiles_invoked(calls) == ["analyze_climate.smk"]
+    assert not (tmp_path / "project/experiments").exists()
+
+
 def test_preparation_is_announced_before_experiment_imports(
     tmp_path, capture_runs, monkeypatch, capsys
 ):
@@ -458,7 +485,7 @@ def test_preparation_progress_reports_elapsed_time_in_the_introductory_row(
     monkeypatch.setattr(rw.time, "monotonic", lambda: clock[0])
     with rw._preparation_progress(True):
         initial = capsys.readouterr()
-        assert initial.err == "\n  Preparing configuration and experiment checks..."
+        assert initial.err == "\nPreparing configuration and experiment checks..."
         clock[0] += 22
     assert capsys.readouterr().err == " (0:00:22 elapsed)\n"
 
@@ -482,7 +509,7 @@ def test_preparation_timer_uses_one_row(monkeypatch, interactive):
     clock[0] = 143
     timer.stop()
     output = stream.getvalue()
-    expected = "  Preparing configuration and experiment checks... (0:00:43 elapsed)\n"
+    expected = "Preparing configuration and experiment checks... (0:00:43 elapsed)\n"
     assert output.count("\n") == 1
     if interactive:
         assert output.split("\r")[-1] == "\033[2K" + expected
@@ -1079,13 +1106,19 @@ def test_runner_warning_summary_counts_only_this_invocation(
     assert stale.read_text(encoding="utf-8").count("old-warning") == 20
 
 
-def test_experiment_selection_is_inside_opening_settings(
+def test_experiment_selection_is_reported_after_comparison_before_model(
     tmp_path, capture_runs, capsys
 ):
     _, output, _ = _run_and_capture(
         tmp_path, capsys, {name: "true" for name in rw.WORKFLOW_ORDER}
     )
-    assert _group_rows(output, "settings")["experiment"] == "test (continue)"
+    assert "experiment" not in _group_rows(output, "settings")
+    assert _group_rows(output, "experiment")["name"] == "test"
+    assert (
+        output.index("WF0  ANALYZE CLIMATE")
+        < output.index("\n  experiment\n")
+        < output.index("WF1  BUILD MODEL")
+    )
     assert "Selected experiment:" not in output
 
 
@@ -1134,16 +1167,35 @@ def _run_and_capture(tmp_path, capsys, flags, *, cores=3, extra=None):
     ("identity", "expected"),
     [
         (
-            {"commit": "d0802bf054", "release_tag": "v0.4.1", "dirty": False},
+            {
+                "commit": "d0802bf054",
+                "release_tag": "v0.4.1",
+                "exact_release_tag": "v0.4.1",
+                "dirty": False,
+            },
             "v0.4.1 (d0802bf0)",
         ),
         (
-            {"commit": "d0802bf054", "release_tag": "v0.4.1", "dirty": True},
-            "v0.4.1 (d0802bf0; local changes)",
+            {
+                "commit": "d0802bf054",
+                "release_tag": "v0.4.1",
+                "exact_release_tag": "v0.4.1",
+                "dirty": True,
+            },
+            "development (d0802bf0; local changes)",
+        ),
+        (
+            {
+                "commit": "d0802bf054",
+                "release_tag": "v0.1.0-alpha",
+                "exact_release_tag": None,
+                "dirty": False,
+            },
+            "development (d0802bf0)",
         ),
         (
             {"commit": "d0802bf054", "dirty": None},
-            "unversioned (d0802bf0; working tree unknown)",
+            "development (d0802bf0; working tree unknown)",
         ),
         ({"commit": None}, "version unavailable"),
     ],
@@ -1171,7 +1223,7 @@ def test_opening_block_states_the_project_and_the_config_in_one_group(
         "toolbox_identity",
         lambda: {"commit": "d0802bf054", "commit_source": "git", "dirty": False},
     )
-    monkeypatch.setattr(rw, "toolbox_release_tag", lambda commit: "v0.4.1")
+    monkeypatch.setattr(rw, "toolbox_release_tag", lambda commit, **_kwargs: "v0.4.1")
     _, out, project_dir = _run_and_capture(
         tmp_path, capsys, {n: "true" for n in rw.WORKFLOW_ORDER}, cores=7
     )
@@ -1397,11 +1449,11 @@ def test_each_invoked_workflow_gets_a_hand_off_band_at_its_leading_edge(
     flags["analyze_projections"] = "false"
     _, out, _ = _run_and_capture(tmp_path, capsys, flags)
     assert re.search(
-        r"\[1/4]  WF0  ANALYZE CLIMATE  --  starting at \d{4}-\d{2}-\d{2} \d\d:\d\d:\d\d",
+        r"\[1/4]  WF0  ANALYZE CLIMATE  --  starting",
         out,
     )
     assert re.search(
-        r"\[4/4]  WF4  SIMULATE SYSTEM  --  starting at \d{4}-\d{2}-\d{2} \d\d:\d\d:\d\d",
+        r"\[4/4]  WF4  SIMULATE SYSTEM  --  starting",
         out,
     )
     assert "  --  done in " not in out
@@ -1477,7 +1529,7 @@ def test_the_console_is_not_muted_by_the_rule_log_level(
     assert "  run_workflows" in out.splitlines()
     assert "  sequence\n" in out
     assert re.search(
-        r"\[1/5]  WF0  ANALYZE CLIMATE  --  starting at \d{4}-\d{2}-\d{2} \d\d:\d\d:\d\d",
+        r"\[1/5]  WF0  ANALYZE CLIMATE  --  starting",
         out,
     )
     assert "run_workflows done in" in out
@@ -2006,3 +2058,39 @@ def test_closing_block_paints_every_failed_line_red(tmp_path):
     assert len(failed_lines) == 2
     assert all(line.startswith(red) for line in failed_lines)
     assert "\033" not in rw._closing_block(**kwargs)
+
+
+@pytest.mark.parametrize("workflow", ["analyze_projections", "simulate_system"])
+def test_non_consumers_omit_forcing_settings(workflow, monkeypatch):
+    from blueearth_cst.experiment import simulation_runner
+
+    monkeypatch.setattr(
+        simulation_runner,
+        "simulation_settings",
+        lambda _: ({}, {"operation": "indicators-only"}),
+    )
+    # Multiple comparison candidates need no forcing selection on these paths.
+    assert CONSUMER_FORCING_ROWS("unused.yml", workflow) == ()
+
+
+def test_only_historical_climate_inputs_receive_list_styling(tmp_path):
+    block = rw._opening_block(
+        cfg={},
+        project_name="Example",
+        project_dir=tmp_path,
+        config_path="project_config.yml",
+        dry_run=False,
+        flags={name: name == "analyze_climate" for name in rw.WORKFLOW_ORDER},
+        toolbox={},
+    )
+    assert "historical forcing settings" not in block
+    assert "\033" not in block
+    assert "\n  settings\n    project" in block
+    assert not any(line.startswith("> ") for line in block.splitlines())
+    climate = rw._climate_input_block(
+        ("> Rainfall dataset: ERA5 (configured)",), colour=True
+    )
+    assert climate.startswith(
+        f"\033[1;{rw._ANSI_DIM}mhistorical forcing settings\033[0m\n"
+    )
+    assert f"\033[{rw._ANSI_DIM}m> Rainfall dataset:" in climate

@@ -4,7 +4,10 @@ The closed workflow set is analyze_climate, build_model, analyze_projections,
 generate_scenarios, simulate_system. Every enabled flag must be a boolean.
 Disabled workflows are reported and skipped; the first failure stops the run.
 Preflights occur immediately before their consumer, after preceding producers.
-Startup validates static WF4 settings without preparing historical Qcrit. A
+Startup checks general configuration without resolving forcing. Forcing and
+experiment admission occur at the first forcing-consumer boundary, before
+model or scenario producers write. Historical comparison and projection runs
+do not require a forcing choice. A
 combined dry-run with WF1 enabled reports missing historical Q90 inputs as
 pending; it cannot inspect the data-dependent WF4 DAG until those inputs exist.
 Simulation uses the dedicated runner's operation/target validation and starts
@@ -82,6 +85,7 @@ from blueearth_cst.shared.run_log_core import (  # noqa: E402
 )
 from blueearth_cst.shared.snake_utils import (  # noqa: E402
     _ANSI_FAIL,
+    _ANSI_DIM,
     ADVANCED_SETTINGS,
     _ansi,
     _console_colour,
@@ -177,17 +181,17 @@ def read_enabled_flags(config_path: str) -> dict[str, bool]:
     return _enabled_flags(cfg, config_path)
 
 
-def _preflight_forcing(config_path: str, flags: Mapping[str, bool]) -> None:
-    """Validate requested consumers before any producer or namespace side effects."""
+def _preflight_configuration(config_path: str, flags: Mapping[str, bool]) -> None:
+    """Check workflow configuration upfront; defer forcing to its consumers."""
     from blueearth_cst.shared.config_composition import load_composed_config
 
     for name, enabled in flags.items():
         if enabled and name != "simulate_system":
-            load_composed_config(config_path, entry=name)
+            load_composed_config(config_path, entry=name, validate_forcing=False)
     if flags.get("simulate_system"):
         from blueearth_cst.experiment.simulation_runner import simulation_settings
 
-        simulation_settings(config_path)
+        simulation_settings(config_path, validate_forcing=False)
 
 
 def _read_config(config_path: str) -> Mapping[str, Any]:
@@ -339,12 +343,8 @@ def build_command(
 # already opens with `run_header` and closes with `run_summary`; the runner
 # ABOVE them said less about the run than any one of them.
 #
-# Row grammar below is deliberately theirs -- labelled groups whose `key  value`
-# rows indent one step further and share one value column across the block -- so
-# the facts inside a wrapper block read the same way as the facts inside a
-# workflow's. It is restated here rather than imported because
-# `run_header`/`run_summary` are shaped for a Snakefile's facts (declared path
-# tokens, a merged-log and benchmark name), none of which a runner has.
+# The historical climate inputs block alone uses a gray flush-left list.
+# Existing settings, sequence, command and summary layouts are preserved.
 #
 # **What the wrapper does NOT share with them is how it is FRAMED**, and that is
 # the point. Nested one inside the other, the two blocks were indistinguishable:
@@ -359,13 +359,14 @@ def build_command(
 # `HH:MM:SS - <module> - ...`. That grammar belongs to reporting from INSIDE a
 # workflow: every rule log line, every hydromt record and every heartbeat marker
 # wears it, so a runner wearing it too reads as one more rule in the run it is
-# actually supervising. The wrapper keeps the clock (a start time, an elapsed)
-# and drops the costume. It consequently ignores `CST_LOG_LEVEL` entirely, which
+# actually supervising. The wrapper reports elapsed durations without a wall-clock
+# prefix. It consequently ignores `CST_LOG_LEVEL` entirely, which
 # is correct rather than a loss -- that floor exists to quieten rule logs, and
 # the runner's dozen lines are the frame around them.
 #
-# Rules cap at 80 columns; readable rows fit the terminal. Redirected output
-# uses a stable 100-column fallback. Unwrapped arguments live in the command receipt.
+# Rules and climate-input lists cap at 80 columns; other runner rows use the
+# terminal width and a 100-column redirected fallback. Copyable commands live
+# in the command receipt.
 #
 # Rail glyphs, disabled markers and km² units use UTF-8, which
 # `_enable_utf8_stdout` enables. A Windows locale is cp1252 and a
@@ -425,16 +426,6 @@ def _label(name: str) -> str:
 def _handoff_label(name: str) -> str:
     """An emphasized workflow identity for a run hand-off heading."""
     return f"{WORKFLOW_ID[name].upper()}  {name.replace('_', ' ').upper()}"
-
-
-def _clock() -> str:
-    """Local wall-clock ``YYYY-MM-DD HH:MM:SS`` for a hand-off line.
-
-    A wall clock, unlike the monotonic durations everywhere else here: this
-    answers "when did this start", which someone reads against the timestamps in
-    the workflow's own log rows below it.
-    """
-    return f"{datetime.now():%Y-%m-%d %H:%M:%S}"
 
 
 def _banner(head: str) -> list[str]:
@@ -902,7 +893,7 @@ def _settings_rows(cfg: Mapping[str, Any], project_dir: Path) -> list[tuple[str,
 
 
 def _toolbox_label(identity: Mapping[str, Any]) -> str:
-    """Show the ancestral release and the commit actually used by this run."""
+    """Label only clean, exactly tagged checkouts as releases."""
     commit = identity.get("commit")
     if not commit:
         return "version unavailable"
@@ -911,7 +902,10 @@ def _toolbox_label(identity: Mapping[str, Any]) -> str:
         details += "; local changes"
     elif identity.get("dirty") is None:
         details += "; working tree unknown"
-    return f"{identity.get('release_tag') or 'unversioned'} ({details})"
+    release = (
+        identity.get("exact_release_tag") if identity.get("dirty") is False else None
+    )
+    return f"{release or 'development'} ({details})"
 
 
 def _opening_block(
@@ -982,6 +976,43 @@ def _opening_block(
             (f"nothing to invoke -- 0 of {total} workflows are enabled here", [])
         )
     return _console_block("run_workflows", groups, include_banner=include_banner)
+
+
+def _climate_input_block(rows: tuple[str, ...], *, colour: bool = False) -> str:
+    """Show the checked historical forcing settings at the consumer boundary."""
+    title = "historical forcing settings"
+    lines = [
+        line
+        for row in rows
+        for line in _wrap_console(row, width=min(80, _console_width()))
+    ]
+    if colour:
+        title = _ansi(title, f"1;{_ANSI_DIM}")
+        lines = [_ansi(line, _ANSI_DIM) for line in lines]
+    return "\n".join([title, *lines])
+
+
+def _consumer_forcing_rows(config_path: str, workflow_name: str) -> tuple[str, ...]:
+    """Validate forcing only when an enabled forcing consumer is reached."""
+    from blueearth_cst.shared.forcing_recipe import climate_forcing_summary
+
+    if workflow_name not in {"build_model", "generate_scenarios", "simulate_system"}:
+        return ()
+    if workflow_name == "simulate_system":
+        from blueearth_cst.experiment.simulation_runner import simulation_settings
+
+        _, settings = simulation_settings(config_path)
+        if settings["operation"] == "indicators-only":
+            return ()
+    else:
+        from blueearth_cst.shared.config_composition import load_composed_config
+
+        load_composed_config(config_path, entry=workflow_name)
+    cfg = _read_config(config_path)
+    return tuple(
+        f"> {row}"
+        for row in climate_forcing_summary(_section(cfg, "climate"), required=True)
+    )
 
 
 def _closing_block(
@@ -1355,7 +1386,7 @@ def run(
         try:
             cfg = _read_config(config_path)
             flags = _enabled_flags(cfg, config_path)
-            _preflight_forcing(config_path, flags)
+            _preflight_configuration(config_path, flags)
         finally:
             # Name the attempt from its selection when available, while still
             # retaining explicit-root failures that cannot read configuration.
@@ -1418,7 +1449,7 @@ class _PreparationHeartbeat(_Heartbeat):
         if self._interactive:
             self._emit("0:00:00 elapsed", redraw=True)
         else:
-            print(f"  {self._label}...", file=self._stream, end="", flush=True)
+            print(f"{self._label}...", file=self._stream, end="", flush=True)
         return super().start()
 
     def _tick(self, now: float) -> None:
@@ -1431,9 +1462,7 @@ class _PreparationHeartbeat(_Heartbeat):
         if redraw and not self._interactive:
             return
         prefix = (
-            f"{_line_reset(self._stream)}  {self._label}..."
-            if self._interactive
-            else ""
+            f"{_line_reset(self._stream)}{self._label}..." if self._interactive else ""
         )
         with suppress(OSError, ValueError):
             print(
@@ -1450,11 +1479,12 @@ class _PreparationHeartbeat(_Heartbeat):
 
 
 @contextmanager
-def _preparation_progress(enabled: bool):
+def _preparation_progress(enabled: bool, *, announce: bool = True):
     """Announce the runner before experiment imports and report long waits."""
     heartbeat = None
     try:
-        print("\n" + "\n".join(_banner("run_workflows")), flush=True)
+        if announce:
+            print("\n" + "\n".join(_banner("run_workflows")), flush=True)
         if enabled:
             print(file=sys.stderr, flush=True)
             heartbeat = _PreparationHeartbeat(
@@ -1529,41 +1559,10 @@ def _run_owned(
     invocation_history.update(history_path, history)
     reservation_context = None
     try:
-        with _preparation_progress(flags["simulate_system"]):
+        with _preparation_progress(False):
             if not flags["simulate_system"]:
                 if new_experiment or note is not None or recover_reservation:
                     raise ValueError("experiment flags require enabled simulate_system")
-            else:
-                from blueearth_cst.experiment.baseline_qcrit import (
-                    HistoricalQcritUnavailable,
-                )
-                from blueearth_cst.experiment.reservation_context import (
-                    admit_context_owned,
-                )
-                from blueearth_cst.experiment.simulation_runner import (
-                    simulation_command,
-                )
-
-                simulation_command(
-                    config_path,
-                    list(simulation_targets),
-                    cores,
-                    extra,
-                    prepare_baseline=False,
-                )
-                reservation_context = admit_context_owned(
-                    Path(config_path),
-                    REPO_ROOT,
-                    project_dir,
-                    history["invocation_id"],
-                    execute_generation=flags["generate_scenarios"],
-                    execute_model=flags["build_model"],
-                    new_experiment=new_experiment,
-                    note=note,
-                    recover=recover_reservation,
-                    preview=preview,
-                    announce=False,
-                )
     except BaseException as exc:
         invocation_history.finish(history_path, history, exit_code=None, error=exc)
         raise
@@ -1642,6 +1641,7 @@ def _run_owned(
     ran: list[tuple[str, str]] = []
     position = 0
     exit_code = 0
+    forcing_shown = False
     try:
         for name in WORKFLOW_ORDER:
             workflow = manifest["workflows"][name]
@@ -1649,8 +1649,73 @@ def _run_owned(
                 # No row: the opening block's sequence diagram already named
                 # every disabled workflow, once, before anything started.
                 continue
+            workflow["status"] = "running"
+            forcing_rows = _consumer_forcing_rows(config_path, name)
+            if (
+                flags["simulate_system"]
+                and name in {"build_model", "generate_scenarios", "simulate_system"}
+                and reservation_context is None
+            ):
+                # Admission must precede forcing-dependent producers, while
+                # historical comparisons can complete without choosing forcing.
+                with _preparation_progress(True, announce=False):
+                    from blueearth_cst.experiment.reservation_context import (
+                        admit_context_owned,
+                    )
+                    from blueearth_cst.experiment.simulation_runner import (
+                        simulation_command,
+                    )
+
+                    simulation_command(
+                        config_path,
+                        list(simulation_targets),
+                        cores,
+                        extra,
+                        prepare_baseline=False,
+                    )
+                    reservation_context = admit_context_owned(
+                        Path(config_path),
+                        REPO_ROOT,
+                        project_dir,
+                        history["invocation_id"],
+                        execute_generation=flags["generate_scenarios"],
+                        execute_model=flags["build_model"],
+                        new_experiment=new_experiment,
+                        note=note,
+                        recover=recover_reservation,
+                        preview=preview,
+                        announce=False,
+                    )
+                print(
+                    _console_block(
+                        "run_workflows",
+                        [
+                            (
+                                "experiment",
+                                [
+                                    ("name", reservation_context.name),
+                                    (
+                                        "action",
+                                        reservation_context.action or "continue",
+                                    ),
+                                ],
+                            )
+                        ],
+                        include_banner=False,
+                    ),
+                    flush=True,
+                )
             if reservation_context is not None:
                 reservation_context.recheck()
+            if forcing_rows and not forcing_shown:
+                print(
+                    "\n"
+                    + _climate_input_block(
+                        forcing_rows, colour=_console_colour(sys.stdout)
+                    ),
+                    flush=True,
+                )
+                forcing_shown = True
             position += 1
             tag = f"[{position}/{total}]  {_handoff_label(name)}"
             cmd = build_command(name, config_path, cores, extra)
@@ -1662,6 +1727,9 @@ def _run_owned(
                 # surface here, including corrupt existing historical inputs.
                 from blueearth_cst.experiment.simulation_runner import (
                     simulation_command,
+                )
+                from blueearth_cst.experiment.baseline_qcrit import (
+                    HistoricalQcritUnavailable,
                 )
 
                 try:
@@ -1682,7 +1750,11 @@ def _run_owned(
                     invocation_history.update(history_path, history)
                     print(
                         "\n"
-                        + _handoff(tag, "pending WF1 historical inputs", note=reason),
+                        + _handoff(
+                            tag,
+                            "pending WF1 historical inputs",
+                            note=reason,
+                        ),
                         flush=True,
                     )
                     continue
@@ -1692,7 +1764,7 @@ def _run_owned(
                 "\n"
                 + _handoff(
                     tag,
-                    f"starting at {_clock()}",
+                    "starting",
                     note=_format_command(cmd),
                 )
                 + "\n",
@@ -2321,6 +2393,9 @@ def _initialize_manifest(
         "runtime": _runtime_versions(),
     }
     manifest["git"]["release_tag"] = toolbox_release_tag(manifest["git"]["commit"])
+    manifest["git"]["exact_release_tag"] = toolbox_release_tag(
+        manifest["git"]["commit"], exact=True
+    )
     return runs_dir / filename, manifest
 
 

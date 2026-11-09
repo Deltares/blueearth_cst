@@ -206,7 +206,7 @@ def test_unavailable_records_keep_table_headers_and_round_trip(tmp_path, kind, c
     if kind in {"missing", "no_overlap"}:
         paths["figures"].pop("map-precip")
         records = render(paths, settings, 1, ["chirps"], [paths["root"]])
-        assert len(records) == 16
+        assert len(records) == 15
         titles = json.loads(
             (tmp_path / "plots/_engine/figure_titles.json").read_text(encoding="utf-8")
         )["figures"]
@@ -215,7 +215,7 @@ def test_unavailable_records_keep_table_headers_and_round_trip(tmp_path, kind, c
         assert (tmp_path / "plots/figure_titles.md").is_file()
         assert not any("monthly_percentile" in path for path in records)
         assert all((Path(paths["root"]) / p).is_file() for p in records)
-        series = next(r for p, r in records.items() if "annual_trend_ts" in p)
+        series = next(r for r in records.values() if r["encoding"] == "series")
         assert series["availability"].startswith("Unavailable")
         assert "no usable data or reference fit" in series["caption"]
         output = capsys.readouterr().out

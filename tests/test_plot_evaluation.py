@@ -247,7 +247,7 @@ def test_every_sheet_is_named_after_the_wflow_id(tmp_path):
 
 
 @pytest.mark.parametrize("kind", ["peaks", "lows"])
-def test_signature_context_retains_full_record_and_highlights_selected_year(
+def test_signature_context_retains_full_record_and_highlights_percentile_years(
     tmp_path, monkeypatch, kind
 ):
     import matplotlib.dates as mdates
@@ -255,19 +255,25 @@ def test_signature_context_retains_full_record_and_highlights_selected_year(
 
     simulated = _plottable(days=365 * 4)
     observed = simulated * 1.1
-    wet, dry = wettest_and_driest_year(simulated)
-    year = wet if kind == "peaks" else dry
+    annual = simulated.to_series().resample("YS").mean()
+    # This fixture has three complete calendar years and one partial final year.
+    annual = annual.iloc[:-1]
+    threshold = annual.quantile(0.75 if kind == "peaks" else 0.25)
+    selected = annual > threshold if kind == "peaks" else annual < threshold
+    years = annual.index[selected].year.tolist()
 
     def inspect(fig, plot_dir, stem, annotation="none", record=None):
         ax = fig.axes[2]
         for line, expected in zip(ax.lines, (observed, simulated), strict=True):
             np.testing.assert_array_equal(line.get_ydata(), expected.values)
             np.testing.assert_array_equal(line.get_xdata(), expected.time.values)
-        band = ax.patches[0]
-        assert band.get_x() == mdates.date2num(pd.Timestamp(year, 1, 1))
-        assert band.get_x() + band.get_width() == mdates.date2num(
-            pd.Timestamp(year + 1, 1, 1)
-        )
+        assert record["highlighted_years"] == years
+        assert record["year_selection"]["threshold_m3_s"] == pytest.approx(threshold)
+        for band, year in zip(ax.patches, years, strict=True):
+            assert band.get_x() == mdates.date2num(pd.Timestamp(year, 1, 1))
+            assert band.get_x() + band.get_width() == mdates.date2num(
+                pd.Timestamp(year + 1, 1, 1)
+            )
         np.testing.assert_allclose(
             ax.get_xlim(), mdates.date2num(simulated.time.values[[0, -1]])
         )

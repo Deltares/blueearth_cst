@@ -482,6 +482,8 @@ for _source in CANDIDATE_SOURCES:
             script: "blueearth_cst/climate_analysis/annual_spatial_anomalies.py"
 
     _render_outputs = dict(_diag["render"])
+    if "index_products" in _render_outputs:
+        _render_outputs["index_products"] = directory(_render_outputs["index_products"])
     _render_inputs = {"tables": list(_diag["compute"].values()),
         "pooled": [p for spec in SOURCE_DIAGNOSTICS.values() for key, p in spec["compute"].items() if key in {"monthly_values", "metadata"}],
         "map_reference": MAP_REFERENCE.outputs["reference"],
@@ -514,6 +516,7 @@ for _source in CANDIDATE_SOURCES:
 if COMPARE_LOCATIONS:
     # 0.05b  prepare_location_comparisons — observations never affect source extraction.
     rule prepare_location_comparisons:
+        message: PREPARE_LOCATIONS.banner()
         input:
             climate=[CLIMATE_STORES[source].outputs["climate_nc"] for source in CANDIDATE_SOURCES],
             region=REGION.outputs["region_geojson"],
@@ -535,6 +538,7 @@ if COMPARE_LOCATIONS:
 
     # 0.05c  plot_location_comparisons — retained products only.
     rule plot_location_comparisons:
+        message: PLOT_LOCATIONS.banner()
         input: list(location_inventory["compute"].values()),
         output: **{key: directory(path) for key, path in location_inventory["render"].items()},
         params:

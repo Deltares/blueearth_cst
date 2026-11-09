@@ -32,7 +32,6 @@ def rain_gauge_outputs(root, tokens):
         )
         for token in tokens
         for form in (
-            "monthly_coverage",
             "annual_ts",
             "monthly_clim_line",
             "daily_agreement",
@@ -67,7 +66,6 @@ TABLES = (
     "homogeneity",
 )
 FORMS = {
-    "coverage": ("precip", "monthly_coverage"),
     "seasonal": ("precip", "monthly_clim_band"),
     "temperature": ("temp", "monthly_clim_band"),
     "timing": ("precip", "annual_timing"),
@@ -157,37 +155,9 @@ def inventory(root, sources, settings, comparison=False):
                 figures[key] = filename
                 render[f"figure_{key}"] = filename
     if not comparison and settings.get("climate_indices", {}).get("enabled", False):
-        from blueearth_cst.indicators.climate.definitions import INDEX_METADATA
-
-        for metric in INDEX_METADATA:
-            render[f"index_map_{metric}"] = str(
-                root
-                / "plots"
-                / "indices"
-                / figure_filename(scope, metric, "annual_clim_map", "basin_ext")
-            )
-        for key, context in (
-            ("index_series", "annual_indices_ts"),
-            ("index_spells", "wet_spell_exceedance"),
-        ):
-            render[key] = str(
-                root
-                / "plots"
-                / "indices"
-                / figure_filename(scope, "climate_indices", context, "basin_avg")
-            )
-        if settings["climate_indices"]["seasons"]:
-            render["index_seasons"] = str(
-                root
-                / "plots"
-                / "indices"
-                / figure_filename(
-                    scope, "climate_indices", "seasonal_indices_ts", "basin_avg"
-                )
-            )
-        render["index_captions"] = str(
-            root / "plots" / "indices" / "figure_captions.json"
-        )
+        # Availability is known after calculation; one owned directory contains
+        # the available maps/sheets and their completion/availability inventories.
+        render["index_products"] = str(root / "plots" / "indices")
     return paths
 
 

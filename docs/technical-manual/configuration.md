@@ -104,7 +104,9 @@ Completeness and temporal aggregation are distinct from the inclusive extraction
 
 ### Historical forcing recipe
 
-`climate.forcing` applies to the selected source; comparison-only candidates retain their native behavior.
+`climate.forcing` applies when preparing the selected source for model building, scenario generation
+or simulation. Historical comparison and projection workflows do not resolve this choice; historical
+comparisons analyze the candidate datasets using their native/default source preparation.
 Selected precipitation remains `era5`, `chirps` or `chirps_global`. Omission and explicit defaults are
 equivalent. The [annotated starter](../../config/templates/example-basin/project_config.yml) shows the keys.
 

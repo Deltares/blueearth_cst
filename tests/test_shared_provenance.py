@@ -399,6 +399,21 @@ def test_release_tag_excludes_milestones(monkeypatch: pytest.MonkeyPatch) -> Non
     assert provenance.toolbox_release_tag("abc123") == "v0.4.1"
 
 
+@pytest.mark.parametrize("exact_tag", [None, "v0.4.1\n"])
+def test_exact_release_tag_requires_a_tag_at_the_commit(exact_tag, monkeypatch):
+    def metadata(command, root):
+        if command[1] == "tag":
+            return "v0.4.1\nv0.1.0-alpha\n"
+        assert "--exact-match" in command
+        assert "--abbrev=0" not in command
+        return exact_tag
+
+    monkeypatch.setattr(provenance, "_run_metadata_command", metadata)
+    assert provenance.toolbox_release_tag("abc123", exact=True) == (
+        exact_tag.strip() if exact_tag else None
+    )
+
+
 @pytest.mark.parametrize("tags", [None, "", "milestone-12\nv0.4.2-checkpoint\n"])
 def test_release_tag_unavailable(tags, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(provenance, "_run_metadata_command", lambda *_: tags)

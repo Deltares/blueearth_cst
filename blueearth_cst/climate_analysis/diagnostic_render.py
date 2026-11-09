@@ -329,6 +329,11 @@ def render(
         max_missing_month=settings["max_missing_days_month"],
         max_missing_year=settings["max_missing_days_year"],
     )
+    if len(sources) == 1:
+        covered = results[sources[0]]["coverage"].gt(0).any(axis=0)
+        available_years = covered.index[covered].to_numpy(dtype=int)
+        if len(available_years):
+            view.years = np.arange(available_years.min(), available_years.max() + 1)
     records = {}
     for form, filename in paths["figures"].items():
         if form.startswith("annual-map-"):
@@ -402,7 +407,7 @@ def render(
                 elif map_info["scale_status"] == "unavailable":
                     availability = "unscaled: historical reference unavailable"
             else:
-                available = form in {"coverage", "anomaly"} or any(
+                available = form == "anomaly" or any(
                     result["annual"].total.notna().any() for result in results.values()
                 )
                 if form in {"spi", "drought-events"}:

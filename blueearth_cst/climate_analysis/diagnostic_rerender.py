@@ -8,7 +8,7 @@ Everything the rule passes is recovered from the run: settings and water-year
 start from each store's ``_engine/diagnostics.json``, the display reference via
 ``shared.retained_reference`` and overlays from ``data/spatial/geoms``. Output
 goes to a separate directory, never the run's ``plots/``. ``rerender_comparisons``
-handles the basin-average and location views; per-source subbasin figures are not covered.
+handles the basin-average and location views; source rendering also includes enabled subbasin figures.
 """
 
 from __future__ import annotations
@@ -104,6 +104,19 @@ def rerender_sources(
             annotation=annotation,
             reference_record=reference,
         )
+        if settings.get("subbasin_figures", False):
+            from blueearth_cst.climate_analysis.diagnostic_subbasins import (
+                render_retained_subbasins,
+            )
+
+            render_retained_subbasins(
+                [store / "tables/subbasins"],
+                out_dir / store.name / "plots/subbasins",
+                settings,
+                [source],
+                int(metadata["water_year_start"]),
+                annotation,
+            )
         if settings.get("climate_indices", {}).get("enabled", False):
             from blueearth_cst.climate_analysis.climate_index_figures import (
                 render_indices,

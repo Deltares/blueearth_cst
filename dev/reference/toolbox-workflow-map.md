@@ -41,6 +41,9 @@ admission. Bare WF3/WF4 Snakemake launches are not the supported execution path.
    contract instead of assuming a fixed file list.
 
 Rule labels and log order come from each workflow's `RuleRegistry` registrations and `LOG_RULES`.
+Each logged rule must also declare `message: <registered identity>.banner()` so its start is shown
+as a compact `RUN` row. Without it, Snakemake prints its full job-details block. The parsed contract
+in `tests/test_log_rules_contract.py` guards both registration and message presence.
 [Rule numbering](dev-naming-conventions.md#9-rule-numbering-wnn-reference-scheme) defines the label
 convention. Numbers are reading aids, not execution order; inspect dependency edges.
 Gather rules must wait for all terminal work they own, including independent branches, before

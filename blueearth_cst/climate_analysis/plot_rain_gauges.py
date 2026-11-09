@@ -83,7 +83,6 @@ def render(
             months = monthly[monthly.id == station.id]
             years = annual[annual.id == station.id]
             for form in (
-                "monthly_coverage",
                 "annual_ts",
                 "monthly_clim_line",
                 "daily_agreement",
@@ -93,36 +92,17 @@ def render(
                 filename = figure_filename(
                     "comparison", "precip", form, f"station_{station.token}_avg"
                 )
-                if not available or (not joint.any() and form != "monthly_coverage"):
+                if not available or not joint.any():
                     ax.text(
                         0.5,
                         0.5,
-                        "No common valid days; see exclusions and coverage",
+                        "No common valid days; see exclusions and coverage tables",
                         ha="center",
                         va="center",
                         transform=ax.transAxes,
                         wrap=True,
                     )
                     ax.set_axis_off()
-                elif form == "monthly_coverage":
-                    fractions = (
-                        frame.notna()
-                        .assign(joint=joint)
-                        .set_axis(frame.index - pd.Timedelta(days=1))
-                        .resample("MS")
-                        .mean()
-                    )
-                    for i, label in enumerate(fractions):
-                        ax.plot(
-                            fractions.index,
-                            fractions[label],
-                            marker="o",
-                            ms=2,
-                            linestyle=("-", "--", ":", "-.")[i % 4],
-                            label=display.get(label, label),
-                            color=colors.get(label, "black"),
-                        )
-                    ax.set(ylabel="Fraction of expected days", ylim=(-0.03, 1.05))
                 elif form in ("annual_ts", "monthly_clim_line"):
                     for i, label in enumerate(labels):
                         if form == "annual_ts":

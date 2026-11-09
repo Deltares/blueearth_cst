@@ -870,6 +870,7 @@ ANALYSIS_OUTPUTS = {
     name: f"{clim_project_dir}/analysis/{name}.csv" for name in ANALYSIS_TABLE_NAMES
 }
 ANALYSIS_OUTPUTS["analysis_record"] = f"{clim_project_dir}/_engine/analysis_record.json"
+ANALYSIS_OUTPUTS["gridded_changes"] = f"{clim_project_dir}/analysis/gridded_changes"
 WF2_SUITE_PATHS = {
     folder: f"{clim_project_dir}/plots/{folder}"
     for folder in projection_figures.suite_folders(future_horizons, water_year_start, time_horizon_hist)
@@ -1244,9 +1245,12 @@ rule prepare_projection_analysis:
             | {series_file(m, sc, mem) for (m, sc, mem) in POINTS}
         ),
         region_path = region_path,
+        raw_nc = sorted({series_file(m, experiment, mem).replace("/scalar/", "/raw/")
+                         for m, sc, mem in POINTS for experiment in ("historical", sc)}),
         stage_b_settings = _STAGE_B_STAMP,
     output:
-        **ANALYSIS_OUTPUTS,
+        **{name: directory(path) if name == "gridded_changes" else path
+           for name, path in ANALYSIS_OUTPUTS.items()},
     params:
         horizons = future_horizons,
         water_year_start = water_year_start,
@@ -1269,6 +1273,8 @@ rule prepare_projection_analysis:
                 "member": member,
                 "series_path_hist": series_file(model, "historical", member),
                 "series_path": series_file(model, scenario, member),
+                "raw_path_hist": series_file(model, "historical", member).replace("/scalar/", "/raw/"),
+                "raw_path_fut": series_file(model, scenario, member).replace("/scalar/", "/raw/"),
                 "digest_components_hist": series_digest_components(model, "historical", member),
                 "digest_components_fut": series_digest_components(model, scenario, member),
                 "series_key": f"{clim_project}_{model.replace('/', '_')}_{scenario}_{member}",
@@ -1292,6 +1298,8 @@ rule plot_climate_projections:
     input:
         tables = [ANALYSIS_OUTPUTS[name] for name in ANALYSIS_TABLE_NAMES],
         record = ANALYSIS_OUTPUTS["analysis_record"],
+        gridded_changes = ANALYSIS_OUTPUTS["gridded_changes"],
+        map_geoms = list(SPATIAL_UNITS.outputs.values()),
     params:
         scenarios = scenarios,
         annotation = plot_annotation,

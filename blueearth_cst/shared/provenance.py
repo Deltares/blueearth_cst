@@ -517,9 +517,9 @@ def toolbox_identity(repo_root: str | Path | None = None) -> dict[str, Any]:
 
 
 def toolbox_release_tag(
-    commit: str | None, repo_root: str | Path | None = None
+    commit: str | None, repo_root: str | Path | None = None, *, exact: bool = False
 ) -> str | None:
-    """Find the nearest ancestral release, excluding milestone/non-release tags.
+    """Find an ancestral release, or an exact release when ``exact=True``.
 
     Historical alpha releases remain eligible. Missing Git metadata returns None.
     This display metadata is separate from the identity used in source digests.
@@ -537,7 +537,7 @@ def toolbox_release_tag(
     ]
     if not releases:
         return None
-    command = ["git", "describe", "--tags", "--abbrev=0"]
+    command = ["git", "describe", "--tags", "--exact-match" if exact else "--abbrev=0"]
     for tag in releases:
         command.extend(["--match", tag])
     result = _run_metadata_command([*command, commit], root)

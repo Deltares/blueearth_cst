@@ -1,6 +1,7 @@
 """WF0--WF2 exact capture before Snakefile parsing."""
 
 import json
+import warnings
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -25,6 +26,70 @@ from blueearth_cst.shared.workflow_config_snapshot import (
 from scripts import run_workflows
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.mark.parametrize("schema_version", [2, 3])
+@pytest.mark.parametrize("legacy", [False, True])
+def test_execution_yaml_uses_public_forcing_keys(tmp_path, schema_version, legacy):
+    from blueearth_cst.shared.config_composition import load_composed_config
+    from blueearth_cst.shared.forcing_recipe import resolve_climate_forcing
+
+    climate = {
+        "sources": ["era5"],
+        "forcing": {
+            "temp_correction": False,
+            "press_correction": False,
+            "pet": {"mode": "computed", "method": "makkink"},
+        },
+    }
+    if legacy:
+        climate["selected"] = "era5"
+        climate["forcing"]["temp_pet_source"] = "era5"
+    else:
+        climate["forcing"].update(precip_source="era5", temp_source="era5")
+    root = tmp_path / "output"
+    project = {
+        "schema_version": schema_version,
+        "project": {"project_dir": str(root), "catalog": []},
+        "basin": {"region": "x"},
+        "climate": climate,
+        "workflows": {"build_model": {"enabled": True, "config_path": "workflow.yml"}},
+    }
+    (tmp_path / "workflow.yml").write_text("{}\n", encoding="utf-8")
+    source = tmp_path / "project.yml"
+    source.write_text(yaml.safe_dump(project), encoding="utf-8")
+    original = source.read_bytes()
+    with warnings.catch_warnings(record=True) as initial:
+        warnings.simplefilter("always", FutureWarning)
+        execution, _ = prepare_workflow(
+            "build_model",
+            source,
+            root,
+            command=["snakemake", "all"],
+            targets=["all"],
+        )
+    migrations = [item for item in initial if issubclass(item.category, FutureWarning)]
+    # Genuine legacy source settings warn once each; modern sources never warn.
+    assert len(migrations) == (2 if legacy else 0)
+    staged = yaml.safe_load(execution.read_bytes())["climate"]
+    assert "selected" not in staged
+    assert "temp_pet_source" not in staged["forcing"]
+    assert staged["forcing"]["precip_source"] == "era5"
+    assert staged["forcing"]["temp_source"] == "era5"
+    with warnings.catch_warnings(record=True) as reparsed:
+        warnings.simplefilter("always", FutureWarning)
+        loaded = load_composed_config(execution, entry="build_model")
+    assert not [item for item in reparsed if issubclass(item.category, FutureWarning)]
+    expected, _ = resolve_climate_forcing(climate, required=True, notices=False)
+    assert loaded["climate"] == expected
+    assert source.read_bytes() == original
+    record = read_archive(root, "build_model", "config/build_model")
+    archived = next(
+        item for item in record["source_files"] if item["role"] == "project_config"
+    )
+    assert (
+        root / "config/build_model" / archived["archived_path"]
+    ).read_bytes() == original
 
 
 @pytest.mark.parametrize("workflow_name", launch.WORKFLOWS)

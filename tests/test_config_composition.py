@@ -210,6 +210,66 @@ def compose(t1_path: Path, entry: str | None = "build_model") -> dict:
     return cc.load_composed_config(t1_path, entry, projection)
 
 
+def test_repeated_forcing_validation_does_not_emit_workflow_rows(tmp_path, capsys):
+    from blueearth_cst.experiment.simulation_runner import simulation_settings
+
+    path = write_split(
+        tmp_path,
+        sections={
+            "basin": {"region": "x"},
+            "climate": {
+                "sources": ["era5"],
+                "forcing": {"precip_source": "era5"},
+            },
+        },
+        bodies={
+            "build_model": {},
+            "simulate_system": {"operation": "simulate-and-indicators"},
+        },
+    )
+    for _ in range(2):
+        assert compose(path)["climate"]["selected"] == "era5"
+        project, settings = simulation_settings(path)
+        assert project["climate"]["selected"] == "era5"
+        assert settings["operation"] == "simulate-and-indicators"
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+
+
+@pytest.mark.parametrize("entry", ["analyze_climate", "analyze_projections"])
+def test_comparisons_do_not_require_or_apply_a_draft_forcing_recipe(tmp_path, entry):
+    path = write_split(
+        tmp_path,
+        bodies={entry: {}},
+        sections={
+            "basin": {"region": "x"},
+            "climate": {
+                "sources": ["era5", "chirps"],
+                "forcing": {"temp_source": "era5"},
+            },
+        },
+    )
+    compared = cc.load_composed_config(path, entry=entry)
+    assert compared["climate"]["sources"] == ["era5", "chirps"]
+    assert compared["climate"]["selected"] is None
+    assert "forcing" not in compared["climate"]
+
+
+def test_general_configuration_admission_defers_forcing_selection(tmp_path):
+    path = write_split(
+        tmp_path,
+        bodies={"build_model": {}},
+        sections={
+            "basin": {"region": "x"},
+            "climate": {"sources": ["era5", "chirps"]},
+        },
+    )
+    cc.load_composed_config(path, entry="build_model", validate_forcing=False)
+    with pytest.raises(ValueError, match="precip_source is required"):
+        cc.load_composed_config(path, entry="build_model")
+
+
 def test_captured_composition_does_not_reread_mutated_workflow_file(tmp_path):
     project = write_split(
         tmp_path / "cfg",

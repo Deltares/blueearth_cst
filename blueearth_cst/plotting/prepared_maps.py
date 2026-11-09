@@ -225,10 +225,14 @@ def _validate(
             if np.issubdtype(array.dtype, np.floating)
             else 0
         )
-        if not (np.all(steps > 0) or np.all(steps < 0)) or not np.allclose(
+        if not (np.all(steps > 0) or np.all(steps < 0)):
+            raise ValueError(f"{name} must describe a monotonic grid")
+        # pcolormesh honors native nonuniform cell edges (e.g. Gaussian GCM
+        # latitudes). Only the optional imshow RGBA overlay needs equal spacing.
+        if raster.rgba is not None and not np.allclose(
             steps, steps[0], rtol=0, atol=precision
         ):
-            raise ValueError(f"{name} must describe a regular monotonic grid")
+            raise ValueError(f"{name} must describe a regular grid for an RGBA overlay")
     if raster.inside is not None:
         inside = np.asanyarray(raster.inside)
         if (

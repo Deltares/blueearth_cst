@@ -71,6 +71,15 @@ LABEL_BOX = dict(_CHARTS["label_box"])
 _COLORS = {
     key: NEUTRAL_COLORS[key] for key in ("ink", "muted", "axis", "grid", "boundary")
 }
+_COLORS.update(
+    {
+        key: NEUTRAL_COLORS[key]
+        for key in (
+            "time_series_grid",
+            "time_series_observed",
+        )
+    }
+)
 
 
 STYLE = {
@@ -124,6 +133,7 @@ CST_PRESET = Preset(
     band_alpha=BAND_ALPHA,
     label_box=LABEL_BOX,
     rcparams=STYLE,
+    time_series=dict(_CHARTS["time_series"]),
     maps=MAPS,
     map_panels=dict(_MAP_STYLE["panels"]),
 )

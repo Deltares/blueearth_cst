@@ -1,4 +1,4 @@
-"""S8-08(c): the gridded outputs, and both spellings of their config key, are gone.
+"""Legacy opt-in gridded keys remain obsolete; diagnostics are now default outputs.
 
 `save_grids` was renamed to `save_gridded` at 5e (OQ-12); S8-08(c) removed the
 feature outright. The reason the option was never worth its branch:
@@ -75,8 +75,8 @@ def test_a_false_gridded_key_returns_a_warning(key):
     warnings = validate_removed_gridded_options({key: False})
 
     assert warnings == [
-        f"`{key}` is obsolete and ignored (S8-08c); the gridded outputs "
-        "were removed. Delete the key."
+        f"`{key}` is obsolete and ignored (S8-08c); the old optional branch "
+        "was removed. Gridded diagnostics are now default outputs. Delete the key."
     ]
 
 
@@ -93,7 +93,7 @@ def test_snakefile_rejects_a_removed_gridded_key(tmp_path, seed_config):
     combined = result.stdout + result.stderr
     assert result.returncode != 0, "a true gridded key must stop the run"
     assert "`save_gridded: true`" in combined
-    assert "gridded outputs were removed" in combined
+    assert "optional branch was removed" in combined
 
 
 def test_no_shipped_config_carries_a_gridded_key():

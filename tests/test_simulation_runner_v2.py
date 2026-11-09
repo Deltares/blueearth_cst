@@ -298,7 +298,7 @@ def _legacy_selection(monkeypatch, operation):
     monkeypatch.setattr(
         simulation_runner,
         "simulation_selection",
-        lambda _: ({}, settings, indicator_sets.legacy_selection(settings)),
+        lambda _, **_kwargs: ({}, settings, indicator_sets.legacy_selection(settings)),
     )
 
 
@@ -437,7 +437,11 @@ def _named_selection(monkeypatch, tmp_path, settings, project=None):
     monkeypatch.setattr(
         simulation_runner,
         "simulation_selection",
-        lambda _: (project or {}, {**settings, "operation": operation}, selection),
+        lambda _, **_kwargs: (
+            project or {},
+            {**settings, "operation": operation},
+            selection,
+        ),
     )
 
 

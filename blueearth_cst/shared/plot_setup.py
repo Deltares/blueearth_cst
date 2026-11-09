@@ -48,11 +48,19 @@ def load_style(path: Path | None = None) -> dict[str, Any]:
         "fonts",
         "lines",
         "markers",
+        "time_series",
         "rcparams",
         "label_box",
     ):
         if not isinstance(charts.get(group), dict) or not charts[group]:
             raise ValueError(f"{path}: charts.{group} must be a nonempty mapping")
+    for name, value in charts["time_series"].items():
+        if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
+            raise ValueError(
+                f"{path}: charts.time_series.{name} must be positive and finite"
+            )
+        if name.endswith("alpha") and value > 1:
+            raise ValueError(f"{path}: charts.time_series.{name} cannot exceed 1")
     markers = charts.get("fallback_markers")
     if (
         not isinstance(markers, list)
