@@ -893,6 +893,26 @@ def test_hydromts_own_harmonisation_still_happens():
     assert np.all(np.diff(out["lat"].values) < 0), "not N->S"
 
 
+def test_scrambled_source_blocks_sort_values_with_dates_without_dropping_records():
+    ds = _cftime_grid(2016)
+    ds["pr"][:] = np.arange(24)[:, None, None]
+    scrambled = ds.isel(time=list(range(12, 24)) + list(range(12)))
+    result = harmonise_dims_wide_time(scrambled)
+    assert result.indexes["time"].is_monotonic_increasing
+    np.testing.assert_array_equal(result.pr[:, 0, 0], np.arange(24))
+    assert result.sel(time=slice("2015-01-01", "2016-12-31")).sizes["time"] == 24
+    duplicated = scrambled.isel(time=list(range(24)) + [0])
+    ordered = harmonise_dims_wide_time(duplicated)
+    assert ordered.sizes["time"] == 25
+    with pytest.raises(RuntimeError, match="duplicat"):
+        check_time_axis(
+            "fixture",
+            ordered.indexes["time"],
+            ordered.indexes["time"],
+            ("2015", "2016"),
+        )
+
+
 def test_the_window_slice_brings_the_axis_back_inside_nanoseconds():
     """What `fetch_raw_slice` does after `.sel()`, and why the cast is safe.
 

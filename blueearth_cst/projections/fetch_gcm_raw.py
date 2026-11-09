@@ -261,6 +261,10 @@ def harmonise_dims_wide_time(ds):
     in a future release, which would raise the ceiling to year 294 247. That
     would fix the first case and NOT the second: two axes at `[us]` and `[ns]`
     still meet at `[ns]`, and a 2300 axis still does not fit there.
+
+    Non-monotonic source blocks are sorted with their data before HydroMT's
+    label-based temporal slicing. No records are removed; duplicate and coverage
+    checks still apply after selection.
     """
     from hydromt.data_catalog.drivers.preprocessing import harmonise_dims
 
@@ -271,6 +275,16 @@ def harmonise_dims_wide_time(ds):
         widened = seconds_resolution_index(index)
         if widened is not None:
             ds = ds.assign_coords(time=widened)
+    if not ds.indexes["time"].is_monotonic_increasing:
+        # Some MPI scenario stores concatenate complete time blocks in reverse
+        # order. Reorder values with their timestamps before HydroMT slices;
+        # retain every record so the later duplicate/coverage gates still apply.
+        log_row(
+            f"Reordering non-monotonic source time axis ({len(index):,} timestamps; all records retained)",
+            module="fetch",
+            level="WARNING",
+        )
+        ds = ds.sortby("time")
     return harmonise_dims(ds)
 
 

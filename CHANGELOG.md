@@ -9,6 +9,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Reorder unsorted CMIP6 time blocks before temporal slicing, retaining timestamp/value pairs and
+  all records for the existing duplicate and coverage checks; report the reordering in fetch logs.
+
 - Expand WF2 run settings with analysis variables, methods, aggregation and resolved ensemble counts;
   cap displayed model names at three while reporting omitted and total counts.
 
