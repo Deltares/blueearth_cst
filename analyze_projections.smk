@@ -1402,14 +1402,17 @@ def _header():
     try:
         # One write, carrying a blank line on both sides -- see the note on
         # WF3's `_header`, which this mirrors.
+        from blueearth_cst.projections.run_settings import projection_run_settings
+
         open_run_header(
             "wf2 analyze_projections", project_dir, header_config_path(config_path, CAPTURE_RECORD),
             **{
                 "reference period": REFERENCE_WINDOW.effective_label,
                 "future periods": listed([f"{start}–{end}" for start, end in future_horizons.values()]),
                 "emissions scenarios": listed(scenarios),
-                "climate models": listed(models),
+                **projection_run_settings(models, scenarios, COMBINATIONS, VARIABLE_SPEC),
                 "water year": f"Starts in {resolve_water_year_start(climate_cfg.get('water_year_start'))}",
+                "spatial aggregation": "Area-weighted mean",
             },
         )
     except Exception as exc:  # noqa: BLE001 -- never break a run over a banner

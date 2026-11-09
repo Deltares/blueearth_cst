@@ -9,6 +9,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Expand WF2 run settings with analysis variables, methods, aggregation and resolved ensemble counts;
+  cap displayed model names at three while reporting omitted and total counts.
+
 - Preserve source-specific scalar measurement heights when merging WF2 monthly inputs, allowing
   2 m temperature/humidity and 10 m wind on matching grids without overriding coordinate conflicts.
 

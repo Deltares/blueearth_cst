@@ -162,6 +162,9 @@ def test_workflow_defers_header_and_summarizes_requested_outputs(
         assert details["future periods"]
         assert details["emissions scenarios"]
         assert details["climate models"]
+        assert details["ensemble members"]
+        assert details["variables"]
+        assert details["spatial aggregation"] == "Area-weighted mean"
         assert details["water year"].startswith("Starts in")
     elif snakefile == "generate_scenarios.smk":
         generation = workflow.globals["GENERATION"]

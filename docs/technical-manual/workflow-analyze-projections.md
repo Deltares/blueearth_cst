@@ -8,6 +8,11 @@ It compares basin-average temperature and precipitation between historical and f
 selected models and emissions scenarios. The results provide context for interpretation without
 determining the weather scenarios used in the stress test.
 
+The run-settings block lists analysis variables by short name, selected calculation methods and
+area-weighted aggregation. It shows up to three climate model names with the total model count.
+Ensemble counts use resolved model–member pairs without counting members again for each scenario;
+larger ensembles show the member-count range per model. Scenario-dependent membership is flagged.
+
 ## Inputs {#inputs}
 
 - **Basin definition.** Geographical extent used to calculate basin-average climate changes.
