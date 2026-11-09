@@ -164,6 +164,8 @@ def render_suite(
     annotation="none",
     scenarios=None,
     captions_json=None,
+    gridded_changes=None,
+    map_geoms=(),
 ):
     """Render selected annotations and preserve independent figure metadata."""
     root = Path(plots_root)
@@ -296,7 +298,21 @@ def render_suite(
                 for h in w.get("horizons", [])
             ],
         }
-    # Retire only exact PET paths owned by the previous managed publication.
+    from blueearth_cst.projections.gcm_diagnostic_figures import render_gcm_diagnostics
+
+    manifest.update(
+        render_gcm_diagnostics(
+            tables,
+            record,
+            root,
+            grids=gridded_changes,
+            geometries=map_geoms,
+            scenarios=scenarios,
+            annotation=annotation,
+        )
+    )
+    # Retire only exact derived-variable or discontinued monthly-curve paths
+    # owned by the previous managed publication.
     # Raw inputs and unrelated products are never cleanup candidates.
     from blueearth_cst.projections.projection_figures import FIGURE_FILENAMES
 
@@ -308,9 +324,16 @@ def render_suite(
     for relative in set(previous) - set(manifest):
         path = root / relative
         if (
-            path.name in pet_names
+            (
+                path.name in pet_names
+                or (
+                    path.name.startswith("cmip6_delta_monthly_")
+                    and path.suffix == ".png"
+                    and path.parent.name.startswith("period_")
+                )
+            )
             # The previous horizon may no longer be in the current folder set.
-            # Only exact manifest-owned PET files in a direct child are retired.
+            # Only matching manifest-owned files in a direct child are retired.
             and path.parent.parent == root
             and path.resolve().is_relative_to(root.resolve())
         ):
@@ -382,6 +405,8 @@ def run(sm):
         annotation=getattr(sm.params, "annotation", "none"),
         scenarios=getattr(sm.params, "scenarios", None),
         captions_json=sm.output.captions_json,
+        gridded_changes=sm.input.gridded_changes,
+        map_geoms=sm.input.map_geoms,
     )
 
 

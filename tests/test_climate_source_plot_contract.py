@@ -31,8 +31,7 @@ def test_enabled_climate_indices_wire_compute_pointer_and_render_outputs(
     render = workflow.get_rule("plot_climate_diagnostics_era5")
     assert compute.output.climate_indices in render.input
     assert len(compute.params.climate_indices_code_digest) == 64
-    assert render.output.index_seasons in workflow.get_rule("all").input
-    assert render.output.index_map_wsdi in workflow.get_rule("all").input
+    assert render.output.index_products in workflow.get_rule("all").input
     if anomalies:
         annual = workflow.get_rule("prepare_annual_spatial_anomalies_era5")
         assert all(path in render.input for path in annual.output)
@@ -214,6 +213,7 @@ def _resolved_annotation_params(rule):
                 "plot_climate_diagnostics_era5",
                 "plot_climate_diagnostics_chirps",
                 "plot_climate_comparison",
+                "plot_location_comparisons",
             },
         ),
         (

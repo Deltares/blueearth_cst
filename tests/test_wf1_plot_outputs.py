@@ -34,8 +34,8 @@
 
 from __future__ import annotations
 
-import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -122,16 +122,27 @@ def fabricated_project(tmp_path):
     return cfg_path, expected, undeclared
 
 
-@pytest.mark.skipif(shutil.which("snakemake") is None, reason="snakemake not on PATH")
 @pytest.mark.workflow_contract
 def test_delete_all_output_removes_the_declared_plot_outputs(fabricated_project):
     cfg_path, expected, undeclared = fabricated_project
     assert all(p.is_file() for p in expected)
 
     result = subprocess.run(
-        "snakemake all --delete-all-output --workflow-profile none -c 1 "
-        f'-s build_model.smk --configfile "{cfg_path}"',
-        shell=True,
+        [
+            sys.executable,
+            "-m",
+            "snakemake",
+            "all",
+            "--delete-all-output",
+            "--workflow-profile",
+            "none",
+            "-c",
+            "1",
+            "-s",
+            "build_model.smk",
+            "--configfile",
+            str(cfg_path),
+        ],
         capture_output=True,
         text=True,
         cwd=str(SNAKEDIR),
@@ -212,15 +223,26 @@ def project_with_basavg_outvar(tmp_path, request):
     return cfg_path, basin_figures, captions, undeclared
 
 
-@pytest.mark.skipif(shutil.which("snakemake") is None, reason="snakemake not on PATH")
 @pytest.mark.workflow_contract
 def test_delete_all_output_removes_a_basavg_figure(project_with_basavg_outvar):
     cfg_path, basin_figures, captions, undeclared = project_with_basavg_outvar
 
     result = subprocess.run(
-        "snakemake all --delete-all-output --workflow-profile none -c 1 "
-        f'-s build_model.smk --configfile "{cfg_path}"',
-        shell=True,
+        [
+            sys.executable,
+            "-m",
+            "snakemake",
+            "all",
+            "--delete-all-output",
+            "--workflow-profile",
+            "none",
+            "-c",
+            "1",
+            "-s",
+            "build_model.smk",
+            "--configfile",
+            str(cfg_path),
+        ],
         capture_output=True,
         text=True,
         cwd=str(SNAKEDIR),

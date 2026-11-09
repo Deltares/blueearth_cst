@@ -123,7 +123,6 @@ def test_new_inventory_is_opt_in_and_keeps_legacy_schema():
         diagnostic_source_outputs,
     )
     from blueearth_cst.climate_analysis.diagnostic_tables import SCHEMA_VERSION
-    from blueearth_cst.indicators.climate.definitions import INDEX_METADATA
 
     settings = parse_settings(None, {"start": 2000, "end": 2002}, ["era5"])
     ordinary = diagnostic_source_outputs("source", "era5", settings)
@@ -131,9 +130,7 @@ def test_new_inventory_is_opt_in_and_keeps_legacy_schema():
     settings["climate_indices"]["enabled"] = True
     enabled = diagnostic_source_outputs("source", "era5", settings)
     assert "climate_indices" in enabled["compute"]
-    assert sum(key.startswith("index_map_") for key in enabled["render"]) == len(
-        INDEX_METADATA
-    )
+    assert "index_products" in enabled["render"]
     assert SCHEMA_VERSION == 2
 
 
@@ -211,7 +208,7 @@ def test_indices_and_anomalies_share_inventory_and_retained_rerender(
         store / "tables/annual_spatial_anomalies.nc"
     )
     assert any(key.startswith("annual-map-") for key in paths["figures"])
-    assert any(key.startswith("index_map_") for key in paths["render"])
+    assert "index_products" in paths["render"]
     assert indices[0][0] == paths["compute"]["climate_indices"]
     assert all(
         str(path).startswith(str(destination)) for path in paths["render"].values()

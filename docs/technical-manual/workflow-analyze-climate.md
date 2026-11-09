@@ -16,7 +16,7 @@ using maps, time series and diagnostics of coverage, seasonality and extremes.
 
 See [input formats](data-formats-and-conventions.md) for file conventions.
 
-The selected forcing must supply at least 16 years. Source coverage can shorten the requested period;
+Historical candidate datasets must supply at least 16 years. Source coverage can shorten the requested period;
 extraction requires overlap between the source record and that period.
 
 ## Configuration {#configuration}
@@ -27,7 +27,7 @@ extraction requires overlap between the source record and that period.
 |---|---|
 | `basin.region`, `basin.resolution` | Basin extent and analysis resolution. |
 | `climate.sources` | Candidate historical datasets to analyze. |
-| `climate.forcing.precip_source` | Optional forcing choice; comparison-only analysis needs none. |
+| `climate.forcing.precip_source` | Used by downstream forcing consumers; not required for comparisons. |
 | `climate.window` | Requested historical period. |
 | `climate.water_year_start` | Month that begins the reporting year. |
 
@@ -43,7 +43,7 @@ extraction requires overlap between the source record and that period.
 | `diagnostics.max_missing_days_year` | Allowed missing days per water year; default 15. |
 | `diagnostics.wet_day_threshold_mm` | Wet-day threshold; default 1 mm/day. |
 | `diagnostics.spi_distribution` | SPI distribution: `gamma` (default) or `pearson3`. |
-| `subbasin_figures` | Additional tables and figures for individual subbasins. |
+| `subbasin_figures` | Additional per-source area-average subbasin tables and figures. |
 
 The reference period defaults to the climate window, and the comparison period defaults to the
 reference period. Missing-day tolerances must match the project settings in `climate.map_reference`.
@@ -118,7 +118,10 @@ rain_gauges:
   time_label: interval_end
 ```
 
-Omission or `null` disables the comparison. A populated mapping requires exactly these three fields.
+Omission or `null` disables observation input; gridded per-location comparisons still run when multiple
+candidates are selected. A populated mapping requires these three fields and accepts optional `temp_path`.
+That CSV uses the same `time` and station-ID columns for daily mean temperature in degrees Celsius;
+negative temperatures are valid. It uses the same time-label declaration as precipitation.
 Schema 3 resolves paths beside that YAML; schema 2 keeps its existing invocation-relative base.
 The station CSV requires `id,x,y`, with optional display `name` and elevation `elevtn` (metres).
 IDs are unique nonempty strings, including leading zeros. Coordinates are finite WGS84 longitude and
@@ -146,15 +149,61 @@ Correlation is unavailable with fewer than two pairs or constant series.
 Monthly and reporting-year totals require every actual day, including leap days. Reporting years use
 start-year labels and `climate.water_year_start`. Monthly climatologies average the same complete months
 for every series; `monthly.csv` retains contributing months for counting. These strict rules apply only
-to rain gauges and do not change basin diagnostics' existing tolerated-gap summaries.
+to per-location comparisons, including locations without gauges, and do not change basin diagnostics'
+existing tolerated-gap summaries. Temperature summaries require complete matched periods independently
+of precipitation and use means rather than totals.
 
-Run the usual historical analysis entry point. Products appear in
-`data/climate/historical/rain_gauges/`: `tables/{stations,exclusions,coverage,agreement,monthly,annual}.csv`,
-four comparison PNGs per supplied station under `plots/`, and one `_engine/` containing sampled daily
-values/masks, evaluation provenance and figure manifests. Station metadata records safe filename tokens,
-sampled-cell coordinates/CRS and distance. Figures show unavailable comparisons explicitly.
-Titles and captions remain available in `plots/figure_titles.md` and `plots/figure_captions.md`.
-Rerender retained products with `scripts/render_figures.py rain-gauges --project <run> --out <review>`.
+Run the usual historical analysis entry point. The comparison area has two views:
+
+```text
+data/climate/historical/comparison/
+  locations.csv
+  plots/basin-average/
+  plots/locations/<id>/
+  tables/basin-average/
+  tables/locations/<id>/
+  _engine/
+```
+
+The basin-average view compares gridded basin means. The location view replaces the former comparison
+`plots/subbasins/`: each dataset is sampled at the original coordinates of every declared spatial location
+and rainfall-gauge site. These are native-cell values, not subbasin averages. The `subbasin_figures` switch
+continues to control optional area-average diagnostics inside individual source stores.
+
+`locations.csv` maps each directory ID to its name, coordinates, location role, spatial location code,
+Wflow ID, associated subbasin and available observation columns. Declared locations use
+`location_<wflow_id>`; gauge-only sites use `station_<safe-token>`, preserving literal gauge IDs in
+`gauge_id`. A gauge joins an existing location only when its original coordinates coincide uniquely
+within 1e-8 degrees; otherwise it retains a separate site. Gauges are never snapped to rivers for this
+comparison. Outside-basin and outside-grid sites remain indexed with explicit exclusions.
+An alternate temperature companion retains its true source label and its configured preparation;
+its figures identify the retained extraction grid instead of claiming the original companion grid.
+
+Each location has annual overlays and monthly climatology figures. Where
+observations exist, a monthly agreement figure adds one panel per gridded dataset, common axis limits,
+a 1:1 line, Pearson r and the number of complete paired months. Annual overlays and monthly panels adapt
+the comparison forms of Figures 8–12 in *Development of a Climate Stress Test and Case Study for Zimbabwe*
+(University of Cincinnati, draft final report to UNESCO, 24 November 2021), using CST presets.
+Temperature annual means and climatologies use only genuine temperature carriers; monthly agreement requires
+`temp_path`. The temperature scatter explicitly compares monthly means. Correlation includes the seasonal
+cycle and does not measure anomaly skill or establish accuracy.
+
+Precipitation monthly-coverage plots are omitted throughout historical climate analysis. Coverage and
+completeness remain available in the retained tables.
+
+Per-location tables retain coverage, daily agreement, monthly/annual precipitation, native-cell
+coordinates/CRS, exclusions and optional temperature means. Monthly agreement metrics retain paired-month
+counts, Pearson r, mean bias and RMSE; precipitation errors are in mm/month and temperature errors in °C.
+Figures show unavailable comparisons explicitly. Each location's plot directory contains readable
+`figure_titles.md` and `figure_captions.md`; machine inventories and sampled daily data live under
+`_engine/locations/`. Basin figure inventories live under `_engine/basin-average/`.
+
+Rerender both views with
+`scripts/render_figures.py wf0-comparison --project <run> --out <review>`.
+The `rain-gauges` family renders the location view for new runs and continues reading legacy
+`comparison/stations/` or `historical/rain_gauges/` products. Older flat basin tables are readable by the
+comparison rerender command. Rerunning historical analysis writes the new layout; obsolete generated
+directories from earlier runs should be retired separately after verifying the replacement products.
 
 This comparison supports forcing choice; it does not select or correct forcing. Point/grid support
 differs, and gridded products may already incorporate these observations, so agreement is not independent
@@ -177,8 +226,10 @@ for each source. The main outputs are:
   including daily basin series in `daily_basin.csv` and annual climatology in `annual_climatology.nc`.
 - **Maps and time-series figures (`plots/`).** Precipitation, temperature and potential
   evapotranspiration where available, with titles and captions.
-- **Source comparisons (`comparison/`).** Tables and figures comparing multiple datasets, including
-  `tables/agreement.csv` and `tables/agreement.md`, produced when multiple sources are selected.
+- **Source comparisons (`comparison/`).** Basin-average tables and figures under
+  `tables/basin-average/` and `plots/basin-average/`, including `agreement.csv` and `agreement.md`.
+  Per-location tables and figures under `tables/locations/<id>/` and `plots/locations/<id>/` include
+  observations when available; `locations.csv` indexes every site.
 - **Subbasin results (`tables/subbasins/` and `plots/subbasins/`).** Additional tables and figures when
   `subbasin_figures: true`. Basin maps show subbasin outlines regardless of this setting.
 - **Diagnostic record (`_engine/diagnostics.json`).** Methods, data availability and provenance.
@@ -322,10 +373,16 @@ written last. Readers verify its manifest and payloads before rendering. Changed
 settings create a new bundle; unchanged evaluations reuse verified products. Existing schema-2 diagnostic
 tables and formulas retain their previous meaning, including their legacy precipitation totals.
 
-Figures under `plots/indices/` include annual and configured-season basin panels, complete wet-spell
-exceedance and one native-grid map per metric, retaining unavailable panels. The adjacent captions JSON
-records interpretation and evaluation identity. This first bundle is source/basin based; existing optional
-subbasin diagnostics continue separately. Comparison tables do not acquire new climate-index columns.
+Figures under `plots/indices/` split annual and configured-season basin panels into dry/wet spells,
+heavy rainfall, rainfall amount and frequency, temperature extremes, and heatwaves. Only available
+indices, scopes and native-grid maps are emitted, alongside complete wet-spell exceedance when available.
+Compact sheets share unit labels within compatible rows and year titles by column. Single-source plots
+omit empty boundary periods while preserving internal gaps. `figure_availability.json` lists emitted
+PNGs and omitted indices; the adjacent captions JSON records interpretation and evaluation identity.
+The workflow owns this directory as one availability-dependent rendering product, replacing the former
+combined annual/seasonal sheets and individually declared index maps. This bundle is source/basin based;
+existing optional subbasin diagnostics continue separately. Comparison tables do not acquire new
+climate-index columns.
 The retained-source mode of `scripts/render_figures.py` also renders enabled index bundles into its
 separate output directory, preserving the original publication and its reference.
 

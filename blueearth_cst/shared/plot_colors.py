@@ -39,6 +39,7 @@ def load_palette(path: Path = PALETTE_PATH) -> dict[str, Any]:
         "scenarios",
         "climate_maps",
         "historical_maps",
+        "projection_changes",
         "precip_anomaly",
         "neutral",
         "elevation",
@@ -93,6 +94,21 @@ def load_palette(path: Path = PALETTE_PATH) -> dict[str, Any]:
             fail(f"{name} must be a nonempty Matplotlib colormap name")
     if set(palette["historical_maps"]) != {"temp", "precip_pet"}:
         fail("historical_maps requires temp and precip_pet")
+    if set(palette["projection_changes"]) != {"temp", "precip"}:
+        fail("projection_changes requires temp and precip")
+    for name, colors in palette["projection_changes"].items():
+        if (
+            not isinstance(colors, list)
+            or len(colors) < 2
+            or any(
+                not isinstance(color, str)
+                or not re.fullmatch(r"#[0-9a-fA-F]{6}", color)
+                for color in colors
+            )
+        ):
+            fail(
+                f"projection_changes.{name} requires at least two six-digit hex colours"
+            )
     for name, ramp in palette["historical_maps"].items():
         if not isinstance(ramp, dict) or set(ramp) != {"colors", "under", "over"}:
             fail(f"historical_maps.{name} requires colors, under and over")
@@ -124,6 +140,7 @@ DATASET_COLORS: dict[str, str] = _PALETTE["datasets"]
 EVALUATION_COLORS: dict[str, str] = _PALETTE["evaluation"]
 SCENARIO_COLORS: dict[str, str] = _PALETTE["scenarios"]
 CLIMATE_COLORMAPS: dict[str, str] = _PALETTE["climate_maps"]
+PROJECTION_CHANGE_COLORS: dict[str, list[str]] = _PALETTE["projection_changes"]
 PRECIP_ANOMALY_COLORMAP: str = _PALETTE["precip_anomaly"]
 HISTORICAL_MAP_COLORS: dict[str, dict[str, Any]] = _PALETTE["historical_maps"]
 NEUTRAL_COLORS: dict[str, str] = _PALETTE["neutral"]

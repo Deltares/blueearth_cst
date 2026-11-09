@@ -65,7 +65,7 @@ CONTEXT_ENV = "BLUEEARTH_WF012_CAPTURE_CONTEXT"
 # Bump whenever staging logic changes generated execution YAML while the
 # captured sources can remain byte-identical. Including this in the bundle
 # digest retains older immutable execution views instead of overwriting them.
-EXECUTION_CONFIG_SCHEMA_VERSION = "4"
+EXECUTION_CONFIG_SCHEMA_VERSION = "5"
 
 
 def split_config_overrides(extra: Sequence[str]) -> tuple[dict[str, Any], list[str]]:
@@ -263,6 +263,27 @@ def _replace_paths(item: Any, paths: Mapping[Path, Path]) -> Any:
     return item
 
 
+def _execution_climate_config(climate: Mapping[str, Any]) -> dict[str, Any]:
+    """Use current public keys in generated YAML after source validation.
+
+    Internal selected/temp_pet_source values belong in the resolved record,
+    not in a project file that will go through configuration parsing again.
+    The authored source bytes remain untouched in the archive.
+    """
+    result = dict(climate)
+    forcing = dict(result.get("forcing", {}))
+    selected = result.pop("selected", None)
+    if selected is not None:
+        forcing["precip_source"] = selected
+        # Legacy selection also supplied the candidate when sources was omitted.
+        result.setdefault("sources", [selected])
+    if "temp_pet_source" in forcing:
+        forcing["temp_source"] = forcing.pop("temp_pet_source")
+    if forcing or "forcing" in result:
+        result["forcing"] = forcing
+    return result
+
+
 def prepare_workflow(
     workflow: str,
     project_config: Path,
@@ -384,6 +405,7 @@ def prepare_workflow(
     project_document = _replace_paths(yaml.safe_load(initial[0].data), replacements)
     if overrides:
         project_document.update(_replace_paths(dict(overrides), replacements))
+    declared_climate = project_document.get("climate")
     if composed.get("schema_version") == 3:
         # Resolve against the original declarations BEFORE relocating execution
         # YAML. CapturedSource still holds the exact, portable source bytes.
@@ -403,6 +425,11 @@ def prepare_workflow(
                 },
                 replacements,
             )
+    if declared_climate is not None:
+        # Schema 3 uses composed values to relocate paths, but composition also
+        # adds internal forcing aliases. Re-stage the validated public climate
+        # declaration so modern source YAML does not generate deprecated keys.
+        project_document["climate"] = _execution_climate_config(declared_climate)
     # Scheduling choices and source locators remain in the exact archive. Only
     # this workflow's executable settings belong in its immutable config view.
     project_document["workflows"] = {

@@ -1,6 +1,6 @@
 # WF0 diagnostics; shared sources/window belong in the project file.
 # Subbasin plots are optional. Basin maps still show subbasin boundaries.
-# Generate individual subbasin climate figures. Options: true | false.
+# Generate per-source subbasin area-average figures. Options: true | false.
 subbasin_figures: false
 # Historical climate diagnostic settings. Input: mapping.
 diagnostics:
@@ -17,12 +17,15 @@ diagnostics:
     # Define contiguous seasonal reporting periods. Input: mapping, e.g. {DJF: [12, 1, 2]}; start-year labels.
     seasons: {}
 
-# Optional user-prepared daily rain gauges; omitted/null disables evaluation.
+# Optional user-prepared daily rain gauges; omitted/null disables observation input.
+# Multiple gridded candidates still produce per-location comparisons without observations.
 # Both paths and time_label are required when enabled. Paths resolve beside this YAML.
 # Synthetic format examples only: replace with measured data before enabling.
 #rain_gauges:
 #  stations_path: data/rain_gauge_stations.csv
 #  precip_path: data/rain_gauge_precip.csv
+# Optional daily mean temperature (degrees Celsius), using the same station IDs and time labels.
+#  temp_path: data/gauge_temp.csv
 # Midnight UTC accumulations only. Options: interval_start | interval_end.
 #  time_label: interval_end
 

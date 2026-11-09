@@ -343,6 +343,7 @@ def plot_basavg(
                         ax.set_xlim(first - 0.5, years[-1] + 0.5)
                         ax.set_xticks(np.arange(first, years[-1] + 1, step))
                         ax.set_xticks(np.arange(first, years[-1] + 1), minor=True)
+                        ax.set_xlabel("Year")
                         ax.set_ylabel(meta["annual_units"])
                         ax.yaxis.get_major_formatter().set_useOffset(False)
                         fundamentals.ygrid(ax)

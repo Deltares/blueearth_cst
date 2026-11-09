@@ -20,12 +20,12 @@ def validate_removed_gridded_options(config: Mapping[str, object]) -> list[str]:
         if config[key]:
             raise RemovedGriddedOutputsError(
                 f"analyze_projections: `{key}: true` -- the gridded outputs "
-                "were removed (S8-08c). `raw/{series_key}.nc` is the basin slice on "
-                "the source grid and is always written, so the gridded series was a "
-                "near-duplicate of it. Remove the key from your config."
+                "optional branch was removed (S8-08c). Native source slices are always "
+                "written to raw/; gridded diagnostic changes and spatial maps are now "
+                "default WF2 outputs. Remove the obsolete key from your config."
             )
         warnings.append(
-            f"`{key}` is obsolete and ignored (S8-08c); the gridded outputs "
-            "were removed. Delete the key."
+            f"`{key}` is obsolete and ignored (S8-08c); the old optional branch "
+            "was removed. Gridded diagnostics are now default outputs. Delete the key."
         )
     return warnings

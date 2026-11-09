@@ -1,6 +1,6 @@
 # Styling weathergenr figures in CST
 
-Last updated: 2026-11-05
+Last updated: 2026-11-08
 
 Use this reference when styling or exporting ggplot2 figures returned by weathergenr in CST. It covers
 appearance, panel layout and export settings for those figures, rather than a general style for all
@@ -21,7 +21,10 @@ Native marks and facet strips are retained; canvas height follows the number of 
 
 ## Figure conventions
 
-- Observations and agreement guides are blue; stochastic traces/ranges are gray; central ensemble
+- Time-series products use the [standard time-series template](cst-style.md#standard-time-series-template),
+  including thicker gray observations, solid lines and the shared horizontal guides. The adapter applies
+  these after native styling and retains ensemble opacity and synthetic serial-year labels.
+  Observations and agreement guides in other diagnostics are blue; stochastic traces/ranges are gray; central ensemble
   summaries are black. Significance thresholds and cone-of-influence guides are red. The wavelet
   significance contour stays black and its observed spectrum retains plain blue.
 - Use 7 pt labels/headings and 6 pt tick labels from shared chart tokens, with DejaVu Sans where
@@ -34,8 +37,8 @@ Native marks and facet strips are retained; canvas height follows the number of 
   repeats its observed x-axis title. Medians are not renamed as means.
 - Boxplots retain their existing statistical definitions and mean diamonds. Observations use blue;
   simulations use gray fills and black outlines. Outlier dots are 1.3 mm at alpha 0.25.
-- Annual time series use 0.25 mm gray realization traces at alpha 0.60 and 0.45 mm opaque blue
-  observations. Keep only horizontal gridlines, annual minor ticks and five-year major labels.
+- Annual time series use the shared template's line weights and opaque gray observations;
+  realization traces retain alpha 0.60. Keep annual minor ticks and five-year major labels.
   Axis labels are `Serial year` and `mm day⁻¹`; the first data value is not forced to zero.
 - Monthly cycles use the same trace/observation weights, separate precipitation/temperature units
   in the panel headings, and a `Month` title below each panel. No ensemble mean is added.

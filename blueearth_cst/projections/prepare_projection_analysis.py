@@ -432,6 +432,31 @@ def run(sm):
         path = Path(sm.output[name])
         path.parent.mkdir(parents=True, exist_ok=True)
         table.to_csv(path, index=False, na_rep="")
+    from blueearth_cst.projections.spatial_diagnostics import prepare_spatial_changes
+
+    raw_declared = {os.path.abspath(str(path)) for path in sm.input.raw_nc}
+    raw_used = {
+        os.path.abspath(str(point[key]))
+        for point in points
+        for key in ("raw_path_hist", "raw_path_fut")
+    }
+    if raw_declared != raw_used:
+        raise RuntimeError("spatial diagnostic raw inputs differ from the declared set")
+    spatial = prepare_spatial_changes(
+        points,
+        record["windows"],
+        sm.output.gridded_changes,
+        variable_spec=dict(sm.params.variable_spec),
+        water_year_start=sm.params.water_year_start,
+        min_reference=dict(sm.params.min_reference),
+        region_fp=series_identity.region_fingerprint(sm.input.region_path),
+    )
+    record["spatial_diagnostics"] = {
+        "inventory": "analysis/gridded_changes/inventory.json",
+        "members": len(spatial["members"]),
+        "unavailable": spatial["unavailable"],
+        "methods": spatial["methods"],
+    }
     record_path = Path(sm.output.analysis_record)
     record_path.parent.mkdir(parents=True, exist_ok=True)
     record_path.write_text(

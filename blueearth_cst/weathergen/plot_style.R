@@ -43,6 +43,11 @@ export_cst_weather_plots <- function(run, output_dir, root = "config/plotting") 
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   for (id in names(plots)) {
     effective <- plot_style
+    temporal <- id %in% c("annual_precip", "warm_annual_precip", "monthly_cycle")
+    if (temporal) {
+      effective$colors[["observed"]] <- yaml::read_yaml(
+        file.path(root, "colors.yml"))$neutral$time_series_observed
+    }
     if (id == "obs_power_spectra") {
       effective$colors[["observed"]] <- weather$colors$wavelet_observed
     }
@@ -54,6 +59,10 @@ export_cst_weather_plots <- function(run, output_dir, root = "config/plotting") 
     } else {
       p <- weathergenr::style_weather_plot(plots[[id]], id,
         plot_style = effective, panel_layout = layout)
+    }
+    if (temporal) {
+      p <- style_cst_time_series(p, style$charts$time_series,
+        effective$colors[["observed"]], root)
     }
     stem <- if (id %in% names(filenames)) filenames[[id]] else id
     faceted <- !is.null(attr(p, "weathergenr_panel_layout"))
@@ -70,4 +79,40 @@ export_cst_weather_plots <- function(run, output_dir, root = "config/plotting") 
     plots[[id]] <- p
   }
   invisible(plots)
+}
+
+# Apply the shared template after native styling; keep ensemble opacity and data.
+style_cst_time_series <- function(plot, tokens, observed_color,
+                                  root = "config/plotting") {
+  pt_to_mm <- 25.4 / 72.27
+  if (inherits(plot, "patchwork")) {
+    plot$patches$plots <- lapply(plot$patches$plots, function(panel) {
+      style_cst_time_series(panel, tokens, observed_color, root)
+    })
+  }
+  for (i in seq_along(plot$layers)) {
+    layer <- ggplot2::ggproto(NULL, plot$layers[[i]])
+    if (inherits(layer$geom, "GeomLine")) {
+      observed <- identical(layer$aes_params$colour, observed_color)
+      layer$mapping$linetype <- NULL
+      layer$aes_params$linetype <- "solid"
+      layer$aes_params$linewidth <- pt_to_mm * if (observed) {
+        tokens$observed_width
+      } else {
+        tokens$line_width
+      }
+    } else if (inherits(layer$geom, "GeomPoint")) {
+      layer$aes_params$size <- tokens$marker_size * pt_to_mm
+    }
+    plot$layers[[i]] <- layer
+  }
+  colors <- yaml::read_yaml(file.path(root, "colors.yml"))$neutral
+  plot + ggplot2::theme(
+    panel.grid.major.x = ggplot2::element_blank(),
+    panel.grid.minor = ggplot2::element_blank(),
+    panel.grid.major.y = ggplot2::element_line(
+      colour = grDevices::adjustcolor(colors$time_series_grid,
+        alpha.f = tokens$grid_alpha),
+      linewidth = tokens$grid_width * pt_to_mm)
+  )
 }

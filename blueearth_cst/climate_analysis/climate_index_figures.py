@@ -9,12 +9,24 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.ticker import NullLocator
 
 from blueearth_cst.climate_analysis.climate_indices import load_publication
 from blueearth_cst.climate_analysis.diagnostic_figures import source_styles
-from blueearth_cst.indicators.climate.definitions import INDEX_METADATA
+from blueearth_cst.climate_analysis.figure_naming import figure_filename
+from blueearth_cst.indicators.climate.definitions import (
+    INDEX_GROUPS,
+    INDEX_METADATA,
+    INDEX_SERIES_LABELS,
+)
 from blueearth_cst.plotting.export import export_figure
-from blueearth_cst.plotting.fundamentals import new_fig, year_ticks
+from blueearth_cst.plotting.figure_titles import write_figure_titles
+from blueearth_cst.plotting.fundamentals import (
+    new_fig,
+    time_series_grid,
+    time_series_style,
+    year_ticks,
+)
 from blueearth_cst.plotting.prepared_maps import (
     MapFrame,
     MapScale,
@@ -31,37 +43,98 @@ from blueearth_cst.shared.map_reference import (
 from blueearth_cst.shared.plot_preset import CST_PRESET
 
 
-def _series(data, metadata, *, seasonal=False, color=None):
-    """Draw all declared indices with unavailable panels retained."""
-    columns = 3
+def _series(data, metadata, *, seasonal=False, color=None, source="", columns=3):
+    """Draw one available scope with compact row-unit and column-year labels."""
+    metadata = {
+        key: item
+        for key, item in metadata.items()
+        if key in data and np.isfinite(data[key].values).any()
+    }
+    if not metadata:
+        raise ValueError("No available indices in the requested scope")
+    columns = min(columns, len(metadata))
     rows = int(np.ceil(len(metadata) / columns))
-    fig, axes = new_fig(rows * 37, rows, columns, width_mm=180)
+    fig, axes = new_fig(
+        rows * 42 + 11, rows, columns, width_mm=180 if columns > 1 else 100, sharex=True
+    )
+    fig.get_layout_engine().set(
+        w_pad=0.8 / 25.4, h_pad=0.6 / 25.4, wspace=0.05, hspace=0.03
+    )
     dates = pd.DatetimeIndex(data.period_start.values)
     years = np.asarray(dates.year)
+    valid = np.any(
+        np.stack([np.isfinite(data[key].values) for key in metadata]), axis=0
+    )
+    display_years = np.unique(years[valid])
     season_names = np.array([str(label).split(":")[0] for label in data.period.values])
+    seasons = list(dict.fromkeys(season_names))
+    season_styles = source_styles(seasons) if seasonal else {}
+    units_by_panel = [units for _, units in metadata.values()]
+    handles = []
     for index, (metric, (label, units)) in enumerate(metadata.items()):
         ax = axes.flat[index]
-        ax.set_title(textwrap.fill(f"{chr(97 + index)}) {label}", 30), loc="left")
-        ax.set_ylabel(units)
-        if metric not in data or not np.isfinite(data[metric].values).any():
-            ax.text(0.5, 0.5, "Unavailable", transform=ax.transAxes, ha="center")
-        elif seasonal:
-            for season in dict.fromkeys(season_names):
+        row, column = divmod(index, columns)
+        ax.set_title(
+            textwrap.fill(f"{chr(97 + index)}) {label}", 30), loc="left", pad=4
+        )
+        row_units = units_by_panel[row * columns : (row + 1) * columns]
+        if len(set(row_units)) != 1 or column == 0:
+            ax.set_ylabel("°C" if units == "degC" else units)
+        if seasonal:
+            for season in seasons:
                 selected = season_names == season
-                ax.plot(
+                (line,) = ax.plot(
                     years[selected],
                     data[metric].values[selected],
                     marker="o",
                     label=season,
+                    **time_series_style(season, season_styles[season][0]),
                 )
-            if index == 0:
-                ax.legend()
+                if index == 0:
+                    handles.append(line)
         else:
-            ax.plot(years, data[metric].values, marker="o", color=color)
-        year_ticks(ax, np.unique(years))
-        ax.grid(axis="y", alpha=0.2)
+            ax.plot(
+                years,
+                data[metric].values,
+                marker="o",
+                **time_series_style(source, color),
+            )
+        year_ticks(ax, display_years)
+        step = (
+            10
+            if len(display_years) > 20
+            else 5
+            if len(display_years) > 10
+            else 2
+            if len(display_years) > 4
+            else 1
+        )
+        ax.set_xticks(
+            np.arange(
+                int(np.ceil(display_years[0] / step)) * step,
+                display_years[-1] + 1,
+                step,
+            )
+        )
+        ax.xaxis.set_minor_locator(NullLocator())
+        bottom = row == (len(metadata) - 1 - column) // columns
+        ax.set_xlabel("Year" if bottom else "")
+        ax.tick_params(
+            axis="x",
+            which="major",
+            bottom=bottom,
+            top=False,
+            labelbottom=bottom,
+            length=2.5,
+            width=0.5,
+        )
+        ax.tick_params(axis="x", which="minor", bottom=False, top=False)
+        ax.margins(y=0.1)
+        time_series_grid(ax)
     for ax in list(axes.flat)[len(metadata) :]:
         ax.set_visible(False)
+    if handles:
+        fig.legend(handles=handles, loc="outside upper center", ncols=len(handles))
     return fig
 
 
@@ -82,6 +155,9 @@ def render_indices(
     with xr.open_dataset(folder / "annual_grid.nc") as opened:
         grid = opened.load()
     captions = {}
+    omissions = {}
+    output_dir = Path(paths["index_products"])
+    output_dir.mkdir(parents=True, exist_ok=True)
     source = manifest["identity"]["source"]
     hue = source_styles([source])[source][0]
     options = manifest["identity"]["settings"]["climate_indices"]
@@ -104,7 +180,7 @@ def render_indices(
     )
 
     def save(fig, key, title, explanation):
-        path = Path(paths[key])
+        path = Path(paths[key]) if key in paths else output_dir / key
         path.parent.mkdir(parents=True, exist_ok=True)
         export_figure(
             fig,
@@ -121,44 +197,71 @@ def render_indices(
         }
 
     with use_preset(CST_PRESET):
-        save(
-            _series(basin, metadata, color=hue),
-            "index_series",
-            f"{source.upper()} annual climate indices",
-            "Indices of daily equal-weight basin-cell means, not spatial means of cell indices. "
-            "Years are labelled by start year. Durations count overlapping days within each period.",
-        )
-        if "index_seasons" in paths:
-            with xr.open_dataset(folder / "seasonal_basin.nc") as opened:
-                seasonal = opened.load()
-            save(
-                _series(seasonal, metadata, seasonal=True),
-                "index_seasons",
-                f"{source.upper()} seasonal climate indices",
-                f"Explicit seasons {options['seasons']}; labels use start years. Basin-series calculation.",
-            )
+        for period in ("annual", "seasonal") if options["seasons"] else ("annual",):
+            if period == "seasonal":
+                with xr.open_dataset(folder / "seasonal_basin.nc") as opened:
+                    series = opened.load()
+            else:
+                series = basin
+            omissions[period] = [
+                metric
+                for metric in metadata
+                if metric not in series or not np.isfinite(series[metric].values).any()
+            ]
+            for scope, (scope_title, columns, metrics) in INDEX_GROUPS.items():
+                subset = {
+                    metric: (
+                        INDEX_SERIES_LABELS.get(metric, metadata[metric][0]),
+                        metadata[metric][1],
+                    )
+                    for metric in metrics
+                    if metric not in omissions[period]
+                }
+                if not subset:
+                    continue
+                filename = figure_filename(
+                    source, "climate_indices", f"{period}_{scope}_ts", "basin_avg"
+                )
+                save(
+                    _series(
+                        series,
+                        subset,
+                        seasonal=period == "seasonal",
+                        color=hue,
+                        source=source,
+                        columns=columns,
+                    ),
+                    filename,
+                    f"{source.upper()} {period} climate indices — {scope_title}",
+                    "Indices of daily equal-weight basin-cell means, not spatial means of cell indices. "
+                    "Only available metrics are shown; y scales are metric-specific and unit titles "
+                    "are shared within compatible rows. Years are labelled by start year, with empty "
+                    "boundary periods omitted and internal gaps retained. Durations count overlapping "
+                    f"days within each period. Configured seasons: {options['seasons']}.",
+                )
         exceedance = pd.read_csv(folder / "wet_spell_exceedance_basin.csv")
-        fig, axes = new_fig(65, width_mm=100)
-        ax = axes[0, 0]
         if len(exceedance):
+            fig, axes = new_fig(65, width_mm=100)
+            ax = axes[0, 0]
             ax.step(
                 exceedance.duration,
                 exceedance.exceedance_probability,
                 where="pre",
-                color=hue,
+                **time_series_style(source, hue),
+            )
+            ax.set(xlabel="days", ylabel="P(duration ≥ days)", ylim=(0, 1))
+            time_series_grid(ax)
+            save(
+                fig,
+                figure_filename(
+                    source, "climate_indices", "wet_spell_exceedance", "basin_avg"
+                ),
+                f"{source.upper()} complete wet-spell exceedance",
+                "Empirical survival probabilities for complete basin-series wet spells over the retained record. "
+                "Gap- and edge-censored segments are excluded; this can bias duration distributions.",
             )
         else:
-            ax.text(
-                0.5, 0.5, "No complete wet spells", transform=ax.transAxes, ha="center"
-            )
-        ax.set(xlabel="days", ylabel="P(duration ≥ days)", ylim=(0, 1))
-        save(
-            fig,
-            "index_spells",
-            f"{source.upper()} complete wet-spell exceedance",
-            "Empirical survival probabilities for complete basin-series wet spells over the retained record. "
-            "Gap- and edge-censored segments are excluded; this can bias duration distributions.",
-        )
+            omissions["wet_spell_exceedance"] = "no complete wet spells"
         # Use a two-dimensional index field, never a scalar support counter.
         template = next(grid[metric] for metric in INDEX_METADATA if metric in grid)
         template = template.mean("period").transpose("latitude", "longitude")
@@ -186,24 +289,22 @@ def render_indices(
                 else xr.full_like(template, np.nan)
             )
             finite = field.values[np.isfinite(field.values)]
-            if finite.size:
-                lo, hi = float(finite.min()), float(finite.max())
-                if lo == hi:
-                    lo, hi = lo - 0.5, hi + 0.5
-                boundaries = np.linspace(lo, hi, 6)
-                status = "available"
-            else:
-                boundaries = []
-                status = "unavailable"
+            if not finite.size:
+                omissions.setdefault("maps", []).append(metric)
+                continue
+            lo, hi = float(finite.min()), float(finite.max())
+            if lo == hi:
+                lo, hi = lo - 0.5, hi + 0.5
+            boundaries = np.linspace(lo, hi, 6)
             scale = MapScale(
                 units,
                 boundaries,
                 boundaries,
-                cmap(np.linspace(0.1, 1, 5)) if finite.size else [],
+                cmap(np.linspace(0.1, 1, 5)),
                 cmap(0.0),
                 cmap(1.0),
                 "#dddddd",
-                status,
+                "available",
             )
             fig = draw_raster_map(
                 RasterMap(field.values, x, y),
@@ -212,23 +313,27 @@ def render_indices(
                 overlays or {},
                 colorbar_title=f"{label}\n({units})",
             )
-            if not finite.size:
-                fig.axes[0].text(
-                    0.5,
-                    0.5,
-                    f"{textwrap.fill(label, 30)}\nUnavailable",
-                    transform=fig.axes[0].transAxes,
-                    ha="center",
-                    va="center",
-                )
             count = int(np.isfinite(field.values).sum())
             save(
                 fig,
-                f"index_map_{metric}",
+                figure_filename(source, metric, "annual_clim_map", "basin_ext"),
                 f"{source.upper()} {label}",
                 f"Mean of available annual cellwise {label} values; {count} finite native basin cells. "
                 "Independent colour scales describe this source and metric; they do not establish cross-source agreement.",
             )
-    Path(paths["index_captions"]).write_text(
+    write_figure_titles(output_dir, captions)
+    (output_dir / "figure_availability.json").write_text(
+        json.dumps(
+            {
+                "evaluation_id": manifest["evaluation_id"],
+                "omitted": omissions,
+                "figures": list(captions),
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (output_dir / "figure_captions.json").write_text(
         json.dumps(captions, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )

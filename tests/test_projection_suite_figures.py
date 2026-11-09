@@ -473,7 +473,12 @@ def test_driver_csv_roundtrip_normalizes_full_period_window(
     )
     driver.run(
         SimpleNamespace(
-            input=SimpleNamespace(tables=files, record=str(record_path)),
+            input=SimpleNamespace(
+                tables=files,
+                record=str(record_path),
+                gridded_changes=str(tmp_path / "gridded_changes"),
+                map_geoms=[],
+            ),
             output=SimpleNamespace(
                 captions_md=str(plots / "figure_captions.md"),
                 captions_json=str(tmp_path / "_engine/figure_captions.json"),
@@ -484,6 +489,8 @@ def test_driver_csv_roundtrip_normalizes_full_period_window(
     )
     available = captured["tables"]["availability"]
     assert captured["kwargs"]["annotation"] == "title"
+    assert captured["kwargs"]["gridded_changes"] == str(tmp_path / "gridded_changes")
+    assert captured["kwargs"]["map_geoms"] == []
     assert captured["kwargs"]["captions_json"] == str(
         tmp_path / "_engine/figure_captions.json"
     )

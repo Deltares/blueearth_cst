@@ -7,8 +7,8 @@ reviewed without rerunning the workflow. Front end: ``scripts/render_figures.py`
 Everything the rule passes is recovered from the run: settings and water-year
 start from each store's ``_engine/diagnostics.json``, the display reference via
 ``shared.retained_reference`` and overlays from ``data/spatial/geoms``. Output
-goes to a separate directory, never the run's ``plots/``. Not covered:
-per-subbasin figures and the rule 0.05 comparison set.
+goes to a separate directory, never the run's ``plots/``. ``rerender_comparisons``
+handles the basin-average and location views; source rendering also includes enabled subbasin figures.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ import json
 from pathlib import Path
 
 from blueearth_cst.climate_analysis.diagnostic_outputs import (
+    diagnostic_comparison_outputs,
     diagnostic_source_outputs,
     retarget_render,
 )
@@ -103,6 +104,19 @@ def rerender_sources(
             annotation=annotation,
             reference_record=reference,
         )
+        if settings.get("subbasin_figures", False):
+            from blueearth_cst.climate_analysis.diagnostic_subbasins import (
+                render_retained_subbasins,
+            )
+
+            render_retained_subbasins(
+                [store / "tables/subbasins"],
+                out_dir / store.name / "plots/subbasins",
+                settings,
+                [source],
+                int(metadata["water_year_start"]),
+                annotation,
+            )
         if settings.get("climate_indices", {}).get("enabled", False):
             from blueearth_cst.climate_analysis.climate_index_figures import (
                 render_indices,
@@ -119,4 +133,43 @@ def rerender_sources(
                 annotation=annotation,
             )
         written[source] = Path(paths["render_root"]) / "plots"
+    return written
+
+
+def rerender_comparisons(
+    project_dir: str | Path, out_dir: str | Path, annotation: str = "none"
+) -> dict[str, Path]:
+    """Render both comparison views; older basin tables remain readable in place."""
+    project_dir, out_dir = Path(project_dir), Path(out_dir)
+    root = project_dir / "data/climate/historical/comparison"
+    written = {}
+    metadata_path = root / "_engine/diagnostics.json"
+    if metadata_path.is_file():
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        sources = metadata["sources"]
+        paths = diagnostic_comparison_outputs(root, sources, metadata["settings"])
+        if not Path(paths["compute"]["coverage"]).is_file():
+            for key, path in paths["compute"].items():
+                if "basin-average" in Path(path).parts:
+                    paths["compute"][key] = str(root / "tables" / Path(path).name)
+        paths = retarget_render(paths, out_dir)
+        stores = source_stores(project_dir, load_retained_reference(project_dir))
+        render(
+            paths,
+            metadata["settings"],
+            metadata["water_year_start"],
+            sources,
+            [str(stores[source]) for source in sources],
+            annotation=annotation,
+        )
+        written["basin-average"] = out_dir / "plots/basin-average"
+    if (root / "locations.csv").is_file():
+        from blueearth_cst.climate_analysis.plot_location_comparison import (
+            render as render_locations,
+        )
+
+        render_locations(root, out_dir, annotation)
+        written["locations"] = out_dir / "plots/locations"
+    if not written:
+        raise FileNotFoundError(f"{root}: no retained comparison products")
     return written

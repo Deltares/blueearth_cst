@@ -42,6 +42,13 @@ column labels, and per-tile headings (for example member counts); pagination pre
 
 ## Prepared drawing, presets and export
 
+Use the [standard time-series template](docs/cst-style.md#standard-time-series-template) for annual
+overlays, hydrographs and monthly cycles. `Preset.time_series` carries the shared physical weights and
+opacity; `fundamentals.time_series_style()` and `time_series_grid()` apply them. Use `year_ticks()`
+for numerical years and `date_year_ticks()` for multi-year datetime axes. Preserve scientific masks
+in preparation; each annual location overlay retains its source's complete years, while agreement
+statistics retain matched support.
+
 The drawing helpers accept prepared data. [prepared_charts.py](prepared_charts.py) provides `annual_series`
 and `monthly_cycle`, which return a Matplotlib `Figure`. Use `draw_annual_lines` and
 `draw_annual_trends` on an existing axis when a composition owns its ticks or legend. The adapter owns

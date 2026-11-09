@@ -308,12 +308,13 @@ PLOT_DIAGNOSTICS = RULES.logged("0.04b", "plot_climate_diagnostics", summary="re
 # is registered -- and its label enters LOG_RULES -- only then.
 if len(CANDIDATE_SOURCES) > 1:
     COMPARE_DIAGNOSTICS = RULES.logged("0.05", "plot_climate_comparison", summary="compare sources over the configured common period")
-from blueearth_cst.climate_analysis.rain_gauges import parse_rain_gauges, read_stations
-from blueearth_cst.climate_analysis.diagnostic_outputs import rain_gauge_outputs
+from blueearth_cst.climate_analysis.rain_gauges import parse_rain_gauges
+from blueearth_cst.climate_analysis.diagnostic_outputs import location_comparison_outputs
 rain_gauge_settings = parse_rain_gauges(my_cfg.get("rain_gauges"))
-if rain_gauge_settings is not None:
-    PREPARE_RAIN_GAUGES = RULES.logged("0.05b", "prepare_rain_gauges", summary="sample and compare daily rain gauges")
-    PLOT_RAIN_GAUGES = RULES.logged("0.05c", "plot_rain_gauges", summary="render rain-gauge comparisons")
+COMPARE_LOCATIONS = len(CANDIDATE_SOURCES) > 1 or rain_gauge_settings is not None
+if COMPARE_LOCATIONS:
+    PREPARE_LOCATIONS = RULES.logged("0.05b", "prepare_location_comparisons", summary="sample native cells at locations and gauge sites")
+    PLOT_LOCATIONS = RULES.logged("0.05c", "plot_location_comparisons", summary="render per-location comparisons")
 
 
 # The opt-in owns a separate product; it does not change existing numerical diagnostics.
@@ -340,16 +341,13 @@ POOLED_ROOTS = [SOURCE_DIAGNOSTICS[s]["root"] for s in CANDIDATE_SOURCES]
 COMPARISON_DIR = f"{project_dir}/data/climate/historical/comparison"
 COMPARISON_DIAGNOSTICS = diagnostic_comparison_outputs(COMPARISON_DIR, CANDIDATE_SOURCES, DIAGNOSTIC_SETTINGS) if len(CANDIDATE_SOURCES) > 1 else None
 WF0_TERMINALS = [p for spec in SOURCE_DIAGNOSTICS.values() for p in spec["render"].values()]
-if rain_gauge_settings is not None:
-    rain_gauge_root = f"{project_dir}/data/climate/historical/rain_gauges"
-    rain_gauge_inventory = rain_gauge_outputs(rain_gauge_root, read_stations(rain_gauge_settings["stations_path"]).token)
-    WF0_TERMINALS += list(rain_gauge_inventory["compute"].values()) + list(rain_gauge_inventory["render"].values())
+if COMPARE_LOCATIONS:
+    location_inventory = location_comparison_outputs(COMPARISON_DIR)
+    WF0_TERMINALS += list(location_inventory["compute"].values()) + list(location_inventory["render"].values())
 if COMPARISON_DIAGNOSTICS:
     WF0_TERMINALS += list(COMPARISON_DIAGNOSTICS["compute"].values()) + list(COMPARISON_DIAGNOSTICS["render"].values()) + list(COMPARISON_DIAGNOSTICS["source_summary"].values())
 if DIAGNOSTIC_SETTINGS["subbasin_figures"]:
     WF0_TERMINALS += [f"{spec['root']}/plots/subbasins" for spec in SOURCE_DIAGNOSTICS.values()]
-    if COMPARISON_DIAGNOSTICS:
-        WF0_TERMINALS.append(f"{COMPARISON_DIAGNOSTICS['root']}/plots/subbasins")
 WF0_TERMINALS.append(SPATIAL_UNITS.outputs["basins"])
 
 WF0_TARGETS = [
@@ -484,6 +482,8 @@ for _source in CANDIDATE_SOURCES:
             script: "blueearth_cst/climate_analysis/annual_spatial_anomalies.py"
 
     _render_outputs = dict(_diag["render"])
+    if "index_products" in _render_outputs:
+        _render_outputs["index_products"] = directory(_render_outputs["index_products"])
     _render_inputs = {"tables": list(_diag["compute"].values()),
         "pooled": [p for spec in SOURCE_DIAGNOSTICS.values() for key, p in spec["compute"].items() if key in {"monthly_values", "metadata"}],
         "map_reference": MAP_REFERENCE.outputs["reference"],
@@ -513,34 +513,40 @@ for _source in CANDIDATE_SOURCES:
         benchmark: PLOT_DIAGNOSTICS.benchmark(_source),
         script: "blueearth_cst/climate_analysis/plot_climate_diagnostics.py"
 
-if rain_gauge_settings is not None:
-    # 0.05b  prepare_rain_gauges — observations never affect source extraction.
-    rule prepare_rain_gauges:
+if COMPARE_LOCATIONS:
+    # 0.05b  prepare_location_comparisons — observations never affect source extraction.
+    rule prepare_location_comparisons:
+        message: PREPARE_LOCATIONS.banner()
         input:
             climate=[CLIMATE_STORES[source].outputs["climate_nc"] for source in CANDIDATE_SOURCES],
             region=REGION.outputs["region_geojson"],
-            stations=rain_gauge_settings["stations_path"],
-            precip=rain_gauge_settings["precip_path"],
-        output: **rain_gauge_inventory["compute"],
+            locations=SPATIAL_UNITS.outputs["locations"],
+            subbasins=SPATIAL_UNITS.outputs["subbasins"],
+            observations=[rain_gauge_settings[key] for key in ("stations_path", "precip_path", "temp_path") if rain_gauge_settings and key in rain_gauge_settings],
+            catalogs=DATA_SOURCES,
+        output: **{key: directory(path) if key == "tables" else path for key, path in location_inventory["compute"].items()},
         params:
-            settings=rain_gauge_settings, root=rain_gauge_root, sources=CANDIDATE_SOURCES,
+            gauges=rain_gauge_settings, root=COMPARISON_DIR, sources=CANDIDATE_SOURCES,
+            data_sources=DATA_SOURCES,
+            forcing={source: climate_cfg.get("forcing") if source == clim_source else None for source in CANDIDATE_SOURCES},
             window=historical_window, comparison=DIAGNOSTIC_SETTINGS["comparison_period"], m0=DIAGNOSTIC_M0,
-            code_digest={name: file_sha256(Path(workflow.basedir) / "blueearth_cst/climate_analysis" / name) for name in ("rain_gauges.py", "evaluate_rain_gauges.py", "diagnostic_outputs.py")},
-            input_digest={key: file_sha256(rain_gauge_settings[key]) for key in ("stations_path", "precip_path")},
-        log: PREPARE_RAIN_GAUGES.log(),
-        benchmark: PREPARE_RAIN_GAUGES.benchmark(),
-        script: "blueearth_cst/climate_analysis/evaluate_rain_gauges.py"
+            code_digest={name: file_sha256(Path(workflow.basedir) / "blueearth_cst/climate_analysis" / name) for name in ("rain_gauges.py", "location_comparison.py", "diagnostic_outputs.py", "diagnostic_tables.py")},
+            input_digest={key: file_sha256(rain_gauge_settings[key]) for key in ("stations_path", "precip_path", "temp_path") if rain_gauge_settings and key in rain_gauge_settings},
+        log: PREPARE_LOCATIONS.log(),
+        benchmark: PREPARE_LOCATIONS.benchmark(),
+        script: "blueearth_cst/climate_analysis/location_comparison.py"
 
-    # 0.05c  plot_rain_gauges — retained products only.
-    rule plot_rain_gauges:
-        input: list(rain_gauge_inventory["compute"].values()),
-        output: **rain_gauge_inventory["render"],
+    # 0.05c  plot_location_comparisons — retained products only.
+    rule plot_location_comparisons:
+        message: PLOT_LOCATIONS.banner()
+        input: list(location_inventory["compute"].values()),
+        output: **{key: directory(path) for key, path in location_inventory["render"].items()},
         params:
-            root=rain_gauge_root, annotation=plot_annotation, plot_setup_digest=plot_setup_digest,
-            code_digest={name: file_sha256(Path(workflow.basedir) / "blueearth_cst/climate_analysis" / name) for name in ("plot_rain_gauges.py", "figure_naming.py", "diagnostics.py")},
-        log: PLOT_RAIN_GAUGES.log(),
-        benchmark: PLOT_RAIN_GAUGES.benchmark(),
-        script: "blueearth_cst/climate_analysis/plot_rain_gauges.py"
+            root=COMPARISON_DIR, annotation=plot_annotation, plot_setup_digest=plot_setup_digest,
+            code_digest={name: file_sha256(Path(workflow.basedir) / "blueearth_cst/climate_analysis" / name) for name in ("plot_location_comparison.py", "figure_naming.py")},
+        log: PLOT_LOCATIONS.log(),
+        benchmark: PLOT_LOCATIONS.benchmark(),
+        script: "blueearth_cst/climate_analysis/plot_location_comparison.py"
 
 # 0.03b  produce_historical_map_reference — shared native-grid display contract.
 include: "blueearth_cst/climate_analysis/rules/source_map_preparation.smk"
@@ -562,10 +568,6 @@ if COMPARISON_DIAGNOSTICS:
         "metadata": [SOURCE_DIAGNOSTICS[s]["compute"]["metadata"] for s in CANDIDATE_SOURCES],
         "pooled": [SOURCE_DIAGNOSTICS[s]["compute"]["monthly_values"] for s in CANDIDATE_SOURCES],
     }
-    if DIAGNOSTIC_SETTINGS["subbasin_figures"]:
-        _comparison_outputs["subbasin_figures"] = directory(f"{COMPARISON_DIAGNOSTICS['root']}/plots/subbasins")
-        _comparison_outputs["subbasin_tables"] = directory(f"{COMPARISON_DIAGNOSTICS['root']}/tables/subbasins")
-        _comparison_inputs["subbasin_tables"] = [f"{spec['root']}/tables/subbasins" for spec in SOURCE_DIAGNOSTICS.values()]
 
     rule plot_climate_comparison:
         message: COMPARE_DIAGNOSTICS.banner()
@@ -577,7 +579,6 @@ if COMPARISON_DIAGNOSTICS:
             settings=DIAGNOSTIC_SETTINGS, sources=CANDIDATE_SOURCES,
             comparison_dir=COMPARISON_DIR, m0=DIAGNOSTIC_M0,
             pooled_roots=POOLED_ROOTS,
-            subbasin_table_dirs=[f"{spec['root']}/tables/subbasins" for spec in SOURCE_DIAGNOSTICS.values()],
         log: COMPARE_DIAGNOSTICS.log(),
         benchmark: COMPARE_DIAGNOSTICS.benchmark(),
         script: "blueearth_cst/climate_analysis/compare_climate_diagnostics.py"

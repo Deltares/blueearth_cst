@@ -49,7 +49,9 @@ TITLES = {
 SUITE_NOTE = (
     "Spatial averages use the selected buffered bounding box and spherical cell-area weights, including "
     "cells outside the basin polygon; they are not polygon integrals. "
-    "All figures show basin-average quantities from the CMIP6 ensemble. Unless stated otherwise, each "
+    "Ensemble summary figures show basin-average quantities from the CMIP6 ensemble. Spatial change "
+    "maps retain native GCM cells, clipped to the basin outline for display, and summarize paired "
+    "members by cell-wise median within each model/scenario. Unless stated otherwise, each "
     "model is represented by the mean of its available ensemble members and models are weighted "
     "equally. Inter-model spread describes structural model uncertainty; it is not a confidence "
     "interval, and models that share code ancestry are not independent. Window definitions, "

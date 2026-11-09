@@ -32,7 +32,6 @@ def rain_gauge_outputs(root, tokens):
         )
         for token in tokens
         for form in (
-            "monthly_coverage",
             "annual_ts",
             "monthly_clim_line",
             "daily_agreement",
@@ -67,7 +66,6 @@ TABLES = (
     "homogeneity",
 )
 FORMS = {
-    "coverage": ("precip", "monthly_coverage"),
     "seasonal": ("precip", "monthly_clim_band"),
     "temperature": ("temp", "monthly_clim_band"),
     "timing": ("precip", "annual_timing"),
@@ -157,37 +155,9 @@ def inventory(root, sources, settings, comparison=False):
                 figures[key] = filename
                 render[f"figure_{key}"] = filename
     if not comparison and settings.get("climate_indices", {}).get("enabled", False):
-        from blueearth_cst.indicators.climate.definitions import INDEX_METADATA
-
-        for metric in INDEX_METADATA:
-            render[f"index_map_{metric}"] = str(
-                root
-                / "plots"
-                / "indices"
-                / figure_filename(scope, metric, "annual_clim_map", "basin_ext")
-            )
-        for key, context in (
-            ("index_series", "annual_indices_ts"),
-            ("index_spells", "wet_spell_exceedance"),
-        ):
-            render[key] = str(
-                root
-                / "plots"
-                / "indices"
-                / figure_filename(scope, "climate_indices", context, "basin_avg")
-            )
-        if settings["climate_indices"]["seasons"]:
-            render["index_seasons"] = str(
-                root
-                / "plots"
-                / "indices"
-                / figure_filename(
-                    scope, "climate_indices", "seasonal_indices_ts", "basin_avg"
-                )
-            )
-        render["index_captions"] = str(
-            root / "plots" / "indices" / "figure_captions.json"
-        )
+        # Availability is known after calculation; one owned directory contains
+        # the available maps/sheets and their completion/availability inventories.
+        render["index_products"] = str(root / "plots" / "indices")
     return paths
 
 
@@ -218,6 +188,23 @@ def diagnostic_comparison_outputs(comparison_dir, sources, settings):
     if len(sources) < 2:
         raise ValueError("A comparison requires at least two sources")
     paths = inventory(comparison_dir, sources, settings, True)
+    root = Path(comparison_dir)
+    # Comparison views share one root; source-store layouts remain unchanged.
+    for section, folder in (
+        ("compute", "tables"),
+        ("render", "plots"),
+        ("figures", "plots"),
+    ):
+        for key, value in paths[section].items():
+            relative = Path(value).relative_to(root)
+            if relative.parts[0] == folder:
+                paths[section][key] = str(
+                    root / folder / "basin-average" / Path(*relative.parts[1:])
+                )
+    for key in ("titles_json", "captions_json"):
+        paths["render"][key] = str(
+            root / "_engine/basin-average" / Path(paths["render"][key]).name
+        )
     # These summaries describe extracted stores alongside their diagnostics.
     paths["source_summary"] = {
         f"dataset_comparison_{suffix}": str(
@@ -226,3 +213,21 @@ def diagnostic_comparison_outputs(comparison_dir, sources, settings):
         for suffix in ("csv", "md")
     }
     return paths
+
+
+def location_comparison_outputs(root):
+    """Dynamic location inventories are bounded by declared output directories."""
+    root = Path(root)
+    return {
+        "compute": {
+            "locations": str(root / "locations.csv"),
+            "tables": str(root / "tables/locations"),
+            "daily": str(root / "_engine/locations/daily.nc"),
+            "metadata": str(root / "_engine/locations/evaluation.json"),
+            "exclusions": str(root / "_engine/locations/exclusions.csv"),
+        },
+        "render": {
+            "plots": str(root / "plots/locations"),
+            "manifests": str(root / "_engine/locations/figures"),
+        },
+    }

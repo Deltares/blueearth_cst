@@ -126,7 +126,7 @@ def source_figure_names(
     """Every filename the SOURCE family writes for one source, in a stable order.
 
     The WF0 grammar (``climate_analysis.figure_naming``), so the
-    ``dataset_scope`` is the source id itself — ``era5_precip_annual_ts_basin_avg.png``
+    ``dataset_scope`` is the source id itself — ``era5_precip_annual_basin.png``
     — rather than the literal word ``source``. A figure copied out of its
     directory then still says which dataset it came from, which the old
     ``source_precip_annual.png`` did not.

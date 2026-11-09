@@ -9,6 +9,14 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Validate named simulation indicator settings before upstream workflows start, while keeping forcing
+  validation and experiment admission at the first forcing consumer.
+
+- Preserve implicit legacy climate candidates when staging execution configuration with public forcing keys.
+
+- Keep native shared-producer declarations aligned for an unambiguous historical climate source,
+  without applying draft model-forcing adjustments to comparison workflows.
+
 - Accept native CHIRPS `mm d**-1` precipitation units when computing historical climate indices.
 
 - Admit historical evaluation and named-run retention settings during all-workflow experiment preflight.

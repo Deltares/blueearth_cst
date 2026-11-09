@@ -120,30 +120,80 @@ def resolve_climate_forcing(
 def climate_forcing_summary(
     climate: Mapping[str, object], *, required: bool
 ) -> tuple[str, ...]:
-    """Project human-readable resolution origins without terminal dependencies."""
+    """Describe planned climate inputs and adjustments for practitioners.
+
+    These are configuration choices, not a verdict on downloaded data coverage.
+    """
     _, recipe = resolve_climate_forcing(climate, required=required, notices=False)
     if recipe is None:
-        return ("No forcing recipe selected; comparison only",)
+        return ("Compare climate datasets; no rainfall dataset selected for forcing.",)
     raw = climate.get("forcing", {})
     selection = (
-        "explicit"
+        "configured"
         if climate.get("selected") is not None or "precip_source" in raw
-        else "inferred"
+        else "sole candidate"
     )
-    rows = [f"Precipitation {recipe.precip_source} ({selection})"]
-    settings = recipe.settings()
-    for key, value in settings.items():
-        if key == "pet":
-            for pet_key, pet_value in value.items():
-                origin = "explicit" if pet_key in raw.get("pet", {}) else "defaulted"
-                rows.append(f"PET {pet_key} {pet_value} ({origin})")
-            continue
-        public_key = "temp_source" if key == "temp_pet_source" else key
-        origin = "explicit" if public_key in raw or key in raw else "defaulted"
-        rows.append(f"{public_key} {value} ({origin})")
-    if recipe.press_correction is None:
-        rows.append("Pressure correction not applicable")
-    rows.append(f"Required fields {', '.join(recipe.required_variables)}")
+
+    def origin(*keys: str, pet: bool = False) -> str:
+        authored = raw.get("pet", {}) if pet else raw
+        return "configured" if any(key in authored for key in keys) else "default"
+
+    def source(name: str) -> str:
+        return {
+            "era5": "ERA5",
+            "chirps": "CHIRPS",
+            "chirps_global": "CHIRPS Global",
+            "era5_orography": "ERA5 orography",
+        }.get(name, name)
+
+    companion = (
+        "Temperature and PET dataset"
+        if recipe.pet_mode == "computed"
+        else "Temperature dataset"
+    )
+    temperature = (
+        "elevation correction" if recipe.temp_correction else "no elevation adjustment"
+    )
+    rows = [
+        f"Rainfall dataset: {source(recipe.precip_source)} ({selection})",
+        f"{companion}: {source(recipe.temp_pet_source)} ({origin('temp_source', 'temp_pet_source')})",
+        f"Elevation dataset: {source(recipe.orography_source)} ({origin('orography_source')})",
+        f"Temperature adjustment: {temperature} ({origin('temp_correction')})",
+    ]
+    if recipe.pet_mode == "computed":
+        pressure = (
+            "elevation correction"
+            if recipe.press_correction
+            else "no elevation adjustment"
+        )
+        method = {"debruin": "de Bruin", "makkink": "Makkink"}[recipe.pet_method]
+        rows.extend(
+            [
+                f"Air pressure for PET: {pressure} ({origin('press_correction')})",
+                f"PET: calculate from weather data ({origin('mode', pet=True)})",
+                f"PET method: {method} ({origin('method', pet=True)})",
+            ]
+        )
+        radiation = (
+            "surface and top-of-atmosphere solar radiation"
+            if recipe.pet_method == "debruin"
+            else "surface solar radiation"
+        )
+        rows.extend(
+            [
+                "Required inputs: rainfall; mean/min/max temperature; sea-level pressure",
+                f"Radiation inputs: {radiation}",
+            ]
+        )
+    else:
+        rows.extend(
+            [
+                f"PET: use supplied reference PET ({origin('mode', pet=True)})",
+                f"Reference PET dataset: {recipe.pet_source} ({origin('source', pet=True)})",
+                "Air-pressure adjustment: not needed for supplied PET",
+                "Required inputs: rainfall; mean temperature; reference PET",
+            ]
+        )
     return tuple(rows)
 
 

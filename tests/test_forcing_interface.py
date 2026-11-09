@@ -12,7 +12,7 @@ def test_legacy_null_selection_summary_reports_inference():
     rows = climate_forcing_summary(
         {"sources": ["chirps"], "selected": None}, required=True
     )
-    assert rows[0] == "Precipitation chirps (inferred)"
+    assert rows[0] == "Rainfall dataset: CHIRPS (sole candidate)"
 
 
 @pytest.mark.parametrize("value", [None, "", 1, "bad/path"])

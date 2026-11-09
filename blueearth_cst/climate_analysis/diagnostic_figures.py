@@ -31,6 +31,7 @@ from blueearth_cst.plotting.fundamentals import five_year_ticks as five_year_tic
 from blueearth_cst.plotting.fundamentals import heatmap_frame as heatmap_frame
 from blueearth_cst.plotting.fundamentals import inside_legend as inside_legend
 from blueearth_cst.plotting.fundamentals import new_fig as new_fig
+from blueearth_cst.plotting.fundamentals import time_series_grid, time_series_style
 from blueearth_cst.plotting.fundamentals import top_legend as top_legend
 from blueearth_cst.plotting.fundamentals import year_ticks as year_ticks
 from blueearth_cst.plotting.fundamentals import ygrid as ygrid
@@ -96,7 +97,7 @@ SPI_BOUNDS = [-3, -2, -1, 1, 2, 3]
 
 UNITS = {
     "mm_month": "mm month⁻¹",
-    "mm_year": "mm yr⁻¹",
+    "mm_year": "mm/year",
     "mm_decade": "mm decade⁻¹",
     "days_year": "days yr⁻¹",
     "days_decade": "days decade⁻¹",
@@ -196,11 +197,13 @@ def id_handles(
         Line2D(
             [],
             [],
-            color=v.color(s),
             marker=v.marker(s),
-            ms=MS_LINE + 1,
-            lw=LW_LINE if line else 0,
             label=label(s) if label else v.labels[s],
+            **(
+                time_series_style(s, v.color(s))
+                if line
+                else {"color": v.color(s), "markersize": MS_LINE + 1, "linewidth": 0}
+            ),
         )
         for s in sources
     ]
@@ -212,72 +215,9 @@ def identity_row(v: View, sources: Sequence[str] | None = None, **kw) -> list:
     return id_handles(v, sources, **kw) if len(sources) > 1 else []
 
 
-MISSING_KEY = Patch(facecolor=MISSING, edgecolor="none", label="Missing or unavailable")
-
-
 def notice(text: str) -> str:
     """Plain availability notice; the exporter draws and records it."""
     return text
-
-
-def coverage(v: View) -> Figure:
-    n = len(v.sources)
-    fig, axs = new_fig(24 + 8 * n, width_mm=W_FULL if n > 1 else W_MID)
-    ax = axs[0, 0]
-    ax.set_facecolor(MISSING)
-    edges = np.arange(len(v.years) * 12 + 1) / 12 + v.years[0]
-    for i, s in enumerate(v.sources):
-        cls = (
-            v.results[s]["coverage"]
-            .reindex(index=month_order(v.m0), columns=v.years)
-            .to_numpy(dtype=float, copy=True)
-        )
-        cls[cls == 0] = np.nan
-        pale = to_hex(0.3 * np.array(to_rgb(v.color(s))) + 0.7)
-        gap_color = to_hex(0.7 * np.array(to_rgb(v.color(s))))
-        ax.pcolormesh(
-            edges,
-            [i - 0.5, i + 0.5],
-            cls.T.reshape(1, -1),
-            cmap=ListedColormap([gap_color, pale]),
-            vmin=0.5,
-            vmax=2.5,
-            edgecolors=(*to_rgb(GRID), 0.3),
-            linewidth=0.15,
-            rasterized=True,
-        )
-    ax.set_yticks(range(n), [v.labels[s] for s in v.sources])
-    ax.set_ylim(n - 0.5, -0.5)
-    ax.set_xlim(edges[0], edges[-1])
-    year_ticks(ax, v.years, continuous=True)
-    ax.tick_params(axis="y", length=3)
-    full = tuple(
-        Patch(facecolor=to_hex(0.3 * np.array(to_rgb(v.color(s))) + 0.7))
-        for s in v.sources
-    )
-    part = tuple(
-        Patch(facecolor=to_hex(0.7 * np.array(to_rgb(v.color(s))))) for s in v.sources
-    )
-    tup = HandlerTuple(ndivide=None, pad=0)
-    legend = fig.legend(
-        handles=[full, part, MISSING_KEY],
-        labels=["Complete", "Usable with gaps", "Missing or unusable"],
-        loc="outside right upper",
-        ncols=1,
-        handler_map={tuple: tup},
-        frameon=True,
-        facecolor="white",
-        edgecolor="none",
-        framealpha=0.88,
-    )
-    fig.canvas.draw()
-    legend_width = legend.get_window_extent().width / fig.bbox.width
-    legend.set_loc("upper right")
-    legend.borderaxespad = 0
-    fig.get_layout_engine().set(rect=(0, 0, 1 - legend_width - 0.02, 1))
-    fig.canvas.draw()
-    legend.set_bbox_to_anchor((1, ax.get_position().y1), transform=fig.transFigure)
-    return fig
 
 
 def _climatology(v: View, key: str, ylabel: str, zero: bool) -> Figure:
@@ -356,24 +296,29 @@ def timing(v: View) -> Figure:
                 color=v.color(s),
                 bbox=LABEL_BOX,
             )
+    for artist in [*ax.lines, *ax.patches]:
+        artist.set_alpha(0.8)
     start = date(2001, v.m0, 1)
     starts = [
         (date(2001 + (v.m0 + k - 1) // 12, (v.m0 + k - 1) % 12 + 1, 1) - start).days + 1
         for k in range(12)
     ]
-    ax.set_xticks(
-        starts, [(start + timedelta(days=d - 1)).strftime("%b") for d in starts]
-    )
+    ax.set_xticks([1, 91, 182, 274, 366])
+    ax.set_xticks(starts, minor=True)
+    ax.tick_params(axis="x", which="minor", bottom=False)
     ax.set_xlim(1, 366)
     top = ax.secondary_xaxis("top")
-    top.set_xticks([1, 91, 182, 274, 366])
+    top.set_xticks(
+        starts, [(start + timedelta(days=d - 1)).strftime("%b") for d in starts]
+    )
+    top.set_xlabel("Month")
     top.tick_params(labelsize=FS_TICK, labelcolor=MUTED, color=AXIS)
     top.spines["top"].set_color(AXIS)
     ax.set_yticks(range(3), ["25", "50", "75"])
     ax.set_ylim(2.6, -0.6)
-    ax.set_xlabel("Month")
-    ax.set_ylabel("Cumulative (%)")
-    ax.grid(axis="x")
+    ax.set_xlabel("Day of reporting year")
+    ax.set_ylabel("Cumulative precipitation (%)")
+    ax.grid(axis="x", which="both")
     ax.tick_params(axis="y", length=3)
     identities = (
         [
@@ -657,7 +602,7 @@ def extremes(indicator: str) -> Callable[[View], Figure]:
         for s in v.sources:
             y = v.results[s]["extremes"][indicator].reindex(v.years)
             ax.plot(
-                v.years, y, color=v.color(s), lw=LW_LINE, marker=v.marker(s), ms=MS_LINE
+                v.years, y, marker=v.marker(s), **time_series_style(s, v.color(s))
             )  # NaN breaks the line
         ax.set_ylabel(EXTREME_LABELS[indicator])
         ax.margins(y=0.08)
@@ -679,7 +624,9 @@ def extremes(indicator: str) -> Callable[[View], Figure]:
             digits=2 if indicator == "SDII" else 1,
         )
         year_ticks(ax, v.years)
-        ygrid(ax)
+        if len(v.sources) == 1 and np.isfinite(y).any():
+            year_ticks(ax, v.years[np.isfinite(y)])
+        time_series_grid(ax)
         top_legend(fig, identity_row(v))
         return fig
 
@@ -699,12 +646,10 @@ def spell(v: View) -> Figure:
         ax.plot(
             ex.index,
             ex.to_numpy(),
-            color=v.color(s),
-            lw=LW_LINE,
-            marker=v.marker(s),
-            ms=MS_LINE,
-            markevery=max(1, ex.size // 12),
-        )  # shape stays as identity without crowding the curve
+            label=v.labels[s],
+            drawstyle="steps-pre",
+            **time_series_style(s, v.color(s)),
+        )
         xmax = max(xmax, int(ex.index.max()))
     ax.set_yscale("log")
     ticks = [0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1]
@@ -714,8 +659,8 @@ def spell(v: View) -> Figure:
     ax.set_xlim(0.5, xmax + 0.5)
     ax.set_xlabel("Dry-spell length (days)")
     ax.set_ylabel("Exceedance Pr. (log)")
-    ax.grid()
-    inside_legend(fig, ax, identity_row(v), lines=ax.lines)
+    time_series_grid(ax)
+    inside_legend(fig, ax, list(ax.lines) if len(v.sources) > 1 else [], lines=ax.lines)
     return fig
 
 
@@ -740,7 +685,15 @@ def acf(v: View) -> Figure:
                 zorder=1,
             )
         )
-        ax.vlines(lags, 0, a["r"], color=v.color(s), lw=LW_STEM)
+        style = time_series_style(s, v.color(s))
+        ax.vlines(
+            lags,
+            0,
+            a["r"],
+            color=style["color"],
+            lw=style["linewidth"],
+            alpha=style["alpha"],
+        )
         edge = to_hex(0.65 * np.array(to_rgb(v.color(s))))
         ax.plot(
             lags,
@@ -748,9 +701,10 @@ def acf(v: View) -> Figure:
             lw=0,
             marker=v.marker(s),
             color=v.color(s),
-            ms=MS_LINE,
+            ms=style["markersize"],
+            alpha=style["alpha"],
             markeredgecolor=edge,
-            markeredgewidth=0.7,
+            markeredgewidth=0.25,
         )
         finite = a["r"].dropna()
         if not finite.empty:
@@ -765,7 +719,7 @@ def acf(v: View) -> Figure:
     ax.set_ylim(-lim, lim)
     ax.set_xlabel("Lag (months)")
     ax.set_ylabel("Autocorrelation (r)")
-    ygrid(ax)
+    time_series_grid(ax)
 
     confidence = Patch(
         facecolor=MUTED,
@@ -1075,7 +1029,6 @@ def pt_scatter(v: View) -> Figure | str:
 
 
 CHARTS: dict[str, Callable[[View], Figure | str]] = {
-    "coverage": coverage,
     "seasonal": seasonal,
     "temperature": temperature,
     "timing": timing,

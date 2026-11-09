@@ -8,18 +8,22 @@ from pathlib import Path
 import yaml
 
 
-def simulation_settings(config_path):
+def simulation_settings(config_path, *, validate_forcing=True):
     """Read the simulation file without opening generation or model files.
 
     The named interface (``operations``/``indicator_sets``) is validated and
     normalized to the internal ``operation`` the Snakemake branches select on:
     ``indicators-only`` for indicators alone, otherwise ``simulate-and-indicators``.
+    The all-workflow runner uses ``validate_forcing=False`` for structural
+    startup checks, then validates forcing at the consumer boundary.
     """
-    project, settings, _ = simulation_selection(config_path)
+    project, settings, _ = simulation_selection(
+        config_path, validate_forcing=validate_forcing
+    )
     return project, settings
 
 
-def simulation_selection(config_path):
+def simulation_selection(config_path, *, validate_forcing=True):
     """Return ``(project, settings, selection)`` for either WF4 interface."""
     from blueearth_cst.experiment import indicator_sets
 
@@ -67,16 +71,11 @@ def simulation_selection(config_path):
     indicators_only = settings.get("operation") == "indicators-only" or settings.get(
         "operations"
     ) == ["indicators"]
-    if not indicators_only:
+    if not indicators_only and validate_forcing:
         requested_climate = project.get("climate", {})
         climate, recipe = resolve_climate_forcing(requested_climate, required=True)
         require_workflow_compatibility(recipe, "simulate_system")
         project["climate"] = climate
-        from blueearth_cst.shared.forcing_recipe import climate_forcing_summary
-        from blueearth_cst.shared.run_log_core import log_row
-
-        for row in climate_forcing_summary(requested_climate, required=True):
-            log_row(row, module="forcing")
     from blueearth_cst.experiment.simulation_runs import include_unperturbed
 
     include_unperturbed(settings)

@@ -24,6 +24,7 @@ def test_rain_gauge_paths_follow_declaring_yaml(tmp_path):
         "rain_gauges": {
             "stations_path": "data/stations.csv",
             "precip_path": "data/precip.csv",
+            "temp_path": "data/temp.csv",
             "time_label": "interval_end",
         }
     }
@@ -38,6 +39,9 @@ def test_rain_gauge_paths_follow_declaring_yaml(tmp_path):
         == (tmp_path / "data/precip.csv").as_posix()
     )
     assert resolve_workflow_paths(settings, path, "analyze_climate", 2) == settings
+    assert (
+        resolved["rain_gauges"]["temp_path"] == (tmp_path / "data/temp.csv").as_posix()
+    )
 
 
 def test_case_relocation_and_launch_directory(tmp_path, monkeypatch):
@@ -221,6 +225,11 @@ def test_schema3_archive_stages_original_relative_inputs(tmp_path, monkeypatch):
         )[0]
 
     execution = prepare(path)
+    staged_climate = yaml.safe_load(execution.read_bytes())["climate"]
+    assert staged_climate == {
+        "sources": ["era5"],
+        "forcing": {"precip_source": "era5"},
+    }
     loaded = load_composed_config(execution)
     observed = Path(
         loaded["workflows"]["build_model"]["observations"]["river discharge"]

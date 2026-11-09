@@ -8,7 +8,7 @@ The vocabulary is deliberately CLOSED — an unknown ``plot_context`` or
 ``spatial_scope`` raises rather than producing a file. That is what makes the
 Snakefile's declaration and the plotter's writes provably the same set: both go
 through :func:`figure_filename`, so a typo cannot make one write
-``era5_precip_annual_ts_basin_avg.png`` while the other declares
+``era5_precip_annual_basin.png`` while the other declares
 ``..._basin_average.png``.
 """
 
@@ -36,14 +36,14 @@ from blueearth_cst.climate_analysis.figure_naming import (
 
 #: Representative admitted spellings, including legacy forcing contexts.
 DOCUMENTED_EXAMPLES = [
-    "era5_precip_annual_ts_basin_avg.png",
-    "era5_temp_annual_clim_map_basin_ext.png",
-    "chirps_precip_monthly_box_basin_avg.png",
+    "era5_precip_annual_basin.png",
+    "era5_temp_annual_mean_map_basin.png",
+    "chirps_precip_monthly_box_basin.png",
     # `101` is the SUBBASIN's id, not the station's. `1010` is a wflow_id and
     # belongs to a `station_<id>` scope -- see the id table in the rule.
-    "era5_precip_annual_ts_subbasin_101_avg.png",
-    "comparison_precip_annual_ts_basin_avg.png",
-    "comparison_temp_monthly_box_basin_avg.png",
+    "era5_precip_annual_sub101.png",
+    "comparison_precip_annual_basin.png",
+    "comparison_temp_monthly_box_basin.png",
 ]
 
 
@@ -64,7 +64,7 @@ def test_the_grammar_has_four_fields_in_order():
     name = figure_filename("era5", "precip", "monthly_box", "basin_avg")
     dataset_scope, rest = name.split("_", 1)
     assert dataset_scope == "era5"
-    assert rest == "precip_monthly_box_basin_avg.png"
+    assert rest == "precip_monthly_box_basin.png"
 
 
 def test_variables_are_never_abbreviated():
@@ -99,7 +99,7 @@ def test_an_id_scope_is_accepted_for_any_id():
     assert subbasin_scope("Upper Reach") == "subbasin_upper_reach_avg"
     assert figure_filename(
         "era5", "precip", "annual_ts", subbasin_scope("x1")
-    ).endswith("subbasin_x1_avg.png")
+    ).endswith("subx1.png")
 
 
 def test_an_empty_id_is_refused():
@@ -118,8 +118,9 @@ def test_map_scope_follows_the_extent_policy():
 
 def test_the_source_map_is_named_for_its_current_framing():
     expected = map_spatial_scope(MAP_EXTENT["source"])
-    maps = [n for n in source_figure_names("era5") if "annual_clim_map" in n]
-    assert maps and all(n.endswith(f"{expected}.png") for n in maps)
+    maps = [n for n in source_figure_names("era5") if "annual_mean_map" in n]
+    exported_scope = "basin" if expected == "basin_ext" else "source"
+    assert maps and all(n.endswith(f"{exported_scope}.png") for n in maps)
 
 
 # --- what each family declares ------------------------------------------------
@@ -136,7 +137,7 @@ def test_wf0_comparison_uses_canonical_monthly_band_context():
     figures = diagnostic_comparison_outputs("comparison", ["era5", "chirps"], settings)[
         "figures"
     ]
-    assert "comparison_precip_monthly_clim_band_basin_avg.png" in figures["seasonal"]
+    assert "comparison_precip_monthly_cycle_basin.png" in figures["seasonal"]
     assert not any(
         "monthly_box" in p or "monthly_clim_line" in p for p in figures.values()
     )

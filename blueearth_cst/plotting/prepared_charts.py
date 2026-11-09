@@ -63,12 +63,9 @@ def series_panel(
             line.x,
             line.y,
             label=line.label,
-            color=line.color,
-            linestyle=line.linestyle,
             marker=line.marker,
             markevery=max(1, len(line.y) // 12),
-            lw=active().lines["line"],
-            ms=active().markers["line"],
+            **f.time_series_style(line.label, line.color),
         )
         handles.append(artist)
     ax.set(xlabel=xlabel, ylabel=ylabel, ylim=(0, None))
@@ -80,6 +77,7 @@ def series_panel(
         locator = AutoDateLocator(minticks=3, maxticks=5)
         ax.xaxis.set_major_locator(locator)
         ax.xaxis.set_major_formatter(ConciseDateFormatter(locator))
+        f.date_year_ticks(ax)
     if ticks is not None:
         ax.set_xticks(ticks[0], ticks[1])
         ax.set_xticks([], minor=True)
@@ -93,7 +91,7 @@ def series_panel(
             ha="center",
             va="center",
         )
-    f.ygrid(ax)
+    f.time_series_grid(ax)
     f.top_legend(fig, *[[handle] for handle in handles])
     return fig
 
@@ -157,11 +155,9 @@ def _identity_handles(sources: Sequence[AnnualLine | MonthlyBand]) -> list[Line2
         Line2D(
             [],
             [],
-            color=source.color,
             marker=source.marker,
-            ms=active().markers["line"] + 1,
-            lw=active().lines["line"],
             label=source.label,
+            **f.time_series_style(source.label, source.color),
         )
         for source in sources
     ]
@@ -180,11 +176,9 @@ def draw_annual_lines(
             ax.plot(
                 years,
                 line.values,
-                color=line.color,
-                lw=active().lines["line"],
                 marker=line.marker,
-                ms=active().markers["line"],
                 label=line.label,
+                **f.time_series_style(line.label, line.color),
             )
         )
     return artists
@@ -248,12 +242,18 @@ def annual_series(
     fig, axes = f.new_fig(active().heights["single"])
     ax = axes[0, 0]
     draw_annual_lines(ax, years, lines)
-    f.year_ticks(ax, years)
+    displayed = years
+    if len(lines) == 1:
+        finite = np.isfinite(lines[0].values)
+        if finite.any():
+            displayed = years[finite]
+    f.year_ticks(ax, displayed)
     ax.margins(y=0.08)
     draw_annual_trends(ax, trends, label_x=years[-1] - 0.4)
     ax.set_ylabel(ylabel)
-    f.top_legend(fig, _identity_handles(lines) if len(lines) > 1 else [])
-    f.ygrid(ax)
+    handles, _ = ax.get_legend_handles_labels()
+    f.top_legend(fig, handles if len(lines) > 1 else [])
+    f.time_series_grid(ax)
     return fig
 
 
@@ -292,10 +292,8 @@ def monthly_cycle(
             ax.plot(
                 x,
                 band.mean,
-                color=band.color,
-                lw=active().lines["mean"],
                 marker=band.marker,
-                ms=active().markers["line"],
+                **f.time_series_style(band.label, band.color),
             )
         )
         finite = np.ma.asarray(band.upper).compressed()
@@ -309,7 +307,7 @@ def monthly_cycle(
     else:
         ax.margins(y=0.08)
     ax.set_ylabel(ylabel)
-    f.ygrid(ax)
+    f.time_series_grid(ax)
     spread = Patch(
         facecolor=active().colors["muted"],
         alpha=active().band_alpha,

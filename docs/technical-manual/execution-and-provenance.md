@@ -32,6 +32,12 @@ simulation captures belong to their
 collection/experiment. Edit source YAML, never generated archives. Archives preserve exact source bytes,
 resolved locators and relevant input references; provenance does not mean all external datasets are copied.
 
+Generated execution YAML uses the current public climate keys, including
+`climate.forcing.precip_source` and `climate.forcing.temp_source`. Internal resolved fields such as
+`selected` and `temp_pet_source` remain in resolved records where needed; they are not written back
+as deprecated settings in execution YAML. Legacy source files remain supported with migration notices,
+and archives retain their original bytes.
+
 `execution_outputs.py` organizes the execution directory and `_parts/wfN-<child-id>/` job diagnostics.
 The folder contains `summary.md`, `console.log`, `wfN.log`, `wfN-benchmarks.md` and `.tsv` where available.
 Hydrological simulation adds `wf4-indicators.log`. Console counters and final verdicts aid monitoring;

@@ -3,12 +3,6 @@
 from blueearth_cst.climate_analysis.diagnostic_figures import View
 
 DESCRIPTIONS = {
-    "coverage": (
-        "Monthly data coverage by dataset. Each timeline cell represents one month in reporting-year "
-        "order. Pale cells have complete records, darker cells have usable totals with gaps, and gray "
-        "cells are missing or unusable. Annual diagnostics use years meeting the specified data "
-        "completeness threshold."
-    ),
     "seasonal": (
         "Monthly precipitation climatology. Lines show the mean monthly total; bands span the "
         "10th–90th percentiles across available years. Months follow the reporting-year order."
@@ -56,7 +50,8 @@ DESCRIPTIONS = {
         "Gaps indicate years without a valid estimate."
     ),
     "spell": (
-        "Exceedance probability of dry-spell length on a logarithmic probability axis. "
+        "Empirical pre-step exceedance of dry-spell length on a logarithmic probability axis; "
+        "probabilities below 0.002 are omitted from the display. "
         "A dry day falls below the wet-day threshold; spells touching gaps or record edges "
         "are excluded."
     ),
@@ -84,7 +79,6 @@ DESCRIPTIONS = {
 
 
 TITLES = {
-    "coverage": "Monthly climate data coverage",
     "seasonal": "Monthly precipitation climatology",
     "temperature": "Monthly temperature climatology",
     "timing": "Seasonal timing of precipitation accumulation",
@@ -163,11 +157,6 @@ def caption(name: str, view: View) -> str:
         )
     if name in {"extreme-SDII", "extreme-Wet days", "spell"}:
         detail += f" Wet day: ≥{view.wet_mm:g} mm."
-    if name == "coverage":
-        detail += (
-            f" Usable months permit ≤{view.max_missing_month} missing days; valid years "
-            f"permit ≤{view.max_missing_year} in total."
-        )
     if name == "spell":
         counts = ", ".join(
             f"{view.labels[s]} {view.results[s]['n_spells']}" for s in view.sources

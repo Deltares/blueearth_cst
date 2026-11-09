@@ -117,13 +117,16 @@ def run(sm):
         .reset_index()
     )
     agreement["n_common_valid_years"] = len(common)
+    agreement_reference = (
+        Path(paths["compute"]["agreement_md"]).relative_to(paths["root"]).as_posix()
+    )
     log_row(
         (
             f"Source agreement uses {plural(len(common), 'common valid reporting year')}; "
-            "period and counts → tables/agreement.md"
+            f"period and counts → {agreement_reference}"
             if len(common)
             else "Numerical source agreement unavailable: no common valid reporting years; "
-            "details → tables/agreement.md"
+            f"details → {agreement_reference}"
         ),
         module="compare",
     )
@@ -154,10 +157,6 @@ def run(sm):
         list(sm.params.pooled_roots),
         annotation=getattr(sm.params, "annotation", "none"),
     )
-    if settings["subbasin_figures"]:
-        from blueearth_cst.climate_analysis.diagnostic_subbasins import render_subbasins
-
-        render_subbasins(sm, settings, sources)
 
 
 if "snakemake" in globals():

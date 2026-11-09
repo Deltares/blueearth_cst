@@ -222,13 +222,11 @@ def analyse_wflow_historical(
 
     Outputs:
 
-    - plot of hydrographs at the outlet(s) and gauges_locs if provided. If wflow run is
-      three years or less, only the daily hydrograph will be plotted. If wflow run is
-      longer than three years, plots will also include the yearly hydrograph, the
-      monthly average and hyddrographs for the wettest and driest years. If observations
-      are available, they are added as well.
-    - plot of signature plots if wflow run is longer than a year and if observations
-      are available.
+    - station hydrographs with daily, annual and seasonal discharge, daily agreement
+      where observations exist, and log flow duration.
+    - peak/low signature plots when the record and observations support them, with
+      return-period frequency panels and wet/dry years selected by annual mean flow.
+    - separate daily/monthly performance tables with metrics in rows.
     - basin-average annual series and seasonal cycles for configured zonal outputs;
       optionally the same two figures individually for each subbasin.
     - compute performance indicators (daily and monthly KGE, NSE, NSElog, RMSE, MSE, Pbias,

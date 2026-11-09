@@ -97,6 +97,17 @@ def rerender_projections(
                 tables["seasonal_values"]
             )
         plot_dir = Path(out_dir) / "projections" / ensemble_dir.name / "plots"
+        from blueearth_cst.projections.spatial_diagnostics import (
+            prepare_retained_spatial_changes,
+        )
+
+        grids = ensemble_dir / "analysis" / "gridded_changes"
+        if not (grids / "inventory.json").is_file():
+            # Older runs did not retain spatial changes. Reconstruct those in
+            # the review destination; current runs can render after raw pruning.
+            grids = plot_dir.parent / "analysis" / "gridded_changes"
+            prepare_retained_spatial_changes(ensemble_dir, tables, record, grids)
+        geometries = list((Path(project_dir) / "data/spatial/geoms").glob("*.geojson"))
         render_suite(
             tables,
             record,
@@ -104,6 +115,8 @@ def rerender_projections(
             annotation=annotation,
             scenarios=scenarios,
             captions_json=plot_dir.parent / "_engine" / "figure_captions.json",
+            gridded_changes=grids,
+            map_geoms=geometries,
         )
         written[ensemble_dir.name] = plot_dir
     return written

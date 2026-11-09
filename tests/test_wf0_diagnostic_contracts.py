@@ -63,7 +63,7 @@ def test_render_checks_inputs_before_export_then_uses_loaded_snapshot(
     paths["figures"] = {
         key: value
         for key, value in paths["figures"].items()
-        if key in {"coverage", "anomaly"}
+        if key in {"seasonal", "anomaly"}
     }
     checks = []
 
@@ -154,21 +154,22 @@ def test_canonical_inventory_and_one_source_refusal():
         "comparison", ["era5", "chirps"], settings
     )
     for name, paths in (("era5", era5), ("chirps", chirps), ("comparison", comparison)):
+        plot_root = Path(name) / "plots"
+        table_root = Path(name) / "tables"
+        if name == "comparison":
+            plot_root /= "basin-average"
+            table_root /= "basin-average"
         assert Path(paths["root"]) == Path(name)
-        assert all(
-            Path(p).parent == Path(name) / "plots" for p in paths["figures"].values()
-        )
-        assert Path(paths["compute"]["coverage"]).parent == Path(name) / "tables"
+        assert all(Path(p).parent == plot_root for p in paths["figures"].values())
+        assert Path(paths["compute"]["coverage"]).parent == table_root
         assert Path(paths["compute"]["metadata"]).parent == Path(name) / "_engine"
-        assert (
-            Path(paths["render"]["captions_md"])
-            == Path(name) / "plots" / "figure_captions.md"
-        )
+        assert Path(paths["render"]["captions_md"]) == plot_root / "figure_captions.md"
     assert comparison["source_summary"] == {
         "dataset_comparison_csv": str(Path("comparison/dataset_comparison.csv")),
         "dataset_comparison_md": str(Path("comparison/dataset_comparison.md")),
     }
-    assert [len(x["figures"]) for x in (era5, chirps, comparison)] == [21, 17, 17]
+    assert [len(x["figures"]) for x in (era5, chirps, comparison)] == [20, 16, 16]
+    assert all("coverage" not in x["figures"] for x in (era5, chirps, comparison))
     assert all("percentile" not in x["figures"] for x in (era5, chirps, comparison))
     assert all(
         p.endswith(".png")
@@ -206,7 +207,7 @@ def test_unavailable_records_keep_table_headers_and_round_trip(tmp_path, kind, c
     if kind in {"missing", "no_overlap"}:
         paths["figures"].pop("map-precip")
         records = render(paths, settings, 1, ["chirps"], [paths["root"]])
-        assert len(records) == 16
+        assert len(records) == 15
         titles = json.loads(
             (tmp_path / "plots/_engine/figure_titles.json").read_text(encoding="utf-8")
         )["figures"]
@@ -215,12 +216,12 @@ def test_unavailable_records_keep_table_headers_and_round_trip(tmp_path, kind, c
         assert (tmp_path / "plots/figure_titles.md").is_file()
         assert not any("monthly_percentile" in path for path in records)
         assert all((Path(paths["root"]) / p).is_file() for p in records)
-        series = next(r for p, r in records.items() if "annual_trend_ts" in p)
+        series = next(r for r in records.values() if r["encoding"] == "series")
         assert series["availability"].startswith("Unavailable")
         assert "no usable data or reference fit" in series["caption"]
         output = capsys.readouterr().out
         assert (
-            "Wrote 16 diagnostic figures for chirps → plots/_engine/figure_captions.json"
+            "Wrote 15 diagnostic figures for chirps → plots/_engine/figure_captions.json"
         ) in output
         assert "no native temperature" in output
 
@@ -259,8 +260,8 @@ def test_opt_in_subbasin_tables_pngs_and_caption_inventory(tmp_path):
             "trends",
         ):
             tables[name].to_csv(sub / f"{name}.csv", index=False)
-    for sources in (["era5"], ["era5", "chirps"]):
-        root = tmp_path / ("era5" if len(sources) == 1 else "comparison")
+    for sources in (["era5"], ["chirps"]):
+        root = tmp_path / sources[0]
         write_json(
             root / "plots" / "_engine" / "figure_captions.json",
             {"schema_version": 1, "figures": {}},
@@ -271,7 +272,9 @@ def test_opt_in_subbasin_tables_pngs_and_caption_inventory(tmp_path):
         )
         sm = SimpleNamespace(
             params=SimpleNamespace(
-                subbasin_table_dirs=folders[: len(sources)], m0=1, annotation="caption"
+                subbasin_table_dirs=[folders[0 if sources[0] == "era5" else 1]],
+                m0=1,
+                annotation="caption",
             ),
             output=output,
         )
@@ -281,7 +284,7 @@ def test_opt_in_subbasin_tables_pngs_and_caption_inventory(tmp_path):
         records = json.loads(
             (root / "plots" / "_engine" / "figure_captions.json").read_text()
         )["figures"]
-        assert len(records) == (3 if len(sources) == 1 else 2)
+        assert len(records) == (3 if sources == ["era5"] else 2)
         assert all(
             (root / path).is_file() and r["captioned_path"] is None
             for path, r in records.items()

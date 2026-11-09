@@ -204,10 +204,12 @@ def config_paths(tmp_path_factory) -> dict[str, Path]:
 
 
 @functools.lru_cache(maxsize=None)
-def _case(snakefile: str, config_path: Path) -> tuple[tuple[str, ...], frozenset[str]]:
-    """Both sides of the contract, from ONE parse of ONE configuration.
+def _case(
+    snakefile: str, config_path: Path
+) -> tuple[tuple[str, ...], frozenset[str], tuple[str, ...]]:
+    """Log labels, producers and missing messages from one configuration parse.
 
-    Cached because parsing a Snakefile is the expensive part and four tests ask
+    Cached because parsing a Snakefile is the expensive part and five tests ask
     the same question of each case. It also guarantees the declared and produced
     sides can never come from different parses.
 
@@ -218,13 +220,20 @@ def _case(snakefile: str, config_path: Path) -> tuple[tuple[str, ...], frozenset
     """
     workflow = _parse_workflow(snakefile, config_path)
     declared = tuple(_declared_log_rules(workflow, snakefile))
-    return declared, frozenset(_labels_with_producers(workflow))
+    missing_messages = tuple(
+        sorted(
+            rule.name
+            for rule in workflow.rules
+            if (getattr(rule, "log", None) and not getattr(rule, "message", None))
+        )
+    )
+    return declared, frozenset(_labels_with_producers(workflow)), missing_messages
 
 
 @pytest.mark.parametrize(("snakefile", "variant"), CASES, ids=CASE_IDS)
 def test_every_declared_label_has_a_producing_rule(snakefile, variant, config_paths):
     """No label may outlive the rule that wrote it (the [R10-8] defect)."""
-    declared, produced = _case(snakefile, config_paths[variant])
+    declared, produced, _ = _case(snakefile, config_paths[variant])
     if snakefile == "analyze_climate.smk" and variant == "two_source":
         assert "0.05_plot_climate_comparison" in declared
     orphaned = sorted(set(declared) - produced)
@@ -238,7 +247,7 @@ def test_every_declared_label_has_a_producing_rule(snakefile, variant, config_pa
 @pytest.mark.parametrize(("snakefile", "variant"), CASES, ids=CASE_IDS)
 def test_every_logging_rule_is_declared(snakefile, variant, config_paths):
     """No rule may write parts merge_logs will never look for."""
-    declared, produced = _case(snakefile, config_paths[variant])
+    declared, produced, _ = _case(snakefile, config_paths[variant])
     unlisted = sorted(produced - set(declared))
     assert not unlisted, (
         f"{snakefile}: rules write log parts under labels LOG_RULES omits: "
@@ -250,7 +259,7 @@ def test_every_logging_rule_is_declared(snakefile, variant, config_paths):
 @pytest.mark.parametrize(("snakefile", "variant"), CASES, ids=CASE_IDS)
 def test_declared_labels_are_unique(snakefile, variant, config_paths):
     """A repeated label would merge the same section twice."""
-    declared, _ = _case(snakefile, config_paths[variant])
+    declared, _, _ = _case(snakefile, config_paths[variant])
     duplicates = sorted({label for label in declared if declared.count(label) > 1})
     assert not duplicates, f"{snakefile}: duplicate LOG_RULES entries: {duplicates}"
 
@@ -279,7 +288,7 @@ def test_declared_labels_read_in_rule_number_order(snakefile, variant, config_pa
     contradicts both the rule map and the benchmark table, so following one run
     means knowing the list rather than reading the file.
     """
-    declared, _ = _case(snakefile, config_paths[variant])
+    declared, _, _ = _case(snakefile, config_paths[variant])
     declared = list(declared)
     assert declared == sorted(declared), (
         f"{snakefile}: LOG_RULES is not in rule-number order.\n"
@@ -301,6 +310,16 @@ def test_declared_labels_read_in_rule_number_order(snakefile, variant, config_pa
 # its offset in the file.
 
 
+@pytest.mark.parametrize(("snakefile", "variant"), CASES, ids=CASE_IDS)
+def test_logging_rules_have_compact_start_messages(snakefile, variant, config_paths):
+    _, _, missing = _case(snakefile, config_paths[variant])
+    assert not missing, (
+        f"{snakefile}: logged rules missing message directives: {missing}. "
+        "Use the registered rule identity's banner; otherwise Snakemake prints "
+        "its full input/output/jobid block instead of the compact RUN row."
+    )
+
+
 @pytest.mark.parametrize("managed", [False, True])
 def test_simulation_labels_match_producers_and_order(tmp_path, monkeypatch, managed):
     """Included WF4 rules retain every log part in numerical merge order."""
@@ -315,3 +334,8 @@ def test_simulation_labels_match_producers_and_order(tmp_path, monkeypatch, mana
     declared = _declared_log_rules(workflow, "simulate_system.smk")
     assert set(declared) == _labels_with_producers(workflow)
     assert declared == sorted(set(declared))
+    assert all(
+        getattr(rule, "message", None)
+        for rule in workflow.rules
+        if getattr(rule, "log", None)
+    )
