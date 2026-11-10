@@ -1,6 +1,7 @@
 """Declared-input and distinct-window contracts for the analysis producer."""
 
 import json
+from copy import deepcopy
 from types import SimpleNamespace
 
 import numpy as np
@@ -47,7 +48,8 @@ def test_skipped_product_messages_explain_and_group_windows():
     ]
 
 
-def test_run_publishes_numpy_netcdf_metadata(tmp_path, monkeypatch):
+@pytest.mark.parametrize("failure", ["metadata", "spatial", "spatial_metadata"])
+def test_run_publishes_numpy_netcdf_metadata(tmp_path, monkeypatch, failure):
     from blueearth_cst.projections import spatial_diagnostics
 
     class Outputs(dict):
@@ -76,14 +78,26 @@ def test_run_publishes_numpy_netcdf_metadata(tmp_path, monkeypatch):
         ],
     }
     monkeypatch.setattr(
-        producer, "prepare_tables", lambda *args, **kwargs: (tables, record)
+        producer, "prepare_tables", lambda *args, **kwargs: (tables, deepcopy(record))
     )
     monkeypatch.setattr(series_identity, "region_fingerprint", lambda path: "region")
-    monkeypatch.setattr(
-        spatial_diagnostics,
-        "prepare_spatial_changes",
-        lambda *args, **kwargs: {"members": [], "unavailable": [], "methods": {}},
-    )
+    events, state = [], {"failure": None}
+
+    def prepare_spatial(*args, **kwargs):
+        events.append("spatial")
+        if state["failure"] == "spatial":
+            raise RuntimeError("spatial preparation failed")
+        methods = {"invalid": np.nan} if state["failure"] == "spatial_metadata" else {}
+        return {"members": [], "unavailable": [], "methods": methods}
+
+    monkeypatch.setattr(spatial_diagnostics, "prepare_spatial_changes", prepare_spatial)
+    to_csv = pd.DataFrame.to_csv
+
+    def publish_table(table, *args, **kwargs):
+        events.append("table")
+        return to_csv(table, *args, **kwargs)
+
+    monkeypatch.setattr(pd.DataFrame, "to_csv", publish_table)
     sm = SimpleNamespace(
         params=SimpleNamespace(
             points=[],
@@ -105,9 +119,28 @@ def test_run_publishes_numpy_netcdf_metadata(tmp_path, monkeypatch):
     metadata = json.loads(sm.output.analysis_record.read_text())["series"][0]["pet"]
     assert metadata["_ChunkSizes"] == [1, 96, 192]
     assert metadata["coefficient"] == pytest.approx(0.65)
-    record["series"][0]["pet"]["invalid"] = np.array([np.nan])
-    with pytest.raises(ValueError, match="Out of range float"):
+    assert events == ["spatial", "table"]
+    before = {
+        path: path.read_bytes()
+        for path in (sm.output.availability, sm.output.analysis_record)
+    }
+    events.clear()
+    state["failure"] = failure
+    if failure == "metadata":
+        record["series"][0]["pet"]["invalid"] = np.array([np.nan])
+    error, message = (
+        (RuntimeError, "spatial preparation failed")
+        if failure == "spatial"
+        else (ValueError, "Out of range float")
+    )
+    with pytest.raises(error, match=message):
         producer.run(sm)
+    assert events == ([] if failure == "metadata" else ["spatial"])
+    assert {path: path.read_bytes() for path in before} == before
+    state["failure"] = None
+    record["series"][0]["pet"].pop("invalid", None)
+    producer.run(sm)
+    assert {path: path.read_bytes() for path in before} == before
 
 
 def _series(path, start, count, scenario, components, region):
@@ -278,6 +311,19 @@ def test_undeclared_series_refused_before_output_mutation():
         input=SimpleNamespace(series_nc=["hist.nc", "fut.nc", "leftover.nc"]),
     )
     with pytest.raises(RuntimeError, match="series set differs"):
+        producer.run(sm)
+
+
+def test_undeclared_raw_inputs_refused_before_analysis(monkeypatch):
+    def refuse_analysis(*args, **kwargs):
+        pytest.fail("raw input mismatch must be refused before table preparation")
+
+    monkeypatch.setattr(producer, "prepare_tables", refuse_analysis)
+    sm = SimpleNamespace(
+        params=SimpleNamespace(points=[]),
+        input=SimpleNamespace(series_nc=[], raw_nc=["undeclared.nc"]),
+    )
+    with pytest.raises(RuntimeError, match="raw inputs differ"):
         producer.run(sm)
 
 

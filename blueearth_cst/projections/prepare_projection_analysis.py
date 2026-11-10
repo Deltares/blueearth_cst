@@ -451,6 +451,14 @@ def run(sm):
         raise RuntimeError(
             f"analysis series set differs from declared inputs: unused={sorted(declared - opened)}, undeclared={sorted(opened - declared)}"
         )
+    raw_declared = {os.path.abspath(str(path)) for path in sm.input.raw_nc}
+    raw_used = {
+        os.path.abspath(str(point[key]))
+        for point in points
+        for key in ("raw_path_hist", "raw_path_fut")
+    }
+    if raw_declared != raw_used:
+        raise RuntimeError("spatial diagnostic raw inputs differ from the declared set")
     started = perf_counter(), process_time()
     tables, record = prepare_tables(
         points,
@@ -462,24 +470,12 @@ def run(sm):
         combinations=[dict(item) for item in sm.params.combinations],
     )
     _log_timing("table preparation total", started)
-    started = perf_counter(), process_time()
     if set(tables) != set(sm.params.table_names):
         raise RuntimeError("analysis table names differ from declared output contract")
-    for name, table in tables.items():
-        path = Path(sm.output[name])
-        path.parent.mkdir(parents=True, exist_ok=True)
-        table.to_csv(path, index=False, na_rep="")
-    _log_timing("table publication", started)
+    # Refuse unserializable metadata before spatial work or table publication.
+    json.dumps(record, allow_nan=False, default=_numpy_json)
     from blueearth_cst.projections.spatial_diagnostics import prepare_spatial_changes
 
-    raw_declared = {os.path.abspath(str(path)) for path in sm.input.raw_nc}
-    raw_used = {
-        os.path.abspath(str(point[key]))
-        for point in points
-        for key in ("raw_path_hist", "raw_path_fut")
-    }
-    if raw_declared != raw_used:
-        raise RuntimeError("spatial diagnostic raw inputs differ from the declared set")
     started = perf_counter(), process_time()
     spatial = prepare_spatial_changes(
         points,
@@ -498,10 +494,21 @@ def run(sm):
         "unavailable": spatial["unavailable"],
         "methods": spatial["methods"],
     }
+    record_text = (
+        json.dumps(record, indent=2, allow_nan=False, default=_numpy_json) + "\n"
+    )
+    _log_timing("record serialization", started)
+    started = perf_counter(), process_time()
+    for name, table in tables.items():
+        path = Path(sm.output[name])
+        path.parent.mkdir(parents=True, exist_ok=True)
+        table.to_csv(path, index=False, na_rep="")
+    _log_timing("table publication", started)
+    started = perf_counter(), process_time()
     record_path = Path(sm.output.analysis_record)
     record_path.parent.mkdir(parents=True, exist_ok=True)
     record_path.write_text(
-        json.dumps(record, indent=2, allow_nan=False, default=_numpy_json) + "\n",
+        record_text,
         encoding="utf-8",
     )
     _log_timing("record publication", started)

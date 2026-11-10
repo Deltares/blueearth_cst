@@ -210,6 +210,19 @@ Project `plotting.annotation` selects a title, caption or neither. See
 [execution records](execution-and-provenance.md#wf2-product-attribution) for production records and
 [results transfer](results-transfer.md) for export and import.
 
+### Analysis failures and retries
+
+Analysis checks its declared scalar/raw input sets before calculating tables. It checks record metadata for
+JSON serialization before spatial diagnostics, then serializes the complete record before publishing CSVs.
+The record is written last. Metadata or spatial-preparation failures therefore stop before new CSVs or the
+record are written by the analysis script.
+
+This ordering does not provide an atomic bundle or preserve a previous publication across workflow failure.
+Snakemake can remove declared products before execution and during failed-job cleanup; spatial diagnostics
+can also be partially written before a failure. Correct the reported problem and rerun the workflow, reusing
+compatible retained raw slices and scalar series. Individual remaining analysis files do not establish that
+analysis finished successfully.
+
 ## Diagnostics and interpretation {#interpretation}
 
 ```{=html}
