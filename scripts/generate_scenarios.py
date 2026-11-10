@@ -93,6 +93,30 @@ def run_owned(
         raise ValueError("cores must be positive")
     config_path = Path(config_path).resolve(strict=True)
     project_root = Path(project_root).resolve()
+    from blueearth_cst.shared.config_composition import load_composed_config
+    from blueearth_cst.shared.generation_config import generation_method
+
+    selected = load_composed_config(config_path, entry="generate_scenarios")
+    if generation_method(selected) == "delta_change":
+        from blueearth_cst.experiment.delta_generation import capture_delta
+
+        if selected["workflows"]["generate_scenarios"].get("enabled") is False:
+            raise ValueError("generate_scenarios is disabled")
+        if Path(selected["project"]["project_dir"]).resolve() != project_root:
+            raise ValueError("project directory differs from generation configuration")
+        operation = capture_delta(config_path, extra)
+        preview = any(flag in extra for flag in ("--dry-run", "--dryrun", "-n"))
+        if history_pair is not None:
+            history_pair[1]["generation"] = operation.provenance()
+            invocation_history.update(*history_pair)
+        manifest = operation.run(project_root, preview=preview)
+        if history_pair is not None:
+            history_pair[1]["generation"].update(
+                manifest_path=str(manifest), published=not preview
+            )
+            invocation_history.update(*history_pair)
+        print(f"Delta collection {'preview' if preview else 'published'}: {manifest}")
+        return 0
     preview = any(flag in extra for flag in ("--dry-run", "-n", "--unlock"))
     command = _command(config_path, cores, extra)
     base_env = {
@@ -252,7 +276,7 @@ def main(argv: list[str] | None = None) -> int:
         ],
         targets=["all"],
         mode="dry_run"
-        if any(flag in extra for flag in ("--dry-run", "-n", "--unlock"))
+        if any(flag in extra for flag in ("--dry-run", "--dryrun", "-n", "--unlock"))
         else "execute",
         contract_mode="new_schema",
     )

@@ -3,7 +3,7 @@ title: "Projection-conditioned delta-change scenarios"
 format: html
 ---
 
-Use the standalone delta-change producer to apply monthly projection changes to an existing historical
+Use the delta-change producer to apply monthly projection changes to an existing historical
 weather sequence, then simulate that collection with WF4. This optional projection-conditioned assessment
 is separate from the scenario-neutral stochastic stress test. It does not change WF3's stress grid,
 weather generator or projection-independent sampling.
@@ -12,7 +12,27 @@ weather generator or projection-independent sampling.
 
 Start with the optional
 [delta configuration](../../config/templates/example-basin/project_config_delta.yml) in the basin starter.
-The producer takes its own closed configuration, not a workflow stanza in the project file.
+The standalone producer takes its own closed configuration. Schema-3 projects can instead put those
+same settings under `delta_change:` in `project_config_generate_scenarios.yml`, alongside
+`method: delta_change`. Keep `workflows.generate_scenarios.enabled: true` and its normal `config_path`
+in the project file, then use `scripts/run_workflows.py --config <case>/project_config.yml`.
+Stochastic and delta sections cannot appear together. Projection inputs must already be prepared;
+this selection does not acquire data or make projections a prerequisite of stochastic generation.
+
+Generate first with simulation disabled, then copy the reported manifest into the simulation configuration.
+When both generation and simulation are enabled, an explicit existing collection is required before any
+producer runs. The runner reports that selection separately; generation never replaces it. A generation
+failure stops the invocation before simulation. The simulation reservation retains the selected collection;
+the independent delta operation records its own configuration and input hashes in invocation history.
+
+Delta generation accepts the runner's `--dry-run` (`-n` or `--dryrun`) preview. It reads inputs and calculates
+factors to report the exact collection path, but publishes no collection. Other forwarded engine options,
+including `--unlock`, and `--rebuild` are refused. Complete identical collections are verified and reused.
+Incomplete output directories are reported for inspection; they are never automatically deleted or resumed.
+
+Standalone and integrated calls share the publisher and project execution lock. Equivalent settings and
+inputs produce the same identity at the same code/environment revision. Identities include producer code,
+so software changes can require a new collection; retained collections remain readable.
 All listed settings are required; unknown settings are refused. Relative input paths resolve beside this YAML.
 The initial profile supports `source_like: era5` only and requires the same selected source in WF4.
 
