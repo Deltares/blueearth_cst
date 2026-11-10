@@ -1069,7 +1069,10 @@ def _draw_statistic(values, years, statistic):
     return cv, valid
 
 
-@lru_cache(maxsize=256)
+# Ntoum's 1020 member + 612 model requests span 612 exact keys (2026-11-10).
+# Keep them through both phases: 256 slots caused 510 repeated simulations.
+# Cached results are small bounds/counts; simulation arrays are not retained.
+@lru_cache(maxsize=1024)
 def _cached_null_band(parameters, statistic, level, simulations, seed):
     if not parameters:
         return np.nan, np.nan, 0, simulations, "no_eligible_members"
