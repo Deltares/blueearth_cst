@@ -1252,9 +1252,7 @@ def _resolve_named_map(
     resolved: dict[str, dict[str, Any]] = {}
     seen: dict[Any, str] = {}
     requested = (
-        historical_forcing_ids(declared, build_model)
-        if build_model is not None
-        else ()
+        historical_forcing_ids(declared, build_model) if build_model is not None else ()
     )
     for name in recipes:
         view = legacy_view(declared, name)

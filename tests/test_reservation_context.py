@@ -111,7 +111,7 @@ def configuration(base, *, retained=None):
             "project": {"project_dir": str(project), "catalog": [str(catalog)]},
             "basin": {"region": "{'subbasin': [9.666, 0.4476]}", "resolution": 0.00833},
             "climate": {"selected": "era5", "window": {"start": 2000, "end": 2016}},
-            "model": {"outvars": ["gwr"]},
+            "model": {"outvars": ["groundwater recharge"]},
             "workflows": workflows,
         },
     )

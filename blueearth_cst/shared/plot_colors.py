@@ -90,8 +90,14 @@ def load_palette(path: Path = PALETTE_PATH) -> dict[str, Any]:
     if set(palette["climate_index_maps"]) != {"precip", "dry_spell", "temp", "cold"}:
         fail("climate_index_maps requires precip, dry_spell, temp and cold")
     for name, cmap in {
-        **{f"climate_maps.{key}": value for key, value in palette["climate_maps"].items()},
-        **{f"climate_index_maps.{key}": value for key, value in palette["climate_index_maps"].items()},
+        **{
+            f"climate_maps.{key}": value
+            for key, value in palette["climate_maps"].items()
+        },
+        **{
+            f"climate_index_maps.{key}": value
+            for key, value in palette["climate_index_maps"].items()
+        },
         "precip_anomaly": palette["precip_anomaly"],
     }.items():
         if not isinstance(cmap, str) or not cmap.strip():

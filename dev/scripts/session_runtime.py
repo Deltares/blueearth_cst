@@ -82,8 +82,8 @@ def command_environment(source: Path) -> dict[str, str]:
         PYTHONDONTWRITEBYTECODE="1",
         JULIA_PROJECT=str(source),
         JULIA_PKG_PRECOMPILE_AUTO="0",
-        PIXI_NO_INSTALL="1",
-        PIXI_FROZEN="1",
+        PIXI_NO_INSTALL="true",
+        PIXI_FROZEN="true",
         PIXI_PROJECT_ROOT=str(source),
         PIXI_PROJECT_MANIFEST=str(source / "pixi.toml"),
         R_LIBS_USER=str(scratch / "disabled-r-user-library"),
@@ -161,6 +161,7 @@ def main(argv: list[str] | None = None) -> int:
                     *command,
                 ],
                 cwd=source,
+                env={**os.environ, "PIXI_NO_INSTALL": "true", "PIXI_FROZEN": "true"},
             )
         prefix = runtime / ".pixi/envs/default"
         if Path(sys.prefix).resolve() != prefix.resolve():

@@ -215,7 +215,16 @@ class _ConsoleStream:
         return getattr(self.stream, name)
 
     def write(self, text: str) -> int:
-        result = self.stream.write(text)
+        try:
+            result = self.stream.write(text)
+        except UnicodeEncodeError as error:
+            # A redirected console may use a legacy encoding. Keep the relay
+            # alive and preserve the original text in the UTF-8 transcript.
+            escaped = text.encode(error.encoding, "backslashreplace").decode(
+                error.encoding
+            )
+            self.stream.write(escaped)
+            result = len(text)
         try:
             self.transcript.write(text)
         except OSError as error:

@@ -358,6 +358,7 @@ def test_v2_native_run_references_resolve_from_inventory(tmp_path):
     csv_path.write_text("time,Q_1\n2046-01-02,1\n", encoding="utf-8")
     toml_path.write_text("[time]\n", encoding="utf-8")
     inventory = {
+        "temporal_preparation": {"response_start": "2046-01-02"},
         "artifacts": [
             {
                 "run_id": "run_01",
@@ -379,6 +380,7 @@ def test_v2_native_run_references_resolve_from_inventory(tmp_path):
     assert native_runs["run_01"].csv_path == csv_path
     assert native_runs["run_01"].toml_path == toml_path
     assert native_runs["run_01"].temporal_path is None
+    assert native_runs["run_01"].response_start == "2046-01-02"
 
 
 def test_v2_run_groups_replace_legacy_unit_keys():

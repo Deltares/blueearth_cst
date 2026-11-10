@@ -1973,7 +1973,7 @@ def test_only_historical_climate_inputs_receive_list_styling(tmp_path):
     )
     assert "historical forcing settings" not in block
     assert "\033" not in block
-    assert "\n  settings\n    project" in block
+    assert "\n  Run settings\n    project" in block
     assert not any(line.startswith("> ") for line in block.splitlines())
     climate = rw._climate_input_block(
         ("> Rainfall dataset: ERA5 (configured)",), colour=True

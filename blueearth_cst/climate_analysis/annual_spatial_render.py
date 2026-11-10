@@ -203,7 +203,11 @@ def render_pages(
         # Annual pages retain their existing three-column, six-year contract.
         preset = replace(
             CST_PRESET,
-            map_panels={**CST_PRESET.map_panels, "columns": 3, "max_panels_per_figure": 6},
+            map_panels={
+                **CST_PRESET.map_panels,
+                "columns": 3,
+                "max_panels_per_figure": 6,
+            },
         )
         with use_preset(preset):
             (fig,) = draw_raster_panels(
@@ -271,7 +275,7 @@ def retire_pages(
     """Retire only exact, previously managed anomaly PNGs; never follow links."""
     root = Path(out_root).resolve()
     pattern = re.compile(
-        rf"plots/annual_anomalies/page_[0-9]{{3,}}/{re.escape(source)}_(precip|temp)_annual_anomaly_map_basin_ext\.png"
+        rf"plots/annual_anomalies/page_[0-9]{{3,}}/{re.escape(source)}_(precip|temp)_annual_anomaly_map_basin(?:_ext)?\.png"
     )
     for relative, record in previous.items():
         if (

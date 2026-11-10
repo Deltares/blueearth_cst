@@ -75,9 +75,17 @@ _ARCHIVE_PORTABLE = {
 # Re-audited after 7697721c: only --unlock admission and its comment changed.
 # Unlock runs no producer; scientific staging, inputs and execution are unchanged.
 # Preserve the schema-3 target as well as allowing its upgrade to this revision.
-_ARCHIVE_AFTER = {
+_ARCHIVE_UNLOCK = {
     **_ARCHIVE_PORTABLE,
     _ARCHIVE_LAUNCH: "9895b3f9ecffb8fda76a1db58cfbb079a38e68696c8672180ec821811d7a4915",
+}
+# Re-audited after b6739e39: execution YAML uses validated public forcing keys
+# instead of internal aliases. Source bytes and resolved forcing are unchanged;
+# schema 5 isolates regenerated execution views. This WF0--WF2 launcher remains
+# outside current simulation inventories; all scientific inputs stay checked.
+_ARCHIVE_AFTER = {
+    **_ARCHIVE_UNLOCK,
+    _ARCHIVE_LAUNCH: "9e5b31a3005966a8e9db2baa63bd9374deda5872ff554b25ecfc40b394ec5797",
 }
 
 
@@ -93,9 +101,15 @@ def _archive_upgrade_paths(
         _ARCHIVE_PREVIOUS,
         _ARCHIVE_PRODUCT,
         _ARCHIVE_PORTABLE,
+        _ARCHIVE_UNLOCK,
     ) and any(
         all(new.get(path) == checksum for path, checksum in target.items())
-        for target in (_ARCHIVE_PRODUCT, _ARCHIVE_PORTABLE, _ARCHIVE_AFTER)
+        for target in (
+            _ARCHIVE_PRODUCT,
+            _ARCHIVE_PORTABLE,
+            _ARCHIVE_UNLOCK,
+            _ARCHIVE_AFTER,
+        )
     ):
         return set(_ARCHIVE_AFTER)
     return set()

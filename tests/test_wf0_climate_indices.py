@@ -219,12 +219,12 @@ def test_chirps_native_daily_units_are_verified(tmp_path):
     climate, cells, settings = inputs(tmp_path)
     with xr.open_dataset(climate) as source:
         data = source.load()
-    data.precip.attrs['units'] = 'mm d**-1'
+    data.precip.attrs["units"] = "mm d**-1"
     data.to_netcdf(climate)
-    pointer = publish(climate, cells, 'chirps', tmp_path / 'chirps', settings, 1)
+    pointer = publish(climate, cells, "chirps", tmp_path / "chirps", settings, 1)
     folder, _ = load_publication(pointer)
-    with xr.open_dataset(folder / 'annual_grid.nc') as result:
-        assert 'r95p_amount' in result
+    with xr.open_dataset(folder / "annual_grid.nc") as result:
+        assert "r95p_amount" in result
 
 
 def test_native_grid_indices_keep_cells_outside_basin_selection(tmp_path):

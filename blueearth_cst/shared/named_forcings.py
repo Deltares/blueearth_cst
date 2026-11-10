@@ -198,7 +198,9 @@ class HistoricalLayout:
 
     @property
     def evaluation_dir(self) -> str:
-        return "evaluation" if self.forcing_id is None else f"evaluation/{self.forcing_id}"
+        return (
+            "evaluation" if self.forcing_id is None else f"evaluation/{self.forcing_id}"
+        )
 
     @property
     def forcing_plots_dir(self) -> str:

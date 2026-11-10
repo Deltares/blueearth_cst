@@ -97,7 +97,9 @@ def _rule_bodies() -> dict[str, str]:
         if m is None:
             # Per-recipe rules are generated once per forcing key from one body.
             m = re.match(r"^(\s*)for _k in FORCING_KEYS:", line)
-            named = re.search(r'name:\s*_rule_name\("(\w+)"', "\n".join(lines[i : i + 3]))
+            named = re.search(
+                r'name:\s*_rule_name\("(\w+)"', "\n".join(lines[i : i + 3])
+            )
             if m is None or named is None:
                 continue
             name = named.group(1)

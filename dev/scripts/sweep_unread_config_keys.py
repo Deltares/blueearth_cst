@@ -128,6 +128,24 @@ _R_SUBSCRIPT = re.compile(rf"""{_CFG_NAME}\[\[\s*["']([\w-]+)["']\s*\]\]""")
 
 ALLOWANCES = (
     Allowance(
+        name="generation method settings mapping",
+        reason=(
+            "shared/generation_config.py validates method against stochastic and "
+            "delta_change, then reads document[method]; the stochastic mapping "
+            "is selected dynamically rather than by a literal subscript"
+        ),
+        line_patterns=(r"^stochastic$",),
+    ),
+    Allowance(
+        name="optional gauge temperature path",
+        reason=(
+            "climate_analysis/rain_gauges.py validates temp_path by iterating "
+            "the enabled path keys and reading block[key]; location_comparison.py "
+            "consumes the optional temperature observations for matched comparisons"
+        ),
+        line_patterns=(r"^temp_path$",),
+    ),
+    Allowance(
         name="native Wflow variable identifiers",
         reason=(
             "netcdf_grid.variables is consumed by iterating standard-name/output-name "

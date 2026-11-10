@@ -36,6 +36,22 @@ def test_relay_keeps_split_unicode_and_redraws_without_doubling_newlines():
     assert stream.getvalue() == "café\nwaiting\rdone\n"
 
 
+def test_redirected_legacy_encoding_does_not_break_relay(tmp_path, monkeypatch):
+    path, record = _start(tmp_path)
+    redirected = tmp_path / "redirected.log"
+    with (
+        redirected.open("w", encoding="cp1252") as stream,
+        monkeypatch.context() as patch,
+    ):
+        patch.setattr(sys, "stdout", stream)
+        with outputs.console_capture((path, record)):
+            _relay_chunks(["forcing ━ 100%\r\n".encode(), b"finished\n"], sys.stdout)
+
+    assert redirected.read_text(encoding="cp1252") == "forcing \\u2501 100%\nfinished\n"
+    transcript = tmp_path / record["execution_directory"] / "console.log"
+    assert transcript.read_text(encoding="utf-8") == "forcing ━ 100%\nfinished\n"
+
+
 @pytest.mark.parametrize("terminal", [False, True])
 def test_terminal_detection_survives_a_nested_pipe(monkeypatch, terminal):
     class Sink(io.StringIO):

@@ -28,8 +28,8 @@ def test_wf0_titles_use_plot_dataset_and_parenthesized_window(name):
 
 
 def test_wf0_comparison_titles_keep_dataset_names_and_actual_window():
-    assert wf0_title("coverage", ["ERA5", "CHIRPS"], (1981, 2020), "subbasin_101") == (
-        "Monthly climate data coverage — ERA5, CHIRPS (1981–2020)"
+    assert wf0_title("seasonal", ["ERA5", "CHIRPS"], (1981, 2020), "subbasin_101") == (
+        "Monthly precipitation climatology — ERA5, CHIRPS (1981–2020)"
     )
 
 

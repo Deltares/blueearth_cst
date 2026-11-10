@@ -9,6 +9,10 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Retire managed WF0 annual anomaly pages under both current and legacy filenames, preserving unrelated files.
+- Normalize Pixi boolean environment values when borrowing a session runtime.
+- Escape unsupported characters in redirected console output while preserving the original UTF-8 log.
+
 - Select stochastic or delta-change generation through schema-3 method sections and the workflow runner.
   Preserve legacy stochastic settings and explicit delta collection selection; preview delta inputs without
   publishing, record captured generation inputs, and reject unsupported flags or incomplete output reuse.
