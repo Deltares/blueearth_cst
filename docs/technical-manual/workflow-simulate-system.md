@@ -10,8 +10,8 @@ Compatible indicator calculations can also use saved simulations without rerunni
 ## Inputs {#inputs}
 
 - **Prepared basin model.** Completed Wflow-SBM model and the information needed to prepare its forcing.
-- **Historical end state.** WF1's `run_default/outstate/outstates.nc`, the default initial state for
-  every run unless the model TOML configures its own warm state.
+- **Historical end state.** WF1's `run_default/outstate/outstates.nc` (`run_<id>/` for a named recipe),
+  the default initial state for every run unless the model TOML configures its own warm state.
 - **Generated weather.** Climate NetCDFs for selected runs, including pressure and radiation alongside
   perturbed rainfall and temperature.
 - **Saved responses for indicators-only calculations.** Native Wflow CSVs and records of available
@@ -42,6 +42,15 @@ simulations. Climate projections are not simulation inputs.
 | `scenario_collection` | Advanced selection of a saved weather experiment. |
 | `compute` | Julia threads, concurrent batches, batch size and reserved disk space. |
 | `output.netcdf_grid` | Optional native grids for every selected run; independent of historical output. |
+| `historical_forcing` | `default` (or omitted) or a named recipe; see below. |
+
+**Historical forcing selection.** With [named recipes](configuration.md#named-historical-forcing-recipes),
+`historical_forcing` chooses the recipe whose `wflow_sbm_<id>.toml`, model fingerprint, forcing
+preparation, end state and historical Qcrit discharge the experiment uses. Single-recipe projects accept
+only `default`. WF4 refuses a recipe WF1 has not simulated, a scenario collection whose forcing extraction
+differs from the recipe, and any non-default recipe for delta-change collections, which record no recipe.
+An existing experiment keeps the recipe it was created with: changing the selection requires
+`--new-experiment`, and indicators-only recalculation refuses a different selection.
 
 Scenario selection normally follows the project's scenario-generation settings. Omitting unperturbed
 simulations does not remove the reference weather saved by scenario generation. See

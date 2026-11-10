@@ -123,10 +123,10 @@ def simulation_climate(
 
 
 def historical_forcing_ids(
-    climate: Mapping[str, object], build_model: Mapping[str, object]
+    climate: Mapping[str, object], build_cfg: Mapping[str, object]
 ) -> tuple[str, ...] | None:
     """WF1's requested recipe IDs; ``None`` selects the single-recipe layout."""
-    raw = build_model.get("historical_forcings")
+    raw = build_cfg.get("historical_forcings")
     if not declares_named(climate):
         if raw is not None:
             raise ValueError(
@@ -150,12 +150,12 @@ def historical_forcing_ids(
 
 
 def composed_forcing_ids(
-    climate: Mapping[str, object], build_model: Mapping[str, object]
+    climate: Mapping[str, object], build_cfg: Mapping[str, object]
 ) -> tuple[str, ...] | None:
     """WF1's recipe IDs from an already composed (validated) configuration."""
     if "forcing_id" not in climate:
         return None
-    return tuple(build_model.get("historical_forcings") or [climate["default_forcing"]])
+    return tuple(build_cfg.get("historical_forcings") or [climate["default_forcing"]])
 
 
 @dataclass(frozen=True)

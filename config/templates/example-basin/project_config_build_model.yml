@@ -53,6 +53,12 @@ simulation_window:
 #historical_run:
 #  name: era5_reference
 
+# With named climate.forcings: recipes to simulate (default: [default_forcing]).
+# Each runs in run_<id>/; two or more need historical_run.name, retained as
+# <name>_<id> and compared under comparisons/historical/<name>/.
+# Select named historical recipes. Input: list of climate.forcings names.
+#historical_forcings: [era5, chirps]
+
 
 # -----------------------------------------------------------------------------
 #  ENGINE

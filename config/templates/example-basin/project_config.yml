@@ -96,6 +96,18 @@ climate:
   # Historical-only supplied reference PET: use pet: {mode: direct, source: <catalog-entry>}
   # and omit method and press_correction. Scenario generation/simulation reject direct PET.
 
+  # Alternative to `forcing`: named recipes run on one fixed model. Replace the
+  # `forcing` block with `forcings` plus `default_forcing`; never declare both.
+  # The default drives scenario generation and, unless overridden, simulation.
+  # Name recipes and choose the default. Input: mapping of [a-z][a-z0-9_]* names.
+  #forcings:
+  #  era5:
+  #    precip_source: era5
+  #  chirps:
+  #    precip_source: chirps
+  #    temp_source: era5
+  #default_forcing: era5
+
   # Calendar years to extract, January 1 through December 31 inclusive. At least 16. This is not the model
   # run period; see `simulation_window` in the build_model file.
   # Select inclusive historical calendar years. Input: year mapping spanning at least 16 years.
