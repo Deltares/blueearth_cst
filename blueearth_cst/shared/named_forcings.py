@@ -103,6 +103,23 @@ def resolve_selection(
     return requested
 
 
+#: Public WF4 field selecting a named recipe.
+SIMULATION_FIELD = "simulate_system.historical_forcing"
+
+
+def simulation_climate(
+    climate: Mapping[str, object], requested: object
+) -> tuple[dict[str, object], str | None]:
+    """WF4's single-recipe climate view and its resolved recipe ID.
+
+    Legacy projects return their climate section unchanged and ``None``.
+    """
+    forcing_id = resolve_selection(climate, requested, SIMULATION_FIELD)
+    if forcing_id is None:
+        return dict(climate), None
+    return legacy_view(climate, forcing_id), forcing_id
+
+
 def historical_forcing_ids(
     climate: Mapping[str, object], build_model: Mapping[str, object]
 ) -> tuple[str, ...] | None:

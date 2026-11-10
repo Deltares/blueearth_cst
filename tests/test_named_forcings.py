@@ -116,6 +116,55 @@ def test_ambiguous_or_malformed_named_forcings_fail(tmp_path, climate, match):
         cc.load_composed_config(path, entry="build_model")
 
 
+@pytest.mark.parametrize(
+    "requested,selected,forcing_id",
+    [
+        (None, "chirps", "chirps"),
+        ("default", "chirps", "chirps"),
+        ("era5", "era5", "era5"),
+    ],
+)
+def test_wf4_loader_resolves_the_same_recipe_as_composition(
+    tmp_path, requested, selected, forcing_id
+):
+    from blueearth_cst.experiment.simulation_runner import simulation_settings
+
+    simulate = {"operation": "simulate-and-indicators"}
+    if requested is not None:
+        simulate["historical_forcing"] = requested
+    path = _named(tmp_path, simulate=simulate)
+    project, _ = simulation_settings(path)
+    climate = project["climate"]
+    assert (climate["selected"], climate["forcing_id"]) == (selected, forcing_id)
+    assert climate["default_forcing"] == "chirps"
+    composed = cc.load_composed_config(path, entry="simulate_system")["climate"]
+    assert {k: climate.get(k) for k in ("selected", "forcing", "forcing_id")} == {
+        k: composed.get(k) for k in ("selected", "forcing", "forcing_id")
+    }
+    # Indicators-only skips forcing validation but still binds the recipe ID.
+    path = _named(
+        tmp_path / "ind",
+        simulate={**simulate, "operation": "indicators-only"},
+    )
+    assert simulation_settings(path)[0]["climate"]["forcing_id"] == forcing_id
+
+
+def test_wf4_loader_keeps_legacy_climate_unchanged(tmp_path):
+    from blueearth_cst.experiment.simulation_runner import simulation_settings
+
+    path = write_split(
+        tmp_path,
+        sections={
+            "basin": {"region": "x"},
+            "climate": {"sources": ["era5"], "forcing": {"precip_source": "era5"}},
+        },
+        bodies={"simulate_system": {"operation": "simulate-and-indicators"}},
+    )
+    climate = simulation_settings(path)[0]["climate"]
+    assert climate["selected"] == "era5"
+    assert not {"forcing_id", "forcings", "default_forcing"} & set(climate)
+
+
 def test_unknown_simulation_selection_fails(tmp_path):
     path = _named(tmp_path, simulate={"historical_forcing": "eobs"})
     with pytest.raises(ValueError, match="unknown forcing 'eobs'"):

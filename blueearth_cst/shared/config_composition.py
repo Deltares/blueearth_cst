@@ -81,8 +81,8 @@ from blueearth_cst.shared.named_forcings import (
     historical_forcing_ids,
     legacy_view,
     named_recipes,
-    resolve_selection,
     retained_run_names,
+    simulation_climate,
 )
 from blueearth_cst.shared.plot_config import resolve_annotation
 
@@ -1135,23 +1135,14 @@ def compose_config(
     # Named recipes resolve to the legacy single-recipe form for the active one:
     # WF1 and WF3 use the default, WF4 its `historical_forcing` selection.
     declared_climate = composed.get("climate", {})
+    requested = (bodies.get("simulate_system") or {}).get("historical_forcing")
     forcing_id = None
     if declares_named(declared_climate):
-        named_recipes(declared_climate)
-        forcing_id = resolve_selection(
-            declared_climate,
-            (bodies.get("simulate_system") or {}).get("historical_forcing")
-            if entry == "simulate_system"
-            else None,
-            "simulate_system.historical_forcing",
+        composed["climate"], forcing_id = simulation_climate(
+            declared_climate, requested if entry == "simulate_system" else None
         )
-        composed["climate"] = legacy_view(declared_climate, forcing_id)
-    elif (bodies.get("simulate_system") or {}).get("historical_forcing") is not None:
-        resolve_selection(
-            declared_climate,
-            bodies["simulate_system"]["historical_forcing"],
-            "simulate_system.historical_forcing",
-        )
+    elif requested is not None:
+        simulation_climate(declared_climate, requested)
     if not validate_forcing or comparison_only:
         # Comparison/projection workflows do not validate model forcing. Startup
         # may also check structural configuration before a consumer is reached.

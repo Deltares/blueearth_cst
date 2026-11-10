@@ -67,7 +67,13 @@ def simulation_selection(config_path, *, validate_forcing=True):
         require_workflow_compatibility,
         resolve_climate_forcing,
     )
+    from blueearth_cst.shared.named_forcings import simulation_climate
 
+    # A named project runs WF4 on one recipe: the selection's legacy view.
+    declared = project.get("climate") or {}
+    view, forcing_id = simulation_climate(declared, settings.get("historical_forcing"))
+    if forcing_id is not None:
+        project["climate"] = view
     indicators_only = settings.get("operation") == "indicators-only" or settings.get(
         "operations"
     ) == ["indicators"]
@@ -76,6 +82,12 @@ def simulation_selection(config_path, *, validate_forcing=True):
         climate, recipe = resolve_climate_forcing(requested_climate, required=True)
         require_workflow_compatibility(recipe, "simulate_system")
         project["climate"] = climate
+    if forcing_id is not None:
+        project["climate"] = {
+            **project["climate"],
+            "forcing_id": forcing_id,
+            "default_forcing": declared["default_forcing"],
+        }
     from blueearth_cst.experiment.simulation_runs import include_unperturbed
 
     include_unperturbed(settings)
