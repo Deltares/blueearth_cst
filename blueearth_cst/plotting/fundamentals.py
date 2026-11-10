@@ -206,6 +206,8 @@ def style_colourbar(cb, label: str) -> None:
     """The one colourbar appearance: title above the bar, preset ticks and outline."""
     preset = active()
     colors, tick, edge = preset.colors, preset.fonts["tick"], preset.lines["edge"]
+    # Dense boundary scales otherwise draw a gray fringe of automatic minor ticks.
+    cb.minorticks_off()
     cb.ax.set_title(label, color=colors["ink"], fontsize=tick, pad=10)
     cb.outline.set_edgecolor(colors["axis"])
     cb.outline.set_linewidth(edge)

@@ -111,10 +111,7 @@ def render_retained_subbasins(
             with use_preset(CST_PRESET):
                 fig = artists.CHARTS[form](view)
                 name = figure_filename(dataset, variable, context, f"{id_}_avg")
-                text = (
-                    caption(form, view)
-                    + " Method implementation was exercised on Ntoum real data; this run is not scientifically qualified. Grid resolution can make neighboring subbasin series identical."
-                )
+                text = caption(form, view)
                 figure_title = title(
                     form,
                     [

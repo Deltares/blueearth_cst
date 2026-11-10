@@ -312,6 +312,17 @@ def render(
                         for source in sources
                     ):
                         caption += " Companion temperature is sampled on the retained extraction grid after the configured forcing preparation, rather than its original native grid."
+                    methods_detail = caption
+                    caption = (
+                        f"{title}. Sources: {', '.join(labels.values())}. "
+                        + (
+                            "Points show matched monthly values; the dashed line denotes agreement."
+                            if form == "monthly_agreement"
+                            else "Gaps indicate incomplete reporting years."
+                            if form == "annual_ts"
+                            else "Monthly means are calculated from complete matched months."
+                        )
+                    )
                     export_figure(
                         fig,
                         target / filename,
@@ -326,6 +337,7 @@ def render(
                     local[key] = {
                         "title": title,
                         "caption": caption,
+                        "methods_detail": methods_detail,
                         "location_id": location.id,
                         "gauge_id": location.gauge_id,
                         "variable": variable,

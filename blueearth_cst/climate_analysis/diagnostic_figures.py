@@ -606,39 +606,58 @@ EXTREME_LABELS = {
 }
 
 
-def extremes(indicator: str) -> Callable[[View], Figure]:
+def extremes(indicator: str | tuple[str, ...]) -> Callable[[View], Figure]:
+    """Draw annual indices, sharing years when several panels are requested."""
+    indicators = (indicator,) if isinstance(indicator, str) else indicator
+
     def chart(v: View) -> Figure:
-        fig, axs = new_fig(H_SINGLE)
-        ax = axs[0, 0]
-        for s in v.sources:
-            y = v.results[s]["extremes"][indicator].reindex(v.years)
-            ax.plot(
-                v.years, y, marker=v.marker(s), **time_series_style(s, v.color(s))
-            )  # NaN breaks the line
-        ax.set_ylabel(EXTREME_LABELS[indicator])
-        ax.margins(y=0.08)
-        trend_key = {"SDII": "sdii", "Wet days": "wet_days"}.get(indicator, indicator)
-        unit = (
-            "mm d⁻¹ decade⁻¹"
-            if indicator == "SDII"
-            else UNITS["days_decade"]
-            if indicator == "Wet days"
-            else UNITS["mm_decade"]
-        )
-        _annual_trends(
-            ax,
-            v,
-            "extremes",
-            indicator,
-            trend_key,
-            unit,
-            digits=2 if indicator == "SDII" else 1,
-        )
-        year_ticks(ax, v.years)
-        if len(v.sources) == 1 and np.isfinite(y).any():
-            year_ticks(ax, v.years[np.isfinite(y)])
-        time_series_grid(ax)
-        top_legend(fig, identity_row(v))
+        count = len(indicators)
+        height = H_SINGLE if count == 1 else H_STACK2 + 48 * (count - 2)
+        fig, axs = new_fig(height, nrows=count, sharex=True)
+        for i, (ax, name) in enumerate(zip(axs[:, 0], indicators)):
+            for s in v.sources:
+                y = v.results[s]["extremes"][name].reindex(v.years)
+                ax.plot(
+                    v.years, y, marker=v.marker(s), **time_series_style(s, v.color(s))
+                )  # NaN breaks the line
+            ax.set_ylabel(EXTREME_LABELS[name])
+            ax.margins(y=0.08)
+            trend_key = {"SDII": "sdii", "Wet days": "wet_days"}.get(name, name)
+            unit = (
+                "mm d⁻¹ decade⁻¹"
+                if name == "SDII"
+                else UNITS["days_decade"]
+                if name == "Wet days"
+                else UNITS["mm_decade"]
+            )
+            _annual_trends(
+                ax,
+                v,
+                "extremes",
+                name,
+                trend_key,
+                unit,
+                digits=2 if name == "SDII" else 1,
+            )
+            time_series_grid(ax)
+            if count > 1:
+                ax.set_title(f"{chr(97 + i)}) {name}")
+        years = v.years
+        if len(v.sources) == 1:
+            available = np.isfinite(
+                v.results[v.sources[0]]["extremes"]
+                .reindex(v.years)[list(indicators)]
+                .to_numpy()
+            ).any(axis=1)
+            if available.any():
+                years = years[available]
+        year_ticks(axs[-1, 0], years)
+        if count > 1:
+            inside_legend(fig, axs[0, 0], identity_row(v))
+            if (legend := axs[0, 0].get_legend()) is not None:
+                legend.set_loc("upper left")
+        else:
+            top_legend(fig, identity_row(v))
         return fig
 
     return chart
@@ -1046,7 +1065,8 @@ CHARTS: dict[str, Callable[[View], Figure | str]] = {
     "anomaly": anomaly,
     "spi": spi,
     "drought-events": drought_events,
-    **{f"extreme-{m}": extremes(m) for m in EXTREME_LABELS},
+    "extreme-intensity": extremes(("Rx1day", "Rx5day", "SDII")),
+    "extreme-Wet days": extremes("Wet days"),
     "spell": spell,
     "acf": acf,
     "slopes": slopes,

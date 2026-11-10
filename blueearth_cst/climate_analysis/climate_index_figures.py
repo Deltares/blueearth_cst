@@ -33,6 +33,7 @@ from blueearth_cst.plotting.prepared_maps import (
     draw_raster_map,
 )
 from blueearth_cst.plotting.preset import use_preset
+from blueearth_cst.shared.map_frames import basin_frame
 from blueearth_cst.shared.map_reference import (
     drawing_frame,
     field_edges,
@@ -182,17 +183,27 @@ def render_indices(
     def save(fig, key, title, explanation):
         path = Path(paths[key]) if key in paths else output_dir / key
         path.parent.mkdir(parents=True, exist_ok=True)
+        journal_caption = (
+            f"{title}. {window['start']}–{window['end']}; "
+            f"reference period {reference['start']}–{reference['end']}. "
+            + (
+                "Indices are calculated from basin-mean daily values."
+                if "Indices of daily" in explanation
+                else explanation.split(". ")[0].rstrip(".") + "."
+            )
+        )
         export_figure(
             fig,
             path,
             annotation=annotation,
             title=title,
-            caption=explanation + " " + common,
+            caption=journal_caption,
         )
         plt.close(fig)
         captions[path.name] = {
             "title": title,
-            "caption": explanation + " " + common,
+            "caption": journal_caption,
+            "methods_detail": explanation + " " + common,
             "evaluation_id": manifest["evaluation_id"],
         }
 
@@ -280,6 +291,14 @@ def render_indices(
                 np.linspace(x.min(), x.max(), 3),
                 np.linspace(y.min(), y.max(), 3),
                 1 / np.cos(np.deg2rad(float(template.latitude.mean()))),
+            )
+        if overlays and overlays.get("basins"):
+            import geopandas as gpd
+
+            basins = gpd.GeoDataFrame.from_features(overlays["basins"], crs="EPSG:4326")
+            frame = basin_frame(
+                basins,
+                within=(x.min(), x.max(), y.min(), y.max()),
             )
         for metric, (label, units) in metadata.items():
             palette = (
