@@ -901,20 +901,27 @@ def _consumer_forcing_rows(config_path: str, workflow_name: str) -> tuple[str, .
 
     if workflow_name not in {"build_model", "generate_scenarios", "simulate_system"}:
         return ()
+    from blueearth_cst.shared.config_composition import load_composed_config
+
     if workflow_name == "simulate_system":
         from blueearth_cst.experiment.simulation_runner import simulation_settings
 
         _, settings = simulation_settings(config_path)
         if settings["operation"] == "indicators-only":
             return ()
-    else:
-        from blueearth_cst.shared.config_composition import load_composed_config
+    composed = load_composed_config(config_path, entry=workflow_name)
+    climate = _section(_read_config(config_path), "climate")
+    forcing_id = composed["climate"].get("forcing_id")
+    rows: tuple[str, ...] = ()
+    if forcing_id is not None:
+        from blueearth_cst.shared.named_forcings import legacy_view
 
-        load_composed_config(config_path, entry=workflow_name)
-    cfg = _read_config(config_path)
+        role = "default" if forcing_id == composed["climate"]["default_forcing"] else "selected"
+        rows = (f"Historical forcing: {forcing_id} ({role})",)
+        climate = legacy_view(climate, forcing_id)
     return tuple(
         f"> {row}"
-        for row in climate_forcing_summary(_section(cfg, "climate"), required=True)
+        for row in (*rows, *climate_forcing_summary(climate, required=True))
     )
 
 

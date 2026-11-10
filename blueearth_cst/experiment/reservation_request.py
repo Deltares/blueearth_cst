@@ -198,7 +198,7 @@ def capture_request(
         # changes the physical model or the stress-test simulation request.
         allowed = {
             "enabled", "engine", "observations", "simulation_window", "output",
-            "evaluation", "historical_run",
+            "evaluation", "historical_run", "historical_forcings",
         }
         unknown = set(model_settings) - allowed
         if unknown:

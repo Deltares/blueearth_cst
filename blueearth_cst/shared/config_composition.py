@@ -76,6 +76,14 @@ from blueearth_cst.shared.config_paths import (
     resolve_project_paths,
     resolve_workflow_paths,
 )
+from blueearth_cst.shared.named_forcings import (
+    declares_named,
+    historical_forcing_ids,
+    legacy_view,
+    named_recipes,
+    resolve_selection,
+    retained_run_names,
+)
 from blueearth_cst.shared.plot_config import resolve_annotation
 
 if TYPE_CHECKING:
@@ -141,6 +149,8 @@ T1_SHARED_SECTIONS: dict[str, tuple[str, ...]] = {
         "water_year_start",
         "map_reference",
         "forcing",
+        "forcings",
+        "default_forcing",
     ),
     "model": ("outvars",),
     "plotting": ("annotation",),
@@ -195,6 +205,7 @@ SIMULATION_KEYS = frozenset(
         "indicators",
         "include_unperturbed",
         "initialization",
+        "historical_forcing",
     }
 )
 
@@ -1071,7 +1082,10 @@ def compose_config(
         if owner == "build_model":
             from blueearth_cst.model.historical_runs import historical_run_name
 
-            historical_run_name(body.get("historical_run"))
+            retained_run_names(
+                historical_run_name(body.get("historical_run")),
+                historical_forcing_ids(t1.get("climate") or {}, body),
+            )
         if owner in {"build_model", "simulate_system"}:
             from blueearth_cst.shared.grid_output import normalize_grid_output
 
@@ -1118,6 +1132,26 @@ def compose_config(
         )
         retained_only = not required
     comparison_only = entry in {"analyze_climate", "analyze_projections"}
+    # Named recipes resolve to the legacy single-recipe form for the active one:
+    # WF1 and WF3 use the default, WF4 its `historical_forcing` selection.
+    declared_climate = composed.get("climate", {})
+    forcing_id = None
+    if declares_named(declared_climate):
+        named_recipes(declared_climate)
+        forcing_id = resolve_selection(
+            declared_climate,
+            (bodies.get("simulate_system") or {}).get("historical_forcing")
+            if entry == "simulate_system"
+            else None,
+            "simulate_system.historical_forcing",
+        )
+        composed["climate"] = legacy_view(declared_climate, forcing_id)
+    elif (bodies.get("simulate_system") or {}).get("historical_forcing") is not None:
+        resolve_selection(
+            declared_climate,
+            bodies["simulate_system"]["historical_forcing"],
+            "simulate_system.historical_forcing",
+        )
     if not validate_forcing or comparison_only:
         # Comparison/projection workflows do not validate model forcing. Startup
         # may also check structural configuration before a consumer is reached.
@@ -1149,6 +1183,16 @@ def compose_config(
         )
     if recipe is not None and entry is not None:
         require_workflow_compatibility(recipe, entry)
+    if forcing_id is not None:
+        climate = dict(climate)
+        climate.update(
+            _resolve_named_map(
+                declared_climate,
+                bodies.get("build_model") if entry == "build_model" else None,
+                validate=validate_forcing and not comparison_only,
+            )
+        )
+        climate["forcing_id"] = forcing_id
     if "climate" in composed or required:
         composed["climate"] = climate
     if entry == "analyze_climate" and not climate.get("sources"):
@@ -1178,6 +1222,53 @@ def compose_config(
     # Configuration is read repeatedly during admission and child startup.
     # The runner presents the forcing summary once, after preparation completes.
     return composed, workflow_config_paths
+
+
+def _resolve_named_map(
+    declared: Mapping[str, Any],
+    build_model: Mapping[str, Any] | None,
+    *,
+    validate: bool,
+) -> dict[str, Any]:
+    """Normalize every named recipe into the internal form consumers read.
+
+    Each recipe passes the ordinary single-recipe resolver, so source and recipe
+    admissibility stay in one place. Two names for one recipe are refused: a
+    comparison between them would attribute identical forcing to two labels.
+    WF1's requested recipes must also be admissible for building the model.
+    """
+    from blueearth_cst.shared.forcing_recipe import (
+        require_workflow_compatibility,
+        resolve_climate_forcing,
+    )
+
+    recipes, default = named_recipes(declared)
+    resolved: dict[str, dict[str, Any]] = {}
+    seen: dict[Any, str] = {}
+    requested = (
+        historical_forcing_ids(declared, build_model)
+        if build_model is not None
+        else ()
+    )
+    for name in recipes:
+        view = legacy_view(declared, name)
+        if not validate:
+            resolved[name] = {"forcing": dict(recipes[name])}
+            continue
+        internal, recipe = resolve_climate_forcing(view, required=True, notices=False)
+        if recipe in seen:
+            raise ValueError(
+                f"climate.forcings.{name} repeats the recipe of {seen[recipe]!r}; "
+                "each name must describe a distinct forcing"
+            )
+        seen[recipe] = name
+        if name in requested:
+            require_workflow_compatibility(recipe, "build_model")
+        resolved[name] = {
+            "selected": internal["selected"],
+            **({"forcing": internal["forcing"]} if "forcing" in internal else {}),
+        }
+    return {"forcings": resolved, "default_forcing": default}
 
 
 def load_composed_config(
