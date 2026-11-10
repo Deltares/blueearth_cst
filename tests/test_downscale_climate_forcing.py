@@ -159,6 +159,7 @@ def test_preparation_checks_wrapped_elevation_grid(
         last_time="2046-01-01",
         native_output_path=tmp_path / "output/discharge.csv",
         native_log_path=tmp_path / "output/log.txt",
+        initialization=None,
     )
     expected = PreparationReached if longitude_shift == 0 else IncompatibleForcingError
     with pytest.raises(expected):
@@ -209,3 +210,62 @@ def test_warm_state_requires_mapping_and_fingerprint_coverage(tmp_path):
     config["dir_input"] = "inputs"
     with pytest.raises(ValueError, match="fingerprint coverage"):
         initial_state_settings(tmp_path, config)
+
+
+def _daily(start, days):
+    import pandas as pd
+
+    time = pd.date_range(start, periods=days, freq="D")
+    return xr.Dataset(
+        {"precip": (("time", "y"), np.arange(days * 2, dtype=float).reshape(days, 2))},
+        coords={"time": time, "y": [0, 1]},
+    )
+
+
+@pytest.mark.parametrize("years,length", [(1, 366), (2, 731)])
+def test_warmup_fills_the_preceding_years_without_gap_or_duplicate(years, length):
+    import pandas as pd
+
+    from blueearth_cst.experiment.downscale_climate_forcing import prepend_warmup
+
+    forcing = _daily("2041-01-01", 800)
+    extended = prepend_warmup(forcing, years)
+    times = pd.DatetimeIndex(extended.time.values)
+    assert times[0] == pd.Timestamp(2041 - years, 1, 1)
+    assert (times[1:] - times[:-1] == pd.Timedelta(days=1)).all()
+    assert len(times) == 800 + length  # 2040 is a leap year
+    # The warm-up repeats the run's own first days, then the run follows unchanged.
+    np.testing.assert_array_equal(
+        extended.precip.values[:length], forcing.precip.values[:length]
+    )
+    xr.testing.assert_identical(extended.isel(time=slice(length, None)), forcing)
+
+
+def test_warmup_cycles_a_run_shorter_than_its_warmup():
+    from blueearth_cst.experiment.downscale_climate_forcing import prepend_warmup
+
+    forcing = _daily("2041-01-01", 100)
+    extended = prepend_warmup(forcing, 1)
+    np.testing.assert_array_equal(
+        extended.precip.values[100:200], forcing.precip.values
+    )
+
+
+def test_historical_state_must_match_its_frozen_bytes(tmp_path):
+    from blueearth_cst.experiment.downscale_climate_forcing import (
+        initial_state_settings,
+    )
+    from blueearth_cst.shared.provenance import file_sha256
+
+    path = tmp_path / "run_default/outstate/outstates.nc"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b"state")
+    config = {"model": {"cold_start__flag": True}, "state": {"variables": {"a": "a"}}}
+    frozen = {"source": "historical", "state_file": {"sha256": file_sha256(path)}}
+    assert initial_state_settings(tmp_path, config, frozen) == {
+        "model.cold_start__flag": False,
+        "state.path_input": str(path.resolve()),
+    }
+    path.write_bytes(b"rerun")
+    with pytest.raises(ValueError, match="changed after freezing"):
+        initial_state_settings(tmp_path, config, frozen)

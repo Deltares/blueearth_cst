@@ -55,9 +55,28 @@ summaries when the record contains more than 365 time steps. Shorter records ret
 and are reported as such. This is an evaluation convention, not evidence that every basin has reached
 an adequate initial state after one year.
 
-For stress-test results, check the retained response period before comparing indicators. The indicator
-module operates on the series supplied to it and removes no additional warm-up period. Initial-state
-effects deserve particular attention for short simulations and basins with slowly responding storage.
+Stress-test simulations (WF4) set initialization through `simulate_system.initialization`:
+
+- **State.** `auto` (default) keeps a warm state configured in the model TOML; otherwise it starts every
+  run from WF1's historical end state (`run_default/outstate/outstates.nc`). `historical` requires that
+  end state and `cold` uses Wflow's cold initialization; either is refused when the model TOML already
+  configures a warm state. The end state's bytes are part of the simulation identity, so a rerun WF1
+  history requires a new experiment.
+- **Warm-up.** `warmup_years` (default 1) simulates that many years before the configured window by
+  repeating the run's own first days, so stores adjust to the run's perturbed climate. Response reading
+  discards these days. Responses therefore keep the configured calendar, and indicators never see the
+  warm-up. Leap days can shift the repeated block's seasonal alignment by at most one day per year.
+
+The state's date need not match the stress-test calendar. Its quality depends on WF1: a short historical
+run that itself started cold yields a near-cold end state. In wrt-egypt-v3, cold starts drained for about
+seven years and a -40% rainfall response ranged from -10% to -82% depending on the first analysed year.
+Starting from the historical end state made it -82% to -83%. Wet perturbations still filled stores for
+about a year, which the default warm-up covers.
+
+Slowly responding stores, typically groundwater, can keep adjusting to a perturbed climate after the
+warm-up; in wrt-egypt-v3, recharge still drifted by 1-2 mm/yr after 20 years. This drift is part of the
+simulated transient response. Check storage-sensitive indicators against it, particularly for short
+windows and basins with large groundwater or lake storage.
 
 ## Assumptions and applicability
 

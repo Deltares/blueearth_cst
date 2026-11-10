@@ -247,6 +247,7 @@ def capture_request(
         "indicators",
         "compute",
         "include_unperturbed",
+        "initialization",
         "output",
         # Analysis intent, never simulation identity.
         "operations",
@@ -303,6 +304,12 @@ def capture_request(
     # Omission and true preserve the existing reservation identity.
     if not include_unperturbed(workflow):
         request["simulation"]["include_unperturbed"] = False
+    if "initialization" in workflow:
+        from blueearth_cst.experiment.simulation_runs import initialization
+
+        # Omission keeps the request identity; the default is resolved and
+        # recorded with the bound state file in the simulation intent.
+        request["simulation"]["initialization"] = initialization(workflow)
     from blueearth_cst.shared.grid_output import normalize_grid_output
 
     grid = normalize_grid_output(workflow.get("output"))

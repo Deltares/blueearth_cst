@@ -602,6 +602,7 @@ def _native_runs_v2(root, inventory):
                 series["native_selector"]["toml"], {"experiment_root": root}
             ),
             None,
+            inventory["temporal_preparation"]["response_start"],
         )
     return result
 

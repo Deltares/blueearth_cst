@@ -154,6 +154,7 @@ def check_completed_simulation_inputs(
     julia_command,
     include_unperturbed=True,
     netcdf_grid=None,
+    initialization=None,
     _ready_simulation=None,
 ) -> None:
     """Recheck a completed simulation without regenerating its native layout.
@@ -214,6 +215,16 @@ def check_completed_simulation_inputs(
         documents["settings"]["include_unperturbed"] = False
     if netcdf_grid is not None:
         documents["settings"]["netcdf_grid"] = netcdf_grid
+    if initialization is not None:
+        import tomllib
+
+        from blueearth_cst.experiment.simulation_runs import resolve_initialization
+
+        with (model / reference["model_toml"]).open("rb") as handle:
+            model_config = tomllib.load(handle)
+        documents["settings"]["initialization"] = resolve_initialization(
+            model, model_config, initialization, project
+        )
     selection = {
         "resolution_mode": resolution_mode,
         "manifest": file_reference(collection_path, "project_root", project),

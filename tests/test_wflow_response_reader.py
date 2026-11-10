@@ -115,3 +115,49 @@ def test_missing_request_and_duplicate_columns_refuse(native, tmp_path):
         open_responses(
             "01", replace(native, csv_path=duplicate), ResponseRequest(("q",))
         )
+
+
+@pytest.fixture
+def warm_native(native):
+    """Five native days, the first three of them a discarded warm-up."""
+    native.csv_path.write_text(
+        "time,Q_9\n" + "".join(f"2046-01-0{day},{day}\n" for day in range(2, 7)),
+        encoding="utf-8",
+    )
+    toml = native.toml_path.read_text(encoding="utf-8")
+    native.toml_path.write_text(
+        toml.replace('endtime="2046-01-03T00:00:00"', 'endtime="2046-01-06T00:00:00"'),
+        encoding="utf-8",
+    )
+    return replace(native, response_start="2046-01-05")
+
+
+def test_recorded_warmup_is_discarded_at_the_response_seam(warm_native):
+    series = open_responses("opaque-id", warm_native, ResponseRequest(("q",)))
+    assert [str(item) for item in series[0].time] == [
+        "2046-01-05 00:00:00",
+        "2046-01-06 00:00:00",
+    ]
+    np.testing.assert_array_equal(series[0].values, [5.0, 6.0])
+
+
+@pytest.mark.parametrize("start", ["2046-01-01", "2046-01-07", "2046-01-05T12:00"])
+def test_response_start_outside_native_steps_refuses(warm_native, start):
+    with pytest.raises(ValueError, match="outside native coverage"):
+        open_responses(
+            "opaque-id",
+            replace(warm_native, response_start=start),
+            ResponseRequest(("q",)),
+        )
+
+
+def test_temporal_handoff_supplies_the_response_start(warm_native, tmp_path):
+    from blueearth_cst.experiment.content_identity import canonical_json_bytes
+
+    temporal = tmp_path / "run.temporal.json"
+    temporal.write_bytes(
+        canonical_json_bytes({"response_start": "2046-01-05 00:00:00"})
+    )
+    native = replace(warm_native, temporal_path=temporal, response_start=None)
+    series = open_responses("opaque-id", native, ResponseRequest(("q",)))
+    assert len(series[0].time) == 2

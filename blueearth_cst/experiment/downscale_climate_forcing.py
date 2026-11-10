@@ -5,6 +5,9 @@ from copy import deepcopy
 from pathlib import Path
 
 import hydromt
+import numpy as np
+import pandas as pd
+import xarray as xr
 import yaml
 from hydromt_wflow import WflowSbmModel
 
@@ -265,13 +268,54 @@ def downscale_climate_forcing(
     )
 
 
-def initial_state_settings(model_root: Path, config: dict) -> dict[str, str]:
-    """Preserve the model's shared state when relocating a WF4 run TOML.
+def prepend_warmup(forcing: xr.Dataset, years: int) -> xr.Dataset:
+    """Relabel the run's own first days onto the ``years`` years before its start.
 
-    Cold starts retain their declared pointer without requiring its file. Warm
-    starts require the input and variable mapping; no conventional filename is
-    substituted. The model fingerprint owns state-byte provenance.
+    The prepended block fills every day from ``start - years`` to the day before
+    ``start``, with no gap or duplicate at the seam. Its values are the run's
+    first days in order (cycled if the run is shorter), so a missing or extra
+    leap day shifts the warm-up's seasonal alignment by at most one day per
+    year. The warm-up is discarded; responses keep the configured calendar.
     """
+    times = pd.DatetimeIndex(forcing.indexes["time"])
+    if (
+        years < 1
+        or len(times) < 2
+        or (times[1:] - times[:-1] != pd.Timedelta(days=1)).any()
+    ):
+        raise ValueError("warm-up requires positive years and a daily forcing axis")
+    start = times[0]
+    warm_times = pd.date_range(
+        start - pd.DateOffset(years=years), start - pd.Timedelta(days=1), freq="D"
+    )
+    head = forcing.isel(time=np.arange(len(warm_times)) % len(times))
+    head = head.assign_coords(time=warm_times)
+    return xr.concat([head, forcing], dim="time", data_vars="minimal", coords="minimal")
+
+
+def initial_state_settings(
+    model_root: Path, config: dict, initialization: dict | None = None
+) -> dict:
+    """Select the initial state when relocating a WF4 run TOML.
+
+    ``initialization`` is the frozen intent's resolved record. A ``historical``
+    source reads WF1's end state, whose recorded bytes must still match; ``None``
+    and ``model`` keep the source TOML's own choice. Cold starts retain their
+    declared pointer without requiring its file. Warm model states require the
+    input and variable mapping; the model fingerprint owns their provenance.
+    """
+    if initialization is not None and initialization["source"] == "historical":
+        from blueearth_cst.experiment.batch_sizing import STATE_ANCHOR
+
+        path = Path(model_root, *STATE_ANCHOR).resolve()
+        if file_sha256(path) != initialization["state_file"]["sha256"]:
+            raise ValueError(
+                f"WF1 historical end state changed after freezing: {path}; "
+                "use a new experiment"
+            )
+        if not config.get("state", {}).get("variables"):
+            raise ValueError("warm initialization requires state.variables")
+        return {"model.cold_start__flag": False, "state.path_input": str(path)}
     cold = config.get("model", {}).get("cold_start__flag", True)
     if type(cold) is not bool:
         raise ValueError("model.cold_start__flag must be boolean")
@@ -372,7 +416,9 @@ def prepare_model_forcing(run_forcing, model_reference, settings):
             # absolute same-mount value against the new toml's own directory on
             # write, emitting the correct relative pointer (verified against the
             # vendored make_config_paths_relative; design Â§5/Â§5a).
-            **initial_state_settings(Path(model_root), mod.config.data),
+            **initial_state_settings(
+                Path(model_root), mod.config.data, settings.initialization
+            ),
             "input.path_static": str(Path(model_root, "staticmaps.nc").resolve()),
             "input.path_forcing": str(fn_out.resolve()),
             "output.csv.path": os.path.relpath(
@@ -439,6 +485,15 @@ def prepare_model_forcing(run_forcing, model_reference, settings):
         forcing[var] = forcing[var].sel(time=slice(starttime, endtime))
     temporal_operations.append("clip_to_configured_window")
 
+    warmup_years = (settings.initialization or {}).get("warmup_years", 0)
+    if warmup_years:
+        # Same replacement upstream's ForcingComponent.clip performs.
+        extended = prepend_warmup(forcing, warmup_years)
+        mod.forcing._data = xr.Dataset()
+        mod.forcing.set(extended)
+        forcing = mod.forcing.data
+        temporal_operations.append("prepend_warmup_years")
+
     # Refresh starttime/endtime from the actual forcing axis (weathergen quirk).
     last_var = next(iter(forcing.data_vars))
     times = forcing[last_var].time.values
@@ -456,8 +511,6 @@ def prepare_model_forcing(run_forcing, model_reference, settings):
         config_root=Path(config_out_root).resolve(),
     )
     if settings.temporal_path is not None:
-        import pandas as pd
-
         from blueearth_cst.experiment.content_identity import canonical_json_bytes
 
         prepared_start, prepared_end = str(times[0])[:19], str(times[-1])[:19]
@@ -468,8 +521,9 @@ def prepare_model_forcing(run_forcing, model_reference, settings):
             "operations": temporal_operations,
             "prepared_start": prepared_start,
             "prepared_end": prepared_end,
+            # Responses keep the configured calendar; warm-up steps are discarded.
             "response_start": str(
-                pd.Timestamp(prepared_start)
+                pd.Timestamp(starttime)
                 + pd.Timedelta(seconds=mod.config.data["time"]["timestepsecs"])
             ),
             "response_end": str(pd.Timestamp(prepared_end)),
@@ -495,6 +549,7 @@ def prepare_collection_run(
     validated_collection=None,
     preparation=None,
     netcdf_grid=None,
+    initialization=None,
 ):
     """Prepare one retained member with the reviewed physical Wflow binding."""
     from blueearth_cst.experiment.simulator_adapter import (
@@ -547,6 +602,7 @@ def prepare_collection_run(
             last,
             Path(temporal_out),
             netcdf_grid,
+            initialization,
         ),
     )
 
@@ -560,6 +616,9 @@ if __name__ == "__main__":
             from blueearth_cst.experiment.simulation_record import (
                 SimulationFrozenError,
                 read_simulation_intent_v2,
+            )
+            from blueearth_cst.experiment.simulation_runs import (
+                frozen_initialization,
             )
 
             root = Path(sm.input.simulation).parents[1]
@@ -585,6 +644,7 @@ if __name__ == "__main__":
                 validated_collection=sm.params.validated_collection,
                 preparation=record["documents"]["preparation"],
                 netcdf_grid=record["documents"]["settings"].get("netcdf_grid"),
+                initialization=frozen_initialization(record["documents"]["settings"]),
             )
             from blueearth_cst.shared.run_log_core import log_row
 

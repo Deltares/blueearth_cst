@@ -7,7 +7,7 @@ import os
 import sys
 from blueearth_cst.shared.output_capture import captured_output
 from blueearth_cst.experiment.simulation_runner import simulation_indicator_sets, simulation_selection, resolve_selected_collection
-from blueearth_cst.experiment.simulation_runs import include_unperturbed, selected_run_ids
+from blueearth_cst.experiment.simulation_runs import frozen_initialization, include_unperturbed, initialization, selected_run_ids
 from blueearth_cst.experiment.simulation_record import live_simulation_inputs_v2, read_simulation_intent_v2, read_simulation_v2, SimulationFrozenError
 from blueearth_cst.experiment.wf4_ancillary_descriptor import resolve_wf4_preparation
 from blueearth_cst.climate_analysis.prepare_climate_data_catalog import resolved_unit_interpretation
@@ -36,16 +36,21 @@ SIM_WINDOW_START = _intent["scenario_spec"]["simulation_window"]["start"]
 SIM_WINDOW_END = _intent["scenario_spec"]["simulation_window"]["end"]
 RUN_IDS = selected_run_ids(COLLECTION, SELECTION["manifest_path"], include=include_unperturbed(my_cfg))
 _retained_selection = None
+_retained_settings = None
 stored = None
 if Path(f"{engine_dir}/simulation.json").exists():
     from blueearth_cst.shared.workflow_config_snapshot import resolve_file_reference
     stored = read_simulation_v2(exp_dir)
     # Readiness has checked the intent and full collection. Reuse its exact
     # referenced metadata for selection and the subsequent live-input check.
-    _retained_selection = read_canonical_json(resolve_file_reference(
-        stored["intent"], {"project_root": Path(project_dir)}))["collection"]
+    _retained_intent = read_canonical_json(resolve_file_reference(
+        stored["intent"], {"project_root": Path(project_dir)}))
+    _retained_selection = _retained_intent["collection"]
+    _retained_settings = _retained_intent["documents"]["settings"]
 elif Path(f"{engine_dir}/simulation_intent.json").exists():
-    _retained_selection = read_simulation_intent_v2(exp_dir)["collection"]
+    _retained_intent = read_simulation_intent_v2(exp_dir)
+    _retained_selection = _retained_intent["collection"]
+    _retained_settings = _retained_intent["documents"]["settings"]
 elif Path(f"{engine_dir}/reservation.json").exists():
     from blueearth_cst.experiment.reservation import read_reservation
     _retained_selection = read_reservation(Path(project_dir), experiment)["resolution"]
@@ -56,6 +61,12 @@ if _retained_selection is not None:
         raise SimulationFrozenError("selected collection differs from retained experiment; use --new-experiment")
     SELECTION["resolution_mode"] = _retained_selection["resolution_mode"]
 SERIES = {item["run_id"]: item["file"]["path"] for item in COLLECTION["series"]}
+# t010: new experiments start from the resolved initialization. A retained
+# pre-t010 experiment keeps its legacy identity unless the block is set explicitly.
+INITIALIZATION = initialization(my_cfg)
+if (_retained_settings is not None and "initialization" not in _retained_settings
+        and "initialization" not in my_cfg):
+    INITIALIZATION = None
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts/simulate_system/{experiment}"
 BENCH_PARTS_DIR = f"{project_dir}/benchmarks/_parts/simulate_system/{experiment}"
 WORKFLOW_LOG_NAME = f"wf4_simulate_system_{experiment}.log"
@@ -131,7 +142,8 @@ def _live_simulation_inputs():
                 simulation_window={"start": SIM_WINDOW_START, "end": SIM_WINDOW_END},
                 julia_command=shlex.split(julia_prefix(1)),
                 header_path=Path(directory) / "headers.txt",
-                include_unperturbed=include_unperturbed(my_cfg), netcdf_grid=grid_output)
+                include_unperturbed=include_unperturbed(my_cfg), netcdf_grid=grid_output,
+                initialization=INITIALIZATION)
 
 _simulation_complete = False
 if stored is not None:
@@ -142,7 +154,8 @@ if stored is not None:
         resolution_mode=SELECTION["resolution_mode"], preparation=_current_preparation(),
         simulation_window={"start": SIM_WINDOW_START, "end": SIM_WINDOW_END},
         julia_command=shlex.split(julia_prefix(1)),
-        include_unperturbed=include_unperturbed(my_cfg), netcdf_grid=grid_output, _ready_simulation=stored)
+        include_unperturbed=include_unperturbed(my_cfg), netcdf_grid=grid_output,
+        initialization=INITIALIZATION, _ready_simulation=stored)
     _simulation_complete = True
 
 def _frozen_simulation(wc):
@@ -259,12 +272,14 @@ if not _simulation_complete:
     BATCH_PLAN_SUMMARY = f"Up to {plural(_plan.max_parallel, 'simulation')} at once; {plural(_threads, 'Julia thread')} per simulation"
     if _plan.active_cells is not None:
         BATCH_PLAN_SUMMARY += f"; {_plan.active_cells} active model cells"
-    _footprint = measure_member_footprint(basin_dir, SIM_WINDOW_START, SIM_WINDOW_END, write_states=False)
+    # Native forcing and grids also cover the discarded warm-up years.
+    _NATIVE_START = SIM_WINDOW_START - (INITIALIZATION or {}).get("warmup_years", 0)
+    _footprint = measure_member_footprint(basin_dir, _NATIVE_START, SIM_WINDOW_END, write_states=False)
     _headroom = disk_headroom_bytes(project_dir,
         fraction=ADVANCED_SETTINGS["defaults"]["batch_disk_headroom_fraction"], headroom_gb=compute.get("disk_headroom_gb"))
     if grid_output:
         from blueearth_cst.experiment.batch_sizing import estimate_grid_payload, MemberFootprint
-        _grid_bytes = estimate_grid_payload(basin_dir, SIM_WINDOW_START, SIM_WINDOW_END, len(grid_output["variables"]))
+        _grid_bytes = estimate_grid_payload(basin_dir, _NATIVE_START, SIM_WINDOW_END, len(grid_output["variables"]))
         BATCH_PLAN_SUMMARY += f"; grid raw {_grid_bytes / (1 << 30):.2f} GiB/run x {len(RUN_IDS)} (all cells/layers, daily float64; no compression saving)"
         # Completed staging pairs survive until publication. Both the complete
         # staging set and its published copies can coexist; reserve both sets,

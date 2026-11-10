@@ -28,6 +28,18 @@ operations: [simulations, indicators]
 # Run each realization's unperturbed reference member. Options: true | false.
 include_unperturbed: true
 
+# How each run's stores start. auto uses a warm state configured in the model
+# TOML, otherwise WF1's historical end state (run_default/outstate); historical
+# requires that end state; cold starts from Wflow's cold initialization.
+# Warm-up years repeat the run's first days before its window and are
+# discarded, so responses keep the configured calendar.
+# Choose initial model states and discarded warm-up. Input: mapping.
+initialization:
+  # Select the initial state source. Options: auto | historical | cold.
+  state: auto
+  # Discard years simulated before the window. Input: nonnegative integer.
+  warmup_years: 1
+
 
 # -----------------------------------------------------------------------------
 #  INDICATOR SETS

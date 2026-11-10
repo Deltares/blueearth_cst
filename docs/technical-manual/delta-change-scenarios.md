@@ -42,9 +42,14 @@ refuses a missing warm-state file or mapping. The model fingerprint covers the s
 Use a path inside the model root; if `dir_input` is set, use an absolute state path inside that root so
 the current fingerprint and runtime resolve the same file. Cold-start defaults remain unchanged.
 
-Set `simulation_window` to the evaluation years only, with the warm-up performed separately. All
-members and independent horizons then start from the same state; no future run supplies another
-future run's initialization. Match the state epoch to the configured simulation start, remembering
+Without a configured warm state, WF4's default `initialization` starts runs from WF1's historical end
+state instead; see [initial conditions](hydrological-simulation.md#initial-conditions-and-warm-up).
+Either way, each run also simulates `warmup_years` (default 1) of its own forcing before the evaluation
+interval, discarded from responses; set `warmup_years: 0` to reproduce runs prepared before this default.
+
+Set `simulation_window` to the evaluation years only, with the shared state's warm-up performed
+separately. All members and independent horizons then start from the same state; no future run supplies
+another future run's initialization. Match the state epoch to the configured simulation start, remembering
 Wflow uses the first forcing timestamp as the initial state time and begins output one timestep later.
 The presence of a state file does not establish sufficient spin-up: compare storage and responses under
 alternative warm-up lengths before treating initialization as qualified.

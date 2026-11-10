@@ -10,6 +10,8 @@ Compatible indicator calculations can also use saved simulations without rerunni
 ## Inputs {#inputs}
 
 - **Prepared basin model.** Completed Wflow-SBM model and the information needed to prepare its forcing.
+- **Historical end state.** WF1's `run_default/outstate/outstates.nc`, the default initial state for
+  every run unless the model TOML configures its own warm state.
 - **Generated weather.** Climate NetCDFs for selected runs, including pressure and radiation alongside
   perturbed rainfall and temperature.
 - **Saved responses for indicators-only calculations.** Native Wflow CSVs and records of available
@@ -35,6 +37,7 @@ simulations. Climate projections are not simulation inputs.
 | `indicator_sets`, `indicator_selection` | Indicator calculations and optional narrower selection. |
 | `indicator_evaluation` | `strict` rejects missing inputs; `partial` records unavailable calculations. |
 | `include_unperturbed` | Include reference simulations required by reference-based indicators. |
+| `initialization` | Initial state (`auto`, `historical`, `cold`) and discarded `warmup_years` (default 1). |
 | `experiment_name` | Name of the saved experiment. |
 | `scenario_collection` | Advanced selection of a saved weather experiment. |
 | `compute` | Julia threads, concurrent batches, batch size and reserved disk space. |
@@ -49,9 +52,11 @@ simulations does not remove the reference weather saved by scenario generation. 
 
 ![Main scientific processing steps and conditional paths described below.](assets/workflow-wf4.svg){width=100% fig-alt="Scientific processing from basin and climate inputs to the assessment products described in this section."}
 
-The workflow checks the model and selected scenarios, prepares forcing and runs Wflow. Indicators are
-then calculated from saved daily responses. Simulations can run alone, or compatible saved responses
-can supply indicators-only calculations when the required variables, locations and periods are available.
+The workflow checks the model and selected scenarios, prepares forcing and runs Wflow. Each run starts
+from the selected [initial state](hydrological-simulation.md#initial-conditions-and-warm-up) and first
+simulates its discarded warm-up years. Indicators are then calculated from saved daily responses.
+Simulations can run alone, or compatible saved responses can supply indicators-only calculations when
+the required variables, locations and periods are available.
 
 Execution uses `scripts/simulate_system.py` or `scripts/run_workflows.py`, as described in the
 [running guide](../guide/running.md). Each completed indicator set is saved independently, so the final
@@ -63,10 +68,12 @@ Results are saved under `experiments/<experiment-name>/`, relative to `project_d
 The main outputs are:
 
 - **Daily responses (`hydrology/wflow/output/<run_id>.csv`).** Native Wflow time series retained for
-  subsequent indicator calculations; temporary forcing NetCDFs are not retained.
+  subsequent indicator calculations, including warm-up days that response reading discards; temporary
+  forcing NetCDFs are not retained.
 - **Model settings (`hydrology/wflow/run_settings/<run_id>.toml`).** Settings associated with each run.
 - **Optional native grids (`hydrology/wflow/output/<run_id>.nc`).** One retained file per run,
-  containing all requested variables and native layers. See [grid settings](configuration.md#netcdf-grid).
+  containing all requested variables and native layers over the full native clock, warm-up included.
+  See [grid settings](configuration.md#netcdf-grid).
 - **Simulation records (`_engine/simulation.json` and `_engine/response_inventory.json`).** The model
   and scenario experiment used, completed simulations and available response data.
 - **Indicator results (`results/indicator_sets/<set-id>/`).** Run and group indicator tables,

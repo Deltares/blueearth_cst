@@ -211,7 +211,10 @@ def _validate_temporal(temporal, config):
     }
     if set(temporal) != required:
         raise MissingResponseRequirement("temporal preparation evidence is incomplete")
-    suffix = ["clip_to_configured_window", "refresh_toml_endpoints"]
+    warmup = "prepend_warmup_years" in temporal["operations"]
+    suffix = ["clip_to_configured_window"]
+    suffix += ["prepend_warmup_years"] if warmup else []
+    suffix += ["refresh_toml_endpoints"]
     expected_operations = [suffix]
     if temporal["source_calendar"] == "noleap":
         expected_operations = [
@@ -224,13 +227,20 @@ def _validate_temporal(temporal, config):
     ):
         raise MissingResponseRequirement("unsupported temporal preparation chain")
     clock = config["time"]
+    first_response = pd.Timestamp(clock["starttime"]) + pd.Timedelta(
+        seconds=clock["timestepsecs"]
+    )
+    response_start = pd.Timestamp(temporal["response_start"])
+    # A prepended warm-up moves the native clock earlier; responses start later.
     if (
         pd.Timestamp(temporal["prepared_start"]) != pd.Timestamp(clock["starttime"])
         or pd.Timestamp(temporal["prepared_end"]) != pd.Timestamp(clock["endtime"])
         or temporal["response_calendar"] != clock["calendar"]
-        or pd.Timestamp(temporal["response_start"])
-        != pd.Timestamp(clock["starttime"])
-        + pd.Timedelta(seconds=clock["timestepsecs"])
+        or (
+            response_start <= first_response
+            if warmup
+            else response_start != first_response
+        )
         or pd.Timestamp(temporal["response_end"]) != pd.Timestamp(clock["endtime"])
         or temporal["time_label"] != "interval_end"
     ):
@@ -689,6 +699,7 @@ def read_response_inventory_v2(experiment_root):
                 resolve_file_reference(artifact["file"], {"experiment_root": root}),
                 resolve_file_reference(tomls[0], {"experiment_root": root}),
                 None,
+                stored["temporal_preparation"]["response_start"],
             )
         # Temporary handoff files are deliberately unnecessary after publication.
         observed = _build_response_inventory_v2_retained(
