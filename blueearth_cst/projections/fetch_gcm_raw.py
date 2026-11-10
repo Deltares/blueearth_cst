@@ -672,10 +672,8 @@ def raw_slice_attrs(
     }
 
 
-def merge_variable_slices(slices, calendars, entry):
-    """Merge compatible reads, retaining source-specific scalar height coordinates."""
-    import xarray as xr
-
+def _assert_variable_compatibility(slices, calendars, entry):
+    """Check existing lazy-slice compatibility before opening another source."""
     if (
         len(set(calendars.values())) != 1
         or series_identity.CALENDAR_UNKNOWN in calendars.values()
@@ -698,6 +696,13 @@ def merge_variable_slices(slices, calendars, entry):
                 raise ValueError(
                     f"{entry}: incompatible coordinate {name!r} for {variable}"
                 )
+
+
+def merge_variable_slices(slices, calendars, entry):
+    """Merge compatible reads, retaining source-specific scalar height coordinates."""
+    import xarray as xr
+
+    _assert_variable_compatibility(slices, calendars, entry)
     prepared = []
     for variable, data in slices.items():
         # Surface temperature/humidity and wind legitimately use different
@@ -916,6 +921,7 @@ def read_variable_slices(
                 f"{entry} {source}", data.indexes.get("time"), driver_index, window
             )
             slices[source] = data
+            _assert_variable_compatibility(slices, calendars, entry)
         if admit_pet:
             grids = {
                 var: array[var].attrs.get("cst_source_grid", "")

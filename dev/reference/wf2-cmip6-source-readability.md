@@ -46,6 +46,9 @@ one, then needs an indexed pin. The split path rejects unknown or unequal source
 dimension sizes or dimension coordinates, and empty or duplicate time axes. Variable-specific scalar
 coordinates, such as temperature height, need not exist on precipitation. The merge uses exact coordinates;
 it neither regrids nor interpolates time to reconcile sources.
+The same calendar, CRS and dimension-coordinate checks run after each lazy source slice, so an already
+incompatible pair fails before later variables open or climate arrays load. Uncertified extra variables
+remain best-effort reads; absent index pins do not establish that those variables are unavailable.
 
 The raw slice records the index inventory in `cst_source_paths` and the paths actually selected in
 `cst_selected_source_paths`; split reads also log each selected URI. Index pins enter the series identity.

@@ -191,6 +191,13 @@ def test_split_reads_use_exact_variable_uris_and_validate_before_merge(
 
     monkeypatch.setattr(hydromt, "DataCatalog", Catalog)
     monkeypatch.setattr(series_identity, "read_store_calendar", lambda uri: "noleap")
+    if mismatch:
+        variable_slices["press"] = variable_slices["temp"].rename(temp="press")
+
+        def refuse_load(*args, **kwargs):
+            pytest.fail("incompatible slices must fail before loading climate arrays")
+
+        monkeypatch.setattr(xr.Dataset, "load", refuse_load)
     args = (
         {
             "uri": "gs://s/{member}/{variable}/*/*",
@@ -198,8 +205,8 @@ def test_split_reads_use_exact_variable_uris_and_validate_before_merge(
         },
         "entry_{member}",
         "r1",
-        ["precip", "temp"],
-        {"pr": "gn/v2", "tas": "gn/v1"},
+        ["precip", "temp", "press"] if mismatch else ["precip", "temp"],
+        {"pr": "gn/v2", "tas": "gn/v1", "press": "gn/v1"},
         [9, 0, 10, 1],
         1,
         ("2000", "2001"),
