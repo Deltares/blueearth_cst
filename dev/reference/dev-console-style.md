@@ -64,5 +64,5 @@ a Snakemake command or invents an API execution mode.
 
 Use the focused console/plan/launcher tests, literal argument round trips, and native/owned execute,
 dry-run, no-op and early-error fixtures. Check redirected output, `NO_COLOR`, batch sequencing and dynamic
-checkpoint states. Handler timing changes also require `test-contract` under the
+checkpoint states. Handler timing changes require the affected lifecycle contract cases under the
 [validation policy](dev-validation.md). Numerical checks are selected only for an actual computational delta.

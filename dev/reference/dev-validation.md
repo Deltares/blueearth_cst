@@ -1,6 +1,6 @@
 # Validation ladder — tiering, configs, and CI
 
-Last updated: 2026-11-05
+Last updated: 2026-11-10
 
 Choose checks from changed behavior, affected claims and consumers. This page owns acceptance and
 evidence-reuse policy. [Validation procedures](dev-validation-procedures.md) gives the infrequent
@@ -111,9 +111,16 @@ or fixture issues; never hide an access failure with a longer workflow timeout.
   `test-contract` stays serial because isolated engine state does not prove independent output and
   process resources. [Test-author isolation](dev-validation-procedures.md#test-author-isolation-details)
   covers Snakemake profiles, pytest scratch and import-time stubs.
-- Snakefile edits that move work or console output between parse time and
-  `onstart`/`onsuccess`/`onerror` owe `test-contract`: fast excludes handler-timing tests. Include
-  any other affected contract tests excluded from fast.
+- Snakefile edits that move admission, DAG construction, outputs or execution/journaling work between
+  parse time and `onstart`/`onsuccess`/`onerror` owe `test-contract`: fast excludes lifecycle tests.
+  Include any other affected contract tests excluded from fast.
+- Console-only layout and terminal-handler changes, including presentation timing across those hooks,
+  need affected console/launcher tests and lifecycle contract cases, plus one representative output
+  inspection. Cover dry-run, no-op, early errors and detailed file-log preservation when affected.
+  Moving presentation earlier does not itself require unrelated scientific execution fixtures or the
+  full contract tier. Broaden for a concrete risk to admission, DAGs, exit status, machine-readable
+  records or scientific outputs; required publication gates still apply. Resolve an over-budget
+  selection with the owner before launching it.
 - CI tests Windows and Linux on a bare checkout. Fixture-dependent tests can skip; real workflow
   execution and local baseline comparison remain local. CI success does not establish those claims.
   A PR supplies two-platform assurance before landing when needed. Inspect failures and relevant
