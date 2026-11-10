@@ -66,6 +66,9 @@ def publish(
 ):
     """Calculate basin and native-grid products, retaining immutable evaluations.
 
+    Grid products cover the full extraction, including cells outside the basin.
+    Basin products and contributing-cell counts use only the declared basin cells.
+
     The declared pointer is written last. Numerical payloads are enumerated and
     checksummed in the completion manifest, which every reader verifies. Failed
     staging directories remain visibly incomplete and never become current.
@@ -157,7 +160,7 @@ def publish(
         ):
             unavailable[variable] = "not available from this source"
             continue
-        field = original[variable].where(mask)
+        field = original[variable].copy(deep=False)
         units = str(field.attrs.get("units", "")).lower()
         if variable == "precip":
             verified = units in {
@@ -211,7 +214,7 @@ def publish(
     products = []
     for spatial_operation, values in (
         ("grid", data),
-        ("basin", data.mean([LAT, LON], skipna=True, keep_attrs=True)),
+        ("basin", data.where(mask).mean([LAT, LON], skipna=True, keep_attrs=True)),
     ):
         reference = fit_reference(
             values,
@@ -292,7 +295,7 @@ def publish(
             ],
         ).to_csv(path, index=False)
         products.append(path.name)
-    coverage = data.notnull().sum([LAT, LON])
+    coverage = data.where(mask).notnull().sum([LAT, LON])
     coverage.attrs.update(
         spatial_reduction="equal-weight available basin cells",
         declared_cells=len(declared),
