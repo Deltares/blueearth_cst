@@ -188,6 +188,12 @@ Keep those inputs and the recorded software environment separately if model re-e
 
 ## Compare retained historical runs
 
+When `build_model.historical_forcings` runs two or more named recipes, WF1 compares their retained runs
+itself (rule 1.13b) into `comparisons/historical/<historical_run.name>/`. It evaluates every complete
+reporting year the runs share: responses are labelled at interval end, so the first simulated year is
+never complete. The generated settings are kept as `comparisons/historical/_engine/<name>.yml`, a valid
+input for the script below.
+
 Use `scripts/compare_historical.py --config comparison.yml` after retaining the runs. This command
 reads retained responses and never launches Wflow. Paths resolve beside the comparison YAML.
 The output directory must not exist; choose a new directory for a changed comparison.

@@ -595,6 +595,10 @@ PLOT_MODEL_FORCING = RULES.logged("1.12", "plot_model_forcing", summary="render 
 if _budyko_settings is not None:
     EVALUATE_BUDYKO = RULES.logged("1.12b", "evaluate_budyko", summary="screen observed catchment water balance")
 RUN_HISTORICAL_SIMULATION = RULES.logged("1.13", "run_historical_simulation", summary="run Wflow-SBM with historical forcing")
+# Two or more named recipes always carry retained names (named_forcings).
+COMPARE_FORCINGS = FORCING_IDS is not None and len(FORCING_IDS) > 1
+if COMPARE_FORCINGS:
+    COMPARE_HISTORICAL_FORCINGS = RULES.logged("1.13b", "compare_historical_forcings", summary="compare the retained runs of every forcing recipe")
 EXPORT_SIMULATION_TABLES = RULES.logged("1.14", "export_simulation_tables", summary="export simulation time-series tables")
 PLOT_MODEL_EVALUATION = RULES.logged("1.15", "plot_model_evaluation", summary="compare simulation outputs with available discharge observations")
 WRITE_RUN_METADATA = RULES.banner_only("1.16", "write_run_metadata", summary="record configuration and input digests for these outputs")
@@ -609,6 +613,7 @@ WRITE_RUN_METADATA = RULES.banner_only("1.16", "write_run_metadata", summary="re
 # gather outputs themselves.
 WF1_TERMINALS = [
     *[str(completion_path(project_dir, RETAINED[key])) for key in FORCING_KEYS if RETAINED[key]],
+    *([f"{project_dir}/comparisons/historical/{historical_name}"] if COMPARE_FORCINGS else []),
     *([f"{_hp(key, 'evaluation_dir')}/budyko/tables/summary.csv" for key in FORCING_KEYS] if _budyko_settings is not None else []),
     # The evaluation rule's terminal is its INDICATORS TABLE, not one of its
     # figures: since 2026-08-10 the figures are keyed by wflow_id and none of
@@ -1072,6 +1077,49 @@ for _k in FORCING_KEYS:
                     validate_grid(output.grid_path[0], params.toml_path)
             if params.historical_name:
                 write_completion(project_dir, params.historical_name)
+
+# 1.13b  compare_historical_forcings — one comparison of every recipe's retained
+# run, through the same engine as scripts/compare_historical.py. It reads the
+# immutable retained responses only, never the mutable run_<id>/ folders. The
+# window is every complete reporting year the runs share: Wflow labels output
+# at interval end, so the first simulated year is always incomplete.
+if COMPARE_FORCINGS:
+    from datetime import timedelta
+    from blueearth_cst.model.historical_comparison import complete_reporting_years
+
+    rule compare_historical_forcings:
+        message: COMPARE_HISTORICAL_FORCINGS.banner()
+        input:
+            completions = [str(completion_path(project_dir, RETAINED[key])) for key in FORCING_IDS],
+            observations = [observations_timeseries] if observations_timeseries else [],
+            scientific_code = [
+                "blueearth_cst/model/historical_comparison.py",
+                "blueearth_cst/model/plot_historical_comparison.py",
+            ],
+        output:
+            # The standalone script's input, kept beside the comparisons.
+            settings = f"{project_dir}/comparisons/historical/_engine/{historical_name}.yml",
+            comparison = directory(f"{project_dir}/comparisons/historical/{historical_name}"),
+        params:
+            settings = {
+                "project_dir": str(Path(project_dir).resolve()),
+                "runs": [RETAINED[key] for key in FORCING_IDS],
+                "evaluation_window": complete_reporting_years(
+                    SIMULATION_BOUNDS[0] + timedelta(days=1),
+                    SIMULATION_BOUNDS[1],
+                    WATER_YEAR_START,
+                ),
+                "water_year_start": WATER_YEAR_START,
+                **({"observations_path": str(Path(observations_timeseries).resolve())}
+                   if observations_timeseries else {}),
+                "output_dir": str(Path(f"{project_dir}/comparisons/historical/{historical_name}").resolve()),
+            },
+            annotation = plot_annotation,
+        log:
+            COMPARE_HISTORICAL_FORCINGS.log(),
+        benchmark:
+            COMPARE_HISTORICAL_FORCINGS.benchmark(),
+        script: "blueearth_cst/model/historical_comparison.py"
 
 # 1.03  extract_climate_datasets — the SHARED historical-climate store producer
 # (R07 B1). This declaration and rule 3.08 in run_stress_test.smk are

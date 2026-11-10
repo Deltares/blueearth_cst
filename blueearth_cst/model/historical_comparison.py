@@ -1,7 +1,6 @@
 """Prepare fixed-model historical comparisons on explicitly shared daily support."""
 
-from __future__ import annotations
-
+# No `from __future__` import: Snakemake prepends a preamble to `script:` modules.
 import csv
 import json
 import re
@@ -56,6 +55,27 @@ def evaluation_dates(window: object, water_year_start: str = "Jan") -> pd.Dateti
         periods[0].start, periods[-1].stop, freq="D", inclusive="left"
     )
     return _daily_index(dates, "evaluation_window")
+
+
+def complete_reporting_years(
+    first: pd.Timestamp, last: pd.Timestamp, water_year_start: str = "Jan"
+) -> dict[str, int]:
+    """Start-year labels of the reporting years wholly inside ``[first, last]``.
+
+    ``first`` and ``last`` are the first and last daily responses. Wflow labels
+    a response at its interval end, so a run started on 1 January has no
+    response for that date and its first reporting year is incomplete.
+    """
+    month = water_year_start_number(resolve_water_year_start(water_year_start))
+    first, stop = pd.Timestamp(first), pd.Timestamp(last) + pd.Timedelta(days=1)
+    start = first.year if pd.Timestamp(first.year, month, 1) >= first else first.year + 1
+    end = stop.year - 1 if pd.Timestamp(stop.year, month, 1) <= stop else stop.year - 2
+    if start > end:
+        raise ValueError(
+            f"no complete reporting year between {first.date()} and {last.date()} "
+            f"(water year starts in {water_year_start}); lengthen simulation_window"
+        )
+    return {"start": start, "end": end}
 
 
 def read_observations(path: Path, stations: set[str]) -> pd.DataFrame:
@@ -445,3 +465,19 @@ def read_comparison(root: Path) -> tuple[dict, dict[str, pd.DataFrame]]:
             path, dtype={"wflow_id": str}, float_precision="round_trip"
         )
     return metadata, tables
+
+
+if __name__ == "__main__":
+    sm = globals()["snakemake"]
+    from blueearth_cst.model.plot_historical_comparison import render
+    from blueearth_cst.shared.snake_utils import tee_to_log
+
+    with tee_to_log(sm.log[0]):
+        # The settings file is the standalone script's input, so the same
+        # comparison can be reproduced or varied with scripts/compare_historical.py.
+        settings_path = Path(sm.output.settings)
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        settings_path.write_text(
+            yaml.safe_dump(dict(sm.params.settings), sort_keys=False), encoding="utf-8"
+        )
+        render(compare(settings_path), annotation=sm.params.annotation)
