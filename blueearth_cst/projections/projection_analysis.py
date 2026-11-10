@@ -134,13 +134,19 @@ def _encode(values):
     )
 
 
-def period_values(dataset, variable, water_year_start="Jan"):
+def period_values(dataset, variable, water_year_start="Jan", *, periods=PERIODS):
     """Rates, integrals and retained labels of complete finite period instances.
 
     The input already owns its month span; an edge season is never completed
     with outside data. Annual/missing-month instances are dropped explicitly,
     with excluded counts. This provides new OLS/CV inputs, not kernel mean/std.
+    Select only needed periods internally; the default retains all 17 periods.
     """
+    periods = tuple(periods)
+    if len(set(periods)) != len(periods) or any(
+        period not in PERIODS for period in periods
+    ):
+        raise ValueError("analysis periods must be unique supported period names")
     month0 = list(_calendar.month_abbr).index(str(water_year_start)[:3].title())
     da = dataset[variable]
     extra = [dim for dim in da.dims if dim != "time"]
@@ -159,7 +165,7 @@ def period_values(dataset, variable, water_year_start="Jan"):
         "SON": (9, 10, 11),
     }
     result = {}
-    for period in PERIODS:
+    for period in periods:
         if period == "annual":
             selected, labels, size = (
                 np.ones(len(years), dtype=bool),
