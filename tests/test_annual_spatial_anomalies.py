@@ -212,7 +212,7 @@ def test_retained_rerender_all_pages_annotations_and_managed_cleanup(
         fig.canvas.draw()
         assert kwargs["annotation"] == "title"
         assert "reference" in kwargs["title"]
-        assert "calendar month's observed mean" in kwargs["caption"]
+        assert "relative to the 2000–2001 mean" in kwargs["caption"]
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         Path(path).write_bytes(b"managed")
         saved.append(path)
@@ -221,6 +221,10 @@ def test_retained_rerender_all_pages_annotations_and_managed_cleanup(
         "blueearth_cst.climate_analysis.annual_spatial_render.save_figure", save
     )
     records = render_pages(paths, cfg, [root], reference, {}, "title")
+    assert all(
+        "calendar month's observed mean" in record["methods_detail"]
+        for record in records.values()
+    )
     assert len(saved) == 4
     assert [r["years"] for r in records.values()] == [list(range(1999, 2005))] * 2 + [
         [2005, 2006]
@@ -262,6 +266,23 @@ def test_all_zero_and_all_unavailable_scales(tmp_path):
     assert scales["precip"]["all_zero"]
     assert scales["precip"]["limits"] == [-1, 1]
     assert scales["temp"]["status"] == "unavailable"
+
+
+@pytest.mark.parametrize("support", ["basin", "basin_ext"])
+def test_cleanup_retires_current_and_legacy_managed_pages(tmp_path, support):
+    relative = (
+        f"plots/annual_anomalies/page_001/era5_precip_annual_anomaly_map_{support}.png"
+    )
+    target = tmp_path / relative
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"managed")
+    unrelated = target.parent / "keep.png"
+    unrelated.write_bytes(b"unrelated")
+    retire_pages(
+        tmp_path, {relative: {"encoding": "annual_spatial_anomalies"}}, {}, "era5"
+    )
+    assert not target.exists()
+    assert unrelated.read_bytes() == b"unrelated"
 
 
 def test_cleanup_never_traverses_internal_junction(tmp_path, monkeypatch):
@@ -315,5 +336,6 @@ def test_out_of_span_and_partial_years_have_accurate_availability(
         assert record["unavailable_reasons"][:2] == ["Incomplete/out-of-span year"] * 2
         assert record["unavailable_reasons"][2] == ""
         assert (
-            "excluded incomplete/out-of-span years: [1998, 1999]" in record["caption"]
+            "excluded incomplete/out-of-span years: [1998, 1999]"
+            in record["methods_detail"]
         )

@@ -124,8 +124,8 @@ def test_session_caches_and_context_replace_ambient_checkout(roots, monkeypatch)
     assert "R_LIBS" not in env
     for variable in ("MPLCONFIGDIR", "XDG_CACHE_HOME", "RUFF_CACHE_DIR"):
         assert Path(env[variable]).is_relative_to(source / ".tmp/session-runtime")
-    assert env["PIXI_NO_INSTALL"] == "1"
-    assert env["PIXI_FROZEN"] == "1"
+    assert env["PIXI_NO_INSTALL"] == "true"
+    assert env["PIXI_FROZEN"] == "true"
     assert str(Path.home() / ".julia") in env["JULIA_DEPOT_PATH"]
 
 
@@ -146,6 +146,28 @@ def test_activation_cannot_bypass_interpreter_check(roots, capsys):
         == 1
     )
     assert "Wrong interpreter prefix" in capsys.readouterr().err
+
+
+def test_activation_normalizes_inherited_pixi_booleans(roots, monkeypatch):
+    source, owner = roots
+    monkeypatch.setenv("PIXI_NO_INSTALL", "1")
+    monkeypatch.setenv("PIXI_FROZEN", "1")
+    calls = []
+
+    def activate(command, **kwargs):
+        calls.append((command, kwargs))
+        return 0
+
+    monkeypatch.setattr(runtime.subprocess, "call", activate)
+    assert (
+        runtime.main(
+            ["--source-root", str(source), "--runtime-root", str(owner), "--", "python"]
+        )
+        == 0
+    )
+    assert len(calls) == 1
+    assert calls[0][1]["env"]["PIXI_NO_INSTALL"] == "true"
+    assert calls[0][1]["env"]["PIXI_FROZEN"] == "true"
 
 
 def test_wrong_checkout_import_never_runs_requested_check(roots, monkeypatch, capsys):

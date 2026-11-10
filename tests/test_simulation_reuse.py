@@ -217,7 +217,9 @@ def test_archive_bridge_refuses_any_unaudited_or_scientific_change(
         check_simulation_reuse(previous, _rebuild(current))
 
 
-@pytest.mark.parametrize("target_name", ["_ARCHIVE_PRODUCT", "_ARCHIVE_PORTABLE"])
+@pytest.mark.parametrize(
+    "target_name", ["_ARCHIVE_PRODUCT", "_ARCHIVE_PORTABLE", "_ARCHIVE_UNLOCK"]
+)
 def test_previous_archive_bridge_remains_valid(retained, target_name):
     from blueearth_cst.experiment import simulation_reuse
 
@@ -229,14 +231,18 @@ def test_previous_archive_bridge_remains_valid(retained, target_name):
     check_simulation_reuse(previous, _rebuild(current))
 
 
-def test_portable_archive_upgrade_reuses_without_rewriting_intents(retained):
-    from blueearth_cst.experiment.simulation_reuse import _ARCHIVE_PORTABLE
+@pytest.mark.parametrize("source_name", ["_ARCHIVE_PORTABLE", "_ARCHIVE_UNLOCK"])
+def test_portable_archive_upgrade_reuses_without_rewriting_intents(
+    retained, source_name
+):
+    from blueearth_cst.experiment import simulation_reuse
 
+    source = getattr(simulation_reuse, source_name)
     _, current = _archive_upgrade(retained)
     previous = deepcopy(current)
     for item in previous["documents"]["simulator_adapter_code"]:
-        if item["path"] in _ARCHIVE_PORTABLE:
-            item["sha256"] = _ARCHIVE_PORTABLE[item["path"]]
+        if item["path"] in source:
+            item["sha256"] = source[item["path"]]
     previous = _rebuild(previous)
     before = deepcopy((previous, current))
     check_simulation_reuse(previous, current)

@@ -12,6 +12,15 @@ from blueearth_cst.shared import output_capture
 from scripts import generate_scenarios
 
 
+@pytest.fixture(autouse=True)
+def stochastic_dispatch(monkeypatch):
+    """Keep launcher lifecycle tests independent of configuration admission."""
+    monkeypatch.setattr(
+        "blueearth_cst.shared.config_composition.load_composed_config",
+        lambda *args, **kwargs: {"workflows": {"generate_scenarios": {}}},
+    )
+
+
 @pytest.mark.parametrize("flag", ["--unlock", "--dry-run", "-n"])
 @pytest.mark.parametrize("exit_code", [0, 9])
 def test_preview_stops_after_snakemake(tmp_path, monkeypatch, flag, exit_code):
