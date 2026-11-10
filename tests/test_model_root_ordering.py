@@ -39,6 +39,10 @@ SNAKEFILE = Path(__file__).resolve().parents[1] / "build_model.smk"
 #: attached to the last writer.
 SENTINEL = ".model_final"
 SENTINEL_OWNER = "add_climate_forcing"
+# Named forcing recipes (t014) stage their forcing outside the model root, so
+# the shared model is final after rule 1.08 and a finalizer owns the sentinel.
+# The two owners are declared for mutually exclusive layouts.
+NAMED_SENTINEL_OWNER = "finalize_model_root"
 
 #: Rules that WRITE the model root, in chain order. They cannot declare the
 #: sentinel -- a writer that waited for the terminal marker would be a cycle --
@@ -89,15 +93,24 @@ def _rule_bodies() -> dict[str, str]:
     lines = text.splitlines()
     bodies: dict[str, str] = {}
     for i, line in enumerate(lines):
-        m = re.match(r"^rule\s+([A-Za-z_][A-Za-z0-9_]*)\s*:", line)
-        if not m:
-            continue
+        m = re.match(r"^(\s*)rule\s+([A-Za-z_][A-Za-z0-9_]*)\s*:", line)
+        if m is None:
+            # Per-recipe rules are generated once per forcing key from one body.
+            m = re.match(r"^(\s*)for _k in FORCING_KEYS:", line)
+            named = re.search(r'name:\s*_rule_name\("(\w+)"', "\n".join(lines[i : i + 3]))
+            if m is None or named is None:
+                continue
+            name = named.group(1)
+        else:
+            name = m.group(2)
+        indent = len(m.group(1))
         body: list[str] = []
         for candidate in lines[i + 1 :]:
-            if candidate.strip() and not candidate[:1].isspace():
+            stripped = candidate.lstrip()
+            if stripped and len(candidate) - len(stripped) <= indent:
                 break
             body.append(candidate)
-        bodies[m.group(1)] = "\n".join(body)
+        bodies[name] = "\n".join(body)
     return bodies
 
 
@@ -146,9 +159,12 @@ def test_the_sentinel_is_owned_by_exactly_one_rule():
         for name, body in BODIES.items()
         if re.search(rf"touch\(f?\"\{{basin_dir\}}/{re.escape(SENTINEL)}\"\)", body)
     ]
-    assert owners == [SENTINEL_OWNER], (
-        f"{SENTINEL} should be touched by exactly {SENTINEL_OWNER}, found {owners}"
+    assert sorted(owners) == sorted([SENTINEL_OWNER, NAMED_SENTINEL_OWNER]), (
+        f"{SENTINEL} should be touched by {SENTINEL_OWNER} (single recipe) or "
+        f"{NAMED_SENTINEL_OWNER} (named recipes), found {owners}"
     )
+    finalizer = BODIES[NAMED_SENTINEL_OWNER]
+    assert ".outputs_configured" in finalizer, "the finalizer must follow rule 1.08"
 
 
 @pytest.mark.parametrize("rule_name", READERS)

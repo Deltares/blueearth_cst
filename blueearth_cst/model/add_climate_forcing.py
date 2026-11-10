@@ -33,6 +33,7 @@ covering it directly — the merge moves the *invocation*, not the logic.
 # and raises at rule run time. Every `script:` module in this repo omits it.
 import io
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -200,8 +201,18 @@ def add_climate_forcing(
     store_catalog: Union[str, os.PathLike, None] = None,
     oro_path: Union[str, os.PathLike, None] = None,
     forcing=None,
+    staging_root: Union[str, os.PathLike, None] = None,
+    toml_out: Union[str, os.PathLike, None] = None,
+    path_forcing: str = "forcing/inmaps_historical.nc",
+    dir_output: Union[str, None] = None,
 ) -> None:
     """Write the forcing recipe, then apply it to the model with hydromt.
+
+    A named recipe passes ``staging_root``: hydromt then writes the updated
+    model there (``-o``) and only this recipe's forcing and run configuration
+    (``toml_out``) are copied back. The shared model root is never rewritten, so
+    every recipe runs the same fixed model and one recipe's rerun cannot touch
+    another's forcing or outputs.
 
     When ``climate_nc`` is given the forcing is built from the CLIMATE STORE --
     the extraction rule 1.03 already produced -- instead of re-reading the
@@ -269,13 +280,22 @@ def add_climate_forcing(
         store_source=store_source,
         dem_forcing_fn=dem_forcing_fn,
         **({"recipe": recipe} if recipe is not None else {}),
+        path_forcing=path_forcing,
+        dir_output=dir_output,
     )
+    target_root = basin_dir
+    if staging_root is not None:
+        if toml_out is None:
+            raise ValueError("a staged forcing update requires toml_out")
+        shutil.rmtree(staging_root, ignore_errors=True)
+        target_root = staging_root
     _run_streaming(
         [
             "hydromt",
             "update",
             "wflow_sbm",
             os.fspath(basin_dir),
+            *(["-o", os.fspath(staging_root)] if staging_root is not None else []),
             "-i",
             os.fspath(forcing_yml),
             *_catalog_flags(data_catalog),
@@ -291,10 +311,16 @@ def add_climate_forcing(
         # while writing forcing. Restore the requested STATE time through its
         # config component after that write; otherwise Jan2 forcing would make
         # the model's first update Jan3 and silently drop the Jan2 interval.
-        model = WflowSbmModel(root=basin_dir, mode="r+")
+        model = WflowSbmModel(root=target_root, mode="r+")
         model.config.read()
         model.config.set("time.starttime", starttime)
         model.config.write()
+    if staging_root is not None:
+        forcing_target = Path(basin_dir) / path_forcing
+        forcing_target.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(Path(staging_root) / path_forcing, forcing_target)
+        shutil.copyfile(Path(staging_root) / "wflow_sbm.toml", toml_out)
+        shutil.rmtree(staging_root)
 
 
 if __name__ == "__main__":
@@ -302,6 +328,8 @@ if __name__ == "__main__":
         sm = globals()["snakemake"]
         from blueearth_cst.shared.snake_utils import log_row, tee_to_log
 
+        # Declared as a list (empty for the single-recipe layout).
+        toml_out = (getattr(sm.output, "wflow_toml", None) or [None])[0]
         with tee_to_log(sm.log[0]):
             add_climate_forcing(
                 starttime=sm.params.starttime,
@@ -314,12 +342,18 @@ if __name__ == "__main__":
                 store_catalog=sm.output.store_catalog,
                 oro_path=sm.input.oro_nc or None,
                 forcing=getattr(sm.params, "forcing", None),
+                staging_root=getattr(sm.params, "staging_root", None),
+                toml_out=toml_out,
+                path_forcing=getattr(
+                    sm.params, "path_forcing", "forcing/inmaps_historical.nc"
+                ),
+                dir_output=getattr(sm.params, "dir_output", None),
             )
             if getattr(sm.output, "forcing_record", []):
                 from blueearth_cst.model.historical_runs import write_forcing_record
 
                 write_forcing_record(
-                    Path(sm.params.basin_dir) / "wflow_sbm.toml",
+                    Path(toml_out or Path(sm.params.basin_dir) / "wflow_sbm.toml"),
                     Path(sm.output.forcing_record[0]),
                     sm.params.clim_source,
                     getattr(sm.params, "forcing", None),

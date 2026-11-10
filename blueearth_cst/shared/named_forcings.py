@@ -130,6 +130,15 @@ def historical_forcing_ids(
     return tuple(raw)
 
 
+def composed_forcing_ids(
+    climate: Mapping[str, object], build_model: Mapping[str, object]
+) -> tuple[str, ...] | None:
+    """WF1's recipe IDs from an already composed (validated) configuration."""
+    if "forcing_id" not in climate:
+        return None
+    return tuple(build_model.get("historical_forcings") or [climate["default_forcing"]])
+
+
 def retained_run_names(
     name: str | None, forcing_ids: tuple[str, ...] | None
 ) -> dict[str | None, str | None]:
@@ -182,6 +191,16 @@ class HistoricalLayout:
     @property
     def config_dir(self) -> str:
         return "config" if self.forcing_id is None else f"config/{self.forcing_id}"
+
+    @property
+    def evaluation_dir(self) -> str:
+        return "evaluation" if self.forcing_id is None else f"evaluation/{self.forcing_id}"
+
+    @property
+    def forcing_plots_dir(self) -> str:
+        if self.forcing_id is None:
+            return "forcing/plots"
+        return f"forcing/{self.forcing_id}/plots"
 
     @property
     def end_state(self) -> str:

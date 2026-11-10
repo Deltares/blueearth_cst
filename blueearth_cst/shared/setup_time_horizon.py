@@ -18,8 +18,13 @@ def prep_hydromt_update_forcing_config(
     store_source: Optional[str] = None,
     dem_forcing_fn: Optional[str] = None,
     recipe: ForcingRecipe | None = None,
+    path_forcing: str = "forcing/inmaps_historical.nc",
+    dir_output: Optional[str] = None,
 ):
     """Write a hydromt 1.x `steps:`-format YAML to add forcing to a wflow model.
+
+    ``path_forcing`` and ``dir_output`` place a named recipe's forcing and native
+    outputs; their defaults are the single-recipe layout.
 
     ``store_source`` names the catalog entry the forcing is READ from, when that
     differs from the source it came from. Rule 1.09 passes the climate store's
@@ -74,7 +79,8 @@ def prep_hydromt_update_forcing_config(
                         "time.timestepsecs": 86400,
                         # B2: forcing now lives INSIDE the hydromt model root, so the pointer
                         # is a plain relative path with no ../ hop out of it.
-                        "input.path_forcing": "forcing/inmaps_historical.nc",
+                        "input.path_forcing": path_forcing,
+                        **({"dir_output": dir_output} if dir_output else {}),
                     }
                 }
             },

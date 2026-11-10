@@ -28,6 +28,7 @@ def plot_forcing(
     map_reference_params: Optional[dict] = None,
     annotation: str = "none",
     reference_record: Optional[dict] = None,
+    toml_name: str = "wflow_sbm.toml",
 ):
     """Write the canonical climate figure set for the wflow forcing.
 
@@ -86,7 +87,7 @@ def plot_forcing(
     reference = validate_current()
     from hydromt_wflow import WflowSbmModel
 
-    mod = WflowSbmModel(str(wflow_root), mode="r")
+    mod = WflowSbmModel(str(wflow_root), mode="r", config_filename=toml_name)
     if plot_dir is None:
         plot_dir = os.path.join(str(wflow_root), "plots")
 
@@ -147,7 +148,8 @@ if __name__ == "__main__":
             model_dir = sm.params.model_dir
             plot_forcing(
                 wflow_root=model_dir,
-                plot_dir=f"{model_dir}/forcing/plots",
+                plot_dir=getattr(sm.params, "plot_dir", f"{model_dir}/forcing/plots"),
+                toml_name=getattr(sm.params, "toml_name", "wflow_sbm.toml"),
                 gauges_fn=getattr(sm.input, "output_locations", None),
                 geoms_dir=sm.params.geoms_dir,
                 anchor=water_year_end_anchor(sm.params.water_year_start),
