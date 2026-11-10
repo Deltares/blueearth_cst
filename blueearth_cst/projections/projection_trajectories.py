@@ -92,9 +92,13 @@ def member_anomalies(
             "cst_derived_method"
         ):
             continue
-        annual = period_values(owned, variable, water_year_start)["annual"]
+        annual = period_values(owned, variable, water_year_start, periods=("annual",))[
+            "annual"
+        ]
         ref = (
-            period_values(reference, variable, water_year_start)["annual"]
+            period_values(reference, variable, water_year_start, periods=("annual",))[
+                "annual"
+            ]
             if reference is not None
             else None
         )

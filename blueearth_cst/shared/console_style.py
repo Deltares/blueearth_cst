@@ -42,6 +42,7 @@ import atexit
 import logging
 import os
 import re
+import shlex
 import sys
 import threading
 import time
@@ -49,6 +50,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from blueearth_cst.shared.command_display import sanitize_argv
 from blueearth_cst.shared.run_log_core import (
     _CONSOLE_PATH_TOKENS_ENV,
     _declared_tokens,
@@ -279,6 +281,11 @@ def _flush_undrained_warnings():
     closed, and a warning row is never worth a traceback on the way out.
     """
     try:
+        if _RUN_HEADER is not None and not _HEADER_PRINTED:
+            workflow, project_dir, config_path, details = _RUN_HEADER
+            sys.stderr.write(
+                "\n" + run_header(workflow, project_dir, config_path, **details) + "\n"
+            )
         held = _drain_deferred_warnings(_console_colour(sys.stderr))
         if held:
             sys.stderr.write("\n".join(held) + "\n")
@@ -1046,6 +1053,11 @@ _MARKER_DONE = "DONE"
 
 
 _CONSOLE_MUTED_PREFIXES = (
+    "Assuming unrestricted shared filesystem usage.",
+    "host: ",
+    "Building DAG of jobs...",
+    "Provided cores: ",
+    "Rules claiming more threads will be scaled down.",
     "Indicator details: ",
     "DAG of jobs will be updated after completion.",
     "Updating checkpoint dependencies.",
@@ -1079,84 +1091,140 @@ def register_indicator_context(key, identity, names):
 #: the child's environment (`simulation_command` builds its own from
 #: `os.environ`, so one assignment covers both spawn paths).
 ANNOUNCED_ENV = "CST_RUN_ANNOUNCED"
+_ENGINE_ARGV = None
+_INPUT_CHECKS = []
+_COUNTED_INPUT_CHECKS = set()
 
 
-def _run_announced():
-    """True when a caller upstream has already printed this workflow's name.
+def source_variable_labels(variables):
+    """Name requested fields without asserting unverified source availability."""
+    labels = {
+        "kin": "radiation",
+        "press": "pressure",
+        "sh": "specific humidity",
+        "wind10": "wind",
+        "wind10_u": "eastward wind",
+        "wind10_v": "northward wind",
+        "kout": "top-of-atmosphere radiation",
+    }
+    return ", ".join(
+        f"{labels[name]} ({name})" if name in labels else name for name in variables
+    )
 
-    Read at BLOCK-BUILD time, not at import: a test that sets the variable
-    around one render, and a runner that sets it after this module is first
-    imported, must both be seen.
+
+def set_engine_command(argv):
+    """Retain finalized engine arguments after owned configuration capture."""
+    global _ENGINE_ARGV
+    _ENGINE_ARGV = list(argv)
+
+
+def engine_command():
+    """Return known Snakemake CLI arguments, or no CLI metadata for embedded APIs."""
+    if _ENGINE_ARGV is not None:
+        return list(_ENGINE_ARGV)
+    entry = Path(sys.argv[0].replace("\\", "/"))
+    native = entry.name.lower() in {"snakemake", "snakemake.exe", "snakemake-script.py"}
+    native_module = (
+        entry.name == "__main__.py" and entry.parent.name.lower() == "snakemake"
+    )
+    return ["snakemake", *sys.argv[1:]] if native or native_module else None
+
+
+def _engine_command_line():
+    argv = engine_command()
+    return (
+        shell_command(sanitize_argv(argv))
+        if argv
+        else "Unavailable (embedded API invocation)"
+    )
+
+
+def shell_command(argv, *, powershell=None):
+    """Quote literal arguments for the invoking platform's shell."""
+    powershell = os.name == "nt" if powershell is None else powershell
+    if not powershell:
+        return shlex.join(str(arg) for arg in argv)
+    return "& " + " ".join("'" + str(arg).replace("'", "''") + "'" for arg in argv)
+
+
+def _dry_run():
+    return any(
+        arg in {"-n", "--dry-run", "--dryrun"}
+        or (re.fullmatch(r"-[np]+", arg) and "n" in arg)
+        for arg in (engine_command() or [])[1:]
+    )
+
+
+def _compact_header():
+    """Identify a no-op without printing settings, paths or scheduled-input checks."""
+    if _RUN_HEADER is None:
+        return []
+    workflow, _, _, details = _RUN_HEADER
+    lines = ["", workflow]
+    if details.get("cores") is not None:
+        lines.append(f"cores  {details['cores']}")
+    lines.extend(["", "Snakemake command", _engine_command_line()])
+    if _dry_run():
+        lines.extend(["", "DRY RUN — no jobs will execute"])
+    return lines
+
+
+def defer_input_check(rule, summary, details, *, module="resolution"):
+    """Hold an acquisition warning until the plan establishes its applicability."""
+    check = (str(rule), str(summary), tuple(str(row) for row in details), str(module))
+    if check not in _INPUT_CHECKS:
+        _INPUT_CHECKS.append(check)
+
+
+def _input_check_lines(counts):
+    lines = []
+    for rule, summary, details, module in _INPUT_CHECKS:
+        if not counts.get(rule):
+            continue
+        if not lines:
+            lines.extend([("Input checks", "section")])
+        key = (rule, summary, details, module)
+        if key not in _COUNTED_INPUT_CHECKS:
+            note_warning(module)
+            _COUNTED_INPUT_CHECKS.add(key)
+        lines.append(("WARN  " + summary, "warning"))
+        lines.extend(("      " + row, "body") for row in details)
+    return lines
+
+
+def opening_block(
+    workflow, project_dir, config_path=None, details=None, plan=None, counts=None
+):
+    """Build the canonical workflow opening from declared metadata and actual jobs.
+
+    Order: identity/cores, literal engine command, applicable input checks, work
+    plan, settings, paths, and execution or planning boundary. Each workflow owns
+    its identity even inside a batch. Checkpoint/pre-DAG states remain explicit.
+    See dev/reference/dev-console-style.md for the maintained presentation contract.
     """
-    return os.environ.get(ANNOUNCED_ENV, "") not in ("", "0")
-
-
-def opening_block(workflow, project_dir, config_path=None, details=None, plan=None):
-    """``[(text, tier)]`` for a run's opening block -- ONE builder, two callers.
-
-    :meth:`_ConsoleHandler._opening` paints these and writes them to the
-    console; :func:`run_header` joins the text and returns a plain string for
-    the case where the console style did not install. They rendered the block
-    two different ways until 2026-09-17, so a run that lost its styling also
-    lost the layout -- a reader comparing two consoles saw two toolboxes.
-
-    ``tier`` names what each line IS (``title``, ``run``, ``dim``, ``body``);
-    mapping that onto colour is the caller's business, and ``run_header``
-    ignores it entirely.
-
-    Layout, and why each part is where it is::
-
-        >  2.01  snapshot_config          1
-           2.01  delineate_region
-        7 of 9 rules to run  |  2 up to date  |  13 jobs
-
-        project  <repo>/test_case/test_rapid
-        config   test_case/project_config_rapid.yml
-
-    NO FURNITURE since 2026-09-17: no title band, no ``-- PLAN --`` /
-    ``-- RUN --`` / ``-- PROGRESS --`` section rules, no rule under the table.
-    The block had carried six full-width rules across its first thirty lines,
-    and under the runner -- which is how the pipeline is actually driven -- a
-    seventh sat three lines above them at a DIFFERENT width, because the runner
-    draws a fixed 80 and this block sized itself to its longest value, usually
-    an absolute config path. Two frames that nearly line up read as
-    misalignment rather than as structure.
-
-    What the rules were carrying, the content already carries. The table is
-    numbered rows in rule order, the caption under it names what the table is
-    (``9 rules | all to run | 11 jobs``), the metadata is a ``key  value``
-    column, and a blank line separates each from the next. A reader never had
-    to be told that a list of rule numbers was the plan.
-
-    The TITLE is written only when nothing upstream has announced this
-    workflow -- see :func:`_run_announced`. Under the runner it is the third
-    printing of ``wf0 analyze_climate`` within ten lines; standalone it is the
-    only one, so it stays, as a bare line rather than a band.
-
-    ``plan`` is ``(head, [(row, state), ...])`` or ``None``. A state is true
-    for runnable and false for up to date. Checkpoint-dependent work is shown
-    as runnable with a blank count because its fan-out is not resolved yet.
-    With no plan there is no table to
-    caption, so the summary goes onto the title
-    (``wf2 analyze_projections -- 7 of 9 rules to run``) and no table is
-    written. That branch is reached when Snakemake's job table cannot be
-    parsed, and when the console style is not active -- :func:`run_header`
-    never has a plan, since it is written before any job count exists. When
-    that branch coincides with an announced run the head would have nowhere to
-    go, so the title is kept there regardless: a caption with nothing to
-    caption is still the only statement of the run's size.
-    """
+    details = dict(details or {})
+    cores = details.pop("cores", None)
     meta = meta_row_lines(
         run_meta_rows(project_dir, config_path, details), grouped=True
     )
     head, rows = ("", []) if plan is None else (plan[0], list(plan[1]))
-
-    out = [("", "body")]
-    if not rows and head:
-        out.extend([(f"{workflow} -- {head}", "title"), ("", "body")])
-    elif not _run_announced():
-        out.extend([(workflow, "title"), ("", "body")])
+    out = [("", "body"), (workflow, "title")]
+    if cores is not None:
+        out.append((f"cores  {cores}", "body"))
+    out.extend(
+        [
+            ("", "body"),
+            ("Snakemake command", "section"),
+            (_engine_command_line(), "command"),
+        ]
+    )
+    if _dry_run():
+        out.extend([("", "body"), ("DRY RUN — no jobs will execute", "warning")])
+    checks = _input_check_lines(counts or {})
+    if checks:
+        out.extend([("", "body"), *checks])
     if rows:
+        out.extend([("", "body"), ("Work plan", "section")])
         out.extend(
             (
                 text,
@@ -1165,8 +1233,28 @@ def opening_block(workflow, project_dir, config_path=None, details=None, plan=No
             for text, running in rows
         )
         out.append((head, "body"))
+    elif head:
+        out.extend([("", "body"), (head, "body")])
+    if meta:
         out.append(("", "body"))
-    out.extend((line, "body") for line in meta)
+        out.extend(
+            (line, "section" if line in {"Run settings", "Paths"} else "body")
+            for line in meta
+        )
+    if rows:
+        out.extend(
+            [
+                ("", "body"),
+                ("Planning complete" if _dry_run() else "Execution log", "section"),
+            ]
+        )
+        if _dry_run():
+            out.append(
+                (
+                    "No jobs executed; source data have not been fetched or validated by this dry run.",
+                    "body",
+                )
+            )
     return out
 
 
@@ -1249,6 +1337,7 @@ _RUN_HEADER = None
 #: handler to print the held header, so `open_run_header` writes it itself --
 #: the header must never be the thing a styling failure silently removes.
 _CONSOLE_STYLE_ACTIVE = False
+_CONSOLE_STYLE_PENDING = False
 
 
 def open_run_header(workflow, project_dir, config_path=None, **details):
@@ -1269,7 +1358,7 @@ def open_run_header(workflow, project_dir, config_path=None, **details):
     """
     global _RUN_HEADER, _HEADER_PRINTED
     _HEADER_PRINTED = False
-    if _CONSOLE_STYLE_ACTIVE:
+    if _CONSOLE_STYLE_ACTIVE or _CONSOLE_STYLE_PENDING:
         _RUN_HEADER = (workflow, project_dir, config_path, dict(details))
         return True
     sys.stderr.write(
@@ -1392,127 +1481,81 @@ def _plan_rows(counts):
     return rows
 
 
-def _plan_head(rows, jobs, unlisted=0):
-    """The run's size and shape, as a bare clause with no prefix or indent.
-
-    ``unlisted`` is rules Snakemake is about to run that the registry cannot
-    name, because they never called :func:`rule_banner` and so registered no
-    number. That should be zero -- every rule in all five Snakefiles declares a
-    banner -- but a block that quietly listed 18 of 19 rules would be worse
-    than one that admits the gap, which is this repo's standing rule about a
-    tool that bounds its own coverage.
-    """
-    planned = sum(1 for row in rows if row[2] is None)
-    rows = [row for row in rows if isinstance(row[2], int)]
-    total = len(rows)
-    running = sum(1 for row in rows if row[2] > 0)
-    up_to_date = total - running
-    plural = "rule" if total == 1 else "rules"
-    # PIPED fields rather than a comma sentence. `|` is the separator this
-    # console already uses inside a rule's fan-out context (`[rlz 2 | st 6]`),
-    # so the summary borrows the house grammar instead of inventing one -- and
-    # under the table it introduces, three scannable fields beat one clause.
-    if running == total:
-        fields = [f"{total} {plural}", "all to run"]
-    elif running:
-        fields = [
-            f"{running} of {total} {plural} to run" if running else f"{total} {plural}",
-        ]
-        if up_to_date:
-            fields.append(f"{up_to_date} up to date")
-    else:
-        fields = [f"{total} {plural}", "all up to date"]
-    if planned:
-        fields.append(f"{planned} {_PRE_DAG_LABEL}")
-    # The job count only when it says something the rule count does not, i.e.
-    # when something fans out. `_run_info_line`, which this replaces, always
-    # carried it. Counted over the LISTED rows, not over Snakemake's table, so
-    # it agrees with the rows below it -- the table includes the excluded
-    # `all`, and a head line off by one from what it introduces is worse than
-    # no head line.
-    if jobs and jobs != running:
-        fields.append(f"{jobs} job{'s' if jobs != 1 else ''}")
-    if unlisted:
-        fields.append(f"{unlisted} unlisted")
-    # BARE -- no `plan --` prefix and no indent. The callers frame it: the
-    # opening block writes it under the table it describes, and puts it back on
-    # the title only when there is no table (see `opening_block`).
-    return "  |  ".join(fields)
-
-
 def _plan_lines(counts):
-    """Render the plan block, or ``None`` to fall back to Snakemake's own line.
-
-    One row per DECLARED rule, ordered by rule id so the workflow's shape reads
-    as a spine. Rows that will run carry a ``>`` gutter; rows already satisfied
-    are dimmed. Pre-DAG steps (:func:`pre_dag_step`) are dimmed too, with an
-    empty count cell; the head line tallies them as ``done in planning``. The gutters survive a
-    pipe, redirect and CI where colour does not.
-
-    FLUSH LEFT, like every other line the opening block writes. The block was
-    indented two spaces until 2026-09-17, which put the rules one column in from
-    the title that introduces them and from the metadata rows below them.
-
-    The gutter COLUMN is dropped outright when no rule is up to date -- not
-    reserved and left blank. A mark on every line carries no information (the
-    head line already says ``all to run``), and an empty column is three spaces
-    of indent on every row of a first run, which is exactly what going flush
-    left removed everywhere else.
-
-    Every row carries its JOB COUNT, in a right-aligned column, rather than an
-    ``xN`` suffix on the rows that happen to fan out. Snakemake's own
-    ``Job stats:`` table prints a count per rule including the ones that are 1,
-    and dropping those meant a run where nothing fans out -- a WF4 simulation,
-    a WF1 re-run -- printed no numbers at all.
-
-    An up-to-date rule's cell is EMPTY. Its count is not merely omitted, it is
-    unknown: such a rule is absent from Snakemake's table entirely, which is how
-    :func:`_plan_rows` identifies it, so there is no number to print. For a
-    non-fanned rule ``1`` would be a good guess and for
-    ``downscale_scenario_series`` on a full grid it could be 200. A ``-``
-    was used until 2026-09-17 and dropped as redundant: on a partial run the
-    ``>`` gutter already marks what runs and survives a pipe, and on an
-    all-to-run one there are no up-to-date rows to mark.
-
-    Returns ``(head, rows)`` with each row as ``(text, state)``, where state is
-    true for runnable and false for up to date. The caller owns the colour --
-    ``_paint`` colours
-    whole lines and never fields.
-    """
+    """Render explicit run/reuse/done/pending rows and the scheduled work-job total."""
     rows = _plan_rows(counts)
     if not rows:
         return None
-    # Only a COUNT means "will run"; an empty checkpoint-gated cell may or may not.
-    runs = [isinstance(row[2], int) and row[2] > 0 for row in rows]
-    partial = any(runs) and not all(runs)
-    number_width = max(len(row[0]) for row in rows) + 2
-    name_width = max(len(_INDICATOR_RULE_LABELS.get(row[1], row[1])) for row in rows)
-    count_width = max(
-        (len(str(row[2])) for row in rows if isinstance(row[2], int) and row[2]),
-        default=1,
+    pending_numbers = {
+        _RULE_NUMBERS[name]
+        for name in _AFTER_CHECKPOINT_RULES
+        if _after_checkpoint_pending(counts)
+        and name in _RULE_NUMBERS
+        and name not in counts
+    }
+    display = []
+    states = []
+    for number, name, jobs in rows:
+        pending = number in pending_numbers
+        status = (
+            "done"
+            if jobs is None
+            else "pending"
+            if pending or isinstance(jobs, str)
+            else "run"
+            if jobs
+            else "reuse"
+        )
+        cell = (
+            "-"
+            if jobs is None or jobs == 0
+            else "?"
+            if jobs == ""
+            else f"{jobs} planned"
+            if pending
+            else str(jobs)
+        )
+        display.append((status, number, _INDICATOR_RULE_LABELS.get(name, name), cell))
+        states.append(
+            True if status == "run" else None if status == "pending" else False
+        )
+    widths = [
+        max(len(row[i]) for row in [*display, ("status", "step", "rule", "jobs")])
+        for i in range(4)
+    ]
+    lines = [
+        (
+            f"{'status':<{widths[0]}}  {'step':<{widths[1]}}  {'rule':<{widths[2]}}  {'jobs':>{widths[3]}}",
+            None,
+        )
+    ]
+    lines.extend(
+        (
+            f"{status:<{widths[0]}}  {number:<{widths[1]}}  {name:<{widths[2]}}  {cell:>{widths[3]}}",
+            state,
+        )
+        for (status, number, name, cell), state in zip(display, states)
     )
-    lines = []
-    for (number, name, jobs), will_run in zip(rows, runs):
-        if not partial:
-            gutter = ""
-        else:
-            gutter = ">  " if will_run else "   "
-        if jobs is None:
-            cell = ""
-        elif isinstance(jobs, str):
-            cell = jobs
-        else:
-            cell = (str(jobs) if jobs else "").rjust(count_width)
-        label = _INDICATOR_RULE_LABELS.get(name, name)
-        text = f"{gutter}{number.ljust(number_width)}{label.ljust(name_width)}  {cell}"
-        lines.append((text.rstrip(), will_run))
     unlisted = sum(
         1
         for name in counts
         if name not in _RULE_NUMBERS and name not in _PLAN_EXCLUDED_RULES
     )
-    jobs = sum(row[2] for row in rows if isinstance(row[2], int))
-    return _plan_head(rows, jobs, unlisted), lines
+    jobs = sum(
+        count for name, count in counts.items() if name not in _PLAN_EXCLUDED_RULES
+    )
+    scheduled = sum(state is True for state in states)
+    reused = sum(row[0] == "reuse" for row in display)
+    head = f"{plural(jobs, 'job')}  |  {plural(scheduled, 'rule')} scheduled  |  {plural(reused, 'rule')} up to date"
+    pending = sum(row[0] == "pending" for row in display)
+    done = sum(row[0] == "done" for row in display)
+    if pending:
+        head += f"  |  {plural(pending, 'rule')} pending checkpoints"
+    if done:
+        head += f"  |  {done} {_PRE_DAG_LABEL}"
+    if unlisted:
+        head += f"  |  {unlisted} unlisted"
+    return head, lines
 
 
 class _ConsoleHandler(logging.StreamHandler):
@@ -1657,9 +1700,27 @@ class _ConsoleHandler(logging.StreamHandler):
     # -- rendering ---------------------------------------------------------
 
     def _render(self, record):
+        global _HEADER_PRINTED
         fields = record.__dict__
         event = fields.get("event")
         event = None if event is None else str(event)
+        plain = re.sub(r"\x1b\[[0-9;]*m", "", str(record.msg or "")).strip()
+        if plain.startswith(("Nothing to be done", _UP_TO_DATE_LINE)):
+            lines = [] if self._opened else _compact_header()
+            self._opened = True
+            _HEADER_PRINTED = True
+            lines.extend(
+                ["", self._paint(_UP_TO_DATE_LINE + " — no jobs scheduled", _ANSI_DONE)]
+            )
+            lines.extend(_drain_deferred_warnings(self._color))
+            return "\n".join(lines)
+        if _dry_run() and event in {
+            "job_info",
+            "job_started",
+            "job_finished",
+            "progress",
+        }:
+            return None
 
         # A finish line is HELD until the progress record that follows it, which
         # is the only place Snakemake reports the done/total counter. Holding
@@ -1681,7 +1742,10 @@ class _ConsoleHandler(logging.StreamHandler):
             self._progress = (fields.get("done"), fields.get("total"))
         else:
             lines = self._drain(None, None)
-            if event != "run_info":
+            if (
+                event in {"job_info", "job_error", "group_error"}
+                or record.levelno >= logging.ERROR
+            ):
                 # Whichever record comes first opens the run; `run_info`
                 # normally does and carries the plan with it.
                 opening = self._opening()
@@ -1718,6 +1782,12 @@ class _ConsoleHandler(logging.StreamHandler):
                 shown = _shorten_console_paths(
                     shown, os.environ.get(_PROJECT_ROOT_ENV, ""), _path_tokens()
                 )
+                if (
+                    shown == "None"
+                    and record.msg is None
+                    and record.levelno <= logging.INFO
+                ):
+                    shown = ""
                 if record.levelno <= logging.INFO:
                     shown = self._paint(shown, _ANSI_BODY)
                 lines.append(shown)
@@ -1758,32 +1828,8 @@ class _ConsoleHandler(logging.StreamHandler):
             lines.append("")
         return lines
 
-    def _opening(self, plan=None):
-        """The run's opening block, or ``[]`` when no header was declared.
-
-        Layout, and why this is assembled HERE rather than at ``onstart:``::
-
-            wf2 analyze_projections -- 7 of 9 rules to run, 13 jobs
-            ------------------------------------------------------
-
-              >  2.01  snapshot_config
-                 2.01  delineate_region
-
-              project        .tmp/test_run
-              <projections>  data/climate/projections/cmip6
-
-        The plan summary rides on the TITLE, and the path tokens sit directly
-        above the lines that spell paths with them. Neither is possible from
-        ``onstart:``, which fires before Snakemake reports any job count -- so
-        a header written there can only sit above the plan, which is where it
-        sat until 2026-09-06 and why the rules began eleven lines down.
-
-        Emitted at most once per run, on whichever record arrives first. That
-        is normally ``run_info`` and the title then carries the plan; if
-        anything else beats it the header still prints, without the summary and
-        without the rules, and `run_info` renders the plan on its own after.
-        Losing the header entirely is the one outcome worth guarding against.
-        """
+    def _opening(self, plan=None, counts=None):
+        """Emit the declared identity, command, plan and metadata once; see dev-console-style.md."""
         global _HEADER_PRINTED
         if _RUN_HEADER is None or self._opened:
             return []
@@ -1795,27 +1841,23 @@ class _ConsoleHandler(logging.StreamHandler):
         # them onto colour is this class's business and nobody else's.
         tiers = {
             "title": _ANSI_TITLE,
-            "run": _ANSI_RUN,
+            "run": _ANSI_DONE,
             "dim": _ANSI_DIM,
             "body": _ANSI_BODY,
+            "section": "1;36",
+            "command": _ANSI_BODY,
+            "warning": "33",
         }
-        block = opening_block(workflow, project_dir, config_path, details, plan)
+        block = opening_block(workflow, project_dir, config_path, details, plan, counts)
         lines = [self._paint(text, tiers[tier]) for text, tier in block]
-        # Parse-time warnings land HERE: under the RUN block, above the
-        # PROGRESS rule. They were emitted before this handler existed, so this
-        # is the first moment they can be printed in the run's own structure --
-        # see `defer_warning`. Painted by severity, not by the tier map above.
+        # Generic deferred diagnostics retain their severity after the opening.
+        # Acquisition-specific notices are placed by opening_block before the plan.
         held = _drain_deferred_warnings(self._color)
         if held:
             lines.append("")
             lines.extend(held)
-        # No PROGRESS rule since 2026-09-17. It opened a section whose first
-        # line is written by a different code path (`_start_line`, on the first
-        # `job_info` record), and what that line looks like --
-        # `22:01:04 - RUN  Rule 0.01: ...` -- announces the section on its own:
-        # it is the first timestamped row on the console and nothing above it
-        # wears that grammar. The blank line below is what separates the block
-        # from it, and is the only separator the boundary needed.
+        # The opening labels Execution log for real execution; keep a blank
+        # line before the timestamped job rows that follow that boundary.
         lines.append("")
         return lines
 
@@ -1841,6 +1883,8 @@ class _ConsoleHandler(logging.StreamHandler):
         """
         text = self.format(record)
         counts = _run_info_counts(text)
+        if _dry_run() and self._opened:
+            return []
         self._target_jobs = sum(counts.get(name, 0) for name in _PLAN_EXCLUDED_RULES)
         if counts:
             # The same planned counts the plan block lists for checkpoint-gated
@@ -1858,7 +1902,7 @@ class _ConsoleHandler(logging.StreamHandler):
                 )
             )
         plan = _plan_lines(counts) if counts else None
-        opening = self._opening(plan)
+        opening = self._opening(plan, counts)
         if opening:
             painted = opening
         elif plan is None:
@@ -1928,7 +1972,24 @@ class _ConsoleHandler(logging.StreamHandler):
         """
         if event is not None or record.levelno > logging.INFO:
             return False
-        return str(record.msg or "").startswith(_CONSOLE_MUTED_PREFIXES)
+        if (
+            _dry_run()
+            and "--verbose" not in (engine_command() or [])[1:]
+            and str(record.msg or "").startswith(
+                (
+                    "Reasons:",
+                    "Some jobs were triggered by provenance information",
+                    "If you prefer that only modification time",
+                    "If you are sure that a change",
+                    "Rules with provenance triggered jobs:",
+                    "This was a dry-run (flag -n).",
+                )
+            )
+        ):
+            return True
+        return record.msg is None or str(record.msg or "").startswith(
+            _CONSOLE_MUTED_PREFIXES
+        )
 
     def _start_line(self, fields, record):
         # Memoized BEFORE the branch below, so a rule with no `message:` still
@@ -2140,46 +2201,23 @@ def _console_style_took():
     the held header, and without one the header has to be written on the spot.
     A styling failure must never be the reason a run loses its header.
     """
-    global _CONSOLE_STYLE_ACTIVE
+    global _CONSOLE_STYLE_ACTIVE, _CONSOLE_STYLE_PENDING
     _CONSOLE_STYLE_ACTIVE = True
+    _CONSOLE_STYLE_PENDING = False
     return True
 
 
 def install_console_style():
-    """Restyle Snakemake's terminal output; return whether it took effect.
+    """Restyle only Snakemake's terminal handler, immediately or through its factory.
 
-    **Call it from ``onstart:``, not from the top of the Snakefile.** That is
-    measured, not stylistic: Snakemake parses the workflow BEFORE it builds its
-    logging stack, so at parse time ``logger_manager.queue_listener`` is still
-    ``None`` and this returns ``False`` having done nothing (probed
-    2026-08-14 -- the first attempt put the call beside
-    :func:`patch_psutil_windows_benchmark`, and every run came out in
-    Snakemake's own style with nothing reporting why). By ``onstart`` the
-    listener exists and no job record has been emitted yet, so the whole
-    execution phase is covered; only the fixed preamble above it is not.
-    ``queue_listener.handlers`` is read per record inside
-    ``QueueListener.handle``, so replacing the tuple takes effect immediately
-    and needs no restart.
-
-    Selection is by ``handler.name == "DefaultStreamHandler"``, and that
-    exactness is load-bearing: the same listener also holds
-    ``DefaultLogFileHandler``, which writes ``.snakemake/log/*.snakemake.log``.
-    Restyling that one would destroy the verbose durable record whose whole
-    value is being verbose.
-
-    Everything is guarded and FAIL-OPEN. None of this is public API, so a
-    Snakemake upgrade that renames the handler or restructures the manager
-    leaves the console exactly as Snakemake ships it and the run proceeds --
-    a cosmetic layer must never be able to stop a workflow. The return value
-    is for tests; no caller should branch on it.
-
-    Not a Snakemake logger plugin, deliberately. That interface
-    (``--logger <name>``) resolves through installed entry points, so using it
-    would mean shipping and depending on a separate package to restyle our own
-    console -- a new dependency for a cosmetic layer.
+    At parse time the listener does not yet exist; register a deferred factory
+    while retaining its signature and filter chain. Pending is distinct from an
+    active handler. Later calls replace only DefaultStreamHandler in the live
+    listener and leave the verbose file handler untouched. Unknown upstream
+    seams fail open; held metadata is flushed if no handler ever appears.
+    See dev/reference/dev-console-style.md for lifecycle and fallback behavior.
     """
-    global _HEADER_PRINTED
-    _HEADER_PRINTED = False
+    global _HEADER_PRINTED, _CONSOLE_STYLE_ACTIVE, _CONSOLE_STYLE_PENDING
     try:
         from snakemake.logging import logger_manager
 
@@ -2190,9 +2228,27 @@ def install_console_style():
                 continue
             if isinstance(handler, _ConsoleHandler):
                 return _console_style_took()  # a second Snakefile (tests)
+            _HEADER_PRINTED = False
             handlers[index] = _ConsoleHandler(handler)
             listener.handlers = tuple(handlers)
             return _console_style_took()
+        if listener is None:
+            _HEADER_PRINTED = False
+            factory = getattr(logger_manager, "_default_streamhandler", None)
+            if callable(factory):
+                _CONSOLE_STYLE_ACTIVE = False
+                if not getattr(factory, "_cst_console_style", False):
+
+                    def styled_handler(*args, **kwargs):
+                        handler = factory(*args, **kwargs)
+                        if not isinstance(handler, _ConsoleHandler):
+                            handler = _ConsoleHandler(handler)
+                        _console_style_took()
+                        return handler
+
+                    styled_handler._cst_console_style = True
+                    logger_manager._default_streamhandler = styled_handler
+                _CONSOLE_STYLE_PENDING = True
     except Exception:  # noqa: BLE001 -- never fail a run over console styling
         return False
     return False
@@ -2237,7 +2293,7 @@ def run_header(workflow, project_dir, config_path=None, **details):
     # Through `opening_block`, which the console handler also uses -- the two
     # rendered this block differently until 2026-09-17, so a run whose styling
     # failed to install printed a different shape from every other run. No plan
-    # is passed because none exists yet: this is written from `onstart`, before
+    # is passed because none exists yet: this fallback is written during parsing, before
     # Snakemake has reported a job count.
     return "\n".join(
         text for text, _ in opening_block(workflow, project_dir, config_path, details)

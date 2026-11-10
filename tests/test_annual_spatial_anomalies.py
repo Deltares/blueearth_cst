@@ -35,6 +35,40 @@ def settings(**changes):
     )
 
 
+@pytest.mark.parametrize("multiple_catalogs", [False, True])
+def test_run_hashes_complete_catalog_paths(tmp_path, monkeypatch, multiple_catalogs):
+    from types import SimpleNamespace
+
+    from blueearth_cst.climate_analysis import annual_spatial_anomalies as module
+
+    paths = [
+        tmp_path / name
+        for name in ("climate.nc", "cells.csv", "catalog.yml", "other.yml")
+    ]
+    for path in paths:
+        path.write_text("input", encoding="utf-8")
+    catalogs = [str(path) for path in paths[2:]] if multiple_catalogs else str(paths[2])
+    sm = SimpleNamespace(
+        input=SimpleNamespace(climate_nc=str(paths[0]), basin_cells=str(paths[1])),
+        params=SimpleNamespace(source="era5", data_sources=catalogs),
+    )
+    hashed = []
+    original_hash = module.file_hash
+
+    def track_hash(path):
+        hashed.append(str(path))
+        return original_hash(path)
+
+    def stop_after_hashing(*args, **kwargs):
+        assert hashed == [str(path) for path in paths[: 4 if multiple_catalogs else 3]]
+        raise RuntimeError("catalog hashing completed")
+
+    monkeypatch.setattr(module, "file_hash", track_hash)
+    monkeypatch.setattr(module, "daily_series", stop_after_hashing)
+    with pytest.raises(RuntimeError, match="catalog hashing completed"):
+        module.run(sm)
+
+
 def raw(m0=1):
     index = pd.date_range("2000-01-01", "2006-12-31")
     # Explicit independent start-year offsets, a heterogeneous 2x2 native grid.

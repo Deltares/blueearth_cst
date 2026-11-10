@@ -1,8 +1,8 @@
 """Launch Snakemake with routine startup chatter removed from terminal streams.
 
 The owned runners use this entry point before Snakefile hooks are available.
-Snakemake's file handlers keep their complete records. Dry runs and verbose
-invocations retain native output, and unrecognized lines always pass through.
+Snakemake's file handlers keep their complete records. Verbose invocations
+retain native startup output, and unrecognized lines always pass through.
 """
 
 import logging
@@ -29,6 +29,12 @@ class _StartupFilter(logging.Filter):
     """Mute only known INFO records on the terminal, never warnings or errors."""
 
     def filter(self, record: logging.LogRecord) -> bool:
+        if (
+            record.levelno == logging.INFO
+            and getattr(record, "event", None) == "workflow_started"
+            and record.getMessage() == "None"
+        ):
+            return False
         return record.levelno != logging.INFO or not _STARTUP.fullmatch(
             record.getMessage()
         )
@@ -77,10 +83,13 @@ def _main() -> None:
     from blueearth_cst.shared.console_terminal import restore_terminal_streams
 
     restore_terminal_streams()
+    from blueearth_cst.shared.console_style import set_engine_command
+
+    set_engine_command(["snakemake", *sys.argv[1:]])
     from snakemake.cli import main as snakemake_main
     from snakemake.logging import logger_manager
 
-    if any(arg in {"-n", "--dry-run", "--dryrun", "--verbose"} for arg in sys.argv[1:]):
+    if "--verbose" in sys.argv[1:]:
         snakemake_main()
         return
     # Adapt only the default terminal-handler factory, before logging starts.

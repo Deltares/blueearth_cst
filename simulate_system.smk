@@ -261,6 +261,7 @@ def _header():
             analysis = "Hydrological simulation and indicators" if INDICATOR_SETS else "Hydrological simulation"
         open_run_header(
             "wf4 simulate_system", project_dir, config_path,
+            cores=workflow.resource_settings.cores,
             experiment=experiment, analysis=analysis, **details,
             **({"parallel simulations": batching} if batching and OPERATION != "indicators-only" else {}),
         )
@@ -273,6 +274,10 @@ def _header():
         except Exception:  # noqa: BLE001
             pass
 
+
+# Declare presentation before DAG planning, including dry runs and no-op runs.
+install_console_style()
+_header()
 
 onstart:
     # The owned runner distinguishes pre-execution refusals from partial job

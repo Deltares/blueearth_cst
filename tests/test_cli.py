@@ -26,7 +26,7 @@ config_fn = join(TESTDIR, "project_config_fixture.yml")
 linux_config_fn = join(SNAKEDIR, "test_case", "project_config_baseline_linux.yml")
 
 
-def _dry_run(snakefile, cfg=config_fn, env=None):
+def _dry_run(snakefile, cfg=config_fn, env=None, *, job_stats=None):
     """Dry-run a Snakefile on a config; return the completed process.
 
     stdout/stderr are captured as text so callers can match on the DAG-build
@@ -34,6 +34,27 @@ def _dry_run(snakefile, cfg=config_fn, env=None):
     match on the combined stream so a stream change does not silently break a
     ratchet assertion below.
     """
+    if job_stats is not None:
+        return subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "tests.snakemake_state",
+                str(job_stats),
+                "all",
+                "-c",
+                "1",
+                "-s",
+                snakefile,
+                "--configfile",
+                str(cfg),
+                "--dry-run",
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=SNAKEDIR,
+        )
     cmd = f"snakemake all -c 1 -s {snakefile} --configfile {cfg} --dry-run"
     return subprocess.run(
         cmd, shell=True, capture_output=True, text=True, env=env, cwd=SNAKEDIR
@@ -79,22 +100,14 @@ def config_with_staged_region(tmp_path):
     return cfg_path
 
 
-def _job_counts(result):
-    """Parse Snakemake's `Job stats:` table into {rule: count}.
-
-    The table is alphabetical and says WHAT will run, never in what order --
-    which is exactly what a set comparison wants.
-    """
-    counts = {}
-    lines = (result.stdout or "").splitlines()
-    for i, line in enumerate(lines):
-        if line.strip().startswith("job") and "count" in line:
-            for row in lines[i + 2 :]:
-                parts = row.split()
-                if len(parts) != 2 or not parts[1].isdigit():
-                    break
-                counts[parts[0]] = int(parts[1])
-            break
+def _job_counts(path):
+    """Read full native rule names/counts, independently of terminal grouping."""
+    counts = json.loads(path.read_text(encoding="utf-8"))
+    assert counts and all(isinstance(name, str) and name for name in counts)
+    assert all(isinstance(value, int) and value > 0 for value in counts.values())
+    assert counts["total"] == sum(
+        value for name, value in counts.items() if name != "total"
+    )
     return counts
 
 
@@ -125,14 +138,18 @@ def test_analyze_climate_adds_no_job_to_build_model(tmp_path):
     without["workflows"].pop("analyze_climate")
     without_wf0 = write_config(tmp_path / "without_wf0", without)
 
-    a = _dry_run("build_model.smk", cfg=str(with_wf0))
-    b = _dry_run("build_model.smk", cfg=str(without_wf0))
+    stats_a, stats_b = (
+        tmp_path / "with-wf0-stats.json",
+        tmp_path / "without-wf0-stats.json",
+    )
+    a = _dry_run("build_model.smk", cfg=str(with_wf0), job_stats=stats_a)
+    b = _dry_run("build_model.smk", cfg=str(without_wf0), job_stats=stats_b)
     assert a.returncode == 0, (a.stdout or "") + (a.stderr or "")
     assert b.returncode == 0, (b.stdout or "") + (b.stderr or "")
 
-    counts = _job_counts(a)
-    assert counts, "could not parse a Job stats table from the WF1 dry-run"
-    assert counts == _job_counts(b)
+    counts = _job_counts(stats_a)
+    assert "build_wflow_model" in counts and "delineate_region" in counts
+    assert counts == _job_counts(stats_b)
 
 
 @pytest.mark.workflow_contract
@@ -466,9 +483,10 @@ def test_wf2_dag_accepts_shared_newest_store_pins(config_with_staged_region, tmp
     wf2["scenarios"] = ["ssp126"]
     wf2["members"] = {"preference": ["r1i1p1f1"]}
     config_path = write_config(tmp_path / "shared_newest", cfg)
-    result = _dry_run("analyze_projections.smk", cfg=config_path)
+    stats_path = tmp_path / "shared-newest-stats.json"
+    result = _dry_run("analyze_projections.smk", cfg=config_path, job_stats=stats_path)
     assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
-    counts = _job_counts(result)
+    counts = _job_counts(stats_path)
     assert counts["fetch_cmip6_projections"] == 4
     assert counts["reduce_to_basin_averages"] == 4
 
@@ -487,14 +505,15 @@ def test_wf2_dag_excludes_ciesm_before_acquisition(
         "overrides": {"THU/CIESM": ["r1i1p1f1"]},
     }
     config_path = write_config(tmp_path / "ciesm_exclusion", cfg)
-    result = _dry_run("analyze_projections.smk", cfg=config_path)
+    stats_path = tmp_path / "ciesm-exclusion-stats.json"
+    result = _dry_run("analyze_projections.smk", cfg=config_path, job_stats=stats_path)
     if only_ciesm:
         assert result.returncode != 0
         assert "source_quality_excluded" in result.stdout + result.stderr
         assert "all variables" in result.stdout + result.stderr
     else:
         assert result.returncode == 0, result.stdout + result.stderr
-        counts = _job_counts(result)
+        counts = _job_counts(stats_path)
         # One valid model, its historical series and one SSP; no CIESM fetch/reduce.
         assert counts["fetch_cmip6_projections"] == 2
         assert counts["reduce_to_basin_averages"] == 2

@@ -29,6 +29,9 @@ Contract with the reduce stage:
 
 Invoked from ``analyze_projections.smk`` via ``script:``; reads
 ``snakemake.input/output/params``, never ``sys.argv``.
+
+Timing rows report successful phases; total rows overlap their named substages.
+CPU seconds cover this process only, including its threads, not child processes.
 """
 # NOTE: no `from __future__ import annotations` here. Snakemake's `script:`
 # directive prepends its own preamble to a copy of this file, so a __future__
@@ -39,6 +42,7 @@ Invoked from ``analyze_projections.smk`` via ``script:``; reads
 import contextlib
 import json
 import os
+from time import perf_counter, process_time
 
 # MUST precede any import that transitively imports gcsfs (hydromt does). gcsfs
 # >= 2026.4 turns on an experimental Extended filesystem BY DEFAULT and reads this
@@ -58,6 +62,16 @@ import numpy as np
 
 from blueearth_cst.projections import grid_weights, series_identity
 from blueearth_cst.shared.snake_utils import log_row, tee_to_log
+
+
+def _log_timing(stage: str, started: tuple[float, float]) -> None:
+    """Report successful phase duration; CPU covers this process only."""
+    log_row(
+        f"Timing {stage}: wall={perf_counter() - started[0]:.3f}s, "
+        f"cpu={process_time() - started[1]:.3f}s",
+        module="fetch",
+    )
+
 
 # ---------------------------------------------------------------------------
 # The decisions, lifted out of the `script:` body so they can be tested.
@@ -261,6 +275,10 @@ def harmonise_dims_wide_time(ds):
     in a future release, which would raise the ceiling to year 294 247. That
     would fix the first case and NOT the second: two axes at `[us]` and `[ns]`
     still meet at `[ns]`, and a 2300 axis still does not fit there.
+
+    Non-monotonic source blocks are sorted with their data before HydroMT's
+    label-based temporal slicing. No records are removed; duplicate and coverage
+    checks still apply after selection.
     """
     from hydromt.data_catalog.drivers.preprocessing import harmonise_dims
 
@@ -271,6 +289,16 @@ def harmonise_dims_wide_time(ds):
         widened = seconds_resolution_index(index)
         if widened is not None:
             ds = ds.assign_coords(time=widened)
+    if not ds.indexes["time"].is_monotonic_increasing:
+        # Some MPI scenario stores concatenate complete time blocks in reverse
+        # order. Reorder values with their timestamps before HydroMT slices;
+        # retain every record so the later duplicate/coverage gates still apply.
+        log_row(
+            f"Reordering non-monotonic source time axis ({len(index):,} timestamps; all records retained)",
+            module="fetch",
+            level="WARNING",
+        )
+        ds = ds.sortby("time")
     return harmonise_dims(ds)
 
 
@@ -644,10 +672,8 @@ def raw_slice_attrs(
     }
 
 
-def merge_variable_slices(slices, calendars, entry):
-    """Merge only spatially and temporally identical, calendar-compatible reads."""
-    import xarray as xr
-
+def _assert_variable_compatibility(slices, calendars, entry):
+    """Check existing lazy-slice compatibility before opening another source."""
     if (
         len(set(calendars.values())) != 1
         or series_identity.CALENDAR_UNKNOWN in calendars.values()
@@ -670,8 +696,51 @@ def merge_variable_slices(slices, calendars, entry):
                 raise ValueError(
                     f"{entry}: incompatible coordinate {name!r} for {variable}"
                 )
-    return xr.merge(
-        list(slices.values()), join="exact", compat="equals", combine_attrs="override"
+
+
+def merge_variable_slices(slices, calendars, entry):
+    """Merge compatible reads, retaining source-specific scalar height coordinates."""
+    import xarray as xr
+
+    _assert_variable_compatibility(slices, calendars, entry)
+    prepared = []
+    for variable, data in slices.items():
+        # Surface temperature/humidity and wind legitimately use different
+        # measurement heights. Preserve their values/metadata without making
+        # either height a shared coordinate of the merged source fields.
+        heights = {
+            name: f"{variable}_{name}"
+            for name, coord in data.coords.items()
+            if not coord.dims
+            and (
+                name in {"height", "height10m"}
+                or coord.attrs.get("standard_name") == "height"
+            )
+        }
+        renamed = data.rename(heights)
+        for name in data.data_vars:
+            coordinates = data[name].encoding.get("coordinates")
+            if isinstance(coordinates, str):
+                renamed[name].encoding["coordinates"] = " ".join(
+                    heights.get(coord, coord) for coord in coordinates.split()
+                )
+        prepared.append(renamed)
+    return xr.merge(prepared, join="exact", compat="equals", combine_attrs="override")
+
+
+def _native_grid(data):
+    """Snapshot actual full native axes and CRS without loading climate arrays."""
+    y_dim, x_dim = data.raster.y_dim, data.raster.x_dim
+    if data.raster.crs is None or any(
+        data[dim].dims != (dim,) for dim in (y_dim, x_dim)
+    ):
+        return None
+    return (
+        y_dim,
+        x_dim,
+        data.raster.crs,
+        data[y_dim].values.copy(),
+        data[x_dim].values.copy(),
     )
 
 
@@ -695,6 +764,7 @@ def read_variable_slices(
     source_names = {target: source for source, target in rename.items()}
     entry = resolve_entry_name(catalog_entry, member)
     slices, calendars = {}, {}
+    irregular_grid, owners = None, []
     try:
         for variable in variables:
             source = source_names.get(variable, variable)
@@ -729,32 +799,89 @@ def read_variable_slices(
             log_row(f"Using source {source}: {store_uri}", module="fetch")
             catalog = hydromt.DataCatalog()
             catalog.from_dict({catalog_entry: spec})
-            try:
-                data = catalog.get_rasterdataset(
-                    entry,
-                    bbox=bbox,
-                    buffer=buffer,
-                    time_range=window,
-                    variables=[variable],
-                )
-            except (ValueError, OSError, KeyError, NoDataException) as exc:
-                if not is_irregular_grid_error(exc):
-                    if admit_pet:
-                        raise ValueError(
-                            f"{entry}: monthly input {source} could not be admitted: {exc}. Supply matching qualified monthly inputs or disable the calculated variable."
-                        ) from exc
-                    raise
-                data = catalog.get_rasterdataset(
-                    entry, time_range=window, variables=[variable]
-                )
-                data = clip_to_bbox(
-                    data,
-                    bbox,
-                    buffer,
-                    data.raster.y_dim,
-                    data.raster.x_dim,
-                    source=entry,
-                )
+            data = None
+            if irregular_grid is not None:
+                started = perf_counter(), process_time()
+                candidate = None
+                try:
+                    candidate = catalog.get_rasterdataset(
+                        entry, time_range=window, variables=[variable]
+                    )
+                    owners.append(candidate)
+                    observed_grid = _native_grid(candidate)
+                except (ValueError, OSError, KeyError, NoDataException):
+                    if candidate is not None:
+                        candidate.close()
+                        owners.pop()
+                    _log_timing(
+                        f"{source} grid probe failed; retrying bounded read", started
+                    )
+                else:
+                    matches = (
+                        observed_grid is not None
+                        and observed_grid[:3] == irregular_grid[:3]
+                        and all(
+                            np.array_equal(actual, expected)
+                            for actual, expected in zip(
+                                observed_grid[3:], irregular_grid[3:]
+                            )
+                        )
+                    )
+                    if matches:
+                        data = clip_to_bbox(
+                            candidate,
+                            bbox,
+                            buffer,
+                            observed_grid[0],
+                            observed_grid[1],
+                            source=entry,
+                        )
+                        _log_timing(
+                            f"{source} verified irregular-grid open and clip", started
+                        )
+                    else:
+                        candidate.close()
+                        owners.pop()
+                        _log_timing(
+                            f"{source} grid differs; retrying bounded read", started
+                        )
+            if data is None:
+                started = perf_counter(), process_time()
+                try:
+                    data = catalog.get_rasterdataset(
+                        entry,
+                        bbox=bbox,
+                        buffer=buffer,
+                        time_range=window,
+                        variables=[variable],
+                    )
+                except (ValueError, OSError, KeyError, NoDataException) as exc:
+                    if not is_irregular_grid_error(exc):
+                        if admit_pet:
+                            raise ValueError(
+                                f"{entry}: monthly input {source} could not be admitted: {exc}. Supply matching qualified monthly inputs or disable the calculated variable."
+                            ) from exc
+                        raise
+                    _log_timing(f"{source} regular-grid refusal", started)
+                    started = perf_counter(), process_time()
+                    data = catalog.get_rasterdataset(
+                        entry, time_range=window, variables=[variable]
+                    )
+                    owners.append(data)
+                    observed_grid = _native_grid(data)
+                    data = clip_to_bbox(
+                        data,
+                        bbox,
+                        buffer,
+                        data.raster.y_dim,
+                        data.raster.x_dim,
+                        source=entry,
+                    )
+                    irregular_grid = observed_grid
+                    _log_timing(f"{source} fallback open and clip", started)
+                else:
+                    owners.append(data)
+                    _log_timing(f"{source} open", started)
             if isinstance(data, xr.DataArray):
                 data = data.to_dataset(name=variable)
             if admit_pet:
@@ -794,6 +921,7 @@ def read_variable_slices(
                 f"{entry} {source}", data.indexes.get("time"), driver_index, window
             )
             slices[source] = data
+            _assert_variable_compatibility(slices, calendars, entry)
         if admit_pet:
             grids = {
                 var: array[var].attrs.get("cst_source_grid", "")
@@ -816,6 +944,7 @@ def read_variable_slices(
                     f"{entry}: unknown or unequal monthly source grids: {grids}. "
                     "Supply matching native grids or disable the calculated variable."
                 )
+        started = perf_counter(), process_time()
         try:
             merged = merge_variable_slices(slices, calendars, entry)
         except ValueError as exc:
@@ -824,10 +953,14 @@ def read_variable_slices(
                     f"{exc}. Supply matching monthly coordinates/calendars or disable the calculated variable."
                 ) from exc
             raise
+        _log_timing("variable compatibility and merge", started)
         # Materialize within this ownership scope so all sources close on failure too.
-        return merged.load(), next(iter(calendars.values()))
+        started = perf_counter(), process_time()
+        merged = merged.load()
+        _log_timing("merged load", started)
+        return merged, next(iter(calendars.values()))
     finally:
-        for data in slices.values():
+        for data in owners:
             data.close()
 
 
@@ -892,6 +1025,7 @@ def fetch_raw_slice(
     # series_identity.raw_components — the Snakefile must keep it that way, or a
     # formula edit re-downloads and the split buys nothing.
 
+    cache_started = perf_counter(), process_time()
     region_fp = series_identity.region_fingerprint(region_path)
     expected_raw_digest = series_identity.raw_digest(components, region_fp)
 
@@ -939,7 +1073,10 @@ def fetch_raw_slice(
                 module="fetch",
             )
         os.utime(raw_nc_out, None)
+        _log_timing("cache validation and reuse", cache_started)
         return
+
+    _log_timing("cache validation (miss)", cache_started)
 
     if os.environ.get("BLUEEARTH_CST_LOCAL_INPUTS") == "1":
         raise RuntimeError(
@@ -1124,6 +1261,7 @@ def fetch_raw_slice(
     # cleanly and still stages. The duplicate-axis face of the same ambiguity
     # is caught by `check_time_axis` below, which carries its own message.
     split_calendar = None
+    read_started = perf_counter(), process_time()
     if split_pins:
         data, split_calendar = read_variable_slices(
             read_spec,
@@ -1183,6 +1321,7 @@ def fetch_raw_slice(
                         f"{entry}: the irregular-grid read path failed after hydromt "
                         f"refused the grid ({type(fallback_exc).__name__}: {fallback_exc})"
                     ) from fallback_exc
+    _log_timing("source read and admission total", read_started)
     # Kept for the empty-window error below: `time_range` is applied by the
     # driver and `.sel` narrows it again, so "the driver returned 1850..2014"
     # is the diagnostic that tells the two apart.
@@ -1213,7 +1352,9 @@ def fetch_raw_slice(
     # Eager, and not only for speed: a lazy slice written by to_netcdf reads from
     # dask's thread pool and deadlocks on the HDF5 lock (measured, commit
     # bf1f4a5). After bbox/time slicing this is well under a megabyte.
+    started = perf_counter(), process_time()
     data = data.load()
+    _log_timing("outer load (already materialized)" if split_pins else "load", started)
 
     # --- the model's TRUE calendar, read from the store ---------------------
     # `index` is a DatetimeIndex by now and has no `.calendar`: our catalog
@@ -1233,11 +1374,13 @@ def fetch_raw_slice(
         calendar_var,
         pins_for_member,
     )
+    started = perf_counter(), process_time()
     store_calendar = split_calendar or (
         series_identity.read_store_calendar(store_uri)
         if store_uri
         else series_identity.CALENDAR_UNKNOWN
     )
+    _log_timing("calendar lookup", started)
     log_row(
         f"Source calendar: {store_calendar}; calendar check: {calendar_var or 'no pin'}",
         module="fetch",
@@ -1273,7 +1416,9 @@ def fetch_raw_slice(
     # per-variable provenance (R9 P2 F4).
     series_identity.drop_inherited_single_source_attrs(data)
 
+    started = perf_counter(), process_time()
     series_identity.write_netcdf_atomic(data, raw_nc_out)
+    _log_timing("raw publication", started)
     log_row(
         f"Basin slice written → {os.path.basename(raw_nc_out)} "
         f"({os.path.getsize(raw_nc_out) / 1e6:.2f} MB, {len(index) if index is not None else 0} time steps)",

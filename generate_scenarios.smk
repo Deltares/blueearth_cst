@@ -84,7 +84,8 @@ if V2_MODE:
         "3.08", "perturb_climate_realizations",
         summary="produce one scenario per stochastic realization",
     )
-PUBLISH_SCENARIO_COLLECTION = RULES.banner_only("3.09", "publish_scenario_collection", summary="validate the scenario artifacts and mark the collection ready")
+if V2_MODE:
+    PUBLISH_SCENARIO_COLLECTION = RULES.banner_only("3.09", "publish_scenario_collection", summary="validate the scenario artifacts and mark the collection ready")
 INVOCATION_ID = os.environ.setdefault("CST_GENERATION_INVOCATION_ID", uuid.uuid4().hex)
 RLZ_NUM = GENERATION["n_realizations"]
 ST_NUM = GENERATION["n_design_points"]
@@ -410,6 +411,7 @@ def _header():
         # `Job stats:`. `open_run_header` owns that; the spacing is its business.
         open_run_header(
             "wf3 generate_scenarios", project_dir, config_path,
+            cores=workflow.resource_settings.cores,
             **{
                 "historical climate": clim_source,
                 "historical period": f"{config['climate']['window']['start']}–{config['climate']['window']['end']}",
@@ -429,6 +431,10 @@ def _header():
         except Exception:  # noqa: BLE001
             pass
 
+
+# Declare presentation before DAG planning, including dry runs and no-op runs.
+install_console_style()
+_header()
 
 onstart:
     if not os.environ.get("CST_GENERATION_OWNED") and not non_producing_invocation(sys.argv):

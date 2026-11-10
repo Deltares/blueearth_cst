@@ -460,7 +460,7 @@ def test_preparation_is_announced_before_experiment_imports(
     assert before_import
     assert "Preparing configuration and experiment checks" in before_import[0]
     output = "".join(before_import) + capsys.readouterr().out
-    assert output.count("\n  run_workflows\n") == 1
+    assert output.count("\nBlueEarth CST · workflow run\n") == 1
 
 
 def test_preparation_watchdog_stops_when_admission_fails(
@@ -913,8 +913,10 @@ def test_manifest_sanitizes_sensitive_extra_args(tmp_path, capture_runs):
     assert "api_token=<redacted>" in manifest["command"]
 
 
-def test_sensitive_args_are_redacted_from_console(tmp_path, capture_runs, capsys):
-    """The wrapper's command echo does not defeat manifest sanitization."""
+def test_parent_console_does_not_leak_sensitive_child_arguments(
+    tmp_path, capture_runs, capsys
+):
+    """Batch orientation names the run without echoing sensitive child arguments."""
     project_dir = tmp_path / "project"
     cfg = tmp_path / "c.yml"
     flags = {n: "false" for n in rw.WORKFLOW_ORDER}
@@ -925,43 +927,10 @@ def test_sensitive_args_are_redacted_from_console(tmp_path, capture_runs, capsys
 
     output = capsys.readouterr().out
     assert "visible-secret" not in output
-    assert "api_token=<redacted>" in output
+    assert "BlueEarth CST · workflow run" in output
 
 
 # --- contract (h): the wrapper's own console narration ----------------------
-
-
-def test_command_display_wraps_long_options_without_changing_argv():
-    argv = rw.build_command(
-        "analyze_projections",
-        "C:/cases/gabon-ntoum/project_config.yml",
-        3,
-        ["--config", "api_token=secret", "threshold=4"],
-    )
-    original = argv.copy()
-    assert rw._format_command(argv).splitlines() == [
-        "snakemake all -c 3 -s analyze_projections.smk",
-        "              --configfile C:/cases/gabon-ntoum/project_config.yml",
-        "              --keep-going",
-        "              --config api_token=<redacted> threshold=4",
-    ]
-    assert argv == original
-
-
-@pytest.mark.parametrize("width", [40, 60, 100])
-def test_long_command_display_fits_terminal_without_mutating_arguments(width):
-    argv = rw.build_command(
-        "analyze_projections",
-        "C:/cases/" + "very-long-path/" * 8 + "project config.yml",
-        3,
-        [],
-    )
-    original = argv.copy()
-    lines = rw._format_command(argv, width=width).splitlines()
-    assert all(len(line) <= width for line in lines)
-    path_lines = lines[lines.index("              --configfile") + 1 : -1]
-    assert all(line.startswith(" " * 18) for line in path_lines)
-    assert argv == original
 
 
 def test_narrow_settings_keep_continuations_in_the_value_column(monkeypatch):
@@ -1126,9 +1095,9 @@ def test_experiment_selection_is_reported_after_comparison_before_model(
     assert "experiment" not in _group_rows(output, "settings")
     assert _group_rows(output, "experiment")["name"] == "test"
     assert (
-        output.index("WF0  ANALYZE CLIMATE")
+        output.index("wf0 analyze_climate")
         < output.index("\n  experiment\n")
-        < output.index("WF1  BUILD MODEL")
+        < output.index("run_workflows done in")
     )
     assert "Selected experiment:" not in output
 
@@ -1141,6 +1110,9 @@ def test_region_description_keeps_unhandled_configuration():
 
 def _group_raw_lines(output, label):
     """The raw lines under one ``  <label>`` group, indentation intact."""
+    label = {"settings": "Run settings", "sequence": "Workflow sequence"}.get(
+        label, label
+    )
     lines = output.splitlines()
     start = lines.index(f"  {label}") + 1
     kept = []
@@ -1158,6 +1130,9 @@ def _group_lines(output, label):
 
 def _group_rows(output, label):
     """The ``key -> value`` rows under one ``  <label>`` group of a block."""
+    label = {"settings": "Run settings", "sequence": "Workflow sequence"}.get(
+        label, label
+    )
     rows = {}
     for line in _group_lines(output, label):
         key, value = line.split(maxsplit=1)
@@ -1238,7 +1213,7 @@ def test_opening_block_states_the_project_and_the_config_in_one_group(
     _, out, project_dir = _run_and_capture(
         tmp_path, capsys, {n: "true" for n in rw.WORKFLOW_ORDER}, cores=7
     )
-    assert "  run_workflows" in out.splitlines()  # the banner's head line
+    assert "BlueEarth CST · workflow run" in out.splitlines()
     assert "  run" not in out.splitlines()  # the old first group is gone
     rows = _group_rows(out, "settings")
     assert rows["project"] == "gabon_project"  # basename, no project_name key
@@ -1246,54 +1221,27 @@ def test_opening_block_states_the_project_and_the_config_in_one_group(
     assert rows["toolbox"] == "v0.4.1 (d0802bf0)"
     assert rows["folder"] == str(project_dir).replace(os.sep, "/")
     assert "c.yml" in rows["config"]
-    assert "cores" not in rows
+    assert rows["cores"] == "7 per workflow"
 
 
-def test_opening_block_diagrams_the_sequence_and_marks_the_disabled(
-    tmp_path, capture_runs, capsys
-):
-    """Every workflow appears; only the enabled ones are numbered.
-
-    A disabled workflow silently absent from the list is indistinguishable from
-    one the wrapper does not know about -- so it is shown, marked, and the
-    positions count only what will actually be invoked.
-    """
+def test_opening_block_lists_only_the_selected_sequence(tmp_path, capture_runs, capsys):
     flags = {n: "true" for n in rw.WORKFLOW_ORDER}
     flags["analyze_projections"] = "false"
     _, out, _ = _run_and_capture(tmp_path, capsys, flags)
-    assert "  sequence\n" in out
-    assert "[1/4]  wf0 analyze_climate" in out
-    assert "[2/4]  wf1 build_model" in out
-    assert "[3/4]  wf3 generate_scenarios" in out
-    assert "[4/4]  wf4 simulate_system" in out
-    # Present, marked, and NOT given a position.
-    assert "wf2 analyze_projections  disabled" in out
-    assert "[4/4]  wf2" not in out
+    assert (
+        "wf0 analyze_climate → wf1 build_model → wf3 generate_scenarios → wf4 simulate_system"
+        in out
+    )
+    assert "wf2 analyze_projections" not in out
 
 
-def test_the_sequence_is_drawn_as_a_rail_of_nodes(tmp_path, capture_runs, capsys):
-    """Keyed by node, and keyed DIFFERENTLY for what will not be invoked.
-
-    The rows sat at the same indent as the `run` group's key/value pairs, so
-    the diagram's shape did not say it was a diagram. A filled node for a
-    workflow that will run and a hollow one for a workflow that will not is
-    legible before any of the text is read -- and costs one character where the
-    framed boxes this replaced cost three lines and forty columns each.
-    """
+def test_selected_sequence_is_one_copyable_line(tmp_path, capture_runs, capsys):
     flags = {n: "true" for n in rw.WORKFLOW_ORDER}
     flags["analyze_projections"] = "false"
     _, out, _ = _run_and_capture(tmp_path, capsys, flags)
-    lines = [line.strip() for line in out.splitlines()]
-
-    # Nothing has run when the opening block prints, so every node is hollow.
-    enabled = lines.index(next(ln for ln in lines if "[1/4]  wf0" in ln))
-    assert lines[enabled].startswith(rw._NODE_OFF)
-    assert lines[lines.index("sequence") + 1] == ""
-
-    disabled = lines.index(next(ln for ln in lines if "wf2 analyze_projections" in ln))
-    assert lines[disabled].startswith("–")
-    # The nodes are threaded, not merely stacked.
-    assert rw._RAIL in lines[enabled + 1 : disabled]
+    sequence = next(line for line in out.splitlines() if "→" in line)
+    assert sequence.count("→") == 3
+    assert "wf2" not in sequence
 
 
 def test_the_opening_block_states_the_basin_settings(tmp_path, capture_runs, capsys):
@@ -1402,6 +1350,7 @@ def test_the_basin_rows_are_omitted_when_the_config_declares_no_basin(
         "repository",
         "folder",
         "config",
+        "cores",
     }
     # No orphaned continuation either: with no region asked for, there is
     # nothing whose absence is worth a line.
@@ -1443,82 +1392,28 @@ def test_a_dry_run_says_so_in_the_opening_block(tmp_path, capture_runs, capsys):
         {n: "true" for n in rw.WORKFLOW_ORDER},
         extra=["--dry-run"],
     )
-    assert "mode" in out and "dry run -- nothing is executed" in out
+    assert "DRY RUN" in out and "no jobs will execute" in out
+    assert "mode" not in _group_rows(out, "settings")
 
 
-def test_each_invoked_workflow_gets_a_hand_off_band_at_its_leading_edge(
-    tmp_path, capture_runs, capsys
-):
-    """Position, identity and when it started -- but no closing band on success.
-
-    Every workflow signs off with its own `wfN <name> done in <h:mm:ss>`, so a
-    runner band repeating that was a second copy of one fact. The duration
-    survives in the closing block's `ran` group.
-    """
+def test_parent_does_not_print_stale_child_commands(tmp_path, capture_runs, capsys):
     flags = {n: "true" for n in rw.WORKFLOW_ORDER}
     flags["analyze_projections"] = "false"
     _, out, _ = _run_and_capture(tmp_path, capsys, flags)
-    assert re.search(
-        r"\[1/4]  WF0  ANALYZE CLIMATE  --  starting",
-        out,
+    assert "--  starting" not in out
+    assert "snakemake " not in out
+    assert "wf0 analyze_climate" in out and "wf4 simulate_system" in out
+
+
+def test_batch_orientation_opens_without_a_banner_wall(tmp_path, capture_runs, capsys):
+    _, out, _ = _run_and_capture(
+        tmp_path, capsys, {n: "true" for n in rw.WORKFLOW_ORDER}
     )
-    assert re.search(
-        r"\[4/4]  WF4  SIMULATE SYSTEM  --  starting",
-        out,
-    )
-    assert "  --  done in " not in out
-    # Flush left, title and command both. A band has no group label and no rows,
-    # so an indent would only make the line a reader scans for start one column
-    # later than the rule announcing it.
     lines = out.splitlines()
-    title_at = next(
-        i for i, line in enumerate(lines) if "WF0  ANALYZE CLIMATE  --" in line
-    )
-    assert lines[title_at].startswith("[1/4]")
-    assert lines[title_at - 1] == rw._RULE  # the rule it hangs from
-    assert lines[title_at + 1] == ""  # a blank line parts title and command
-    assert lines[title_at + 2].startswith("snakemake ")
-    # A disabled workflow gets NO band -- the sequence diagram above already
-    # named it, once, before anything ran.
-    assert "WF2  ANALYZE PROJECTIONS  --  starting" not in out
-    # WF4's band must show the snakemake invocation it actually launches, not
-    # `simulate_system.py`'s own entry-point command -- the wrapper script is
-    # an implementation detail of getting there, never what ran.
-    wf4_title_at = next(
-        i for i, line in enumerate(lines) if "WF4  SIMULATE SYSTEM  --" in line
-    )
-    wf4_command = lines[wf4_title_at + 2]
-    assert "-m snakemake" in wf4_command
-    assert "simulate_system.smk" in wf4_command
-    assert "simulate_system.py" not in wf4_command
-
-
-def test_every_wrapper_utterance_is_bounded_by_a_rule(tmp_path, capture_runs, capsys):
-    """The rule is the wrapper's signature, and it is the whole point.
-
-    Nested one inside the other, a wrapper block and a workflow's own block are
-    the same label over the same-shaped rows — `run` over `project`/`config` in
-    both — so a scrolled-back console could not be parsed into who said what.
-    Every line the runner speaks first therefore sits under a rule, and nothing
-    else in this console draws one.
-    """
-    flags = {n: "true" for n in rw.WORKFLOW_ORDER}
-    flags["analyze_projections"] = "false"
-    _, out, _ = _run_and_capture(tmp_path, capsys, flags)
-    lines = out.splitlines()
-    rule = "=" * 80
-    # Opening banner (2), one per hand-off band (3 = 3 workflows, leading edge
-    # only on a clean run), and the closing banner's pair. A bare count is the
-    # assertion that would pass on any two extra rules, so check placement.
-    # A blank line first parts the banner from the shell prompt.
     assert lines[0] == ""
-    assert lines[1] == rule and lines[2] == "  run_workflows" and lines[3] == rule
-    assert lines[-1] == rule
-    for index, line in enumerate(lines):
-        if line.startswith("  [") and "  --  " in line:
-            assert lines[index - 1] == rule, f"unruled hand-off at {index}: {line}"
-    # And the workflow-internal grammar never appears at this level.
-    assert " - run_workflows - " not in out
+    assert lines[1] == "BlueEarth CST · workflow run"
+    assert "Run settings" in out and "Workflow sequence" in out
+    assert "=" * 20 not in out[: out.index("Run settings")]
 
 
 def test_the_console_is_not_muted_by_the_rule_log_level(
@@ -1536,12 +1431,9 @@ def test_the_console_is_not_muted_by_the_rule_log_level(
     _, out, _ = _run_and_capture(
         tmp_path, capsys, {n: "true" for n in rw.WORKFLOW_ORDER}
     )
-    assert "  run_workflows" in out.splitlines()
-    assert "  sequence\n" in out
-    assert re.search(
-        r"\[1/5]  WF0  ANALYZE CLIMATE  --  starting",
-        out,
-    )
+    assert "BlueEarth CST · workflow run" in out.splitlines()
+    assert "  Workflow sequence\n" in out
+    assert "wf0 analyze_climate" in out
     assert "run_workflows done in" in out
 
 
@@ -1681,28 +1573,14 @@ def test_a_no_op_invocation_says_so_rather_than_printing_empty_groups(
     assert "  sequence" not in out
 
 
-def test_console_unicode_is_limited_to_the_reviewed_sequence_markers(
+def test_console_unicode_is_limited_to_selected_sequence_arrow(
     tmp_path, capture_runs, capsys
 ):
-    """Pending nodes, rails and disabled markers have distinct reviewed roles."""
-    # One disabled workflow, so the sequence renders a hollow node as well as a
-    # filled one. WHICH one is disabled is immaterial here; it is
-    # `analyze_projections` rather than `build_model` only because disabling the
-    # latter while `simulate_system` is enabled now trips the contract (i)
-    # preflight, on a scratch project that has no wf1 leaves.
     flags = {n: "true" for n in rw.WORKFLOW_ORDER}
     flags["analyze_projections"] = "false"
     _, out, _ = _run_and_capture(tmp_path, capsys, flags)
     out.encode("utf-8")
-    assert set(out) - set(map(chr, range(128))) == {
-        rw._NODE_OFF,
-        rw._RAIL,
-        rw._NODE_DISABLED,
-    }
-    # The rest of the console still clears the bar it cleared before the rail.
-    for line in out.splitlines():
-        if not {rw._NODE_ON, rw._NODE_OFF, rw._RAIL} & set(line):
-            line.encode("cp1252")
+    assert set(out) - set(map(chr, range(128))) == {"→", "·"}
 
 
 def test_the_runner_tells_its_children_the_workflow_is_already_named(
@@ -1900,7 +1778,7 @@ def test_the_console_narration_never_leaks_a_secret(tmp_path, capture_runs, caps
     )
     assert "visible-secret" not in out
     assert "pw-secret" not in out
-    assert "api_token=<redacted>" in out
+    assert "visible-secret" not in out
 
 
 # --- contract (i): the wf1 preflight -----------------------------------------

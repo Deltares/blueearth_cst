@@ -272,6 +272,11 @@ def _transport(tmp_path, fault=None, method="components"):
     for name, value in fields.items():
         ds = native(name, value)
         if name == "huss":
+            ds = ds.assign_coords(
+                height=xr.DataArray(
+                    2.0, attrs={"units": "m", "standard_name": "height"}
+                )
+            )
             if fault == "grid":
                 ds.attrs["grid_label"] = "gr"
             if fault == "calendar":

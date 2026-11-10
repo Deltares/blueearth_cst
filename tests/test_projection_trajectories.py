@@ -21,6 +21,37 @@ def _series(start, end, temp, precip):
     )
 
 
+@pytest.mark.parametrize(
+    "water_year_start,expected_years,excluded",
+    [("Jan", [1999, 2000, 2002, 2004], 2), ("Oct", [1999, 2001, 2003], 4)],
+)
+def test_annual_period_selection_preserves_missing_month_and_nan_rules(
+    water_year_start, expected_years, excluded
+):
+    series = _series("1999-01-01", "2004-12-01", 10.0, 2.0)
+    series["precip"] = series.precip.where(series.time != np.datetime64("2001-06-01"))
+    series = series.drop_sel(time="2003-04-01")
+    full = analysis.period_values(series, "precip", water_year_start)
+    selected = analysis.period_values(
+        series, "precip", water_year_start, periods=("annual",)
+    )
+    assert tuple(full) == analysis.PERIODS
+    assert tuple(selected) == ("annual",)
+    for name, expected in full["annual"].items():
+        np.testing.assert_array_equal(selected["annual"][name], expected)
+    np.testing.assert_array_equal(selected["annual"]["years"], expected_years)
+    np.testing.assert_array_equal(selected["annual"]["level"], 2.0)
+    np.testing.assert_array_equal(selected["annual"]["total"], 720.0)
+    assert selected["annual"]["excluded"] == excluded
+
+
+@pytest.mark.parametrize("periods", [("annual", "annual"), ("unknown",)])
+def test_period_selection_refuses_duplicate_or_unknown_names(periods):
+    series = _series("1999-01-01", "2004-12-01", 10.0, 2.0)
+    with pytest.raises(ValueError, match="unique supported period names"):
+        analysis.period_values(series, "precip", periods=periods)
+
+
 def test_full_record_own_reference_and_unsmoothed_model_range():
     hist = _series("1950-01-01", "2014-12-01", 10.0, 2.0)
     future = _series("2015-01-01", "2100-12-01", 12.0, 3.0)

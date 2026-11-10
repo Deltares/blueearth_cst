@@ -9,6 +9,30 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Standardize WF0–WF4 console openings with literal command display, labelled plans, conditional
+  input checks and clear execution/dry-run boundaries, including compact up-to-date output.
+
+- Reduce repeated WF2 null-band calculations, trajectory work and verified irregular-grid reads;
+  validate source compatibility and analysis records earlier. Reduce caption measurement overhead
+  while retaining the existing PNG compression.
+
+- Serialize NumPy-valued NetCDF metadata in WF2 analysis records without dropping attributes or
+  relaxing strict non-finite JSON checks.
+
+- Reorder unsorted CMIP6 time blocks before temporal slicing, retaining timestamp/value pairs and
+  all records for the existing duplicate and coverage checks; report the reordering in fetch logs.
+
+- Expand WF2 run settings with analysis variables, methods, aggregation and resolved ensemble counts;
+  cap displayed model names at three while reporting omitted and total counts.
+
+- Preserve source-specific scalar measurement heights when merging WF2 monthly inputs, allowing
+  2 m temperature/humidity and 10 m wind on matching grids without overriding coordinate conflicts.
+
+- Ignore Python checkout line endings in historical map identities; existing preparations require
+  one regeneration after this identity change. Data and environment lock hashes remain byte-exact.
+
+- Handle a single catalog path correctly when hashing WF0 annual spatial anomaly inputs.
+
 - Validate named simulation indicator settings before upstream workflows start, while keeping forcing
   validation and experiment admission at the first forcing consumer.
 

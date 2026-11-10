@@ -240,6 +240,16 @@ Two shared outputs support the analysis:
 - **Map reference (`data/climate/historical/_engine/map_reference.json`).** Shared display extent and
   color classes, also used by model building.
 
+Map preparation identities normalize Python source line endings to LF, so equivalent Windows
+checkouts share code hashes. Input data, catalogs and environment locks retain byte-exact hashes.
+After upgrading from byte-exact Python hashes, regenerate the prepared fields once. If WF0 reports
+`stale preparation identity`, run the single-workflow runner with your usual config and project
+directory, targeting `--target produce_historical_map_reference` and forwarding
+`-- --forcerun prepare_historical_map_fields_era5 prepare_historical_map_fields_chirps`
+(include only sources declared in your project). Preview with `--dry-run`, execute without it,
+then resume the normal workflow command. This rebuilds map fields and their reference without
+forcing climate extraction.
+
 Displayed maps zoom to the basin bounds with spatial-map padding, clipped to each source grid's
 outer cell edges. Without basin geometry, they retain the reference frame.
 

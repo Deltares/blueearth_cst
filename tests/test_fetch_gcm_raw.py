@@ -88,6 +88,59 @@ def test_compatible_variable_slices_merge_without_alignment(variable_slices):
     np.testing.assert_array_equal(merged.temp, variable_slices["temp"].temp)
 
 
+@pytest.mark.parametrize(
+    "wind_height_name", ["height", "height10m", "measurement_level"]
+)
+def test_variable_merge_preserves_source_specific_heights(
+    variable_slices, wind_height_name, tmp_path
+):
+    temperature = variable_slices["temp"].assign_coords(
+        height=xr.DataArray(2.0, attrs={"units": "m", "standard_name": "height"})
+    )
+    wind = (
+        variable_slices["temp"]
+        .rename(temp="wind10")
+        .assign_coords(
+            {
+                wind_height_name: xr.DataArray(
+                    10.0,
+                    attrs={"units": "m", "standard_name": "height", "positive": "up"},
+                )
+            }
+        )
+    )
+    wind.wind10.attrs["cst_source_height_m"] = 10.0
+    temperature.temp.encoding["coordinates"] = "height"
+    wind.wind10.encoding["coordinates"] = wind_height_name
+    slices = {"pr": variable_slices["precip"], "tas": temperature, "sfcWind": wind}
+    merged = merge_variable_slices(
+        slices, {name: "noleap" for name in slices}, "source"
+    )
+    path = tmp_path / "raw.nc"
+    merged.to_netcdf(path)
+    with xr.open_dataset(path) as retained:
+        assert retained.tas_height.item() == 2.0
+        height = retained[f"sfcWind_{wind_height_name}"]
+        assert height.item() == 10.0
+        assert height.attrs == wind[wind_height_name].attrs
+        assert retained.wind10.attrs["cst_source_height_m"] == 10.0
+        assert retained.temp.encoding["coordinates"] == "tas_height"
+        assert retained.wind10.encoding["coordinates"] == f"sfcWind_{wind_height_name}"
+        for name in ("precip", "temp", "wind10"):
+            np.testing.assert_array_equal(retained[name], merged[name])
+    assert "height" in temperature.coords
+    assert wind_height_name in wind.coords
+
+
+def test_variable_merge_still_rejects_other_auxiliary_conflicts(variable_slices):
+    variable_slices["temp"] = variable_slices["temp"].assign_coords(level=2.0)
+    variable_slices["precip"] = variable_slices["precip"].assign_coords(level=10.0)
+    with pytest.raises(ValueError, match="conflicting values.*level"):
+        merge_variable_slices(
+            variable_slices, {"pr": "noleap", "tas": "noleap"}, "source"
+        )
+
+
 @pytest.mark.parametrize("coordinate", ["lat", "lon", "time"])
 def test_variable_merge_rejects_shifted_coordinates(variable_slices, coordinate):
     delta = pd.Timedelta(days=1) if coordinate == "time" else 0.1
@@ -138,6 +191,13 @@ def test_split_reads_use_exact_variable_uris_and_validate_before_merge(
 
     monkeypatch.setattr(hydromt, "DataCatalog", Catalog)
     monkeypatch.setattr(series_identity, "read_store_calendar", lambda uri: "noleap")
+    if mismatch:
+        variable_slices["press"] = variable_slices["temp"].rename(temp="press")
+
+        def refuse_load(*args, **kwargs):
+            pytest.fail("incompatible slices must fail before loading climate arrays")
+
+        monkeypatch.setattr(xr.Dataset, "load", refuse_load)
     args = (
         {
             "uri": "gs://s/{member}/{variable}/*/*",
@@ -145,8 +205,8 @@ def test_split_reads_use_exact_variable_uris_and_validate_before_merge(
         },
         "entry_{member}",
         "r1",
-        ["precip", "temp"],
-        {"pr": "gn/v2", "tas": "gn/v1"},
+        ["precip", "temp", "press"] if mismatch else ["precip", "temp"],
+        {"pr": "gn/v2", "tas": "gn/v1", "press": "gn/v1"},
         [9, 0, 10, 1],
         1,
         ("2000", "2001"),
@@ -162,6 +222,91 @@ def test_split_reads_use_exact_variable_uris_and_validate_before_merge(
         ("gs://s/{member}/pr/gn/v2", "precip"),
         ("gs://s/{member}/tas/gn/v1", "temp"),
     ]
+
+
+@pytest.mark.parametrize(
+    "mode", ["regular", "matching", "outside_change", "probe_error", "unknown_crs"]
+)
+def test_split_reads_reuse_only_verified_irregular_axes(monkeypatch, mode):
+    import hydromt
+
+    calls, opened, closed = [], [], []
+
+    class Catalog:
+        def from_dict(self, entries):
+            pass
+
+        def get_rasterdataset(self, entry, **kwargs):
+            variable = kwargs["variables"][0]
+            bounded = "bbox" in kwargs
+            calls.append((variable, bounded))
+            if bounded and mode != "regular":
+                raise ValueError("This function only applies to regular grids")
+            if (
+                mode == "probe_error"
+                and variable == "temp"
+                and calls.count(("temp", False)) == 1
+            ):
+                raise OSError("speculative metadata read failed")
+            lat = [0.0, 1.0, 2.1]
+            if variable == "temp" and mode == "outside_change":
+                lat[-1] = 2.2  # Different full grid, identical selected basin cells.
+            data = xr.Dataset(
+                {variable: (("time", "lat", "lon"), np.ones((2, 3, 4)))},
+                coords={
+                    "time": pd.date_range("2000-01-01", periods=2, freq="MS"),
+                    "lat": lat,
+                    "lon": [8.0, 9.0, 10.0, 11.0],
+                },
+            )
+            if mode != "unknown_crs":
+                data.raster.set_crs(4326)
+            if bounded:
+                return clip_to_bbox(
+                    data, kwargs["bbox"], kwargs["buffer"], "lat", "lon"
+                )
+            handle = len(opened)
+            opened.append(handle)
+            data.set_close(lambda: closed.append(handle))
+            return data
+
+    monkeypatch.setattr(hydromt, "DataCatalog", Catalog)
+    monkeypatch.setattr(series_identity, "read_store_calendar", lambda uri: "noleap")
+    merged, calendar = read_variable_slices(
+        {"uri": "gs://s/{member}/{variable}/*/*"},
+        "entry_{member}",
+        "r1",
+        ["precip", "temp"],
+        {"precip": "gn/v1", "temp": "gn/v1"},
+        [8.5, -0.5, 10.5, 1.5],
+        0,
+        ("2000", "2001"),
+    )
+    assert calendar == "noleap"
+    np.testing.assert_array_equal(merged.lat, [0.0, 1.0])
+    np.testing.assert_array_equal(merged.lon, [9.0, 10.0])
+    np.testing.assert_array_equal(merged.precip, np.ones((2, 2, 2)))
+    xr.testing.assert_equal(merged.precip, merged.temp.rename("precip"))
+    assert sorted(closed) == opened
+    if mode == "regular":
+        assert calls == [("precip", True), ("temp", True)]
+    elif mode == "matching":
+        assert calls == [("precip", True), ("precip", False), ("temp", False)]
+    elif mode == "unknown_crs":
+        assert calls == [
+            ("precip", True),
+            ("precip", False),
+            ("temp", True),
+            ("temp", False),
+        ]
+    else:
+        assert calls == [
+            ("precip", True),
+            ("precip", False),
+            ("temp", False),
+            ("temp", True),
+            ("temp", False),
+        ]
 
 
 def test_local_input_mode_refuses_a_cmip_cache_miss(tmp_path, monkeypatch):
@@ -838,6 +983,26 @@ def test_hydromts_own_harmonisation_still_happens():
     assert out["lon"].values.max() <= 180
     assert np.all(np.diff(out["lon"].values) > 0), "not W->E"
     assert np.all(np.diff(out["lat"].values) < 0), "not N->S"
+
+
+def test_scrambled_source_blocks_sort_values_with_dates_without_dropping_records():
+    ds = _cftime_grid(2016)
+    ds["pr"][:] = np.arange(24)[:, None, None]
+    scrambled = ds.isel(time=list(range(12, 24)) + list(range(12)))
+    result = harmonise_dims_wide_time(scrambled)
+    assert result.indexes["time"].is_monotonic_increasing
+    np.testing.assert_array_equal(result.pr[:, 0, 0], np.arange(24))
+    assert result.sel(time=slice("2015-01-01", "2016-12-31")).sizes["time"] == 24
+    duplicated = scrambled.isel(time=list(range(24)) + [0])
+    ordered = harmonise_dims_wide_time(duplicated)
+    assert ordered.sizes["time"] == 25
+    with pytest.raises(RuntimeError, match="duplicat"):
+        check_time_axis(
+            "fixture",
+            ordered.indexes["time"],
+            ordered.indexes["time"],
+            ("2015", "2016"),
+        )
 
 
 def test_the_window_slice_brings_the_axis_back_inside_nanoseconds():

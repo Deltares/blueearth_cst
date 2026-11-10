@@ -8,6 +8,11 @@ It compares basin-average temperature and precipitation between historical and f
 selected models and emissions scenarios. The results provide context for interpretation without
 determining the weather scenarios used in the stress test.
 
+The run-settings block lists analysis variables by short name, selected calculation methods and
+area-weighted aggregation. It shows up to three climate model names with the total model count.
+Ensemble counts use resolved model–member pairs without counting members again for each scenario;
+larger ensembles show the member-count range per model. Scenario-dependent membership is flagged.
+
 ## Inputs {#inputs}
 
 - **Basin definition.** Geographical extent used to calculate basin-average climate changes.
@@ -128,6 +133,9 @@ magnitude. Alternatively, `wind: {method: components}` requests `uas` and `vas` 
 `sqrt(u_mean^2 + v_mean^2)`: the magnitude of the monthly mean vector, a different statistic that
 can be smaller due to directional cancellation. Methods are never silently substituted across models.
 All wind inputs require documented 10 m height before source harmonisation. No 2 m conversion is applied.
+When separately read variables are merged, scalar height coordinates retain their source names as
+prefixes (for example, `tas_height` and `sfcWind_height`), preserving values and coordinate metadata.
+Different measurement heights do not relax the matching grid, time, calendar or CRS requirements.
 See the [CMIP6 Amon definitions](https://raw.githubusercontent.com/PCMDI/cmip6-cmor-tables/main/Tables/CMIP6_Amon.json)
 for native units, dimensions and temporal statistics.
 
@@ -201,6 +209,19 @@ and zero ticks. Maps share a scale across models/scenarios for each variable, wi
 Project `plotting.annotation` selects a title, caption or neither. See
 [execution records](execution-and-provenance.md#wf2-product-attribution) for production records and
 [results transfer](results-transfer.md) for export and import.
+
+### Analysis failures and retries
+
+Analysis checks its declared scalar/raw input sets before calculating tables. It checks record metadata for
+JSON serialization before spatial diagnostics, then serializes the complete record before publishing CSVs.
+The record is written last. Metadata or spatial-preparation failures therefore stop before new CSVs or the
+record are written by the analysis script.
+
+This ordering does not provide an atomic bundle or preserve a previous publication across workflow failure.
+Snakemake can remove declared products before execution and during failed-job cleanup; spatial diagnostics
+can also be partially written before a failure. Correct the reported problem and rerun the workflow, reusing
+compatible retained raw slices and scalar series. Individual remaining analysis files do not establish that
+analysis finished successfully.
 
 ## Diagnostics and interpretation {#interpretation}
 

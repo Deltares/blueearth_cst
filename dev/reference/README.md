@@ -13,6 +13,7 @@ owning reference when behavior changes; executable sources retain exact schemas,
 | Document authority and retention | [dev-record-lifecycle.md][lifecycle] |
 | File, identifier or output naming | [dev-naming-conventions.md](dev-naming-conventions.md) |
 | Verification, evidence reuse, landing or CI | [dev-validation.md](dev-validation.md) |
+| Workflow console orientation, commands and work plans | [dev-console-style.md](dev-console-style.md) |
 | Gate receipts, Windows tests, E2E bundles | [dev-validation-procedures.md][procedures] |
 | Git branch, tag or commit conventions | [dev-git-conventions.md](dev-git-conventions.md) |
 | Release/version decisions | [dev-versioning.md](dev-versioning.md) |

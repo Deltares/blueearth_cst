@@ -109,7 +109,12 @@ def test_named_sets_dry_run_plans_each_distinct_request(tmp_path):
     code, output = _simulate(experiment, "--dry-run")
     assert code == 0, output
     # default (outvars absent -> retained gwr) and same_numbers are one request.
-    assert re.search(r"prepare_indicator_plan\s+2", output), output
+    assert re.search(
+        r"run\s+4\.07\s+Check simulation outputs for indicators\s+2\b", output
+    ), output
+    assert re.search(r"pending\s+4\.08\s+Calculate indicators\s+2 planned", output), (
+        output
+    )
     assert not (experiment.root / "_engine/indicator_requests").exists()
 
 

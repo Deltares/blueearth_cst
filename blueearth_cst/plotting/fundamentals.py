@@ -243,7 +243,7 @@ def add_caption(
         export_dpi = mpl.rcParams["savefig.dpi"]
         if export_dpi != "figure":
             fig.set_dpi(export_dpi)
-        fig.canvas.draw()
+        fig.draw_without_rendering()
         renderer = fig.canvas.get_renderer()
         old_width, old_height = fig.get_size_inches()
         bounds = (

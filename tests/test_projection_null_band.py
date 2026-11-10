@@ -129,3 +129,26 @@ def test_null_cache_preserves_coordinates_and_invalid_cv_draw_counts():
     assert invalid["n_valid"] + invalid["n_invalid"] == 20_000
     with pytest.raises(ValueError, match="unique"):
         analysis.null_ratio_band([_member([1, 1, 2], [5, 6, 7])])
+
+
+def test_null_cache_reuses_member_bands_after_more_than_256_requests():
+    """Model markers reuse earlier member bands without another seeded draw."""
+    cached = analysis._cached_null_band
+    cached.cache_clear()
+    members = [
+        _member(range(3), range(5, 8), mean=10.0 + index) for index in range(300)
+    ]
+    try:
+        expected = [
+            analysis.null_ratio_band([member], simulations=8) for member in members
+        ]
+        before = cached.cache_info()
+        actual = [
+            analysis.null_ratio_band([member], simulations=8) for member in members
+        ]
+        after = cached.cache_info()
+        assert actual == expected
+        assert after.misses == before.misses
+        assert after.hits - before.hits == len(members)
+    finally:
+        cached.cache_clear()
