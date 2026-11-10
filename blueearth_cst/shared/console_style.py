@@ -1135,11 +1135,7 @@ def _engine_command_line():
     if not argv:
         return "Unavailable (embedded API invocation)"
     argv = sanitize_argv(argv)
-    return (
-        shell_command(argv, multiline=True)
-        + "\n\nSingle-line command\n"
-        + shell_command(argv)
-    )
+    return shell_command(argv, multiline=True)
 
 
 def shell_command(argv, *, powershell=None, multiline=False):

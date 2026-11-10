@@ -149,6 +149,8 @@ def test_child_command_display_preserves_credential_redaction(presentation):
     output = "\n".join(line for line, _ in cs.opening_block("wf2", "/project"))
     assert "secret-value" not in output and "pw-secret" not in output
     assert "api_token=<redacted>" in output and "ordinary=$literal" in output
+    assert output.count("snakemake") == 1
+    assert "Single-line command" not in output
 
 
 def test_opening_groups_checks_before_explicit_plan(presentation, monkeypatch):
