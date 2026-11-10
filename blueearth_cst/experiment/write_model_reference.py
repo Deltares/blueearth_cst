@@ -79,6 +79,7 @@ if __name__ == "__main__":
                 model_dir=sm.params.model_dir,
                 project_dir=sm.params.project_dir,
                 out_path=sm.output.model_reference,
+                toml_name=sm.params.toml_name,
             )
             log_row(
                 f"Model reference: {doc['model_path']} digest "

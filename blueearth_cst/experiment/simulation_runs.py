@@ -43,7 +43,11 @@ def initialization(settings: dict) -> dict:
 
 
 def resolve_initialization(
-    model_root, model_config: dict, requested: dict, project_root
+    model_root,
+    model_config: dict,
+    requested: dict,
+    project_root,
+    end_state: str | None = None,
 ) -> dict:
     """Bind the requested initialization to the state file each run will read.
 
@@ -52,9 +56,12 @@ def resolve_initialization(
     request that contradicts it is refused rather than silently overridden.
     The historical state is outside the model digest, so its bytes are bound
     here and a changed WF1 end state changes the simulation identity.
+    ``end_state`` is the selected historical run's model-root path.
     """
     from blueearth_cst.experiment.batch_sizing import STATE_ANCHOR
     from blueearth_cst.shared.workflow_config_snapshot import file_reference
+
+    end_state = end_state or "/".join(STATE_ANCHOR)
 
     cold = model_config.get("model", {}).get("cold_start__flag", True)
     if type(cold) is not bool:
@@ -75,7 +82,7 @@ def resolve_initialization(
         "warmup_years": requested["warmup_years"],
     }
     if source == "historical":
-        path = Path(model_root, *STATE_ANCHOR)
+        path = Path(model_root, end_state)
         if not path.is_file():
             raise ValueError(
                 f"WF1 historical end state is missing: {path}. Run build_model's "

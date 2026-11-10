@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 from blueearth_cst.model.historical_comparison import (
+    complete_reporting_years,
     evaluation_dates,
     prepare_comparison,
     read_comparison,
@@ -271,3 +272,27 @@ def test_retained_tables_render_without_source_runs_and_damage_refuses(
         stream.write("changed")
     with pytest.raises(ValueError, match="damaged"):
         read_comparison(root)
+
+
+@pytest.mark.parametrize(
+    ("first", "last", "start_month", "expected"),
+    [
+        # Interval-end responses: a run started on 1 January has no response
+        # for that day, so its first calendar year is incomplete.
+        ("2010-01-02", "2016-12-31", "Jan", {"start": 2011, "end": 2016}),
+        ("2010-01-01", "2016-12-31", "Jan", {"start": 2010, "end": 2016}),
+        ("2010-01-02", "2016-12-30", "Jan", {"start": 2011, "end": 2015}),
+        # Water years are labelled by their start year.
+        ("2010-01-02", "2016-12-31", "Oct", {"start": 2010, "end": 2015}),
+    ],
+)
+def test_complete_reporting_years_stay_inside_the_responses(first, last, start_month, expected):
+    window = complete_reporting_years(pd.Timestamp(first), pd.Timestamp(last), start_month)
+    assert window == expected
+    dates = evaluation_dates(window, start_month)
+    assert dates[0] >= pd.Timestamp(first) and dates[-1] <= pd.Timestamp(last)
+
+
+def test_complete_reporting_years_refuse_a_window_without_one():
+    with pytest.raises(ValueError, match="no complete reporting year"):
+        complete_reporting_years(pd.Timestamp("2010-01-02"), pd.Timestamp("2010-12-31"))

@@ -146,6 +146,15 @@ ALLOWANCES = (
         line_patterns=(r"^(tdew|wind)$",),
     ),
     Allowance(
+        name="user-chosen named forcing recipe identifiers",
+        reason=(
+            "keys under climate.forcings are names the user picks (the starter "
+            "shows era5 and chirps); shared/named_forcings.py iterates the map "
+            "and validates each name rather than reading a fixed key"
+        ),
+        line_patterns=(r"^(era5|chirps)$",),
+    ),
+    Allowance(
         name="a key pair read by iterating a literal tuple",
         reason=(
             "`window` is validated and rendered as a PAIR, so its two leaves "

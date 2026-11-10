@@ -77,6 +77,9 @@ def test_metadata_repeat_ignores_git_state_but_tracks_configuration_inputs(
         "EFFECTIVE_CONFIG_DIGEST = CAPTURE_RECORD['configuration_projection']['effective_config_sha256']\n"
         "CONFIGURATION_INPUTS_DIGEST = CAPTURE_RECORD['configuration_projection']['configuration_inputs_sha256']\n"
         f"basin_dir = {str(model)!r}\n"
+        "FORCING_KEYS = (None,)\n"
+        "from blueearth_cst.shared.named_forcings import HistoricalLayout\n"
+        "_hp = lambda key, attr: f'{basin_dir}/{getattr(HistoricalLayout(key), attr)}'\n"
         "WRITE_RUN_METADATA = SimpleNamespace(banner=lambda: 'metadata')\n"
         "rule all:\n    input: basin_dir + '/run_metadata.json'\n" + rule,
         encoding="utf-8",

@@ -155,6 +155,7 @@ def check_completed_simulation_inputs(
     include_unperturbed=True,
     netcdf_grid=None,
     initialization=None,
+    historical_forcing=None,
     _ready_simulation=None,
 ) -> None:
     """Recheck a completed simulation without regenerating its native layout.
@@ -192,7 +193,10 @@ def check_completed_simulation_inputs(
     retained = read_canonical_json(
         resolve_file_reference(ready["intent"], {"project_root": project})
     )
-    reference = build_model_reference(model, project)
+    from blueearth_cst.shared.named_forcings import HistoricalLayout
+
+    historical = HistoricalLayout(historical_forcing)
+    reference = build_model_reference(model, project, historical.toml)
     _assert_model_reference_current(
         retained["documents"]["model_reference"], reference, model
     )
@@ -223,7 +227,7 @@ def check_completed_simulation_inputs(
         with (model / reference["model_toml"]).open("rb") as handle:
             model_config = tomllib.load(handle)
         documents["settings"]["initialization"] = resolve_initialization(
-            model, model_config, initialization, project
+            model, model_config, initialization, project, historical.end_state
         )
     selection = {
         "resolution_mode": resolution_mode,

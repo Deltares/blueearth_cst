@@ -314,8 +314,46 @@ spatial_dir = f"{project_dir}/data/spatial"
 
 # Rule 1.12 draws the model forcing; source diagnostics belong to WF0.
 # Variable x kind is a fixed cross-product, fully knowable at parse time.
-FORCING_PLOTS_DIR = f"{basin_dir}/forcing/plots"
-_forcing_climate_pngs = [f"{FORCING_PLOTS_DIR}/{name}" for name in figure_names("forcing")]
+# One key per executed recipe: `None` is the single-recipe layout (t014).
+from blueearth_cst.shared.named_forcing_producers import forcing_store_sources, retained_run_names
+from blueearth_cst.shared.named_forcings import HistoricalLayout, composed_forcing_ids
+FORCING_IDS = composed_forcing_ids(climate_cfg, my_cfg)
+FORCING_KEYS = (None,) if FORCING_IDS is None else FORCING_IDS
+RETAINED = retained_run_names(historical_name, FORCING_IDS)
+RECIPES = (
+    {None: {"selected": clim_source, "forcing": climate_cfg.get("forcing")}}
+    if FORCING_IDS is None
+    else {key: {"selected": climate_cfg["forcings"][key]["selected"],
+                "forcing": climate_cfg["forcings"][key].get("forcing")} for key in FORCING_IDS}
+)
+
+
+def _hp(key, attr):
+    """A recipe's model-root path, from the one layout owner."""
+    return f"{basin_dir}/{getattr(HistoricalLayout(key), attr)}"
+
+
+def _rule_name(base, key):
+    return base if key is None else f"{base}_{key}"
+
+
+def _recipe_config(key):
+    """The composed config as this recipe executed it, for retained provenance.
+
+    Composition resolves the default recipe into `climate.selected`/`forcing`;
+    a non-default recipe's retained run must record its own.
+    """
+    if key is None:
+        return config
+    climate = {k: v for k, v in config["climate"].items() if k != "forcing"}
+    climate.update(selected=RECIPES[key]["selected"], forcing_id=key)
+    if RECIPES[key]["forcing"] is not None:
+        climate["forcing"] = RECIPES[key]["forcing"]
+    return {**config, "climate": climate}
+
+
+def _forcing_pngs(key):
+    return [f"{_hp(key, 'forcing_plots_dir')}/{name}" for name in figure_names("forcing")]
 
 # --- The shared historical-climate store (R07 B1) -----------------------------
 # ONE producer contract, built here and identically in
@@ -335,6 +373,26 @@ CLIMATE_STORE = climate_store_rule(
     forcing=climate_cfg.get("forcing"),
 )
 store_dir = CLIMATE_STORE.store_dir
+RECIPE_STORES = {
+    key: CLIMATE_STORE
+    if (recipe["selected"], recipe["forcing"]) == (clim_source, climate_cfg.get("forcing"))
+    else climate_store_rule(
+        project_dir=project_dir,
+        model_region=model_region,
+        clim_source=recipe["selected"],
+        historical_window=historical_window,
+        data_sources=DATA_SOURCES,
+        hydrography=basin_hydrography,
+        basin_index=basin_index,
+        forcing=recipe["forcing"],
+    )
+    for key, recipe in RECIPES.items()
+}
+# Distinct non-default recipe stores, one producer each.
+EXTRA_RECIPE_STORES = {}
+for _key, _spec in RECIPE_STORES.items():
+    if _spec.store_dir != CLIMATE_STORE.store_dir:
+        EXTRA_RECIPE_STORES.setdefault(_spec.store_dir, (_key, _spec))
 
 # --- The one project region artifact -------------------------------
 # Same pattern, same reason: ONE producer contract, built here and identically
@@ -403,15 +461,26 @@ MAP_REFERENCE = historical_map_reference_rule(
     m0=water_year_start_number(WATER_YEAR_START),
     hydrography=basin_hydrography, basin_index=basin_index,
 )
+# A source that a named recipe extracts into the candidate's folder keeps the
+# full forcing contract, matching WF0's declaration of the same folder (t014).
+_FORCING_STORE_SOURCES = forcing_store_sources(climate_cfg)
 MAP_CANDIDATE_STORES = {
     source: climate_store_rule(
         project_dir=project_dir, model_region=model_region, clim_source=source,
         historical_window=historical_window, data_sources=DATA_SOURCES,
         hydrography=basin_hydrography, basin_index=basin_index,
-        enforce_min_years=False,
-        forcing_required=source not in {"chirps", "chirps_global"},
+        enforce_min_years=source in _FORCING_STORE_SOURCES,
+        forcing_required=(
+            source in _FORCING_STORE_SOURCES or source not in {"chirps", "chirps_global"}
+        ),
     )
     for source in dict.fromkeys(climate_cfg["sources"]) if source != clim_source
+}
+# A recipe forcing store in the same folder is a superset of the candidate and
+# serves the map reference; two producers of one folder would be ambiguous.
+MAP_CANDIDATE_STORES = {
+    source: spec for source, spec in MAP_CANDIDATE_STORES.items()
+    if spec.store_dir not in EXTRA_RECIPE_STORES
 }
 
 # Rule numbering (comment headers + log/benchmark filenames) uses `W.NN` = the
@@ -516,6 +585,8 @@ PREPARE_LAND_AND_SOIL_MAPS = RULES.logged("1.05", "prepare_land_and_soil_maps", 
 BUILD_WFLOW_MODEL = RULES.logged("1.06", "build_wflow_model", summary="parameterize from spatial foundation and global datasets")
 ADD_RESERVOIRS_LAKES_GLACIERS = RULES.logged("1.07", "add_reservoirs_lakes_glaciers", summary="apply configured reservoir, lake, and glacier setup")
 DECLARE_GAUGES_AND_OUTPUTS = RULES.logged("1.08", "declare_gauges_and_outputs", summary="configure discharge locations and output variables")
+if FORCING_IDS is not None:
+    FINALIZE_MODEL_ROOT = RULES.banner_only("1.08b", "finalize_model_root", summary="mark the shared model ready for named forcing recipes")
 ADD_CLIMATE_FORCING = RULES.logged("1.09", "add_climate_forcing", summary="prepare historical forcing")
 WRITE_GAUGE_INDEX = RULES.logged("1.10", "write_gauge_index", summary="write the outlet-to-location identity crosswalk")
 PLOT_BASIN_MAP = RULES.logged("1.11", "plot_basin_map", summary="render basin and spatial-input maps")
@@ -523,6 +594,10 @@ PLOT_MODEL_FORCING = RULES.logged("1.12", "plot_model_forcing", summary="render 
 if _budyko_settings is not None:
     EVALUATE_BUDYKO = RULES.logged("1.12b", "evaluate_budyko", summary="screen observed catchment water balance")
 RUN_HISTORICAL_SIMULATION = RULES.logged("1.13", "run_historical_simulation", summary="run Wflow-SBM with historical forcing")
+# Two or more named recipes always carry retained names (named_forcings).
+COMPARE_FORCINGS = FORCING_IDS is not None and len(FORCING_IDS) > 1
+if COMPARE_FORCINGS:
+    COMPARE_HISTORICAL_FORCINGS = RULES.logged("1.13b", "compare_historical_forcings", summary="compare the retained runs of every forcing recipe")
 EXPORT_SIMULATION_TABLES = RULES.logged("1.14", "export_simulation_tables", summary="export simulation time-series tables")
 PLOT_MODEL_EVALUATION = RULES.logged("1.15", "plot_model_evaluation", summary="compare simulation outputs with available discharge observations")
 WRITE_RUN_METADATA = RULES.banner_only("1.16", "write_run_metadata", summary="record configuration and input digests for these outputs")
@@ -536,24 +611,25 @@ WRITE_RUN_METADATA = RULES.banner_only("1.16", "write_run_metadata", summary="re
 # independently of the build and needs no gather waiting on it) and the two
 # gather outputs themselves.
 WF1_TERMINALS = [
-    *([str(completion_path(project_dir, historical_name))] if historical_name else []),
-    *([f"{basin_dir}/evaluation/budyko/tables/summary.csv"] if _budyko_settings is not None else []),
+    *[str(completion_path(project_dir, RETAINED[key])) for key in FORCING_KEYS if RETAINED[key]],
+    *([f"{project_dir}/comparisons/historical/{historical_name}"] if COMPARE_FORCINGS else []),
+    *([f"{_hp(key, 'evaluation_dir')}/budyko/tables/summary.csv" for key in FORCING_KEYS] if _budyko_settings is not None else []),
     # The evaluation rule's terminal is its INDICATORS TABLE, not one of its
     # figures: since 2026-08-10 the figures are keyed by wflow_id and none of
     # their names is knowable at parse time. The table is written by the same
     # rule and is config-invariant, so the gather rules wait on exactly what
     # they waited on before.
-    f"{basin_dir}/evaluation/performance_indicators.csv",
+    *[f"{_hp(key, 'evaluation_dir')}/performance_indicators.csv" for key in FORCING_KEYS],
     # The Excel-ready tables (1.14). A product of the workflow rather than an
     # incidental by-product, so they are rule-`all` members like the figures —
     # nothing downstream consumes them, so without this they never build.
     # ONE representative is enough, as with the nine figures below: 1.14 writes
     # the whole set (WFLOW_TABLE_PATHS) in a single job, so requesting the
     # discharge table schedules every other table with it.
-    f"{basin_dir}/run_default/output_q.csv",
+    *[f"{_hp(key, 'run_dir')}/output_q.csv" for key in FORCING_KEYS],
     f"{spatial_dir}/plots/elevation_basin.png",
     # One representative schedules the full model-forcing figure set.
-    f"{FORCING_PLOTS_DIR}/forcing_precip_map.png",
+    *[f"{_hp(key, 'forcing_plots_dir')}/forcing_precip_map.png" for key in FORCING_KEYS],
     f"{basin_dir}/staticgeoms/outlet_index.csv",
     # P1 spatial foundation. One representative output schedules the complete
     # multi-output rule and makes both gather rules wait for its log/benchmark.
@@ -580,14 +656,21 @@ WF1_TARGETS = [
 # outputs that are missing now, so a deleted figure or plot folder is redrawn at
 # the cost of one stat per path. A file deleted inside a declared directory,
 # such as one station figure, is not detected.
-_FIGURE_RULES = ("plot_basin_map", "plot_model_forcing", "plot_model_evaluation")
+_FIGURE_RULES = ("plot_basin_map", *(
+    _rule_name(base, key)
+    for base in ("plot_model_forcing", "plot_model_evaluation")
+    for key in FORCING_KEYS
+))
 
 
 def _missing_figure_outputs(wildcards):
+    # `workflow.rules`, not the `rules` namespace: that namespace does not see a
+    # generated per-recipe rule under its assigned `name:`.
     return [
         path
-        for name in _FIGURE_RULES
-        for path in getattr(rules, name).output
+        for rule in workflow.rules
+        if rule.name in _FIGURE_RULES
+        for path in rule.output
         if not os.path.exists(path)
     ]
 
@@ -807,178 +890,240 @@ rule write_gauge_index:
 # `script:` rather than `shell:` because Snakemake allows one per rule and the
 # halves were one of each; the hydromt command issued is byte-identical to the
 # one this rule ran before.
-rule add_climate_forcing:
-    message: ADD_CLIMATE_FORCING.banner()
-    input:
-        outputs_configured = f"{basin_dir}/.outputs_configured",
-        # The climate store, as the forcing SOURCE (2026-08-10). This rule used
-        # to re-read the global dataset from the catalog, a second full pass
-        # over the source rule 1.03 had already clipped to this basin. Declaring
-        # it makes the reuse a DAG edge rather than a convention, and is why
-        # `simulation_window` must now sit inside `historical_window`.
-        climate_nc = CLIMATE_STORE.outputs["climate_nc"],
-        # CHIRPS temperatures are already corrected to this extraction-owned DEM.
-        oro_nc = CLIMATE_STORE.outputs.get("oro_nc", []),
-        scientific_code = [
-            "blueearth_cst/climate_analysis/prepare_climate_data_catalog.py",
-            "blueearth_cst/shared/setup_time_horizon.py",
-            "blueearth_cst/shared/climate_window.py",
-        ],
-    output:
-        # Generated build YAML is provenance OF THE MODEL IT BUILT, so it lives
-        # in the model's own config/ rather than a project-level generated/
-        # (design v10). Still DECLARED after the merge — `semantic_tree_diff.py`
-        # and the R9 path map both pin this path, and it is the record of what
-        # the forcing was built from.
-        forcing_yml = f"{basin_dir}/config/build_historical_forcing.yml",
-        # The one-entry catalog pointing hydromt at the store. DECLARED, not
-        # incidental: the script writes it, so an undeclared file here would be
-        # invisible to Snakemake exactly as `output_gwr.csv` was.
-        store_catalog = f"{basin_dir}/config/climate_store_catalog.yml",
-        forcing_record = [f"{basin_dir}/config/historical_forcing.json"] if historical_name else [],
-        forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
-        # TERMINAL BUILD SENTINEL. `hydromt update wflow_sbm` calls
-        # mod.write(), which rewrites the WHOLE model root -- measured on the R9
-        # gate run, where staticmaps.nc, wflow_sbm.toml, hydromt.log and every
-        # staticgeoms/ layer all carry this rule's timestamps. So THIS rule, not
-        # 1.06, is the last writer of the model, and it is the only correct
-        # ordering anchor for a reader.
-        #
-        # `.outputs_configured` (rule 1.08) was the anchor until now and is NOT
-        # sufficient: it precedes this rule's write of staticmaps.nc by 17 s on
-        # that same run. Rule 1.11 read staticmaps.nc and finished 9 s before
-        # this rule rewrote it -- a timing accident, not a DAG edge, and one
-        # that closes as the basin grows. The failure is silent:
-        # HDF5_USE_FILE_LOCKING="FALSE" in the pixi env means a concurrent read
-        # aborts below Python with no traceback (R9 P2 F5).
-        #
-        # RESIDUAL RISK, stated because no test can catch it: this sentinel is
-        # correct only while this rule is the last writer of the model root. A
-        # new rule that mutates the model after 1.09 must move the sentinel to
-        # itself. `tests/test_model_root_ordering.py` checks that readers
-        # declare it, not that it is attached to the right rule.
-        #
-        # [R10-1] MERGE NOTE: the original sentinel attached to the old 1.09, which then
-        # consumed 1.06's YAML. The merge folded 1.06 in, so the rule that
-        # carries the sentinel now also WRITES that YAML -- it is still the last
-        # writer of the model root, so the anchor is unchanged.
-        model_final = touch(f"{basin_dir}/.model_final"),
-    params:
-        # The SIMULATION window, not the extraction window. These two params set
-        # both halves of the same span: the forcing hydromt builds, and the
-        # wflow TOML's `[time]` starttime/endtime it runs over
-        # (shared/setup_time_horizon.py). They are one key precisely because
-        # forcing and run period cannot legitimately differ.
-        # `climate.window` / `simulation_window` are inclusive YEARS since R14
-        # (`C-70`, `C-71`); wflow's [time] block wants ISO datetimes, so they
-        # are rendered here, through the one parser, rather than re-derived.
-        starttime = SIMULATION_BOUNDS[0].isoformat(),
-        endtime = SIMULATION_BOUNDS[1].isoformat(),
-        clim_source = get_config(climate_cfg, "selected", optional=False),
-        basin_dir = basin_dir,
-        data_catalog = DATA_SOURCES,
-        forcing = climate_cfg.get("forcing"),
-    log:
-        ADD_CLIMATE_FORCING.log(),
-    benchmark:
-        ADD_CLIMATE_FORCING.benchmark(),
-    script: "blueearth_cst/model/add_climate_forcing.py"
+for _k in FORCING_KEYS:
+    rule:
+        name: _rule_name("add_climate_forcing", _k)
+        message: ADD_CLIMATE_FORCING.banner(part=_k)
+        input:
+            outputs_configured = f"{basin_dir}/.outputs_configured",
+            # Named recipes read the finalized shared model and never rewrite it.
+            model_root_final = [] if _k is None else [f"{basin_dir}/.model_final"],
+            # The climate store, as the forcing SOURCE (2026-08-10). This rule used
+            # to re-read the global dataset from the catalog, a second full pass
+            # over the source rule 1.03 had already clipped to this basin. Declaring
+            # it makes the reuse a DAG edge rather than a convention, and is why
+            # `simulation_window` must now sit inside `historical_window`.
+            climate_nc = RECIPE_STORES[_k].outputs["climate_nc"],
+            # CHIRPS temperatures are already corrected to this extraction-owned DEM.
+            oro_nc = RECIPE_STORES[_k].outputs.get("oro_nc", []),
+            scientific_code = [
+                "blueearth_cst/climate_analysis/prepare_climate_data_catalog.py",
+                "blueearth_cst/shared/setup_time_horizon.py",
+                "blueearth_cst/shared/climate_window.py",
+            ],
+        output:
+            # Generated build YAML is provenance OF THE MODEL IT BUILT, so it lives
+            # in the model's own config/ rather than a project-level generated/
+            # (design v10). Still DECLARED after the merge — `semantic_tree_diff.py`
+            # and the R9 path map both pin this path, and it is the record of what
+            # the forcing was built from.
+            forcing_yml = f"{_hp(_k, 'config_dir')}/build_historical_forcing.yml",
+            # The one-entry catalog pointing hydromt at the store. DECLARED, not
+            # incidental: the script writes it, so an undeclared file here would be
+            # invisible to Snakemake exactly as `output_gwr.csv` was.
+            store_catalog = f"{_hp(_k, 'config_dir')}/climate_store_catalog.yml",
+            forcing_record = [f"{_hp(_k, 'config_dir')}/historical_forcing.json"] if RETAINED[_k] else [],
+            forcing_path = _hp(_k, "forcing"),
+            # A named recipe's own run configuration beside the shared model.
+            wflow_toml = [] if _k is None else [_hp(_k, "toml")],
+            # TERMINAL BUILD SENTINEL. `hydromt update wflow_sbm` calls
+            # mod.write(), which rewrites the WHOLE model root -- measured on the R9
+            # gate run, where staticmaps.nc, wflow_sbm.toml, hydromt.log and every
+            # staticgeoms/ layer all carry this rule's timestamps. So THIS rule, not
+            # 1.06, is the last writer of the model, and it is the only correct
+            # ordering anchor for a reader.
+            #
+            # `.outputs_configured` (rule 1.08) was the anchor until now and is NOT
+            # sufficient: it precedes this rule's write of staticmaps.nc by 17 s on
+            # that same run. Rule 1.11 read staticmaps.nc and finished 9 s before
+            # this rule rewrote it -- a timing accident, not a DAG edge, and one
+            # that closes as the basin grows. The failure is silent:
+            # HDF5_USE_FILE_LOCKING="FALSE" in the pixi env means a concurrent read
+            # aborts below Python with no traceback (R9 P2 F5).
+            #
+            # RESIDUAL RISK, stated because no test can catch it: this sentinel is
+            # correct only while this rule is the last writer of the model root. A
+            # new rule that mutates the model after 1.09 must move the sentinel to
+            # itself. `tests/test_model_root_ordering.py` checks that readers
+            # declare it, not that it is attached to the right rule.
+            #
+            # [R10-1] MERGE NOTE: the original sentinel attached to the old 1.09, which then
+            # consumed 1.06's YAML. The merge folded 1.06 in, so the rule that
+            # carries the sentinel now also WRITES that YAML -- it is still the last
+            # writer of the model root, so the anchor is unchanged.
+            model_final = [touch(f"{basin_dir}/.model_final")] if _k is None else [],
+        params:
+            # The SIMULATION window, not the extraction window. These two params set
+            # both halves of the same span: the forcing hydromt builds, and the
+            # wflow TOML's `[time]` starttime/endtime it runs over
+            # (shared/setup_time_horizon.py). They are one key precisely because
+            # forcing and run period cannot legitimately differ.
+            # `climate.window` / `simulation_window` are inclusive YEARS since R14
+            # (`C-70`, `C-71`); wflow's [time] block wants ISO datetimes, so they
+            # are rendered here, through the one parser, rather than re-derived.
+            starttime = SIMULATION_BOUNDS[0].isoformat(),
+            endtime = SIMULATION_BOUNDS[1].isoformat(),
+            clim_source = RECIPES[_k]["selected"],
+            basin_dir = basin_dir,
+            data_catalog = DATA_SOURCES,
+            forcing = RECIPES[_k]["forcing"],
+            **({} if _k is None else {
+                "staging_root": f"{basin_dir}_staging_{_k}",
+                "path_forcing": HistoricalLayout(_k).forcing,
+                "dir_output": HistoricalLayout(_k).run_dir,
+            }),
+        log:
+            ADD_CLIMATE_FORCING.log(_k),
+        benchmark:
+            ADD_CLIMATE_FORCING.benchmark(_k),
+        script: "blueearth_cst/model/add_climate_forcing.py"
 
 # 1.13  run_historical_simulation — run the Wflow.jl model on historical forcing
-rule run_historical_simulation:
-    message: RUN_HISTORICAL_SIMULATION.banner()
-    input:
-        retained_validation = lambda wildcards: completion_inputs(project_dir, historical_name),
-        forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
-        forcing_record = [f"{basin_dir}/config/historical_forcing.json"] if historical_name else [],
-        registry_path = [f"{spatial_dir}/location_registry.csv"] if historical_name else [],
-        # the model-root ordering contract. Already ordered after 1.09 through forcing_path; declared
-        # anyway so the invariant is LOCAL rather than transitive -- a reader is
-        # correct because of what it declares, not because of a chain someone
-        # has to re-derive.
-        model_final = ancient(f"{basin_dir}/.model_final"),
-        scientific_code = [
-            "blueearth_cst/model/run_wflow.jl",
-            "blueearth_cst/shared/wflow_grid.jl",
-            # This helper constructs Wflow.Config and invokes Wflow.run.
-            "blueearth_cst/shared/wflow_progress.jl",
-        ] + (["blueearth_cst/model/historical_runs.py"] if historical_name else []),
-    output:
-        retained_completion = [str(completion_path(project_dir, historical_name))] if historical_name else [],
-        # Retain full-precision native responses so evaluation and table exports
-        # can rerun without another historical simulation. Rounded exports are
-        # not a replacement for this input or for numerical baseline checks.
-        csv_path = f"{basin_dir}/run_default/output.csv",
-        grid_path = [f"{basin_dir}/run_default/output_grid.nc"] if grid_output else [],
-        # Wflow's own log. DECLARED but no longer temp(): it is now the ONLY
-        # copy of Wflow's records.
-        #
-        # It was temp()'d from 2026-08-10 on the explicit ground that it was a
-        # DUPLICATE -- the built TOML set `loglevel = "info"`, at which Wflow
-        # sends the same records to the terminal and the file, and
-        # run_logged.py captured the terminal into logs/wf1_build_model.log.
-        # `_BASE_CONFIG` now also sets `[logging] silent = true`, which turns
-        # off the terminal half to stop Julia's box-drawing blocks from
-        # swamping the console. That removes the duplication the temp()
-        # depended on, so keeping it would delete Wflow's log outright on every
-        # successful run.
-        #
-        # This is the earlier ruling's own premise changing, not a reversal of
-        # it: the ruling was "discard the copy", and after `silent` there is no
-        # copy to discard. Relying on "Snakemake keeps a temp() output when the
-        # job fails" instead was considered and rejected -- that would make the
-        # log's survival depend on failure semantics for the one artifact you
-        # need when diagnosing one.
-        #
-        # `run_default/log.txt` is already excluded by name from the tree
-        # inventory and the baseline comparator (semantic_tree_diff
-        # `_is_excluded`), as timestamp-laden and never value-comparable, so
-        # its reappearance moves no gate.
-        #
-        # wf3 was never affected either way: there `logging.path_log` is keyed
-        # PER MEMBER (downscale_climate_forcing.py) because rule 3.15 batches
-        # members concurrently onto one model directory; dropping that keying
-        # put twelve members on one path, each truncating it, and destroyed
-        # eleven logs (R9 P2, measured 2026-08-05). Those files are the
-        # attribution mechanism, and `silent` is what makes them the only
-        # readable record of a batched run.
-        wflow_log = f"{basin_dir}/run_default/log.txt",
-    params:
-        toml_path = f"{basin_dir}/wflow_sbm.toml",
-        historical_name = historical_name,
-        retained_config = config if historical_name else {},
-        driver = str(Path(workflow.basedir) / "blueearth_cst" / "model" / "run_wflow.jl"),
-        netcdf_grid = grid_output,
-    log:
-        RUN_HISTORICAL_SIMULATION.log(),
-    benchmark:
-        RUN_HISTORICAL_SIMULATION.benchmark(),
-    run:
-        # A DRIVER FILE rather than the `-e "using Wflow; Wflow.run()"` one-liner
-        # Wflow's docstring suggests. Under `[logging] silent = true` that form
-        # emits nothing at all for the whole run -- the longest single step in
-        # WF1 -- so the driver adds the progress bar every other long step in the
-        # toolbox animates. It is also the shape rule 3.15 already has.
-        import shlex
-        import subprocess
-        from contextlib import nullcontext
-        from blueearth_cst.model.historical_runs import retain_historical_run, write_completion
-        retention = retain_historical_run(
-            project_dir=project_dir, name=params.historical_name,
-            toml_path=Path(params.toml_path), registry_path=Path(input.registry_path[0]),
-            forcing_record_path=Path(input.forcing_record[0]), config=params.retained_config,
-            config_path=Path(config_path),
-            workflow_config_path=WORKFLOW_CONFIG_PATHS.get("build_model"),
-            repo_root=Path(workflow.basedir),
-        ) if params.historical_name else nullcontext()
-        with retention:
-            subprocess.run([sys.executable, "-u", run_logged, str(log[0]), "--",
-                *shlex.split(wflow_julia), params.driver, params.toml_path], check=True)
-            if params.netcdf_grid:
-                from blueearth_cst.shared.grid_output import validate_grid
-                validate_grid(output.grid_path[0], params.toml_path)
-        if params.historical_name:
-            write_completion(project_dir, params.historical_name)
+for _k in FORCING_KEYS:
+    rule:
+        name: _rule_name("run_historical_simulation", _k)
+        message: RUN_HISTORICAL_SIMULATION.banner(part=_k)
+        input:
+            retained_validation = lambda wildcards, _name=RETAINED[_k]: completion_inputs(project_dir, _name),
+            forcing_path = _hp(_k, "forcing"),
+            wflow_toml = [] if _k is None else [_hp(_k, "toml")],
+            forcing_record = [f"{_hp(_k, 'config_dir')}/historical_forcing.json"] if RETAINED[_k] else [],
+            registry_path = [f"{spatial_dir}/location_registry.csv"] if RETAINED[_k] else [],
+            # the model-root ordering contract. Already ordered after 1.09 through forcing_path; declared
+            # anyway so the invariant is LOCAL rather than transitive -- a reader is
+            # correct because of what it declares, not because of a chain someone
+            # has to re-derive.
+            model_final = ancient(f"{basin_dir}/.model_final"),
+            scientific_code = [
+                "blueearth_cst/model/run_wflow.jl",
+                "blueearth_cst/shared/wflow_grid.jl",
+                # This helper constructs Wflow.Config and invokes Wflow.run.
+                "blueearth_cst/shared/wflow_progress.jl",
+            ] + (["blueearth_cst/model/historical_runs.py"] if RETAINED[_k] else []),
+        output:
+            retained_completion = [str(completion_path(project_dir, RETAINED[_k]))] if RETAINED[_k] else [],
+            # Retain full-precision native responses so evaluation and table exports
+            # can rerun without another historical simulation. Rounded exports are
+            # not a replacement for this input or for numerical baseline checks.
+            csv_path = _hp(_k, "discharge_csv"),
+            grid_path = [f"{_hp(_k, 'run_dir')}/output_grid.nc"] if grid_output else [],
+            # Wflow's own log. DECLARED but no longer temp(): it is now the ONLY
+            # copy of Wflow's records.
+            #
+            # It was temp()'d from 2026-08-10 on the explicit ground that it was a
+            # DUPLICATE -- the built TOML set `loglevel = "info"`, at which Wflow
+            # sends the same records to the terminal and the file, and
+            # run_logged.py captured the terminal into logs/wf1_build_model.log.
+            # `_BASE_CONFIG` now also sets `[logging] silent = true`, which turns
+            # off the terminal half to stop Julia's box-drawing blocks from
+            # swamping the console. That removes the duplication the temp()
+            # depended on, so keeping it would delete Wflow's log outright on every
+            # successful run.
+            #
+            # This is the earlier ruling's own premise changing, not a reversal of
+            # it: the ruling was "discard the copy", and after `silent` there is no
+            # copy to discard. Relying on "Snakemake keeps a temp() output when the
+            # job fails" instead was considered and rejected -- that would make the
+            # log's survival depend on failure semantics for the one artifact you
+            # need when diagnosing one.
+            #
+            # `run_default/log.txt` is already excluded by name from the tree
+            # inventory and the baseline comparator (semantic_tree_diff
+            # `_is_excluded`), as timestamp-laden and never value-comparable, so
+            # its reappearance moves no gate.
+            #
+            # wf3 was never affected either way: there `logging.path_log` is keyed
+            # PER MEMBER (downscale_climate_forcing.py) because rule 3.15 batches
+            # members concurrently onto one model directory; dropping that keying
+            # put twelve members on one path, each truncating it, and destroyed
+            # eleven logs (R9 P2, measured 2026-08-05). Those files are the
+            # attribution mechanism, and `silent` is what makes them the only
+            # readable record of a batched run.
+            wflow_log = f"{_hp(_k, 'run_dir')}/log.txt",
+        params:
+            toml_path = _hp(_k, "toml"),
+            historical_name = RETAINED[_k],
+            # The archived composed config is read at execution, not a param: a
+            # param would make every unrelated config edit (another recipe,
+            # enabling WF3/WF4) reschedule this immutable run, which the
+            # collision guard then refuses. Scientific settings arrive as inputs.
+            driver = str(Path(workflow.basedir) / "blueearth_cst" / "model" / "run_wflow.jl"),
+            netcdf_grid = grid_output,
+        log:
+            RUN_HISTORICAL_SIMULATION.log(_k),
+        benchmark:
+            RUN_HISTORICAL_SIMULATION.benchmark(_k),
+        run:
+            # A DRIVER FILE rather than the `-e "using Wflow; Wflow.run()"` one-liner
+            # Wflow's docstring suggests. Under `[logging] silent = true` that form
+            # emits nothing at all for the whole run -- the longest single step in
+            # WF1 -- so the driver adds the progress bar every other long step in the
+            # toolbox animates. It is also the shape rule 3.15 already has.
+            import shlex
+            import subprocess
+            from contextlib import nullcontext
+            from blueearth_cst.model.historical_runs import retain_historical_run, write_completion
+            retention = retain_historical_run(
+                project_dir=project_dir, name=params.historical_name,
+                toml_path=Path(params.toml_path), registry_path=Path(input.registry_path[0]),
+                forcing_record_path=Path(input.forcing_record[0]),
+                # From the executed TOML, never the loop variable (late binding).
+                config=_recipe_config(HistoricalLayout.from_toml(Path(params.toml_path).name).forcing_id),
+                config_path=Path(config_path),
+                workflow_config_path=WORKFLOW_CONFIG_PATHS.get("build_model"),
+                repo_root=Path(workflow.basedir),
+            ) if params.historical_name else nullcontext()
+            with retention:
+                subprocess.run([sys.executable, "-u", run_logged, str(log[0]), "--",
+                    *shlex.split(wflow_julia), params.driver, params.toml_path], check=True)
+                if params.netcdf_grid:
+                    from blueearth_cst.shared.grid_output import validate_grid
+                    validate_grid(output.grid_path[0], params.toml_path)
+            if params.historical_name:
+                write_completion(project_dir, params.historical_name)
+
+# 1.13b  compare_historical_forcings — one comparison of every recipe's retained
+# run, through the same engine as scripts/compare_historical.py. It reads the
+# immutable retained responses only, never the mutable run_<id>/ folders. The
+# window is every complete reporting year the runs share: Wflow labels output
+# at interval end, so the first simulated year is always incomplete.
+if COMPARE_FORCINGS:
+    from datetime import timedelta
+    from blueearth_cst.model.historical_comparison import complete_reporting_years
+
+    rule compare_historical_forcings:
+        message: COMPARE_HISTORICAL_FORCINGS.banner()
+        input:
+            completions = [str(completion_path(project_dir, RETAINED[key])) for key in FORCING_IDS],
+            observations = [observations_timeseries] if observations_timeseries else [],
+            scientific_code = [
+                "blueearth_cst/model/historical_comparison.py",
+                "blueearth_cst/model/plot_historical_comparison.py",
+            ],
+        output:
+            # The standalone script's input, kept beside the comparisons.
+            settings = f"{project_dir}/comparisons/historical/_engine/{historical_name}.yml",
+            comparison = directory(f"{project_dir}/comparisons/historical/{historical_name}"),
+        params:
+            settings = {
+                "project_dir": str(Path(project_dir).resolve()),
+                "runs": [RETAINED[key] for key in FORCING_IDS],
+                "evaluation_window": complete_reporting_years(
+                    SIMULATION_BOUNDS[0] + timedelta(days=1),
+                    SIMULATION_BOUNDS[1],
+                    WATER_YEAR_START,
+                ),
+                "water_year_start": WATER_YEAR_START,
+                **({"observations_path": str(Path(observations_timeseries).resolve())}
+                   if observations_timeseries else {}),
+                "output_dir": str(Path(f"{project_dir}/comparisons/historical/{historical_name}").resolve()),
+            },
+            annotation = plot_annotation,
+        log:
+            COMPARE_HISTORICAL_FORCINGS.log(),
+        benchmark:
+            COMPARE_HISTORICAL_FORCINGS.benchmark(),
+        script: "blueearth_cst/model/historical_comparison.py"
 
 # 1.03  extract_climate_datasets — the SHARED historical-climate store producer
 # (R07 B1). This declaration and rule 3.08 in run_stress_test.smk are
@@ -1008,6 +1153,27 @@ rule extract_climate_datasets:
     script:
         CLIMATE_STORE.script
 
+# 1.03  extract_climate_datasets_<id> — a non-default recipe's own store. The
+# same producer contract as above; only the rule name and log part differ.
+for _store_dir, (_key, _spec) in EXTRA_RECIPE_STORES.items():
+    rule:
+        name: EXTRACT_CLIMATE_DATASETS.job_name(_key)
+        message: EXTRACT_CLIMATE_DATASETS.banner(part=_key)
+        input: **_spec.inputs,
+        params: **_spec.params,
+        output: **_spec.outputs,
+        log: EXTRACT_CLIMATE_DATASETS.log(_key),
+        benchmark: EXTRACT_CLIMATE_DATASETS.benchmark(_key),
+        script: _spec.script
+
+# 1.08b  finalize_model_root — named recipes stage their forcing elsewhere, so
+# the shared model is final once its outputs are declared.
+if FORCING_IDS is not None:
+    rule finalize_model_root:
+        message: FINALIZE_MODEL_ROOT.banner()
+        input: f"{basin_dir}/.outputs_configured",
+        output: touch(f"{basin_dir}/.model_final"),
+
 # 1.15  plot_model_evaluation — analyse + plot the wflow RUN (parallel leaf
 # with 1.11/1.12). Discharge only since the climate-plot consolidation; the climate figures it used
 # to draw are the map/series family under forcing/plots/ now.
@@ -1031,21 +1197,21 @@ _subbasin_plots = get_config(_evaluation_cfg, "subbasin_plots", False)
 if not isinstance(_subbasin_plots, bool):
     raise ValueError("build_model.evaluation.subbasin_plots must be a boolean")
 _WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT = ("river discharge", "precipitation")
-_basavg_pngs = [
-    f"{basin_dir}/evaluation/plots/wflow_{BASAVG_FIGURE_STEMS[WFLOW_OUTPUT_CODES[var]]}_{kind}_basin_avg.png"
+_basavg_pngs = lambda key: [
+    f"{_hp(key, 'evaluation_dir')}/plots/wflow_{BASAVG_FIGURE_STEMS[WFLOW_OUTPUT_CODES[var]]}_{kind}_basin_avg.png"
     for var in wflow_outvars
     if var not in _WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT
     for kind in ("annual_ts", "monthly_clim_band")
 ]
 # Caption records exist only when the configured basin-average family is drawn.
-_basavg_captions = (
+_basavg_captions = lambda key: (
     [
-        f"{basin_dir}/evaluation/plots/figure_titles.md",
-        f"{basin_dir}/evaluation/plots/_engine/figure_titles.json",
-        f"{basin_dir}/evaluation/plots/figure_captions.md",
-        f"{basin_dir}/evaluation/plots/_engine/figure_captions.json",
+        f"{_hp(key, 'evaluation_dir')}/plots/figure_titles.md",
+        f"{_hp(key, 'evaluation_dir')}/plots/_engine/figure_titles.json",
+        f"{_hp(key, 'evaluation_dir')}/plots/figure_captions.md",
+        f"{_hp(key, 'evaluation_dir')}/plots/_engine/figure_captions.json",
     ]
-    if _basavg_pngs
+    if _basavg_pngs(key)
     else []
 )
 
@@ -1069,8 +1235,8 @@ _basavg_captions = (
 # later run -- while no rule declared it. Undeclared output is invisible to
 # Snakemake: nothing rebuilds an undeclared table when it is deleted.
 # Retained native responses now allow these declared exports to be regenerated.
-WFLOW_TABLE_PATHS = [f"{basin_dir}/run_default/output_q.csv"] + [
-    f"{basin_dir}/run_default/output_{WFLOW_OUTPUT_CODES[var]}.csv"
+WFLOW_TABLE_PATHS = lambda key: [f"{_hp(key, 'run_dir')}/output_q.csv"] + [
+    f"{_hp(key, 'run_dir')}/output_{WFLOW_OUTPUT_CODES[var]}.csv"
     for var in wflow_outvars
     if var != "river discharge"
 ]
@@ -1097,124 +1263,130 @@ WFLOW_TABLE_PATHS = [f"{basin_dir}/run_default/output_q.csv"] + [
 # `Q_1010` without reviving the ambiguity `shared/gauges.py` exists to prevent.
 #
 # Sub-lettered like 3.01c: this belongs to 1.13's output, not after 1.15.
-rule export_simulation_tables:
-    message: EXPORT_SIMULATION_TABLES.banner()
-    input:
-        csv_path = f"{basin_dir}/run_default/output.csv",
-        # the model-root ordering contract. Ordered after 1.09 transitively through csv_path, declared
-        # anyway for the same reason 1.13 and 1.15 declare it: the invariant is
-        # LOCAL, not something a reader has to re-derive from a chain.
-        model_final = ancient(f"{basin_dir}/.model_final"),
-        # Its [output.csv] columns and static maps label each table column
-        # with the registry wflow_id (shared/native_locations).
-        toml_path = ancient(f"{basin_dir}/wflow_sbm.toml"),
-    output:
-        # EVERY table, derived from the config -- not just discharge. Declared
-        # as the individual files rather than a directory() so Snakemake tracks
-        # each one like any other output.
-        tables = WFLOW_TABLE_PATHS,
-    log:
-        EXPORT_SIMULATION_TABLES.log(),
-    benchmark:
-        EXPORT_SIMULATION_TABLES.benchmark(),
-    script:
-        "blueearth_cst/shared/tidy_wflow_table.py"
+for _k in FORCING_KEYS:
+    rule:
+        name: _rule_name("export_simulation_tables", _k)
+        message: EXPORT_SIMULATION_TABLES.banner(part=_k)
+        input:
+            csv_path = _hp(_k, "discharge_csv"),
+            # the model-root ordering contract. Ordered after 1.09 transitively through csv_path, declared
+            # anyway for the same reason 1.13 and 1.15 declare it: the invariant is
+            # LOCAL, not something a reader has to re-derive from a chain.
+            model_final = ancient(f"{basin_dir}/.model_final"),
+            # Its [output.csv] columns and static maps label each table column
+            # with the registry wflow_id (shared/native_locations).
+            toml_path = ancient(_hp(_k, "toml")),
+        output:
+            # EVERY table, derived from the config -- not just discharge. Declared
+            # as the individual files rather than a directory() so Snakemake tracks
+            # each one like any other output.
+            tables = WFLOW_TABLE_PATHS(_k),
+        log:
+            EXPORT_SIMULATION_TABLES.log(_k),
+        benchmark:
+            EXPORT_SIMULATION_TABLES.benchmark(_k),
+        script:
+            "blueearth_cst/shared/tidy_wflow_table.py"
 
-rule plot_model_evaluation:
-   message: PLOT_MODEL_EVALUATION.banner()
-   input:
-       csv_path = f"{basin_dir}/run_default/output.csv",
-       # the model-root ordering contract; transitively ordered after 1.09 via 1.13, declared for the
-       # same reason as there.
-       model_final = ancient(f"{basin_dir}/.model_final"),
-       # The climate-store inputs went with the subcatchment climate figures
-       # (the climate-plot consolidation). This rule evaluates DISCHARGE now, so it no longer waits
-       # on rule 1.03 at all.
-       # Both observation files, when configured: this rule reads the gauge
-       # positions AND the observed series, so either changing must re-evaluate.
-       **_locations_input,
-       **_observations_input,
-       location_registry = f"{spatial_dir}/location_registry.csv",
-       script = "blueearth_cst/model/plot_results.py"
-   # R07 B10 + O-24. The artifacts move into the engine subtree, split by KIND
-   # (P1): figures and captions under evaluation/plots/, the indicators table one
-   # level up in evaluation/.
-   #
-   # O-24, restated 2026-08-01 after checking what is actually derivable.
-   #
-   # DECLARED: the config-invariant subset below, plus `_basavg_pngs` — two PNGs
-   # per basin-average entry in wflow_outvars, a pure function of config.
-   #
-   # AND the per-station bin as a DIRECTORY (t2608071206, 2026-08-18). Its
-   # members cannot be enumerated at parse time and never could: their count is
-   # the model's OUTLETS and SUBCATCHMENTS, a product of rule 1.06 read back
-   # through Q_outlets / the subcatchment map, with output_locations
-   # contributing only the extra gauge stations on top. The signatures sheets
-   # are narrower still — they also need observations AND a run longer than a
-   # year (`do_signatures`), so they are data-conditional, not merely
-   # config-conditional. R7-5 assumed all of this was derivable "from
-   # wflow_outvars / output_locations"; it is not, and no enumeration closes it.
-   #
-   # A directory() rather than a checkpoint, following WF0's `subbasins/` bin,
-   # which solved the identical problem for its per-subbasin figures. A
-   # checkpoint would re-plan the DAG to learn a set nothing downstream
-   # consumes — no rule reads these PNGs (figures are terminal artifacts), so
-   # the only thing the enumeration would buy is `--delete-all-output`
-   # completeness, and declaring the bin buys that outright.
-   #
-   # `--delete-all-output` completeness now holds for configs WITH extra gauges
-   # too, which is what R7-5 was actually about.
-   #
-   # Note the family list above is two, not the three R7-5 named:
-   # `clim_{station}_{period}.png` no longer exists — the climate-plot consolidation removed it on
-   # 2026-08-09 with the branch that drew it.
-   #
-   # The two clim_wflow_1_* figures were declared here until 2026-08-09 and are
-   # gone with the branch that wrote them (the climate-plot consolidation). Their removal also
-   # retires the failure mode declaring them introduced: a config with a
-   # sub-year historical_window failed here with MissingOutputException where
-   # it used to log a skip.
-   #
-   # No per-station FIGURE is declared any more. They are keyed by wflow_id
-   # since 2026-08-10 — `hydrograph_1010.png` — and a wflow_id is a product of
-   # the model build, so it is not knowable at parse time. `hydro_wflow_1.png`
-   # only worked as a declared output because plot_results.py forced the first
-   # outlet's label to that literal, which is the naming inconsistency the
-   # rename removes. The indicators table is this rule's config-invariant artifact
-   # and takes over as its terminal.
-   output:
-       indicators_csv = f"{basin_dir}/evaluation/performance_indicators.csv",
-       basavg_pngs = _basavg_pngs,
-       basavg_captions = _basavg_captions,
-       subbasin_figures = (
-           [directory(f"{basin_dir}/evaluation/plots/{SUBBASIN_PLOT_DIRNAME}")]
-           if _subbasin_plots and _basavg_pngs else []
-       ),
-       station_plots = directory(
-           f"{basin_dir}/evaluation/plots/{STATION_PLOT_DIRNAME}"
-       ),
-   params:
-       annotation = plot_annotation,
-       plot_setup_digest = plot_setup_digest,
-       project_dir = f"{project_dir}",
-       # The model root is OWNED BY THE RULE, not rebuilt inside the script.
-       # plot_results.py used to derive `{project_dir}/hydrology_model` itself,
-       # which made the model's location a fact spelled in two places; this move
-       # is what forced the question, and passing it is the answer.
-       model_dir = basin_dir,
-       subbasin_plots = _subbasin_plots,
-   log:
-       PLOT_MODEL_EVALUATION.log(),
-   benchmark:
-       PLOT_MODEL_EVALUATION.benchmark(),
-   script: "blueearth_cst/model/plot_results.py"
+for _k in FORCING_KEYS:
+    rule:
+        name: _rule_name("plot_model_evaluation", _k)
+        message: PLOT_MODEL_EVALUATION.banner(part=_k)
+        input:
+            csv_path = _hp(_k, "discharge_csv"),
+            # the model-root ordering contract; transitively ordered after 1.09 via 1.13, declared for the
+            # same reason as there.
+            model_final = ancient(f"{basin_dir}/.model_final"),
+            # The climate-store inputs went with the subcatchment climate figures
+            # (the climate-plot consolidation). This rule evaluates DISCHARGE now, so it no longer waits
+            # on rule 1.03 at all.
+            # Both observation files, when configured: this rule reads the gauge
+            # positions AND the observed series, so either changing must re-evaluate.
+            **_locations_input,
+            **_observations_input,
+            location_registry = f"{spatial_dir}/location_registry.csv",
+            script = "blueearth_cst/model/plot_results.py"
+        # R07 B10 + O-24. The artifacts move into the engine subtree, split by KIND
+        # (P1): figures and captions under evaluation/plots/, the indicators table one
+        # level up in evaluation/.
+        #
+        # O-24, restated 2026-08-01 after checking what is actually derivable.
+        #
+        # DECLARED: the config-invariant subset below, plus `_basavg_pngs` — two PNGs
+        # per basin-average entry in wflow_outvars, a pure function of config.
+        #
+        # AND the per-station bin as a DIRECTORY (t2608071206, 2026-08-18). Its
+        # members cannot be enumerated at parse time and never could: their count is
+        # the model's OUTLETS and SUBCATCHMENTS, a product of rule 1.06 read back
+        # through Q_outlets / the subcatchment map, with output_locations
+        # contributing only the extra gauge stations on top. The signatures sheets
+        # are narrower still — they also need observations AND a run longer than a
+        # year (`do_signatures`), so they are data-conditional, not merely
+        # config-conditional. R7-5 assumed all of this was derivable "from
+        # wflow_outvars / output_locations"; it is not, and no enumeration closes it.
+        #
+        # A directory() rather than a checkpoint, following WF0's `subbasins/` bin,
+        # which solved the identical problem for its per-subbasin figures. A
+        # checkpoint would re-plan the DAG to learn a set nothing downstream
+        # consumes — no rule reads these PNGs (figures are terminal artifacts), so
+        # the only thing the enumeration would buy is `--delete-all-output`
+        # completeness, and declaring the bin buys that outright.
+        #
+        # `--delete-all-output` completeness now holds for configs WITH extra gauges
+        # too, which is what R7-5 was actually about.
+        #
+        # Note the family list above is two, not the three R7-5 named:
+        # `clim_{station}_{period}.png` no longer exists — the climate-plot consolidation removed it on
+        # 2026-08-09 with the branch that drew it.
+        #
+        # The two clim_wflow_1_* figures were declared here until 2026-08-09 and are
+        # gone with the branch that wrote them (the climate-plot consolidation). Their removal also
+        # retires the failure mode declaring them introduced: a config with a
+        # sub-year historical_window failed here with MissingOutputException where
+        # it used to log a skip.
+        #
+        # No per-station FIGURE is declared any more. They are keyed by wflow_id
+        # since 2026-08-10 — `hydrograph_1010.png` — and a wflow_id is a product of
+        # the model build, so it is not knowable at parse time. `hydro_wflow_1.png`
+        # only worked as a declared output because plot_results.py forced the first
+        # outlet's label to that literal, which is the naming inconsistency the
+        # rename removes. The indicators table is this rule's config-invariant artifact
+        # and takes over as its terminal.
+        output:
+            indicators_csv = f"{_hp(_k, 'evaluation_dir')}/performance_indicators.csv",
+            basavg_pngs = _basavg_pngs(_k),
+            basavg_captions = _basavg_captions(_k),
+            subbasin_figures = (
+                [directory(f"{_hp(_k, 'evaluation_dir')}/plots/{SUBBASIN_PLOT_DIRNAME}")]
+                if _subbasin_plots and _basavg_pngs(_k) else []
+            ),
+            station_plots = directory(
+                f"{_hp(_k, 'evaluation_dir')}/plots/{STATION_PLOT_DIRNAME}"
+            ),
+        params:
+            annotation = plot_annotation,
+            plot_setup_digest = plot_setup_digest,
+            project_dir = f"{project_dir}",
+            # The model root is OWNED BY THE RULE, not rebuilt inside the script.
+            # plot_results.py used to derive `{project_dir}/hydrology_model` itself,
+            # which made the model's location a fact spelled in two places; this move
+            # is what forced the question, and passing it is the answer.
+            model_dir = basin_dir,
+            subbasin_plots = _subbasin_plots,
+            toml_name = HistoricalLayout(_k).toml,
+            evaluation_dir = _hp(_k, "evaluation_dir"),
+        log:
+            PLOT_MODEL_EVALUATION.log(_k),
+        benchmark:
+            PLOT_MODEL_EVALUATION.benchmark(_k),
+        script: "blueearth_cst/model/plot_results.py"
 
 # 1.16 write_run_metadata — the staleness sidecar (design §5.8).
 #
 rule write_run_metadata:
     message: WRITE_RUN_METADATA.banner()
     input:
-        indicators_csv = f"{basin_dir}/evaluation/performance_indicators.csv",
+        indicators_csv = [f"{_hp(key, 'evaluation_dir')}/performance_indicators.csv" for key in FORCING_KEYS],
         # a rule reading under the model root waits on the terminal
         # marker, because rule 1.07 rewrites the whole directory. The indicators
         # table already orders this rule after 1.15, so the marker adds no edge
@@ -1316,76 +1488,83 @@ rule produce_historical_map_reference:
     script: MAP_REFERENCE.script
 
 # 1.12  plot_model_forcing — shared historical map display on model forcing.
-rule plot_model_forcing:
-    message: PLOT_MODEL_FORCING.banner()
-    input:
-        forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
-        map_reference = MAP_REFERENCE.outputs["reference"],
-        **{key: value for key, value in MAP_REFERENCE.inputs.items() if key != "basins"},
-        # the model-root ordering contract; see rule 1.13.
-        model_final = ancient(f"{basin_dir}/.model_final"),
-        **_locations_input,
-        # Shared spatial context also used by WF0's source-grid diagnostics.
-        **{name: SPATIAL_UNITS.outputs[name] for name in
-           ("basins", "subbasins", "rivers", "locations")},
-    # R07 B10 + O-24: the forcing/model-input QA figures sit beside the forcing
-    # they describe, and ALL of them are declared — variable x kind is a fixed
-    # cross-product, so the list comes from climate_figures.figure_names()
-    # rather than being restated here.
-    output:
-        _forcing_climate_pngs,
-        titles_md = f"{FORCING_PLOTS_DIR}/figure_titles.md",
-        titles_json = f"{FORCING_PLOTS_DIR}/_engine/figure_titles.json",
-        captions_md = f"{FORCING_PLOTS_DIR}/figure_captions.md",
-        captions_json = f"{FORCING_PLOTS_DIR}/_engine/figure_captions.json",
-    params:
-        annotation = plot_annotation,
-        plot_setup_digest = plot_setup_digest,
-        project_dir = f"{project_dir}",
-        # Rule-owned model root; see rule 1.15's note.
-        model_dir = basin_dir,
-        geoms_dir = SPATIAL_UNITS.spatial_dir + "/geoms",
-        water_year_start = WATER_YEAR_START,
-        map_reference_params = dict(MAP_REFERENCE.params),
-    log:
-        PLOT_MODEL_FORCING.log(),
-    benchmark:
-        PLOT_MODEL_FORCING.benchmark(),
-    script: "blueearth_cst/model/plot_map_forcing.py"
+for _k in FORCING_KEYS:
+    rule:
+        name: _rule_name("plot_model_forcing", _k)
+        message: PLOT_MODEL_FORCING.banner(part=_k)
+        input:
+            forcing_path = _hp(_k, "forcing"),
+            wflow_toml = [] if _k is None else [_hp(_k, "toml")],
+            map_reference = MAP_REFERENCE.outputs["reference"],
+            **{key: value for key, value in MAP_REFERENCE.inputs.items() if key != "basins"},
+            # the model-root ordering contract; see rule 1.13.
+            model_final = ancient(f"{basin_dir}/.model_final"),
+            **_locations_input,
+            # Shared spatial context also used by WF0's source-grid diagnostics.
+            **{name: SPATIAL_UNITS.outputs[name] for name in
+               ("basins", "subbasins", "rivers", "locations")},
+        # R07 B10 + O-24: the forcing/model-input QA figures sit beside the forcing
+        # they describe, and ALL of them are declared — variable x kind is a fixed
+        # cross-product, so the list comes from climate_figures.figure_names()
+        # rather than being restated here.
+        output:
+            _forcing_pngs(_k),
+            titles_md = f"{_hp(_k, 'forcing_plots_dir')}/figure_titles.md",
+            titles_json = f"{_hp(_k, 'forcing_plots_dir')}/_engine/figure_titles.json",
+            captions_md = f"{_hp(_k, 'forcing_plots_dir')}/figure_captions.md",
+            captions_json = f"{_hp(_k, 'forcing_plots_dir')}/_engine/figure_captions.json",
+        params:
+            annotation = plot_annotation,
+            plot_setup_digest = plot_setup_digest,
+            project_dir = f"{project_dir}",
+            # Rule-owned model root; see rule 1.15's note.
+            model_dir = basin_dir,
+            plot_dir = _hp(_k, "forcing_plots_dir"),
+            toml_name = HistoricalLayout(_k).toml,
+            geoms_dir = SPATIAL_UNITS.spatial_dir + "/geoms",
+            water_year_start = WATER_YEAR_START,
+            map_reference_params = dict(MAP_REFERENCE.params),
+        log:
+            PLOT_MODEL_FORCING.log(_k),
+        benchmark:
+            PLOT_MODEL_FORCING.benchmark(_k),
+        script: "blueearth_cst/model/plot_map_forcing.py"
 
 if _budyko_settings is not None:
     # 1.12b  evaluate_budyko — prepared forcing and observed Q only.
-    rule evaluate_budyko:
-        message: EVALUATE_BUDYKO.banner()
-        input:
-            hydrography_path = SPATIAL_UNITS.outputs["hydrography"],
-            registry_path = SPATIAL_UNITS.outputs["location_registry"],
-            forcing_path = f"{basin_dir}/forcing/inmaps_historical.nc",
-            observations_path = observations_timeseries,
-            recipe_path = f"{basin_dir}/config/build_historical_forcing.yml",
-            model_final = ancient(f"{basin_dir}/.model_final"),
-        output:
-            stations = f"{basin_dir}/evaluation/budyko/tables/stations.csv",
-            annual = f"{basin_dir}/evaluation/budyko/tables/annual.csv",
-            summary = f"{basin_dir}/evaluation/budyko/tables/summary.csv",
-            daily = f"{basin_dir}/evaluation/budyko/_engine/daily.csv",
-            methods = f"{basin_dir}/evaluation/budyko/_engine/methods.json",
-            figure = f"{basin_dir}/evaluation/budyko/plots/observed_runoff_coefficient_budyko_stations.png",
-            titles = f"{basin_dir}/evaluation/budyko/plots/figure_titles.md",
-            captions = f"{basin_dir}/evaluation/budyko/plots/figure_captions.md",
-            titles_json = f"{basin_dir}/evaluation/budyko/_engine/figure_titles.json",
-            captions_json = f"{basin_dir}/evaluation/budyko/_engine/figure_captions.json",
-        params:
-            root = f"{basin_dir}/evaluation/budyko",
-            settings = _budyko_settings,
-            start = f"{simulation_window['start']}-01-01",
-            end = f"{int(simulation_window['end']) + 1}-01-01",
-            water_year_start = water_year_start_number(WATER_YEAR_START),
-            annotation = plot_annotation,
-            plot_setup_digest = plot_setup_digest,
-        log: EVALUATE_BUDYKO.log(),
-        benchmark: EVALUATE_BUDYKO.benchmark(),
-        script: "blueearth_cst/model/evaluate_budyko.py"
+    for _k in FORCING_KEYS:
+        rule:
+            name: _rule_name("evaluate_budyko", _k)
+            message: EVALUATE_BUDYKO.banner(part=_k)
+            input:
+                hydrography_path = SPATIAL_UNITS.outputs["hydrography"],
+                registry_path = SPATIAL_UNITS.outputs["location_registry"],
+                forcing_path = _hp(_k, "forcing"),
+                observations_path = observations_timeseries,
+                recipe_path = f"{_hp(_k, 'config_dir')}/build_historical_forcing.yml",
+                model_final = ancient(f"{basin_dir}/.model_final"),
+            output:
+                stations = f"{_hp(_k, 'evaluation_dir')}/budyko/tables/stations.csv",
+                annual = f"{_hp(_k, 'evaluation_dir')}/budyko/tables/annual.csv",
+                summary = f"{_hp(_k, 'evaluation_dir')}/budyko/tables/summary.csv",
+                daily = f"{_hp(_k, 'evaluation_dir')}/budyko/_engine/daily.csv",
+                methods = f"{_hp(_k, 'evaluation_dir')}/budyko/_engine/methods.json",
+                figure = f"{_hp(_k, 'evaluation_dir')}/budyko/plots/observed_runoff_coefficient_budyko_stations.png",
+                titles = f"{_hp(_k, 'evaluation_dir')}/budyko/plots/figure_titles.md",
+                captions = f"{_hp(_k, 'evaluation_dir')}/budyko/plots/figure_captions.md",
+                titles_json = f"{_hp(_k, 'evaluation_dir')}/budyko/_engine/figure_titles.json",
+                captions_json = f"{_hp(_k, 'evaluation_dir')}/budyko/_engine/figure_captions.json",
+            params:
+                root = f"{_hp(_k, 'evaluation_dir')}/budyko",
+                settings = _budyko_settings,
+                start = f"{simulation_window['start']}-01-01",
+                end = f"{int(simulation_window['end']) + 1}-01-01",
+                water_year_start = water_year_start_number(WATER_YEAR_START),
+                annotation = plot_annotation,
+                plot_setup_digest = plot_setup_digest,
+            log: EVALUATE_BUDYKO.log(_k),
+            benchmark: EVALUATE_BUDYKO.benchmark(_k),
+            script: "blueearth_cst/model/evaluate_budyko.py"
 
 # --- Run journal (design §5.7) ------------------------------------------------
 #
@@ -1491,7 +1670,10 @@ def _header():
             cores=workflow.resource_settings.cores,
             **{
                 "hydrological model": "Wflow-SBM",
-                "climate forcing": clim_source,
+                "climate forcing": clim_source if FORCING_IDS is None else ", ".join(
+                    f"{key} (default)" if key == climate_cfg["default_forcing"] else key
+                    for key in FORCING_IDS
+                ),
                 "simulation period": f"{simulation_window['start']}–{simulation_window['end']}",
                 "grid spacing": f"{model_resolution:g}°",
                 "model grid": grid,

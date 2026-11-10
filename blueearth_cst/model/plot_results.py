@@ -204,9 +204,14 @@ def analyse_wflow_historical(
     location_registry: Union[Path, str] = None,
     subbasin_plots: bool = False,
     annotation: str = "none",
+    toml_name: str = "wflow_sbm.toml",
+    evaluation_dir: Union[Path, str, None] = None,
 ):
     """
     Analyse and plot wflow model performance for historical run.
+
+    ``toml_name`` and ``evaluation_dir`` select one named forcing recipe's run
+    configuration and evaluation folder; defaults are the single-recipe layout.
 
     The model root is supplied by the RULE as ``model_dir``, not rebuilt here
     from ``project_dir``: where the model lives is the Snakefile's fact, and
@@ -263,7 +268,7 @@ def analyse_wflow_historical(
     # evaluation/plots/, the indicators table one level up in evaluation/,
     # because plots/ holds figures only.
     model_dir = model_dir or f"{project_dir}/models/hydrology/wflow"
-    Folder_eval = f"{model_dir}/evaluation"
+    Folder_eval = str(evaluation_dir or f"{model_dir}/evaluation")
     Folder_plots = f"{Folder_eval}/plots"
     # The per-station bin. Its members are named for wflow_ids, which are a
     # product of the model build and so unknowable when the Snakefile is
@@ -304,7 +309,7 @@ def analyse_wflow_historical(
     ### 3. Read the wflow model and results ###
     # Instantiate wflow model
     Folder_run = str(model_dir)
-    mod = WflowSbmModel(root=Folder_run, mode="r")
+    mod = WflowSbmModel(root=Folder_run, mode="r", config_filename=toml_name)
     mod.output_csv.read()
     results = mod.output_csv.data
     geoms = mod.geoms.data
@@ -501,6 +506,8 @@ if __name__ == "__main__":
                 location_registry=sm.input.location_registry,
                 subbasin_plots=sm.params.subbasin_plots,
                 annotation=getattr(sm.params, "annotation", "none"),
+                toml_name=getattr(sm.params, "toml_name", "wflow_sbm.toml"),
+                evaluation_dir=getattr(sm.params, "evaluation_dir", None),
                 # declared only on the chirps/chirps_global branch (ext2-1)
             )
     else:

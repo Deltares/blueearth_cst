@@ -858,6 +858,35 @@ def test_indicators_only_reads_the_anchor_and_asserts_the_retained_collection(
     assert "model.name" in output and "_engine/simulation.json" in output
 
 
+def test_indicators_only_refuses_another_historical_recipe(experiment):
+    """Qcrit must come from the recipe the retained experiment simulated."""
+    from blueearth_cst.experiment import indicator_plan
+
+    config = experiment.config
+    workflow = config.parent / "simulate_system.yml"
+    workflow.write_text(
+        yaml.safe_dump(
+            {
+                "experiment_name": experiment.root.name,
+                "indicators": ["gwr"],
+                "historical_forcing": "chirps",
+            }
+        ),
+        encoding="utf-8",
+    )
+    project = yaml.safe_load(config.read_text(encoding="utf-8"))
+    project["climate"] = {
+        "water_year_start": "oct",
+        "forcings": {"era5": {"precip_source": "era5"}, "chirps": {}},
+        "default_forcing": "era5",
+    }
+    config.write_text(yaml.safe_dump(project), encoding="utf-8")
+    with pytest.raises(
+        ValueError, match="historical_forcing: retained='default'; selected='chirps'"
+    ):
+        indicator_plan.indicators_only_configuration(config)
+
+
 # --- thirty years of discharge: real GEV fits and class-C month means --------
 
 _TIME = pd.date_range("2046-01-01", "2075-12-31", freq="D")

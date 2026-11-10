@@ -122,6 +122,28 @@ variables are not silently borrowed from ERA5. The recipe derives seven total fi
 Makkink and precipitation/temperature/PET for direct mode. Supplied nulls, wrong types, unknown keys and
 empty names are errors. Entry-point summaries show resolved choices before execution.
 
+### Named historical forcing recipes {#named-historical-forcing-recipes}
+
+To run one fixed model with several recipes, replace `climate.forcing` with a named map and a default:
+
+```yaml
+climate:
+  sources: [era5, chirps]
+  forcings:
+    era5: {precip_source: era5}
+    chirps: {precip_source: chirps, temp_source: era5}
+  default_forcing: era5
+```
+
+Each body is an ordinary `climate.forcing` recipe and is validated the same way. Names match
+`[a-z][a-z0-9_]{0,31}`; `default` is reserved. `forcings` and `default_forcing` are declared together, never
+alongside `climate.forcing` or `climate.selected`, and two names may not describe the same recipe. Order never
+selects the default. Scenario generation always uses the default. Model building simulates
+`build_model.historical_forcings` (default: the default recipe), and simulation selects one recipe through
+`simulate_system.historical_forcing`. Single-recipe projects need no migration. To adopt names, move the
+`forcing` block under a name and set `default_forcing` to it. Outputs then use the per-recipe layout described in
+[model building](workflow-build-model.md#named-recipes); earlier `run_default` results are not relabelled.
+
 Legacy `climate.selected` and `climate.forcing.temp_pet_source` remain accepted with deprecation notices.
 Do not supply both spellings of a field, even with equal values. A legacy null selection remains unselected;
 null under a new key is invalid. Archives and scientific recipe serialization retain their original bytes

@@ -277,3 +277,39 @@ def test_all_year_spellings_share_identity_but_explicit_intent_differs(baseline)
         calculation_records(resolve_set(source(path, parameters)).indicators) == omitted
     )
     assert explicit != omitted
+
+
+def _named_copy(path, forcing_id, forcing=None):
+    """Move the legacy fixture into one named recipe's WF1 layout."""
+    model = path.parent / "model"
+    (model / "run_default").rename(model / f"run_{forcing_id}")
+    toml = model / "wflow_sbm.toml"
+    text = toml.read_text().replace(
+        "forcing/inmaps_historical.nc",
+        forcing or f"forcing/{forcing_id}/inmaps_historical.nc",
+    )
+    toml.unlink()
+    (model / f"wflow_sbm_{forcing_id}.toml").write_text(text, encoding="utf-8")
+
+
+def test_named_recipe_thresholds_read_the_selected_run(baseline):
+    from blueearth_cst.shared.named_forcings import HistoricalLayout
+
+    path, parameters = baseline
+    legacy = resolve_thresholds(parameters, path)["thresholds"]["9"]
+    _named_copy(path, "chirps")
+    named = resolve_thresholds(parameters, path, historical=HistoricalLayout("chirps"))[
+        "thresholds"
+    ]["9"]
+    assert named["value"] == legacy["value"]
+    with pytest.raises(HistoricalQcritUnavailable, match="wflow_sbm_era5.toml"):
+        resolve_thresholds(parameters, path, historical=HistoricalLayout("era5"))
+
+
+def test_named_recipe_refuses_another_recipes_forcing(baseline):
+    from blueearth_cst.shared.named_forcings import HistoricalLayout
+
+    path, parameters = baseline
+    _named_copy(path, "chirps", forcing="forcing/era5/inmaps_historical.nc")
+    with pytest.raises(ValueError, match="forcing/chirps/inmaps_historical.nc"):
+        resolve_thresholds(parameters, path, historical=HistoricalLayout("chirps"))

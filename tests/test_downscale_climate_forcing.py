@@ -94,7 +94,10 @@ def test_preparation_checks_wrapped_elevation_grid(
     import yaml
 
     from blueearth_cst.experiment import downscale_climate_forcing as preparation
-    from blueearth_cst.experiment.simulator_adapter import IncompatibleForcingError
+    from blueearth_cst.experiment.simulator_adapter import (
+        IncompatibleForcingError,
+        ModelReference,
+    )
 
     forcing = xr.Dataset(
         {"temp": (("time", "latitude", "longitude"), np.ones((1, 3, 4)))},
@@ -163,7 +166,11 @@ def test_preparation_checks_wrapped_elevation_grid(
     )
     expected = PreparationReached if longitude_shift == 0 else IncompatibleForcingError
     with pytest.raises(expected):
-        preparation.prepare_model_forcing(run, SimpleNamespace(root=tmp_path), settings)
+        preparation.prepare_model_forcing(
+            run,
+            ModelReference(tmp_path, None),
+            settings,
+        )
     if longitude_shift == 0:
         selected = hydromt.DataCatalog(data_libs=[str(catalog_path)]).get_rasterdataset(
             "elevation", geom=forcing.raster.box, buffer=2, variables=["elevtn"]

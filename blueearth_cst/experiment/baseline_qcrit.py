@@ -11,6 +11,7 @@ from blueearth_cst.experiment.wflow_response_reader import (
     open_responses,
 )
 from blueearth_cst.indicators.sets.crop_water.calculations import prepare_baseline_qcrit
+from blueearth_cst.shared.named_forcings import HistoricalLayout
 from blueearth_cst.shared.provenance import file_sha256
 
 
@@ -24,14 +25,16 @@ def resolve_thresholds(
     *,
     prepare: bool = True,
     model_root: Path | None = None,
+    historical: HistoricalLayout = HistoricalLayout(None),
 ) -> dict:
     """Replace a baseline_quantile rule with sealed per-location thresholds.
 
     Omitted model roots use the WF4 project model context; legacy explicit paths
     resolve against the authored set file. Only the owned WF1 historical
-    output layout is accepted; observations and retained scenario responses
-    cannot be selected through this interface. Input digests enter calculation
-    parameters and therefore the indicator identity, including on reuse.
+    output layout is accepted; ``historical`` names WF4's selected recipe run.
+    Observations and retained scenario responses cannot be selected through
+    this interface. Input digests enter calculation parameters and therefore
+    the indicator identity, including on reuse.
     """
     thresholds = parameters.get("thresholds")
     if not isinstance(thresholds, dict) or "baseline_quantile" not in thresholds:
@@ -82,8 +85,8 @@ def resolve_thresholds(
         raise ValueError(
             "baseline_quantile requires WF4 project model context when model_root is omitted"
         )
-    csv_path = model / "run_default/output.csv"
-    toml_path = model / "wflow_sbm.toml"
+    csv_path = model / historical.discharge_csv
+    toml_path = model / historical.toml
     # Parse any existing model configuration even when its CSV is still absent.
     # A pending upstream output must not mask a malformed historical binding.
     toml_digest = None
@@ -92,9 +95,16 @@ def resolve_thresholds(
         with toml_path.open("rb") as stream:
             config = tomllib.load(stream)
         forcing = config.get("input", {}).get("path_forcing", "")
-        if not isinstance(forcing, str) or Path(forcing).name != "inmaps_historical.nc":
+        expected = Path(historical.forcing)
+        # Legacy TOMLs are checked by name; a named recipe by its exact path,
+        # so another recipe's forcing cannot stand in for the selected one.
+        if not isinstance(forcing, str) or (
+            Path(forcing).name != expected.name
+            if historical.forcing_id is None
+            else Path(forcing).as_posix() != expected.as_posix()
+        ):
             raise ValueError(
-                "baseline_quantile requires WF1 historical model forcing inmaps_historical.nc"
+                f"baseline_quantile requires WF1 historical model forcing {expected.as_posix()}"
             )
     for label, path in (
         ("model TOML", toml_path),

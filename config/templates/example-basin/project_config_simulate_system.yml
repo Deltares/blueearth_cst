@@ -28,8 +28,15 @@ operations: [simulations, indicators]
 # Run each realization's unperturbed reference member. Options: true | false.
 include_unperturbed: true
 
+# With named climate.forcings: the historical recipe whose model TOML, end
+# state and Qcrit discharge this experiment uses. It must be one WF1 ran, and
+# the collection must match its extraction; delta collections allow only default.
+# Select the historical recipe. Input: default or a climate.forcings name.
+#historical_forcing: default
+
 # How each run's stores start. auto uses a warm state configured in the model
-# TOML, otherwise WF1's historical end state (run_default/outstate); historical
+# TOML, otherwise WF1's historical end state (run_default/outstate, or
+# run_<id>/outstate for a named recipe); historical
 # requires that end state; cold starts from Wflow's cold initialization.
 # Warm-up years repeat the run's first days before its window and are
 # discarded, so responses keep the configured calendar.

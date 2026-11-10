@@ -168,3 +168,31 @@ def test_legacy_intents_keep_the_model_state_without_warmup():
         "source": "model",
         "warmup_years": 0,
     }
+
+
+def test_named_recipe_binds_its_own_end_state(tmp_path):
+    from blueearth_cst.experiment.simulation_runs import resolve_initialization
+    from blueearth_cst.shared.named_forcings import HistoricalLayout
+
+    model, config = _model(tmp_path)
+    named = model / HistoricalLayout("chirps").end_state
+    named.parent.mkdir(parents=True)
+    named.write_bytes(b"chirps end state")
+    resolved = resolve_initialization(
+        model,
+        config,
+        {"state": "historical", "warmup_years": 0},
+        tmp_path,
+        HistoricalLayout("chirps").end_state,
+    )
+    assert resolved["state_file"]["path"] == (
+        "models/hydrology/wflow/run_chirps/outstate/outstates.nc"
+    )
+    with pytest.raises(ValueError, match="run_era5"):
+        resolve_initialization(
+            model,
+            config,
+            {"state": "historical", "warmup_years": 0},
+            tmp_path,
+            HistoricalLayout("era5").end_state,
+        )

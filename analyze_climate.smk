@@ -216,6 +216,12 @@ SPATIAL_UNITS = spatial_units_rule(
 # logged warning. A relaxed store cannot be promoted silently: WF1 and WF3
 # declare the store WITHOUT the flag, so switching `shared.clim_historical` onto
 # a candidate changes the params, re-extracts, and meets the floor there.
+#
+# A source that a named forcing recipe extracts into this same folder is a
+# forcing store, not a comparison extra: WF1 declares it with the full
+# contract, so WF0 must too (t014).
+from blueearth_cst.shared.named_forcing_producers import forcing_store_sources
+_FORCING_STORE_SOURCES = forcing_store_sources(climate_cfg) | {clim_source}
 CLIMATE_STORES = {
     source: climate_store_rule(
         project_dir=project_dir,
@@ -225,10 +231,10 @@ CLIMATE_STORES = {
         data_sources=DATA_SOURCES,
         hydrography=basin_hydrography,
         basin_index=basin_index,
-        enforce_min_years=(source == clim_source),
+        enforce_min_years=(source in _FORCING_STORE_SOURCES),
         forcing=climate_cfg.get("forcing") if source == clim_source else None,
         forcing_required=(
-            source == clim_source or source not in {"chirps", "chirps_global"}
+            source in _FORCING_STORE_SOURCES or source not in {"chirps", "chirps_global"}
         ),
     )
     for source in CANDIDATE_SOURCES
