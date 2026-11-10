@@ -582,6 +582,16 @@ def verify_selected_collection_source(project, selection, marker):
         selected = intent["settings"]["source_like"]
         if selected != project["climate"]["selected"]:
             raise ValueError("WF4 climate source differs from delta collection source")
+        # Delta intents record no forcing recipe, so only the default named
+        # recipe keeps the pre-t014 guarantee; another one cannot be checked.
+        climate = project["climate"]
+        if climate.get("forcing_id", climate.get("default_forcing")) != climate.get(
+            "default_forcing"
+        ):
+            raise ValueError(
+                "delta collections record no forcing recipe; WF4 may select only "
+                "the default historical forcing for them (historical_forcing: default)"
+            )
         return selected
     archive_path = resolve_file_reference(
         marker["archive"],

@@ -227,7 +227,15 @@ def test_collection_roundtrip_reuse_selection_and_corruption(tmp_path):
     assert (
         verify_selected_collection_source(project_config, selection, marker) == "era5"
     )
-    project_config["climate"]["selected"] = "chirps"
+    # A named default recipe is accepted; another one cannot be checked.
+    project_config["climate"].update(forcing_id="era5", default_forcing="era5")
+    assert (
+        verify_selected_collection_source(project_config, selection, marker) == "era5"
+    )
+    project_config["climate"]["forcing_id"] = "era5_nopc"
+    with pytest.raises(ValueError, match="only the default historical forcing"):
+        verify_selected_collection_source(project_config, selection, marker)
+    project_config["climate"] = {"selected": "chirps"}
     with pytest.raises(ValueError, match="climate source differs"):
         verify_selected_collection_source(project_config, selection, marker)
     assert len(marker["series"]) == 5
