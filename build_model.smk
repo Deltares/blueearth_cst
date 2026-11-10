@@ -315,8 +315,7 @@ spatial_dir = f"{project_dir}/data/spatial"
 # Rule 1.12 draws the model forcing; source diagnostics belong to WF0.
 # Variable x kind is a fixed cross-product, fully knowable at parse time.
 # One key per executed recipe: `None` is the single-recipe layout (t014).
-from blueearth_cst.model.historical_runs import retained_run_names
-from blueearth_cst.shared.named_forcing_stores import forcing_store_sources
+from blueearth_cst.shared.named_forcing_producers import forcing_store_sources, retained_run_names
 from blueearth_cst.shared.named_forcings import HistoricalLayout, composed_forcing_ids
 FORCING_IDS = composed_forcing_ids(climate_cfg, my_cfg)
 FORCING_KEYS = (None,) if FORCING_IDS is None else FORCING_IDS

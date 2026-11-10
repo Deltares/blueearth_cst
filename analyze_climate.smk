@@ -220,7 +220,7 @@ SPATIAL_UNITS = spatial_units_rule(
 # A source that a named forcing recipe extracts into this same folder is a
 # forcing store, not a comparison extra: WF1 declares it with the full
 # contract, so WF0 must too (t014).
-from blueearth_cst.shared.named_forcing_stores import forcing_store_sources
+from blueearth_cst.shared.named_forcing_producers import forcing_store_sources
 _FORCING_STORE_SOURCES = forcing_store_sources(climate_cfg) | {clim_source}
 CLIMATE_STORES = {
     source: climate_store_rule(

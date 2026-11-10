@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from blueearth_cst.model.historical_runs import retained_run_names
 from blueearth_cst.shared import config_composition as cc
+from blueearth_cst.shared.named_forcing_producers import retained_run_names
 from blueearth_cst.shared.named_forcings import (
     HistoricalLayout,
     historical_forcing_ids,
@@ -147,6 +147,35 @@ def test_wf4_loader_resolves_the_same_recipe_as_composition(
         simulate={**simulate, "operation": "indicators-only"},
     )
     assert simulation_settings(path)[0]["climate"]["forcing_id"] == forcing_id
+
+
+def test_wf4_collection_lookup_composes_wf3_from_the_file(tmp_path, monkeypatch):
+    """WF4's resolved recipe must not be fed back into WF3's composition."""
+    from blueearth_cst.experiment import simulation_runner
+
+    path = _named(
+        tmp_path,
+        simulate={
+            "operation": "simulate-and-indicators",
+            "historical_forcing": "era5",
+        },
+    )
+    composed = cc.load_composed_config(path, entry="generate_scenarios")
+    seen = {}
+    original = cc.compose_config
+
+    class Stop(Exception):
+        pass
+
+    def compose(t1, t1_path, **kwargs):
+        seen["generation"] = original(t1, t1_path, **kwargs)[0]
+        raise Stop
+
+    monkeypatch.setattr(cc, "compose_config", compose)
+    with pytest.raises(Stop):
+        simulation_runner.resolve_selected_collection(path, tmp_path)
+    assert seen["generation"]["climate"] == composed["climate"]
+    assert seen["generation"]["climate"]["forcing_id"] == "chirps"
 
 
 def test_wf4_loader_keeps_legacy_climate_unchanged(tmp_path):

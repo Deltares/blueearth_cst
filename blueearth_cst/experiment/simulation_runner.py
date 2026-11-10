@@ -478,8 +478,9 @@ def resolve_collection_with_plan(config_path, repository):
         )
         verify_selected_collection_source(project, selection, marker)
         return selection, marker, None
+    # Compose WF3's own view from the file: `project` is WF4's resolved recipe.
     composed, _ = compose_config(
-        project,
+        yaml.safe_load(Path(config_path).read_bytes()),
         config_path,
         entry="generate_scenarios",
         declared_sections=(

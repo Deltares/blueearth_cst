@@ -1079,8 +1079,8 @@ def compose_config(
     bodies = {probe.name: probe.body for probe in probes if probe.status == "ok"}
     for owner, body in bodies.items():
         if owner == "build_model":
-            from blueearth_cst.model.historical_runs import (
-                historical_run_name,
+            from blueearth_cst.model.historical_runs import historical_run_name
+            from blueearth_cst.shared.named_forcing_producers import (
                 retained_run_names,
             )
 
