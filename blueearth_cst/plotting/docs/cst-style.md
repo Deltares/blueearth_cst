@@ -109,8 +109,12 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
   and shift keys inward. Reduce categorical text only if the full legend exceeds available space;
   warn if it still cannot fit. Comparable plots share limits; independent scales use the full
   light-to-dark range and visible intermediate values.
-- Dataset heatmaps use dataset hue with light-to-dark quantity encoding. Use rectangular colourbar
-  extensions and 10 pt title padding.
+- Spatial maps and heatmaps use palettes tied to the plotted variable, independently of dataset identity.
+  Use diverging red–white–blue for signed anomalies with a meaningful zero; use sequential palettes for
+  non-negative quantities. Climate-index maps use `colors.yml` → `climate_index_maps`: blue for rain
+  amount, wet-day counts and wet spells; yellow–brown for dry spells; yellow–red for heat; blue for cold.
+  Dataset colours remain for comparison lines and points. Use rectangular colourbar extensions and
+  10 pt title padding.
 - Monthly precipitation departure calendars use continuous `RdBu` (red dry, blue wet), matching the
   SPI heatmap palette while retaining continuous normalization, centred at
   zero with symmetric limits over all finite pooled anomalies. Use a three-line colourbar title:

@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
-from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.ticker import NullLocator
 
 from blueearth_cst.climate_analysis.climate_indices import load_publication
@@ -41,6 +40,7 @@ from blueearth_cst.shared.map_reference import (
     reference_arguments,
 )
 from blueearth_cst.shared.plot_preset import CST_PRESET
+from blueearth_cst.shared.plot_colors import CLIMATE_INDEX_COLORMAPS
 
 
 def _series(data, metadata, *, seasonal=False, color=None, source="", columns=3):
@@ -281,8 +281,15 @@ def render_indices(
                 np.linspace(y.min(), y.max(), 3),
                 1 / np.cos(np.deg2rad(float(template.latitude.mean()))),
             )
-        cmap = LinearSegmentedColormap.from_list("source_quantity", ["#f5f5f5", hue])
         for metric, (label, units) in metadata.items():
+            palette = (
+                "dry_spell" if metric == "cdd"
+                else "cold" if metric == "mean_temp_below_zero_days"
+                else "temp" if metric in INDEX_GROUPS["temperature_extremes"][2]
+                or metric in INDEX_GROUPS["heatwaves"][2]
+                else "precip"
+            )
+            cmap = plt.get_cmap(CLIMATE_INDEX_COLORMAPS[palette])
             field = (
                 grid[metric].mean("period").transpose("latitude", "longitude")
                 if metric in grid

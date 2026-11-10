@@ -37,6 +37,11 @@ climate_maps:
   temp_crossing_freezing: RdBu_r
   pet: Oranges
 precip_anomaly: RdBu
+climate_index_maps:
+  precip: Blues
+  dry_spell: YlOrBr
+  temp: YlOrRd
+  cold: Blues
 
 # UNESCO draft report Figure 13 legend swatches, adapted to signed WF2 changes.
 projection_changes:
