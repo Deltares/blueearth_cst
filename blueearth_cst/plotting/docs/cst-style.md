@@ -494,6 +494,8 @@ square plotting area and existing 0.002 display cutoff.
   `plotting.fundamentals.add_caption(fig, text)`; it freezes drawn axes/decorations, adds the measured
   band and restores original DPI. Do not relayout or resize afterwards; wording and metadata remain
   workflow-owned.
+  Caption measurement runs layout without painting the ordinary canvas; final export paints the completed
+  figure.
 - Wrap embedded text to measured axes width with the existing note font. Leave 3 mm below the
   caption and 3 mm to the original canvas bottom. Tight-cropped maps keep their geometry and 2 mm
   export border; do not resize maps to fit captions.
