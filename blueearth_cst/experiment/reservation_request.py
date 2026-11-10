@@ -248,6 +248,7 @@ def capture_request(
         "compute",
         "include_unperturbed",
         "initialization",
+        "historical_forcing",
         "output",
         # Analysis intent, never simulation identity.
         "operations",
@@ -304,6 +305,10 @@ def capture_request(
     # Omission and true preserve the existing reservation identity.
     if not include_unperturbed(workflow):
         request["simulation"]["include_unperturbed"] = False
+    forcing_id = config["climate"].get("forcing_id")
+    if forcing_id is not None:
+        # Named recipes may share a source; legacy requests keep their identity.
+        request["simulation"]["historical_forcing"] = forcing_id
     if "initialization" in workflow:
         from blueearth_cst.experiment.simulation_runs import initialization
 

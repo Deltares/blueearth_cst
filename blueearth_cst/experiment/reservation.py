@@ -328,11 +328,23 @@ def validate_request(request: dict, project_root: Path | str) -> dict:
         {
             key: value
             for key, value in simulation.items()
-            if key not in {"include_unperturbed", "netcdf_grid", "initialization"}
+            if key
+            not in {
+                "include_unperturbed",
+                "netcdf_grid",
+                "initialization",
+                "historical_forcing",
+            }
         },
         {"climate_source", "model_root", "outvars", "model_request"},
         "declared simulation",
     )
+    if "historical_forcing" in simulation:
+        from blueearth_cst.shared.named_forcings import FORCING_ID
+
+        forcing_id = simulation["historical_forcing"]
+        if not isinstance(forcing_id, str) or not FORCING_ID.fullmatch(forcing_id):
+            raise ValueError("declared historical_forcing must be a recipe name")
     if "initialization" in simulation:
         from blueearth_cst.experiment.simulation_runs import initialization
 

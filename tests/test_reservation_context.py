@@ -521,6 +521,32 @@ def test_changed_catalog_during_invocation_recheck_refuses_and_preserves_owner(p
     )
 
 
+def test_named_recipe_selection_enters_the_request_identity(retained, monkeypatch):
+    """Recipes sharing a source must not share a reservation request."""
+    from blueearth_cst.experiment import reservation_request
+
+    legacy, _ = capture_request(retained.config, REPOSITORY)
+    assert "historical_forcing" not in legacy["simulation"]
+    original = reservation_request.compose_captured_config
+    requests = {}
+    for forcing_id in ("era5", "era5_nopc"):
+
+        def compose(*args, _id=forcing_id, **kwargs):
+            config, paths = original(*args, **kwargs)
+            config["climate"]["forcing_id"] = _id
+            config["workflows"]["simulate_system"]["historical_forcing"] = _id
+            return config, paths
+
+        monkeypatch.setattr(reservation_request, "compose_captured_config", compose)
+        requests[forcing_id], _ = capture_request(retained.config, REPOSITORY)
+        reservation.validate_request(requests[forcing_id], retained.project)
+        assert requests[forcing_id]["simulation"]["historical_forcing"] == forcing_id
+    assert requests["era5"] != requests["era5_nopc"]
+    requests["era5"]["simulation"]["historical_forcing"] = "Bad"
+    with pytest.raises(ValueError, match="historical_forcing"):
+        reservation.validate_request(requests["era5"], retained.project)
+
+
 @pytest.mark.parametrize(
     "mode", ["same retained collection", "different collection", "active generation"]
 )
