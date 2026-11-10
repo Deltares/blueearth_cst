@@ -921,12 +921,15 @@ def _consumer_forcing_rows(config_path: str, workflow_name: str) -> tuple[str, .
     if forcing_id is not None:
         from blueearth_cst.shared.named_forcings import legacy_view
 
-        role = "default" if forcing_id == composed["climate"]["default_forcing"] else "selected"
+        role = (
+            "default"
+            if forcing_id == composed["climate"]["default_forcing"]
+            else "selected"
+        )
         rows = (f"Historical forcing: {forcing_id} ({role})",)
         climate = legacy_view(climate, forcing_id)
     return tuple(
-        f"> {row}"
-        for row in (*rows, *climate_forcing_summary(climate, required=True))
+        f"> {row}" for row in (*rows, *climate_forcing_summary(climate, required=True))
     )
 
 

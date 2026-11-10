@@ -68,7 +68,9 @@ def complete_reporting_years(
     """
     month = water_year_start_number(resolve_water_year_start(water_year_start))
     first, stop = pd.Timestamp(first), pd.Timestamp(last) + pd.Timedelta(days=1)
-    start = first.year if pd.Timestamp(first.year, month, 1) >= first else first.year + 1
+    start = (
+        first.year if pd.Timestamp(first.year, month, 1) >= first else first.year + 1
+    )
     end = stop.year - 1 if pd.Timestamp(stop.year, month, 1) <= stop else stop.year - 2
     if start > end:
         raise ValueError(

@@ -171,7 +171,10 @@ def test_canonical_inventory_and_one_source_refusal():
     assert [len(x["figures"]) for x in (era5, chirps, comparison)] == [17, 13, 13]
     for paths in (era5, chirps, comparison):
         assert "extreme-intensity" in paths["figures"]
-        assert not {"spi-checks", "extreme-Rx1day", "extreme-Rx5day", "extreme-SDII"} & paths["figures"].keys()
+        assert (
+            not {"spi-checks", "extreme-Rx1day", "extreme-Rx5day", "extreme-SDII"}
+            & paths["figures"].keys()
+        )
     assert all("coverage" not in x["figures"] for x in (era5, chirps, comparison))
     assert all("percentile" not in x["figures"] for x in (era5, chirps, comparison))
     assert all(

@@ -286,8 +286,12 @@ def test_retained_tables_render_without_source_runs_and_damage_refuses(
         ("2010-01-02", "2016-12-31", "Oct", {"start": 2010, "end": 2015}),
     ],
 )
-def test_complete_reporting_years_stay_inside_the_responses(first, last, start_month, expected):
-    window = complete_reporting_years(pd.Timestamp(first), pd.Timestamp(last), start_month)
+def test_complete_reporting_years_stay_inside_the_responses(
+    first, last, start_month, expected
+):
+    window = complete_reporting_years(
+        pd.Timestamp(first), pd.Timestamp(last), start_month
+    )
     assert window == expected
     dates = evaluation_dates(window, start_month)
     assert dates[0] >= pd.Timestamp(first) and dates[-1] <= pd.Timestamp(last)

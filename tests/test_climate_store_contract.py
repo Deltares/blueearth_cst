@@ -512,7 +512,8 @@ def test_wf0_candidate_source_gets_its_own_store_and_family_outputs(tmp_path):
 def _store_producer(workflow, climate_nc):
     """The one rule of ``workflow`` that writes ``climate_nc``."""
     producers = [
-        rule for rule in workflow.rules
+        rule
+        for rule in workflow.rules
         if climate_nc in {str(path) for path in rule.output}
     ]
     assert len(producers) == 1, [rule.name for rule in producers]

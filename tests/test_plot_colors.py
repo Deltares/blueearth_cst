@@ -70,7 +70,10 @@ def test_scientific_presets_are_preserved():
     }
     assert colors.PRECIP_ANOMALY_COLORMAP == "RdBu"
     assert colors.CLIMATE_INDEX_COLORMAPS == {
-        "precip": "Blues", "dry_spell": "YlOrBr", "temp": "YlOrRd", "cold": "Blues"
+        "precip": "Blues",
+        "dry_spell": "YlOrBr",
+        "temp": "YlOrRd",
+        "cold": "Blues",
     }
     assert colors.HISTORICAL_MAP_COLORS == {
         "temp": {

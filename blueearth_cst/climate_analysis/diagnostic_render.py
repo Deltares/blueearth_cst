@@ -11,7 +11,11 @@ import pandas as pd
 import xarray as xr
 
 from blueearth_cst.climate_analysis import diagnostic_figures as artists
-from blueearth_cst.climate_analysis.diagnostic_captions import caption, caption_details, title
+from blueearth_cst.climate_analysis.diagnostic_captions import (
+    caption,
+    caption_details,
+    title,
+)
 from blueearth_cst.climate_analysis.diagnostic_settings import carries_temp
 from blueearth_cst.climate_analysis.diagnostic_tables import table_renames, write_json
 from blueearth_cst.climate_analysis.diagnostics import (
@@ -506,7 +510,9 @@ def render(
             )
             methods_text = text
             if form.startswith("map-"):
-                text = f"{figure_title}. Annual means are shown on the native source grid."
+                text = (
+                    f"{figure_title}. Annual means are shown on the native source grid."
+                )
             elif form == "spi-checks":
                 text = "Shapiro–Wilk normality checks of reference-period SPI for gamma and Pearson III fits. Cells show p-values; gray denotes unavailable estimates. Tests are exploratory and unadjusted for multiple comparisons."
             elif form == "sensitivity":

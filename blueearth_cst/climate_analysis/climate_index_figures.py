@@ -40,8 +40,8 @@ from blueearth_cst.shared.map_reference import (
     load_reference,
     reference_arguments,
 )
-from blueearth_cst.shared.plot_preset import CST_PRESET
 from blueearth_cst.shared.plot_colors import CLIMATE_INDEX_COLORMAPS
+from blueearth_cst.shared.plot_preset import CST_PRESET
 
 
 def _series(data, metadata, *, seasonal=False, color=None, source="", columns=3):
@@ -302,9 +302,12 @@ def render_indices(
             )
         for metric, (label, units) in metadata.items():
             palette = (
-                "dry_spell" if metric == "cdd"
-                else "cold" if metric == "mean_temp_below_zero_days"
-                else "temp" if metric in INDEX_GROUPS["temperature_extremes"][2]
+                "dry_spell"
+                if metric == "cdd"
+                else "cold"
+                if metric == "mean_temp_below_zero_days"
+                else "temp"
+                if metric in INDEX_GROUPS["temperature_extremes"][2]
                 or metric in INDEX_GROUPS["heatwaves"][2]
                 else "precip"
             )
