@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from blueearth_cst.experiment.delta_scenarios import generate_collection
+from blueearth_cst.shared.workflow_config_snapshot import archive_lock
 
 
 def main() -> None:
@@ -15,7 +16,8 @@ def main() -> None:
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--project-dir", type=Path, required=True)
     args = parser.parse_args()
-    print(generate_collection(args.config, args.project_dir))
+    with archive_lock(args.project_dir.resolve(), "project-execution"):
+        print(generate_collection(args.config, args.project_dir))
 
 
 if __name__ == "__main__":

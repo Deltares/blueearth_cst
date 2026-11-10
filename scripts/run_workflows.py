@@ -910,7 +910,12 @@ def _consumer_forcing_rows(config_path: str, workflow_name: str) -> tuple[str, .
     else:
         from blueearth_cst.shared.config_composition import load_composed_config
 
-        load_composed_config(config_path, entry=workflow_name)
+        consumer = load_composed_config(config_path, entry=workflow_name)
+        if (
+            workflow_name == "generate_scenarios"
+            and consumer["workflows"][workflow_name].get("method") == "delta_change"
+        ):
+            return ()
     cfg = _read_config(config_path)
     return tuple(
         f"> {row}"
@@ -1152,6 +1157,20 @@ def _run_rebuild(
     note: str | None,
 ) -> int:
     """Confirm, clear, and run under the existing project execution lock."""
+    from blueearth_cst.shared.config_composition import load_composed_config
+    from blueearth_cst.shared.generation_config import generation_method
+
+    raw_generation = (
+        _read_config(config_path).get("workflows", {}).get("generate_scenarios", {})
+    )
+    if (
+        raw_generation.get("config_path")
+        and generation_method(
+            load_composed_config(config_path, entry="generate_scenarios")
+        )
+        == "delta_change"
+    ):
+        raise ValueError("--rebuild is not supported with delta generation")
     from blueearth_cst.shared.project_rebuild import erase_outputs, plan_rebuild
 
     cfg = _read_config(config_path)
@@ -1311,7 +1330,10 @@ def run(
                     ),
                     targets=["all"],
                     mode="dry_run"
-                    if any(flag in extra for flag in ("--dry-run", "-n", "--unlock"))
+                    if any(
+                        flag in extra
+                        for flag in ("--dry-run", "--dryrun", "-n", "--unlock")
+                    )
                     else "execute",
                     contract_mode="new_schema",
                     requested_workflows=(
@@ -1433,6 +1455,38 @@ def _run_owned(
     succeed (or all are disabled)."""
     # Contract (i), BEFORE the manifest: a run that cannot start should not
     # mint an invocation record, which exists to describe runs that did.
+    from blueearth_cst.shared.config_composition import load_composed_config
+    from blueearth_cst.shared.generation_config import generation_method
+
+    delta_operation = None
+    if (
+        flags["generate_scenarios"]
+        and cfg["workflows"]["generate_scenarios"].get("config_path")
+        and generation_method(
+            load_composed_config(config_path, entry="generate_scenarios")
+        )
+        == "delta_change"
+    ):
+        from blueearth_cst.experiment.delta_generation import capture_delta
+
+        delta_operation = capture_delta(Path(config_path), extra)
+        if flags["simulate_system"]:
+            from blueearth_cst.experiment.collection_resolution import (
+                resolve_explicit_collection_v2,
+            )
+            from blueearth_cst.experiment.simulation_runner import simulation_settings
+
+            _, simulation = simulation_settings(config_path)
+            if "scenario_collection" not in simulation:
+                raise ValueError(
+                    "delta generation with WF4 requires an explicit existing scenario_collection.manifest_path"
+                )
+            resolve_explicit_collection_v2(simulation["scenario_collection"])
+            print(
+                f"WF4 explicitly selected collection: {simulation['scenario_collection']['manifest_path']}; "
+                "delta generation will not replace this selection.",
+                flush=True,
+            )
     manifest_path, manifest = _initialize_manifest(
         cfg=cfg,
         config_path=config_path,
@@ -1582,7 +1636,8 @@ def _run_owned(
                         REPO_ROOT,
                         project_dir,
                         history["invocation_id"],
-                        execute_generation=flags["generate_scenarios"],
+                        execute_generation=flags["generate_scenarios"]
+                        and delta_operation is None,
                         execute_model=flags["build_model"],
                         new_experiment=new_experiment,
                         note=note,
@@ -1611,6 +1666,8 @@ def _run_owned(
                 )
             if reservation_context is not None:
                 reservation_context.recheck()
+            if delta_operation is not None:
+                delta_operation.recheck()
             if forcing_rows and not forcing_shown:
                 print(
                     "\n"
@@ -1887,20 +1944,35 @@ def _run_owned(
                         observation = product_record.observe(name, project_dir)
                     _link_child(history_path, history, child_path, name, child_id)
                     if name == "generate_scenarios":
-                        from scripts.generate_scenarios import run_owned
+                        if delta_operation is not None:
+                            child_record["generation"] = delta_operation.provenance()
+                            invocation_history.update(child_path, child_record)
+                            published = delta_operation.run(
+                                project_dir, preview=preview
+                            )
+                            child_record["generation"]["manifest_path"] = str(published)
+                            child_record["generation"]["published"] = not preview
+                            invocation_history.update(child_path, child_record)
+                            print(
+                                f"Delta collection {'preview' if preview else 'published'}: {published}",
+                                flush=True,
+                            )
+                            result = subprocess.CompletedProcess(cmd, 0)
+                        else:
+                            from scripts.generate_scenarios import run_owned
 
-                        result = subprocess.CompletedProcess(
-                            cmd,
-                            run_owned(
-                                Path(config_path),
-                                project_dir,
-                                cores,
-                                extra,
-                                invocation_id=child_id,
-                                history_pair=(child_path, child_record),
-                                reservation_context=reservation_context,
-                            ),
-                        )
+                            result = subprocess.CompletedProcess(
+                                cmd,
+                                run_owned(
+                                    Path(config_path),
+                                    project_dir,
+                                    cores,
+                                    extra,
+                                    invocation_id=child_id,
+                                    history_pair=(child_path, child_record),
+                                    reservation_context=reservation_context,
+                                ),
+                            )
                     else:
                         env_for_child.update(
                             execution_outputs.environment(child_path, child_record)
@@ -2251,7 +2323,7 @@ def _initialize_manifest(
         ),
         "extra_args": sanitize_argv(extra),
         "cores": cores,
-        "dry_run": "--dry-run" in extra or "-n" in extra,
+        "dry_run": any(flag in extra for flag in ("--dry-run", "--dryrun", "-n")),
         "no_op": not any(flags.values()),
         "workflows": workflows,
         "git": toolbox_identity(),
