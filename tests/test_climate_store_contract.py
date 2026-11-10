@@ -509,6 +509,56 @@ def test_wf0_candidate_source_gets_its_own_store_and_family_outputs(tmp_path):
     assert chirps.params["forcing_required"] is False
 
 
+def _store_producer(workflow, climate_nc):
+    """The one rule of ``workflow`` that writes ``climate_nc``."""
+    producers = [
+        rule for rule in workflow.rules
+        if climate_nc in {str(path) for path in rule.output}
+    ]
+    assert len(producers) == 1, [rule.name for rule in producers]
+    return producers[0]
+
+
+@pytest.mark.workflow_contract
+@pytest.mark.parametrize("executed", [["era5", "chirps"], ["era5"]])
+def test_named_recipe_store_has_one_contract_in_wf0_and_wf1(tmp_path, executed):
+    """A recipe sharing a candidate's folder is declared identically by both.
+
+    WF0 used to relax a non-selected CHIRPS candidate while WF1 extracted the
+    same folder as a forcing store, so each run re-extracted the other's. This
+    holds whether or not WF1 executes the recipe (t014).
+    """
+
+    cfg = load_composed_config(CONFIG_FN)
+    climate = cfg["climate"]
+    climate.pop("selected")
+    climate.pop("forcing", None)
+    climate["sources"] = ["era5", "chirps"]
+    climate["forcings"] = {
+        "era5": {"precip_source": "era5"},
+        "chirps": {"precip_source": "chirps", "temp_source": "era5"},
+    }
+    climate["default_forcing"] = "era5"
+    build = cfg["workflows"]["build_model"]
+    build["historical_forcings"] = executed
+    if len(executed) > 1:
+        build["historical_run"] = {"name": "pin"}
+    cfg_path = write_config(tmp_path, cfg, stem="project_config_named_stores")
+
+    wf0 = _parse_workflow("analyze_climate.smk", cfg_path)
+    wf1 = _parse_workflow("build_model.smk", cfg_path)
+    generated = _wf0_rule(wf0, "chirps")
+    shared = _store_producer(wf1, str(generated.output.climate_nc))
+
+    assert "enforce_min_years" not in generated.params.keys()
+    assert "forcing_required" not in generated.params.keys()
+    assert sorted(map(str, generated.input)) == sorted(map(str, shared.input))
+    assert sorted(map(str, generated.output)) == sorted(map(str, shared.output))
+    assert sorted(generated.params.keys()) == sorted(shared.params.keys())
+    for key in shared.params.keys():
+        assert str(generated.params[key]) == str(shared.params[key]), key
+
+
 @pytest.mark.workflow_contract
 def test_wf0_rejects_an_unsupported_candidate_source(tmp_path):
     """An unsupported candidate fails at PARSE time, naming the config key.

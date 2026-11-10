@@ -315,7 +315,9 @@ spatial_dir = f"{project_dir}/data/spatial"
 # Rule 1.12 draws the model forcing; source diagnostics belong to WF0.
 # Variable x kind is a fixed cross-product, fully knowable at parse time.
 # One key per executed recipe: `None` is the single-recipe layout (t014).
-from blueearth_cst.shared.named_forcings import HistoricalLayout, composed_forcing_ids, retained_run_names
+from blueearth_cst.shared.named_forcings import (
+    HistoricalLayout, composed_forcing_ids, forcing_store_sources, retained_run_names,
+)
 FORCING_IDS = composed_forcing_ids(climate_cfg, my_cfg)
 FORCING_KEYS = (None,) if FORCING_IDS is None else FORCING_IDS
 RETAINED = retained_run_names(historical_name, FORCING_IDS)
@@ -460,13 +462,18 @@ MAP_REFERENCE = historical_map_reference_rule(
     m0=water_year_start_number(WATER_YEAR_START),
     hydrography=basin_hydrography, basin_index=basin_index,
 )
+# A source that a named recipe extracts into the candidate's folder keeps the
+# full forcing contract, matching WF0's declaration of the same folder (t014).
+_FORCING_STORE_SOURCES = forcing_store_sources(climate_cfg)
 MAP_CANDIDATE_STORES = {
     source: climate_store_rule(
         project_dir=project_dir, model_region=model_region, clim_source=source,
         historical_window=historical_window, data_sources=DATA_SOURCES,
         hydrography=basin_hydrography, basin_index=basin_index,
-        enforce_min_years=False,
-        forcing_required=source not in {"chirps", "chirps_global"},
+        enforce_min_years=source in _FORCING_STORE_SOURCES,
+        forcing_required=(
+            source in _FORCING_STORE_SOURCES or source not in {"chirps", "chirps_global"}
+        ),
     )
     for source in dict.fromkeys(climate_cfg["sources"]) if source != clim_source
 }
