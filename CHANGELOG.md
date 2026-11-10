@@ -9,6 +9,13 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Standardize WF0–WF4 console openings with literal command display, labelled plans, conditional
+  input checks and clear execution/dry-run boundaries, including compact up-to-date output.
+
+- Reduce repeated WF2 null-band calculations, trajectory work and verified irregular-grid reads;
+  validate source compatibility and analysis records earlier. Reduce caption measurement overhead
+  while retaining the existing PNG compression.
+
 - Serialize NumPy-valued NetCDF metadata in WF2 analysis records without dropping attributes or
   relaxing strict non-finite JSON checks.
 
