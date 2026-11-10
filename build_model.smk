@@ -1043,7 +1043,10 @@ for _k in FORCING_KEYS:
         params:
             toml_path = _hp(_k, "toml"),
             historical_name = RETAINED[_k],
-            retained_config = _recipe_config(_k) if RETAINED[_k] else {},
+            # The archived composed config is read at execution, not a param: a
+            # param would make every unrelated config edit (another recipe,
+            # enabling WF3/WF4) reschedule this immutable run, which the
+            # collision guard then refuses. Scientific settings arrive as inputs.
             driver = str(Path(workflow.basedir) / "blueearth_cst" / "model" / "run_wflow.jl"),
             netcdf_grid = grid_output,
         log:
@@ -1063,7 +1066,9 @@ for _k in FORCING_KEYS:
             retention = retain_historical_run(
                 project_dir=project_dir, name=params.historical_name,
                 toml_path=Path(params.toml_path), registry_path=Path(input.registry_path[0]),
-                forcing_record_path=Path(input.forcing_record[0]), config=params.retained_config,
+                forcing_record_path=Path(input.forcing_record[0]),
+                # From the executed TOML, never the loop variable (late binding).
+                config=_recipe_config(HistoricalLayout.from_toml(Path(params.toml_path).name).forcing_id),
                 config_path=Path(config_path),
                 workflow_config_path=WORKFLOW_CONFIG_PATHS.get("build_model"),
                 repo_root=Path(workflow.basedir),
