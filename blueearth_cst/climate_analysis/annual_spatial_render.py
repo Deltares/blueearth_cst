@@ -2,6 +2,7 @@
 
 import json
 import re
+from dataclasses import replace
 from pathlib import Path
 
 import matplotlib as mpl
@@ -17,7 +18,7 @@ from blueearth_cst.plotting.prepared_maps import (
     MapFrame,
     MapScale,
     RasterMap,
-    draw_raster_panels_detailed,
+    draw_raster_panels,
 )
 from blueearth_cst.plotting.preset import use_preset
 from blueearth_cst.shared.map_frames import basin_frame, map_caption
@@ -168,7 +169,7 @@ def render_pages(
             record["year_dates"][str(eligible[0])][0],
             record["year_dates"][str(eligible[-1])][1],
         ]
-        text = map_caption(
+        methods_text = map_caption(
             f"Annual {label.lower()} anomalies ({units}) on the {source.upper()} native grid",
             source,
             [
@@ -178,7 +179,7 @@ def render_pages(
                 if record["single_reference_year"]
                 else "",
                 f"Start-year labels, month {record['water_year_start']}; at most {settings['max_missing_days_month']} missing days per month and {settings['max_missing_days_year']} per year; tolerated gaps use that calendar month's observed mean",
-                "Native cells intersecting the frame include cells outside the basin; no polygon mask or regridding. Gray is missing; white is uncovered. Geographic aspect and scale bars use midpoint latitude",
+                "Native cells intersecting the frame include cells outside the basin; no polygon mask or regridding. Gray is missing; white is uncovered. Geographic aspect uses midpoint latitude",
                 "Symmetric zero-centred scale pooled over displayed cells of all candidate sources and comparison years, without clipping"
                 if info["limits"]
                 else "No finite anomaly scale is available",
@@ -187,17 +188,45 @@ def render_pages(
                 "Descriptive departures, not trends or significance",
             ],
         )
+        text = (
+            f"Annual {label.lower()} anomalies ({units}) from {source.upper()} "
+            f"for {years[0]}–{years[-1]}, relative to the {eligible[0]}–{eligible[-1]} mean. "
+            + (
+                "Red indicates drier and blue wetter conditions."
+                if variable == "precip"
+                else "Blue indicates cooler and red warmer conditions."
+            )
+        )
+        if any(count < int(support.sum()) for count in counts):
+            text += " Gray denotes unavailable estimates."
         title = f"Annual {label.lower()} anomalies — {source.upper()} ({years[0]}–{years[-1]}), reference {eligible[0]}–{eligible[-1]}, page {int(page)}"
-        with use_preset(CST_PRESET):
-            fig = draw_raster_panels_detailed(
+        # Annual pages retain their existing three-column, six-year contract.
+        preset = replace(
+            CST_PRESET,
+            map_panels={**CST_PRESET.map_panels, "columns": 3, "max_panels_per_figure": 6},
+        )
+        with use_preset(preset):
+            (fig,) = draw_raster_panels(
                 rasters,
                 [f"{chr(97 + i)}) {year}" for i, year in enumerate(years)],
                 frame,
                 scale,
                 overlays,
                 colorbar_title=f"Anomaly\n({units})",
-                notes=notes,
             )
+            for ax, note in zip(fig.axes[: len(rasters)], notes):
+                if note:
+                    ax.text(
+                        0.5,
+                        0.5,
+                        note,
+                        transform=ax.transAxes,
+                        ha="center",
+                        va="center",
+                        fontsize=preset.fonts["note"],
+                        wrap=True,
+                        bbox=preset.label_box,
+                    )
             try:
                 save_figure(
                     filename,
@@ -214,6 +243,7 @@ def render_pages(
         records[relative] = {
             "title": title,
             "caption": text,
+            "methods_detail": methods_text,
             "sources": [source],
             "encoding": "annual_spatial_anomalies",
             "variable": variable,

@@ -38,6 +38,7 @@ def load_palette(path: Path = PALETTE_PATH) -> dict[str, Any]:
         "evaluation",
         "scenarios",
         "climate_maps",
+        "climate_index_maps",
         "historical_maps",
         "projection_changes",
         "precip_anomaly",
@@ -86,8 +87,11 @@ def load_palette(path: Path = PALETTE_PATH) -> dict[str, Any]:
         "pet",
     }:
         fail("climate_maps requires precip, temp, temp_crossing_freezing and pet")
+    if set(palette["climate_index_maps"]) != {"precip", "dry_spell", "temp", "cold"}:
+        fail("climate_index_maps requires precip, dry_spell, temp and cold")
     for name, cmap in {
-        **palette["climate_maps"],
+        **{f"climate_maps.{key}": value for key, value in palette["climate_maps"].items()},
+        **{f"climate_index_maps.{key}": value for key, value in palette["climate_index_maps"].items()},
         "precip_anomaly": palette["precip_anomaly"],
     }.items():
         if not isinstance(cmap, str) or not cmap.strip():
@@ -140,6 +144,7 @@ DATASET_COLORS: dict[str, str] = _PALETTE["datasets"]
 EVALUATION_COLORS: dict[str, str] = _PALETTE["evaluation"]
 SCENARIO_COLORS: dict[str, str] = _PALETTE["scenarios"]
 CLIMATE_COLORMAPS: dict[str, str] = _PALETTE["climate_maps"]
+CLIMATE_INDEX_COLORMAPS: dict[str, str] = _PALETTE["climate_index_maps"]
 PROJECTION_CHANGE_COLORS: dict[str, list[str]] = _PALETTE["projection_changes"]
 PRECIP_ANOMALY_COLORMAP: str = _PALETTE["precip_anomaly"]
 HISTORICAL_MAP_COLORS: dict[str, dict[str, Any]] = _PALETTE["historical_maps"]

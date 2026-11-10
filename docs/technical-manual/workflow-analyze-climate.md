@@ -278,9 +278,9 @@ display a title, caption or neither.
 - **Trends.** Historical trends help assess whether the baseline climate has changed over the record.
   Theil–Sen slopes estimate change per decade, and start-year sensitivity tests how strongly that
   estimate depends on the selected period.
-- **SPI fit checks.** Drought interpretation depends on how well the fitted distribution represents
-  reference-period rainfall. Comparing distribution choices and SPI normality helps identify indices
-  that need closer examination before use.
+
+SPI distribution-fit diagnostics remain available in the retained `spi_fit_checks` table; WF0 does
+not emit a separate reference-period normality-check figure.
 
 See the [processing rule reference](workflow-rule-reference.md#analyze-climate) for individual steps.
 

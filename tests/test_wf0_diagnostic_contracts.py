@@ -168,7 +168,10 @@ def test_canonical_inventory_and_one_source_refusal():
         "dataset_comparison_csv": str(Path("comparison/dataset_comparison.csv")),
         "dataset_comparison_md": str(Path("comparison/dataset_comparison.md")),
     }
-    assert [len(x["figures"]) for x in (era5, chirps, comparison)] == [20, 16, 16]
+    assert [len(x["figures"]) for x in (era5, chirps, comparison)] == [17, 13, 13]
+    for paths in (era5, chirps, comparison):
+        assert "extreme-intensity" in paths["figures"]
+        assert not {"spi-checks", "extreme-Rx1day", "extreme-Rx5day", "extreme-SDII"} & paths["figures"].keys()
     assert all("coverage" not in x["figures"] for x in (era5, chirps, comparison))
     assert all("percentile" not in x["figures"] for x in (era5, chirps, comparison))
     assert all(
@@ -207,7 +210,7 @@ def test_unavailable_records_keep_table_headers_and_round_trip(tmp_path, kind, c
     if kind in {"missing", "no_overlap"}:
         paths["figures"].pop("map-precip")
         records = render(paths, settings, 1, ["chirps"], [paths["root"]])
-        assert len(records) == 15
+        assert len(records) == 12
         titles = json.loads(
             (tmp_path / "plots/_engine/figure_titles.json").read_text(encoding="utf-8")
         )["figures"]
@@ -221,7 +224,7 @@ def test_unavailable_records_keep_table_headers_and_round_trip(tmp_path, kind, c
         assert "no usable data or reference fit" in series["caption"]
         output = capsys.readouterr().out
         assert (
-            "Wrote 15 diagnostic figures for chirps → plots/_engine/figure_captions.json"
+            "Wrote 12 diagnostic figures for chirps → plots/_engine/figure_captions.json"
         ) in output
         assert "no native temperature" in output
 

@@ -12,6 +12,13 @@ the [panel contract](panel-layout.md) owns fixed Matplotlib and ggplot2 grid geo
 Descriptions without displayed titles or footers assume `plotting.annotation: none`. `caption` and
 `title` add text outside the existing plotting canvas.
 
+For interactive figure review, export with `plotting.annotation: none` and show captions as optional
+external text in muted gray. Use concise journal-style prose: subject, source/period and essential
+interpretation of colours, marks or uncertainty. Keep processing inventories and coverage bookkeeping
+in metadata. A caption must remain available independently of the PNG. Align external captions with
+the horizontal bounds of the plotting axes, excluding colourbars. For multiple panels, use their
+combined horizontal extent; account for any tight-cropped export before mapping bounds to image pixels.
+
 ## Output paths
 
 - Write graphics under `plots/`. WF0–WF2 retain readable `plots/figure_titles.md` and a
@@ -109,11 +116,19 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
   and shift keys inward. Reduce categorical text only if the full legend exceeds available space;
   warn if it still cannot fit. Comparable plots share limits; independent scales use the full
   light-to-dark range and visible intermediate values.
-- Dataset heatmaps use dataset hue with light-to-dark quantity encoding. Use rectangular colourbar
-  extensions and 10 pt title padding.
-- Monthly precipitation departure calendars use continuous `BrBG` (brown dry, teal wet), centred at
-  zero with symmetric limits over all finite pooled anomalies. Label `Precipitation anomaly (mm)`;
-  omit cell borders and a monthly-percentile companion. Missing cells stay gray. Remove unavailable
+- Spatial maps and heatmaps use palettes tied to the plotted variable, independently of dataset identity.
+  Use diverging red–white–blue for signed anomalies with a meaningful zero; use sequential palettes for
+  non-negative quantities. Climate-index maps use `colors.yml` → `climate_index_maps`: blue for rain
+  amount, wet-day counts and wet spells; yellow–brown for dry spells; yellow–red for heat; blue for cold.
+  Dataset colours remain for comparison lines and points. Use rectangular colourbar extensions and
+  10 pt title padding.
+- Monthly precipitation departure calendars use continuous `RdBu` (red dry, blue wet), matching the
+  SPI heatmap palette while retaining continuous normalization, centred at
+  zero with symmetric limits over all finite pooled anomalies. Use a three-line colourbar title:
+  `Precip.`, `anomaly`, `(mm)`. Comparison datasets sit side by side on a 180 × 80 mm canvas,
+  with month labels and ticks on the first panel only. Use the full layout width and zero extra
+  inter-panel spacing, retaining preset padding and text sizes.
+  Omit cell borders and a monthly-percentile companion. Missing cells stay gray. Remove unavailable
   legend rows and explain missing values in captions.
 - SPI heatmaps use boundaries `-3, -2, -1, 1, 2, 3`, no zero tick, and a colourbar 80% of the
   plotting-area height. `diagnostic_figures.spi` sets canvas height to 0.56 times its standard stack
@@ -175,7 +190,8 @@ stream-order distinctions are preserved. Full-size standalone maps retain their 
 Use one vertical colourbar at the right, aligned with the bottom map frame, with title and units above.
 The shared preset reserves 16 mm for the key and labels; the bar is 2.3 mm wide and 64% of canvas height.
 Use `style_colourbar` for its typography and outline. Keep identical classes across comparable panels and
-figures. Prefer outward-rounded whole-number limits/steps when the quantity supports them (as for t003
+figures. Show supplied major ticks only; disable automatic minor ticks so dense continuous ramps do not
+acquire a gray fringe. Prefer outward-rounded whole-number limits/steps when the quantity supports them (as for t003
 delta maps); retain scientifically necessary fractional scales. The renderer consumes an explicit scale
 and never reclassifies supplied scientific values. Missing-data meaning belongs in the caption.
 
@@ -185,14 +201,18 @@ and never reclassifies supplied scientific values. Missing-data meaning belongs 
 
 - Optional historical P/T anomaly maps show every comparison reporting year, six per page in at most
   three columns and two rows. Retain trailing empty slots and labelled unavailable years. Shared
-  `prepared_maps.draw_raster_panels_detailed` preserves native cells, geographic aspect and map overlays.
+  `prepared_maps.draw_raster_panels` applies the compact spatial-panel style above, preserving
+  native cells, geographic aspect, map overlays and unavailable-year notes. Annual pages retain
+  their three-column, six-year grouping through the panel preset.
 - Use absolute departures (mm, °C), symmetric limits over finite cells intersecting each displayed
   native frame across all sources and comparison years, without clipping. Precipitation uses the
   shared precipitation-anomaly palette; temperature uses `climate_maps.temp_crossing_freezing` as
   the shared cool-negative/warm-positive ramp. Missing cells use the shared map missing colour.
   With all finite departures zero, display ±1 in the relevant units and disclose the display fallback;
-  with none finite, omit the numerical key. Captions state exact dates, per-cell reference support,
-  completeness/infill, native support, counts and unavailable reasons.
+  with none finite, omit the numerical key. Use concise journal-style captions naming the variable,
+  units, dataset, displayed years, reference period and colour interpretation; mention missing estimates
+  when present. Retain exact dates, per-cell reference support, completeness/infill, native support,
+  counts and unavailable reasons in the figure metadata, including `methods_detail`.
 
 ### Standard time-series template
 
@@ -233,6 +253,11 @@ Coverage and completeness tables remain available for analysis and figure prepar
 - `INDEX_GROUPS` in `indicators/climate/definitions.py` owns membership. `figure_availability.json`
   records omitted metrics and emitted PNGs. `figure_captions.json` and the title inventories describe
   the available set, inside the workflow-owned `plots/indices/` directory.
+- Climate-index spatial maps use the same padded basin frame as climatology and annual anomaly maps,
+  clipped to the native raster's outer cell edges. The broader reference frame is a fallback when
+  basin overlays are unavailable. Compute spatial indices on the full available native grid so the
+  displayed padding has calculated values. Apply the basin-cell selection only to basin-average
+  series and contributing-cell counts. Missing native-cell estimates remain gray.
 - These thematic sheets replace the combined `annual_indices_ts` and `seasonal_indices_ts` exports.
   Earlier run outputs remain historical evidence; use the current render inventory when reviewing a
   new render rather than treating old unavailable sheets as current products.
@@ -367,7 +392,6 @@ square plotting area and existing 0.002 display cutoff.
 | Autocorrelation | Dark point edges and approximately 95% limits, qualified in caption. |
 | Trend intervals | Thick horizontal intervals/caps, close rows, no dataset row labels. |
 | Seasonal P–T | Square panels; `Temperature anomaly (°C)` / `Precipitation anomaly (%)`. |
-| SPI fit checks | Dataset-hued p-value heatmaps, minimal titles, no `Month` x-axis title. |
 | Trend sensitivity | Slope points and confidence bars for each eligible start year. |
 
 - Trend-sensitivity panels use sparse calendar-aligned integer labels, minor ticks at other eligible

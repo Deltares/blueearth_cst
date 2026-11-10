@@ -18,7 +18,7 @@ DESCRIPTIONS = {
     ),
     "anomaly": (
         "Monthly precipitation departures from the calendar-month mean in the reference period. "
-        "Brown indicates drier and teal wetter months; gray marks unavailable monthly totals. "
+        "Red indicates drier and blue wetter months; gray marks unavailable monthly totals. "
         "The continuous colour scale is symmetric about zero, spans all pooled finite departures, "
         "and is shared across sources and years. No temporal smoothing is applied."
     ),
@@ -33,17 +33,13 @@ DESCRIPTIONS = {
         "events; hatched markers show truncated events that touch a data gap or "
         "record boundary, so their full duration and accumulated deficit are unknown."
     ),
-    "extreme-Rx1day": (
-        "Annual maximum one-day precipitation (Rx1day). Points show annual values; "
-        "gaps indicate unavailable estimates."
-    ),
-    "extreme-Rx5day": (
-        "Annual maximum five-day precipitation (Rx5day), calculated from complete five-day "
-        "windows within each reporting year. Gaps indicate years without a valid estimate."
-    ),
-    "extreme-SDII": (
-        "Simple daily intensity index (SDII): mean precipitation on observed wet days in "
-        "each valid reporting year. Gaps indicate years without a valid estimate."
+    "extreme-intensity": (
+        "Annual precipitation extremes and wet-day intensity: (a) maximum one-day precipitation "
+        "(Rx1day), (b) maximum five-day precipitation (Rx5day), calculated from complete five-day "
+        "windows within each reporting year, and (c) simple daily intensity index (SDII), the mean "
+        "precipitation on observed wet days in each valid reporting year. Points show annual "
+        "values; gaps indicate unavailable estimates. Panels share the year axis; units and "
+        "vertical scales are specific to each index."
     ),
     "extreme-Wet days": (
         "Annual wet-day count, scaled from observed days to the full reporting year. "
@@ -85,9 +81,7 @@ TITLES = {
     "anomaly": "Monthly precipitation anomalies",
     "spi": "Standardized Precipitation Index",
     "drought-events": "Drought-event duration and accumulated deficit",
-    "extreme-Rx1day": "Annual maximum one-day precipitation",
-    "extreme-Rx5day": "Annual maximum five-day precipitation",
-    "extreme-SDII": "Annual wet-day precipitation intensity",
+    "extreme-intensity": "Annual precipitation extremes and wet-day intensity",
     "extreme-Wet days": "Annual wet-day count",
     "spell": "Dry-spell length exceedance",
     "acf": "Monthly precipitation anomaly autocorrelation",
@@ -108,7 +102,30 @@ def title(name: str, sources: list[str], period, support: str) -> str:
 
 
 def caption(name: str, view: View) -> str:
-    """Return a brief journal-style caption without a figure-number prefix."""
+    """Describe the displayed result and essential encodings in journal style."""
+    descriptions = {
+        "anomaly": "Monthly precipitation anomalies relative to the calendar-month mean. Red indicates drier and blue wetter conditions; gray denotes unavailable estimates.",
+        "extreme-intensity": "Annual maximum one-day precipitation (a, Rx1day), maximum five-day precipitation (b, Rx5day), and mean wet-day intensity (c, SDII). Dashed lines show Theil–Sen trends.",
+        "acf": "Autocorrelation of monthly precipitation anomalies. Shading indicates approximate pointwise 95% limits under no serial correlation.",
+        "spell": "Dry-spell duration exceedance probabilities. Spells touching data gaps or record boundaries are excluded; probabilities below 0.002 are outside the displayed range.",
+    }
+    plotted = (
+        [source for source in view.sources if view.results[source]["tclim"] is not None]
+        if name == "temperature"
+        else view.sources
+    )
+    sources = ", ".join(view.labels[source] for source in plotted)
+    text = descriptions.get(name, DESCRIPTIONS[name])
+    text += f" {sources}, {view.years[0]}–{view.years[-1]}."
+    if name in {"anomaly", "spi", "pt"}:
+        text += f" Reference period: {view.reference[0]}–{view.reference[1]}."
+    if name in {"extreme-intensity", "extreme-Wet days", "spell"}:
+        text += f" Wet-day threshold: {view.wet_mm:g} mm."
+    return text
+
+
+def caption_details(name: str, view: View) -> str:
+    """Retain methodological and coverage details separately from the short caption."""
     plotted = (
         [s for s in view.sources if view.results[s]["tclim"] is not None]
         if name == "temperature"
@@ -155,7 +172,7 @@ def caption(name: str, view: View) -> str:
         detail += (
             f" Fit: {'Pearson III' if distribution == 'pearson3' else distribution}."
         )
-    if name in {"extreme-SDII", "extreme-Wet days", "spell"}:
+    if name in {"extreme-intensity", "extreme-Wet days", "spell"}:
         detail += f" Wet day: ≥{view.wet_mm:g} mm."
     if name == "spell":
         counts = ", ".join(
