@@ -18,7 +18,7 @@ DESCRIPTIONS = {
     ),
     "anomaly": (
         "Monthly precipitation departures from the calendar-month mean in the reference period. "
-        "Brown indicates drier and teal wetter months; gray marks unavailable monthly totals. "
+        "Red indicates drier and blue wetter months; gray marks unavailable monthly totals. "
         "The continuous colour scale is symmetric about zero, spans all pooled finite departures, "
         "and is shared across sources and years. No temporal smoothing is applied."
     ),

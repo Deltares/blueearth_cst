@@ -111,9 +111,13 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
   light-to-dark range and visible intermediate values.
 - Dataset heatmaps use dataset hue with light-to-dark quantity encoding. Use rectangular colourbar
   extensions and 10 pt title padding.
-- Monthly precipitation departure calendars use continuous `BrBG` (brown dry, teal wet), centred at
-  zero with symmetric limits over all finite pooled anomalies. Label `Precipitation anomaly (mm)`;
-  omit cell borders and a monthly-percentile companion. Missing cells stay gray. Remove unavailable
+- Monthly precipitation departure calendars use continuous `RdBu` (red dry, blue wet), matching the
+  SPI heatmap palette while retaining continuous normalization, centred at
+  zero with symmetric limits over all finite pooled anomalies. Use a three-line colourbar title:
+  `Precip.`, `anomaly`, `(mm)`. Comparison datasets sit side by side on a 180 × 80 mm canvas,
+  with month labels and ticks on the first panel only. Use the full layout width and zero extra
+  inter-panel spacing, retaining preset padding and text sizes.
+  Omit cell borders and a monthly-percentile companion. Missing cells stay gray. Remove unavailable
   legend rows and explain missing values in captions.
 - SPI heatmaps use boundaries `-3, -2, -1, 1, 2, 3`, no zero tick, and a colourbar 80% of the
   plotting-area height. `diagnostic_figures.spi` sets canvas height to 0.56 times its standard stack

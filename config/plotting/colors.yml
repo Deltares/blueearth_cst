@@ -36,7 +36,7 @@ climate_maps:
   temp: YlOrRd
   temp_crossing_freezing: RdBu_r
   pet: Oranges
-precip_anomaly: BrBG
+precip_anomaly: RdBu
 
 # UNESCO draft report Figure 13 legend swatches, adapted to signed WF2 changes.
 projection_changes:

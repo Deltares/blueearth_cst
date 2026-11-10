@@ -353,9 +353,18 @@ def anomaly(v: View) -> Figure:
     limit = max(abs(bounds[0]), abs(bounds[-1]))
     norm = Normalize(-limit, limit)
     cmap = plt.get_cmap(PRECIP_ANOMALY_COLORMAP).with_extremes(bad=MISSING)
-    fig, axs, stack = _stack(v)
+    count = len(v.sources)
+    height = H_SINGLE
+    fig, axs = new_fig(
+        height,
+        1,
+        count,
+        width_mm=W_FULL if count > 1 else W_MID,
+        sharex=True,
+        sharey=True,
+    )
     mesh = None
-    for i, (ax, s) in enumerate(zip(axs[:, 0], v.sources)):
+    for i, (ax, s) in enumerate(zip(axs[0], v.sources)):
         ax.set_facecolor(MISSING)
         heatmap_frame(ax)
         grid = v.results[s]["anomaly"].reindex(columns=v.years)
@@ -369,15 +378,17 @@ def anomaly(v: View) -> Figure:
             rasterized=True,
         )
         heatmap_months(ax, v.m0)
+        if i > 0:
+            ax.tick_params(axis="y", left=False, labelleft=False)
         if len(v.sources) > 1:
             ax.set_title(f"{chr(97 + i)}) {v.labels[s]}")
-    axs[-1, 0].set_xlim(v.years[0] - 0.5, v.years[-1] + 0.5)
-    five_year_ticks(axs[-1, 0], v.years)
+        ax.set_xlim(v.years[0] - 0.5, v.years[-1] + 0.5)
+        five_year_ticks(ax, v.years)
     ticks = MaxNLocator(nbins=4).tick_values(-limit, limit)
     ticks = [tick for tick in ticks if norm.vmin <= tick <= norm.vmax]
-    label = "Precipitation\nanomaly (mm)"
-    colourbar(fig, mesh, axs[:, 0].tolist(), label, ticks, stack)
-    fig.get_layout_engine().set(rect=(0, 0, 0.94, 1))
+    label = "Precip.\nanomaly\n(mm)"
+    colourbar(fig, mesh, axs[0].tolist(), label, ticks, height)
+    fig.get_layout_engine().set(wspace=0, rect=(0, 0, 1, 1))
     return fig
 
 
