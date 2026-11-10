@@ -81,7 +81,6 @@ from blueearth_cst.shared.named_forcings import (
     historical_forcing_ids,
     legacy_view,
     named_recipes,
-    retained_run_names,
     simulation_climate,
 )
 from blueearth_cst.shared.plot_config import resolve_annotation
@@ -1080,7 +1079,10 @@ def compose_config(
     bodies = {probe.name: probe.body for probe in probes if probe.status == "ok"}
     for owner, body in bodies.items():
         if owner == "build_model":
-            from blueearth_cst.model.historical_runs import historical_run_name
+            from blueearth_cst.model.historical_runs import (
+                historical_run_name,
+                retained_run_names,
+            )
 
             retained_run_names(
                 historical_run_name(body.get("historical_run")),

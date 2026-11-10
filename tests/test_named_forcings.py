@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
+from blueearth_cst.model.historical_runs import retained_run_names
 from blueearth_cst.shared import config_composition as cc
 from blueearth_cst.shared.named_forcings import (
     HistoricalLayout,
     historical_forcing_ids,
-    retained_run_names,
 )
 from tests.test_config_composition import write_split
 
@@ -236,6 +236,10 @@ def test_layouts_keep_legacy_paths_and_isolate_named_runs():
         "wflow_sbm_chirps.toml",
         "run_chirps/outstate/outstates.nc",
     )
+    for layout in (legacy, named):
+        assert HistoricalLayout.from_toml(layout.toml) == layout
+    with pytest.raises(ValueError, match="unrecognized"):
+        HistoricalLayout.from_toml("wflow_sbm_Bad.toml")
 
 
 def test_runner_summary_names_the_active_recipe(tmp_path):

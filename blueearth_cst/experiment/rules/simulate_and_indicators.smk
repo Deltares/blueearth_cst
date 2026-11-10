@@ -71,6 +71,18 @@ if _retained_selection is not None:
         or _retained_selection["run_ids"] != RUN_IDS):
         raise SimulationFrozenError("selected collection differs from retained experiment; use --new-experiment")
     SELECTION["resolution_mode"] = _retained_selection["resolution_mode"]
+# A retained experiment keeps the historical recipe its model reference records.
+_retained_toml = None
+if _retained_settings is not None:
+    _retained_toml = _retained_intent["documents"]["model_reference"]["model_toml"]
+elif Path(f"{engine_dir}/model_reference.yml").exists():
+    import yaml
+    _retained_toml = yaml.safe_load(Path(f"{engine_dir}/model_reference.yml").read_text(encoding="utf-8"))["model_toml"]
+if _retained_toml is not None and _retained_toml != HISTORICAL.toml:
+    raise SimulationFrozenError(
+        f"historical forcing {HISTORICAL_FORCING or 'default'!r} differs from the retained "
+        f"experiment's ({HistoricalLayout.from_toml(_retained_toml).forcing_id or 'default'!r}); "
+        "use --new-experiment")
 SERIES = {item["run_id"]: item["file"]["path"] for item in COLLECTION["series"]}
 # t010: new experiments start from the resolved initialization. A retained
 # pre-t010 experiment keeps its legacy identity unless the block is set explicitly.

@@ -397,7 +397,10 @@ def test_indicators_only_reads_v2_collection_from_simulation_intent(
             "collection_revision": "b" * 64,
             "manifest": {"path": "scenarios/_engine/collections/a/collection.json"},
         },
-        "documents": {"response_request": {"variables": [{"variable": "q"}]}},
+        "documents": {
+            "response_request": {"variables": [{"variable": "q"}]},
+            "model_reference": {"model_toml": "wflow_sbm.toml"},
+        },
     }
     monkeypatch.setattr(
         indicator_plan,

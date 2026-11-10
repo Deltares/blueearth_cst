@@ -415,3 +415,26 @@ def read_historical_run(
     if sorted(frame.columns) != record["stations"] or len(frame) != record["samples"]:
         raise ValueError("retained discharge shape disagrees with completion evidence")
     return record, frame, stations
+
+
+def retained_run_names(
+    name: str | None, forcing_ids: tuple[str, ...] | None
+) -> dict[str | None, str | None]:
+    """Map each executed recipe to its retained run name.
+
+    Legacy layout keeps the authored name. Named layout derives ``<name>_<id>``;
+    two or more recipes require a name so the comparison reads retained runs.
+    """
+    if forcing_ids is None:
+        return {None: name}
+    if name is None:
+        if len(forcing_ids) > 1:
+            raise ValueError(
+                "build_model.historical_run.name is required when "
+                "historical_forcings lists two or more recipes"
+            )
+        return {forcing_ids[0]: None}
+    return {
+        forcing_id: historical_run_name({"name": f"{name}_{forcing_id}"})
+        for forcing_id in forcing_ids
+    }
