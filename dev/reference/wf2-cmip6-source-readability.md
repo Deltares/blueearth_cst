@@ -14,8 +14,16 @@ HydroMT's regular raster accessor requires uniformly spaced coordinates. Ordered
 and longitude axes can remain readable when spacing is irregular. In
 [`fetch_raw_slice`](../../blueearth_cst/projections/fetch_gcm_raw.py), only HydroMT's recognized regular-grid
 failure triggers a second read of the same source without a bounding box, followed by index-space clipping to
-the requested bounds. The normal bounded read remains the first attempt. HydroMT still handles renaming,
-unit conversion, CRS, and nodata in both paths.
+the requested bounds. A previously unclassified grid starts with the normal bounded read. HydroMT handles
+renaming, unit conversion, CRS, and nodata in both paths.
+
+Within a split-variable fetch, a confirmed irregular-grid fallback retains its full native axes and known
+CRS. Later variables first open through HydroMT without a bounding box and reuse direct clipping only when
+their actual one-dimensional coordinate arrays, dimension names, and CRS match exactly. A different or
+uncertifiable grid closes that speculative source and takes the original bounded-read/fallback path;
+differences outside the basin do not introduce a new rejection. Expected metadata-read failures also retry the
+original path. Source/calendar admission, exact merge, time coverage and eager loading remain unchanged.
+This reuse is local to one fetch and does not infer geometry from model names or grid labels.
 
 The fallback requires ordered one-dimensional axes; it is not an unstructured-mesh reader. A successful
 coordinate probe does not prove that data can be staged. Missing values and time coverage have separate

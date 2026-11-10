@@ -723,6 +723,22 @@ def merge_variable_slices(slices, calendars, entry):
     return xr.merge(prepared, join="exact", compat="equals", combine_attrs="override")
 
 
+def _native_grid(data):
+    """Snapshot actual full native axes and CRS without loading climate arrays."""
+    y_dim, x_dim = data.raster.y_dim, data.raster.x_dim
+    if data.raster.crs is None or any(
+        data[dim].dims != (dim,) for dim in (y_dim, x_dim)
+    ):
+        return None
+    return (
+        y_dim,
+        x_dim,
+        data.raster.crs,
+        data[y_dim].values.copy(),
+        data[x_dim].values.copy(),
+    )
+
+
 def read_variable_slices(
     read_spec,
     catalog_entry,
@@ -743,6 +759,7 @@ def read_variable_slices(
     source_names = {target: source for source, target in rename.items()}
     entry = resolve_entry_name(catalog_entry, member)
     slices, calendars = {}, {}
+    irregular_grid, owners = None, []
     try:
         for variable in variables:
             source = source_names.get(variable, variable)
@@ -777,38 +794,89 @@ def read_variable_slices(
             log_row(f"Using source {source}: {store_uri}", module="fetch")
             catalog = hydromt.DataCatalog()
             catalog.from_dict({catalog_entry: spec})
-            started = perf_counter(), process_time()
-            try:
-                data = catalog.get_rasterdataset(
-                    entry,
-                    bbox=bbox,
-                    buffer=buffer,
-                    time_range=window,
-                    variables=[variable],
-                )
-            except (ValueError, OSError, KeyError, NoDataException) as exc:
-                if not is_irregular_grid_error(exc):
-                    if admit_pet:
-                        raise ValueError(
-                            f"{entry}: monthly input {source} could not be admitted: {exc}. Supply matching qualified monthly inputs or disable the calculated variable."
-                        ) from exc
-                    raise
-                _log_timing(f"{source} regular-grid refusal", started)
+            data = None
+            if irregular_grid is not None:
                 started = perf_counter(), process_time()
-                data = catalog.get_rasterdataset(
-                    entry, time_range=window, variables=[variable]
-                )
-                data = clip_to_bbox(
-                    data,
-                    bbox,
-                    buffer,
-                    data.raster.y_dim,
-                    data.raster.x_dim,
-                    source=entry,
-                )
-                _log_timing(f"{source} fallback open and clip", started)
-            else:
-                _log_timing(f"{source} open", started)
+                candidate = None
+                try:
+                    candidate = catalog.get_rasterdataset(
+                        entry, time_range=window, variables=[variable]
+                    )
+                    owners.append(candidate)
+                    observed_grid = _native_grid(candidate)
+                except (ValueError, OSError, KeyError, NoDataException):
+                    if candidate is not None:
+                        candidate.close()
+                        owners.pop()
+                    _log_timing(
+                        f"{source} grid probe failed; retrying bounded read", started
+                    )
+                else:
+                    matches = (
+                        observed_grid is not None
+                        and observed_grid[:3] == irregular_grid[:3]
+                        and all(
+                            np.array_equal(actual, expected)
+                            for actual, expected in zip(
+                                observed_grid[3:], irregular_grid[3:]
+                            )
+                        )
+                    )
+                    if matches:
+                        data = clip_to_bbox(
+                            candidate,
+                            bbox,
+                            buffer,
+                            observed_grid[0],
+                            observed_grid[1],
+                            source=entry,
+                        )
+                        _log_timing(
+                            f"{source} verified irregular-grid open and clip", started
+                        )
+                    else:
+                        candidate.close()
+                        owners.pop()
+                        _log_timing(
+                            f"{source} grid differs; retrying bounded read", started
+                        )
+            if data is None:
+                started = perf_counter(), process_time()
+                try:
+                    data = catalog.get_rasterdataset(
+                        entry,
+                        bbox=bbox,
+                        buffer=buffer,
+                        time_range=window,
+                        variables=[variable],
+                    )
+                except (ValueError, OSError, KeyError, NoDataException) as exc:
+                    if not is_irregular_grid_error(exc):
+                        if admit_pet:
+                            raise ValueError(
+                                f"{entry}: monthly input {source} could not be admitted: {exc}. Supply matching qualified monthly inputs or disable the calculated variable."
+                            ) from exc
+                        raise
+                    _log_timing(f"{source} regular-grid refusal", started)
+                    started = perf_counter(), process_time()
+                    data = catalog.get_rasterdataset(
+                        entry, time_range=window, variables=[variable]
+                    )
+                    owners.append(data)
+                    observed_grid = _native_grid(data)
+                    data = clip_to_bbox(
+                        data,
+                        bbox,
+                        buffer,
+                        data.raster.y_dim,
+                        data.raster.x_dim,
+                        source=entry,
+                    )
+                    irregular_grid = observed_grid
+                    _log_timing(f"{source} fallback open and clip", started)
+                else:
+                    owners.append(data)
+                    _log_timing(f"{source} open", started)
             if isinstance(data, xr.DataArray):
                 data = data.to_dataset(name=variable)
             if admit_pet:
@@ -886,7 +954,7 @@ def read_variable_slices(
         _log_timing("merged load", started)
         return merged, next(iter(calendars.values()))
     finally:
-        for data in slices.values():
+        for data in owners:
             data.close()
 
 

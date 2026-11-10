@@ -217,6 +217,91 @@ def test_split_reads_use_exact_variable_uris_and_validate_before_merge(
     ]
 
 
+@pytest.mark.parametrize(
+    "mode", ["regular", "matching", "outside_change", "probe_error", "unknown_crs"]
+)
+def test_split_reads_reuse_only_verified_irregular_axes(monkeypatch, mode):
+    import hydromt
+
+    calls, opened, closed = [], [], []
+
+    class Catalog:
+        def from_dict(self, entries):
+            pass
+
+        def get_rasterdataset(self, entry, **kwargs):
+            variable = kwargs["variables"][0]
+            bounded = "bbox" in kwargs
+            calls.append((variable, bounded))
+            if bounded and mode != "regular":
+                raise ValueError("This function only applies to regular grids")
+            if (
+                mode == "probe_error"
+                and variable == "temp"
+                and calls.count(("temp", False)) == 1
+            ):
+                raise OSError("speculative metadata read failed")
+            lat = [0.0, 1.0, 2.1]
+            if variable == "temp" and mode == "outside_change":
+                lat[-1] = 2.2  # Different full grid, identical selected basin cells.
+            data = xr.Dataset(
+                {variable: (("time", "lat", "lon"), np.ones((2, 3, 4)))},
+                coords={
+                    "time": pd.date_range("2000-01-01", periods=2, freq="MS"),
+                    "lat": lat,
+                    "lon": [8.0, 9.0, 10.0, 11.0],
+                },
+            )
+            if mode != "unknown_crs":
+                data.raster.set_crs(4326)
+            if bounded:
+                return clip_to_bbox(
+                    data, kwargs["bbox"], kwargs["buffer"], "lat", "lon"
+                )
+            handle = len(opened)
+            opened.append(handle)
+            data.set_close(lambda: closed.append(handle))
+            return data
+
+    monkeypatch.setattr(hydromt, "DataCatalog", Catalog)
+    monkeypatch.setattr(series_identity, "read_store_calendar", lambda uri: "noleap")
+    merged, calendar = read_variable_slices(
+        {"uri": "gs://s/{member}/{variable}/*/*"},
+        "entry_{member}",
+        "r1",
+        ["precip", "temp"],
+        {"precip": "gn/v1", "temp": "gn/v1"},
+        [8.5, -0.5, 10.5, 1.5],
+        0,
+        ("2000", "2001"),
+    )
+    assert calendar == "noleap"
+    np.testing.assert_array_equal(merged.lat, [0.0, 1.0])
+    np.testing.assert_array_equal(merged.lon, [9.0, 10.0])
+    np.testing.assert_array_equal(merged.precip, np.ones((2, 2, 2)))
+    xr.testing.assert_equal(merged.precip, merged.temp.rename("precip"))
+    assert sorted(closed) == opened
+    if mode == "regular":
+        assert calls == [("precip", True), ("temp", True)]
+    elif mode == "matching":
+        assert calls == [("precip", True), ("precip", False), ("temp", False)]
+    elif mode == "unknown_crs":
+        assert calls == [
+            ("precip", True),
+            ("precip", False),
+            ("temp", True),
+            ("temp", False),
+        ]
+    else:
+        assert calls == [
+            ("precip", True),
+            ("precip", False),
+            ("temp", False),
+            ("temp", True),
+            ("temp", False),
+        ]
+
+
 def test_local_input_mode_refuses_a_cmip_cache_miss(tmp_path, monkeypatch):
     monkeypatch.setenv("BLUEEARTH_CST_LOCAL_INPUTS", "1")
     monkeypatch.setattr(series_identity, "region_fingerprint", lambda _path: "region")
