@@ -414,11 +414,13 @@ def live_simulation_inputs_v2(
     include_unperturbed=True,
     netcdf_grid=None,
     initialization=None,
+    historical_forcing=None,
 ):
     """Resolve all current scientific WF4 inputs into an immutable intent.
 
     ``initialization`` is the validated WF4 request; ``None`` keeps a retained
     pre-t010 experiment's legacy identity (model TOML state, no warm-up).
+    ``historical_forcing`` is the resolved named recipe; ``None`` is legacy.
     """
     import tomllib
 
@@ -430,12 +432,14 @@ def live_simulation_inputs_v2(
         preparation_identity_v2,
     )
     from blueearth_cst.experiment.write_model_reference import build_model_reference
+    from blueearth_cst.shared.named_forcings import HistoricalLayout
     from blueearth_cst.shared.workflow_config_snapshot import file_reference
 
     root = Path(experiment_root).resolve()
     project = Path(project_root).resolve()
     model = Path(model_root).resolve()
-    reference = build_model_reference(model, project)
+    historical = HistoricalLayout(historical_forcing)
+    reference = build_model_reference(model, project, historical.toml)
     retained = _simulation_path(root, "_engine/model_reference.yml")
     import yaml
 
@@ -480,7 +484,7 @@ def live_simulation_inputs_v2(
         from blueearth_cst.experiment.simulation_runs import resolve_initialization
 
         documents["settings"]["initialization"] = resolve_initialization(
-            model, model_config, initialization, project
+            model, model_config, initialization, project, historical.end_state
         )
     selection = {
         "resolution_mode": resolution_mode,

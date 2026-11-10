@@ -79,6 +79,9 @@ class ModelReference:
 
     root: Path
     forcing_requirement: ForcingRequirement
+    #: The selected historical run's TOML and end state, relative to ``root``.
+    toml_name: str = "wflow_sbm.toml"
+    end_state: str = "run_default/outstate/outstates.nc"
 
 
 @dataclass(frozen=True)

@@ -100,13 +100,15 @@ class MemberFootprint:
         return self.forcing_bytes + self.state_bytes + self.grid_bytes
 
 
-def estimate_grid_payload(basin_dir, startyear, endyear, variable_count):
+def estimate_grid_payload(
+    basin_dir, startyear, endyear, variable_count, toml_name="wflow_sbm.toml"
+):
     """Conservative raw bytes: all rectangular cells/layers, float64, daily."""
     import tomllib
 
     import netCDF4
 
-    with (Path(basin_dir) / "wflow_sbm.toml").open("rb") as handle:
+    with (Path(basin_dir) / toml_name).open("rb") as handle:
         config = tomllib.load(handle)
     with netCDF4.Dataset(Path(basin_dir) / "staticmaps.nc") as ds:
         variable = ds.variables[config["input"]["subbasin_location__count"]]
@@ -177,15 +179,24 @@ def _days_in_years(startyear, endyear):
     return (date(endyear, 12, 31) - date(startyear, 1, 1)).days + 1
 
 
-def measure_member_footprint(basin_dir, sim_start, sim_end, *, write_states=True):
+def measure_member_footprint(
+    basin_dir,
+    sim_start,
+    sim_end,
+    *,
+    write_states=True,
+    forcing="/".join(FORCING_ANCHOR),
+    state="/".join(STATE_ANCHOR),
+):
     """Estimate one member's ``temp()`` footprint, or ``None`` if it cannot be.
 
     ``None`` is an ordinary outcome, not an error: WF1 may not have run yet.
     Set ``write_states=False`` for runs that do not emit a final-state snapshot.
+    ``forcing`` and ``state`` are the selected historical run's model-root paths.
     """
     basin = Path(basin_dir)
-    forcing_anchor = basin.joinpath(*FORCING_ANCHOR)
-    state_anchor = basin.joinpath(*STATE_ANCHOR)
+    forcing_anchor = basin / forcing
+    state_anchor = basin / state
     if not forcing_anchor.is_file() or (write_states and not state_anchor.is_file()):
         return None
 

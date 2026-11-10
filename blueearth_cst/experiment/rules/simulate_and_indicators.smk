@@ -30,6 +30,17 @@ results_dir = f"{exp_dir}/results"
 # directory rather than meeting machinery at three depths (t2609152104).
 engine_dir = f"{exp_dir}/_engine"
 basin_dir = f"{project_dir}/models/hydrology/wflow"
+# t014: the selected historical recipe's TOML, end state and forcing. Legacy
+# projects keep wflow_sbm.toml and run_default/.
+from blueearth_cst.shared.named_forcings import HistoricalLayout
+HISTORICAL_FORCING = project["climate"].get("forcing_id")
+HISTORICAL = HistoricalLayout(HISTORICAL_FORCING)
+if (HISTORICAL_FORCING is not None and Path(basin_dir, ".outputs_configured").exists()
+        and not Path(basin_dir, HISTORICAL.toml).exists()):
+    raise ValueError(
+        f"simulate_system selects historical forcing {HISTORICAL_FORCING!r}, but WF1 has "
+        f"not run it ({HISTORICAL.toml} is missing). Add it to "
+        "build_model.historical_forcings and run build_model.")
 SELECTION, COLLECTION = resolve_selected_collection(config_path, REPOSITORY)
 _intent = read_canonical_json(Path(SELECTION["manifest_path"]).parent / "collection_intent.json")
 SIM_WINDOW_START = _intent["scenario_spec"]["simulation_window"]["start"]
@@ -143,7 +154,7 @@ def _live_simulation_inputs():
                 julia_command=shlex.split(julia_prefix(1)),
                 header_path=Path(directory) / "headers.txt",
                 include_unperturbed=include_unperturbed(my_cfg), netcdf_grid=grid_output,
-                initialization=INITIALIZATION)
+                initialization=INITIALIZATION, historical_forcing=HISTORICAL_FORCING)
 
 _simulation_complete = False
 if stored is not None:
@@ -155,7 +166,8 @@ if stored is not None:
         simulation_window={"start": SIM_WINDOW_START, "end": SIM_WINDOW_END},
         julia_command=shlex.split(julia_prefix(1)),
         include_unperturbed=include_unperturbed(my_cfg), netcdf_grid=grid_output,
-        initialization=INITIALIZATION, _ready_simulation=stored)
+        initialization=INITIALIZATION, historical_forcing=HISTORICAL_FORCING,
+        _ready_simulation=stored)
     _simulation_complete = True
 
 def _frozen_simulation(wc):
@@ -180,10 +192,11 @@ if not _simulation_complete:
         message: WRITE_MODEL_FINGERPRINT.banner()
         input:
             model_ready=ancient(f"{basin_dir}/.outputs_configured"),
-            model_toml=ancient(f"{basin_dir}/wflow_sbm.toml"),
+            model_toml=ancient(f"{basin_dir}/{HISTORICAL.toml}"),
         params:
             model_dir=basin_dir,
             project_dir=project_dir,
+            toml_name=HISTORICAL.toml,
         output:
             model_reference=update(f"{engine_dir}/model_reference.yml"),
         log:
@@ -213,7 +226,7 @@ if not _simulation_complete:
         message: CHECK_MODEL_UNCHANGED.banner()
         input:
             model_reference=f"{engine_dir}/model_reference.yml",
-            model_toml=ancient(f"{basin_dir}/wflow_sbm.toml"),
+            model_toml=ancient(f"{basin_dir}/{HISTORICAL.toml}"),
         params:
             model_dir=basin_dir,
             experiment=experiment,
@@ -240,6 +253,8 @@ if not _simulation_complete:
             temporal=temp(f"{runs_dir}/run_settings/{{run_id}}.temporal.json"),
         params:
             model_dir=basin_dir,
+            model_toml=HISTORICAL.toml,
+            end_state=HISTORICAL.end_state,
             run_id=lambda wc: wc.run_id,
             validated_collection=COLLECTION,
             native_output_path=f"{runs_dir}/output/{{run_id}}.csv",
@@ -274,12 +289,13 @@ if not _simulation_complete:
         BATCH_PLAN_SUMMARY += f"; {_plan.active_cells} active model cells"
     # Native forcing and grids also cover the discarded warm-up years.
     _NATIVE_START = SIM_WINDOW_START - (INITIALIZATION or {}).get("warmup_years", 0)
-    _footprint = measure_member_footprint(basin_dir, _NATIVE_START, SIM_WINDOW_END, write_states=False)
+    _footprint = measure_member_footprint(basin_dir, _NATIVE_START, SIM_WINDOW_END, write_states=False,
+        forcing=HISTORICAL.forcing, state=HISTORICAL.end_state)
     _headroom = disk_headroom_bytes(project_dir,
         fraction=ADVANCED_SETTINGS["defaults"]["batch_disk_headroom_fraction"], headroom_gb=compute.get("disk_headroom_gb"))
     if grid_output:
         from blueearth_cst.experiment.batch_sizing import estimate_grid_payload, MemberFootprint
-        _grid_bytes = estimate_grid_payload(basin_dir, _NATIVE_START, SIM_WINDOW_END, len(grid_output["variables"]))
+        _grid_bytes = estimate_grid_payload(basin_dir, _NATIVE_START, SIM_WINDOW_END, len(grid_output["variables"]), HISTORICAL.toml)
         BATCH_PLAN_SUMMARY += f"; grid raw {_grid_bytes / (1 << 30):.2f} GiB/run x {len(RUN_IDS)} (all cells/layers, daily float64; no compression saving)"
         # Completed staging pairs survive until publication. Both the complete
         # staging set and its published copies can coexist; reserve both sets,

@@ -498,6 +498,7 @@ def resolve_set(
     legacy: bool = False,
     prepare_baseline: bool = True,
     model_root: Path | None = None,
+    historical_forcing: str | None = None,
 ) -> ResolvedSet:
     """Validate one captured set file and resolve its entries.
 
@@ -600,7 +601,9 @@ def resolve_set(
             )
             if baseline:
                 from blueearth_cst.experiment.baseline_qcrit import resolve_thresholds
+                from blueearth_cst.shared.named_forcings import HistoricalLayout
 
+                historical = HistoricalLayout(historical_forcing)
                 parameters = resolve_thresholds(
                     parameters, source.path, prepare=False, model_root=model_root
                 )
@@ -615,6 +618,7 @@ def resolve_set(
                     {**parameters, "thresholds": thresholds},
                     source.path,
                     model_root=model_root,
+                    historical=historical,
                 )
                 declaration = loader.resolve(
                     value, item.calculation_method, parameters, indicator_name=item.name
@@ -890,6 +894,7 @@ def selected_sets(
                 )
                 if (project.get("project") or {}).get("project_dir")
                 else None,
+                historical_forcing=(project.get("climate") or {}).get("forcing_id"),
             )
         except HistoricalQcritUnavailable as exc:
             # Inspect the remaining sets: a pending producer must not hide

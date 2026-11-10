@@ -294,7 +294,10 @@ def prepend_warmup(forcing: xr.Dataset, years: int) -> xr.Dataset:
 
 
 def initial_state_settings(
-    model_root: Path, config: dict, initialization: dict | None = None
+    model_root: Path,
+    config: dict,
+    initialization: dict | None = None,
+    end_state: str = "run_default/outstate/outstates.nc",
 ) -> dict:
     """Select the initial state when relocating a WF4 run TOML.
 
@@ -305,9 +308,7 @@ def initial_state_settings(
     input and variable mapping; the model fingerprint owns their provenance.
     """
     if initialization is not None and initialization["source"] == "historical":
-        from blueearth_cst.experiment.batch_sizing import STATE_ANCHOR
-
-        path = Path(model_root, *STATE_ANCHOR).resolve()
+        path = Path(model_root, end_state).resolve()
         if file_sha256(path) != initialization["state_file"]["sha256"]:
             raise ValueError(
                 f"WF1 historical end state changed after freezing: {path}; "
@@ -360,7 +361,15 @@ def prepare_model_forcing(run_forcing, model_reference, settings):
 
     # Instantiate model in r+ on the source root, then redirect writes to the
     # per-realization run directory by rebinding root.
-    mod = WflowSbmModel(root=model_root, mode="r+", data_libs=data_libs)
+    # A named historical recipe owns its TOML; legacy keeps HydroMT's default.
+    selected_toml = (
+        {}
+        if model_reference.toml_name == "wflow_sbm.toml"
+        else {"config_filename": model_reference.toml_name}
+    )
+    mod = WflowSbmModel(
+        root=model_root, mode="r+", data_libs=data_libs, **selected_toml
+    )
 
     # Match setup_temp_pet_forcing's spatial reads so HydroMT wraps global
     # elevation longitudes before checking the grid actually used downstream.
@@ -417,7 +426,10 @@ def prepare_model_forcing(run_forcing, model_reference, settings):
             # write, emitting the correct relative pointer (verified against the
             # vendored make_config_paths_relative; design Â§5/Â§5a).
             **initial_state_settings(
-                Path(model_root), mod.config.data, settings.initialization
+                Path(model_root),
+                mod.config.data,
+                settings.initialization,
+                model_reference.end_state,
             ),
             "input.path_static": str(Path(model_root, "staticmaps.nc").resolve()),
             "input.path_forcing": str(fn_out.resolve()),
@@ -550,6 +562,8 @@ def prepare_collection_run(
     preparation=None,
     netcdf_grid=None,
     initialization=None,
+    model_toml="wflow_sbm.toml",
+    end_state="run_default/outstate/outstates.nc",
 ):
     """Prepare one retained member with the reviewed physical Wflow binding."""
     from blueearth_cst.experiment.simulator_adapter import (
@@ -592,7 +606,7 @@ def prepare_collection_run(
     return prepare(
         run_id,
         validate_forcing(forcing, requirement),
-        ModelReference(Path(model_root), requirement),
+        ModelReference(Path(model_root), requirement, model_toml, end_state),
         PreparationSettings(
             Path(config_out),
             Path(forcing_out),
@@ -645,6 +659,8 @@ if __name__ == "__main__":
                 preparation=record["documents"]["preparation"],
                 netcdf_grid=record["documents"]["settings"].get("netcdf_grid"),
                 initialization=frozen_initialization(record["documents"]["settings"]),
+                model_toml=sm.params.model_toml,
+                end_state=sm.params.end_state,
             )
             from blueearth_cst.shared.run_log_core import log_row
 

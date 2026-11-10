@@ -116,6 +116,21 @@ class TestMeasureMemberFootprint:
         basin.joinpath(*missing).unlink()
         assert measure_member_footprint(basin, 2046, 2054) is None
 
+    def test_a_named_recipe_measures_its_own_historical_run(self, tmp_path):
+        from blueearth_cst.shared.named_forcings import HistoricalLayout
+
+        basin = _model(tmp_path)
+        named = HistoricalLayout("chirps")
+        _write_forcing(basin / named.forcing, 1000)
+        (basin / named.end_state).parent.mkdir(parents=True)
+        (basin / named.end_state).write_bytes(b"\0" * 7)
+        fp = measure_member_footprint(
+            basin, 2046, 2054, forcing=named.forcing, state=named.end_state
+        )
+        hist_bytes = os.path.getsize(basin / named.forcing)
+        assert fp.forcing_bytes == round(hist_bytes / 1000 * 3287)
+        assert fp.state_bytes == 7
+
     def test_an_absent_model_yields_no_estimate(self, tmp_path):
         assert measure_member_footprint(tmp_path / "nope", 2046, 2054) is None
 
