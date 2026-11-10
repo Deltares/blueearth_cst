@@ -89,7 +89,8 @@ def test_native_entrypoints_retain_actual_cli_arguments(monkeypatch, entry):
 
 
 @pytest.mark.process_isolation
-def test_powershell_command_round_trips_literal_arguments():
+@pytest.mark.parametrize("multiline", [False, True])
+def test_powershell_command_round_trips_literal_arguments(multiline):
     pwsh = shutil.which("pwsh")
     if pwsh is None:
         pytest.skip("PowerShell unavailable")
@@ -102,6 +103,7 @@ def test_powershell_command_round_trips_literal_arguments():
             *arguments,
         ],
         powershell=True,
+        multiline=multiline,
     )
     result = subprocess.run(
         [pwsh, "-NoProfile", "-Command", command],
@@ -112,6 +114,25 @@ def test_powershell_command_round_trips_literal_arguments():
         timeout=30,
     )
     assert json.loads(result.stdout) == arguments
+
+
+@pytest.mark.parametrize("powershell", [False, True])
+def test_multiline_command_keeps_option_values_together(powershell):
+    arguments = ["snakemake", "all", "-c", "3", "--configfile", "case config.yml"]
+    output = cs.shell_command(arguments, powershell=powershell, multiline=True)
+    if powershell:
+        assert output.splitlines() == [
+            "& 'snakemake' 'all' `",
+            "  '-c' '3' `",
+            "  '--configfile' 'case config.yml'",
+        ]
+    else:
+        assert output.splitlines() == [
+            "snakemake all \\",
+            "  -c 3 \\",
+            "  --configfile 'case config.yml'",
+        ]
+        assert shlex.split(output.replace("\\\n", "")) == arguments
 
 
 def test_child_command_display_preserves_credential_redaction(presentation):

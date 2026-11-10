@@ -1132,19 +1132,30 @@ def engine_command():
 
 def _engine_command_line():
     argv = engine_command()
+    if not argv:
+        return "Unavailable (embedded API invocation)"
+    argv = sanitize_argv(argv)
     return (
-        shell_command(sanitize_argv(argv))
-        if argv
-        else "Unavailable (embedded API invocation)"
+        shell_command(argv, multiline=True)
+        + "\n\nSingle-line command\n"
+        + shell_command(argv)
     )
 
 
-def shell_command(argv, *, powershell=None):
+def shell_command(argv, *, powershell=None, multiline=False):
     """Quote literal arguments for the invoking platform's shell."""
     powershell = os.name == "nt" if powershell is None else powershell
-    if not powershell:
-        return shlex.join(str(arg) for arg in argv)
-    return "& " + " ".join("'" + str(arg).replace("'", "''") + "'" for arg in argv)
+    separator = " `\n  " if powershell else " \\\n  "
+    parts = []
+    for index, arg in enumerate(argv):
+        arg = str(arg)
+        quoted = "'" + arg.replace("'", "''") + "'" if powershell else shlex.quote(arg)
+        new_option = re.match(r"--?[A-Za-z-]", arg) is not None
+        parts.append(
+            separator if multiline and index and new_option else " " if index else ""
+        )
+        parts.append(quoted)
+    return ("& " if powershell else "") + "".join(parts)
 
 
 def _dry_run():

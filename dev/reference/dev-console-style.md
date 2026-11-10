@@ -15,8 +15,9 @@ The opening order is identity, **Snakemake command**, applicable **Input checks*
 scheduled plan rows are green, reused rows gray, and attention notices amber. Explicit labels preserve
 meaning without color. Existing live rule progress, failure detail and warning severity remain intact.
 
-The command is one physical line, with terminal soft wrapping. PowerShell uses literal single-quoted
-arguments with doubled apostrophes and an invocation operator; POSIX uses shell quoting. Arguments are
+The command prints with each option and its values on a new continuation line, followed by a labelled
+single-line copy. PowerShell uses backtick continuations, literal single-quoted arguments with doubled
+apostrophes and an invocation operator; POSIX uses backslash continuations and shell quoting. Arguments are
 never reconstructed from display text or Python representations. Owned launches supply the finalized
 engine arguments after configuration capture, including the real execution YAML, with credential-like
 values redacted under the same policy as invocation records. Ordinary arguments remain shell literals.
