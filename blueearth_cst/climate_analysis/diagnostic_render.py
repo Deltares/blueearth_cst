@@ -11,7 +11,7 @@ import pandas as pd
 import xarray as xr
 
 from blueearth_cst.climate_analysis import diagnostic_figures as artists
-from blueearth_cst.climate_analysis.diagnostic_captions import caption, title
+from blueearth_cst.climate_analysis.diagnostic_captions import caption, caption_details, title
 from blueearth_cst.climate_analysis.diagnostic_settings import carries_temp
 from blueearth_cst.climate_analysis.diagnostic_tables import table_renames, write_json
 from blueearth_cst.climate_analysis.diagnostics import (
@@ -504,6 +504,13 @@ def render(
             figure_title = title(
                 form, [view.labels[s] for s in contributing], period, support
             )
+            methods_text = text
+            if form.startswith("map-"):
+                text = f"{figure_title}. Annual means are shown on the native source grid."
+            elif form == "spi-checks":
+                text = "Shapiro–Wilk normality checks of reference-period SPI for gamma and Pearson III fits. Cells show p-values; gray denotes unavailable estimates. Tests are exploratory and unadjusted for multiple comparisons."
+            elif form == "sensitivity":
+                text = "Sensitivity of Theil–Sen trends to the fitting period. Error bars show 95% intervals adjusted for serial dependence; filled points indicate Mann–Kendall p < 0.05."
             export_figure(
                 fig,
                 filename,
@@ -521,6 +528,7 @@ def render(
                     form, [view.labels[s] for s in contributing], period, support
                 ),
                 "caption": text,
+                "methods_detail": methods_text,
                 "sources": contributing,
                 "period": period,
                 "reference": settings["reference_period"],
@@ -541,6 +549,8 @@ def render(
                 records[relative]["reference_support"] = {
                     s: results[s]["anomaly_reference_support"] for s in sources
                 }
+            if form in artists.CHARTS and form not in {"spi-checks", "sensitivity"}:
+                records[relative]["methods_detail"] = caption_details(form, view)
     if retained is not None:
         retained.close()
     if len(sources) == 1:

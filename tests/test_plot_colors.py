@@ -68,7 +68,10 @@ def test_scientific_presets_are_preserved():
         "ssp370-lowNTCF": "#e61d25",
         "ssp585": "#980002",
     }
-    assert colors.PRECIP_ANOMALY_COLORMAP == "BrBG"
+    assert colors.PRECIP_ANOMALY_COLORMAP == "RdBu"
+    assert colors.CLIMATE_INDEX_COLORMAPS == {
+        "precip": "Blues", "dry_spell": "YlOrBr", "temp": "YlOrRd", "cold": "Blues"
+    }
     assert colors.HISTORICAL_MAP_COLORS == {
         "temp": {
             "colors": ["#ffffcc", "#ffe895", "#fec45f", "#fd953f", "#fa4a29"],

@@ -72,16 +72,13 @@ FORMS = {
     "anomaly": ("precip", "monthly_anomaly"),
     "spi": ("precip", "monthly_spi"),
     "drought-events": ("precip", "spi_events"),
-    "extreme-Rx1day": ("precip", "annual_rx1day_ts"),
-    "extreme-Rx5day": ("precip", "annual_rx5day_ts"),
-    "extreme-SDII": ("precip", "annual_sdii_ts"),
+    "extreme-intensity": ("precip", "annual_intensity_ts"),
     "extreme-Wet days": ("precip", "annual_wet_days_ts"),
     "spell": ("precip", "dry_spell_exceedance"),
     "acf": ("precip", "monthly_anomaly_acf"),
     "slopes": ("precip", "annual_trend_interval"),
     "series": ("precip", "annual_trend_ts"),
     "pt": ("precip_temp", "seasonal_anomaly"),
-    "spi-checks": ("precip", "monthly_spi_fit"),
     "sensitivity": ("precip", "annual_trend_sensitivity"),
 }
 

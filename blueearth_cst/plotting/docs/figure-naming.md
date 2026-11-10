@@ -82,6 +82,7 @@ Logical API keys keep their established spellings; the filename builder shortens
 | `annual_clim_map` | `annual_mean_map` |
 | `annual_rx1day_ts`, `annual_rx5day_ts` | `rx1day_annual`, `rx5day_annual` |
 | `annual_sdii_ts`, `annual_wet_days_ts` | `sdii_annual`, `wet_days_annual` |
+| `annual_intensity_ts` | `intensity_annual` |
 | `monthly_spi`, `monthly_spi_fit` | `spi`, `spi_fit` |
 | `monthly_anomaly_acf` | `anomaly_acf` |
 | `annual_trend_interval`, `annual_trend_sensitivity` | `trend_intervals`, `trend_sensitivity` |
@@ -99,6 +100,7 @@ spi_events
 annual_rx1day_ts
 annual_rx5day_ts
 annual_sdii_ts
+annual_intensity_ts
 annual_wet_days_ts
 dry_spell_exceedance
 monthly_anomaly_acf
@@ -110,6 +112,9 @@ annual_trend_sensitivity
 daily_agreement
 monthly_agreement
 ```
+
+WF0 now groups Rx1day, Rx5day and SDII in `annual_intensity_ts`. The separate contexts and
+`monthly_spi_fit` remain recognized for older exports; current WF0 does not emit those figures.
 
 The machine vocabulary and descriptions live in `figure_naming.py`. `annual_ts` and `monthly_clim_line`
 support annual overlays and monthly climatologies in location comparisons as well as the WF1 source
