@@ -55,3 +55,116 @@ def test_reference_indicators_refused_before_simulation(monkeypatch):
         simulation_runner.simulation_indicator_sets(
             {}, {"include_unperturbed": False}, SimpleNamespace(legacy=True)
         )
+
+
+def test_initialization_defaults_and_validation():
+    from blueearth_cst.experiment.simulation_runs import initialization
+
+    assert initialization({}) == {"state": "auto", "warmup_years": 1}
+    assert initialization({"initialization": None}) == {
+        "state": "auto",
+        "warmup_years": 1,
+    }
+    assert initialization({"initialization": {"state": "cold", "warmup_years": 0}}) == {
+        "state": "cold",
+        "warmup_years": 0,
+    }
+    for bad in (
+        {"state": "warm"},
+        {"warmup_years": -1},
+        {"warmup_years": True},
+        {"warmup_years": 1.0},
+        {"spinup": 1},
+        [],
+    ):
+        with pytest.raises(ValueError, match="initialization"):
+            initialization({"initialization": bad})
+
+
+def _model(tmp_path, *, cold=True, variables=True, state=True):
+    model = tmp_path / "models/hydrology/wflow"
+    path = model / "run_default/outstate/outstates.nc"
+    path.parent.mkdir(parents=True)
+    if state:
+        path.write_bytes(b"historical end state")
+    config = {"model": {"cold_start__flag": cold}}
+    if variables:
+        config["state"] = {"variables": {"soil_temp": "soil_temp"}}
+    return model, config
+
+
+@pytest.mark.parametrize(
+    "state,cold,source",
+    [
+        ("auto", True, "historical"),
+        ("auto", False, "model"),
+        ("cold", True, "cold"),
+        ("historical", True, "historical"),
+    ],
+)
+def test_explicit_state_wins_over_the_default(tmp_path, state, cold, source):
+    import hashlib
+
+    from blueearth_cst.experiment.simulation_runs import (
+        resolve_initialization,
+        validate_frozen_initialization,
+    )
+
+    model, config = _model(tmp_path, cold=cold)
+    resolved = resolve_initialization(
+        model, config, {"state": state, "warmup_years": 1}, tmp_path
+    )
+    validate_frozen_initialization(resolved)
+    assert (resolved["state"], resolved["source"], resolved["warmup_years"]) == (
+        state,
+        source,
+        1,
+    )
+    if source == "historical":
+        assert resolved["state_file"]["path"] == (
+            "models/hydrology/wflow/run_default/outstate/outstates.nc"
+        )
+        assert (
+            resolved["state_file"]["sha256"]
+            == hashlib.sha256(b"historical end state").hexdigest()
+        )
+    else:
+        assert "state_file" not in resolved
+
+
+@pytest.mark.parametrize("state", ["historical", "cold"])
+def test_conflicting_explicit_states_refuse(tmp_path, state):
+    from blueearth_cst.experiment.simulation_runs import resolve_initialization
+
+    model, config = _model(tmp_path, cold=False)
+    with pytest.raises(ValueError, match="conflicts with the warm state"):
+        resolve_initialization(
+            model, config, {"state": state, "warmup_years": 1}, tmp_path
+        )
+
+
+@pytest.mark.parametrize(
+    "kwargs,match",
+    [
+        ({"state": False}, "historical end state is missing"),
+        ({"variables": False}, "state.variables"),
+    ],
+)
+def test_historical_state_requires_wf1_outputs(tmp_path, kwargs, match):
+    from blueearth_cst.experiment.simulation_runs import resolve_initialization
+
+    model, config = _model(tmp_path, **kwargs)
+    with pytest.raises(ValueError, match=match):
+        resolve_initialization(
+            model, config, {"state": "auto", "warmup_years": 1}, tmp_path
+        )
+
+
+def test_legacy_intents_keep_the_model_state_without_warmup():
+    from blueearth_cst.experiment.simulation_runs import frozen_initialization
+
+    assert frozen_initialization({"simulation_window": {}}) == {
+        "state": "model",
+        "source": "model",
+        "warmup_years": 0,
+    }

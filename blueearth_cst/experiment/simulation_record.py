@@ -151,11 +151,17 @@ def simulation_intent_v2(
         {
             key: value
             for key, value in settings.items()
-            if key not in {"include_unperturbed", "netcdf_grid"}
+            if key not in {"include_unperturbed", "netcdf_grid", "initialization"}
         },
         {"simulation_window"},
         "settings",
     )
+    if "initialization" in settings:
+        from blueearth_cst.experiment.simulation_runs import (
+            validate_frozen_initialization,
+        )
+
+        validate_frozen_initialization(settings["initialization"])
     window = _v2_fields(settings["simulation_window"], {"start", "end"}, "window")
     if "netcdf_grid" in settings:
         from blueearth_cst.shared.grid_output import normalize_grid_output
@@ -407,8 +413,13 @@ def live_simulation_inputs_v2(
     header_path,
     include_unperturbed=True,
     netcdf_grid=None,
+    initialization=None,
 ):
-    """Resolve all current scientific WF4 inputs into an immutable intent."""
+    """Resolve all current scientific WF4 inputs into an immutable intent.
+
+    ``initialization`` is the validated WF4 request; ``None`` keeps a retained
+    pre-t010 experiment's legacy identity (model TOML state, no warm-up).
+    """
     import tomllib
 
     from blueearth_cst.experiment.content_identity import stage_environment
@@ -465,6 +476,12 @@ def live_simulation_inputs_v2(
         documents["settings"]["include_unperturbed"] = False
     if netcdf_grid is not None:
         documents["settings"]["netcdf_grid"] = netcdf_grid
+    if initialization is not None:
+        from blueearth_cst.experiment.simulation_runs import resolve_initialization
+
+        documents["settings"]["initialization"] = resolve_initialization(
+            model, model_config, initialization, project
+        )
     selection = {
         "resolution_mode": resolution_mode,
         "manifest": file_reference(collection_path, "project_root", project),

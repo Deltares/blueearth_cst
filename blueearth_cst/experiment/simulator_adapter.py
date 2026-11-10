@@ -114,6 +114,8 @@ class PreparationSettings:
     last_time: str
     temporal_path: Path | None = None
     netcdf_grid: dict | None = None
+    #: Frozen resolved initialization; None keeps the model TOML state, no warm-up.
+    initialization: dict | None = None
 
 
 @dataclass(frozen=True)

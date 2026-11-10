@@ -20,6 +20,9 @@ class NativeRunArtifacts:
     csv_path: Path
     toml_path: Path
     temporal_path: Path | None = None
+    #: First retained response time when a discarded warm-up precedes it. The
+    #: temporal handoff supplies it when present; retained readers pass it.
+    response_start: str | None = None
 
 
 @dataclass(frozen=True)
@@ -63,7 +66,8 @@ def open_responses(
     The TOML supplies calendar/timestep and verifies each physical parameter.
     Native CSV order supplies location ordinals. Wflow's run_timestep! advances
     the clock, updates the model and then writes at that clock time, hence the
-    explicit interval-end binding. No spin-up trimming is introduced here.
+    explicit interval-end binding. A prepended warm-up recorded by preparation
+    is discarded here, at the simulation seam, so indicators never see it.
     """
     requested = response_request.variables
     if not run_id or not requested or len(set(requested)) != len(requested):
@@ -113,6 +117,20 @@ def open_responses(
         raise ValueError(
             f"run_id={run_id}: response coverage must be {expected_first} through {expected_last}"
         )
+    response_start = native_artifacts.response_start
+    if response_start is None and native_artifacts.temporal_path is not None:
+        from blueearth_cst.experiment.content_identity import read_canonical_json
+
+        response_start = read_canonical_json(Path(native_artifacts.temporal_path))[
+            "response_start"
+        ]
+    if response_start is not None:
+        first = pd.Timestamp(response_start)
+        if not expected_first <= first <= expected_last or first not in frame.index:
+            raise ValueError(
+                f"run_id={run_id}: response start {first} is outside native coverage"
+            )
+        frame = frame.loc[first:]
     result = []
     for variable in requested:
         native_header, parameter, units = NATIVE_VARIABLES[variable]

@@ -328,11 +328,16 @@ def validate_request(request: dict, project_root: Path | str) -> dict:
         {
             key: value
             for key, value in simulation.items()
-            if key not in {"include_unperturbed", "netcdf_grid"}
+            if key not in {"include_unperturbed", "netcdf_grid", "initialization"}
         },
         {"climate_source", "model_root", "outvars", "model_request"},
         "declared simulation",
     )
+    if "initialization" in simulation:
+        from blueearth_cst.experiment.simulation_runs import initialization
+
+        if initialization(simulation) != simulation["initialization"]:
+            raise ValueError("declared simulation initialization must be normalized")
     _text(simulation["climate_source"], "climate_source")
     from blueearth_cst.shared.grid_output import normalize_grid_output
 

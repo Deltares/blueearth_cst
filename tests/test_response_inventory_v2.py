@@ -377,3 +377,48 @@ def test_a_corrupt_inventory_digest_refuses_before_native_open(v2, monkeypatch):
     )
     with pytest.raises(MissingResponseRequirement):
         read_response_inventory_v2(root)
+
+
+def _temporal(operations, prepared_start, response_start):
+    return {
+        "source_calendar": "noleap",
+        "prepared_forcing_calendar": "proleptic_gregorian",
+        "response_calendar": "standard",
+        "operations": operations,
+        "prepared_start": prepared_start,
+        "prepared_end": "2060-12-31T00:00:00",
+        "response_start": response_start,
+        "response_end": "2060-12-31 00:00:00",
+        "time_label": "interval_end",
+    }
+
+
+def test_prepended_warmup_moves_only_the_native_clock():
+    from blueearth_cst.experiment.response_inventory import (
+        MissingResponseRequirement,
+        _validate_temporal,
+    )
+
+    chain = ["cftime_to_datetime64", "clip_to_configured_window"]
+    warm = [*chain, "prepend_warmup_years", "refresh_toml_endpoints"]
+    clock = {
+        "time": {
+            "calendar": "standard",
+            "timestepsecs": 86400,
+            "starttime": "2040-01-01T00:00:00",
+            "endtime": "2060-12-31T00:00:00",
+        }
+    }
+    _validate_temporal(
+        _temporal(warm, "2040-01-01T00:00:00", "2041-01-02 00:00:00"), clock
+    )
+    for bad in (
+        _temporal(warm, "2040-01-01T00:00:00", "2040-01-02 00:00:00"),
+        _temporal(
+            [*chain, "refresh_toml_endpoints"],
+            "2040-01-01T00:00:00",
+            "2041-01-02 00:00:00",
+        ),
+    ):
+        with pytest.raises(MissingResponseRequirement):
+            _validate_temporal(bad, clock)

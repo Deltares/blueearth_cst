@@ -194,6 +194,7 @@ SIMULATION_KEYS = frozenset(
         "compute",
         "indicators",
         "include_unperturbed",
+        "initialization",
     }
 )
 
