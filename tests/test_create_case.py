@@ -327,7 +327,7 @@ def test_source_generator_recipe_is_copied(cases):
     )
     workflow = source / "project_config_generate_scenarios.yml"
     workflow.write_text(
-        workflow.read_text() + "\nweathergen_config: data/weather.yml\n"
+        workflow.read_text() + "\n  weathergen_config: data/weather.yml\n"
     )
     assert main(args(cases, "v2") + ["--from-trial", "default"]) == 0
     copied = cases / "new-basin/v2/data/weather.yml"

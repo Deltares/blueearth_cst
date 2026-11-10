@@ -435,6 +435,7 @@ OWNERLESS_SECTION_READS: frozenset[tuple[str, str]] = frozenset(
         ("scripts/run_workflows.py", "*"),
         ("scripts/run_workflows.py", "generate_scenarios"),
         ("scripts/generate_scenarios.py", "generate_scenarios"),
+        ("blueearth_cst/shared/generation_config.py", "generate_scenarios"),
         ("blueearth_cst/shared/workflow_archive_launch.py", "*"),
         # WF2 production records and result bundles read WF2's captured section
         # to locate its product and to state or compare its scientific settings;
@@ -1038,6 +1039,14 @@ def compose_config(
         if "config_path" in stanza:
             probes.append(_probe_t2(name, stanza["config_path"], t1_dir, source_bytes))
     _check_no_duplicate_paths(probes)
+    from blueearth_cst.shared.generation_config import normalize_generation
+
+    probes = [
+        probe._replace(body=normalize_generation(probe.body, t1["schema_version"]))
+        if probe.name == "generate_scenarios" and probe.status == "ok"
+        else probe
+        for probe in probes
+    ]
     by_name = {probe.name: probe for probe in probes}
 
     # R(entry). With no entry point, scope is "whatever section a tool indexes":
@@ -1124,7 +1133,11 @@ def compose_config(
         resolve_climate_forcing,
     )
 
-    required = entry in {"build_model", "generate_scenarios"}
+    delta_generation = (
+        entry == "generate_scenarios"
+        and bodies.get("generate_scenarios", {}).get("method") == "delta_change"
+    )
+    required = entry in {"build_model", "generate_scenarios"} and not delta_generation
     retained_only = False
     if entry == "simulate_system":
         simulation = normalize_indicator_settings(bodies.get("simulate_system", {}))
@@ -1168,7 +1181,7 @@ def compose_config(
                 selected = sources[0] if len(sources) == 1 else None
             if isinstance(selected, str) and selected in climate.get("sources", []):
                 climate["selected"] = selected
-    elif retained_only:
+    elif retained_only or delta_generation:
         climate, recipe = composed.get("climate", {}), None
     else:
         climate, recipe = resolve_climate_forcing(
@@ -1501,6 +1514,7 @@ def _owner_of(rel: str) -> str | None:
     """Return the workflow a scanned file owns, or ``None``."""
     if rel in {
         "blueearth_cst/experiment/generation_plan.py",
+        "blueearth_cst/experiment/delta_generation.py",
         "blueearth_cst/experiment/prepare_cst_parameters.py",
     }:
         return "generate_scenarios"

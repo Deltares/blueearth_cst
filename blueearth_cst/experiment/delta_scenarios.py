@@ -531,11 +531,20 @@ def delta_groups(
     return {key: tuple(value) for key, value in groups.items()}, tuple(references)
 
 
-def generate_collection(config_path: Path, project_root: Path) -> Path:
+def generate_collection(
+    config_path: Path,
+    project_root: Path,
+    *,
+    settings: dict | None = None,
+    preview: bool = False,
+    expected_input_hashes: list[str] | None = None,
+) -> Path:
     """Publish an immutable collection, or verify an identical completed request."""
     config_path, project_root = config_path.resolve(strict=True), project_root.resolve()
     settings = validate_settings(
         yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        if settings is None
+        else settings
     )
     paths = [Path(settings["historical_path"])]
     for member in settings["members"]:
@@ -618,12 +627,24 @@ def generate_collection(config_path: Path, project_root: Path) -> Path:
             for i, (offsets, ratios) in enumerate(factors)
         ],
     }
+    if (
+        expected_input_hashes is not None
+        and intent["input_hashes"] != expected_input_hashes
+    ):
+        raise ValueError("delta generation inputs changed after admission")
     identity = content_sha256(intent)
     engine = project_root / "scenarios/_engine/collections" / identity[:12]
     data = project_root / "scenarios/_engine/data" / identity[:12]
     marker_path = engine / "collection.json"
     if marker_path.exists():
         read_delta_collection(marker_path)
+        return marker_path
+    if engine.exists() or data.exists():
+        raise ValueError(
+            f"delta output is incomplete or claimed by another writer: {engine}; "
+            "inspect the retained directories before retrying; no automatic recovery"
+        )
+    if preview:
         return marker_path
     engine.mkdir(parents=True, exist_ok=False)
     data.mkdir(parents=True, exist_ok=False)

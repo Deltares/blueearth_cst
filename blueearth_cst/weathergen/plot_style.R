@@ -91,7 +91,11 @@ style_cst_time_series <- function(plot, tokens, observed_color,
     })
   }
   for (i in seq_along(plot$layers)) {
-    layer <- ggplot2::ggproto(NULL, plot$layers[[i]])
+    # Copy the layer so the source plot keeps its styling. A ggproto(NULL, layer)
+    # child recurses without bound when ggplot2 4 (S7) builds the plot.
+    source_layer <- plot$layers[[i]]
+    layer <- rlang::env_clone(source_layer)
+    class(layer) <- class(source_layer)
     if (inherits(layer$geom, "GeomLine")) {
       observed <- identical(layer$aes_params$colour, observed_color)
       layer$mapping$linetype <- NULL

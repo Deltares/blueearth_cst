@@ -9,6 +9,10 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Select stochastic or delta-change generation through schema-3 method sections and the workflow runner.
+  Preserve legacy stochastic settings and explicit delta collection selection; preview delta inputs without
+  publishing, record captured generation inputs, and reject unsupported flags or incomplete output reuse.
+
 - Standardize WF0–WF4 console openings with literal command display, labelled plans, conditional
   input checks and clear execution/dry-run boundaries, including compact up-to-date output.
 
