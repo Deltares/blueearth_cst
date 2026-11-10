@@ -1,0 +1,238 @@
+"""Integrated configuration preserves producer inputs and explicit selection."""
+
+import pytest
+import yaml
+
+from blueearth_cst.experiment.delta_generation import capture_delta
+from blueearth_cst.experiment.delta_scenarios import generate_collection
+from blueearth_cst.shared.config_composition import load_composed_config
+from blueearth_cst.shared.generation_config import normalize_generation
+from tests.test_config_composition import write_split
+from tests.test_delta_scenarios import historical, monthly, settings
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        {"stochastic": {}},
+        {"method": "other"},
+        {"method": "stochastic", "stochastic": {}, "seed": 3},
+        {"method": "stochastic", "stochastic": {}, "delta_change": {}},
+        {"method": "stochastic", "stochastic": {"typo": 3}},
+    ],
+)
+def test_invalid_methods_refused(document):
+    with pytest.raises(ValueError):
+        normalize_generation(document, 3)
+
+
+def test_nested_stochastic_composes_exactly_like_legacy(tmp_path):
+    flat = {
+        "seed": 42,
+        "n_realizations": 2,
+        "simulation_window": {"start": 2000, "end": 2001},
+    }
+    path = write_split(
+        tmp_path, sections={}, bodies={"generate_scenarios": flat}, schema_version=3
+    )
+    old = load_composed_config(path)
+    workflow = tmp_path / "project_config_test_generate_scenarios.yml"
+    workflow.write_text(yaml.safe_dump({"method": "stochastic", "stochastic": flat}))
+    assert load_composed_config(path) == old
+    with pytest.raises(ValueError, match="schema_version: 3"):
+        normalize_generation({"method": "stochastic", "stochastic": flat}, 2)
+
+
+def delta_project(tmp_path):
+    """Use the delta producer's existing numerical fixture at the real boundary."""
+    historical().to_netcdf(tmp_path / "historical.nc")
+    monthly().to_netcdf(tmp_path / "reference.nc")
+    monthly().to_netcdf(tmp_path / "future.nc")
+    path = write_split(
+        tmp_path,
+        sections={},
+        schema_version=3,
+        bodies={
+            "generate_scenarios": {"method": "delta_change", "delta_change": settings()}
+        },
+    )
+    project = yaml.safe_load(path.read_text())
+    for name in (
+        "analyze_climate",
+        "build_model",
+        "analyze_projections",
+        "simulate_system",
+    ):
+        project["workflows"][name] = {"enabled": False}
+    path.write_text(yaml.safe_dump(project))
+    return path
+
+
+def test_delta_capture_preview_equivalence_and_reuse(tmp_path, monkeypatch):
+    path = delta_project(tmp_path)
+    monkeypatch.chdir(tmp_path.parent)
+    operation = capture_delta(path, ["--dry-run"])
+    root = tmp_path / "proj"
+    preview = operation.run(root, preview=True)
+    assert not root.exists()
+    actual = operation.run(root, preview=False)
+    assert preview == actual
+    before = actual.read_bytes()
+    standalone = tmp_path / "delta.yml"
+    standalone.write_text(yaml.safe_dump(settings()))
+    assert generate_collection(standalone, root) == actual
+    assert actual.read_bytes() == before
+    assert operation.provenance()["method"] == "delta_change"
+
+
+@pytest.mark.parametrize("changed", ["config", "input"])
+def test_delta_capture_rechecks_sources(tmp_path, changed):
+    path = delta_project(tmp_path)
+    operation = capture_delta(path, [])
+    target = path if changed == "config" else tmp_path / "reference.nc"
+    target.write_bytes(target.read_bytes() + b" ")
+    with pytest.raises(ValueError, match="changed"):
+        operation.run(tmp_path / "proj", preview=False)
+    assert not (tmp_path / "proj").exists()
+
+
+def test_delta_partial_output_and_flags_refused(tmp_path):
+    path = delta_project(tmp_path)
+    with pytest.raises(ValueError, match="does not support"):
+        capture_delta(path, ["--unlock"])
+    operation = capture_delta(path, [])
+    root = tmp_path / "proj"
+    preview = operation.run(root, preview=True)
+    preview.parent.mkdir(parents=True)
+    for dry in (True, False):
+        with pytest.raises(ValueError, match="incomplete or claimed"):
+            operation.run(root, preview=dry)
+    assert not preview.exists()
+
+
+@pytest.mark.parametrize("preview_flag", ["--dry-run", "--dryrun", "-n"])
+def test_runner_delta_only_preview_execute_and_failure(tmp_path, preview_flag):
+    from scripts import run_workflows
+
+    path = delta_project(tmp_path)
+    root = tmp_path / "proj"
+    assert run_workflows.run(str(path), 1, [preview_flag]) == 0
+    assert not (root / "scenarios").exists()
+    assert run_workflows.run(str(path), 1, []) == 0
+    manifests = list((root / "scenarios/_engine/collections").glob("*/collection.json"))
+    assert len(manifests) == 1
+    # The real publisher and collection reader, not a mocked calculation, ran.
+    from blueearth_cst.experiment.scenario_collection_v2 import read_collection_v2
+
+    assert len(read_collection_v2(manifests[0])["series"]) == 5
+
+
+def test_runner_delta_with_missing_selection_fails_before_generation(tmp_path):
+    from scripts import run_workflows
+
+    path = delta_project(tmp_path)
+    project = yaml.safe_load(path.read_text())
+    project["workflows"]["simulate_system"] = {
+        "enabled": True,
+        "config_path": "simulation.yml",
+    }
+    project["climate"] = {"selected": "era5", "window": {"start": 2000, "end": 2000}}
+    (tmp_path / "simulation.yml").write_text("operation: simulate-and-indicators\n")
+    path.write_text(yaml.safe_dump(project))
+    with pytest.raises(
+        ValueError, match="explicit existing scenario_collection.manifest_path"
+    ):
+        run_workflows.run(str(path), 1, [])
+    assert not (tmp_path / "proj/scenarios").exists()
+
+
+def test_runner_delta_failure_does_not_launch_wf4(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from blueearth_cst.experiment import (
+        delta_generation,
+        reservation_context,
+        simulation_runner,
+    )
+    from scripts import run_workflows
+
+    path = delta_project(tmp_path)
+    root = tmp_path / "proj"
+    selected = capture_delta(path, []).run(root, preview=False)
+    project = yaml.safe_load(path.read_text())
+    project["workflows"]["simulate_system"] = {
+        "enabled": True,
+        "config_path": "simulation.yml",
+    }
+    project["climate"] = {"selected": "era5", "window": {"start": 2000, "end": 2000}}
+    (tmp_path / "simulation.yml").write_text(
+        yaml.safe_dump(
+            {
+                "operation": "simulate-and-indicators",
+                "scenario_collection": {"manifest_path": str(selected)},
+            }
+        )
+    )
+    path.write_text(yaml.safe_dump(project))
+    monkeypatch.setattr(
+        simulation_runner, "simulation_command", lambda *args, **kwargs: None
+    )
+    observed = []
+
+    def admit(*args, **kwargs):
+        observed.append(kwargs["execute_generation"])
+        return SimpleNamespace(name="test", action="create", recheck=lambda: None)
+
+    monkeypatch.setattr(reservation_context, "admit_context_owned", admit)
+    monkeypatch.setattr(run_workflows, "_consumer_forcing_rows", lambda *args: ())
+
+    def fail(*args, **kwargs):
+        raise ValueError("injected delta publication failure")
+
+    monkeypatch.setattr(delta_generation.DeltaGeneration, "run", fail)
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("WF4 child launched after delta failure")
+
+    monkeypatch.setattr(run_workflows, "run_project_child", unexpected)
+    with pytest.raises(ValueError, match="injected delta publication failure"):
+        run_workflows.run(str(path), 1, [])
+    assert observed == [False]
+
+
+def test_explicit_delta_reservation_capture_does_not_plan_stochastic(
+    tmp_path, monkeypatch
+):
+    from pathlib import Path
+
+    from blueearth_cst.experiment import reservation_request
+    from blueearth_cst.experiment.reservation import validate_request
+
+    path = delta_project(tmp_path)
+    root = tmp_path / "proj"
+    selected = capture_delta(path, []).run(root, preview=False)
+    project = yaml.safe_load(path.read_text())
+    catalog = tmp_path / "catalog.yml"
+    catalog.write_text("{}\n")
+    project["project"]["catalog"] = [str(catalog)]
+    project["climate"] = {"selected": "era5", "window": {"start": 2000, "end": 2000}}
+    project["workflows"]["simulate_system"] = {
+        "enabled": True,
+        "config_path": "simulation.yml",
+    }
+    (tmp_path / "simulation.yml").write_text(
+        yaml.safe_dump({"scenario_collection": {"manifest_path": str(selected)}})
+    )
+    path.write_text(yaml.safe_dump(project))
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("explicit delta selection entered stochastic generation planning")
+
+    monkeypatch.setattr(reservation_request, "generation_request", unexpected)
+    request, captures = reservation_request.capture_request(
+        path, Path.cwd(), execute_generation=False
+    )
+    validate_request(request, root)
+    assert request["generation"] is None
+    assert request["selection"]["mode"] == "explicit-manifest"
+    assert "generate_scenarios" not in {role for role, _, _ in captures}

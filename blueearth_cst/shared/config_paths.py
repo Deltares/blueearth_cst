@@ -103,6 +103,17 @@ def resolve_workflow_paths(
     result = copy.deepcopy(dict(document))
     if schema_version != 3:
         return result
+    if workflow == "generate_scenarios":
+        if result.get("method") == "stochastic":
+            result["stochastic"] = resolve_workflow_paths(
+                result["stochastic"], source, workflow, schema_version
+            )
+            return result
+        if result.get("method") == "delta_change":
+            _resolve_fields(result, ("delta_change.historical_path",), source)
+            for member in result["delta_change"]["members"]:
+                _resolve_fields(member, ("reference_path", "future_path"), source)
+            return result
     fields = {
         "analyze_climate": (
             "rain_gauges.stations_path",

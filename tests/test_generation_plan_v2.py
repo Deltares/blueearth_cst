@@ -56,6 +56,17 @@ def test_candidate_intent_uses_wf3_only_seed_projection(tmp_path, monkeypatch):
         "code": [{"path": "provider.py", "sha256": "0" * 64}],
     }
     intent = generation_plan.build_candidate_intent(settings)
+    from blueearth_cst.shared.generation_config import normalize_generation
+
+    nested_settings = {
+        **settings,
+        "config": normalize_generation(
+            {"method": "stochastic", "stochastic": config}, 3
+        ),
+    }
+    nested_intent = generation_plan.build_candidate_intent(nested_settings)
+    assert nested_intent["collection_id"] == intent["collection_id"]
+    assert nested_intent["identity_digests"] == intent["identity_digests"]
     _profile(intent)
     assert intent["documents"]["generation_config"]["seed"] == {
         "requested": 123,
