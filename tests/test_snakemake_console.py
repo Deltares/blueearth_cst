@@ -93,13 +93,98 @@ def test_real_startup_preserves_log_warnings_and_failures(tmp_path, fail, termin
     assert "Provided cores: 1" not in output
     assert "Provided cores: 999" in output
     assert "workflow diagnostic visible" in output
+    assert "None" not in output.splitlines()
     assert ("startup failure visible" if fail else "CHILD_OUTPUT") in output
     logs = list((tmp_path / ".snakemake/log").glob("*.log"))
     assert logs
     assert "Building DAG of jobs..." in logs[0].read_text(encoding="utf-8")
 
 
-@pytest.mark.parametrize("flag", ["--dry-run", "--verbose"])
+def test_empty_workflow_start_filter_is_structural():
+    record = logging.LogRecord("snakemake", logging.INFO, "", 0, "None", (), None)
+    record.event = "workflow_started"
+    assert not console._StartupFilter().filter(record)
+    record.event = "other_event"
+    assert console._StartupFilter().filter(record)
+    record.event = "workflow_started"
+    record.levelno = logging.WARNING
+    assert console._StartupFilter().filter(record)
+
+
+@pytest.mark.process_isolation
+@pytest.mark.parametrize("owned", [False, True])
+def test_real_declared_headers_execute_noop_and_dry_run(tmp_path, owned):
+    root = Path(console.__file__).resolve().parents[2]
+    (tmp_path / "Snakefile").write_text(
+        f"import sys\nsys.path.insert(0, {str(root)!r})\n"
+        "from blueearth_cst.shared.console_style import install_console_style, open_run_header, RuleRegistry\n"
+        "rules = RuleRegistry('logs', 'benchmarks')\n"
+        "work = rules.banner_only('9.01', 'produce')\n"
+        "install_console_style()\n"
+        "open_run_header('wf9 presentation_probe', '.', cores=1)\n"
+        "onstart:\n"
+        "    install_console_style()\n"
+        "    open_run_header('wf9 presentation_probe', '.', cores=1)\n"
+        "rule all:\n    input: 'result.txt'\n"
+        "rule produce:\n    output: 'result.txt'\n"
+        "    message: work.banner()\n"
+        "    shell: 'echo complete > {output}'\n",
+        encoding="utf-8",
+    )
+    prefix = (
+        [sys.executable, console.__file__]
+        if owned
+        else [sys.executable, "-m", "snakemake"]
+    )
+    for mode, extra in (
+        ("execute", []),
+        ("noop", []),
+        ("dry", ["-np", "--forcerun", "produce"]),
+    ):
+        result = subprocess.run(
+            [*prefix, "all", "--cores", "1", *extra],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env={
+                **os.environ,
+                "CST_CONSOLE_INTERACTIVE": "0",
+                "PYTHONIOENCODING": "utf-8",
+            },
+            timeout=90,
+        )
+        output = result.stdout + result.stderr
+        assert result.returncode == 0, output
+        assert output.count("wf9 presentation_probe") == 1, output
+        assert output.count("Snakemake command") == 1, output
+        if owned:
+            assert "None" not in output.splitlines()
+        if mode == "noop":
+            assert "Up to date" in output and "Work plan" not in output
+        elif mode == "dry":
+            assert "DRY RUN" in output and "Planning complete" in output
+            assert "Execution log" not in output and " - RUN " not in output
+        else:
+            assert output.count("Execution log") == 1, output
+            assert output.index("Work plan") < output.index("Execution log")
+    with (tmp_path / "Snakefile").open("a", encoding="utf-8") as handle:
+        handle.write("\nraise RuntimeError('early parse failure visible')\n")
+    failure = subprocess.run(
+        [*prefix, "all", "--cores", "1", "--dry-run"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env={**os.environ, "CST_CONSOLE_INTERACTIVE": "0", "PYTHONIOENCODING": "utf-8"},
+        timeout=90,
+    )
+    output = failure.stdout + failure.stderr
+    assert failure.returncode != 0 and "early parse failure visible" in output
+    assert "wf9 presentation_probe" in output and "Snakemake command" in output
+
+
+@pytest.mark.parametrize("flag", ["--verbose"])
 def test_diagnostic_modes_keep_native_streams(monkeypatch, flag):
     from snakemake import cli
 

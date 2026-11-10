@@ -18,7 +18,7 @@ from snakemake.exceptions import WorkflowError
 sys.path.insert(0, str(Path(workflow.basedir)))
 from blueearth_cst.shared.provenance import append_journal_line, configuration_inputs_digest, effective_config_digest, environment_file_hashes, file_sha256, journal_event, referenced_inputs_for_digest, toolbox_identity
 from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_BASIN_INDEX, DEFAULT_HYDROGRAPHY, catalog_root, declare_path_tokens, declare_project_root, declare_warning_tally, get_config, listed, patch_psutil_windows_benchmark, region_rule, resolve_water_year_start, spatial_units_rule, warning_count, window_year_pair
-from blueearth_cst.shared.console_style import defer_warning, install_console_style, open_run_header, RuleRegistry, rule_banner, run_header, run_summary, target_banner, warn_if_project_dir_in_repo
+from blueearth_cst.shared.console_style import defer_input_check, defer_warning, install_console_style, open_run_header, RuleRegistry, rule_banner, run_header, run_summary, source_variable_labels, target_banner, warn_if_project_dir_in_repo
 from blueearth_cst.shared.console_style import header_config_path
 from blueearth_cst.shared.config_composition import compose_config
 from blueearth_cst.shared.workflow_archive_launch import captured_projection, require_capture
@@ -624,14 +624,6 @@ for _key, _entry in _CATALOG.items():
         _rename = (_entry["data_adapter"] or {}).get("rename") or {}
         break
 _best_effort = _res.best_effort_variables(variables, _rename)
-if _best_effort:
-    # ONE row, not one per variable: the sentence is the same each time and
-    # only the name changes, so the names are what the row lists. Through
-    # `defer_warning` for the reason given on the skip report above.
-    defer_warning(
-        f"Availability unverified: {listed(sorted(_best_effort))}; catalog checks only pr/tas. "
-        "Missing variables will fail during fetching.", module="resolution"
-    )
 
 # The series set is DERIVED from resolution, not from the config cross-product.
 # References are distinct (model, member) pairs: a reference is reduced once
@@ -1408,6 +1400,7 @@ def _header():
 
         open_run_header(
             "wf2 analyze_projections", project_dir, header_config_path(config_path, CAPTURE_RECORD),
+            cores=workflow.resource_settings.cores,
             **{
                 "reference period": REFERENCE_WINDOW.effective_label,
                 "future periods": listed([f"{start}–{end}" for start, end in future_horizons.values()]),
@@ -1427,10 +1420,22 @@ def _header():
             pass
 
 
+if _best_effort:
+    defer_input_check(
+        FETCH_CMIP6_PROJECTIONS.name,
+        "Source availability is only partially verified.",
+        ["Catalog verified: precipitation (pr), temperature (tas).",
+         f"Checked during fetching: {source_variable_labels(sorted(_best_effort))}.",
+         "Unavailable inputs will stop the affected fetch."],
+    )
+
+# Declare presentation before DAG planning, including dry runs and no-op runs.
+install_console_style()
+_header()
+
 onstart:
-    # Restyle Snakemake's own console output into this toolbox's grammar (one
-    # line per job start and end). Here and not at parse time: the logging
-    # stack does not exist yet then. Fail-open; see install_console_style.
+    # Parse-time declaration defers styling through the handler factory;
+    # this idempotent call preserves an already printed opening block.
     install_console_style()
     # A reused analysis needs no repeated reference-period warning.
     for _line in _rw.window_warnings(REFERENCE_WINDOW):

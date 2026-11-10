@@ -25,9 +25,10 @@ Data behind an unchanged catalog entry is deliberately OUT of scope (see
 
 from __future__ import annotations
 
-import re
+import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -46,8 +47,6 @@ CONFIG_FN = TESTDIR / "project_config_fixture.yml"
 CATALOG_FN = TESTDIR / "data" / "tests_data_catalog.yml"
 
 SNAKEFILES = ("build_model.smk", "generate_scenarios.smk")
-
-_JOB_COUNT_RE = re.compile(r"^extract_climate_datasets\s+(\d+)\s*$", re.MULTILINE)
 
 
 @pytest.fixture()
@@ -85,15 +84,32 @@ def staged_store(tmp_path):
     return cfg_path, catalog, Path(spec.outputs["climate_nc"])
 
 
-def _run(args, snakefile, cfg_path):
+def _run(args, snakefile, cfg_path, *, job_stats=None):
     """Invoke snakemake with the repo workflow profile disabled (it hides reasons)."""
-    cmd = (
-        f"snakemake {args} --workflow-profile none -c 1 "
-        f'-s {snakefile} --configfile "{cfg_path}"'
-    )
+    if job_stats is not None:
+        cmd = [
+            sys.executable,
+            "-m",
+            "tests.snakemake_state",
+            str(job_stats),
+            *args,
+            "--workflow-profile",
+            "none",
+            "-c",
+            "1",
+            "-s",
+            snakefile,
+            "--configfile",
+            str(cfg_path),
+        ]
+    else:
+        cmd = (
+            f"snakemake {args} --workflow-profile none -c 1 "
+            f'-s {snakefile} --configfile "{cfg_path}"'
+        )
     return subprocess.run(
         cmd,
-        shell=True,
+        shell=job_stats is None,
         capture_output=True,
         text=True,
         cwd=str(SNAKEDIR),
@@ -104,22 +120,40 @@ def _run(args, snakefile, cfg_path):
 def _scheduled_count(snakefile, cfg_path, target):
     """How many ``extract_climate_datasets`` jobs a dry-run would run (0 when clean).
 
-    A missing job-stats row is read as 0, so every ``== 0`` assertion below
-    pairs this with an explicit up-to-date check (Snakemake's "Nothing to be done",
-    restated by `console_style` as "Up to date") — otherwise a
-    changed job-stats format would silently turn the no-oscillation assertions
-    into no-ops.
+    Read native ungrouped statistics/reasons independently of terminal layout.
+    A run without statistics must positively report Up to date; a missing
+    observer file alone never establishes that no work was scheduled.
     """
-    result = _run(f'--dry-run "{target.as_posix()}"', snakefile, cfg_path)
+    index = len(list(cfg_path.parent.glob("*.schedule-*.json")))
+    stats_path = cfg_path.parent / f"{snakefile}.schedule-{index}.json"
+    result = _run(
+        ["--dry-run", target.as_posix()], snakefile, cfg_path, job_stats=stats_path
+    )
     combined = (result.stdout or "") + (result.stderr or "")
     assert result.returncode == 0, combined[-3000:]
-    match = _JOB_COUNT_RE.search(combined)
-    return (int(match.group(1)) if match else 0), combined
+    if stats_path.exists():
+        counts = json.loads(stats_path.read_text(encoding="utf-8"))
+        assert counts and counts["total"] == sum(
+            value for name, value in counts.items() if name != "total"
+        )
+    else:
+        assert "Up to date" in combined, combined
+        counts = {}
+    reasons_path = stats_path.with_suffix(".reasons.jsonl")
+    reasons = (
+        [
+            json.loads(line)
+            for line in reasons_path.read_text(encoding="utf-8").splitlines()
+        ]
+        if reasons_path.exists()
+        else []
+    )
+    return counts.get("extract_climate_datasets", 0), combined, reasons
 
 
 def _assert_clean(snakefile, cfg_path, target, why):
     """Assert a dry-run schedules nothing, on positive evidence not absence."""
-    count, out = _scheduled_count(snakefile, cfg_path, target)
+    count, out, _ = _scheduled_count(snakefile, cfg_path, target)
     assert count == 0, f"{snakefile} {why}\n{out}"
     assert "Up to date" in out, f"{snakefile} {why}\n{out[-2000:]}"
 
@@ -152,12 +186,34 @@ def test_the_catalog_is_the_one_freshness_edge_in_both_workflows(staged_store):
         catalog.read_text(encoding="utf-8") + "\n# freshness probe\n", encoding="utf-8"
     )
     for snakefile in SNAKEFILES:
-        count, out = _scheduled_count(snakefile, cfg_path, target)
+        count, out, reasons = _scheduled_count(snakefile, cfg_path, target)
         assert count == 1, (
             f"{snakefile} scheduled {count} extract_climate_datasets job(s) after a "
             f"catalog edit; expected exactly 1\n{out}"
         )
-        assert "Updated input files" in out, out[-2000:]
+        catalog_reason = catalog.as_posix()
+        region_reason = (
+            cfg_path.parent / "proj/data/spatial/geoms/region.geojson"
+        ).as_posix()
+        assert any(
+            "Updated input files" in item["reason"]
+            and catalog_reason in item["reason"].replace("\\", "/")
+            for item in reasons
+        ), reasons
+        assert any(
+            item["rule"] == "extract_climate_datasets"
+            and (
+                (
+                    "Updated input files" in item["reason"]
+                    and catalog_reason in item["reason"].replace("\\", "/")
+                )
+                or (
+                    "Input files updated by another job" in item["reason"]
+                    and region_reason in item["reason"].replace("\\", "/")
+                )
+            )
+            for item in reasons
+        ), reasons
 
     # Store re-made -> both DAGs clean again. No alternation re-fires it.
     _seed_provenance(cfg_path, target)

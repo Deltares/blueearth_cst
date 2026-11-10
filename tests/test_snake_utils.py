@@ -3324,9 +3324,10 @@ def test_console_run_info_renders_the_plan_block(monkeypatch):
         ),
     )
     assert out == (
-        ">  1.01  snapshot_config  1\n"
-        "   1.14  run_wflow\n"
-        "1 of 2 rules to run  |  1 up to date\n"
+        "status  step  rule             jobs\n"
+        "run     1.01  snapshot_config     1\n"
+        "reuse   1.14  run_wflow           -\n"
+        "1 job  |  1 rule scheduled  |  1 rule up to date\n"
         "\n"
     ), out
 
@@ -3343,28 +3344,19 @@ def _declared_header(monkeypatch, **details):
 
 
 def test_console_opening_puts_the_rules_under_the_title(monkeypatch):
-    """Scheme A: the plan summary rides on the title, metadata follows the rules.
-
-    Neither is reachable from `onstart:`, which fires before Snakemake reports
-    any job count -- so this whole block is assembled here.
-    """
     _declared_header(monkeypatch)
     out = _emit(
         _console_handler(),
-        _console_record(
-            "Job stats:\njob  count\n----  ---\na  1\ntotal  1\n", event="run_info"
-        ),
+        _console_record("Job stats:\na 1\ntotal 1", event="run_info"),
     )
-    lines = out.split("\n")
-    assert lines[0] == ""  # air above, or Snakemake's preamble runs into it
-    assert lines[1] == "wf1 build_model"  # the NAME only, unbanded
-    assert lines[2] == ""
-    assert lines[3] == ">  1.01  a  1"
-    assert lines[4] == "   1.02  b"
-    assert lines[5].startswith("1 of 2 rules to run  |  1 up to date")
-    assert lines[6] == ""
-    assert lines[7] == "Paths"
-    assert lines[8] == "<project>  <repo>/test_case/test_rapid"
+    assert (
+        out.index("wf1 build_model")
+        < out.index("Snakemake command")
+        < out.index("Work plan")
+        < out.index("Paths")
+        < out.index("Execution log")
+    )
+    assert "run     1.01  a" in out and "reuse   1.02  b" in out
 
 
 def test_the_opening_block_draws_no_rules_at_all(monkeypatch):
@@ -3388,7 +3380,7 @@ def test_the_opening_block_draws_no_rules_at_all(monkeypatch):
     assert not [line for line in lines if set(line) in ({"="}, {"-"})], lines
     assert not [line for line in lines if line.startswith("-- ")], lines
     assert lines[1] == "wf1 build_model"
-    assert "all to run" in out
+    assert "2 jobs" in out and "2 rules scheduled" in out
 
 
 def test_console_opening_prints_once(monkeypatch):
@@ -3421,28 +3413,16 @@ def test_console_opening_survives_a_run_without_run_info(monkeypatch):
     assert "<project>  <repo>/test_case/test_rapid" in lines
 
 
-def test_the_title_is_dropped_when_the_runner_already_named_the_workflow(
-    monkeypatch,
-):
-    """Under `run_workflows` the name is already on the console, twice.
-
-    The hand-off band prints `[1/5]  wf0 analyze_climate` and the command line
-    under it names the Snakefile; a third printing three lines later is the
-    block repeating what the reader just read. Standalone there is no band, so
-    the title is the only statement of which workflow this is and it stays --
-    the case the test below covers.
-    """
+def test_child_keeps_identity_when_parent_announced_sequence(monkeypatch):
     _declared_header(monkeypatch)
     monkeypatch.setenv(cs.ANNOUNCED_ENV, "1")
     out = _emit(
         _console_handler(),
-        _console_record(
-            "Job stats:\njob  count\n----  ---\na  1\ntotal  1\n", event="run_info"
-        ),
+        _console_record("Job stats:\na 1\ntotal 1", event="run_info"),
     )
-    assert "wf1 build_model" not in out, out
-    assert out.split("\n")[1] == ">  1.01  a  1"  # straight into the plan
-    assert "<project>  <repo>/test_case/test_rapid" in out  # nothing else lost
+    assert out.count("wf1 build_model") == 1
+    assert out.index("wf1 build_model") < out.index("Work plan")
+    assert "<project>  <repo>/test_case/test_rapid" in out
 
 
 def test_the_title_stays_for_a_standalone_snakemake_run(monkeypatch):
@@ -3471,7 +3451,8 @@ def test_an_announced_run_keeps_the_title_when_it_carries_the_plan_summary(
     block = cs.opening_block(
         "wf1 build_model", "test_case/test_rapid", plan=("7 of 9 rules to run", [])
     )
-    assert ("wf1 build_model -- 7 of 9 rules to run", "title") in block
+    assert ("wf1 build_model", "title") in block
+    assert ("7 of 9 rules to run", "body") in block
 
 
 def test_console_plan_stands_alone_when_no_header_was_declared(monkeypatch):
@@ -3484,8 +3465,8 @@ def test_console_plan_stands_alone_when_no_header_was_declared(monkeypatch):
             "Job stats:\njob  count\n----  ---\na  1\ntotal  1\n", event="run_info"
         ),
     )
-    assert out.startswith(">  1.01  a  1")
-    assert "1 of 2 rules to run  |  1 up to date" in out
+    assert out.startswith("status  step  rule  jobs")
+    assert "1 job  |  1 rule scheduled  |  1 rule up to date" in out
 
 
 def test_open_run_header_writes_immediately_without_a_console(monkeypatch):
@@ -3706,7 +3687,7 @@ def test_console_the_preamble_is_left_alone():
     out = _emit(
         handler, _console_record("Assuming unrestricted shared filesystem usage.")
     )
-    assert out == "Assuming unrestricted shared filesystem usage.\n"
+    assert out == ""
 
 
 def test_console_muting_never_reaches_a_warning_or_an_error():
@@ -3728,10 +3709,10 @@ def test_console_unknown_records_are_delegated_verbatim():
     handler = _console_handler()
     out = _emit(
         handler,
-        _console_record("Building DAG of jobs..."),
+        _console_record("Workflow diagnostic"),
         _console_record("Error in rule x:\n    jobid: 3", event="job_error", jobid=3),
     )
-    assert out == "Building DAG of jobs...\nError in rule x:\n    jobid: 3\n"
+    assert out == "Workflow diagnostic\nError in rule x:\n    jobid: 3\n"
 
 
 def test_console_a_rule_without_a_message_keeps_the_default_block():
@@ -3945,19 +3926,19 @@ def test_console_honours_no_color_even_on_a_tty(monkeypatch):
     set it still got escapes.
     """
     monkeypatch.setenv("NO_COLOR", "1")
-    out = _emit(_colour_handler(), _console_record("Building DAG of jobs..."))
+    out = _emit(_colour_handler(), _console_record("Workflow diagnostic"))
     # The line reset stays: `NO_COLOR` asks for no colour, not for a cursor
     # left sitting on whatever a concurrent job's progress bar drew there.
-    assert out == _LINE_RESET + "Building DAG of jobs..." + "\n", repr(out)
+    assert out == _LINE_RESET + "Workflow diagnostic" + "\n", repr(out)
     assert "\033[0m" not in out
     assert f"\033[{su._ANSI_BODY}m" not in out
 
 
 def test_console_paints_an_informational_snakemake_line_in_the_body_tier():
     handler = _colour_handler()
-    out = _emit(handler, _console_record("Building DAG of jobs..."))
+    out = _emit(handler, _console_record("Workflow diagnostic"))
     # The body tier emits NO SGR: this is the terminal's own foreground.
-    assert _unreset(out) == "Building DAG of jobs...\n", repr(out)
+    assert _unreset(out) == "Workflow diagnostic\n", repr(out)
 
 
 def test_console_never_recolours_a_warning_or_an_error():
@@ -4134,7 +4115,8 @@ def test_run_header_shape_matches_run_summary():
     assert lines[0] == ""
     assert lines[1] == "wf3 run_stress_test"
     assert lines[2] == ""
-    assert lines[3:] == [
+    assert "Snakemake command" in lines
+    assert lines[lines.index("Run settings") :] == [
         "Run settings",
         "experiment  experiment_rapid",
         "",

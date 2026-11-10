@@ -1488,6 +1488,7 @@ def _header():
             grid = "Cell count unavailable from existing model"
         open_run_header(
             "wf1 build_model", project_dir, header_config_path(config_path, CAPTURE_RECORD),
+            cores=workflow.resource_settings.cores,
             **{
                 "hydrological model": "Wflow-SBM",
                 "climate forcing": clim_source,
@@ -1507,10 +1508,13 @@ def _header():
             pass
 
 
+# Declare presentation before DAG planning, including dry runs and no-op runs.
+install_console_style()
+_header()
+
 onstart:
-    # Restyle Snakemake's own console output into this toolbox's grammar (one
-    # line per job start and end). Here and not at parse time: the logging
-    # stack does not exist yet then. Fail-open; see install_console_style.
+    # Parse-time declaration defers styling through the handler factory;
+    # this idempotent call preserves an already printed opening block.
     install_console_style()
     _header()
     _journal("started")

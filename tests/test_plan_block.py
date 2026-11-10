@@ -130,29 +130,29 @@ def test_numbers_sort_lexicographically(rules):
 def test_head_says_all_to_run_when_nothing_is_up_to_date(rules):
     rules({"a": "1.01", "b": "1.02"})
     head, _ = cs._plan_lines({"a": 1, "b": 1})
-    assert head == "2 rules  |  all to run"
+    assert head == "2 jobs  |  2 rules scheduled  |  0 rules up to date"
 
 
 def test_head_names_both_halves_on_a_partial_run(rules):
     rules({"a": "1.01", "b": "1.02", "c": "1.03"})
     head, _ = cs._plan_lines({"a": 1})
-    assert head == "1 of 3 rules to run  |  2 up to date"
+    assert head == "1 job  |  1 rule scheduled  |  2 rules up to date"
 
 
-def test_head_carries_the_job_count_only_when_something_fans_out(rules):
-    """The line this replaced always carried it; here it is only news."""
+def test_head_always_carries_the_job_count(rules):
+    """Count actual scheduled work even when every rule has one job."""
     rules({"a": "1.01", "b": "1.02"})
     plain, _ = cs._plan_lines({"a": 1, "b": 1})
-    assert "jobs" not in plain
+    assert plain.startswith("2 jobs")
 
     fanned, _ = cs._plan_lines({"a": 1, "b": 8})
-    assert fanned.endswith("  |  9 jobs")
+    assert fanned.startswith("9 jobs")
 
 
 def test_a_single_rule_is_not_pluralized(rules):
     rules({"a": "1.01"})
     head, _ = cs._plan_lines({"a": 1})
-    assert head == "1 rule  |  all to run"
+    assert head == "1 job  |  1 rule scheduled  |  0 rules up to date"
 
 
 # --- the rows ---------------------------------------------------------------
@@ -163,8 +163,9 @@ def test_the_gutter_marks_what_will_run(rules):
     rules({"a": "1.01", "b": "1.02"})
     _, rows = cs._plan_lines({"b": 1})
     texts = [text for text, _ in rows]
-    assert texts[0].startswith("   1.01")
-    assert texts[1].startswith(">  1.02")
+    assert texts[0].split() == ["status", "step", "rule", "jobs"]
+    assert texts[1].split() == ["reuse", "1.01", "a", "-"]
+    assert texts[2].split() == ["run", "1.02", "b", "1"]
 
 
 def test_the_gutter_column_goes_when_no_rule_is_up_to_date(rules):
@@ -172,14 +173,14 @@ def test_the_gutter_column_goes_when_no_rule_is_up_to_date(rules):
     rules({"a": "1.01", "b": "1.02"})
     _, rows = cs._plan_lines({"a": 1, "b": 1})
     assert not any(">" in text for text, _ in rows)
-    assert all(text.startswith("1.0") for text, _ in rows)
+    assert all(text.startswith("run") for text, _ in rows[1:])
 
 
 def test_every_running_rule_carries_its_count(rules):
     """Including the ones that are 1, which is what Snakemake's table shows."""
     rules({"perturb": "3.12", "seed": "3.11"})
     _, rows = cs._plan_lines({"perturb": 8, "seed": 1})
-    assert [text.split()[-1] for text, _ in rows] == ["1", "8"]
+    assert [text.split()[-1] for text, _ in rows[1:]] == ["1", "8"]
 
 
 def test_an_up_to_date_rule_has_an_empty_count_cell(rules):
@@ -190,15 +191,15 @@ def test_an_up_to_date_rule_has_an_empty_count_cell(rules):
     """
     rules({"a": "1.01", "b": "1.02"})
     _, rows = cs._plan_lines({"b": 4})
-    assert rows[0][0] == "   1.01  a"
-    assert rows[1][0] == ">  1.02  b  4"
+    assert rows[1][0].split() == ["reuse", "1.01", "a", "-"]
+    assert rows[2][0].split() == ["run", "1.02", "b", "4"]
 
 
 def test_rows_report_whether_they_run(rules):
     """The caller colours whole lines from this flag; `_paint` never fields."""
     rules({"a": "1.01", "b": "1.02"})
     _, rows = cs._plan_lines({"b": 1})
-    assert [running for _, running in rows] == [False, True]
+    assert [running for _, running in rows] == [None, False, True]
 
 
 def test_pre_dag_steps_are_listed_in_number_order(rules, monkeypatch):
@@ -209,14 +210,14 @@ def test_pre_dag_steps_are_listed_in_number_order(rules, monkeypatch):
     head, rows = cs._plan_lines({"generate": 1, "perturb": 12})
 
     assert head == (
-        "2 of 3 rules to run  |  1 up to date  |  2 completed before DAG execution  |  13 jobs"
+        "13 jobs  |  2 rules scheduled  |  1 rule up to date  |  2 completed before DAG execution"
     )
-    assert rows == [
-        ("   3.03  cached", False),
-        ("   3.04  plan", False),
-        ("   3.05  claim", False),
-        (">  3.07  generate   1", True),
-        (">  3.08  perturb   12", True),
+    assert [(text.split(), state) for text, state in rows[1:]] == [
+        (["reuse", "3.03", "cached", "-"], False),
+        (["done", "3.04", "plan", "-"], False),
+        (["done", "3.05", "claim", "-"], False),
+        (["run", "3.07", "generate", "1"], True),
+        (["run", "3.08", "perturb", "12"], True),
     ]
 
 
@@ -251,7 +252,7 @@ def test_every_rule_up_to_date_still_renders(rules):
     """Reachable when only the excluded `all` job remains."""
     rules({"a": "1.01"})
     head, rows = cs._plan_lines({"all": 1})
-    assert head == "1 rule  |  all up to date"
+    assert head == "0 jobs  |  0 rules scheduled  |  1 rule up to date"
     assert not any(">" in text for text, _ in rows)
 
 
@@ -265,7 +266,7 @@ def test_a_rule_missing_from_the_ledger_is_declared(rules):
     rules({"a": "1.01"})
     head, rows = cs._plan_lines({"a": 1, "undeclared_rule": 1})
     assert head.endswith("  |  1 unlisted")
-    assert len(rows) == 1
+    assert len(rows) == 2  # Explicit column header plus the declared rule.
 
 
 def test_nothing_is_declared_when_the_ledger_is_complete(rules):
@@ -284,19 +285,22 @@ def test_a_rule_behind_a_checkpoint_shows_its_planned_count(rules, monkeypatch):
     rules({"publish": "4.06", "plan": "4.07", "derive": "4.08", "done": "4.05"})
     monkeypatch.setattr(cs, "_AFTER_CHECKPOINT_RULES", {"plan": 1, "derive": 1})
     head, rows = cs._plan_lines({"publish": 1})
-    assert head == "3 of 4 rules to run  |  1 up to date"
+    assert (
+        head
+        == "1 job  |  1 rule scheduled  |  1 rule up to date  |  2 rules pending checkpoints"
+    )
     texts = [text for text, _ in rows]
-    assert texts[2].startswith(">") and texts[2].endswith("1")
-    assert texts[3].startswith(">") and texts[3].endswith("1")
-    assert "checkpoint" not in head + "".join(texts)
+    assert texts[3].startswith("pending") and texts[3].endswith("1 planned")
+    assert texts[4].startswith("pending") and texts[4].endswith("1 planned")
+    assert "pending checkpoints" in head
 
 
 def test_a_checkpoint_rule_without_a_planned_count_is_left_empty(rules, monkeypatch):
     rules({"publish": "4.06", "plan": "4.07"})
     monkeypatch.setattr(cs, "_AFTER_CHECKPOINT_RULES", {"plan": None})
     head, rows = cs._plan_lines({"publish": 1})
-    assert rows[1][0].rstrip().endswith("plan")
-    assert "checkpoint" not in head
+    assert rows[2][0].split() == ["pending", "4.07", "plan", "?"]
+    assert "pending checkpoints" in head
 
 
 def test_a_checkpoint_rule_with_jobs_shows_its_count(rules, monkeypatch):
@@ -305,7 +309,7 @@ def test_a_checkpoint_rule_with_jobs_shows_its_count(rules, monkeypatch):
     monkeypatch.setattr(cs, "_AFTER_CHECKPOINT_RULES", {"plan": 1})
     head, rows = cs._plan_lines({"plan": 1})
     assert "after checkpoint" not in head
-    assert rows[0][0].endswith("1")
+    assert rows[1][0].split() == ["run", "4.07", "plan", "1"]
 
 
 def test_a_declared_rule_lists_even_when_its_banner_never_renders(rules, tmp_path):
@@ -316,9 +320,10 @@ def test_a_declared_rule_lists_even_when_its_banner_never_renders(rules, tmp_pat
     registry.logged("3.07", "generate")
     cs.declared_step("3.04", "snapshot")
     _, rows = cs._plan_lines({"publish": 1})
-    texts = [text.split() for text, _ in rows]
-    assert [t[1] if t[0] == ">" else t[0] for t in texts] == ["3.04", "3.07", "3.09"]
-    assert texts[0] == ["3.04", "snapshot"] and texts[1] == ["3.07", "generate"]
+    texts = [text.split() for text, _ in rows[1:]]
+    assert [t[1] for t in texts] == ["3.04", "3.07", "3.09"]
+    assert texts[0] == ["reuse", "3.04", "snapshot", "-"]
+    assert texts[1] == ["reuse", "3.07", "generate", "-"]
 
 
 def test_defer_rows_queues_a_captured_warning_for_the_run_header(monkeypatch, capsys):

@@ -668,7 +668,7 @@ def _header():
             settings["reference period"] = f"{reference['start']}–{reference['end']}"
         settings["water year"] = f"Starts in {WATER_YEAR_START}"
         open_run_header(
-            "wf0 analyze_climate", project_dir, header_config_path(config_path, CAPTURE_RECORD), **settings,
+            "wf0 analyze_climate", project_dir, header_config_path(config_path, CAPTURE_RECORD), cores=workflow.resource_settings.cores, **settings,
         )
     except Exception as exc:  # noqa: BLE001 -- never break a run over a banner
         # Nested, for the reason given on `_summary` -- and it matters more
@@ -680,9 +680,13 @@ def _header():
             pass
 
 
+# Declare presentation before DAG planning, including dry runs and no-op runs.
+install_console_style()
+_header()
+
 onstart:
-    # Restyle Snakemake's own console output into this toolbox's grammar. Here
-    # and not at parse time: the logging stack does not exist yet then.
+    # Parse-time declaration defers styling through the handler factory;
+    # this idempotent call also supports an already active logging stack.
     install_console_style()
     _header()
     _journal("started")

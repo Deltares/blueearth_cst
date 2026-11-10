@@ -111,6 +111,7 @@ def test_workflow_defers_header_and_summarizes_requested_outputs(
         window = workflow.globals["historical_window"]
         period = f"{window['start']}–{window['end']}"
         assert details == {
+            "cores": workflow.resource_settings.cores,
             "climate data": ", ".join(workflow.globals["CANDIDATE_SOURCES"]),
             "analysis period": period,
             "water year": f"Starts in {workflow.globals['WATER_YEAR_START']}",
@@ -125,6 +126,7 @@ def test_workflow_defers_header_and_summarizes_requested_outputs(
         monkeypatch.setitem(workflow.globals, "WATER_YEAR_START", "Oct")
         workflow.globals["_header"]()
         assert console_style._RUN_HEADER[3] == {
+            "cores": workflow.resource_settings.cores,
             "climate data": details["climate data"],
             "analysis period": period,
             "reference period": "2001–2010",

@@ -64,6 +64,7 @@ from blueearth_cst.shared import (  # noqa: E402
     invocation_history,
     product_record,
 )
+from blueearth_cst.shared.command_display import sanitize_argv  # noqa: E402
 from blueearth_cst.shared.config_composition import (  # noqa: E402
     capture_configuration_sources,
 )
@@ -150,11 +151,6 @@ WORKFLOW_ID = {
 # Repo root = parent of scripts/. Snakefiles and config paths are repo-root
 # relative and the wrapper is invoked from repo root, mirroring the runners.
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-_SENSITIVE_KEY_RE = re.compile(
-    r"api[-_]?key|auth|credential|pass(?:word|wd)?|private[-_]?key|secret|token",
-    re.IGNORECASE,
-)
 
 
 class ConfigError(Exception):
@@ -377,39 +373,27 @@ def build_command(
 # terminal width and a 100-column redirected fallback. Copyable commands live
 # in the command receipt.
 #
-# Rail glyphs, disabled markers and km² units use UTF-8, which
+# The workflow sequence arrow and km² units use UTF-8, which
 # `_enable_utf8_stdout` enables. A Windows locale is cp1252 and a
 # redirected stream raises UnicodeEncodeError on anything outside it -- the
 # constraint `console_style.rule_banner` still records for the rules, which do
 # not reconfigure anything. This runner declares UTF-8 on its own stdout before
-# it prints, so `●`, `○` and `│` reach both a console and a `*> log.txt`.
+# it prints, so the sequence reaches both a console and a `*> log.txt`.
 #
 # That declaration does NOT extend to the Snakemake children: they inherit the
 # handle, not the Python text layer, and keep writing their own bytes to the
-# same file. A redirected run is therefore mixed-encoding -- UTF-8 for the
-# runner's dozen lines, the locale's codec for everything the workflows say --
-# which is legible only because the children's output is itself ASCII. Adding a
-# non-ASCII glyph to a RULE's output would break that and belongs behind the
-# same reconfiguration, not behind this comment.
+# same file. Each child owns its text encoding; the runner's reconfiguration
+# alone does not establish the encoding of child output.
 
 _RULE_WIDTH = 80
 _RULE = "=" * _RULE_WIDTH
 
-#: The sequence rail: a node per workflow threaded on a vertical line. Filled
-#: for a workflow that has completed, hollow for one that is not done (yet, or
-# at all), with a dash for disabled steps. The rail replaced a framed box per workflow, which spent
-#: three lines and forty columns to say what a node says in one.
-_NODE_ON = "●"  # ● -- completed
-_NODE_OFF = "○"  # ○ -- pending or failed
-_NODE_DISABLED = "–"
-_RAIL = "│"  # │ -- the thread between them
-
 
 def _enable_utf8_stdout() -> None:
-    """Declare UTF-8 on this process's stdout, so the rail glyphs can be printed.
+    """Declare UTF-8 on this process's stdout for the workflow sequence arrow.
 
     Without this a redirected run dies: the locale codec on Windows is cp1252,
-    `print()` on a non-tty encodes through it, and `●` raises
+    `print()` on a non-tty encodes through it, and `→` raises
     UnicodeEncodeError before the first workflow starts. One call covers both
     destinations -- a console and a `*> log.txt` -- because it replaces the
     text layer rather than probing what is behind it.
@@ -417,9 +401,8 @@ def _enable_utf8_stdout() -> None:
     Fail-open like every other console concern in this file. `reconfigure` is
     absent on a stdout something else already replaced (pytest's capture object
     is the common one), and a runner that refused to start because it could not
-    style its own banner would be trading a whole run for a glyph. The banner
-    builders stay ASCII apart from the three rail characters, so the fallback
-    path loses exactly those and prints everything else.
+    style its own banner would be trading a whole run for a glyph. Capture
+    streams may already accept Unicode without offering reconfiguration.
     """
     try:
         sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
@@ -472,33 +455,6 @@ def _command_groups(argv: list[str]) -> list[list[str]]:
             groups.append([])
         groups[-1].append(argument)
     return groups
-
-
-def _format_command(argv: list[str], *, width: int | None = None) -> str:
-    """Display option groups and long paths on aligned continuation lines."""
-    lines = []
-    for index, group in enumerate(_command_groups(argv)):
-        limit = width or _console_width()
-        if index and len(" ".join(group)) + 14 > limit:
-            lines.append(" " * 14 + group[0])
-            lines.extend(
-                _wrap_console(
-                    " ".join(group[1:]),
-                    initial=" " * 18,
-                    continuation=" " * 18,
-                    width=limit,
-                )
-            )
-            continue
-        lines.extend(
-            _wrap_console(
-                " ".join(group),
-                initial=" " * 14 if index else "",
-                continuation=" " * 18 if index else " " * 14,
-                width=width,
-            )
-        )
-    return "\n".join(lines)
 
 
 def _copyable_command(argv: list[str], *, powershell: bool) -> str:
@@ -672,46 +628,6 @@ def _console_block(
     if close:
         lines.extend(["", _RULE[: _console_width()]])
     return "\n".join(lines)
-
-
-def _sequence_lines(
-    flags: Mapping[str, bool], done: frozenset[str] = frozenset()
-) -> list[str]:
-    """The enabled/disabled pipeline as a rail of nodes, in WORKFLOW_ORDER.
-
-    Every workflow appears, enabled or not, because the question this answers is
-    "what is about to happen" and a disabled workflow silently absent from the
-    list is indistinguishable from one this wrapper does not know about. Enabled
-    entries carry their `[position/total]` so the per-workflow timeline rows
-    below can be matched to the plan without counting.
-
-    A compact rail replaces framed boxes: `●` means completed, `○` means
-    pending and `–` means disabled. The `│` between them states their order.
-    The opening block passes no completed workflows because nothing has run.
-
-    Non-ASCII, which nothing else in this file's output is: see the section
-    comment above and `_enable_utf8_stdout`, which is what makes it safe.
-    """
-    total = sum(1 for name in WORKFLOW_ORDER if flags[name])
-    # Width from the widest marker this run can print, so a disabled row's `-`
-    # stays centred under an enabled row's position past nine workflows.
-    mark_width = max(5, len(f"[{total}/{total}]"))
-    lines: list[str] = []
-    position = 0
-    for name in WORKFLOW_ORDER:
-        if lines:
-            # The rail sits under the node's own column, not the text's: what it
-            # threads is the sequence of nodes.
-            lines.append(_RAIL)
-        if flags[name]:
-            position += 1
-            mark = f"[{position}/{total}]".ljust(mark_width)
-            node = _NODE_ON if name in done else _NODE_OFF
-            lines.append(f"{node}  {mark}  {_label(name)}")
-        else:
-            mark = "-".center(mark_width)
-            lines.append(f"{_NODE_DISABLED}  {mark}  {_label(name)}  disabled")
-    return lines
 
 
 #: Kilometres per degree of latitude (WGS84 meridian arc / 180) and per degree
@@ -928,32 +844,12 @@ def _opening_block(
     toolbox: Mapping[str, Any],
     experiment: tuple[str, str | None] | None = None,
     include_banner: bool = True,
+    cores: int | None = None,
 ) -> str:
-    """The start-of-invocation block: which run this is, and what will run.
-
-    ONE group, not the `run` / `settings` pair this carried until 2026-08-18.
-    Splitting where the values come FROM -- the command line versus the config
-    -- is the writer's distinction, not the reader's: both halves answer "which
-    run is this", they were adjacent, and each label cost a line to say so.
-
-    `config` prints as the caller SPELLED it (forward-slashed), not resolved:
-    a relative `--config` is how every documented invocation passes it, and the
-    absolute form is both longer and machine-specific. `folder` is resolved,
-    because that one is an answer -- where the outputs land -- rather than an
-    echo of the command line.
-
-    `repository` is the resolved checkout this wrapper is actually running
-    from (`_REPO_ROOT_PATH`, the parent of `scripts/`), printed for the same
-    reason `folder` is: a worktree repo, this one included, is invoked
-    identically from the primary checkout or any linked worktree, so the
-    console is the only place that distinguishes which tree's code is
-    executing without inspecting `sys.argv[0]` or `pwd`.
-
-    `cores` is gone with the split. It is not a property of the project, and
-    every hand-off band below prints the `-c N` it was forwarded to, verbatim,
-    in the command it is about to run.
-    """
+    """Describe batch settings and selected workflow order; children disclose finalized engine commands."""
     rows: list[Any] = [("project", project_name)]
+    if cores is not None:
+        rows.append(("cores", f"{cores} per workflow"))
     if experiment is not None:
         name, action = experiment
         rows.append(("experiment", f"{name} ({action})" if action else name))
@@ -962,19 +858,14 @@ def _opening_block(
     rows.append(("repository", os.fspath(_REPO_ROOT_PATH).replace(os.sep, "/")))
     rows.append(("folder", os.fspath(project_dir).replace(os.sep, "/")))
     rows.append(("config", os.fspath(config_path).replace(os.sep, "/")))
-    if dry_run:
-        # Kept out of the five above, and kept: a dry run's console is otherwise
-        # nearly identical to a real one's, and this is a notice about what will
-        # HAPPEN rather than a setting a reader could go and change.
-        rows.append(("mode", "dry run -- nothing is executed"))
     enabled = sum(1 for name in WORKFLOW_ORDER if flags[name])
     total = len(WORKFLOW_ORDER)
-    groups: list[tuple[str, list[Any]]] = [("settings", rows)]
+    groups: list[tuple[str, list[Any]]] = [("Run settings", rows)]
     if enabled:
         groups.append(
             (
-                "sequence",
-                list(_sequence_lines(flags)),
+                "Workflow sequence",
+                [" → ".join(_label(name) for name in WORKFLOW_ORDER if flags[name])],
             )
         )
     else:
@@ -984,7 +875,10 @@ def _opening_block(
         groups.append(
             (f"nothing to invoke -- 0 of {total} workflows are enabled here", [])
         )
-    return _console_block("run_workflows", groups, include_banner=include_banner)
+    block = _console_block(
+        "BlueEarth CST · workflow run", groups, include_banner=include_banner
+    )
+    return ("DRY RUN — no jobs will execute\n\n" if dry_run else "") + block
 
 
 def _climate_input_block(rows: tuple[str, ...], *, colour: bool = False) -> str:
@@ -1493,7 +1387,7 @@ def _preparation_progress(enabled: bool, *, announce: bool = True):
     heartbeat = None
     try:
         if announce:
-            print("\n" + "\n".join(_banner("run_workflows")), flush=True)
+            print("\nBlueEarth CST · workflow run", flush=True)
         if enabled:
             print(file=sys.stderr, flush=True)
             heartbeat = _PreparationHeartbeat(
@@ -1634,6 +1528,7 @@ def _run_owned(
                 if reservation_context is not None
                 else None,
                 include_banner=False,
+                cores=cores,
             ),
             flush=True,
         )
@@ -1769,15 +1664,8 @@ def _run_owned(
                     continue
             workflow["command"] = sanitize_argv(cmd)
             workflow["status"] = "running"
-            print(
-                "\n"
-                + _handoff(
-                    tag,
-                    "starting",
-                    note=_format_command(cmd),
-                )
-                + "\n",
-            )
+            # Each child owns its identity and finalized engine command.
+            print("", flush=True)
             # Before the child, not after: see contract (h) on buffering.
             sys.stdout.flush()
             workflow_started = time.monotonic()
@@ -2278,37 +2166,6 @@ def _capture_legacy_wf3_attempt(
             handle.flush()
             os.fsync(handle.fileno())
     return hashlib.sha256(sources[0].data).hexdigest()
-
-
-def sanitize_argv(argv: list[str]) -> list[str]:
-    """Redact values attached to credential-like flags or assignments."""
-    sanitized: list[str] = []
-    redact_next = False
-    for value in argv:
-        if redact_next:
-            sanitized.append("<redacted>")
-            redact_next = False
-            continue
-        if value.startswith("-"):
-            flag, separator, assignment = value.partition("=")
-            if _is_sensitive_key(flag.lstrip("-")):
-                if separator:
-                    sanitized.append(f"{flag}=<redacted>")
-                else:
-                    sanitized.append(value)
-                    redact_next = True
-                continue
-        key, separator, _ = value.partition("=")
-        if separator and _is_sensitive_key(key):
-            sanitized.append(f"{key}=<redacted>")
-        else:
-            sanitized.append(value)
-    return sanitized
-
-
-def _is_sensitive_key(key: str) -> bool:
-    """Return whether a flag or assignment key may carry a secret."""
-    return bool(_SENSITIVE_KEY_RE.search(key))
 
 
 def _config_overrides(extra: list[str]) -> list[str]:
