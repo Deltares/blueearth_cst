@@ -135,6 +135,8 @@ def _responses(locations=("9",), *, without_pet=False):
 @pytest.fixture
 def crop_water_experiment(tmp_path, monkeypatch):
     from blueearth_cst.experiment import indicator_plan
+    from blueearth_cst.experiment.wflow_response_reader import NativeRunArtifacts
+    from blueearth_cst.shared.response_tables import publish_response_tables
 
     responses, _ = _responses()
     experiment = build_v2_experiment(tmp_path, responses)
@@ -150,6 +152,11 @@ def crop_water_experiment(tmp_path, monkeypatch):
         '[[output.csv.column]]\nheader="Q"\nparameter="river_water__volume_flow_rate"\n',
         encoding="utf-8",
     )
+    native = historical / "run_default/output.csv"
+    publish_response_tables(
+        NativeRunArtifacts(native, historical / "wflow_sbm.toml"), native.parent
+    )
+    native.unlink()
     monkeypatch.setattr(
         indicator_plan, "resolve_indicator_environment", lambda: FIXTURE_ENVIRONMENT
     )

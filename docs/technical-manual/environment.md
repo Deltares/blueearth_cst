@@ -24,7 +24,7 @@ The installation script specifies the installed weather-generator revision.
 
 Run supported commands with `pixi run`. Snakemake Python steps read `snakemake.input`, `output` and `params`.
 R workflow scripts use `Rscript --vanilla` and positional arguments. netCDF carries gridded climate and
-forcing between languages. Hydrological simulation retains native Wflow CSV responses with explicit
+forcing between languages. Hydrological simulation retains rounded per-variable CSV responses with explicit
 interpretation metadata.
 
 ## Data access and environment records {#availability-and-provenance}

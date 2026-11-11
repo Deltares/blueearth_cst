@@ -453,19 +453,15 @@ def test_indicators_only_uses_retained_readiness_without_new_input_reads(
         bind(retained, context, freeze=True)
         name, reservation_id = context.name, context.reservation_id
         root = retained.project / "experiments" / name
-        source_runs, target_runs = (
-            helper.native_runs(retained.legacy_root),
-            helper.native_runs(root),
-        )
-        for run_id, target in target_runs.items():
-            source = source_runs[run_id]
-            for field in ("csv_path", "toml_path", "temporal_path"):
-                target_path = getattr(target, field)
-                target_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(getattr(source, field), target_path)
+        records = {}
+        for run_id in helper.RUN_IDS:
+            source = retained.legacy_root / "hydrology/wflow/output" / run_id
+            target = root / "hydrology/wflow/output" / run_id
+            shutil.copytree(source, target)
+            records[run_id] = target / "_engine/response_tables.json"
         with archive_lock(retained.project, "project-execution"):
             response_inventory = publish_response_inventory_v2(
-                root, target_runs, helper.default_responses().temporal
+                root, records, helper.default_responses().temporal
             )
             publish_simulation_v2(root, response_inventory)
     settings = {

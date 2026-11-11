@@ -40,12 +40,9 @@ from blueearth_cst.experiment.simulation_record import (
     read_simulation_intent_v2,
     read_simulation_v2,
 )
-from blueearth_cst.experiment.wflow_response_reader import (
-    NativeRunArtifacts,
-    ResponseRequest,
-    open_responses,
-)
+from blueearth_cst.experiment.wflow_response_reader import ResponseRequest
 from blueearth_cst.indicators import loader
+from blueearth_cst.shared.response_tables import open_table_responses
 from blueearth_cst.shared.snake_utils import log_row, plural
 
 #: The published return-level provenance beside each v2 indicator set's marker.
@@ -605,20 +602,14 @@ def _v2_scenario_rows(records):
     return tuple(rows)
 
 
-def _native_runs_v2(root, inventory):
+def _table_runs_v2(root, inventory):
     from blueearth_cst.shared.workflow_config_snapshot import resolve_file_reference
 
     result = {}
     for artifact in inventory["artifacts"]:
         run = artifact["run_id"]
-        series = next(item for item in inventory["series"] if item["run_id"] == run)
-        result[run] = NativeRunArtifacts(
-            resolve_file_reference(artifact["file"], {"experiment_root": root}),
-            resolve_file_reference(
-                series["native_selector"]["toml"], {"experiment_root": root}
-            ),
-            None,
-            inventory["temporal_preparation"]["response_start"],
+        result[run] = resolve_file_reference(
+            artifact["file"], {"experiment_root": root}
         )
     return result
 
@@ -747,11 +738,11 @@ def build_indicator_plan(experiment_root, request, *, _observed_code=None):
                 )
     references = {}
     if any(item.reference for item in registry):
-        native = _native_runs_v2(root, inventory)
+        native = _table_runs_v2(root, inventory)
         series = tuple(
             item
             for run in reference_runs
-            for item in open_responses(run, native[run], ResponseRequest(("q",)))
+            for item in open_table_responses(run, native[run], ResponseRequest(("q",)))
         )
         references = {
             which: _plain(
@@ -990,7 +981,7 @@ def reduce_indicator_plan(
         raise IndicatorPlanStale("indicator plan changed before reduction")
     check_live_indicator_environment(plan)
     inventory = read_response_inventory_v2(root)
-    native = _native_runs_v2(root, inventory)
+    native = _table_runs_v2(root, inventory)
     registry = declarations_for_calculations(plan["request"]["calculations"])
     local_registry = [(item, loader.local_declaration(item)) for item in registry]
     references = {
@@ -1016,7 +1007,9 @@ def reduce_indicator_plan(
         series = tuple(
             item
             for run in (members if variables else ())
-            for item in open_responses(run, native[run], ResponseRequest(variables))
+            for item in open_table_responses(
+                run, native[run], ResponseRequest(variables)
+            )
         )
         for item in series:
             coverage.setdefault(item.key, series_coverage(item, anchor))

@@ -261,7 +261,7 @@ def test_pair_survives_interrupted_publication(tmp_path, monkeypatch):
     assert prepare_staging([member], staging, "simulation") == [member]
 
 
-def test_grid_inventory_binds_both_artifacts_and_reads_old_records(
+def test_grid_inventory_binds_compact_responses_and_reads_without_raw_csv(
     tmp_path, monkeypatch
 ):
     from blueearth_cst.experiment import simulation_record
@@ -272,6 +272,7 @@ def test_grid_inventory_binds_both_artifacts_and_reads_old_records(
         publish_simulation_v2,
         read_simulation_v2,
     )
+    from blueearth_cst.shared.response_tables import publish_response_tables
     from tests._v2_experiment import TEMPORAL, build_v2_experiment, native_runs
 
     scalar = build_v2_experiment(tmp_path / "scalar")
@@ -316,16 +317,28 @@ def test_grid_inventory_binds_both_artifacts_and_reads_old_records(
     first_grid = next(iter(runs.values())).csv_path.with_suffix(".nc")
     with netCDF4.Dataset(first_grid, "r+") as ds:
         ds["q"][0, 0, 0] = float("nan")
+    records = {
+        run: publish_response_tables(
+            native, native.csv_path.with_suffix(""), variables=("gwr",)
+        )
+        for run, native in runs.items()
+    }
+    tomls = {run: native.toml_path for run, native in runs.items()}
     with pytest.raises(ValueError, match="native support"):
-        publish_response_inventory_v2(experiment.root, runs, TEMPORAL)
+        publish_response_inventory_v2(
+            experiment.root, records, TEMPORAL, grid_tomls=tomls
+        )
     shutil.copyfile(sample, first_grid)
-    inventory = publish_response_inventory_v2(experiment.root, runs, TEMPORAL)
-    assert inventory["schema_version"] == "response-inventory/4"
+    inventory = publish_response_inventory_v2(
+        experiment.root, records, TEMPORAL, grid_tomls=tomls
+    )
+    assert inventory["schema_version"] == "response-inventory/5"
     assert len(inventory["grids"]) == 2
     publish_simulation_v2(experiment.root, inventory)
     # Retained reads use the inventory-bound native contract, not local inputs
     # or an engine installation; temporary producer records are unnecessary.
     for native in runs.values():
+        native.csv_path.unlink()
         Path(str(native.toml_path) + ".grid.toml").unlink()
     (sample_dir / "staticmaps.nc").unlink()
     read_simulation_v2(experiment.root)

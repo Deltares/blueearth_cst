@@ -65,9 +65,9 @@ def _published(root):
 
 def _tamper_keeping_timestamps(root):
     """Change a retained response in place without moving its mtime."""
-    native = root / f"hydrology/wflow/output/{RUN_IDS[0]}.csv"
+    native = root / f"hydrology/wflow/output/{RUN_IDS[0]}/output_gwr.csv"
     stat = native.stat()
-    native.write_bytes(native.read_bytes().replace(b",3\n", b",4\n"))
+    native.write_bytes(native.read_bytes() + b"\n")
     os.utime(native, ns=(stat.st_atime_ns, stat.st_mtime_ns))
 
 
@@ -120,7 +120,7 @@ def test_a_dry_run_writes_nothing_and_a_stale_response_is_refused(tmp_path):
     _tamper_keeping_timestamps(root)
     code, output = _simulate(experiment, target=None)
     assert code != 0, output
-    assert "bytes differ" in output, output
+    assert "checksum mismatch" in output, output
     assert "Job stats:" not in output, output
     assert not (root / "_engine/indicator_sets").exists()
 

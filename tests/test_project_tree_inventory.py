@@ -181,8 +181,7 @@ COVERED: dict[str, list[str]] = {
         "models/hydrology/wflow/forcing/plots/forcing_precip_map.png",
         "models/hydrology/wflow/staticgeoms/outlet_index.csv",
         "models/hydrology/wflow/staticgeoms/gauges_locations.geojson",
-        # Full-precision native responses persist beside the readable exports.
-        "models/hydrology/wflow/run_default/output.csv",
+        "models/hydrology/wflow/run_default/_engine/response_tables.json",
         "models/hydrology/wflow/run_default/output_grid.nc",
         "models/hydrology/wflow/run_default/output_q.csv",
         # Wflow's log is retained but excluded as non-content-bearing evidence.
@@ -255,7 +254,9 @@ COVERED: dict[str, list[str]] = {
         f"experiments/{E}/hydrology/wflow/run_settings/run_001.yml",
         f"experiments/{E}/hydrology/wflow/run_settings/forcing_elevation_catalog.yml",
         f"experiments/{E}/hydrology/wflow/forcing/inmaps_run_001.nc",
-        f"experiments/{E}/hydrology/wflow/output/run_001.csv",
+        f"experiments/{E}/hydrology/wflow/output/run_001/output_q.csv",
+        f"experiments/{E}/hydrology/wflow/output/run_001/output_gwr.csv",
+        f"experiments/{E}/hydrology/wflow/output/run_001/_engine/response_tables.json",
         f"experiments/{E}/hydrology/wflow/output/run_001.nc",
         f"experiments/{E}/hydrology/wflow/output/_log/run_001.log",
         # outstates_run_<id>.nc is gone from this list (2026-09-15): the

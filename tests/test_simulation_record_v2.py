@@ -91,7 +91,10 @@ def test_simulation_intent_binds_prep_and_selected_runs():
     )
     documents = {
         "model_reference": reference,
-        "settings": {"simulation_window": {"start": 2046, "end": 2054}},
+        "settings": {
+            "simulation_window": {"start": 2046, "end": 2054},
+            "csv": {"decimal_places": 5},
+        },
         "environment": {"packages": {}},
         "simulator_adapter_code": [],
         "response_request": request,
@@ -129,6 +132,21 @@ def test_simulation_intent_binds_prep_and_selected_runs():
         identity,
     )
     assert changed["simulation_id"] != intent["simulation_id"]
+
+    documents["settings"]["csv"]["decimal_places"] = 3
+    with pytest.raises(ValueError, match="precision differs"):
+        simulation_intent_v2(
+            "experiment", selection, intent["simulator"], documents, identity
+        )
+    documents["response_request"]["decimal_places"] = 3
+    rounded = simulation_intent_v2(
+        "experiment", selection, intent["simulator"], documents, identity
+    )
+    assert rounded["simulation_id"] != changed["simulation_id"]
+    assert (
+        rounded["documents"]["model_reference"]
+        == changed["documents"]["model_reference"]
+    )
 
 
 # --- ported from the retired v1 simulation-record tests (t2610041227) --------

@@ -13,6 +13,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
   (default 5), explicit temporal/location metadata and checked conversion error bounds.
 - Evaluate WF1 and historical Qcrit from rounded response tables; retain historical-run/2 archives
   without duplicate native/full-precision CSVs, and retire the live native CSV after successful conversion.
+- Retain only verified rounded scalar tables in new WF4 experiments; freeze CSV precision in
+  response-request/3 and verify response-inventory/5 without native CSV dependencies or legacy reader modes.
+  Keep temporary batch inputs until every conversion succeeds, preserving failed-attempt retries.
 
 - Include a variable in comparison figures when only one source provides it; suppress its duplicate
   individual-source figure when source figures are disabled.

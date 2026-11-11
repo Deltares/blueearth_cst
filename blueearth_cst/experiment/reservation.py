@@ -332,6 +332,7 @@ def validate_request(request: dict, project_root: Path | str) -> dict:
             not in {
                 "include_unperturbed",
                 "netcdf_grid",
+                "csv",
                 "initialization",
                 "historical_forcing",
             }
@@ -351,7 +352,13 @@ def validate_request(request: dict, project_root: Path | str) -> dict:
         if initialization(simulation) != simulation["initialization"]:
             raise ValueError("declared simulation initialization must be normalized")
     _text(simulation["climate_source"], "climate_source")
+    from blueearth_cst.shared.csv_output import normalize_csv_output
     from blueearth_cst.shared.grid_output import normalize_grid_output
+
+    if "csv" in simulation and simulation["csv"] != normalize_csv_output(
+        {"csv": simulation["csv"]}
+    ):
+        raise ValueError("declared simulation CSV request must be normalized")
 
     if "netcdf_grid" in simulation:
         grid = normalize_grid_output({"netcdf_grid": simulation["netcdf_grid"]})
@@ -369,11 +376,19 @@ def validate_request(request: dict, project_root: Path | str) -> dict:
     model = simulation["model_request"]
     if model is not None:
         _fields(
-            {key: value for key, value in model.items() if key != "netcdf_grid"},
+            {
+                key: value
+                for key, value in model.items()
+                if key not in {"netcdf_grid", "csv"}
+            },
             {"basin", "climate", "engine", "simulation_window", "local_inputs"},
             "model request",
         )
         _fields(model["climate"], {"selected", "window"}, "model climate")
+        if "csv" in model and model["csv"] != normalize_csv_output(
+            {"csv": model["csv"]}
+        ):
+            raise ValueError("model CSV request must be normalized")
         if "netcdf_grid" in model:
             grid = normalize_grid_output({"netcdf_grid": model["netcdf_grid"]})
             if grid is None or grid != model["netcdf_grid"]:

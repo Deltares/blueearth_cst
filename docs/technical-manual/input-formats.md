@@ -91,6 +91,7 @@ Hydrological simulation supplies daily interval-end series and handles simulatio
 handling.
 The neutral module does not infer them from filenames or remove additional warm-up.
 The [custom-indicator reference](indicator-extension.md) links the module documentation and calculation sets.
-`indicators/series.py`, `indicators/contract.py` and `experiment/wflow_response_reader.py` implement
-validation and
-native interpretation; `tests/test_response_series.py` and `tests/test_wflow_response_reader.py` cover them.
+`indicators/series.py`, `indicators/contract.py` and `shared/response_tables.py` implement validation and
+retained-table interpretation. `experiment/wflow_response_reader.py` binds temporary native outputs
+during conversion; `tests/test_response_series.py`, `tests/test_response_tables.py` and
+`tests/test_wflow_response_reader.py` cover these boundaries.

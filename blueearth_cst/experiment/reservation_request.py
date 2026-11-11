@@ -244,6 +244,9 @@ def capture_request(
         from blueearth_cst.shared.grid_output import normalize_grid_output
 
         grid = normalize_grid_output(model_settings.get("output"))
+        from blueearth_cst.shared.csv_output import normalize_csv_output
+
+        model_request["csv"] = normalize_csv_output(model_settings.get("output"))
         if grid is not None:
             model_request["netcdf_grid"] = grid
     workflow = config["workflows"]["simulate_system"]
@@ -326,6 +329,9 @@ def capture_request(
     from blueearth_cst.shared.grid_output import normalize_grid_output
 
     grid = normalize_grid_output(workflow.get("output"))
+    from blueearth_cst.shared.csv_output import normalize_csv_output
+
+    request["simulation"]["csv"] = normalize_csv_output(workflow.get("output"))
     if grid is not None:
         request["simulation"]["netcdf_grid"] = grid
     request = _json_value(request)

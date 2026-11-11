@@ -81,6 +81,62 @@ def _snakemake(root, **env):
 
 
 @pytest.mark.workflow_contract
+def test_native_temp_survives_failed_conversion_and_retires_after_verified_tables(
+    tmp_path,
+):
+    from blueearth_cst.experiment.content_identity import canonical_json_bytes
+    from blueearth_cst.experiment.wflow_response_reader import ResponseRequest
+    from blueearth_cst.shared.response_tables import open_table_responses
+    from tests._v2_experiment import NATIVE_CSV, NATIVE_TOML, TEMPORAL
+
+    # The same temp(update(...)) boundary as the live batch rule, with real
+    # conversion rather than a stubbed retained-response writer.
+    snakefile = """
+from pathlib import Path
+import shutil
+from blueearth_cst.shared.response_tables import publish_response_tables
+from blueearth_cst.experiment.wflow_response_reader import NativeRunArtifacts
+rule all:
+    input: "output/run_1/_engine/response_tables.json"
+rule native:
+    input: "seed.csv"
+    output: temp(update("output/run_1.csv"))
+    run:
+        shutil.copyfile(input[0], output[0])
+rule convert:
+    input:
+        csv="output/run_1.csv", toml="run.toml", temporal="temporal.json"
+    output: "output/run_1/_engine/response_tables.json"
+    run:
+        publish_response_tables(
+            NativeRunArtifacts(Path(input.csv), Path(input.toml), Path(input.temporal)),
+            Path("output/run_1"), variables=("gwr",), decimal_places=5)
+"""
+    (tmp_path / "Snakefile").write_text(textwrap.dedent(snakefile), encoding="utf-8")
+    (tmp_path / "seed.csv").write_text(NATIVE_CSV, encoding="utf-8")
+    toml = tmp_path / "run.toml"
+    toml.write_text(
+        NATIVE_TOML.replace(
+            "soil_water_saturated_zone_top__net_recharge_volume_flux", "wrong_parameter"
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "temporal.json").write_bytes(canonical_json_bytes(TEMPORAL))
+    failed = _snakemake(tmp_path)
+    assert failed.returncode != 0, failed.stdout + failed.stderr
+    raw = tmp_path / "output/run_1.csv"
+    assert raw.read_text(encoding="utf-8") == NATIVE_CSV
+    record = tmp_path / "output/run_1/_engine/response_tables.json"
+    assert not record.exists()
+    toml.write_text(NATIVE_TOML, encoding="utf-8")
+    succeeded = _snakemake(tmp_path)
+    assert succeeded.returncode == 0, succeeded.stdout + succeeded.stderr
+    assert not raw.exists()
+    responses = open_table_responses("run_1", record, ResponseRequest(("gwr",)))
+    assert responses[0].values.tolist() == [3.0, 6.0]
+
+
+@pytest.mark.workflow_contract
 def test_a_retry_after_one_failure_runs_only_that_member(tmp_path):
     (tmp_path / "Snakefile").write_text(SNAKEFILE, encoding="utf-8")
     (tmp_path / "stub.py").write_text(STUB, encoding="utf-8")

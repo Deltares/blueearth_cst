@@ -270,6 +270,7 @@ def plan_native_response_request(
     last_time,
     calendar="standard",
     timestep_seconds=86400,
+    decimal_places=5,
 ):
     """Ask the installed Wflow reader for output order before any simulation.
 
@@ -373,7 +374,7 @@ end
         raise ValueError(
             f"unsupported native output headers: {sorted(set(headers) - covered)}"
         )
-    return make_response_request(run_ids, declared)
+    return make_response_request(run_ids, declared, decimal_places=decimal_places)
 
 
 def batch_arguments(batch_id: str, runs: Sequence[PreparedRun]) -> list[str]:
