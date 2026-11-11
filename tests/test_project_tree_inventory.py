@@ -186,7 +186,7 @@ COVERED: dict[str, list[str]] = {
         "models/hydrology/wflow/run_default/output_q.csv",
         # Wflow's log is retained but excluded as non-content-bearing evidence.
         "models/hydrology/wflow/run_default/outstate/outstates.nc",
-        "models/hydrology/wflow/evaluation/performance_indicators.csv",
+        "models/hydrology/wflow/evaluation/tables/performance_indicators.csv",
         # Keyed by wflow_id since 2026-08-10; four sheets per station. They sit
         # in a `stations/` bin since 2026-08-18 (t2608071206) because rule 1.15
         # declares that bin as a directory() -- their count is a product of the

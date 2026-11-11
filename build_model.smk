@@ -625,7 +625,7 @@ WF1_TERMINALS = [
     # their names is knowable at parse time. The table is written by the same
     # rule and is config-invariant, so the gather rules wait on exactly what
     # they waited on before.
-    *[f"{_hp(key, 'evaluation_dir')}/performance_indicators.csv" for key in FORCING_KEYS],
+    *[f"{_hp(key, 'evaluation_dir')}/tables/performance_indicators.csv" for key in FORCING_KEYS],
     # The Excel-ready tables (1.14). A product of the workflow rather than an
     # incidental by-product, so they are rule-`all` members like the figures —
     # nothing downstream consumes them, so without this they never build.
@@ -1362,7 +1362,7 @@ for _k in FORCING_KEYS:
         # rename removes. The indicators table is this rule's config-invariant artifact
         # and takes over as its terminal.
         output:
-            indicators_csv = f"{_hp(_k, 'evaluation_dir')}/performance_indicators.csv",
+            indicators_csv = f"{_hp(_k, 'evaluation_dir')}/tables/performance_indicators.csv",
             basavg_pngs = _basavg_pngs(_k),
             basavg_captions = _basavg_captions(_k),
             subbasin_figures = (
@@ -1397,7 +1397,7 @@ for _k in FORCING_KEYS:
 rule write_run_metadata:
     message: WRITE_RUN_METADATA.banner()
     input:
-        indicators_csv = [f"{_hp(key, 'evaluation_dir')}/performance_indicators.csv" for key in FORCING_KEYS],
+        indicators_csv = [f"{_hp(key, 'evaluation_dir')}/tables/performance_indicators.csv" for key in FORCING_KEYS],
         # a rule reading under the model root waits on the terminal
         # marker, because rule 1.07 rewrites the whole directory. The indicators
         # table already orders this rule after 1.15, so the marker adds no edge

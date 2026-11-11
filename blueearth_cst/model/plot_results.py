@@ -415,8 +415,10 @@ def analyse_wflow_historical(
             )
             plt.close("all")
 
-    # Save performance indicators to csv (evaluation/, not evaluation/plots/ — P1)
-    df_perf_all.to_csv(os.path.join(Folder_eval, "performance_indicators.csv"))
+    # Save performance indicators beside the other evaluation tables.
+    Folder_tables = os.path.join(Folder_eval, "tables")
+    os.makedirs(Folder_tables, exist_ok=True)
+    df_perf_all.to_csv(os.path.join(Folder_tables, "performance_indicators.csv"))
     _log(
         (
             "Performance indicator table written to"

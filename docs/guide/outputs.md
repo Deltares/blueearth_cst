@@ -24,7 +24,11 @@ project file. For the external case example, this is `C:/cst-cases/runs/my-basin
 │           └── <ensemble>/              projection products
 ├── models/
 │   └── hydrology/
-│       └── wflow/                       model, forcing and historical evaluation
+│       └── wflow/                       model, forcing, current historical run and evaluation
+├── simulations/
+│   └── historical/<name>/               retained historical runs (optional `historical_run`)
+├── comparisons/
+│   └── historical/<name>/               comparison of retained runs for named forcings
 ├── scenarios/                           exported climate series and lookup tables
 ├── experiments/
 │   └── <name>/
@@ -38,6 +42,11 @@ project file. For the external case example, this is `C:/cst-cases/runs/my-basin
 │   └── <timestamp>__<scope>/             summary, transcript and diagnostics
 └── config/                              copies of settings used for each attempt
 ```
+
+Historical simulations appear in three places. `models/hydrology/wflow/run_default/` holds the current
+run and is replaced when the model workflow reruns. `simulations/historical/<name>/` holds named runs kept
+unchanged for later comparison, and `comparisons/historical/` compares them. Stress-test simulations
+belong to their experiment. See [retained historical simulations](../technical-manual/workflow-build-model.md#retain-historical-simulations).
 
 Keep the complete output directory when archiving an assessment. Indicator CSVs alone do not preserve
 the model, climate conditions or calculation settings needed to understand a result. Edit the source

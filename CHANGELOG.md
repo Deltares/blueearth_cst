@@ -9,6 +9,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Move WF1 `evaluation/performance_indicators.csv` to `evaluation/tables/performance_indicators.csv`.
+  Existing projects re-render evaluation figures on the next model workflow run; delete the old file by hand.
+
 - Add verified per-variable scalar response tables with configurable `output.csv.decimal_places`
   (default 5), explicit temporal/location metadata and checked conversion error bounds.
 - Evaluate WF1 and historical Qcrit from rounded response tables; retain historical-run/2 archives
