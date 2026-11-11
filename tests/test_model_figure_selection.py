@@ -71,7 +71,7 @@ def test_station_plot_switch_preserves_performance_table(
         evaluation_dir=evaluation,
         station_plots=enabled,
     )
-    actual = pd.read_csv(evaluation / "performance_indicators.csv", index_col=[0, 1])
+    actual = pd.read_csv(evaluation / "tables" / "performance_indicators.csv", index_col=[0, 1])
     pd.testing.assert_frame_equal(actual, scores)
     assert len(rendered) == int(enabled)
     assert previous.read_bytes() == b"retained"

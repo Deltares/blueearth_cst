@@ -66,7 +66,7 @@ DECLARED_PLOT_OUTPUTS = (
     # No per-station FIGURE is declared: they are keyed by wflow_id, which is
     # a product of the model build and so unknowable at parse time. The
     # indicators table is rule 1.15's config-invariant artifact.
-    "models/hydrology/wflow/evaluation/performance_indicators.csv",
+    "models/hydrology/wflow/evaluation/tables/performance_indicators.csv",
     # Rule 1.12's basin map. PNG only since 2026-08-10; the vector deliverable
     # was dropped because nothing read it.
     "data/spatial/plots/elevation_basin.png",

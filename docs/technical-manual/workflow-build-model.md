@@ -82,7 +82,7 @@ Paths below are relative to `project_dir`. The main outputs are:
   tables and `_engine/response_tables.json`, with registry IDs linking series to reporting locations.
   Native Wflow `output.csv` is removed after successful conversion. Evaluation reads the retained tables.
 - **Evaluation (`models/hydrology/wflow/evaluation/`).** Model-response figures and scores where
-  observations are available, including `performance_indicators.csv` and station discharge
+  observations are available, including `tables/performance_indicators.csv` and station discharge
   summaries under `plots/stations/` when `plotting.location: true`.
 
 The completed model supplies subsequent hydrological simulations. Logs, benchmarks and configuration

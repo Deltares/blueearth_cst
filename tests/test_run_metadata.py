@@ -56,8 +56,8 @@ def test_metadata_repeat_ignores_git_state_but_tracks_configuration_inputs(
     monkeypatch.setattr(launch, "environment_file_hashes", lambda: dict(environment))
 
     model = root / "models/hydrology/wflow"
-    (model / "evaluation").mkdir(parents=True)
-    product = model / "evaluation/performance_indicators.csv"
+    (model / "evaluation/tables").mkdir(parents=True)
+    product = model / "evaluation/tables/performance_indicators.csv"
     product.write_text("indicator,value\nfixture,1\n", encoding="utf-8")
     (model / ".model_final").touch()
     rule = "rule write_run_metadata:\n" + _rule_block(
