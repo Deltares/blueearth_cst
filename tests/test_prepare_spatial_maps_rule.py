@@ -125,13 +125,17 @@ def test_thematic_parameter_projection_preserves_legacy_gauge_rejection(tmp_path
 
 
 @pytest.mark.workflow_contract
-def test_native_simulation_csv_is_retained_for_evaluation(model_workflow):
+def test_evaluation_reads_tables_converted_from_the_temporary_native_csv(
+    model_workflow,
+):
     simulation = model_workflow.get_rule("run_historical_simulation")
     evaluation = model_workflow.get_rule("plot_model_evaluation")
     tables = model_workflow.get_rule("export_simulation_tables")
-    assert simulation.output.csv_path not in simulation.temp_output
-    assert simulation.output.csv_path in evaluation.input
+    assert simulation.output.csv_path in simulation.temp_output
     assert simulation.output.csv_path in tables.input
+    assert simulation.output.csv_path not in evaluation.input
+    assert tables.output.response_record in evaluation.input
+    assert set(tables.output.tables) <= set(evaluation.input)
 
 
 @pytest.mark.workflow_contract
@@ -184,7 +188,7 @@ def test_spatial_figures_can_be_disabled_without_removing_model_inputs(tmp_path)
     missing = set(workflow.globals["_missing_figure_outputs"](None))
     assert not set(spatial.output) & (requested | missing)
     assert any(path.endswith("spatial_catalog.yml") for path in requested)
-    assert workflow.get_rule("run_historical_simulation").output.csv_path in (
+    assert workflow.get_rule("export_simulation_tables").output.response_record in (
         workflow.get_rule("plot_model_evaluation").input
     )
 
