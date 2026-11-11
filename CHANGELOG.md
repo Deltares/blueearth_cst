@@ -9,6 +9,10 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Keep historical climate comparison plots and unique source plots by default; make duplicate
+  single-source views, model-forcing figures and individual location figures opt-in through YAML.
+  Preserve spatial maps, numerical diagnostics, simulation responses and performance tables.
+
 - Retire managed WF0 annual anomaly pages under both current and legacy filenames, preserving unrelated files.
 - Normalize Pixi boolean environment values when borrowing a session runtime.
 - Escape unsupported characters in redirected console output while preserving the original UTF-8 log.

@@ -85,7 +85,8 @@ This experiment retains resampled historical radiation and pressure while imposi
 rainfall changes. It does not prescribe future cloudiness or pressure changes, or explicitly represent
 humidity and wind changes in the De Bruin calculation. The original same-day relationships are
 retained during resampling but need not remain physically representative after large perturbations.
-Review the historical forcing plots and simulated water balance with this assumption in mind.
+Review the simulated water balance with this assumption in mind. Enable `forcing_plots: true` in the
+model-building YAML when model-grid forcing figures are needed alongside historical climate diagnostics.
 
 ## Assumptions and limitations
 

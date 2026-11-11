@@ -43,11 +43,23 @@ extraction requires overlap between the source record and that period.
 | `diagnostics.max_missing_days_year` | Allowed missing days per water year; default 15. |
 | `diagnostics.wet_day_threshold_mm` | Wet-day threshold; default 1 mm/day. |
 | `diagnostics.spi_distribution` | SPI distribution: `gamma` (default) or `pearson3`. |
-| `subbasin_figures` | Additional per-source area-average subbasin tables and figures. |
+| `source_figures` | Include individual-source figures also covered by comparisons; default `false`. |
+| `location_figures` | Render per-location comparison figures; default `false`. |
+| `subbasin_figures` | Additional per-source area-average subbasin tables and figures; default `false`. |
 
 The reference period defaults to the climate window, and the comparison period defaults to the
 reference period. Missing-day tolerances must match the project settings in `climate.map_reference`.
 See [execution and run management](configuration-and-execution.md) for running the workflow.
+
+Basin-average comparison figures and unique source maps remain on by default. With multiple sources,
+individual-source figures duplicating those comparisons are omitted. Temperature diagnostics remain when
+the comparison lacks enough temperature carriers, as do source-specific precipitation–temperature
+relationships absent from the comparison. With one source, its basin-level diagnostic figures remain on.
+Set `source_figures: true` to restore the complete individual-source figure set.
+
+Location and subbasin figures are opt-in. `location_figures: false` preserves the per-location comparison
+data and numerical tables. These figure switches accept booleans only and leave existing disabled PNGs
+untouched; title and caption inventories describe the figures selected for the current run.
 
 ### Map annual departures {#annual-spatial-anomalies}
 
@@ -118,8 +130,9 @@ rain_gauges:
   time_label: interval_end
 ```
 
-Omission or `null` disables observation input; gridded per-location comparisons still run when multiple
-candidates are selected. A populated mapping requires these three fields and accepts optional `temp_path`.
+Omission or `null` disables observation input; gridded per-location comparison calculations still run when
+multiple candidates are selected. Their figures require `location_figures: true`. A populated mapping
+requires these three fields and accepts optional `temp_path`.
 That CSV uses the same `time` and station-ID columns for daily mean temperature in degrees Celsius;
 negative temperatures are valid. It uses the same time-label declaration as precipitation.
 Schema 3 resolves paths beside that YAML; schema 2 keeps its existing invocation-relative base.

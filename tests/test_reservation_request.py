@@ -81,7 +81,12 @@ def project_request(case, **kwargs):
 def test_historical_evaluation_and_retention_are_not_simulation_identity(case):
     before, original_captures = project_request(case, execute_model=True)
     settings = yaml.safe_load(case[3].read_bytes())
-    settings["evaluation"] = {"subbasin_plots": True, "budyko": False}
+    settings["evaluation"] = {
+        "subbasin_plots": True,
+        "station_plots": True,
+        "budyko": False,
+    }
+    settings["forcing_plots"] = True
     settings["historical_run"] = {"name": "era5_reference"}
     case[3].write_text(yaml.safe_dump(settings), encoding="utf-8")
     after, captures = project_request(case, execute_model=True)

@@ -577,6 +577,7 @@ def render(
         {
             "schema_version": 1,
             "figures": records,
+            "selected_forms": list(paths["figures"]),
             "anomaly_bounds": bounds,
             "produced_paths": list(records)
             + [

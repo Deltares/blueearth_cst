@@ -206,6 +206,7 @@ def analyse_wflow_historical(
     annotation: str = "none",
     toml_name: str = "wflow_sbm.toml",
     evaluation_dir: Union[Path, str, None] = None,
+    station_plots: bool = False,
 ):
     """
     Analyse and plot wflow model performance for historical run.
@@ -227,7 +228,7 @@ def analyse_wflow_historical(
 
     Outputs:
 
-    - station hydrographs with daily, annual and seasonal discharge, daily agreement
+    - optional station hydrographs with daily, annual and seasonal discharge, daily agreement
       where observations exist, and log flow duration.
     - peak/low signature plots when the record and observations support them, with
       return-period frequency panels and wet/dry years selected by annual mean flow.
@@ -259,6 +260,9 @@ def analyse_wflow_historical(
         Separator is , and decimal is .
     location_registry : Union[Path, str], optional
         Resolved P1 registry used to validate observation station IDs.
+    station_plots : bool, optional
+        Render per-location discharge figures, by default False. Performance
+        indicators are computed regardless of this presentation setting.
     """
     ### 1. Prepare output and plotting options ###
 
@@ -283,7 +287,8 @@ def analyse_wflow_historical(
     # bin IS declared, but as a directory() -- Snakemake creates a declared
     # directory's PARENT, not the directory itself, so it is created here too.
     os.makedirs(Folder_plots, exist_ok=True)
-    os.makedirs(Folder_stations, exist_ok=True)
+    if station_plots:
+        os.makedirs(Folder_stations, exist_ok=True)
 
     # Style is not decided here any more. Font sizes, line weights, colours and
     # the printed page all live in `shared/plot_evaluation.py` beside the code
@@ -430,10 +435,11 @@ def analyse_wflow_historical(
         for sid in qsim.index.values
         if stations.get(int(sid)) is not None
     ]
-    _log(
-        f"Rendering discharge figures for {plural(len(plotted_ids), 'model location')} (wflow_id): "
-        + ", ".join(str(wflow_id) for wflow_id in plotted_ids)
-    )
+    if station_plots:
+        _log(
+            f"Rendering discharge figures for {plural(len(plotted_ids), 'model location')} (wflow_id): "
+            + ", ".join(str(wflow_id) for wflow_id in plotted_ids)
+        )
 
     for station_id in qsim.index.values:
         station = stations.get(int(station_id))
@@ -466,17 +472,18 @@ def analyse_wflow_historical(
             indicators = df_perf[str(station.wflow_id)].unstack("time_type")
             df_perf_all = df_perf if df_perf_all.empty else df_perf_all.join(df_perf)
 
-        plot_station_evaluation(
-            simulated=qsim_i,
-            observed=qobs_i,
-            station=station,
-            plot_dir=Folder_stations,
-            indicators=indicators,
-            signatures=do_signatures and qobs_i is not None,
-            log=_log,
-            annotation=annotation,
-        )
-        plt.close("all")
+        if station_plots:
+            plot_station_evaluation(
+                simulated=qsim_i,
+                observed=qobs_i,
+                station=station,
+                plot_dir=Folder_stations,
+                indicators=indicators,
+                signatures=do_signatures and qobs_i is not None,
+                log=_log,
+                annotation=annotation,
+            )
+            plt.close("all")
 
     # Save performance indicators to csv (evaluation/, not evaluation/plots/ — P1)
     df_perf_all.to_csv(os.path.join(Folder_eval, "performance_indicators.csv"))
@@ -505,6 +512,7 @@ if __name__ == "__main__":
                 gauges_locs=getattr(sm.input, "output_locations", None),
                 location_registry=sm.input.location_registry,
                 subbasin_plots=sm.params.subbasin_plots,
+                station_plots=getattr(sm.params, "station_plots", False),
                 annotation=getattr(sm.params, "annotation", "none"),
                 toml_name=getattr(sm.params, "toml_name", "wflow_sbm.toml"),
                 evaluation_dir=getattr(sm.params, "evaluation_dir", None),

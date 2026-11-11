@@ -205,6 +205,9 @@ _budyko_evaluation = get_config(my_cfg, "evaluation", {})
 if not isinstance(_budyko_evaluation, dict):
     raise ValueError("build_model.evaluation must be a mapping")
 _budyko_settings = budyko_settings(_budyko_evaluation.get("budyko"), observations_timeseries)
+_forcing_plots = get_config(my_cfg, "forcing_plots", False)
+if not isinstance(_forcing_plots, bool):
+    raise ValueError("build_model.forcing_plots must be a boolean")
 _unconsumed_observations = sorted(
     name
     for name, source in _observations.items()
@@ -629,7 +632,10 @@ WF1_TERMINALS = [
     *[f"{_hp(key, 'run_dir')}/output_q.csv" for key in FORCING_KEYS],
     f"{spatial_dir}/plots/elevation_basin.png",
     # One representative schedules the full model-forcing figure set.
-    *[f"{_hp(key, 'forcing_plots_dir')}/forcing_precip_map.png" for key in FORCING_KEYS],
+    *(
+        [f"{_hp(key, 'forcing_plots_dir')}/forcing_precip_map.png" for key in FORCING_KEYS]
+        if _forcing_plots else []
+    ),
     f"{basin_dir}/staticgeoms/outlet_index.csv",
     # P1 spatial foundation. One representative output schedules the complete
     # multi-output rule and makes both gather rules wait for its log/benchmark.
@@ -656,11 +662,11 @@ WF1_TARGETS = [
 # outputs that are missing now, so a deleted figure or plot folder is redrawn at
 # the cost of one stat per path. A file deleted inside a declared directory,
 # such as one station figure, is not detected.
-_FIGURE_RULES = ("plot_basin_map", *(
-    _rule_name(base, key)
-    for base in ("plot_model_forcing", "plot_model_evaluation")
-    for key in FORCING_KEYS
-))
+_FIGURE_RULES = (
+    "plot_basin_map",
+    *(_rule_name("plot_model_evaluation", key) for key in FORCING_KEYS),
+    *(_rule_name("plot_model_forcing", key) for key in FORCING_KEYS if _forcing_plots),
+)
 
 
 def _missing_figure_outputs(wildcards):
@@ -1196,6 +1202,9 @@ if not isinstance(_evaluation_cfg, dict):
 _subbasin_plots = get_config(_evaluation_cfg, "subbasin_plots", False)
 if not isinstance(_subbasin_plots, bool):
     raise ValueError("build_model.evaluation.subbasin_plots must be a boolean")
+_station_plots = get_config(_evaluation_cfg, "station_plots", False)
+if not isinstance(_station_plots, bool):
+    raise ValueError("build_model.evaluation.station_plots must be a boolean")
 _WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT = ("river discharge", "precipitation")
 _basavg_pngs = lambda key: [
     f"{_hp(key, 'evaluation_dir')}/plots/wflow_{BASAVG_FIGURE_STEMS[WFLOW_OUTPUT_CODES[var]]}_{kind}_basin_avg.png"
@@ -1360,8 +1369,9 @@ for _k in FORCING_KEYS:
                 [directory(f"{_hp(_k, 'evaluation_dir')}/plots/{SUBBASIN_PLOT_DIRNAME}")]
                 if _subbasin_plots and _basavg_pngs(_k) else []
             ),
-            station_plots = directory(
-                f"{_hp(_k, 'evaluation_dir')}/plots/{STATION_PLOT_DIRNAME}"
+            station_plots = (
+                [directory(f"{_hp(_k, 'evaluation_dir')}/plots/{STATION_PLOT_DIRNAME}")]
+                if _station_plots else []
             ),
         params:
             annotation = plot_annotation,
@@ -1373,6 +1383,7 @@ for _k in FORCING_KEYS:
             # is what forced the question, and passing it is the answer.
             model_dir = basin_dir,
             subbasin_plots = _subbasin_plots,
+            station_plots = _station_plots,
             toml_name = HistoricalLayout(_k).toml,
             evaluation_dir = _hp(_k, "evaluation_dir"),
         log:

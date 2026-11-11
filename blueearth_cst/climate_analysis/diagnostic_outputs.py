@@ -6,6 +6,17 @@ from blueearth_cst.climate_analysis.diagnostic_settings import carries_temp
 from blueearth_cst.climate_analysis.figure_naming import figure_filename
 
 
+def parse_figure_settings(block: dict) -> dict[str, bool]:
+    """Resolve presentation switches independently of numerical diagnostics."""
+    settings = {}
+    for key in ("source_figures", "location_figures", "subbasin_figures"):
+        value = block.get(key, False)
+        if type(value) is not bool:
+            raise ValueError(f"{key} must be a boolean")
+        settings[key] = value
+    return settings
+
+
 def rain_gauge_outputs(root, tokens):
     """Explicit station evaluation compute and figure inventory."""
     root = Path(root)
@@ -83,7 +94,7 @@ FORMS = {
 }
 
 
-def inventory(root, sources, settings, comparison=False):
+def inventory(root, sources, settings, comparison=False, comparison_sources=()):
     """Named compute/render files; unknown subbasin IDs use optional directories."""
     root = Path(root)
     scope = "comparison" if comparison else sources[0]
@@ -96,6 +107,18 @@ def inventory(root, sources, settings, comparison=False):
         not comparison and not temp
     ):
         forms.pop("pt")
+    if (
+        not comparison
+        and len(comparison_sources) > 1
+        and not settings.get("source_figures", False)
+    ):
+        compared = inventory(root, comparison_sources, settings, comparison=True)
+        duplicated = set(compared["figures"])
+        # A non-bound temperature carrier's own P/T relationship is not shown
+        # by a comparison that pairs every precipitation source with the binding.
+        if sources[0] != binding:
+            duplicated.discard("pt")
+        forms = {key: value for key, value in forms.items() if key not in duplicated}
     figures = {
         k: str(root / "plots" / figure_filename(scope, *v, "basin_avg"))
         for k, v in forms.items()
@@ -177,8 +200,10 @@ def retarget_render(paths, render_root):
     }
 
 
-def diagnostic_source_outputs(store_dir, source, settings):
-    return inventory(store_dir, [source], settings)
+def diagnostic_source_outputs(store_dir, source, settings, comparison_sources=()):
+    return inventory(
+        store_dir, [source], settings, comparison_sources=comparison_sources
+    )
 
 
 def diagnostic_comparison_outputs(comparison_dir, sources, settings):

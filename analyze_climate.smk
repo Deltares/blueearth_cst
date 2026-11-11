@@ -18,6 +18,7 @@ from blueearth_cst.shared.workflow_archive_launch import captured_projection, re
 from blueearth_cst.spatial.config import parse_spatial_config
 from blueearth_cst.climate_analysis.diagnostic_outputs import diagnostic_source_outputs, diagnostic_comparison_outputs
 from blueearth_cst.climate_analysis.annual_spatial_anomalies import parse_settings
+from blueearth_cst.climate_analysis.diagnostic_outputs import parse_figure_settings
 from blueearth_cst.shared.map_reference import historical_map_reference_rule, require_wf0_completeness, source_map_inputs
 
 # --- figure filenames ---------------------------------------------------------
@@ -325,11 +326,10 @@ if COMPARE_LOCATIONS:
 
 # The opt-in owns a separate product; it does not change existing numerical diagnostics.
 BASE_DIAGNOSTIC_SETTINGS = {k: v for k, v in DIAGNOSTIC_SETTINGS.items() if k != "annual_spatial_anomalies"}
-_subbasin_figures = my_cfg.get("subbasin_figures", False)
-if type(_subbasin_figures) is not bool:
-    raise ValueError("subbasin_figures must be a boolean")
-DIAGNOSTIC_SETTINGS["subbasin_figures"] = _subbasin_figures
-BASE_DIAGNOSTIC_SETTINGS["subbasin_figures"] = _subbasin_figures
+FIGURE_SETTINGS = parse_figure_settings(my_cfg)
+DIAGNOSTIC_SETTINGS["subbasin_figures"] = FIGURE_SETTINGS["subbasin_figures"]
+BASE_DIAGNOSTIC_SETTINGS["subbasin_figures"] = FIGURE_SETTINGS["subbasin_figures"]
+SOURCE_RENDER_SETTINGS = DIAGNOSTIC_SETTINGS | {"source_figures": FIGURE_SETTINGS["source_figures"]}
 from blueearth_cst.shared.wf3_science import water_year_start_number
 DIAGNOSTIC_M0 = water_year_start_number(WATER_YEAR_START)
 MAP_REFERENCE = historical_map_reference_rule(
@@ -340,7 +340,7 @@ MAP_REFERENCE = historical_map_reference_rule(
 )
 require_wf0_completeness(DIAGNOSTIC_SETTINGS, MAP_REFERENCE.params["completeness"])
 MAP_SOURCE_SPECS = {spec.source: spec for spec in MAP_REFERENCE.source_specs}
-SOURCE_DIAGNOSTICS = {s: diagnostic_source_outputs(CLIMATE_STORES[s].store_dir, s, DIAGNOSTIC_SETTINGS) for s in CANDIDATE_SOURCES}
+SOURCE_DIAGNOSTICS = {s: diagnostic_source_outputs(CLIMATE_STORES[s].store_dir, s, SOURCE_RENDER_SETTINGS, CANDIDATE_SOURCES) for s in CANDIDATE_SOURCES}
 from blueearth_cst.climate_analysis.climate_indices import implementation_digest as climate_indices_digest
 CLIMATE_INDICES_DIGEST = climate_indices_digest() if DIAGNOSTIC_SETTINGS["climate_indices"]["enabled"] else None
 POOLED_ROOTS = [SOURCE_DIAGNOSTICS[s]["root"] for s in CANDIDATE_SOURCES]
@@ -349,7 +349,9 @@ COMPARISON_DIAGNOSTICS = diagnostic_comparison_outputs(COMPARISON_DIR, CANDIDATE
 WF0_TERMINALS = [p for spec in SOURCE_DIAGNOSTICS.values() for p in spec["render"].values()]
 if COMPARE_LOCATIONS:
     location_inventory = location_comparison_outputs(COMPARISON_DIR)
-    WF0_TERMINALS += list(location_inventory["compute"].values()) + list(location_inventory["render"].values())
+    WF0_TERMINALS += list(location_inventory["compute"].values())
+    if FIGURE_SETTINGS["location_figures"]:
+        WF0_TERMINALS += list(location_inventory["render"].values())
 if COMPARISON_DIAGNOSTICS:
     WF0_TERMINALS += list(COMPARISON_DIAGNOSTICS["compute"].values()) + list(COMPARISON_DIAGNOSTICS["render"].values()) + list(COMPARISON_DIAGNOSTICS["source_summary"].values())
 if DIAGNOSTIC_SETTINGS["subbasin_figures"]:
@@ -510,7 +512,8 @@ for _source in CANDIDATE_SOURCES:
             annotation=plot_annotation,
             plot_setup_digest=plot_setup_digest,
             climate_indices_render_digest=file_sha256(Path(workflow.basedir) / "blueearth_cst/climate_analysis/climate_index_figures.py") if DIAGNOSTIC_SETTINGS["climate_indices"]["enabled"] else None,
-            settings=DIAGNOSTIC_SETTINGS, source=_source, store_dir=_spec.store_dir,
+            settings=SOURCE_RENDER_SETTINGS, source=_source, store_dir=_spec.store_dir,
+            comparison_sources=CANDIDATE_SOURCES,
             m0=DIAGNOSTIC_M0, pooled_roots=POOLED_ROOTS,
             subbasin_table_dirs=[f"{_diag['root']}/tables/subbasins"],
             map_reference_params=dict(MAP_REFERENCE.params),

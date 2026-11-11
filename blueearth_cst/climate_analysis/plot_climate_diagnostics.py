@@ -6,7 +6,12 @@ from blueearth_cst.climate_analysis.diagnostic_render import render
 
 def run(sm):
     settings = dict(sm.params.settings)
-    paths = diagnostic_source_outputs(sm.params.store_dir, sm.params.source, settings)
+    paths = diagnostic_source_outputs(
+        sm.params.store_dir,
+        sm.params.source,
+        settings,
+        getattr(sm.params, "comparison_sources", ()),
+    )
     render(
         paths,
         settings,

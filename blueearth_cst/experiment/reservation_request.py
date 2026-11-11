@@ -205,6 +205,7 @@ def capture_request(
             "evaluation",
             "historical_run",
             "historical_forcings",
+            "forcing_plots",
         }
         unknown = set(model_settings) - allowed
         if unknown:

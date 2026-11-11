@@ -1,4 +1,9 @@
 # WF0 diagnostics; shared sources/window belong in the project file.
+# Restore individual-source figures also shown in basin-average comparisons. Options: true | false.
+# Unique source maps and diagnostics remain on; one source always gets its basin figures.
+source_figures: false
+# Render per-location comparison figures; their data and tables are always retained. Options: true | false.
+location_figures: false
 # Subbasin plots are optional. Basin maps still show subbasin boundaries.
 # Generate per-source subbasin area-average figures. Options: true | false.
 subbasin_figures: false

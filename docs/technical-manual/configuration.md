@@ -207,8 +207,8 @@ The following links explain the settings for each workflow.
 
 | Workflow | Settings and detailed reference |
 |---|---|
-| historical climate analysis | `diagnostics`, `subbasin_figures`, optional `rain_gauges`: [historical analysis](workflow-analyze-climate.md#configuration) |
-| model building | Required `simulation_window`; optional engine recipes and `observations`: [model](workflow-build-model.md#configuration) |
+| historical climate analysis | `diagnostics`, `source_figures`, `location_figures`, `subbasin_figures`, optional `rain_gauges`: [historical analysis](workflow-analyze-climate.md#configuration) |
+| model building | `simulation_window`, engine recipes, `observations`, `forcing_plots`, `evaluation`: [model](workflow-build-model.md#configuration) |
 | projection analysis | `catalog`, `ensemble`, `models`, `scenarios`, `members`, `variables`, windows, `stats`: [projections](workflow-analyze-projections.md#configuration) |
 | scenario generation | `seed`, `n_realizations`, `simulation_window`, monthly perturbations, generator and capacity: [generation](workflow-generate-scenarios.md#configuration) |
 | hydrological simulation | Collection, experiment, operations, indicator requests and `compute`: [simulation](workflow-simulate-system.md#configuration) |

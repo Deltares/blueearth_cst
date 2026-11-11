@@ -94,6 +94,22 @@ def rerender_sources(
         paths = retarget_render(
             diagnostic_source_outputs(store, source, settings), out_dir / store.name
         )
+        captions_path = store / "plots/_engine/figure_captions.json"
+        if captions_path.is_file():
+            selected = json.loads(captions_path.read_text(encoding="utf-8")).get(
+                "selected_forms"
+            )
+            if selected is not None:
+                paths["figures"] = {
+                    key: path
+                    for key, path in paths["figures"].items()
+                    if key in selected
+                }
+                paths["render"] = {
+                    key: path
+                    for key, path in paths["render"].items()
+                    if not key.startswith("figure_") or key[7:] in selected
+                }
         render(
             paths,
             settings,

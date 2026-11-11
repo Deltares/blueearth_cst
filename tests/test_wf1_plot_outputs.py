@@ -93,6 +93,8 @@ def fabricated_project(tmp_path):
     project_dir = tmp_path / "proj"
     project_dir.mkdir()
     cfg["project"]["project_dir"] = project_dir.as_posix()
+    cfg["workflows"]["build_model"]["forcing_plots"] = True
+    cfg["workflows"]["build_model"]["evaluation"] = {"station_plots": True}
     # Repo-relative leaves (templates, catalog) keep working: snakemake runs
     # with cwd=SNAKEDIR.
     cfg_path = write_config(tmp_path, cfg, stem="project_config_fabricated")
