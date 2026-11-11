@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from blueearth_cst.plotting.figure_titles import write_figure_titles
+from blueearth_cst.plotting.figure_titles import figure_engine_dir, write_figure_titles
 from blueearth_cst.plotting.preset import use_preset
 from blueearth_cst.projections.projection_analysis import MONTHS, PERIODS
 from blueearth_cst.projections.projection_captions import SUITE_NOTE, caption, title
@@ -233,7 +233,7 @@ def render_suite(
     manifest_path = (
         Path(captions_json)
         if captions_json is not None
-        else root.parent / "_engine" / "figure_captions.json"
+        else figure_engine_dir(root) / "figure_captions.json"
     )
     previous = (
         json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -350,7 +350,7 @@ def render_suite(
     manifest_path = (
         Path(captions_json)
         if captions_json is not None
-        else root.parent / "_engine" / "figure_captions.json"
+        else figure_engine_dir(root) / "figure_captions.json"
     )
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")

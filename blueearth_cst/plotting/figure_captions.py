@@ -4,7 +4,7 @@ import json
 from collections.abc import Mapping
 from pathlib import Path
 
-from blueearth_cst.plotting.figure_titles import write_figure_titles
+from blueearth_cst.plotting.figure_titles import figure_engine_dir, write_figure_titles
 
 
 def write_figure_captions(
@@ -12,7 +12,7 @@ def write_figure_captions(
 ) -> None:
     """Merge explicit title/caption records and write both independent inventories."""
     root = Path(plots_root)
-    path = root / "_engine/figure_captions.json"
+    path = figure_engine_dir(root) / "figure_captions.json"
     inventory = (
         json.loads(path.read_text(encoding="utf-8"))
         if path.is_file()

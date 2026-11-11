@@ -868,7 +868,7 @@ WF2_SUITE_PATHS = {
     for folder in projection_figures.suite_folders(future_horizons, water_year_start, time_horizon_hist)
 }
 FIGURE_CAPTIONS_MD = f"{clim_project_dir}/plots/figure_captions.md"
-FIGURE_CAPTIONS_JSON = f"{clim_project_dir}/_engine/figure_captions.json"
+FIGURE_CAPTIONS_JSON = f"{clim_project_dir}/_engine/plots/figure_captions.json"
 
 WF2_TARGETS = {
     **{f"analysis_{name}": path for name, path in ANALYSIS_OUTPUTS.items()},
@@ -882,7 +882,7 @@ WF2_TARGETS = {
     # Runtime availability decides which PNGs exist within these owned folders.
     **{f"figure_folder_{folder}": path for folder, path in WF2_SUITE_PATHS.items()},
     "figure_titles": f"{clim_project_dir}/plots/figure_titles.md",
-    "figure_title_manifest": f"{clim_project_dir}/_engine/figure_titles.json",
+    "figure_title_manifest": f"{clim_project_dir}/_engine/plots/figure_titles.json",
     "figure_captions": FIGURE_CAPTIONS_MD,
     "figure_manifest": FIGURE_CAPTIONS_JSON,
     # The vector rule has NO WF2 consumer yet, so a target
@@ -1301,7 +1301,7 @@ rule plot_climate_projections:
     output:
         folders = [directory(path) for path in WF2_SUITE_PATHS.values()],
         titles_md = f"{clim_project_dir}/plots/figure_titles.md",
-        titles_json = f"{clim_project_dir}/_engine/figure_titles.json",
+        titles_json = f"{clim_project_dir}/_engine/plots/figure_titles.json",
         captions_md = FIGURE_CAPTIONS_MD,
         captions_json = FIGURE_CAPTIONS_JSON,
     threads: 1

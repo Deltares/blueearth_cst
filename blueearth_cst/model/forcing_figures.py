@@ -18,7 +18,11 @@ from blueearth_cst.climate_analysis.diagnostic_render import (
 from blueearth_cst.climate_analysis.diagnostic_settings import DEFAULTS
 from blueearth_cst.plotting import prepared_charts as pc
 from blueearth_cst.plotting.export import export_figure
-from blueearth_cst.plotting.figure_titles import write_figure_titles
+from blueearth_cst.plotting.figure_titles import (
+    figure_engine_dir,
+    figure_inventory_paths,
+    write_figure_titles,
+)
 from blueearth_cst.plotting.fundamentals import MONTH_ABBR
 from blueearth_cst.plotting.preset import use_preset
 from blueearth_cst.shared.map_frames import forcing_attribution, map_caption
@@ -366,20 +370,14 @@ def render_forcing_figures(
                 plt.close(fig)
             written.append(path)
     validate_current()
-    engine = root / "_engine"
-    engine.mkdir(exist_ok=True)
+    engine = figure_engine_dir(root)
+    engine.mkdir(parents=True, exist_ok=True)
     (engine / "figure_captions.json").write_text(
         json.dumps(
             {
                 "schema_version": 1,
                 "figures": records,
-                "produced_paths": list(records)
-                + [
-                    "figure_titles.md",
-                    "_engine/figure_titles.json",
-                    "figure_captions.md",
-                    "_engine/figure_captions.json",
-                ],
+                "produced_paths": list(records) + figure_inventory_paths(root),
             },
             indent=2,
             ensure_ascii=False,

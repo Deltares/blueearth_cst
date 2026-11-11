@@ -71,11 +71,11 @@ DECLARED_PLOT_OUTPUTS = (
     # was dropped because nothing read it.
     "data/spatial/plots/elevation_basin.png",
     "data/spatial/plots/figure_titles.md",
-    "data/spatial/plots/_engine/figure_titles.json",
+    "data/spatial/_engine/plots/figure_titles.json",
     "models/hydrology/wflow/forcing/plots/figure_titles.md",
-    "models/hydrology/wflow/forcing/plots/_engine/figure_titles.json",
+    "models/hydrology/wflow/forcing/_engine/plots/figure_titles.json",
     "models/hydrology/wflow/forcing/plots/figure_captions.md",
-    "models/hydrology/wflow/forcing/plots/_engine/figure_captions.json",
+    "models/hydrology/wflow/forcing/_engine/plots/figure_captions.json",
 ) + tuple(
     f"models/hydrology/wflow/forcing/plots/{name}" for name in _figure_names("forcing")
 )
@@ -205,9 +205,9 @@ def project_with_basavg_outvar(tmp_path, request):
         basin_figures.append(optional)
     captions = [
         basavg.parent / "figure_titles.md",
-        basavg.parent / "_engine/figure_titles.json",
+        basavg.parent.parent / "_engine/plots/figure_titles.json",
         basavg.parent / "figure_captions.md",
-        basavg.parent / "_engine/figure_captions.json",
+        basavg.parent.parent / "_engine/plots/figure_captions.json",
     ]
     for caption in captions:
         caption.parent.mkdir(parents=True, exist_ok=True)

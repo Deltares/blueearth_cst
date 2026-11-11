@@ -454,7 +454,9 @@ def test_projection_console_example_uses_suite_contract(monkeypatch):
     )
     assert any(job.rule == "prepare_projection_analysis" for job in WF2.jobs)
     assert any(path.endswith("plots/figure_captions.md") for path in WF2.targets)
-    assert any(path.endswith("_engine/figure_captions.json") for path in WF2.targets)
+    assert any(
+        path.endswith("_engine/plots/figure_captions.json") for path in WF2.targets
+    )
     transcript = render(WF2)
     assert "14 figures written" in transcript
     assert "climate_projections/figures" not in transcript

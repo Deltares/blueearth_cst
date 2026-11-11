@@ -196,14 +196,18 @@ def _plottable(days=800, seed=3):
 
 def test_the_hydrograph_is_drawn_without_observations(tmp_path):
     """It is the only sheet that must never depend on them."""
-    png = plot_evaluation.plot_hydrograph(_plottable(), Station(1010), str(tmp_path))
-    assert (tmp_path / "hydrograph_1010.png").is_file()
+    plots = tmp_path / "plots"
+    plots.mkdir()
+    png = plot_evaluation.plot_hydrograph(_plottable(), Station(1010), str(plots))
+    assert (plots / "hydrograph_1010.png").is_file()
     assert png.endswith("hydrograph_1010.png")
     # PNG only since 2026-08-10; the vector copy went unread.
-    assert not list(tmp_path.glob("*.pdf"))
+    assert not list(plots.glob("*.pdf"))
 
 
 def test_every_sheet_is_named_after_the_wflow_id(tmp_path):
+    plots = tmp_path / "plots"
+    plots.mkdir()
     import json
 
     simulated = _plottable()
@@ -216,13 +220,13 @@ def test_every_sheet_is_named_after_the_wflow_id(tmp_path):
         simulated=simulated,
         observed=observed,
         station=Station(1010, 101, "auto_01"),
-        plot_dir=str(tmp_path),
+        plot_dir=str(plots),
         indicators=indicators,
         signatures=True,
         caveat="Synthetic observations for demonstration.",
         log=lambda m: None,
     )
-    written = {path.name for path in tmp_path.glob("*.png")}
+    written = {path.name for path in plots.glob("*.png")}
     assert written == {
         "hydrograph_1010.png",
         "signatures_peaks_1010.png",
@@ -230,15 +234,15 @@ def test_every_sheet_is_named_after_the_wflow_id(tmp_path):
         "performance_1010.png",
     }
     captions = json.loads(
-        (tmp_path / "_engine" / "figure_captions.json").read_text(encoding="utf-8")
+        (tmp_path / "_engine/plots/figure_captions.json").read_text(encoding="utf-8")
     )["figures"]
     assert set(captions) == written
     titles = json.loads(
-        (tmp_path / "_engine/figure_titles.json").read_text(encoding="utf-8")
+        (tmp_path / "_engine/plots/figure_titles.json").read_text(encoding="utf-8")
     )["figures"]
     assert set(titles) == written
     assert all("auto_01" in entry["title"] for entry in titles.values())
-    assert (tmp_path / "figure_titles.md").is_file()
+    assert (plots / "figure_titles.md").is_file()
     for kind in ("peaks", "lows"):
         caption = captions[f"signatures_{kind}_1010.png"]["caption"]
         assert "Synthetic observations for demonstration." in caption
@@ -246,9 +250,17 @@ def test_every_sheet_is_named_after_the_wflow_id(tmp_path):
         assert "auto_01" in caption
 
 
+@pytest.fixture
+def plots(tmp_path):
+    """A figure directory inside its output unit, as the workflow writes them."""
+    path = tmp_path / "plots"
+    path.mkdir()
+    return path
+
+
 @pytest.mark.parametrize("kind", ["peaks", "lows"])
 def test_signature_context_retains_full_record_and_highlights_percentile_years(
-    tmp_path, monkeypatch, kind
+    plots, monkeypatch, kind
 ):
     import matplotlib.dates as mdates
     import matplotlib.pyplot as plt
@@ -278,35 +290,35 @@ def test_signature_context_retains_full_record_and_highlights_percentile_years(
             ax.get_xlim(), mdates.date2num(simulated.time.values[[0, -1]])
         )
         plt.close(fig)
-        return str(tmp_path / f"{stem}.png")
+        return str(plots / f"{stem}.png")
 
     monkeypatch.setattr(plot_evaluation, "_save", inspect)
-    plot_evaluation.plot_extremes(simulated, observed, Station(1010), tmp_path, kind)
+    plot_evaluation.plot_extremes(simulated, observed, Station(1010), plots, kind)
 
 
-def test_without_observations_only_the_hydrograph_is_drawn_and_it_is_reported(tmp_path):
+def test_without_observations_only_the_hydrograph_is_drawn_and_it_is_reported(plots):
     """ "There are no observations" and "the figure failed" look identical in an
     empty folder, so the skip is announced."""
     messages = []
     plot_evaluation.plot_station_evaluation(
-        _plottable(), Station(1010), str(tmp_path), log=messages.append
+        _plottable(), Station(1010), str(plots), log=messages.append
     )
-    assert {path.name for path in tmp_path.glob("*.png")} == {"hydrograph_1010.png"}
+    assert {path.name for path in plots.glob("*.png")} == {"hydrograph_1010.png"}
     assert any("no observations" in message for message in messages)
 
 
-def test_a_short_record_reports_why_it_has_no_extremes_sheets(tmp_path):
+def test_a_short_record_reports_why_it_has_no_extremes_sheets(plots):
     messages = []
     simulated = _plottable(days=200)
     plot_evaluation.plot_station_evaluation(
         simulated,
         Station(1010),
-        str(tmp_path),
+        str(plots),
         observed=simulated * 1.1,
         signatures=False,
         log=messages.append,
     )
-    assert "signatures_peaks_1010.png" not in {p.name for p in tmp_path.glob("*.png")}
+    assert "signatures_peaks_1010.png" not in {p.name for p in plots.glob("*.png")}
     assert any("too short" in message for message in messages)
 
 

@@ -165,9 +165,9 @@ def test_location_views_sample_native_points_and_retain_observations(
     assert any("temp_monthly_agreement" in key for key in records) == with_gauges
     assert (root / "plots/locations/location_1010/figure_titles.md").is_file()
     assert (
-        json.loads(
-            (root / "_engine/locations/figures/figure_captions.json").read_text()
-        )["figures"].keys()
+        json.loads((root / "_engine/plots/locations/figure_captions.json").read_text())[
+            "figures"
+        ].keys()
         == records.keys()
     )
     assert all(p.read_bytes() == content for p, content in before.items())

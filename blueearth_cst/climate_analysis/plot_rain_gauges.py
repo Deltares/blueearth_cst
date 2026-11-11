@@ -28,7 +28,7 @@ def render(
     root = Path(root)
     destination = Path(destination) if destination else root
     plots = destination / "plots"
-    engine = destination / "_engine"
+    engine = destination / "_engine" / "plots"
     plots.mkdir(parents=True, exist_ok=True)
     engine.mkdir(parents=True, exist_ok=True)
     stations = pd.read_csv(
@@ -205,7 +205,7 @@ def render(
                 captions[filename] = {"title": title, "caption": caption}
     (engine / "figure_captions.json").write_text(
         json.dumps(
-            {"schema_version": 1, "path_base": "../plots", "figures": captions},
+            {"schema_version": 1, "path_base": "../../plots", "figures": captions},
             indent=2,
         )
         + "\n",

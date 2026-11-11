@@ -225,10 +225,11 @@ def test_manifest_bijection_unavailable_and_annotation_mode(
     assert (plots / next(iter(manifest))).is_file()
     assert not (plots / "captioned").exists()
     assert (
-        json.loads((tmp_path / "_engine/figure_captions.json").read_text()) == manifest
+        json.loads((tmp_path / "_engine/plots/figure_captions.json").read_text())
+        == manifest
     )
     titles = json.loads(
-        (tmp_path / "_engine/figure_titles.json").read_text(encoding="utf-8")
+        (tmp_path / "_engine/plots/figure_titles.json").read_text(encoding="utf-8")
     )["figures"]
     assert set(titles) == set(manifest)
     assert all(item["title"] for item in titles.values())
@@ -413,7 +414,7 @@ def test_derived_opt_out_retires_previous_horizon_without_deleting_other_files(
     for path in preserved:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"preserve these bytes")
-    manifest_path = tmp_path / "_engine/figure_captions.json"
+    manifest_path = tmp_path / "_engine/plots/figure_captions.json"
     manifest[
         f"../outside/{pet_path.name}"
     ] = {}  # untrusted manifest must not escape root

@@ -291,7 +291,7 @@ total                        14
         f"{PROJECT}/data/climate/projections/cmip6/plots/full_period",
         f"{PROJECT}/data/climate/projections/cmip6/plots/period_2036_2065",
         f"{PROJECT}/data/climate/projections/cmip6/plots/figure_captions.md",
-        f"{PROJECT}/data/climate/projections/cmip6/_engine/figure_captions.json",
+        f"{PROJECT}/data/climate/projections/cmip6/_engine/plots/figure_captions.json",
         f"{PROJECT}/logs/wf2_analyze_projections.log",
         f"{PROJECT}/benchmarks/wf2_analyze_projections.csv",
     ],

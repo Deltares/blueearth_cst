@@ -5,6 +5,7 @@ Plot wflow results and compare to observations if any
 """
 
 import os
+import shutil
 from os.path import join
 from pathlib import Path
 from typing import Union
@@ -23,6 +24,7 @@ from blueearth_cst.experiment.wflow_response_reader import ResponseRequest
 from blueearth_cst.model.observation_validation import (
     validate_observation_station_ids,
 )
+from blueearth_cst.plotting.figure_titles import figure_engine_dir
 from blueearth_cst.shared.func_plot_signature import (
     compute_indicators,
     plot_basavg,
@@ -269,6 +271,8 @@ def analyse_wflow_historical(
     os.makedirs(Folder_plots, exist_ok=True)
     if station_plots:
         os.makedirs(Folder_stations, exist_ok=True)
+        # Snakemake clears the declared bin, not its inventories under _engine/plots/.
+        shutil.rmtree(figure_engine_dir(Folder_stations), ignore_errors=True)
 
     # Style is not decided here any more. Font sizes, line weights, colours and
     # the printed page all live in `shared/plot_evaluation.py` beside the code

@@ -30,7 +30,7 @@ def render(
     root = Path(root)
     destination = Path(destination) if destination else root
     metadata, tables = read_comparison(root)
-    plots, engine = destination / "plots", destination / "_engine"
+    plots, engine = destination / "plots", destination / "_engine" / "plots"
     plots.mkdir(parents=True, exist_ok=True)
     engine.mkdir(parents=True, exist_ok=True)
     colors = [
@@ -190,7 +190,8 @@ def render(
     )
     (engine / "figure_captions.json").write_text(
         json.dumps(
-            {"schema_version": 1, "path_base": "../plots", "figures": figures}, indent=2
+            {"schema_version": 1, "path_base": "../../plots", "figures": figures},
+            indent=2,
         )
         + "\n",
         encoding="utf-8",
