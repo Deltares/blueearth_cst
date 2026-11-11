@@ -1,6 +1,6 @@
 # Validation ladder — tiering, configs, and CI
 
-Last updated: 2026-11-10
+Last updated: 2026-11-11
 
 Choose checks from changed behavior, affected claims and consumers. This page owns acceptance and
 evidence-reuse policy. [Validation procedures](dev-validation-procedures.md) gives the infrequent
@@ -29,6 +29,7 @@ Select by claim:
 |---|---|
 | Rules, inputs, scripts | Regression/consumer checks, affected CLI/DAG and contract checks. |
 | Workflow outputs | Exercise affected integration paths and downstream consumers. |
+| Console output presentation | `test-contract`; `test-fast` excludes its dry-run tests that read output. |
 | Numerical results | Independent numerical oracle and affected consumers; current baseline for whole-tree claims. |
 | Prose | Inspect links, examples and policy consistency; check behavioral readers. |
 | Figures | Render and inspect every affected family, captions and outputs; reuse valid renders. |
