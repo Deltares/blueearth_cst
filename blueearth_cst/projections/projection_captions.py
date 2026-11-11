@@ -56,7 +56,7 @@ SUITE_NOTE = (
     "equally. Inter-model spread describes structural model uncertainty; it is not a confidence "
     "interval, and models that share code ancestry are not independent. Window definitions, "
     "eligibility thresholds and per-figure support and exclusion counts are recorded in "
-    "_engine/analysis_record.json and _engine/figure_captions.json."
+    "_engine/analysis_record.json and _engine/plots/figure_captions.json."
 )
 
 #: Encoding of the seasonal grids (points, median, interquartile range).

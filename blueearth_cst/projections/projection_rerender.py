@@ -27,6 +27,7 @@ def rerender_projections(
     scenarios: list[str] | None = None,
 ) -> dict[str, Path]:
     """Write each ensemble's suite into ``out_dir/projections/<ensemble>/plots``."""
+    from blueearth_cst.plotting.figure_titles import figure_engine_dir
     from blueearth_cst.projections.plot_proj_timeseries import render_suite
     from blueearth_cst.projections.projection_analysis import (
         ensemble_summary,
@@ -114,7 +115,7 @@ def rerender_projections(
             plot_dir,
             annotation=annotation,
             scenarios=scenarios,
-            captions_json=plot_dir.parent / "_engine" / "figure_captions.json",
+            captions_json=figure_engine_dir(plot_dir) / "figure_captions.json",
             gridded_changes=grids,
             map_geoms=geometries,
         )

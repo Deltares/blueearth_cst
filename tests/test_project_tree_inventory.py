@@ -153,7 +153,7 @@ COVERED: dict[str, list[str]] = {
         f"data/climate/projections/{CP}/plots/period_2070_2099/cmip6_temp_monthly_clim_basin_avg.png",
         f"data/climate/projections/{CP}/plots/period_2070_2099/cmip6_precip_temp_annual_change_cloud_basin_avg.png",
         f"data/climate/projections/{CP}/plots/figure_captions.md",
-        f"data/climate/projections/{CP}/_engine/figure_captions.json",
+        f"data/climate/projections/{CP}/_engine/plots/figure_captions.json",
         f"data/climate/projections/{CP}/_engine/execution/production.json",
         f"data/climate/projections/{CP}/_engine/execution/{'b' * 32}/wf2.log",
         f"data/climate/projections/{CP}/_engine/execution/{'b' * 32}/wf2-benchmarks.tsv",

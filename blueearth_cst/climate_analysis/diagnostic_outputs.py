@@ -50,8 +50,8 @@ def rain_gauge_outputs(root, tokens):
     render.update(
         titles=str(root / "plots/figure_titles.md"),
         captions=str(root / "plots/figure_captions.md"),
-        titles_json=str(root / "_engine/figure_titles.json"),
-        captions_json=str(root / "_engine/figure_captions.json"),
+        titles_json=str(root / "_engine/plots/figure_titles.json"),
+        captions_json=str(root / "_engine/plots/figure_captions.json"),
     )
     return {"compute": compute, "render": render}
 
@@ -274,6 +274,6 @@ def location_comparison_outputs(root):
         },
         "render": {
             "plots": str(root / "plots/locations"),
-            "manifests": str(root / "_engine/locations/figures"),
+            "manifests": str(root / "_engine/plots/locations"),
         },
     }

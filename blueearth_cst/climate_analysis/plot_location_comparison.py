@@ -20,7 +20,7 @@ from blueearth_cst.climate_analysis.figure_naming import (
 )
 from blueearth_cst.climate_analysis.rain_gauges import matched_tables
 from blueearth_cst.plotting.export import export_figure
-from blueearth_cst.plotting.figure_titles import write_figure_titles
+from blueearth_cst.plotting.figure_titles import figure_engine_dir, write_figure_titles
 from blueearth_cst.plotting.fundamentals import (
     new_fig,
     time_series_grid,
@@ -357,12 +357,9 @@ def render(
             write_figure_titles(
                 target,
                 local,
-                manifest_path=destination
-                / "_engine/locations/figures"
-                / location.id
-                / "figure_titles.json",
+                manifest_path=figure_engine_dir(target) / "figure_titles.json",
             )
-    engine = destination / "_engine/locations/figures"
+    engine = figure_engine_dir(destination / "plots/locations")
     engine.mkdir(parents=True, exist_ok=True)
     (engine / "figure_captions.json").write_text(
         json.dumps({"schema_version": 1, "figures": records}, indent=2) + "\n",

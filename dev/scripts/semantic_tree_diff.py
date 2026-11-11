@@ -468,7 +468,7 @@ def build_project_tree_rules(
     for leaf in (
         "stage_b_settings.json",
         "analysis_record.json",
-        "figure_captions.json",
+        "plots/figure_captions.json",
     ):
         same(f"data/climate/projections/{clim_project}/_engine/{leaf}")
     # Launcher-observed production record and retained copies of its generations'
