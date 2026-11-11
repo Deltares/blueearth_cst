@@ -7,7 +7,20 @@ from pathlib import Path
 import pytest
 
 
-@pytest.mark.skipif(shutil.which("Rscript") is None, reason="Rscript is required")
+def _weathergenr_available() -> bool:
+    """Whether Rscript can load weathergenr, which the plot export calls."""
+    if shutil.which("Rscript") is None:
+        return False
+    probe = "quit(status=as.integer(!requireNamespace('weathergenr', quietly=TRUE)))"
+    result = subprocess.run(
+        ["Rscript", "--vanilla", "-e", probe], capture_output=True, timeout=60
+    )
+    return result.returncode == 0
+
+
+@pytest.mark.skipif(
+    not _weathergenr_available(), reason="Rscript with weathergenr is required"
+)
 def test_conditional_grid_export_preserves_shared_axes(tmp_path):
     script = r"""
 library(ggplot2)
