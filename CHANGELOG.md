@@ -9,6 +9,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Include a variable in comparison figures when only one source provides it; suppress its duplicate
+  individual-source figure when source figures are disabled.
+
 - Write annual anomaly multi-panel figures directly under `plots/`; use `_page_01` suffixes only
   when the panel limit requires multiple figures, and retire managed PNGs from the older nested layout.
 

@@ -103,7 +103,7 @@ def inventory(root, sources, settings, comparison=False, comparison_sources=()):
     scope = "comparison" if comparison else sources[0]
     temp = sum(carries_temp(s) for s in sources)
     forms = dict(FORMS)
-    if temp < (2 if comparison else 1):
+    if temp < 1:
         forms.pop("temperature")
     binding = settings["pt_temperature_source"]
     if (comparison and (binding not in sources or not carries_temp(binding))) or (

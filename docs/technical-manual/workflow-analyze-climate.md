@@ -52,9 +52,9 @@ reference period. Missing-day tolerances must match the project settings in `cli
 See [execution and run management](configuration-and-execution.md) for running the workflow.
 
 Basin-average comparison figures and unique source maps remain on by default. With multiple sources,
-individual-source figures duplicating those comparisons are omitted. Temperature diagnostics remain when
-the comparison lacks enough temperature carriers, as do source-specific precipitation–temperature
-relationships absent from the comparison. With one source, its basin-level diagnostic figures remain on.
+individual-source figures duplicating those comparisons are omitted. Comparisons include temperature when at least one source
+provides it; legends identify the contributing source. Unique source-specific precipitation–temperature
+relationships absent from the comparison remain enabled. With one source, its basin-level diagnostic figures remain on.
 Set `source_figures: true` to restore the complete individual-source figure set.
 
 Location and subbasin figures are opt-in. `location_figures: false` preserves the per-location comparison

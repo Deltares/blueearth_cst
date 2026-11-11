@@ -168,7 +168,7 @@ def test_canonical_inventory_and_one_source_refusal():
         "dataset_comparison_csv": str(Path("comparison/dataset_comparison.csv")),
         "dataset_comparison_md": str(Path("comparison/dataset_comparison.md")),
     }
-    assert [len(x["figures"]) for x in (era5, chirps, comparison)] == [17, 13, 13]
+    assert [len(x["figures"]) for x in (era5, chirps, comparison)] == [17, 13, 14]
     for paths in (era5, chirps, comparison):
         assert "extreme-intensity" in paths["figures"]
         assert (

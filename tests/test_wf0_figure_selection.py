@@ -21,21 +21,20 @@ def test_single_source_keeps_all_basin_figures(source):
     assert selected == ordinary
 
 
-def test_multi_source_omits_duplicates_and_preserves_unique_temperature_and_maps():
+def test_multi_source_omits_duplicates_and_preserves_unique_maps():
     sources = ["era5", "chirps"]
     settings = parse_settings(None, {"start": 2000, "end": 2016}, sources)
     comparison = diagnostic_comparison_outputs("comparison", sources, settings)
     era5 = diagnostic_source_outputs("era5", "era5", settings, sources)
     chirps = diagnostic_source_outputs("chirps", "chirps", settings, sources)
     assert set(era5["figures"]) == {
-        "temperature",
         "map-precip",
         "map-temp",
         "map-pet",
     }
     assert set(chirps["figures"]) == {"map-precip"}
     assert "seasonal" in comparison["figures"]
-    assert "temperature" not in comparison["figures"]
+    assert "temperature" in comparison["figures"]
     assert "pt" in comparison["figures"]
     for source, paths in (("era5", era5), ("chirps", chirps)):
         assert (
@@ -155,8 +154,8 @@ def test_selected_source_inventory_renders_unique_products_and_preserves_old_png
         paths, settings, 1, ["era5"], [tmp_path], reference_record=reference
     )
 
-    assert set(paths["figures"]) == {"temperature", "map-precip", "map-temp", "map-pet"}
-    assert len(records) == 4
+    assert set(paths["figures"]) == {"map-precip", "map-temp", "map-pet"}
+    assert len(records) == 3
     for key, filename in paths["figures"].items():
         with Image.open(filename) as image:
             image.verify()
@@ -187,7 +186,7 @@ def test_workflow_figure_switches_preserve_computation(tmp_path, enabled):
     workflow = parse_workflow("analyze_climate.smk", write_config(tmp_path, cfg))
     source = workflow.get_rule("plot_climate_diagnostics_era5")
     assert ("figure_seasonal" in source.output.keys()) is enabled
-    assert "figure_temperature" in source.output.keys()
+    assert ("figure_temperature" in source.output.keys()) is enabled
     assert "figure_map-precip" in source.output.keys()
     assert (
         "source_figures"
