@@ -68,36 +68,21 @@ def _render_hydro(project_dir: Path, out_dir: Path) -> list[Path]:
     ``qobs`` is left None deliberately — see the module docstring on why observed
     discharge is not substituted.
     """
-    import pandas as pd
     import xarray as xr
 
+    from blueearth_cst.experiment.wflow_response_reader import ResponseRequest
     from blueearth_cst.shared.plot_evaluation import Station, plot_hydrograph
+    from blueearth_cst.shared.response_tables import open_table_responses
 
-    csv = _model_dir(project_dir) / "run_default" / "output.csv"
-    # Rule 1.13 declares this temp() since 2026-08-10, so an ordinary WF1 run
-    # leaves none and a bare FileNotFoundError here reads as a broken project
-    # rather than as the expected state. Full precision is wanted -- the derived
-    # `output_q.csv` carries bare station ids, not the `Q_` prefix selected below.
-    if not csv.exists():
-        raise SystemExit(
-            f"{csv} not found. Rule 1.13 declares it temp(), so a normal run "
-            "removes it once rules 1.14 and 1.15 have read it. Re-run WF1 with "
-            "`--notemp` to keep it for previewing."
-        )
-    frame = pd.read_csv(csv, index_col=0, parse_dates=True)
-    column = next(c for c in frame.columns if c.startswith("Q_"))
+    record = _model_dir(project_dir) / "run_default/_engine/response_tables.json"
+    response = open_table_responses("preview", record, ResponseRequest(("q",)))[0]
     qsim = xr.DataArray(
-        frame[column].to_numpy(),
-        coords={"time": frame.index.to_numpy()},
+        response.values,
+        coords={"time": response.time.to_numpy()},
         dims=("time",),
         name="Q",
     )
-    # The column id, taken as the station id. This script reads output.csv
-    # alone, with no location registry to resolve an outlet's subcatchment id
-    # onto its wflow_id — so a preview of Q_101 is titled 101 where the workflow
-    # would title it 1010. Fine for a preview, and stated so nobody reads the
-    # difference as a bug.
-    station = Station(int(column.removeprefix("Q_")))
+    station = Station(int(response.location_id))
     plot_hydrograph(qsim, station, str(out_dir))
     return sorted(out_dir.glob("hydrograph*.png"))
 
@@ -109,7 +94,7 @@ def _render_hydro(project_dir: Path, out_dir: Path) -> list[Path]:
 RENDERERS = {
     "hydro": (
         "Simulated hydrograph at the first discharge column",
-        lambda p: _model_dir(p) / "run_default" / "output.csv",
+        lambda p: _model_dir(p) / "run_default/_engine/response_tables.json",
         _render_hydro,
     ),
 }

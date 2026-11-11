@@ -634,6 +634,10 @@ def build_project_tree_rules(
         )
         same_rx(rf"{native}/forcing/inmaps_run_[0-9]+\.nc")
         same_rx(rf"{native}/output/run_[0-9]+\.(csv|nc)")
+        same_rx(
+            rf"{native}/output/run_[0-9]+/output_(?:q|p|pet|aet|gwr|qof|swe|temp)\.csv"
+        )
+        same_rx(rf"{native}/output/run_[0-9]+/_engine/response_tables\.json")
         same_rx(rf"{native}/output/_log/run_[0-9]+\.log")
         same_rx(rf"{native}/output/outstates_run_[0-9]+\.nc")
 

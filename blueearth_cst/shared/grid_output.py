@@ -10,10 +10,11 @@ from pathlib import Path
 
 def normalize_grid_output(output: object) -> dict | None:
     """Normalize the closed workflow output request; omission disables grids."""
+    from blueearth_cst.shared.csv_output import normalize_csv_output
+
+    normalize_csv_output(output)
     if output is None:
         return None
-    if not isinstance(output, dict) or set(output) - {"netcdf_grid"}:
-        raise ValueError("output accepts only netcdf_grid; paths are toolbox managed")
     grid = output.get("netcdf_grid")
     if grid is None:
         return None

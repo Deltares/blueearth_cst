@@ -3,7 +3,17 @@
 from pathlib import Path
 
 from blueearth_cst.climate_analysis.diagnostic_settings import carries_temp
-from blueearth_cst.climate_analysis.figure_naming import figure_filename
+from blueearth_cst.climate_analysis.figure_naming import (
+    annual_anomaly_filename,
+    figure_filename,
+)
+
+
+def parse_figure_settings(block: dict) -> dict[str, bool]:
+    """Resolve presentation switches independently of numerical diagnostics."""
+    from blueearth_cst.shared.workflow_plotting import workflow_plotting
+
+    return workflow_plotting("analyze_climate", block)
 
 
 def rain_gauge_outputs(root, tokens):
@@ -65,6 +75,15 @@ TABLES = (
     "pt_anomalies",
     "homogeneity",
 )
+COMPARISON_RESULT_TABLES = {
+    "annual_indices",
+    "monthly_values",
+    "precip_climatology",
+    "temp_climatology",
+    "drought_events",
+    "trends",
+    "agreement",
+}
 FORMS = {
     "seasonal": ("precip", "monthly_clim_band"),
     "temperature": ("temp", "monthly_clim_band"),
@@ -83,19 +102,33 @@ FORMS = {
 }
 
 
-def inventory(root, sources, settings, comparison=False):
+def inventory(root, sources, settings, comparison=False, comparison_sources=()):
     """Named compute/render files; unknown subbasin IDs use optional directories."""
     root = Path(root)
     scope = "comparison" if comparison else sources[0]
     temp = sum(carries_temp(s) for s in sources)
     forms = dict(FORMS)
-    if temp < (2 if comparison else 1):
+    if temp < 1:
         forms.pop("temperature")
     binding = settings["pt_temperature_source"]
     if (comparison and (binding not in sources or not carries_temp(binding))) or (
         not comparison and not temp
     ):
         forms.pop("pt")
+    if comparison and not settings.get("comparison_figures", True):
+        forms.clear()
+    if (
+        not comparison
+        and len(comparison_sources) > 1
+        and not settings.get("source_figures", False)
+    ):
+        compared = inventory(root, comparison_sources, settings, comparison=True)
+        duplicated = set(compared["figures"])
+        # A non-bound temperature carrier's own P/T relationship is not shown
+        # by a comparison that pairs every precipitation source with the binding.
+        if sources[0] != binding:
+            duplicated.discard("pt")
+        forms = {key: value for key, value in forms.items() if key not in duplicated}
     figures = {
         k: str(root / "plots" / figure_filename(scope, *v, "basin_avg"))
         for k, v in forms.items()
@@ -118,9 +151,9 @@ def inventory(root, sources, settings, comparison=False):
         if settings.get("climate_indices", {}).get("enabled", False):
             compute["climate_indices"] = str(root / "_engine" / "climate_indices.json")
     render = {
-        "titles_json": str(root / "plots" / "_engine" / "figure_titles.json"),
+        "titles_json": str(root / "_engine" / "plots" / "figure_titles.json"),
         "titles_md": str(root / "plots" / "figure_titles.md"),
-        "captions_json": str(root / "plots" / "_engine" / "figure_captions.json"),
+        "captions_json": str(root / "_engine" / "plots" / "figure_captions.json"),
         "captions_md": str(root / "plots" / "figure_captions.md"),
     }
     render.update({f"figure_{k}": v for k, v in figures.items()})
@@ -137,24 +170,25 @@ def inventory(root, sources, settings, comparison=False):
         )
 
         paths["annual_spatial"] = anomaly_paths(root)
-        for page, _ in enumerate(page_years(settings), 1):
+        pages = page_years(settings)
+        for page, _ in enumerate(pages, 1):
             for variable in ("precip", "temp") if temp else ("precip",):
                 key = f"annual-map-{variable}-{page:03d}"
                 filename = str(
                     root
                     / "plots"
-                    / "annual_anomalies"
-                    / f"page_{page:03d}"
-                    / figure_filename(
-                        scope, variable, "annual_anomaly_map", "basin_ext"
-                    )
+                    / annual_anomaly_filename(scope, variable, page, len(pages))
                 )
                 figures[key] = filename
                 render[f"figure_{key}"] = filename
     if not comparison and settings.get("climate_indices", {}).get("enabled", False):
-        # Availability is known after calculation; one owned directory contains
-        # the available maps/sheets and their completion/availability inventories.
+        # Available basin sheets and internal inventories have separate owned directories.
         render["index_products"] = str(root / "plots" / "indices")
+        render["index_metadata"] = str(root / "_engine" / "plots" / "indices")
+        paths["climate_indices_table"] = str(root / "tables" / "climate_indices.csv")
+        paths["climate_index_plot_data"] = str(
+            root / "_engine" / "wet_spell_exceedance.csv"
+        )
     return paths
 
 
@@ -177,8 +211,10 @@ def retarget_render(paths, render_root):
     }
 
 
-def diagnostic_source_outputs(store_dir, source, settings):
-    return inventory(store_dir, [source], settings)
+def diagnostic_source_outputs(store_dir, source, settings, comparison_sources=()):
+    return inventory(
+        store_dir, [source], settings, comparison_sources=comparison_sources
+    )
 
 
 def diagnostic_comparison_outputs(comparison_dir, sources, settings):
@@ -200,8 +236,14 @@ def diagnostic_comparison_outputs(comparison_dir, sources, settings):
                 )
     for key in ("titles_json", "captions_json"):
         paths["render"][key] = str(
-            root / "_engine/basin-average" / Path(paths["render"][key]).name
+            root / "_engine/plots/basin-average" / Path(paths["render"][key]).name
         )
+    for key, path in paths["compute"].items():
+        if key in TABLES or key == "agreement_md":
+            if key not in COMPARISON_RESULT_TABLES:
+                paths["compute"][key] = str(
+                    root / "_engine/basin-average" / Path(path).name
+                )
     # These summaries describe extracted stores alongside their diagnostics.
     paths["source_summary"] = {
         f"dataset_comparison_{suffix}": str(
@@ -210,6 +252,13 @@ def diagnostic_comparison_outputs(comparison_dir, sources, settings):
         for suffix in ("csv", "md")
     }
     return paths
+
+
+def retained_captions_path(root):
+    """Prefer consolidated metadata while still reading existing retained runs."""
+    root = Path(root)
+    current = root / "_engine/plots/figure_captions.json"
+    return current if current.is_file() else root / "plots/_engine/figure_captions.json"
 
 
 def location_comparison_outputs(root):

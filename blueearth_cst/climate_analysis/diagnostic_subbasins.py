@@ -9,6 +9,7 @@ import pandas as pd
 
 from blueearth_cst.climate_analysis import diagnostic_figures as artists
 from blueearth_cst.climate_analysis.diagnostic_captions import caption, title
+from blueearth_cst.climate_analysis.diagnostic_outputs import retained_captions_path
 from blueearth_cst.climate_analysis.diagnostic_tables import write_json
 from blueearth_cst.climate_analysis.figure_naming import figure_filename
 from blueearth_cst.plotting.export import export_figure
@@ -50,8 +51,9 @@ def render_retained_subbasins(
     target = Path(target)
     target.mkdir(parents=True, exist_ok=True)
     root = target.parent.parent
-    captions_path = root / "plots" / "_engine" / "figure_captions.json"
+    captions_path = retained_captions_path(root)
     inventory = json.loads(captions_path.read_text(encoding="utf-8"))
+    captions_path = root / "_engine/plots/figure_captions.json"
     declared_ids = set.union(
         *[
             {p.name for p in Path(folder).glob("subbasin_*") if p.is_dir()}
@@ -155,13 +157,17 @@ def render_retained_subbasins(
                 ],
             }
     inventory["produced_paths"] = list(inventory["figures"]) + [
-        "plots/_engine/figure_titles.json",
+        "_engine/plots/figure_titles.json",
         "plots/figure_titles.md",
-        "plots/_engine/figure_captions.json",
+        "_engine/plots/figure_captions.json",
         "plots/figure_captions.md",
     ]
     write_json(captions_path, inventory)
-    write_figure_titles(root / "plots", inventory["figures"])
+    write_figure_titles(
+        root / "plots",
+        inventory["figures"],
+        manifest_path=root / "_engine/plots/figure_titles.json",
+    )
     (root / "plots" / "figure_captions.md").write_text(
         "# Figure captions\n\n"
         + "\n\n".join(

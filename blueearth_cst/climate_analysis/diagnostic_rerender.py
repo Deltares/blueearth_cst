@@ -19,6 +19,7 @@ from pathlib import Path
 from blueearth_cst.climate_analysis.diagnostic_outputs import (
     diagnostic_comparison_outputs,
     diagnostic_source_outputs,
+    retained_captions_path,
     retarget_render,
 )
 from blueearth_cst.climate_analysis.diagnostic_render import render
@@ -94,6 +95,22 @@ def rerender_sources(
         paths = retarget_render(
             diagnostic_source_outputs(store, source, settings), out_dir / store.name
         )
+        captions_path = retained_captions_path(store)
+        if captions_path.is_file():
+            selected = json.loads(captions_path.read_text(encoding="utf-8")).get(
+                "selected_forms"
+            )
+            if selected is not None:
+                paths["figures"] = {
+                    key: path
+                    for key, path in paths["figures"].items()
+                    if key in selected
+                }
+                paths["render"] = {
+                    key: path
+                    for key, path in paths["render"].items()
+                    if not key.startswith("figure_") or key[7:] in selected
+                }
         render(
             paths,
             settings,
@@ -148,10 +165,15 @@ def rerender_comparisons(
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         sources = metadata["sources"]
         paths = diagnostic_comparison_outputs(root, sources, metadata["settings"])
-        if not Path(paths["compute"]["coverage"]).is_file():
-            for key, path in paths["compute"].items():
-                if "basin-average" in Path(path).parts:
-                    paths["compute"][key] = str(root / "tables" / Path(path).name)
+        for key, path in paths["compute"].items():
+            if not Path(path).is_file() and "basin-average" in Path(path).parts:
+                for legacy in (
+                    root / "tables/basin-average" / Path(path).name,
+                    root / "tables" / Path(path).name,
+                ):
+                    if legacy.is_file():
+                        paths["compute"][key] = str(legacy)
+                        break
         paths = retarget_render(paths, out_dir)
         stores = source_stores(project_dir, load_retained_reference(project_dir))
         render(

@@ -1,7 +1,13 @@
 # WF0 diagnostics; shared sources/window belong in the project file.
-# Subbasin plots are optional. Basin maps still show subbasin boundaries.
-# Generate per-source subbasin area-average figures. Options: true | false.
-subbasin_figures: false
+# Figure selection is local to this workflow; shared annotation stays in the project YAML.
+plotting:
+  # Render basin-level comparisons. Options: true | false.
+  comparison: true
+  # Add individual-source figures duplicated by comparisons. Options: true | false.
+  # Unique source maps remain on; absent comparisons, source basin figures remain on.
+  source: false
+  # Render location comparisons and per-source subbasin figures. Options: true | false.
+  location: false
 # Historical climate diagnostic settings. Input: mapping.
 diagnostics:
   # Configure optional historical climate indices. Input: mapping.

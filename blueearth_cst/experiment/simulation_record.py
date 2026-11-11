@@ -151,7 +151,8 @@ def simulation_intent_v2(
         {
             key: value
             for key, value in settings.items()
-            if key not in {"include_unperturbed", "netcdf_grid", "initialization"}
+            if key
+            not in {"include_unperturbed", "netcdf_grid", "initialization", "csv"}
         },
         {"simulation_window"},
         "settings",
@@ -179,6 +180,19 @@ def simulation_intent_v2(
     from blueearth_cst.experiment.response_inventory import validate_response_request
 
     validate_response_request(documents["response_request"])
+    from blueearth_cst.shared.csv_output import normalize_csv_output
+
+    if "csv" not in settings or settings["csv"] != normalize_csv_output(
+        {"csv": settings["csv"]}
+    ):
+        raise ValueError("simulation settings require normalized csv precision")
+    if (
+        documents["response_request"]["decimal_places"]
+        != settings["csv"]["decimal_places"]
+    ):
+        raise ValueError(
+            "response request CSV precision differs from simulation settings"
+        )
     if documents["response_request"]["run_ids"] != runs:
         raise ValueError("response request run IDs differ from selected collection")
     _v2_fields(
@@ -413,6 +427,7 @@ def live_simulation_inputs_v2(
     header_path,
     include_unperturbed=True,
     netcdf_grid=None,
+    csv_output=None,
     initialization=None,
     historical_forcing=None,
 ):
@@ -451,6 +466,11 @@ def live_simulation_inputs_v2(
     from blueearth_cst.experiment.simulation_runs import selected_run_ids
 
     run_ids = selected_run_ids(collection, collection_path, include=include_unperturbed)
+    from blueearth_cst.shared.csv_output import normalize_csv_output
+
+    csv_settings = normalize_csv_output(
+        {"csv": csv_output} if csv_output is not None else None
+    )
     request = plan_native_response_request(
         model / reference["model_toml"],
         run_ids,
@@ -460,6 +480,7 @@ def live_simulation_inputs_v2(
         last_time=last,
         calendar="standard",
         timestep_seconds=model_config["time"]["timestepsecs"],
+        decimal_places=csv_settings["decimal_places"],
     )
     repo = Path(__file__).resolve().parents[2]
     code = simulation_code_inventory(repo)
@@ -470,7 +491,7 @@ def live_simulation_inputs_v2(
     )
     documents = {
         "model_reference": reference,
-        "settings": {"simulation_window": dict(simulation_window)},
+        "settings": {"simulation_window": dict(simulation_window), "csv": csv_settings},
         "environment": environment,
         "simulator_adapter_code": code,
         "response_request": request,

@@ -102,7 +102,7 @@ def test_evaluation_changes_preserve_thematic_parameters(tmp_path, model_workflo
     cfg = load_composed_config(CONFIG)
     cfg["workflows"]["build_model"].update(
         observations={"river discharge": "tests/data/new_observations.csv"},
-        evaluation={"subbasin_plots": True},
+        plotting={"location": True},
     )
     changed = parse_workflow("build_model.smk", write_config(tmp_path, cfg))
     original_rule = model_workflow.get_rule("prepare_land_and_soil_maps")
@@ -132,6 +132,61 @@ def test_native_simulation_csv_is_retained_for_evaluation(model_workflow):
     assert simulation.output.csv_path not in simulation.temp_output
     assert simulation.output.csv_path in evaluation.input
     assert simulation.output.csv_path in tables.input
+
+
+@pytest.mark.workflow_contract
+@pytest.mark.parametrize("enabled", [False, True])
+def test_optional_figures_preserve_spatial_maps_and_numerical_outputs(
+    tmp_path, enabled
+):
+    cfg = load_composed_config(CONFIG)
+    cfg["project"]["project_dir"] = (tmp_path / "project").as_posix()
+    settings = cfg["workflows"]["build_model"]
+    if enabled:
+        settings["plotting"] = {"forcing": True, "location": True}
+    workflow = parse_workflow("build_model.smk", write_config(tmp_path, cfg))
+    missing = workflow.globals["_missing_figure_outputs"](None)
+    forcing = workflow.get_rule("plot_model_forcing")
+    evaluation = workflow.get_rule("plot_model_evaluation")
+    assert any(path.endswith("elevation_basin.png") for path in missing)
+    assert bool(set(forcing.output) & set(missing)) is enabled
+    assert bool(evaluation.output.station_plots) is enabled
+    assert evaluation.params.station_plots is enabled
+    assert evaluation.output.indicators_csv in workflow.globals["WF1_TERMINALS"]
+    assert any(
+        path.endswith("output_q.csv") for path in workflow.globals["WF1_TERMINALS"]
+    )
+
+
+@pytest.mark.workflow_contract
+@pytest.mark.parametrize(
+    "field", ["forcing_plots", "evaluation.station_plots", "evaluation.subbasin_plots"]
+)
+def test_optional_plot_settings_reject_non_booleans(tmp_path, field):
+    cfg = load_composed_config(CONFIG)
+    settings = cfg["workflows"]["build_model"]
+    if field.startswith("evaluation."):
+        settings["evaluation"] = {field.split(".")[1]: "false"}
+    else:
+        settings[field] = "false"
+    with pytest.raises(ValueError, match=rf"{field} must be a boolean"):
+        parse_workflow("build_model.smk", write_config(tmp_path, cfg))
+
+
+@pytest.mark.workflow_contract
+def test_spatial_figures_can_be_disabled_without_removing_model_inputs(tmp_path):
+    cfg = load_composed_config(CONFIG)
+    cfg["project"]["project_dir"] = (tmp_path / "project").as_posix()
+    cfg["workflows"]["build_model"]["plotting"] = {"spatial": False}
+    workflow = parse_workflow("build_model.smk", write_config(tmp_path, cfg))
+    spatial = workflow.get_rule("plot_basin_map")
+    requested = set(workflow.globals["WF1_TERMINALS"])
+    missing = set(workflow.globals["_missing_figure_outputs"](None))
+    assert not set(spatial.output) & (requested | missing)
+    assert any(path.endswith("spatial_catalog.yml") for path in requested)
+    assert workflow.get_rule("run_historical_simulation").output.csv_path in (
+        workflow.get_rule("plot_model_evaluation").input
+    )
 
 
 @pytest.mark.workflow_contract

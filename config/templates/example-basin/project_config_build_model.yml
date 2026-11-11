@@ -21,12 +21,17 @@ observations:
   # Observed daily series for evaluation. Input: CSV path or null.
   river discharge: null
 
-# Basin-average annual and seasonal figures are standard. Enable individual
-# subbasin figures of both types under evaluation/plots/subbasins/ if needed.
+# Figure selection is independent of model calculation and numerical evaluation.
+plotting:
+  # Render basin and spatial-input maps. Options: true | false.
+  spatial: true
+  # Render model-grid forcing maps and time series. Options: true | false.
+  forcing: false
+  # Render station and individual-subbasin evaluation figures. Options: true | false.
+  location: false
+
 # Model evaluation settings. Input: mapping.
 #evaluation:
-# Generate individual subbasin evaluation figures. Options: true | false.
-#  subbasin_plots: false
 # Optional observed catchment water-balance screening, independent of simulated Q.
 # Requires observations.river discharge and an explicit assertion of daily means
 # over midnight-to-midnight UTC days. Labels: interval_end | interval_start.
@@ -75,7 +80,10 @@ simulation_window:
 
 # Optional native grids at each simulation timestep; retained in run_default/output_grid.nc.
 # Output settings are independent of the simulation workflow. Omitted/null disables grids.
-#output:
+# Retained scalar time series; evaluation uses these rounded values. Integer 0–15.
+output:
+  csv:
+    decimal_places: 5
 #  netcdf_grid:
 #    compressionlevel: 1
 #    variables:

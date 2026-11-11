@@ -199,7 +199,9 @@ def render_pages(
         )
         if any(count < int(support.sum()) for count in counts):
             text += " Gray denotes unavailable estimates."
-        title = f"Annual {label.lower()} anomalies — {source.upper()} ({years[0]}–{years[-1]}), reference {eligible[0]}–{eligible[-1]}, page {int(page)}"
+        title = f"Annual {label.lower()} anomalies — {source.upper()} ({years[0]}–{years[-1]}), reference {eligible[0]}–{eligible[-1]}"
+        if len(record["pages"]) > 1:
+            title += f", page {int(page)}"
         # Annual pages retain their existing three-column, six-year contract.
         preset = replace(
             CST_PRESET,
@@ -275,7 +277,9 @@ def retire_pages(
     """Retire only exact, previously managed anomaly PNGs; never follow links."""
     root = Path(out_root).resolve()
     pattern = re.compile(
-        rf"plots/annual_anomalies/page_[0-9]{{3,}}/{re.escape(source)}_(precip|temp)_annual_anomaly_map_basin(?:_ext)?\.png"
+        rf"plots/(?:annual_anomalies/page_[0-9]{{3,}}/)?"
+        rf"{re.escape(source)}_(precip|temp)_annual_anomaly_map_basin(?:_ext)?"
+        rf"(?:_page_[0-9]{{2,}})?\.png"
     )
     for relative, record in previous.items():
         if (
@@ -297,7 +301,9 @@ def retire_pages(
 
 def retained_enabled(root: str | Path) -> bool:
     """A retained numerical file alone does not re-enable a retired figure family."""
-    inventory = Path(root) / "plots/_engine/figure_captions.json"
+    from blueearth_cst.climate_analysis.diagnostic_outputs import retained_captions_path
+
+    inventory = retained_captions_path(root)
     if not inventory.is_file():
         return False
     records = json.loads(inventory.read_text(encoding="utf-8"))["figures"]

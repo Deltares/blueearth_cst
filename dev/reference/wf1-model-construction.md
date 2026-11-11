@@ -70,7 +70,8 @@ need one series each; automatic outlets may have a series but do not require one
 unrecognized IDs fail. The baseline discharge reader uses the outlet index to select a deterministic
 outlet when the model has multiple discharge columns.
 
-WF1 retains `run_default/output.csv` for later export and evaluation. Model evaluation reads these
+WF1 converts temporary `run_default/output.csv` into per-variable rounded response tables and
+`run_default/_engine/response_tables.json`, then removes the native CSV. Model evaluation reads these
 responses and optional observations; historical climate diagnostics use the shared model-free
 producers. Do not add a second subcatchment climate-plotting path under model evaluation. WF4
 consumes the validated model through its own runner and retained-response contract.

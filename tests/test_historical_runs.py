@@ -18,7 +18,7 @@ from blueearth_cst.model.historical_runs import (
     write_completion,
     write_forcing_record,
 )
-from blueearth_cst.shared.provenance import collection_sha256, file_sha256
+from blueearth_cst.shared.provenance import file_sha256
 
 
 @pytest.fixture
@@ -71,20 +71,24 @@ def write_response(model, value=1.2345678901234567):
     ).to_csv(path, index_label="time", float_format="%.17g")
 
 
-def test_two_runs_preserve_full_precision_and_read_without_model(historical_model):
+def test_two_runs_preserve_selected_precision_and_read_without_model(historical_model):
     model = historical_model
     with retain_historical_run(name="a", **model):
         write_response(model)
     root = run_directory(model["project_dir"], "a")
-    before = {p.name: file_sha256(p) for p in root.iterdir()}
+    before = {
+        str(p.relative_to(root)): file_sha256(p) for p in root.rglob("*") if p.is_file()
+    }
     with retain_historical_run(name="b", **model):
         write_response(model, 9.0)
     model["toml_path"].unlink()
     record, frame, stations = read_historical_run(model["project_dir"], "a")
-    assert frame.iloc[0, 0] == 1.2345678901234567
+    assert frame.iloc[0, 0] == 1.23457
     assert record["recipe"]["precip_source"] == "era5"
     assert stations.wflow_id.tolist() == ["1010", "1020"]
-    assert before == {p.name: file_sha256(p) for p in root.iterdir()}
+    assert before == {
+        str(p.relative_to(root)): file_sha256(p) for p in root.rglob("*") if p.is_file()
+    }
 
 
 def test_collision_preserves_publication(historical_model):
@@ -95,6 +99,22 @@ def test_collision_preserves_publication(historical_model):
         with retain_historical_run(name="a", **model):
             pytest.fail("collision admitted execution")
     read_historical_run(model["project_dir"], "a")
+
+
+def test_historical_precision_uses_workflow_setting(historical_model):
+    model = historical_model
+    model["config"]["workflows"] = {
+        "build_model": {"output": {"csv": {"decimal_places": 8}}}
+    }
+    with retain_historical_run(name="precise", **model):
+        write_response(model)
+    record, frame, _ = read_historical_run(model["project_dir"], "precise")
+    assert record["decimal_places"] == 8
+    assert frame.iloc[0, 0] == 1.23456789
+    root = run_directory(model["project_dir"], "precise")
+    assert (root / "output_q.csv").is_file()
+    assert not (root / "output.csv").exists()
+    assert not (root / "discharge.csv").exists()
 
 
 @pytest.mark.parametrize("damage", ["archive", "payload", "receipt", "completion"])
@@ -110,7 +130,7 @@ def test_workflow_completion_validates_retention(historical_model, damage):
     if damage == "archive":
         root.rename(root.with_name("saved_archive"))
     elif damage == "payload":
-        (root / "discharge.csv").write_text("damaged")
+        (root / "output_q.csv").write_text("damaged")
     elif damage == "completion":
         (root / "complete.json").unlink()
     else:
@@ -218,7 +238,9 @@ def test_named_retention_dag_noop_new_label_collision_and_unrelated_target(
     first = invoke()
     assert first.returncode == 0, first.stdout + first.stderr
     root = run_directory(model["project_dir"], "a")
-    hashes = {p.name: file_sha256(p) for p in root.iterdir()}
+    hashes = {
+        str(p.relative_to(root)): file_sha256(p) for p in root.rglob("*") if p.is_file()
+    }
     for options in (("--dry-run",), ()):
         repeated = invoke("a", *options)
         assert repeated.returncode == 0, repeated.stderr
@@ -231,14 +253,18 @@ def test_named_retention_dag_noop_new_label_collision_and_unrelated_target(
     collision = invoke("a", "--forcerun", "simulate")
     assert collision.returncode != 0
     assert "already exists" in collision.stdout + collision.stderr
-    assert hashes == {p.name: file_sha256(p) for p in root.iterdir()}
+    assert hashes == {
+        str(p.relative_to(root)): file_sha256(p) for p in root.rglob("*") if p.is_file()
+    }
     # Engine cleanup may remove its receipt; the archive is never an engine output.
     missing_receipt = invoke("a")
     assert missing_receipt.returncode != 0
     assert "already exists" in missing_receipt.stdout + missing_receipt.stderr
     unrelated = invoke("a", "figure")
     assert unrelated.returncode == 0, unrelated.stdout + unrelated.stderr
-    assert hashes == {p.name: file_sha256(p) for p in root.iterdir()}
+    assert hashes == {
+        str(p.relative_to(root)): file_sha256(p) for p in root.rglob("*") if p.is_file()
+    }
 
 
 @pytest.mark.parametrize("failure", ["interruption", "input_drift", "station_mismatch"])
@@ -291,8 +317,8 @@ def test_damaged_payload_refuses(historical_model):
     model = historical_model
     with retain_historical_run(name="a", **model):
         write_response(model)
-    (run_directory(model["project_dir"], "a") / "discharge.csv").write_text("damaged")
-    with pytest.raises(ValueError, match="damaged"):
+    (run_directory(model["project_dir"], "a") / "output_q.csv").write_text("damaged")
+    with pytest.raises(ValueError, match="checksum|damaged"):
         read_historical_run(model["project_dir"], "a")
 
 
@@ -317,34 +343,17 @@ def test_forcing_variable_scale_and_offset_affect_model_identity(
     assert execution_inputs(toml, model["registry_path"])[1]["model_sha256"] != baseline
 
 
-def test_legacy_identity_recovers_forcing_mapping_without_archive_changes(
-    historical_model,
-):
+def test_retired_historical_format_refuses(historical_model):
     model = historical_model
-    toml = model["toml_path"]
-    toml.write_text(
-        toml.read_text() + '\n[input.forcing]\natmosphere_air__temperature="temp"\n'
-    )
     with retain_historical_run(name="old", **model):
         write_response(model)
     root = run_directory(model["project_dir"], "old")
-    record_path = root / "run.json"
-    record = json.loads(record_path.read_text())
-    expected = record["model_sha256"]
-    record["model"]["input"].pop("forcing")
-    record["model_sha256"] = collection_sha256(record["model"])
-    record_path.write_text(json.dumps(record))
     marker = root / "complete.json"
     complete = json.loads(marker.read_text())
-    complete["payloads"]["run.json"] = file_sha256(record_path)
+    complete["schema_version"] = "historical-run/1"
     marker.write_text(json.dumps(complete))
-    before = {p.name: file_sha256(p) for p in root.iterdir()}
-    toml.unlink()
-    restored, _, _ = read_historical_run(model["project_dir"], "old")
-    assert restored["model_sha256"] == expected
-    assert restored["archived_model_sha256"] == record["model_sha256"]
-    assert restored["forcing_mapping"] == {"atmosphere_air__temperature": "temp"}
-    assert before == {p.name: file_sha256(p) for p in root.iterdir()}
+    with pytest.raises(ValueError, match="Unsupported historical run format"):
+        read_historical_run(model["project_dir"], "old")
 
 
 def test_cold_state_pointer_is_unused_but_warm_state_is_required(historical_model):

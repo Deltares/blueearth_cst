@@ -168,6 +168,8 @@ if clim_source == "eobs":
 wflow_outvars = get_config(config.get("model") or {}, "outvars", DEFAULT_WFLOW_OUTVARS)
 from blueearth_cst.shared.grid_output import normalize_grid_output
 grid_output = normalize_grid_output(my_cfg.get("output"))
+from blueearth_cst.shared.csv_output import normalize_csv_output
+csv_output = normalize_csv_output(my_cfg.get("output"))
 # `defaults/`, not `templates/` — these are read by rules 1.05/1.06/1.07, and the
 # 2026-08-11 split moved them out of the copy-me directory. Rule 1.01 still routes
 # them to a `templates/` bin inside the PROJECT: a different meaning of the word,
@@ -205,6 +207,10 @@ _budyko_evaluation = get_config(my_cfg, "evaluation", {})
 if not isinstance(_budyko_evaluation, dict):
     raise ValueError("build_model.evaluation must be a mapping")
 _budyko_settings = budyko_settings(_budyko_evaluation.get("budyko"), observations_timeseries)
+from blueearth_cst.shared.workflow_plotting import workflow_plotting
+_plotting = workflow_plotting("build_model", my_cfg)
+_forcing_plots = _plotting["forcing"]
+_spatial_plots = _plotting["spatial"]
 _unconsumed_observations = sorted(
     name
     for name, source in _observations.items()
@@ -627,9 +633,12 @@ WF1_TERMINALS = [
     # the whole set (WFLOW_TABLE_PATHS) in a single job, so requesting the
     # discharge table schedules every other table with it.
     *[f"{_hp(key, 'run_dir')}/output_q.csv" for key in FORCING_KEYS],
-    f"{spatial_dir}/plots/elevation_basin.png",
+    *([f"{spatial_dir}/plots/elevation_basin.png"] if _spatial_plots else []),
     # One representative schedules the full model-forcing figure set.
-    *[f"{_hp(key, 'forcing_plots_dir')}/forcing_precip_map.png" for key in FORCING_KEYS],
+    *(
+        [f"{_hp(key, 'forcing_plots_dir')}/forcing_precip_map.png" for key in FORCING_KEYS]
+        if _forcing_plots else []
+    ),
     f"{basin_dir}/staticgeoms/outlet_index.csv",
     # P1 spatial foundation. One representative output schedules the complete
     # multi-output rule and makes both gather rules wait for its log/benchmark.
@@ -656,11 +665,11 @@ WF1_TARGETS = [
 # outputs that are missing now, so a deleted figure or plot folder is redrawn at
 # the cost of one stat per path. A file deleted inside a declared directory,
 # such as one station figure, is not detected.
-_FIGURE_RULES = ("plot_basin_map", *(
-    _rule_name(base, key)
-    for base in ("plot_model_forcing", "plot_model_evaluation")
-    for key in FORCING_KEYS
-))
+_FIGURE_RULES = (
+    *(["plot_basin_map"] if _spatial_plots else []),
+    *(_rule_name("plot_model_evaluation", key) for key in FORCING_KEYS),
+    *(_rule_name("plot_model_forcing", key) for key in FORCING_KEYS if _forcing_plots),
+)
 
 
 def _missing_figure_outputs(wildcards):
@@ -1002,10 +1011,8 @@ for _k in FORCING_KEYS:
             ] + (["blueearth_cst/model/historical_runs.py"] if RETAINED[_k] else []),
         output:
             retained_completion = [str(completion_path(project_dir, RETAINED[_k]))] if RETAINED[_k] else [],
-            # Retain full-precision native responses so evaluation and table exports
-            # can rerun without another historical simulation. Rounded exports are
-            # not a replacement for this input or for numerical baseline checks.
-            csv_path = _hp(_k, "discharge_csv"),
+            # Wflow's native CSV is a temporary conversion input, never a retained response.
+            csv_path = temp(_hp(_k, "discharge_csv")),
             grid_path = [f"{_hp(_k, 'run_dir')}/output_grid.nc"] if grid_output else [],
             # Wflow's own log. DECLARED but no longer temp(): it is now the ONLY
             # copy of Wflow's records.
@@ -1193,9 +1200,8 @@ if FORCING_IDS is not None:
 _evaluation_cfg = get_config(my_cfg, "evaluation", {})
 if not isinstance(_evaluation_cfg, dict):
     raise ValueError("build_model.evaluation must be a mapping")
-_subbasin_plots = get_config(_evaluation_cfg, "subbasin_plots", False)
-if not isinstance(_subbasin_plots, bool):
-    raise ValueError("build_model.evaluation.subbasin_plots must be a boolean")
+_subbasin_plots = _plotting["location"]
+_station_plots = _plotting["location"]
 _WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT = ("river discharge", "precipitation")
 _basavg_pngs = lambda key: [
     f"{_hp(key, 'evaluation_dir')}/plots/wflow_{BASAVG_FIGURE_STEMS[WFLOW_OUTPUT_CODES[var]]}_{kind}_basin_avg.png"
@@ -1243,14 +1249,10 @@ WFLOW_TABLE_PATHS = lambda key: [f"{_hp(key, 'run_dir')}/output_q.csv"] + [
 
 # 1.14  export_simulation_tables — Excel-ready per-variable tables derived from 1.13
 #
-# DERIVED, not a rewrite. `output.csv` is read back by rule 1.15 through
-# hydromt's own `WflowSbmModel.output_csv`, so its layout — ISO-8601 stamps,
-# `Q_<id>` columns in wflow's internal order, full float precision — is an
-# interface with that reader and stays untouched (AGENTS.md: do not
-# re-engineer how hydromt handles data). The tables here are a product beside
-# it: 5 decimal places, plain decimal (no `9.86e-5` for Excel to render as
-# `9.87E-05`), date-only `YYYY-MM-DD` stamps, and bare station ids sorted
-# numerically.
+# Wflow writes its native format unchanged. This rule verifies per-variable
+# rounded responses and their metadata before the temporary native CSV retires.
+# Evaluation and historical Qcrit read these tables. Decimal precision comes
+# from output.csv.decimal_places (default 5); dates and stable location IDs remain explicit.
 #
 # Date-only rather than the `2000-01-02 00:00:00` this shipped with until
 # 2026-08-10: that form parses as a DATETIME, which Excel then re-renders in
@@ -1281,6 +1283,12 @@ for _k in FORCING_KEYS:
             # as the individual files rather than a directory() so Snakemake tracks
             # each one like any other output.
             tables = WFLOW_TABLE_PATHS(_k),
+            response_record = f"{_hp(_k, 'run_dir')}/_engine/response_tables.json",
+        params:
+            decimal_places=csv_output["decimal_places"],
+            conversion_digest={path: file_sha256(Path(workflow.basedir) / path) for path in (
+                "blueearth_cst/shared/response_tables.py", "blueearth_cst/shared/csv_output.py",
+                "blueearth_cst/experiment/wflow_response_reader.py")},
         log:
             EXPORT_SIMULATION_TABLES.log(_k),
         benchmark:
@@ -1293,7 +1301,8 @@ for _k in FORCING_KEYS:
         name: _rule_name("plot_model_evaluation", _k)
         message: PLOT_MODEL_EVALUATION.banner(part=_k)
         input:
-            csv_path = _hp(_k, "discharge_csv"),
+            response_record = f"{_hp(_k, 'run_dir')}/_engine/response_tables.json",
+            response_tables = WFLOW_TABLE_PATHS(_k),
             # the model-root ordering contract; transitively ordered after 1.09 via 1.13, declared for the
             # same reason as there.
             model_final = ancient(f"{basin_dir}/.model_final"),
@@ -1360,8 +1369,9 @@ for _k in FORCING_KEYS:
                 [directory(f"{_hp(_k, 'evaluation_dir')}/plots/{SUBBASIN_PLOT_DIRNAME}")]
                 if _subbasin_plots and _basavg_pngs(_k) else []
             ),
-            station_plots = directory(
-                f"{_hp(_k, 'evaluation_dir')}/plots/{STATION_PLOT_DIRNAME}"
+            station_plots = (
+                [directory(f"{_hp(_k, 'evaluation_dir')}/plots/{STATION_PLOT_DIRNAME}")]
+                if _station_plots else []
             ),
         params:
             annotation = plot_annotation,
@@ -1373,6 +1383,7 @@ for _k in FORCING_KEYS:
             # is what forced the question, and passing it is the answer.
             model_dir = basin_dir,
             subbasin_plots = _subbasin_plots,
+            station_plots = _station_plots,
             toml_name = HistoricalLayout(_k).toml,
             evaluation_dir = _hp(_k, "evaluation_dir"),
         log:

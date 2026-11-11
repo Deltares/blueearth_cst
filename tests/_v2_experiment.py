@@ -37,7 +37,7 @@ RUN_IDS = ("run_1", "run_2")
 INVOCATION_ID = "f" * 32
 CLIMATE_SOURCE = "era5"
 
-#: The two retained native runs: one recharge series at one location, daily
+#: The two native conversion inputs: one recharge series at one location, daily
 #: over two days, labelled at interval end.
 NATIVE_CSV = "time,Q_9,Q_2,gwr_9\n2046-01-02,1,2,3\n2046-01-03,4,,6\n"
 NATIVE_TOML = (
@@ -63,7 +63,7 @@ TEMPORAL = {
 
 @dataclass(frozen=True)
 class Responses:
-    """What the retained native runs hold, and what the frozen request asks."""
+    """What the native conversion inputs hold and the frozen request asks."""
 
     csv: dict[str, bytes]
     toml: str
@@ -534,7 +534,10 @@ def _freeze_simulation(project, config, root, marker_path, base, responses):
     environment = {"packages": {"julia:Wflow": "1.0.2:fixture"}, "locks": {}}
     documents = {
         "model_reference": reference,
-        "settings": {"simulation_window": {"start": 2046, "end": 2054}},
+        "settings": {
+            "simulation_window": {"start": 2046, "end": 2054},
+            "csv": {"decimal_places": 5},
+        },
         "environment": environment,
         "simulator_adapter_code": [{"path": "fixture.py", "sha256": "a" * 64}],
         "response_request": request,
@@ -569,7 +572,7 @@ def _freeze_simulation(project, config, root, marker_path, base, responses):
 
 
 def native_runs(root: Path, run_ids=RUN_IDS) -> dict:
-    """The retained native artifacts of every run, where rule 4.04/4.05 put them."""
+    """The transient native artifacts, where rule 4.04/4.05 put them."""
     from blueearth_cst.experiment.wflow_response_reader import NativeRunArtifacts
 
     wflow = Path(root) / "hydrology/wflow"
@@ -584,7 +587,7 @@ def native_runs(root: Path, run_ids=RUN_IDS) -> dict:
 
 
 def _write_native_runs(root: Path, responses: Responses) -> dict:
-    """Retain both native runs as Wflow and the forcing preparation leave them."""
+    """Write both transient native runs as Wflow and forcing preparation leave them."""
     from blueearth_cst.experiment.content_identity import canonical_json_bytes
 
     native = native_runs(root, responses.csv)
@@ -604,10 +607,19 @@ def _publish_responses(root: Path, responses: Responses) -> dict:
         publish_response_inventory_v2,
     )
     from blueearth_cst.experiment.simulation_record import publish_simulation_v2
+    from blueearth_cst.shared.response_tables import publish_response_tables
 
-    inventory = publish_response_inventory_v2(
-        root, native_runs(root, responses.csv), responses.temporal
-    )
+    records = {
+        run: publish_response_tables(
+            native,
+            native.csv_path.with_suffix(""),
+            variables=tuple(item["variable"] for item in responses.variables),
+        )
+        for run, native in native_runs(root, responses.csv).items()
+    }
+    inventory = publish_response_inventory_v2(root, records, responses.temporal)
+    for native in native_runs(root, responses.csv).values():
+        native.csv_path.unlink()
     return publish_simulation_v2(root, inventory)
 
 
@@ -622,7 +634,7 @@ def build_v2_experiment(
 ) -> V2Experiment:
     """Build one retained v2 experiment under ``base``.
 
-    ``publish=False`` stops after the native runs are retained, before the
+    ``publish=False`` stops after the native runs are written, before the
     response inventory and the readiness marker -- the state rule 4.06 sees.
     """
     responses = responses or default_responses()

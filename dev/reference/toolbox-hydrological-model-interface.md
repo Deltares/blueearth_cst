@@ -65,10 +65,14 @@ requested coverage. `validate_hm_gauge_column_identity` checks supplied TOML and
 
 The response reader maps native headers through the shared output vocabulary and an independent response
 request. Results cannot define their own expected locations: retained inventories must cover the request.
-Native header order and persisted ordinals preserve reference selection. WF1's raw simulation CSV and WF4
-native responses remain available for reduction and later reuse. WF1 exports, evaluation, and baseline
-checks use full-precision native responses. If an older tree lost them to output cleanup, rerun its
-simulation to restore them. The [indicator glossary](toolbox-indicator-glossary.md) owns
+Native header order and persisted ordinals preserve reference selection. Native scalar CSVs are
+temporary conversion inputs. WF1 evaluation/history/Qcrit and WF4 indicators read verified per-variable
+tables with explicit metadata and configurable decimal precision (default 5). The shared
+`response_tables.py` conversion verifies time, IDs, missing masks and rounding error before raw retirement.
+New retained formats are historical-run/2 and response-inventory/5; old native-only publications must be
+regenerated, with no compatibility mode. The independent development baseline comparator can inspect
+temporary full-precision native output during its explicit `--notemp` verification run; this is not a
+retained-response format. The [indicator glossary](toolbox-indicator-glossary.md) owns
 variable and token names.
 
 ## HM-6a — WF1 final state

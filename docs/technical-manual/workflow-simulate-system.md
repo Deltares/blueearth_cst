@@ -14,7 +14,7 @@ Compatible indicator calculations can also use saved simulations without rerunni
   the default initial state for every run unless the model TOML configures its own warm state.
 - **Generated weather.** Climate NetCDFs for selected runs, including pressure and radiation alongside
   perturbed rainfall and temperature.
-- **Saved responses for indicators-only calculations.** Native Wflow CSVs and records of available
+- **Saved responses for indicators-only calculations.** Rounded per-variable CSVs and records of available
   variables and locations, used when recalculating indicators without new simulations.
 
 HydroMT-Wflow prepares model-grid forcing and recalculates potential evapotranspiration; pressure and
@@ -42,6 +42,7 @@ simulations. Climate projections are not simulation inputs.
 | `scenario_collection` | Advanced selection of a saved weather experiment. |
 | `compute` | Julia threads, concurrent batches, batch size and reserved disk space. |
 | `output.netcdf_grid` | Optional native grids for every selected run; independent of historical output. |
+| `output.csv.decimal_places` | Retained daily scalar precision, default 5; see [precision](configuration.md#csv-precision). |
 | `historical_forcing` | `default` (or omitted) or a named recipe; see below. |
 
 **Historical forcing selection.** With [named recipes](configuration.md#named-historical-forcing-recipes),
@@ -76,9 +77,9 @@ command outcome and each set's availability determine whether all requested calc
 Results are saved under `experiments/<experiment-name>/`, relative to `project_dir`.
 The main outputs are:
 
-- **Daily responses (`hydrology/wflow/output/<run_id>.csv`).** Native Wflow time series retained for
-  subsequent indicator calculations, including warm-up days that response reading discards; temporary
-  forcing NetCDFs are not retained.
+- **Daily responses (`hydrology/wflow/output/<run_id>/output_<code>.csv`).** Rounded per-variable time
+  series, with `_engine/response_tables.json` inside the run directory. Warm-up days are discarded before
+  retention. Native scalar CSVs and forcing NetCDFs are temporary; indicators read the retained tables.
 - **Model settings (`hydrology/wflow/run_settings/<run_id>.toml`).** Settings associated with each run.
 - **Optional native grids (`hydrology/wflow/output/<run_id>.nc`).** One retained file per run,
   containing all requested variables and native layers over the full native clock, warm-up included.

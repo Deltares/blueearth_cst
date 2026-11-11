@@ -42,8 +42,8 @@ DOCUMENTED_EXAMPLES = [
     # `101` is the SUBBASIN's id, not the station's. `1010` is a wflow_id and
     # belongs to a `station_<id>` scope -- see the id table in the rule.
     "era5_precip_annual_sub101.png",
-    "comparison_precip_annual_basin.png",
-    "comparison_temp_monthly_box_basin.png",
+    "precip_annual_basin.png",
+    "temp_monthly_box_basin.png",
 ]
 
 
@@ -137,7 +137,7 @@ def test_wf0_comparison_uses_canonical_monthly_band_context():
     figures = diagnostic_comparison_outputs("comparison", ["era5", "chirps"], settings)[
         "figures"
     ]
-    assert "comparison_precip_monthly_cycle_basin.png" in figures["seasonal"]
+    assert "precip_monthly_cycle_basin.png" in figures["seasonal"]
     assert not any(
         "monthly_box" in p or "monthly_clim_line" in p for p in figures.values()
     )

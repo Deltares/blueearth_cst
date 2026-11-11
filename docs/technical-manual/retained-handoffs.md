@@ -14,7 +14,7 @@ Relative paths below start at `project_dir`, unless an experiment folder is name
 | Product | Immutable data and authoritative record |
 |---|---|
 | Scenario collection | `scenarios/_engine/data/<id>/`; marker `scenarios/_engine/collections/<id>/collection.json` |
-| Simulation | `experiments/<name>/_engine/simulation.json`; native `hydrology/wflow/output/` and `_engine/response_inventory.json` inside that experiment |
+| Simulation | `experiments/<name>/_engine/simulation.json`; per-variable `hydrology/wflow/output/<run_id>/` and `_engine/response_inventory.json` inside that experiment |
 | Indicator set | Experiment `_engine/indicator_sets/<id>/indicators.json`; immutable tables in its `data/` |
 | Named indicator view | Experiment `results/indicator_sets/<set-id>/`; committed by `_engine/indicator_sets/names/<set-id>/current.json` |
 
@@ -27,7 +27,7 @@ requires a new simulation. Different simulations are never combined within one i
 
 Ready markers are written after validation. A folder or CSV alone is not a validated result ready for use.
 `scenario_collection_v2.read_collection_v2` verifies the marker, collection/revision identity, data root,
-lookups and series descriptors. `response_inventory.py` verifies complete native-response coverage.
+lookups and series descriptors. `response_inventory.py` verifies complete rounded-response coverage.
 `indicator_artifacts.py` validates saved indicator schemas, hashes, tables and exact result keys.
 Do not edit immutable data or marker bytes to make reuse succeed.
 
@@ -75,10 +75,10 @@ These are monthly perturbation settings, not annual response-surface coordinates
 ## Optional gridded responses
 
 Enabled grid requests are frozen in simulation settings and the creator configuration archive.
-Their response inventory uses `response-inventory/4` and records each NetCDF's hash, byte size,
-variables, units, native dimensions and time coverage. Scalar-only records retain
-`response-inventory/3` and remain readable without adding grids or rewriting saved bytes.
-The scalar response-reader and indicator input formats are unchanged.
+Their `response-inventory/5` records each NetCDF's hash, byte size, variables, units, native dimensions
+and time coverage. The same inventory version verifies scalar table records and freezes their selected
+decimal precision. Only the current table format is accepted; old native-only inventories require a new
+experiment. Existing archived bytes are never rewritten to manufacture compatibility.
 
 Enabled simulation completion requires both CSV and NetCDF for every selected run. Batch retries
 retain verified pairs outside declared job outputs, check their hashes and native time coverage,

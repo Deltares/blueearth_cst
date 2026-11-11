@@ -158,7 +158,7 @@ def test_canonical_inventory_and_one_source_refusal():
         table_root = Path(name) / "tables"
         if name == "comparison":
             plot_root /= "basin-average"
-            table_root /= "basin-average"
+            table_root = Path(name) / "_engine/basin-average"
         assert Path(paths["root"]) == Path(name)
         assert all(Path(p).parent == plot_root for p in paths["figures"].values())
         assert Path(paths["compute"]["coverage"]).parent == table_root
@@ -168,7 +168,7 @@ def test_canonical_inventory_and_one_source_refusal():
         "dataset_comparison_csv": str(Path("comparison/dataset_comparison.csv")),
         "dataset_comparison_md": str(Path("comparison/dataset_comparison.md")),
     }
-    assert [len(x["figures"]) for x in (era5, chirps, comparison)] == [17, 13, 13]
+    assert [len(x["figures"]) for x in (era5, chirps, comparison)] == [17, 13, 14]
     for paths in (era5, chirps, comparison):
         assert "extreme-intensity" in paths["figures"]
         assert (
@@ -182,7 +182,7 @@ def test_canonical_inventory_and_one_source_refusal():
         for x in (era5, chirps, comparison)
         for p in x["figures"].values()
     )
-    assert "plots/_engine/figure_captions.json" in era5["render"][
+    assert "_engine/plots/figure_captions.json" in era5["render"][
         "captions_json"
     ].replace("\\", "/")
     with pytest.raises(ValueError, match="two sources"):
@@ -215,7 +215,7 @@ def test_unavailable_records_keep_table_headers_and_round_trip(tmp_path, kind, c
         records = render(paths, settings, 1, ["chirps"], [paths["root"]])
         assert len(records) == 12
         titles = json.loads(
-            (tmp_path / "plots/_engine/figure_titles.json").read_text(encoding="utf-8")
+            (tmp_path / "_engine/plots/figure_titles.json").read_text(encoding="utf-8")
         )["figures"]
         assert set(titles) == set(records)
         assert all("CHIRPS" in entry["title"] for entry in titles.values())
@@ -227,9 +227,88 @@ def test_unavailable_records_keep_table_headers_and_round_trip(tmp_path, kind, c
         assert "no usable data or reference fit" in series["caption"]
         output = capsys.readouterr().out
         assert (
-            "Wrote 12 diagnostic figures for chirps → plots/_engine/figure_captions.json"
+            "Wrote 12 diagnostic figures for chirps → _engine/plots/figure_captions.json"
         ) in output
         assert "no native temperature" in output
+
+
+def test_comparison_split_tables_and_single_temperature_carrier_render(tmp_path):
+    sources = ["era5", "chirps"]
+    settings = parse_settings(None, {"start": 2000, "end": 2002}, sources)
+    dates = pd.date_range("2000-01-01", "2002-12-31")
+    results = {}
+    stores = []
+    for source in sources:
+        daily = pd.DataFrame(
+            {"precip": 3.0, "temp": 20.0 if source == "era5" else np.nan},
+            index=dates,
+        )
+        _, tables = compute(daily, settings, 1, (2000, 2002))
+        results[source] = tables
+        store = tmp_path / source
+        source_paths = diagnostic_source_outputs(store, source, settings)
+        write_tables(source_paths, {source: tables}, settings, 1, (2000, 2002), {})
+        stores.append(store)
+    paths = diagnostic_comparison_outputs(tmp_path / "comparison", sources, settings)
+    write_tables(paths, results, settings, 1, (2000, 2002), {})
+    # Agreement is written by the comparison adapter, independently of diagnostic tables.
+    from blueearth_cst.climate_analysis.diagnostic_outputs import (
+        COMPARISON_RESULT_TABLES,
+    )
+
+    visible = {
+        key
+        for key, path in paths["compute"].items()
+        if Path(path).parent == tmp_path / "comparison/tables/basin-average"
+    }
+    assert visible == COMPARISON_RESULT_TABLES
+    assert all(Path(paths["compute"][key]).is_file() for key in TABLES)
+    paths["figures"] = {"temperature": paths["figures"]["temperature"]}
+    records = render(paths, settings, 1, sources, stores)
+    assert len(records) == 1
+    record = next(iter(records.values()))
+    assert record["sources"] == ["era5"]
+    assert "ERA5" in record["title"] and "CHIRPS" not in record["title"]
+    assert record["availability"] == "available"
+    assert Path(next(iter(records))).name == "temp_monthly_cycle_basin.png"
+
+
+@pytest.mark.parametrize("legacy_folder", ["tables", "tables/basin-average"])
+def test_comparison_rerender_reads_legacy_table_layout(
+    tmp_path, monkeypatch, legacy_folder
+):
+    from blueearth_cst.climate_analysis import diagnostic_rerender as retained
+
+    root = tmp_path / "data/climate/historical/comparison"
+    sources = ["era5", "chirps"]
+    settings = parse_settings(None, {"start": 2000, "end": 2002}, sources)
+    metadata = root / "_engine/diagnostics.json"
+    metadata.parent.mkdir(parents=True)
+    metadata.write_text(
+        json.dumps(
+            {
+                "sources": sources,
+                "settings": settings,
+                "water_year_start": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    folder = root / legacy_folder
+    folder.mkdir(parents=True)
+    for name in TABLES:
+        (folder / f"{name}.csv").write_text("source\nera5\n", encoding="utf-8")
+    monkeypatch.setattr(retained, "load_retained_reference", lambda _: {})
+    monkeypatch.setattr(
+        retained, "source_stores", lambda *args: {s: tmp_path / s for s in sources}
+    )
+    calls = []
+    monkeypatch.setattr(retained, "render", lambda *args, **kwargs: calls.append(args))
+    retained.rerender_comparisons(tmp_path, tmp_path / "preview")
+    assert len(calls) == 1
+    assert all(
+        Path(calls[0][0]["compute"][name]) == folder / f"{name}.csv" for name in TABLES
+    )
 
 
 def test_opt_in_subbasin_tables_pngs_and_caption_inventory(tmp_path):
@@ -288,7 +367,7 @@ def test_opt_in_subbasin_tables_pngs_and_caption_inventory(tmp_path):
         assert (root / "plots" / "figure_captions.md").is_file()
         assert not (root / "figure_captions.md").exists()
         records = json.loads(
-            (root / "plots" / "_engine" / "figure_captions.json").read_text()
+            (root / "_engine" / "plots" / "figure_captions.json").read_text()
         )["figures"]
         assert len(records) == (3 if sources == ["era5"] else 2)
         assert all(

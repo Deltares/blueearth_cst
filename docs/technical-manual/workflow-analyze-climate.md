@@ -43,11 +43,37 @@ extraction requires overlap between the source record and that period.
 | `diagnostics.max_missing_days_year` | Allowed missing days per water year; default 15. |
 | `diagnostics.wet_day_threshold_mm` | Wet-day threshold; default 1 mm/day. |
 | `diagnostics.spi_distribution` | SPI distribution: `gamma` (default) or `pearson3`. |
-| `subbasin_figures` | Additional per-source area-average subbasin tables and figures. |
+| `plotting.comparison` | Render basin comparison figures; default `true`. |
+| `plotting.source` | Include individual-source copies of comparison figures; default `false`. |
+| `plotting.location` | Render reporting-location and upstream-subbasin figures; default `false`. |
 
 The reference period defaults to the climate window, and the comparison period defaults to the
 reference period. Missing-day tolerances must match the project settings in `climate.map_reference`.
 See [execution and run management](configuration-and-execution.md) for running the workflow.
+
+Basin-average comparison figures and unique source maps remain on by default. With multiple sources,
+individual-source figures duplicating those comparisons are omitted. A comparison includes temperature
+when at least one source provides it; its legend identifies the contributing source. Unique source-specific
+precipitation–temperature relationships remain. With one source, or comparison figures disabled, source
+basin diagnostics remain on. Set `plotting.source: true` to restore individual-source copies.
+
+Location and upstream-subbasin figures share `plotting.location`. Its default `false` preserves comparison
+data and numerical tables. These figure switches accept booleans only and leave existing disabled PNGs
+untouched; title and caption inventories describe the figures selected for the current run.
+
+These switches belong under `plotting:` in this workflow's YAML; shared `plotting.annotation` stays in
+the project YAML. Old `source_figures`, `location_figures` and `subbasin_figures` are accepted with
+deprecation warnings. The latter two both map to `plotting.location`; conflicting declarations are errors.
+Unknown keys and nonboolean switches are rejected. Comparison filenames omit the `comparison_` prefix.
+Machine-readable figure inventories live under the dataset's `_engine/plots/`, with an `indices/`
+subfolder for index metadata; readable title/caption Markdown stays beside the figures. Older retained
+metadata remains readable in place.
+
+Comparison `tables/basin-average/` exposes seven CSVs: `annual_indices`, `monthly_values`,
+`precip_climatology`, `temp_climatology`, `drought_events`, `trends` and `agreement`. Supporting coverage,
+fit checks, timing, SPI, spell, autocorrelation, homogeneity and sensitivity tables, plus `agreement.md`,
+live under `_engine/basin-average/`. Calculations and rerendering retain all these data. Existing files
+are preserved when switching layouts; new runs use the consolidated paths.
 
 ### Map annual departures {#annual-spatial-anomalies}
 
@@ -98,14 +124,17 @@ These are descriptive departures, not trends or significance estimates.
 Each source store retains `tables/annual_spatial_anomalies.nc` with native annual values, anomalies,
 reference means/counts and validity masks. `_engine/annual_spatial_anomalies.json` records settings,
 source/input identity, requested/eligible/excluded years, exact dates, availability and page inventory.
-Figures live under `plots/annual_anomalies/page_001/`, `page_002/`, etc., with filenames
-`<source>_<variable>_annual_anomaly_map_basin_ext.png`. Six chronological years fit each page; all pages
-are produced. Ordinary title/caption inventories and `plotting.annotation` modes apply.
+Figures live directly under `plots/`, with filenames
+`<source>_<variable>_annual_anomaly_map_basin.png`. Six chronological years fit in one multi-panel
+figure. Longer periods produce multiple figures with suffixes `_page_01.png`, `_page_02.png`, etc.;
+every requested year is included. Ordinary title/caption inventories and `plotting.annotation` modes apply.
 
 Run the usual historical analysis entry point. Retained rerendering through
 `scripts/render_figures.py wf0 --project <run> --out <review>` uses saved annual fields without
 daily source data. Disabling the option or shortening the comparison period retires only previously
 managed anomaly figures and their inventory entries, preserving unrelated files and retained data.
+Rerunning also retires previously managed PNGs from the older `plots/annual_anomalies/page_001/`
+layout after writing the replacement figures directly under `plots/`.
 
 ### Compare daily rain gauges {#rain-gauges}
 
@@ -118,8 +147,9 @@ rain_gauges:
   time_label: interval_end
 ```
 
-Omission or `null` disables observation input; gridded per-location comparisons still run when multiple
-candidates are selected. A populated mapping requires these three fields and accepts optional `temp_path`.
+Omission or `null` disables observation input; gridded per-location comparison calculations still run when
+multiple candidates are selected. Their figures require `plotting.location: true`. A populated mapping
+requires these three fields and accepts optional `temp_path`.
 That CSV uses the same `time` and station-ID columns for daily mean temperature in degrees Celsius;
 negative temperatures are valid. It uses the same time-label declaration as precipitation.
 Schema 3 resolves paths beside that YAML; schema 2 keeps its existing invocation-relative base.
@@ -167,7 +197,7 @@ data/climate/historical/comparison/
 
 The basin-average view compares gridded basin means. The location view replaces the former comparison
 `plots/subbasins/`: each dataset is sampled at the original coordinates of every declared spatial location
-and rainfall-gauge site. These are native-cell values, not subbasin averages. The `subbasin_figures` switch
+and rainfall-gauge site. These are native-cell values, not subbasin averages. The `plotting.location` switch
 continues to control optional area-average diagnostics inside individual source stores.
 
 `locations.csv` maps each directory ID to its name, coordinates, location role, spatial location code,
@@ -231,7 +261,7 @@ for each source. The main outputs are:
   Per-location tables and figures under `tables/locations/<id>/` and `plots/locations/<id>/` include
   observations when available; `locations.csv` indexes every site.
 - **Subbasin results (`tables/subbasins/` and `plots/subbasins/`).** Additional tables and figures when
-  `subbasin_figures: true`. Basin maps show subbasin outlines regardless of this setting.
+  `plotting.location: true`. Basin maps show subbasin outlines regardless of this setting.
 - **Diagnostic record (`_engine/diagnostics.json`).** Methods, data availability and provenance.
 
 Two shared outputs support the analysis:
@@ -367,37 +397,41 @@ counts as percentile exceedance. The event catalogue spans the full extracted re
 outside the requested reporting periods.
 
 Basin series are equal-weight means of available basin cells each day; contributing-cell counts are
-retained. Their indices differ from spatial means of cellwise indices. Maps show means of available annual
-cellwise indices on the source's native basin grid. Their source-specific colour scales and percentile
-references do not establish agreement between datasets. These are meteorological pressures, not flood
+retained. Their indices differ from spatial means of cellwise indices. Basin and upstream-subbasin
+indices use daily equal-weight means of available native cells before index calculation. Locations
+sample the native cell containing their original coordinates. These are meteorological pressures, not flood
 impacts or hydrological drought measurements.
 
 ### Retained products and reruns
 
-Each source writes an immutable `indices/<evaluation-id>/` bundle containing `annual_grid.nc`,
-`annual_basin.nc`, optional `seasonal_*.nc`, `reference_*.nc`, `events_*.csv`,
-`wet_spell_exceedance_*.csv`, `basin_contributing_cells.nc` and `calculation.json`. The completion record
-identifies source/input hashes, settings, implementation and numerical-library versions, unavailable
-variables, and payload checksums. `_engine/climate_indices.json` points to the completed bundle and is
-written last. Readers verify its manifest and payloads before rendering. Changed scientific inputs or
-settings create a new bundle; unchanged evaluations reuse verified products. Existing schema-2 diagnostic
-tables and formulas retain their previous meaning, including their legacy precipitation totals.
+Each source writes one `tables/climate_indices.csv` containing all registered indices for basin,
+upstream subbasins and configured locations, for annual and configured seasonal periods. Rows retain
+support identifiers, units, availability and missing-value reasons, including unavailable source variables
+and out-of-domain locations. Original daily extraction and source-level `basin_cells.csv` remain the
+calculation inputs. Existing diagnostic tables keep their previous formulas and precipitation totals.
+
+Only `_engine/climate_indices.json` (settings, input/code fingerprints and product hashes) and
+`_engine/wet_spell_exceedance.csv` (basin plotting data) support this CSV. New calculations retain no
+gridded index arrays, threshold arrays, event catalogues or daily contributing-cell counts, and create
+no hashed directories. Changed inputs/settings recalculate from the daily source in memory. Products
+are staged before replacement; the record is published last. Readers verify code and product hashes.
+Legacy bundles remain readable and are preserved; this change does not delete existing case evidence.
 
 Figures under `plots/indices/` split annual and configured-season basin panels into dry/wet spells,
 heavy rainfall, rainfall amount and frequency, temperature extremes, and heatwaves. Only available
-indices, scopes and native-grid maps are emitted, alongside complete wet-spell exceedance when available.
+indices and scopes are emitted, alongside complete wet-spell exceedance when available. Spatial index
+maps are no longer generated.
 Compact sheets share unit labels within compatible rows and year titles by column. Single-source plots
 omit empty boundary periods while preserving internal gaps. `figure_availability.json` lists emitted
 PNGs and omitted indices; the adjacent captions JSON records interpretation and evaluation identity.
-The workflow owns this directory as one availability-dependent rendering product, replacing the former
-combined annual/seasonal sheets and individually declared index maps. This bundle is source/basin based;
-existing optional subbasin diagnostics continue separately. Comparison tables do not acquire new
+The workflow owns this directory as one availability-dependent rendering product. Previously inventoried
+index maps are retired after successful rendering; unrelated files are preserved. Comparison tables do not acquire new
 climate-index columns.
 The retained-source mode of `scripts/render_figures.py` also renders enabled index bundles into its
 separate output directory, preserving the original publication and its reference.
 
-Failed calculations leave visibly incomplete staging directories without publishing their pointer.
-Integrity failures stop reuse rather than overwriting evidence. Preserve the affected bundle for diagnosis
-and move a damaged evaluation out of `indices/` before explicitly rerunning its compute job. Snakemake
-tracks the completion pointer; it does not individually schedule missing internal payloads. Large grids
-and long reference periods need substantial compute and memory; no locations are silently sampled or capped.
+Calculation and input-drift failures preserve previous outputs. An interruption during replacement can
+leave inconsistent products; checksum verification stops rendering until recalculation. Snakemake
+declares the CSV, record and small plotting table separately, so missing products
+are scheduled again. Long reference periods need substantial compute and memory; no locations are
+silently sampled or capped.

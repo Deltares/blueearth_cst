@@ -19,7 +19,9 @@ from blueearth_cst.shared.run_log_core import log_row, plural
 
 project, my_cfg, _selection = simulation_selection(config_path)
 from blueearth_cst.shared.grid_output import normalize_grid_output
+from blueearth_cst.shared.csv_output import normalize_csv_output
 grid_output = normalize_grid_output(my_cfg.get("output"))
+csv_output = normalize_csv_output(my_cfg.get("output"))
 project_dir = Path(project["project"]["project_dir"]).resolve().as_posix()
 experiment = resolve_experiment_name(Path(project_dir), my_cfg.get("experiment_name"))
 experiment = validate_experiment_name(experiment, project_dir)
@@ -104,7 +106,8 @@ CHECK_MODEL_UNCHANGED = RULES.logged("4.02", "check_model_unchanged", summary="c
 SNAPSHOT_SIMULATION_INPUTS = RULES.banner_only("4.03", "snapshot_simulation_inputs", summary="freeze the selected runs, model, and simulation settings")
 DOWNSCALE_SCENARIO_SERIES = RULES.logged("4.04", "downscale_scenario_series", summary="prepare model-grid forcing for the selected scenario run")
 RUN_WFLOW_SIMULATIONS = RULES.logged("4.05", "run_wflow_simulations", summary="run Wflow for selected scenario runs")
-PUBLISH_WFLOW_OUTPUTS = RULES.banner_only("4.06", "publish_wflow_outputs", summary="verify and retain the native simulation responses")
+CONVERT_WFLOW_RESPONSES = RULES.banner_only("4.05b", "convert_wflow_responses", summary="retain rounded response tables")
+PUBLISH_WFLOW_OUTPUTS = RULES.banner_only("4.06", "publish_wflow_outputs", summary="verify and retain the simulation response tables")
 # Resolved once per invocation from the runner's selection snapshot. Legacy
 # configs keep the old indicators/outvars precedence (indicator_sets.legacy_tokens).
 INDICATOR_SETS = simulation_indicator_sets(project, my_cfg, _selection) if _selection.indicators else ()
@@ -165,7 +168,7 @@ def _live_simulation_inputs():
                 simulation_window={"start": SIM_WINDOW_START, "end": SIM_WINDOW_END},
                 julia_command=shlex.split(julia_prefix(1)),
                 header_path=Path(directory) / "headers.txt",
-                include_unperturbed=include_unperturbed(my_cfg), netcdf_grid=grid_output,
+                include_unperturbed=include_unperturbed(my_cfg), netcdf_grid=grid_output, csv_output=csv_output,
                 initialization=INITIALIZATION, historical_forcing=HISTORICAL_FORCING)
 
 _simulation_complete = False
@@ -177,7 +180,7 @@ if stored is not None:
         resolution_mode=SELECTION["resolution_mode"], preparation=_current_preparation(),
         simulation_window={"start": SIM_WINDOW_START, "end": SIM_WINDOW_END},
         julia_command=shlex.split(julia_prefix(1)),
-        include_unperturbed=include_unperturbed(my_cfg), netcdf_grid=grid_output,
+        include_unperturbed=include_unperturbed(my_cfg), netcdf_grid=grid_output, csv_output=csv_output,
         initialization=INITIALIZATION, historical_forcing=HISTORICAL_FORCING,
         _ready_simulation=stored)
     _simulation_complete = True
@@ -331,6 +334,9 @@ if not _simulation_complete:
         # calls the other workflows used. Deferred rather than printed
         # because this is parse time -- `defer_warning` says why.
         defer_warning(sizing.warning, module='batching')
+    _batch_native_inputs = {
+        run: [f"{runs_dir}/output/{member}.csv" for member in members]
+        for members in split_evenly(RUN_IDS, sizing.batch_size) for run in members}
     for batch, members in enumerate(split_evenly(RUN_IDS, sizing.batch_size)):
         # 4.05  run_wflow_simulations_batch_<b> — one bounded batch of retained runs
         rule:
@@ -345,7 +351,7 @@ if not _simulation_complete:
                 forcing=[f"{runs_dir}/forcing/inmaps_{run}.nc" for run in members],
                 tomls=[f"{runs_dir}/run_settings/{run}.toml" for run in members],
             output:
-                csvs=[update(f"{runs_dir}/output/{run}.csv") for run in members],
+                csvs=[temp(update(f"{runs_dir}/output/{run}.csv")) for run in members],
                 grids=[update(f"{runs_dir}/output/{run}.nc") for run in members] if grid_output else [],
             threads: _threads
             resources:
@@ -370,12 +376,34 @@ if not _simulation_complete:
                      str(log[0]), "--", *shlex.split(params.julia),
                      str(REPOSITORY / "blueearth_cst/experiment/run_wflow_batch.jl")])
 
+    rule convert_wflow_responses:
+        message: CONVERT_WFLOW_RESPONSES.banner(context="run {wildcards.run_id}")
+        input:
+            simulation=_frozen_simulation,
+            csv=f"{runs_dir}/output/{{run_id}}.csv",
+            # Keep the complete batch until every member converts. A failed
+            # sibling must not make a partially retired batch look incomplete.
+            batch_csvs=lambda wc: _batch_native_inputs[wc.run_id],
+            toml=f"{runs_dir}/run_settings/{{run_id}}.toml",
+            temporal=f"{runs_dir}/run_settings/{{run_id}}.temporal.json",
+        output:
+            record=f"{runs_dir}/output/{{run_id}}/_engine/response_tables.json",
+        run:
+            from blueearth_cst.shared.response_tables import publish_response_tables
+            from blueearth_cst.experiment.wflow_response_reader import NativeRunArtifacts
+            request = read_simulation_intent_v2(exp_dir)["documents"]["response_request"]
+            publish_response_tables(
+                NativeRunArtifacts(Path(input.csv), Path(input.toml), Path(input.temporal)),
+                Path(output.record).parent.parent,
+                variables=tuple(item["variable"] for item in request["variables"]),
+                decimal_places=request["decimal_places"], record_path=Path(output.record))
+
     # 4.06  publish_wflow_outputs
     rule publish_wflow_outputs:
         message: PUBLISH_WFLOW_OUTPUTS.banner()
         input:
             simulation=_frozen_simulation,
-            csvs=[f"{runs_dir}/output/{run}.csv" for run in RUN_IDS],
+            records=[f"{runs_dir}/output/{run}/_engine/response_tables.json" for run in RUN_IDS],
             grids=[f"{runs_dir}/output/{run}.nc" for run in RUN_IDS] if grid_output else [],
             tomls=[f"{runs_dir}/run_settings/{run}.toml" for run in RUN_IDS],
             temporal=[f"{runs_dir}/run_settings/{run}.temporal.json" for run in RUN_IDS],
@@ -385,13 +413,14 @@ if not _simulation_complete:
         run:
             from blueearth_cst.experiment.response_inventory import publish_response_inventory_v2
             from blueearth_cst.experiment.simulation_record import publish_simulation_v2
-            from blueearth_cst.experiment.wflow_response_reader import NativeRunArtifacts
-            native = {run: NativeRunArtifacts(Path(csv), Path(toml), Path(temporal))
-                for run, csv, toml, temporal in zip(RUN_IDS, input.csvs, input.tomls, input.temporal)}
+            records = dict(zip(RUN_IDS, map(Path, input.records)))
             evidence = read_canonical_json(Path(input.temporal[0]))
+            if any(read_canonical_json(Path(path)) != evidence for path in input.temporal):
+                raise ValueError("runs have inconsistent temporal preparation evidence")
             if any(item["descriptor"]["source_calendar"] != evidence["source_calendar"] for item in COLLECTION["series"]):
                 raise ValueError("response temporal evidence differs from retained source calendar")
-            inventory = publish_response_inventory_v2(exp_dir, native, evidence)
+            inventory = publish_response_inventory_v2(exp_dir, records, evidence,
+                grid_tomls=dict(zip(RUN_IDS, map(Path, input.tomls))) if grid_output else None)
             published = publish_simulation_v2(exp_dir, inventory)
             from blueearth_cst.experiment.batch_staging import cleanup_published_staging
             cleanup_published_staging(f"{engine_dir}/batch_staging", RUN_IDS)

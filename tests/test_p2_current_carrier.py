@@ -163,7 +163,12 @@ def test_current_carrier_operation_target_matrix(
                 / "gwr_group_indicators.csv"
             )
         ],
-        "wflow": [str(root / f"hydrology/wflow/output/{RUN_IDS[0]}.csv")],
+        "wflow": [
+            str(
+                root
+                / f"hydrology/wflow/output/{RUN_IDS[0]}/_engine/response_tables.json"
+            )
+        ],
         "mixed": ["indicators", plan["targets"]["gwr_group"]],
         "unknown": ["unknown"],
     }

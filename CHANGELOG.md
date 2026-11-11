@@ -9,6 +9,31 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Add verified per-variable scalar response tables with configurable `output.csv.decimal_places`
+  (default 5), explicit temporal/location metadata and checked conversion error bounds.
+- Evaluate WF1 and historical Qcrit from rounded response tables; retain historical-run/2 archives
+  without duplicate native/full-precision CSVs, and retire the live native CSV after successful conversion.
+- Retain only verified rounded scalar tables in new WF4 experiments; freeze CSV precision in
+  response-request/3 and verify response-inventory/5 without native CSV dependencies or legacy reader modes.
+  Keep temporary batch inputs until every conversion succeeds, preserving failed-attempt retries.
+
+- Include a variable in comparison figures when only one source provides it; suppress its duplicate
+  individual-source figure when source figures are disabled.
+- Group workflow figure switches under `plotting`, with one location switch for reporting points
+  and upstream subbasins. Preserve deprecated aliases with conflict checks and migration warnings.
+- Export one climate-index CSV per source for basin, subbasins and locations; retain only a small
+  calculation record and basin wet-spell plotting table instead of hashed gridded evidence bundles.
+  Replace spatial index maps with tabular results while preserving basin series figures.
+- Consolidate WF0 figure metadata under dataset-level `_engine/plots/` and keep seven main comparison
+  result CSVs visible; retain supporting tables under `_engine/basin-average/` with legacy read support.
+
+- Write annual anomaly multi-panel figures directly under `plots/`; use `_page_01` suffixes only
+  when the panel limit requires multiple figures, and retire managed PNGs from the older nested layout.
+
+- Keep historical climate comparison plots and unique source plots by default; make duplicate
+  single-source views, model-forcing figures and individual location figures opt-in through YAML.
+  Preserve spatial maps, numerical diagnostics, simulation responses and performance tables.
+
 - Retire managed WF0 annual anomaly pages under both current and legacy filenames, preserving unrelated files.
 - Normalize Pixi boolean environment values when borrowing a session runtime.
 - Escape unsupported characters in redirected console output while preserving the original UTF-8 log.

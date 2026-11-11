@@ -349,38 +349,23 @@ def test_v2_scenario_lookup_preserves_member_ancestry():
     ]
 
 
-def test_v2_native_run_references_resolve_from_inventory(tmp_path):
-    from blueearth_cst.experiment.indicator_plan import _native_runs_v2
+def test_v2_table_record_references_resolve_from_inventory(tmp_path):
+    from blueearth_cst.experiment.indicator_plan import _table_runs_v2
     from blueearth_cst.shared.workflow_config_snapshot import file_reference
 
-    csv_path = tmp_path / "output.csv"
-    toml_path = tmp_path / "run.toml"
-    csv_path.write_text("time,Q_1\n2046-01-02,1\n", encoding="utf-8")
-    toml_path.write_text("[time]\n", encoding="utf-8")
+    record_path = tmp_path / "response_tables.json"
+    record_path.write_text("{}", encoding="utf-8")
     inventory = {
         "temporal_preparation": {"response_start": "2046-01-02"},
         "artifacts": [
             {
                 "run_id": "run_01",
-                "file": file_reference(csv_path, "experiment_root", tmp_path),
-            }
-        ],
-        "series": [
-            {
-                "run_id": "run_01",
-                "native_selector": {
-                    "toml": file_reference(toml_path, "experiment_root", tmp_path)
-                },
+                "file": file_reference(record_path, "experiment_root", tmp_path),
             }
         ],
     }
 
-    native_runs = _native_runs_v2(tmp_path, inventory)
-
-    assert native_runs["run_01"].csv_path == csv_path
-    assert native_runs["run_01"].toml_path == toml_path
-    assert native_runs["run_01"].temporal_path is None
-    assert native_runs["run_01"].response_start == "2046-01-02"
+    assert _table_runs_v2(tmp_path, inventory) == {"run_01": record_path}
 
 
 def test_v2_run_groups_replace_legacy_unit_keys():

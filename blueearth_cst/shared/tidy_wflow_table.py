@@ -1,13 +1,11 @@
-"""Readable per-variable tables derived from wflow's ``output.csv``.
+"""Formatting helpers and WF1 driver for retained per-variable response tables.
 
 Wflow writes ONE csv, at full float precision, with columns in its own internal
 order and ISO-8601 timestamps: ``time,Q_101,Q_1040,Q_1020,...``. That file is not
-ours to reformat -- ``plot_results.py`` reads it back through
-``WflowSbmModel.output_csv``, so its layout is an interface with hydromt's reader
-(AGENTS.md: do not re-engineer how hydromt handles data).
+ours to reformat during execution. The workflow converts it after Wflow finishes,
+verifies rounded tables and metadata, then removes the temporary native CSV.
 
-So this DERIVES rather than rewrites. The raw file stays byte-for-byte as wflow
-wrote it; the tables here are a product, and being a product is what makes the
+The tables are the retained numerical responses. The variable split makes the
 per-variable split free: the variable moves into the filename, which is what lets
 the columns carry bare station ids without ``Q_1`` becoming ambiguous against a
 positional outlet (the ambiguity ``shared/gauges.py`` exists to prevent).
@@ -237,22 +235,16 @@ if __name__ == "__main__":
     # it declares a `log:`, so `merge_logs` opened a section for it on every run
     # and found nothing to put under it.
     with tee_to_log(sm.log[0]):
-        import tomllib
+        from blueearth_cst.experiment.wflow_response_reader import NativeRunArtifacts
+        from blueearth_cst.shared.response_tables import publish_response_tables
 
-        from blueearth_cst.shared.native_locations import native_location_labels
-
-        toml_path = Path(sm.input.toml_path)
-        with toml_path.open("rb") as stream:
-            config = tomllib.load(stream)
-        header = pd.read_csv(sm.input.csv_path, nrows=0).columns.tolist()
-        labels = native_location_labels(
-            config["output"]["csv"]["column"],
-            header,
-            toml_path.parent
-            / config.get("dir_input", ".")
-            / config["input"]["path_static"],
+        publish_response_tables(
+            NativeRunArtifacts(Path(sm.input.csv_path), Path(sm.input.toml_path)),
+            out_dir,
+            decimal_places=sm.params.decimal_places,
+            record_path=sm.output.response_record,
         )
-        written = write_tidy_tables(sm.input.csv_path, out_dir, labels=labels)
+        written = list(map(Path, sm.output.tables))
         # One file named, several counted -- `flush_figure_bundles`' grammar,
         # because a rule that writes ONE table should say which.
         if len(written) == 1:

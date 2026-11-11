@@ -148,7 +148,7 @@ def prepared_map(
     return fig, info, notes
 
 
-def load_result(root, source, *, table_dir=None):
+def load_result(root, source, *, table_dir=None, table_paths=None):
     """Restore artist inputs from explicit plot-ready tables, never raw climate."""
     folder = Path(table_dir) if table_dir is not None else Path(root) / "tables"
     metadata = json.loads(
@@ -157,7 +157,8 @@ def load_result(root, source, *, table_dir=None):
     renames = table_renames(metadata["schema_version"])
 
     def read(name):
-        frame = pd.read_csv(folder / f"{name}.csv").rename(columns=renames)
+        path = table_paths[name] if table_paths is not None else folder / f"{name}.csv"
+        frame = pd.read_csv(path).rename(columns=renames)
         return frame[frame.source == source].drop(
             columns=["source", "period_start", "period_end"]
         )
@@ -288,10 +289,7 @@ def render(
         Path(paths["compute"]["metadata"]).read_text(encoding="utf-8")
     )
     period = metadata["period"]
-    results = {
-        s: load_result(root, s, table_dir=Path(paths["compute"]["coverage"]).parent)
-        for s in sources
-    }
+    results = {s: load_result(root, s, table_paths=paths["compute"]) for s in sources}
     months = artists.month_order(m0)
     calendar = pd.date_range(
         pd.Timestamp(year=period[0], month=m0, day=1),
@@ -577,6 +575,7 @@ def render(
         {
             "schema_version": 1,
             "figures": records,
+            "selected_forms": list(paths["figures"]),
             "anomaly_bounds": bounds,
             "produced_paths": list(records)
             + [

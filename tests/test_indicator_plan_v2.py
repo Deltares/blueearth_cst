@@ -333,7 +333,7 @@ def test_the_fixture_is_a_ready_v2_experiment_wherever_it_is_copied(experiment):
     assert not (root / "config/simulation.json").exists()
     assert read_simulation_v2(root)["status"] == "ready"
     assert read_response_inventory_v2(root)["schema_version"] == (
-        "response-inventory/3"
+        "response-inventory/5"
     )
     marker = read_collection_v2(experiment.collection_marker)
     assert [item["run_id"] for item in marker["series"]] == list(RUN_IDS)
@@ -580,12 +580,12 @@ def test_an_xclim_revision_changes_only_the_indicator_identity(bare, monkeypatch
     assert before["response_inventory_sha256"] == after["response_inventory_sha256"]
 
 
-def test_a_changed_native_response_byte_refuses_planning(experiment):
-    native = experiment.root / f"hydrology/wflow/output/{RUN_IDS[0]}.csv"
+def test_a_changed_compact_response_byte_refuses_planning(experiment):
+    native = experiment.root / f"hydrology/wflow/output/{RUN_IDS[0]}/output_gwr.csv"
     original = native.read_bytes()
-    native.write_bytes(original.replace(b",3\n", b",4\n"))
+    native.write_bytes(original + b"\n")
     assert native.read_bytes() != original
-    with pytest.raises(ValueError, match="bytes differ"):
+    with pytest.raises(ValueError, match="checksum mismatch"):
         _plan(experiment.root)
 
 

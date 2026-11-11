@@ -207,8 +207,8 @@ The following links explain the settings for each workflow.
 
 | Workflow | Settings and detailed reference |
 |---|---|
-| historical climate analysis | `diagnostics`, `subbasin_figures`, optional `rain_gauges`: [historical analysis](workflow-analyze-climate.md#configuration) |
-| model building | Required `simulation_window`; optional engine recipes and `observations`: [model](workflow-build-model.md#configuration) |
+| historical climate analysis | `diagnostics`, workflow-local `plotting`, optional `rain_gauges`: [historical analysis](workflow-analyze-climate.md#configuration) |
+| model building | `simulation_window`, engine recipes, `observations`, workflow-local `plotting`, `evaluation`: [model](workflow-build-model.md#configuration) |
 | projection analysis | `catalog`, `ensemble`, `models`, `scenarios`, `members`, `variables`, windows, `stats`: [projections](workflow-analyze-projections.md#configuration) |
 | scenario generation | `seed`, `n_realizations`, `simulation_window`, monthly perturbations, generator and capacity: [generation](workflow-generate-scenarios.md#configuration) |
 | hydrological simulation | Collection, experiment, operations, indicator requests and `compute`: [simulation](workflow-simulate-system.md#configuration) |
@@ -218,6 +218,27 @@ a custom base selects its own numbered family. Plain execution selects the highe
 of completion. `--new-experiment` advances it; an exact numbered name selects that experiment. Previewing with
 `scripts/suggest_experiment_name.py` reserves nothing. Changed scientific simulation inputs require a new
 experiment. See [retained identities](retained-handoffs.md#identities-and-reuse).
+
+## Scalar response precision {#csv-precision}
+
+WF1 and WF4 each accept this setting in their own workflow YAML:
+
+```yaml
+output:
+  csv:
+    decimal_places: 5
+```
+
+`decimal_places` defaults to 5 and accepts integers 0–15, excluding booleans. These are decimal places,
+not significant digits. WF1 evaluation and historical thresholds, and WF4 indicators, use the rounded
+retained time series. Values smaller than half the last decimal unit can become zero; use greater
+precision when very small flows matter. Missing values remain missing. Indicator-summary formatting
+and native NetCDF precision are independent. The CSV and NetCDF sections can be used together.
+
+Native Wflow CSVs are temporary conversion inputs. Verified per-variable CSVs and their metadata are
+the retained format; there is no native-retention or compatibility option. Increasing precision after
+conversion requires another simulation. New WF4 experiments freeze precision in their response request.
+Old native-only publications are not upgraded or rewritten: create new historical runs/experiments.
 
 ## Optional native model grids {#netcdf-grid}
 

@@ -18,6 +18,7 @@ from blueearth_cst.shared.workflow_archive_launch import captured_projection, re
 from blueearth_cst.spatial.config import parse_spatial_config
 from blueearth_cst.climate_analysis.diagnostic_outputs import diagnostic_source_outputs, diagnostic_comparison_outputs
 from blueearth_cst.climate_analysis.annual_spatial_anomalies import parse_settings
+from blueearth_cst.climate_analysis.diagnostic_outputs import parse_figure_settings
 from blueearth_cst.shared.map_reference import historical_map_reference_rule, require_wf0_completeness, source_map_inputs
 
 # --- figure filenames ---------------------------------------------------------
@@ -309,6 +310,8 @@ DIAGNOSTIC_SETTINGS = parse_settings(my_cfg.get("diagnostics"), historical_windo
 if DIAGNOSTIC_SETTINGS["annual_spatial_anomalies"]:
     PREPARE_ANNUAL_ANOMALIES = RULES.logged("0.04a", "prepare_annual_spatial_anomalies", summary="prepare native annual anomalies")
 PLOT_DIAGNOSTICS = RULES.logged("0.04b", "plot_climate_diagnostics", summary="render historical climate diagnostics")
+if DIAGNOSTIC_SETTINGS["climate_indices"]["enabled"]:
+    EXPORT_CLIMATE_INDICES = RULES.logged("0.04c", "export_climate_index_table", summary="export indices for basin, subbasins, and locations")
 
 # Rule 0.05 exists only when there is more than one source to compare, so it
 # is registered -- and its label enters LOG_RULES -- only then.
@@ -325,11 +328,11 @@ if COMPARE_LOCATIONS:
 
 # The opt-in owns a separate product; it does not change existing numerical diagnostics.
 BASE_DIAGNOSTIC_SETTINGS = {k: v for k, v in DIAGNOSTIC_SETTINGS.items() if k != "annual_spatial_anomalies"}
-_subbasin_figures = my_cfg.get("subbasin_figures", False)
-if type(_subbasin_figures) is not bool:
-    raise ValueError("subbasin_figures must be a boolean")
-DIAGNOSTIC_SETTINGS["subbasin_figures"] = _subbasin_figures
-BASE_DIAGNOSTIC_SETTINGS["subbasin_figures"] = _subbasin_figures
+FIGURE_SETTINGS = parse_figure_settings(my_cfg)
+DIAGNOSTIC_SETTINGS["subbasin_figures"] = FIGURE_SETTINGS["location"]
+BASE_DIAGNOSTIC_SETTINGS["subbasin_figures"] = FIGURE_SETTINGS["location"]
+SOURCE_RENDER_SETTINGS = DIAGNOSTIC_SETTINGS | {"source_figures": FIGURE_SETTINGS["source"], "comparison_figures": FIGURE_SETTINGS["comparison"]}
+COMPARISON_RENDER_SETTINGS = DIAGNOSTIC_SETTINGS | {"comparison_figures": FIGURE_SETTINGS["comparison"]}
 from blueearth_cst.shared.wf3_science import water_year_start_number
 DIAGNOSTIC_M0 = water_year_start_number(WATER_YEAR_START)
 MAP_REFERENCE = historical_map_reference_rule(
@@ -340,16 +343,24 @@ MAP_REFERENCE = historical_map_reference_rule(
 )
 require_wf0_completeness(DIAGNOSTIC_SETTINGS, MAP_REFERENCE.params["completeness"])
 MAP_SOURCE_SPECS = {spec.source: spec for spec in MAP_REFERENCE.source_specs}
-SOURCE_DIAGNOSTICS = {s: diagnostic_source_outputs(CLIMATE_STORES[s].store_dir, s, DIAGNOSTIC_SETTINGS) for s in CANDIDATE_SOURCES}
+SOURCE_DIAGNOSTICS = {s: diagnostic_source_outputs(CLIMATE_STORES[s].store_dir, s, SOURCE_RENDER_SETTINGS, CANDIDATE_SOURCES) for s in CANDIDATE_SOURCES}
 from blueearth_cst.climate_analysis.climate_indices import implementation_digest as climate_indices_digest
 CLIMATE_INDICES_DIGEST = climate_indices_digest() if DIAGNOSTIC_SETTINGS["climate_indices"]["enabled"] else None
 POOLED_ROOTS = [SOURCE_DIAGNOSTICS[s]["root"] for s in CANDIDATE_SOURCES]
 COMPARISON_DIR = f"{project_dir}/data/climate/historical/comparison"
-COMPARISON_DIAGNOSTICS = diagnostic_comparison_outputs(COMPARISON_DIR, CANDIDATE_SOURCES, DIAGNOSTIC_SETTINGS) if len(CANDIDATE_SOURCES) > 1 else None
+COMPARISON_DIAGNOSTICS = diagnostic_comparison_outputs(COMPARISON_DIR, CANDIDATE_SOURCES, COMPARISON_RENDER_SETTINGS) if len(CANDIDATE_SOURCES) > 1 else None
 WF0_TERMINALS = [p for spec in SOURCE_DIAGNOSTICS.values() for p in spec["render"].values()]
+if DIAGNOSTIC_SETTINGS["climate_indices"]["enabled"]:
+    WF0_TERMINALS += [
+        spec[key]
+        for spec in SOURCE_DIAGNOSTICS.values()
+        for key in ("climate_indices_table", "climate_index_plot_data")
+    ]
 if COMPARE_LOCATIONS:
     location_inventory = location_comparison_outputs(COMPARISON_DIR)
-    WF0_TERMINALS += list(location_inventory["compute"].values()) + list(location_inventory["render"].values())
+    WF0_TERMINALS += list(location_inventory["compute"].values())
+    if FIGURE_SETTINGS["location"]:
+        WF0_TERMINALS += list(location_inventory["render"].values())
 if COMPARISON_DIAGNOSTICS:
     WF0_TERMINALS += list(COMPARISON_DIAGNOSTICS["compute"].values()) + list(COMPARISON_DIAGNOSTICS["render"].values()) + list(COMPARISON_DIAGNOSTICS["source_summary"].values())
 if DIAGNOSTIC_SETTINGS["subbasin_figures"]:
@@ -450,6 +461,7 @@ for _source in CANDIDATE_SOURCES:
     _compute_inputs.pop("oro_nc", None)
     _compute_outputs = dict(_diag["compute"])
     _compute_outputs.pop("maps")
+    _compute_outputs.pop("climate_indices", None)
     if DIAGNOSTIC_SETTINGS["subbasin_figures"]:
         _compute_inputs["subbasins"] = SPATIAL_UNITS.outputs["subbasins"]
         _compute_outputs["subbasin_tables"] = directory(f"{_diag['root']}/tables/subbasins")
@@ -464,11 +476,32 @@ for _source in CANDIDATE_SOURCES:
             m0=DIAGNOSTIC_M0, data_sources=DATA_SOURCES,
             forcing=climate_cfg.get("forcing") if _source == clim_source else None,
             preparation_code_digest=MAP_REFERENCE.params["preparation_code_digest"],
-            climate_indices_code_digest=CLIMATE_INDICES_DIGEST,
             map_environment=MAP_REFERENCE.params["environment"],
         log: COMPUTE_DIAGNOSTICS.log(_source),
         benchmark: COMPUTE_DIAGNOSTICS.benchmark(_source),
         script: "blueearth_cst/climate_analysis/compute_climate_diagnostics.py"
+
+    if DIAGNOSTIC_SETTINGS["climate_indices"]["enabled"]:
+        rule:
+            name: EXPORT_CLIMATE_INDICES.job_name(_source)
+            message: EXPORT_CLIMATE_INDICES.banner(part=_source)
+            input:
+                climate_nc=_compute_inputs["climate_nc"],
+                basin_cells=_compute_inputs["basin_cells"],
+                catalogs=_compute_inputs["catalogs"],
+                subbasins=SPATIAL_UNITS.outputs["subbasins"],
+                locations=SPATIAL_UNITS.outputs["locations"],
+            output:
+                table=_diag["climate_indices_table"],
+                record=_diag["compute"]["climate_indices"],
+                spells=_diag["climate_index_plot_data"],
+            params:
+                source=_source, settings=BASE_DIAGNOSTIC_SETTINGS, m0=DIAGNOSTIC_M0,
+                code_digest=file_sha256(Path(workflow.basedir) / "blueearth_cst/climate_analysis/climate_index_table.py"),
+                climate_indices_code_digest=CLIMATE_INDICES_DIGEST,
+            log: EXPORT_CLIMATE_INDICES.log(_source),
+            benchmark: EXPORT_CLIMATE_INDICES.benchmark(_source),
+            script: "blueearth_cst/climate_analysis/climate_index_table.py"
 
     if DIAGNOSTIC_SETTINGS["annual_spatial_anomalies"]:
         # 0.04a  prepare_annual_spatial_anomalies — no PET or climatology dependency.
@@ -481,7 +514,7 @@ for _source in CANDIDATE_SOURCES:
                 source=_source, m0=DIAGNOSTIC_M0, data_sources=DATA_SOURCES,
                 settings={k: DIAGNOSTIC_SETTINGS[k] for k in ("reference_period", "comparison_period", "max_missing_days_month", "max_missing_days_year")},
                 forcing=climate_cfg.get("forcing") if _source == clim_source else None,
-                code_digest={path: file_sha256(path) for path in ("blueearth_cst/climate_analysis/annual_spatial_anomalies.py", "blueearth_cst/climate_analysis/diagnostics.py", "blueearth_cst/climate_analysis/diagnostic_tables.py")},
+                code_digest={path: file_sha256(path) for path in ("blueearth_cst/climate_analysis/annual_spatial_anomalies.py", "blueearth_cst/climate_analysis/diagnostics.py", "blueearth_cst/climate_analysis/diagnostic_tables.py", "blueearth_cst/climate_analysis/figure_naming.py")},
                 environment=MAP_REFERENCE.params["environment"],
             log: PREPARE_ANNUAL_ANOMALIES.log(_source),
             benchmark: PREPARE_ANNUAL_ANOMALIES.benchmark(_source),
@@ -490,6 +523,7 @@ for _source in CANDIDATE_SOURCES:
     _render_outputs = dict(_diag["render"])
     if "index_products" in _render_outputs:
         _render_outputs["index_products"] = directory(_render_outputs["index_products"])
+        _render_outputs["index_metadata"] = directory(_render_outputs["index_metadata"])
     _render_inputs = {"tables": list(_diag["compute"].values()),
         "pooled": [p for spec in SOURCE_DIAGNOSTICS.values() for key, p in spec["compute"].items() if key in {"monthly_values", "metadata"}],
         "map_reference": MAP_REFERENCE.outputs["reference"],
@@ -510,7 +544,8 @@ for _source in CANDIDATE_SOURCES:
             annotation=plot_annotation,
             plot_setup_digest=plot_setup_digest,
             climate_indices_render_digest=file_sha256(Path(workflow.basedir) / "blueearth_cst/climate_analysis/climate_index_figures.py") if DIAGNOSTIC_SETTINGS["climate_indices"]["enabled"] else None,
-            settings=DIAGNOSTIC_SETTINGS, source=_source, store_dir=_spec.store_dir,
+            settings=SOURCE_RENDER_SETTINGS, source=_source, store_dir=_spec.store_dir,
+            comparison_sources=CANDIDATE_SOURCES,
             m0=DIAGNOSTIC_M0, pooled_roots=POOLED_ROOTS,
             subbasin_table_dirs=[f"{_diag['root']}/tables/subbasins"],
             map_reference_params=dict(MAP_REFERENCE.params),
@@ -582,7 +617,7 @@ if COMPARISON_DIAGNOSTICS:
         params:
             annotation=plot_annotation,
             plot_setup_digest=plot_setup_digest,
-            settings=DIAGNOSTIC_SETTINGS, sources=CANDIDATE_SOURCES,
+            settings=COMPARISON_RENDER_SETTINGS, sources=CANDIDATE_SOURCES,
             comparison_dir=COMPARISON_DIR, m0=DIAGNOSTIC_M0,
             pooled_roots=POOLED_ROOTS,
         log: COMPARE_DIAGNOSTICS.log(),

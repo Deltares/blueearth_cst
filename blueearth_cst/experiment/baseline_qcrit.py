@@ -6,9 +6,7 @@ import tomllib
 from pathlib import Path
 
 from blueearth_cst.experiment.wflow_response_reader import (
-    NativeRunArtifacts,
     ResponseRequest,
-    open_responses,
 )
 from blueearth_cst.indicators.sets.crop_water.calculations import prepare_baseline_qcrit
 from blueearth_cst.shared.named_forcings import HistoricalLayout
@@ -85,7 +83,7 @@ def resolve_thresholds(
         raise ValueError(
             "baseline_quantile requires WF4 project model context when model_root is omitted"
         )
-    csv_path = model / historical.discharge_csv
+    csv_path = model / historical.response_record
     toml_path = model / historical.toml
     # Parse any existing model configuration even when its CSV is still absent.
     # A pending upstream output must not mask a malformed historical binding.
@@ -116,12 +114,13 @@ def resolve_thresholds(
                 "Run WF1 build_model including its historical simulation before WF4."
             )
     before = [file_sha256(csv_path), toml_digest]
-    # Hash the exact native input bytes; recheck after reading to refuse concurrent
+    # Hash the retained response record; its payload checksums bind the rounded tables.
+    # Recheck after reading to refuse concurrent
     # WF1 writes rather than assign an identity to a mixed snapshot.
-    identity = f"{source_id};csv-sha256={before[0]};toml-sha256={before[1]}"
-    responses = open_responses(
-        identity, NativeRunArtifacts(csv_path, toml_path), ResponseRequest(("q",))
-    )
+    identity = f"{source_id};response-record-sha256={before[0]};toml-sha256={before[1]}"
+    from blueearth_cst.shared.response_tables import open_table_responses
+
+    responses = open_table_responses(identity, csv_path, ResponseRequest(("q",)))
     prepared = prepare_baseline_qcrit(responses, source_id=identity, **options)
     after = [file_sha256(path) for path in (csv_path, toml_path)]
     if before != after:

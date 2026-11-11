@@ -215,3 +215,7 @@ class HistoricalLayout:
     @property
     def discharge_csv(self) -> str:
         return f"{self.run_dir}/output.csv"
+
+    @property
+    def response_record(self) -> str:
+        return f"{self.run_dir}/_engine/response_tables.json"
