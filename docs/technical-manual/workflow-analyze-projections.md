@@ -183,7 +183,7 @@ The main outputs are:
   paired model–scenario–member and analysis window. NetCDFs preserve source-grid coordinates;
   `inventory.json` identifies members, sources, windows, methods and unavailable comparisons.
 - **Figures (`plots/full_period/` and `plots/period_<start>_<end>/`).** Available figures for the full
-  record and analysis windows. `plots/figure_captions.md` and `_engine/figure_captions.json` explain
+  record and analysis windows. `plots/figure_captions.md` and `_engine/plots/figure_captions.json` explain
   produced and unavailable figures; title inventories accompany them.
 
 Figures use the diagnostic tables, whose effective periods may differ from the change-factor tables.

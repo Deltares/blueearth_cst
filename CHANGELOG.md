@@ -9,6 +9,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Keep figure title/caption JSON in each output unit's `_engine/plots/` across WF0–WF2, mirroring family
+  subfolders (for example `evaluation/_engine/plots/stations/`). Existing projects re-render affected
+  figure families once on their next run; JSON at the old locations is left in place and can be deleted.
 - Move WF1 `evaluation/performance_indicators.csv` to `evaluation/tables/performance_indicators.csv`.
   Existing projects re-render evaluation figures on the next model workflow run; delete the old file by hand.
 

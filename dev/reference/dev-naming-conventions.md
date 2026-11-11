@@ -179,9 +179,11 @@ user-facing JSON data and provenance remain with their data products. The
 [figure naming guide](../../blueearth_cst/plotting/docs/figure-naming.md) owns shared rules and workflow
 profiles. WF2's current names remain in `projection_figures.FIGURE_FILENAMES` until its profile is added.
 
-WF2 uses `data/climate/projections/cmip6/_engine/` for `stage_b_settings.json`, `analysis_record.json`
-and `figure_captions.json`; manifest figure paths resolve relative to the sibling `plots/` directory.
-Existing WF0 nested engine paths await explicit migration.
+Machine figure inventories (`figure_titles.json`, `figure_captions.json`) live in the output unit's
+`_engine/plots/`, mirroring any family subfolder: `<unit>/plots/stations/` pairs with
+`<unit>/_engine/plots/stations/`. `plotting.figure_titles.figure_engine_dir` owns this mapping.
+WF2 keeps `stage_b_settings.json` and `analysis_record.json` in `data/climate/projections/cmip6/_engine/`;
+its manifest figure paths resolve relative to the sibling `plots/` directory.
 
 1. **Upstream names pass through.** Preserve engine filenames (`wflow_sbm.toml`, `staticmaps.nc`,
    `instates.nc`, `hydromt_data.yml`) and path identifiers such as `NOAA-GFDL/GFDL-ESM4` verbatim.

@@ -225,8 +225,8 @@ Per-location tables retain coverage, daily agreement, monthly/annual precipitati
 coordinates/CRS, exclusions and optional temperature means. Monthly agreement metrics retain paired-month
 counts, Pearson r, mean bias and RMSE; precipitation errors are in mm/month and temperature errors in °C.
 Figures show unavailable comparisons explicitly. Each location's plot directory contains readable
-`figure_titles.md` and `figure_captions.md`; machine inventories and sampled daily data live under
-`_engine/locations/`. Basin figure inventories live under `_engine/basin-average/`.
+`figure_titles.md` and `figure_captions.md`; sampled daily data live under `_engine/locations/` and
+machine figure inventories under `_engine/plots/locations/`. Basin figure inventories live under `_engine/basin-average/`.
 
 Rerender both views with
 `scripts/render_figures.py wf0-comparison --project <run> --out <review>`.
