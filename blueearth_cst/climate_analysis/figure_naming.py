@@ -13,8 +13,9 @@ Four fields, and what each answers:
 
 ``dataset_scope``
     WHICH dataset — the source id (``era5``, ``chirps``) for a single-source
-    figure, :data:`COMPARISON_SCOPE` for one carrying several. Comparison
-    figures deliberately do NOT list their datasets in the filename: the legend
+    figure, :data:`COMPARISON_SCOPE` for a comparison. The comparison token
+    is omitted from exported names because its directory supplies that context.
+    Comparison figures deliberately do NOT list their datasets in the filename: the legend
     and the run record carry them, so the name stays stable as the compared set
     changes.
 ``variable``
@@ -252,7 +253,8 @@ def figure_filename(
         else:
             subject = "indices"
     place = _short_spatial_scope(spatial_scope, location_name)
-    return f"{dataset_scope}_{subject}_{diagnostic}_{place}.{extension}"
+    prefix = "" if dataset_scope == COMPARISON_SCOPE else f"{dataset_scope}_"
+    return f"{prefix}{subject}_{diagnostic}_{place}.{extension}"
 
 
 def annual_anomaly_filename(

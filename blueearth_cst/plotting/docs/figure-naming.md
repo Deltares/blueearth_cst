@@ -12,7 +12,7 @@ for its figures; the owning producer implements it.
   identifiers according to their owning contract rather than normalizing them independently.
 - Name the scientific variable, diagnostic and spatial support consistently. Reuse an existing token
   when its meaning matches; distinguish an area average from a map extent or a station observation.
-- Use a stable comparison token for multi-source figures. List participating sources in legends,
+- Use the comparison directory for multi-source context. List participating sources in legends,
   captions and provenance rather than making the filename depend on the number of sources.
 - Keep project names, workflow IDs, units and analysis periods in directories or metadata unless a
   profile needs one to distinguish products in the same output directory.
@@ -173,6 +173,8 @@ point samples from area averages; the exported location token carries the name o
 Earlier gauge outputs used `station_<token>_avg` and `daily_agreement`;
 legacy retained products remain readable through the `rain-gauges` rerender family.
 
+Comparison figures omit the `comparison_` prefix; their directory supplies the context.
+
 ### Examples
 
 ```text
@@ -180,10 +182,10 @@ era5_precip_annual_trend_basin.png
 era5_temp_annual_mean_map_basin.png
 chirps_precip_monthly_cycle_basin.png
 era5_precip_annual_trend_sub101.png
-comparison_precip_rx1day_annual_basin.png
-comparison_precip_temp_seasonal_anomaly_basin.png
-comparison_precip_annual_loc1010.png
-comparison_precip_annual_mainstem_mid.png
+precip_rx1day_annual_basin.png
+precip_temp_seasonal_anomaly_basin.png
+precip_annual_loc1010.png
+precip_annual_mainstem_mid.png
 chirps_precip_wet_spell_exceedance_basin.png
 chirps_heavy_rainfall_annual_basin.png
 ```
