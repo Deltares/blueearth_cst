@@ -19,7 +19,6 @@ cartopy basemap tiles).
 from __future__ import annotations
 
 import shutil
-import subprocess
 from pathlib import Path
 
 import numpy as np
@@ -30,6 +29,7 @@ import yaml
 
 from blueearth_cst.shared.config_composition import load_composed_config  # noqa: E402
 from tests.conftest import write_config  # noqa: E402
+from tests.snakemake_state import dry_run_job_stats  # noqa: E402
 
 pytestmark = pytest.mark.usefixtures("isolated_snakemake")
 
@@ -232,20 +232,20 @@ def modelfree_project(tmp_path):
     return cfg_path, project_dir, store, absent_template
 
 
-def _snakemake(args, cfg_path):
-    """Invoke snakemake on WF0 with the repo workflow profile disabled."""
-    cmd = (
-        f"snakemake {args} --workflow-profile none -c 1 "
-        f'-s analyze_climate.smk --configfile "{cfg_path}"'
-    )
-    return subprocess.run(
-        cmd, shell=True, capture_output=True, text=True, cwd=str(SNAKEDIR)
-    )
+def _dry_run(targets, cfg_path, stats):
+    """Dry-run WF0 targets with the repo workflow profile disabled.
+
+    Returns the process and Snakemake's scheduled rule counts; the console's
+    work plan also lists up-to-date rules, so its text cannot prove absence.
+    """
+    args = ["--dry-run", *(t.as_posix() for t in targets), "--workflow-profile"]
+    args += ["none", "-c", "1", "-s", "analyze_climate.smk", "--configfile"]
+    return dry_run_job_stats(stats, [*args, str(cfg_path)], cwd=SNAKEDIR)
 
 
 @pytest.mark.skipif(shutil.which("snakemake") is None, reason="snakemake not on PATH")
 @pytest.mark.workflow_contract
-def test_source_figures_build_without_a_model(modelfree_project):
+def test_source_figures_build_without_a_model(modelfree_project, tmp_path):
     """P4: source figures schedule without the model-build subgraph."""
     cfg_path, project_dir, store, absent_template = modelfree_project
     from blueearth_cst.climate_analysis.diagnostic_outputs import (
@@ -259,14 +259,13 @@ def test_source_figures_build_without_a_model(modelfree_project):
         Path(p)
         for p in diagnostic_source_outputs(store, "era5", settings)["figures"].values()
     ]
-    quoted = " ".join(f'"{t.as_posix()}"' for t in targets)
-    result = _snakemake(f"--dry-run {quoted}", cfg_path)
+    result, counts = _dry_run(targets, cfg_path, tmp_path / "job_stats.json")
     combined = (result.stdout or "") + (result.stderr or "")
     assert result.returncode == 0, combined[-4000:]
 
-    assert "extract_climate_datasets" in combined
-    assert "plot_climate_diagnostics_era5" in combined
-    assert "prepare_land_and_soil_maps" not in combined
-    assert "build_wflow_model" not in combined
+    assert counts.get("extract_climate_datasets_era5"), counts
+    assert counts.get("plot_climate_diagnostics_era5"), counts
+    assert "prepare_land_and_soil_maps" not in counts, counts
+    assert "build_wflow_model" not in counts, counts
     assert absent_template.as_posix() not in combined.replace("\\", "/")
     assert not (project_dir / "hydrology_model").exists()

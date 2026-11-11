@@ -3,6 +3,7 @@
 import json
 import logging
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -32,6 +33,26 @@ def write_profile(workdir: Path) -> Path:
         yaml.safe_dump({"directory": workdir.as_posix()}), encoding="utf-8"
     )
     return profile
+
+
+def dry_run_job_stats(
+    stats: Path, args: list[str], *, cwd: Path, env: dict[str, str] | None = None
+) -> tuple[subprocess.CompletedProcess[str], dict[str, int]]:
+    """Dry-run Snakemake with ``args``; return the process and scheduled rule counts.
+
+    Counts come from Snakemake's native RUN_INFO record, so assertions do not
+    depend on how the console presents the plan. An empty mapping means no job
+    was scheduled.
+    """
+    result = subprocess.run(
+        [sys.executable, "-m", "tests.snakemake_state", str(stats), *args],
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+        env=env,
+    )
+    counts = json.loads(stats.read_text(encoding="utf-8")) if stats.exists() else {}
+    return result, counts
 
 
 def _capture_cli_job_stats() -> None:

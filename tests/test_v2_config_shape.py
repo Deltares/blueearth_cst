@@ -27,6 +27,7 @@ from pathlib import Path
 import pytest
 
 from blueearth_cst.shared.config_composition import load_composed_config
+from tests.snakemake_state import dry_run_job_stats
 
 pytestmark = pytest.mark.usefixtures("isolated_snakemake")
 
@@ -45,8 +46,10 @@ V2_CLEAN = (
 )
 
 
-def _dry_run(snakefile: str) -> subprocess.CompletedProcess[str]:
-    """Dry-run one entry point on the v2 config; return the completed process.
+def _dry_run(
+    snakefile: str, stats: Path
+) -> tuple[subprocess.CompletedProcess[str], dict[str, int]]:
+    """Dry-run one entry point on the v2 config; return the process and job counts.
 
     ``generate_scenarios.smk`` refuses a bare dry-run since P5 (`c83ead70`):
     it requires ``CST_GENERATION_PHASE`` to name which of the launcher's two
@@ -59,14 +62,9 @@ def _dry_run(snakefile: str) -> subprocess.CompletedProcess[str]:
     env = {**os.environ}
     if snakefile == "generate_scenarios":
         env["CST_GENERATION_PHASE"] = "source"
-    return subprocess.run(
-        f"snakemake all -c 1 -s {snakefile}.smk --configfile {V2_CONFIG} --dry-run",
-        shell=True,
-        capture_output=True,
-        text=True,
-        cwd=REPO_ROOT,
-        env=env,
-    )
+    args = ["all", "-c", "1", "-s", f"{snakefile}.smk"]
+    args += ["--configfile", str(V2_CONFIG), "--dry-run"]
+    return dry_run_job_stats(stats, args, cwd=REPO_ROOT, env=env)
 
 
 def test_the_v2_fixture_composes():
@@ -92,12 +90,14 @@ def test_the_v2_fixture_composes():
 
 @pytest.mark.workflow_contract
 @pytest.mark.parametrize("snakefile", V2_CLEAN)
-def test_an_entry_point_dry_runs_clean_on_v2(snakefile):
+def test_an_entry_point_dry_runs_clean_on_v2(snakefile, tmp_path):
     """P1's acceptance criterion, for the entry points it reaches."""
-    result = _dry_run(snakefile)
+    result, counts = _dry_run(snakefile, tmp_path / "job_stats.json")
     combined = (result.stdout or "") + (result.stderr or "")
     assert result.returncode == 0, combined[-3000:]
-    assert "Building DAG of jobs" in combined, combined[-3000:]
+    # A built DAG with scheduled work, read from Snakemake's RUN_INFO rather
+    # than from console text.
+    assert counts.get("total", 0) > 0, combined[-3000:]
     assert "Error in file" not in combined, combined[-3000:]
 
 

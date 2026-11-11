@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import re
-import subprocess
 from pathlib import Path
 
 import pytest
 
 from blueearth_cst.shared.config_composition import load_composed_config
 from tests.conftest import parse_workflow, write_config
+from tests.snakemake_state import dry_run_job_stats
 
 pytestmark = pytest.mark.usefixtures("isolated_snakemake")
 
@@ -234,11 +234,15 @@ def test_spatial_rules_and_scripts_are_wflow_independent(rule_name, module):
 
 
 @pytest.mark.workflow_contract
-def test_spatial_only_dry_run_has_no_wflow_edge():
-    """A direct target schedules exactly P1, not the existing model build."""
-    result = subprocess.run(
+def test_spatial_only_dry_run_has_no_wflow_edge(tmp_path):
+    """A direct target schedules exactly P1, not the existing model build.
+
+    Scheduled rules come from Snakemake's RUN_INFO: the console's work plan
+    also lists up-to-date rules, so its text cannot prove a rule is absent.
+    """
+    result, counts = dry_run_job_stats(
+        tmp_path / "job_stats.json",
         [
-            "snakemake",
             "prepare_land_and_soil_maps",
             "-c",
             "1",
@@ -249,18 +253,16 @@ def test_spatial_only_dry_run_has_no_wflow_edge():
             "--dry-run",
         ],
         cwd=REPO,
-        capture_output=True,
-        text=True,
     )
     combined = (result.stdout or "") + (result.stderr or "")
 
     assert result.returncode == 0, combined[-3000:]
-    assert "prepare_land_and_soil_maps" in combined
+    assert counts.get("prepare_land_and_soil_maps"), counts
     # ...and it schedules its own producer, which is what a split rule must do.
-    assert "delineate_subbasins_and_rivers" in combined
+    assert counts.get("delineate_subbasins_and_rivers"), counts
     for forbidden_rule in (
         "build_wflow_model",
         "add_reservoirs_lakes_glaciers",
         "declare_gauges_and_outputs",
     ):
-        assert forbidden_rule not in combined, combined[-3000:]
+        assert forbidden_rule not in counts, counts
