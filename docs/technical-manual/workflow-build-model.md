@@ -78,8 +78,9 @@ Paths below are relative to `project_dir`. The main outputs are:
   `staticgeoms/outlet_index.csv` links outlets to reporting locations.
 - **Historical forcing (`models/hydrology/wflow/forcing/`).** Model-grid forcing in
   `inmaps_historical.nc` and optional forcing-check figures (`plotting.forcing: true`).
-- **Simulated time series (`models/hydrology/wflow/run_default/`).** Native Wflow `output.csv` and
-  per-variable `output_<code>.csv` tables, with a gauge crosswalk linking model IDs to station names.
+- **Simulated time series (`models/hydrology/wflow/run_default/`).** Per-variable `output_<code>.csv`
+  tables and `_engine/response_tables.json`, with registry IDs linking series to reporting locations.
+  Native Wflow `output.csv` is removed after successful conversion. Evaluation reads the retained tables.
 - **Evaluation (`models/hydrology/wflow/evaluation/`).** Model-response figures and scores where
   observations are available, including `performance_indicators.csv` and station discharge
   summaries under `plots/stations/` when `plotting.location: true`.
@@ -97,7 +98,7 @@ plotting:
   location: true
 ```
 
-These switches affect figures only. Historical simulation, native responses, per-variable time-series
+These switches affect figures only. Historical simulation, retained responses, per-variable time-series
 exports and observation-based performance metrics remain enabled. `spatial` defaults to `true`;
 `forcing` and `location` default to `false`. `location` controls both reporting-location and associated
 upstream-subbasin figures. Turning a family off leaves its previously generated files intact;
@@ -184,17 +185,16 @@ it executed with. Unrelated figure targets
 remain usable. When the simulation enters the DAG, retained payloads and its completion receipt are validated.
 Omitting `historical_run` or setting it to null preserves the existing behavior.
 
-Completed runs live under `simulations/historical/<name>/` in the project. Each contains the unrounded
-native `output.csv`, full-precision discharge keyed by registry ID in `discharge.csv`, the executed TOML,
+Completed runs live under `simulations/historical/<name>/` in the project. Each contains rounded
+per-variable `output_<code>.csv` and `_engine/response_tables.json`, the executed TOML,
 station registry and crosswalk, effective forcing recipe, composed configuration, input fingerprints,
 and completion evidence. Publication is atomic; incomplete staging directories are not readable runs.
 Source changes during execution prevent publication. Retained readers verify every payload hash.
 The declared workflow output `simulations/historical/_engine/<name>.json` binds the archive completion hash.
 Every new label therefore schedules retention even when `run_default` already exists. Receipts live outside
 immutable archives so workflow cleanup cannot delete archival evidence. Missing/damaged archives or receipts
-are not accepted as completed workflow state. Archives created before receipts were introduced remain
-readable for comparison; requesting their labels as simulation outputs requires a new label, not overwriting
-or reconstructing the original run.
+are not accepted as completed workflow state. Only `historical-run/2` archives with the new table format
+are accepted. Create a new historical run rather than rewriting an older archive.
 Use the normal workflow or target the completion receipt for an up-to-date check. Explicitly targeting
 `run_historical_simulation` also requests fresh invocation logs/benchmarks and can schedule execution;
 the existing-name collision guard still applies.

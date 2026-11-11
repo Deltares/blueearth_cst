@@ -25,6 +25,10 @@ def test_station_plot_switch_preserves_performance_table(
         geoms=SimpleNamespace(data={}),
     )
     monkeypatch.setattr(plot_results, "WflowSbmModel", lambda **kwargs: model)
+    discharge = discharge.assign_coords(station_name=("index", ["Outlet"]))
+    monkeypatch.setattr(
+        plot_results, "evaluation_arrays", lambda *args: (discharge, xr.Dataset())
+    )
     observations = tmp_path / "observations.csv"
     observations.touch()
     registry = tmp_path / "locations.csv"
@@ -63,6 +67,7 @@ def test_station_plot_switch_preserves_performance_table(
         project_dir=tmp_path,
         observations_fn=observations,
         location_registry=registry,
+        response_record=tmp_path / "response_tables.json",
         evaluation_dir=evaluation,
         station_plots=enabled,
     )
@@ -70,3 +75,24 @@ def test_station_plot_switch_preserves_performance_table(
     pd.testing.assert_frame_equal(actual, scores)
     assert len(rendered) == int(enabled)
     assert previous.read_bytes() == b"retained"
+
+
+@pytest.mark.workflow_contract
+def test_csv_precision_is_wired_to_authoritative_export(tmp_path):
+    from pathlib import Path
+
+    from blueearth_cst.shared.config_composition import load_composed_config
+    from tests.conftest import parse_workflow, write_config
+
+    config = load_composed_config(
+        Path(__file__).with_name("project_config_fixture.yml")
+    )
+    config["workflows"]["build_model"]["output"] = {"csv": {"decimal_places": 8}}
+    workflow = parse_workflow("build_model.smk", write_config(tmp_path, config))
+    export = workflow.get_rule("export_simulation_tables")
+    evaluation = workflow.get_rule("plot_model_evaluation")
+    assert export.params.decimal_places == 8
+    assert export.output.response_record in evaluation.input
+    assert set(export.output.tables) <= set(evaluation.input)
+    native = workflow.get_rule("run_historical_simulation")
+    assert str(native.output.csv_path) in native.temp_output

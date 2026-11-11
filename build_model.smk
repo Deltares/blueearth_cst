@@ -168,6 +168,8 @@ if clim_source == "eobs":
 wflow_outvars = get_config(config.get("model") or {}, "outvars", DEFAULT_WFLOW_OUTVARS)
 from blueearth_cst.shared.grid_output import normalize_grid_output
 grid_output = normalize_grid_output(my_cfg.get("output"))
+from blueearth_cst.shared.csv_output import normalize_csv_output
+csv_output = normalize_csv_output(my_cfg.get("output"))
 # `defaults/`, not `templates/` — these are read by rules 1.05/1.06/1.07, and the
 # 2026-08-11 split moved them out of the copy-me directory. Rule 1.01 still routes
 # them to a `templates/` bin inside the PROJECT: a different meaning of the word,
@@ -1009,10 +1011,8 @@ for _k in FORCING_KEYS:
             ] + (["blueearth_cst/model/historical_runs.py"] if RETAINED[_k] else []),
         output:
             retained_completion = [str(completion_path(project_dir, RETAINED[_k]))] if RETAINED[_k] else [],
-            # Retain full-precision native responses so evaluation and table exports
-            # can rerun without another historical simulation. Rounded exports are
-            # not a replacement for this input or for numerical baseline checks.
-            csv_path = _hp(_k, "discharge_csv"),
+            # Wflow's native CSV is a temporary conversion input, never a retained response.
+            csv_path = temp(_hp(_k, "discharge_csv")),
             grid_path = [f"{_hp(_k, 'run_dir')}/output_grid.nc"] if grid_output else [],
             # Wflow's own log. DECLARED but no longer temp(): it is now the ONLY
             # copy of Wflow's records.
@@ -1249,14 +1249,10 @@ WFLOW_TABLE_PATHS = lambda key: [f"{_hp(key, 'run_dir')}/output_q.csv"] + [
 
 # 1.14  export_simulation_tables — Excel-ready per-variable tables derived from 1.13
 #
-# DERIVED, not a rewrite. `output.csv` is read back by rule 1.15 through
-# hydromt's own `WflowSbmModel.output_csv`, so its layout — ISO-8601 stamps,
-# `Q_<id>` columns in wflow's internal order, full float precision — is an
-# interface with that reader and stays untouched (AGENTS.md: do not
-# re-engineer how hydromt handles data). The tables here are a product beside
-# it: 5 decimal places, plain decimal (no `9.86e-5` for Excel to render as
-# `9.87E-05`), date-only `YYYY-MM-DD` stamps, and bare station ids sorted
-# numerically.
+# Wflow writes its native format unchanged. This rule verifies per-variable
+# rounded responses and their metadata before the temporary native CSV retires.
+# Evaluation and historical Qcrit read these tables. Decimal precision comes
+# from output.csv.decimal_places (default 5); dates and stable location IDs remain explicit.
 #
 # Date-only rather than the `2000-01-02 00:00:00` this shipped with until
 # 2026-08-10: that form parses as a DATETIME, which Excel then re-renders in
@@ -1287,6 +1283,12 @@ for _k in FORCING_KEYS:
             # as the individual files rather than a directory() so Snakemake tracks
             # each one like any other output.
             tables = WFLOW_TABLE_PATHS(_k),
+            response_record = f"{_hp(_k, 'run_dir')}/_engine/response_tables.json",
+        params:
+            decimal_places=csv_output["decimal_places"],
+            conversion_digest={path: file_sha256(Path(workflow.basedir) / path) for path in (
+                "blueearth_cst/shared/response_tables.py", "blueearth_cst/shared/csv_output.py",
+                "blueearth_cst/experiment/wflow_response_reader.py")},
         log:
             EXPORT_SIMULATION_TABLES.log(_k),
         benchmark:
@@ -1299,7 +1301,8 @@ for _k in FORCING_KEYS:
         name: _rule_name("plot_model_evaluation", _k)
         message: PLOT_MODEL_EVALUATION.banner(part=_k)
         input:
-            csv_path = _hp(_k, "discharge_csv"),
+            response_record = f"{_hp(_k, 'run_dir')}/_engine/response_tables.json",
+            response_tables = WFLOW_TABLE_PATHS(_k),
             # the model-root ordering contract; transitively ordered after 1.09 via 1.13, declared for the
             # same reason as there.
             model_final = ancient(f"{basin_dir}/.model_final"),

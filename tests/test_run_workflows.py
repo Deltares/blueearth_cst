@@ -319,6 +319,17 @@ def test_combined_q90_execution_prepares_only_after_wf1(
                 '[[output.csv.column]]\nheader="Q"\nparameter="river_water__volume_flow_rate"\n',
                 encoding="utf-8",
             )
+            from blueearth_cst.experiment.wflow_response_reader import (
+                NativeRunArtifacts,
+            )
+            from blueearth_cst.shared.response_tables import publish_response_tables
+
+            publish_response_tables(
+                NativeRunArtifacts(
+                    model / "run_default/output.csv", model / "wflow_sbm.toml"
+                ),
+                model / "run_default",
+            )
         return result
 
     monkeypatch.setattr(baseline_qcrit, "resolve_thresholds", observed_prepare)

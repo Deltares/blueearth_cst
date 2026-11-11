@@ -24,7 +24,7 @@ from blueearth_cst.shared.provenance import (
 )
 from blueearth_cst.shared.workflow_config_snapshot import snapshot_bytes
 
-SCHEMA = "historical-run/1"
+SCHEMA = "historical-run/2"
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -245,7 +245,6 @@ def retain_historical_run(
     from blueearth_cst.experiment.wflow_response_reader import (
         NativeRunArtifacts,
         ResponseRequest,
-        open_responses,
     )
 
     target = require_new_run(project_dir, name)
@@ -313,9 +312,19 @@ def retain_historical_run(
             raise ValueError(
                 f"historical native discharge stations are unrecognized: {sorted(unknown)}"
             )
-        responses = open_responses(
-            name, NativeRunArtifacts(output_path, toml_path), ResponseRequest(("q",))
+        from blueearth_cst.shared.csv_output import normalize_csv_output
+        from blueearth_cst.shared.response_tables import (
+            open_table_responses,
+            publish_response_tables,
         )
+
+        places = normalize_csv_output(
+            config.get("workflows", {}).get("build_model", {}).get("output")
+        )["decimal_places"]
+        table_record = publish_response_tables(
+            NativeRunArtifacts(output_path, toml_path), stage, decimal_places=places
+        )
+        responses = open_table_responses(name, table_record, ResponseRequest(("q",)))
         frame = response_frame(responses)
         registry = pd.read_csv(registry_path, dtype={"wflow_id": str})
         if registry["wflow_id"].duplicated().any() or not set(frame.columns) <= set(
@@ -324,12 +333,11 @@ def retain_historical_run(
             raise ValueError(
                 "historical response stations do not match the stable registry"
             )
-        frame.to_csv(stage / "discharge.csv", index_label="time", float_format="%.17g")
         registry[registry.wflow_id.isin(frame.columns)].sort_values("wflow_id").to_csv(
             stage / "stations.csv", index=False
         )
-        shutil.copyfile(output_path, stage / "output.csv")
         evidence.update(
+            decimal_places=places,
             native_crosswalk=crosswalk,
             duplicate_native_columns=duplicates,
             units="m3 s-1",
@@ -340,7 +348,11 @@ def retain_historical_run(
         )
         (stage / "run.json").write_bytes(_json_bytes(evidence))
         _check_inputs(files)
-        payloads = {path.name: file_sha256(path) for path in stage.iterdir()}
+        payloads = {
+            path.relative_to(stage).as_posix(): file_sha256(path)
+            for path in stage.rglob("*")
+            if path.is_file()
+        }
         (stage / "complete.json").write_bytes(
             _json_bytes({"schema_version": SCHEMA, "payloads": payloads})
         )
@@ -358,20 +370,33 @@ def read_historical_run(
     """Verify a complete publication and read it without accessing original inputs."""
     import pandas as pd
 
+    from blueearth_cst.experiment.response_series import response_frame
+
     target = run_directory(project_dir, name)
     marker = target / "complete.json"
     if marker.is_symlink() or marker.resolve().parent != target.resolve():
         raise ValueError("historical completion marker escapes the retained run")
     complete = json.loads(marker.read_text(encoding="utf-8"))
+    if complete.get("schema_version") != SCHEMA:
+        raise ValueError(
+            "Unsupported historical run format; create a new historical run"
+        )
     expected = {
         "run.json",
-        "output.csv",
-        "discharge.csv",
+        "_engine/response_tables.json",
         "stations.csv",
         "location_registry.csv",
         "wflow_sbm.toml",
         "composed_config.yml",
     }
+    from blueearth_cst.experiment.wflow_response_reader import ResponseRequest
+    from blueearth_cst.shared.response_tables import (
+        open_table_responses,
+        read_table_record,
+    )
+
+    tables = read_table_record(target / "_engine/response_tables.json")
+    expected.update(item["path"] for item in tables["variables"].values())
     if (
         complete.get("schema_version") != SCHEMA
         or set(complete.get("payloads", {})) != expected
@@ -381,7 +406,7 @@ def read_historical_run(
         path = target / filename
         if (
             path.is_symlink()
-            or path.resolve().parent != target.resolve()
+            or not path.resolve().is_relative_to(target.resolve())
             or file_sha256(path) != digest
         ):
             raise ValueError(f"damaged historical run payload: {filename}")
@@ -392,24 +417,10 @@ def read_historical_run(
         raise ValueError("historical scientific model digest mismatch")
     native = tomllib.loads((target / "wflow_sbm.toml").read_text(encoding="utf-8"))
     record["forcing_mapping"] = native.get("input", {}).get("forcing", {})
-    if (
-        "forcing" in native.get("input", {})
-        and "forcing" not in record["model"]["input"]
-    ):
-        # Early historical-run/1 writers excluded the entire forcing mapping.
-        # Recover it from the verified snapshot, never from the mutable model.
-        record["archived_model_sha256"] = record["model_sha256"]
-        record["model"]["input"]["forcing"] = record["forcing_mapping"]
-        record["model_sha256"] = collection_sha256(record["model"])
-    with (target / "discharge.csv").open(encoding="utf-8", newline="") as stream:
-        header = next(csv.reader(stream))
-    if len(set(header)) != len(header):
-        raise ValueError("duplicate retained discharge columns")
-    frame = pd.read_csv(
-        target / "discharge.csv",
-        index_col=0,
-        parse_dates=True,
-        float_precision="round_trip",
+    frame = response_frame(
+        open_table_responses(
+            name, target / "_engine/response_tables.json", ResponseRequest(("q",))
+        )
     )
     stations = pd.read_csv(target / "stations.csv", dtype={"wflow_id": str})
     if sorted(frame.columns) != record["stations"] or len(frame) != record["samples"]:

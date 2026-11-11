@@ -95,7 +95,7 @@ def test_the_registrys_name_wins_over_the_synthetic_counter(registry):
 
 def test_an_outlet_and_a_gauge_on_one_cell_are_plotted_once(registry):
     """101 and 1010 are the same model cell with different index values, which
-    ``merge_outlet_and_gauge_series`` cannot see — it dedupes on the raw index."""
+    Native IDs can differ; the canonical response conversion resolves their location identities."""
     messages = []
     stations = resolve_stations(
         _indexed([101, 1010, 1020], ["wflow_1", "auto_01", "auto_02"]),

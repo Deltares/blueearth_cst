@@ -19,6 +19,7 @@ import xarray as xr
 from hydromt.readers import open_timeseries_from_table
 from hydromt_wflow import WflowSbmModel
 
+from blueearth_cst.experiment.wflow_response_reader import ResponseRequest
 from blueearth_cst.model.observation_validation import (
     validate_observation_station_ids,
 )
@@ -26,23 +27,70 @@ from blueearth_cst.shared.func_plot_signature import (
     compute_indicators,
     plot_basavg,
 )
-from blueearth_cst.shared.gauges import gauges_layer_name, gauges_variable_name
 from blueearth_cst.shared.plot_evaluation import (
     STATION_PLOT_DIRNAME,
     Station,
     plot_station_evaluation,
 )
+from blueearth_cst.shared.response_tables import open_table_responses, read_table_record
 from blueearth_cst.shared.snake_utils import log_row, plural
 from blueearth_cst.shared.wflow_outputs import (
     SUBCATCHMENT_SUFFIX,
-    code_for,
-    is_basin_average,
 )
 
 
 def _log(message):
     """Emit one standard-format log row (module tag ``plot``) for this rule."""
     log_row(message, module="plot")
+
+
+def evaluation_arrays(record_path, location_registry):
+    """Read rounded location tables and recover basin support from the registry."""
+    from blueearth_cst.experiment.wflow_response_reader import NATIVE_VARIABLES
+
+    record = read_table_record(record_path)
+    responses = open_table_responses(
+        "historical", record_path, ResponseRequest(tuple(record["variables"]))
+    )
+    registry = pd.read_csv(location_registry, dtype={"wflow_id": str})
+    if registry.wflow_id.duplicated().any():
+        raise ValueError("Location registry has duplicate wflow_id values")
+    registry = registry.set_index("wflow_id")
+    q = [item for item in responses if item.variable == "q"]
+    if not q:
+        raise ValueError("Historical evaluation requires retained discharge")
+    unknown = {item.location_id for item in responses} - set(registry.index)
+    if unknown:
+        raise ValueError(f"Response locations absent from registry: {sorted(unknown)}")
+    qsim = xr.DataArray(
+        np.column_stack([item.values for item in q]),
+        dims=("time", "index"),
+        coords={
+            "time": q[0].time,
+            "index": [int(item.location_id) for item in q],
+            "station_name": (
+                "index",
+                [str(registry.loc[item.location_id, "station_name"]) for item in q],
+            ),
+        },
+        name="Q",
+    )
+    basin = xr.Dataset()
+    for variable in record["variables"]:
+        if variable in {"q", "precip"}:
+            continue
+        series = [item for item in responses if item.variable == variable]
+        ids = [int(registry.loc[item.location_id, "subbasin_id"]) for item in series]
+        if len(set(ids)) != len(ids):
+            raise ValueError(f"Duplicate subbasin response support: {variable}")
+        basin[f"{NATIVE_VARIABLES[variable][0].lower()}{SUBCATCHMENT_SUFFIX}"] = (
+            xr.DataArray(
+                np.column_stack([item.values for item in series]),
+                dims=("time", "index"),
+                coords={"time": series[0].time, "index": ids},
+            )
+        )
+    return qsim, basin
 
 
 def resolve_stations(qsim, location_registry, log=_log):
@@ -58,8 +106,7 @@ def resolve_stations(qsim, location_registry, log=_log):
 
     * A gauge sitting on a model outlet is now recognised as ONE point even when
       the two series carry different index values — 101 and 1010 are the same
-      cell here. ``merge_outlet_and_gauge_series`` can only see the collision
-      when the raw indices coincide, so a project with output_locations at its
+      cell here. Raw indices can differ, so a project with output_locations at its
       outlet drew that station's figures twice, under two names.
     * A series whose index resolves to nothing keeps its own index as the id and
       says so. Guessing would be worse: the figures would be named after
@@ -118,74 +165,6 @@ def resolve_stations(qsim, location_registry, log=_log):
     return stations
 
 
-def merge_outlet_and_gauge_series(qsim, qsim_gauges, log=_log):
-    """Combine the outlet and user-gauge discharge series into one station set.
-
-    Outlet ids and user gauge ids share ONE namespace — both are values burned
-    into wflow's output maps (``blueearth_cst/shared/gauges.py``, MIN_GAUGE_ID)
-    — and the two sets overlap whenever a gauge sits on the basin outlet. That
-    is not an exotic case: delineating the model as a subbasin at the outlet
-    gauge (`region: {'subbasin': [x, y]}`) is the normal way to build one, and
-    it makes the outlet's subcatchment id equal to that gauge's ``wflow_id``.
-
-    The two series then carry the same ``index`` with DIFFERENT ``station_name``
-    values — the synthetic ``wflow_1`` on the outlet side, the user's own name
-    on the gauge side — and ``xr.merge`` refuses to reconcile a coordinate that
-    disagrees ("conflicting values for variable 'station_name'", observed
-    2026-08-02 on a real basin whose outlet gauge is id 101).
-
-    The OUTLET series wins on a collision. Until 2026-08-10 that mattered for
-    a filename — rule 1.15 declared ``hydro_wflow_1.png`` and every figure was
-    written as ``<kind>_{station_name}.png``, so a user name winning on the
-    first outlet traded a MergeError for a MissingOutputException. The figures
-    are keyed by ``wflow_id`` now and nothing is declared, so the choice is no
-    longer load-bearing; it stays because a merge needs a deterministic winner
-    and nothing is lost by it — the colliding entries are the same model cell,
-    so the two series hold the same discharge.
-
-    This only sees a collision when the two INDEX values coincide. An outlet
-    and a gauge on one cell can also carry different indices (101 and 1010 are
-    the same point on the test fixture), and that case is caught downstream by
-    ``resolve_stations``, which dedupes on the resolved ``wflow_id``.
-
-    Parameters
-    ----------
-    qsim, qsim_gauges : xr.DataArray
-        Discharge on dim ``index`` with a ``station_name`` coordinate.
-    log : callable
-        One-line reporter; the collision is announced rather than silent,
-        because the station a user named disappears from the figure filenames.
-    """
-    outlet_ids = set(qsim["index"].values.tolist())
-    keep = [i for i in qsim_gauges["index"].values if i not in outlet_ids]
-    dropped = [i for i in qsim_gauges["index"].values if i in outlet_ids]
-    if dropped:
-        # Plain Python in the message: numpy scalars render as np.int32(101),
-        # which is noise in a user-facing log line.
-        gauge_names = [
-            str(n) for n in qsim_gauges["station_name"].sel(index=dropped).values
-        ]
-        outlet_names = [str(n) for n in qsim["station_name"].sel(index=dropped).values]
-        log(
-            # Led by the FACT rather than by the count, which also dodges the
-            # verb agreement `Gauge(s) ... sit` quietly got wrong whenever the
-            # count was 1 -- the case this row is most often printed for.
-            f"Gauge series {[int(i) for i in dropped]} ({', '.join(gauge_names)}) "
-            f"duplicate model outlets; using outlet series {outlet_names} for plots"
-        )
-    if not keep:
-        return qsim
-    # Both kwargs are xarray's CURRENT defaults, spelled out because both are
-    # scheduled to change and this merge depends on both: the station sets are
-    # disjoint by construction, so it needs join="outer" (the announced
-    # "exact" would raise on unequal indexes), and it needs compat that FILLS
-    # across the alignment NaNs (the announced "override" would take the
-    # outlet side's station_name and blank every gauge label).
-    return xr.merge(
-        [qsim, qsim_gauges.sel(index=keep)], join="outer", compat="no_conflicts"
-    )["Q"]
-
-
 def subcatchment_cell_counts(staticmaps: xr.Dataset) -> dict[int, int]:
     """Count cells in the disjoint native output zones for basin reconstruction."""
     values = np.asarray(staticmaps["subcatchment"].values)
@@ -202,6 +181,7 @@ def analyse_wflow_historical(
     observations_fn: Union[Path, str] = None,
     gauges_locs: Union[Path, str] = None,
     location_registry: Union[Path, str] = None,
+    response_record: Union[Path, str] = None,
     subbasin_plots: bool = False,
     annotation: str = "none",
     toml_name: str = "wflow_sbm.toml",
@@ -217,8 +197,8 @@ def analyse_wflow_historical(
     The model root is supplied by the RULE as ``model_dir``, not rebuilt here
     from ``project_dir``: where the model lives is the Snakefile's fact, and
     spelling it in both places is how the two drift (R9 P2 commit 1).
-    Model results should include the discharge keys Q_outlets and, if gauges are
-    provided, Q_gauges_{basename(gauges_locs)}.
+    Results are read exclusively from verified per-variable tables. The model supplies
+    spatial cell-count weights, not a second native time-series reader.
 
     Per-subcatchment climate figures were removed in the climate-plot consolidation: the
     climate a reader wants is the map and series family under
@@ -315,61 +295,11 @@ def analyse_wflow_historical(
     # Instantiate wflow model
     Folder_run = str(model_dir)
     mod = WflowSbmModel(root=Folder_run, mode="r", config_filename=toml_name)
-    mod.output_csv.read()
-    results = mod.output_csv.data
-    geoms = mod.geoms.data
-
-    # Discharge at the outlet(s) (was Q_gauges in 0.x; now Q_outlets).
-    qsim = results["Q_outlets"].rename("Q")
-    # In hydromt_wflow 1.x outlet ids come from the subcatchment map
-    # (e.g. 130000086) instead of the 1..N counter that 0.x used. Keep the
-    # 1..N station_name so rule_all and downstream plots stay stable.
-    qsim = qsim.assign_coords(
-        station_name=(
-            "index",
-            [f"wflow_{i + 1}" for i in range(qsim["index"].size)],
+    if response_record is None or location_registry is None:
+        raise ValueError(
+            "Historical evaluation requires response tables and a location registry"
         )
-    )
-    # Discharge at the gauges_locs if present. Both names are resolved from the
-    # MODEL rather than from the filename: hydromt_wflow renames
-    # output_locations -> output-locations, so deriving them here found neither
-    # the variable nor the layer, and the membership tests turned that into
-    # silence -- no gauge hydrographs, no signatures, and an EMPTY
-    # performance_indicators.csv on a config that supplied observations
-    # (2026-08-01). See blueearth_cst/shared/gauges.py.
-    if gauges_locs is not None and os.path.exists(gauges_locs):
-        gauges_var = gauges_variable_name(results, gauges_locs, "Q")
-        gauges_layer = gauges_layer_name(geoms, gauges_locs)
-        if gauges_var is not None and gauges_layer is not None:
-            qsim_gauges = results[gauges_var].rename("Q")
-            gdf_gauges = (
-                geoms[gauges_layer]
-                .rename(columns={"wflow_id": "index"})
-                .set_index("index")
-            )
-            qsim_gauges = qsim_gauges.assign_coords(
-                station_name=(
-                    "index",
-                    list(gdf_gauges["station_name"][qsim_gauges.index.values].values),
-                )
-            )
-            qsim = merge_outlet_and_gauge_series(qsim, qsim_gauges, log=_log)
-
-    # Identified by hydromt's `<header>_<mapname>` suffix, not by the header:
-    # the header is now a short code (`gwr`), so a `"_basavg" in dvar` test
-    # would silently match nothing and skip every basin-average figure.
-    basavg_vars = [dvar for dvar in results if is_basin_average(dvar)]
-    if basavg_vars:
-        # NOT .squeeze(drop=True). Squeezing collapsed a single subcatchment's
-        # index away, which is the only reason plot_basavg's 1-D assumption ever
-        # held; keeping the dim makes the shape uniform at 1 subcatchment and at
-        # four, allowing fixed-weight basin reconstruction.
-        ds_basin = xr.merge([results[dvar] for dvar in basavg_vars])
-        precip = f"{code_for('precipitation')}{SUBCATCHMENT_SUFFIX}"
-        if precip in ds_basin:
-            ds_basin = ds_basin.drop_vars(precip)
-    else:
-        ds_basin = xr.Dataset()
+    qsim, ds_basin = evaluation_arrays(response_record, location_registry)
 
     # Section 4 (per-subcatchment climate plots) removed 2026-08-09 — see
     # dev/reference/wf1-model-construction.md (outputs and consumers). The climate
@@ -511,6 +441,7 @@ if __name__ == "__main__":
                 observations_fn=getattr(sm.input, "observations_timeseries", None),
                 gauges_locs=getattr(sm.input, "output_locations", None),
                 location_registry=sm.input.location_registry,
+                response_record=sm.input.response_record,
                 subbasin_plots=sm.params.subbasin_plots,
                 station_plots=getattr(sm.params, "station_plots", False),
                 annotation=getattr(sm.params, "annotation", "none"),

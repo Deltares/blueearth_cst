@@ -31,6 +31,13 @@ def baseline(tmp_path):
         '[[output.csv.column]]\nheader="Q"\nparameter="river_water__volume_flow_rate"\n',
         encoding="utf-8",
     )
+    from blueearth_cst.experiment.wflow_response_reader import NativeRunArtifacts
+    from blueearth_cst.shared.response_tables import publish_response_tables
+
+    publish_response_tables(
+        NativeRunArtifacts(model / "run_default/output.csv", model / "wflow_sbm.toml"),
+        model / "run_default",
+    )
     parameters = {
         "season": "summer",
         "thresholds": {
@@ -100,9 +107,9 @@ def test_inline_q90_binds_project_model_and_inherits_summer(baseline):
     assert threshold["years"] == [1999]
     assert threshold["year_selection"] == "all"
     assert threshold["source_id"].startswith(
-        "wf1-historical-model-discharge;csv-sha256="
+        "wf1-historical-model-discharge;response-record-sha256="
     )
-    (model / "run_default/output.csv").unlink()
+    (model / "run_default/_engine/response_tables.json").unlink()
     pending = selected_sets(
         project, settings, selection, prepare_baseline=False, **kwargs
     )
@@ -119,7 +126,7 @@ def test_owned_set_resolution_prepares_fixed_thresholds_and_changes_identity(bas
     item = next(i for i in resolved.indicators if i.indicator == "summer_low_flow_days")
     threshold = item.declaration.calculation_parameters["thresholds"]["9"]
     assert threshold["value"] == pytest.approx(36.4)
-    assert "csv-sha256=" in threshold["source_id"]
+    assert "response-record-sha256=" in threshold["source_id"]
     assert "toml-sha256=" in threshold["source_id"]
     parameters["thresholds"]["baseline_quantile"]["quantile"] = 0.8
     assert (
@@ -133,6 +140,13 @@ def test_owned_set_resolution_prepares_fixed_thresholds_and_changes_identity(bas
     parameters["thresholds"]["baseline_quantile"]["reference_period"] = "annual"
     csv_path = path.parent / "model/run_default/output.csv"
     csv_path.write_text(csv_path.read_text().replace(",0", ",0.5", 1), encoding="utf-8")
+    from blueearth_cst.experiment.wflow_response_reader import NativeRunArtifacts
+    from blueearth_cst.shared.response_tables import publish_response_tables
+
+    publish_response_tables(
+        NativeRunArtifacts(csv_path, path.parent / "model/wflow_sbm.toml"),
+        csv_path.parent,
+    )
     assert (
         calculation_records(resolve_set(source(path, parameters)).indicators) != records
     )
@@ -193,7 +207,9 @@ def test_static_resolution_validates_without_historical_io_or_identity(
         resolve_set(source(path, parameters), prepare_baseline=False)
 
 
-@pytest.mark.parametrize("missing", ["run_default/output.csv", "wflow_sbm.toml"])
+@pytest.mark.parametrize(
+    "missing", ["run_default/_engine/response_tables.json", "wflow_sbm.toml"]
+)
 @pytest.mark.parametrize("extra", [[], ["--dry-run"]])
 @pytest.mark.parametrize("inline", [False, True])
 def test_direct_wf4_reports_missing_historical_prerequisite(
