@@ -122,9 +122,11 @@ indicator_sets:
 
 # Optional native grids for every selected run; may require substantial disk space.
 # Independent of historical model output. Omitted/null disables grids.
-# Retained scalar time series; indicators use these rounded values. Integer 0–15.
+# Retained model output settings. Input: mapping.
 output:
+  # Retained scalar time series; indicators use these values. Input: mapping.
   csv:
+    # Decimal places kept in retained CSV values. Input: integer 0–15.
     decimal_places: 5
 #  netcdf_grid:
 #    compressionlevel: 1

@@ -21,7 +21,8 @@ observations:
   # Observed daily series for evaluation. Input: CSV path or null.
   river discharge: null
 
-# Figure selection is independent of model calculation and numerical evaluation.
+# Selection never changes model calculation or numerical evaluation.
+# Figures this workflow renders. Input: mapping.
 plotting:
   # Render basin and spatial-input maps. Options: true | false.
   spatial: true
@@ -80,9 +81,11 @@ simulation_window:
 
 # Optional native grids at each simulation timestep; retained in run_default/output_grid.nc.
 # Output settings are independent of the simulation workflow. Omitted/null disables grids.
-# Retained scalar time series; evaluation uses these rounded values. Integer 0–15.
+# Retained model output settings. Input: mapping.
 output:
+  # Retained scalar time series; evaluation uses these values. Input: mapping.
   csv:
+    # Decimal places kept in retained CSV values. Input: integer 0–15.
     decimal_places: 5
 #  netcdf_grid:
 #    compressionlevel: 1
