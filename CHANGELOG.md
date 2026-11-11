@@ -9,18 +9,15 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
-- Consolidate WF0 figure metadata under dataset-level `_engine/plots/`, including index inventories;
-  keep older retained metadata readable in place.
-
+- Include a variable in comparison figures when only one source provides it; suppress its duplicate
+  individual-source figure when source figures are disabled.
+- Group workflow figure switches under `plotting`, with one location switch for reporting points
+  and upstream subbasins. Preserve deprecated aliases with conflict checks and migration warnings.
 - Export one climate-index CSV per source for basin, subbasins and locations; retain only a small
   calculation record and basin wet-spell plotting table instead of hashed gridded evidence bundles.
   Replace spatial index maps with tabular results while preserving basin series figures.
-
-- Group workflow figure switches under `plotting`, with one location switch for reporting points
-  and upstream subbasins. Preserve deprecated aliases with conflict checks and migration warnings.
-
-- Include a variable in comparison figures when only one source provides it; suppress its duplicate
-  individual-source figure when source figures are disabled.
+- Consolidate WF0 figure metadata under dataset-level `_engine/plots/` and keep seven main comparison
+  result CSVs visible; retain supporting tables under `_engine/basin-average/` with legacy read support.
 
 - Write annual anomaly multi-panel figures directly under `plots/`; use `_page_01` suffixes only
   when the panel limit requires multiple figures, and retire managed PNGs from the older nested layout.

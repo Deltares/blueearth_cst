@@ -69,6 +69,12 @@ Machine-readable figure inventories live under the dataset's `_engine/plots/`, w
 subfolder for index metadata; readable title/caption Markdown stays beside the figures. Older retained
 metadata remains readable in place.
 
+Comparison `tables/basin-average/` exposes seven CSVs: `annual_indices`, `monthly_values`,
+`precip_climatology`, `temp_climatology`, `drought_events`, `trends` and `agreement`. Supporting coverage,
+fit checks, timing, SPI, spell, autocorrelation, homogeneity and sensitivity tables, plus `agreement.md`,
+live under `_engine/basin-average/`. Calculations and rerendering retain all these data. Existing files
+are preserved when switching layouts; new runs use the consolidated paths.
+
 ### Map annual departures {#annual-spatial-anomalies}
 
 Set `diagnostics.annual_spatial_anomalies: true` in the historical analysis YAML to show where each

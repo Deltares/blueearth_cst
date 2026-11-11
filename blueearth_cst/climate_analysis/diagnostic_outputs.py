@@ -75,6 +75,15 @@ TABLES = (
     "pt_anomalies",
     "homogeneity",
 )
+COMPARISON_RESULT_TABLES = {
+    "annual_indices",
+    "monthly_values",
+    "precip_climatology",
+    "temp_climatology",
+    "drought_events",
+    "trends",
+    "agreement",
+}
 FORMS = {
     "seasonal": ("precip", "monthly_clim_band"),
     "temperature": ("temp", "monthly_clim_band"),
@@ -173,12 +182,13 @@ def inventory(root, sources, settings, comparison=False, comparison_sources=()):
                 figures[key] = filename
                 render[f"figure_{key}"] = filename
     if not comparison and settings.get("climate_indices", {}).get("enabled", False):
-        # Availability is known after calculation; one owned directory contains
-        # the available maps/sheets and their completion/availability inventories.
+        # Available basin sheets and internal inventories have separate owned directories.
         render["index_products"] = str(root / "plots" / "indices")
         render["index_metadata"] = str(root / "_engine" / "plots" / "indices")
         paths["climate_indices_table"] = str(root / "tables" / "climate_indices.csv")
-        paths["climate_index_plot_data"] = str(root / "_engine" / "wet_spell_exceedance.csv")
+        paths["climate_index_plot_data"] = str(
+            root / "_engine" / "wet_spell_exceedance.csv"
+        )
     return paths
 
 
@@ -228,6 +238,12 @@ def diagnostic_comparison_outputs(comparison_dir, sources, settings):
         paths["render"][key] = str(
             root / "_engine/plots/basin-average" / Path(paths["render"][key]).name
         )
+    for key, path in paths["compute"].items():
+        if key in TABLES or key == "agreement_md":
+            if key not in COMPARISON_RESULT_TABLES:
+                paths["compute"][key] = str(
+                    root / "_engine/basin-average" / Path(path).name
+                )
     # These summaries describe extracted stores alongside their diagnostics.
     paths["source_summary"] = {
         f"dataset_comparison_{suffix}": str(
