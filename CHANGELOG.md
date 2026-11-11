@@ -9,6 +9,10 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Export one climate-index CSV per source for basin, subbasins and locations; retain only a small
+  calculation record and basin wet-spell plotting table instead of hashed gridded evidence bundles.
+  Replace spatial index maps with tabular results while preserving basin series figures.
+
 - Group workflow figure switches under `plotting`, with one location switch for reporting points
   and upstream subbasins. Preserve deprecated aliases with conflict checks and migration warnings.
 

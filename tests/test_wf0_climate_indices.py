@@ -1,4 +1,4 @@
-"""Source attribution, immutable publication, and retained climate products."""
+"""Source qualification and compatible retained climate-index readers."""
 
 import json
 
@@ -7,8 +7,12 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from blueearth_cst.climate_analysis.climate_indices import load_publication, publish
+from blueearth_cst.climate_analysis.climate_indices import (
+    load_publication,
+    qualified_source_data,
+)
 from blueearth_cst.climate_analysis.diagnostic_settings import parse_settings
+from tests.test_climate_index_table import exported as exported
 
 
 def inputs(tmp_path):
@@ -47,48 +51,13 @@ def inputs(tmp_path):
 
 
 @pytest.mark.parametrize("source", ["era5", "chirps"])
-def test_publication_preserves_source_identity_reuse_and_integrity(tmp_path, source):
+def test_qualification_preserves_source_identity(tmp_path, source):
     climate, cells, settings = inputs(tmp_path)
-    root = tmp_path / source
-    pointer = publish(climate, cells, source, root, settings, 1)
-    folder, manifest = load_publication(pointer)
-    hashes = manifest["products"].copy()
-    with xr.open_dataset(folder / "annual_grid.nc") as ds:
-        assert "r95p_amount" in ds
-        assert ("tx90p" in ds) == (source == "era5")
-        assert ("mean_temp_above_threshold_days" in ds) == (source == "era5")
-    if source == "era5":
-        with (
-            xr.open_dataset(climate) as raw,
-            xr.open_dataset(folder / "annual_grid.nc") as result,
-        ):
-            series = raw.temp.sel(latitude=1, longitude=3, time=slice("2000", "2000"))
-            assert result.mean_temp_below_zero_days.sel(
-                period="2000", latitude=1, longitude=3
-            ).item() == int((series < 0).sum())
-            assert result.mean_temp_above_threshold_days.sel(
-                period="2000", latitude=1, longitude=3
-            ).item() == int((series > 25).sum())
-        settings["climate_indices"]["mean_temperature_threshold_degc"] = 30.0
-        publish(climate, cells, source, root, settings, 1)
-        warmer, _ = load_publication(pointer)
-        assert warmer != folder
-        with xr.open_dataset(warmer / "annual_basin.nc") as result:
-            assert result.mean_temp_above_threshold_days.attrs["threshold_degc"] == 30
-        settings["climate_indices"]["mean_temperature_threshold_degc"] = 25.0
-    if source == "chirps":
-        assert "temp_max" in manifest["unavailable_variables"]
-        assert "temp" in manifest["unavailable_variables"]
-    publish(climate, cells, source, root, settings, 1)
-    assert load_publication(pointer)[1]["products"] == hashes
-    settings["wet_day_threshold_mm"] = 2.0
-    publish(climate, cells, source, root, settings, 1)
-    second, _ = load_publication(pointer)
-    assert second != folder
-    assert (folder / "calculation.json").is_file()
-    (second / "events_basin.csv").write_text("damaged", encoding="utf-8")
-    with pytest.raises(ValueError, match="integrity"):
-        load_publication(pointer)
+    data, unavailable = qualified_source_data(climate, source)
+    assert "precip" in data
+    assert ("temp" in data) == (source == "era5")
+    assert ("temp_max" in unavailable) == (source == "chirps")
+    assert data.precip.attrs["source"] == source
 
 
 def test_disabled_default_and_closed_settings():
@@ -221,26 +190,47 @@ def test_chirps_native_daily_units_are_verified(tmp_path):
         data = source.load()
     data.precip.attrs["units"] = "mm d**-1"
     data.to_netcdf(climate)
-    pointer = publish(climate, cells, "chirps", tmp_path / "chirps", settings, 1)
-    folder, _ = load_publication(pointer)
-    with xr.open_dataset(folder / "annual_grid.nc") as result:
-        assert "r95p_amount" in result
+    data, _ = qualified_source_data(climate, "chirps")
+    assert data.precip.attrs["units"] == "mm/day"
 
 
-def test_native_grid_indices_keep_cells_outside_basin_selection(tmp_path):
+def test_source_qualification_preserves_native_grid(tmp_path):
     climate, cells, settings = inputs(tmp_path)
     with xr.open_dataset(climate) as source:
         data = source.load()
     data.precip[:] = 2.0
     data.precip.loc[dict(latitude=1.0, longitude=4.0)] = 50.0
     data.to_netcdf(climate)
-    pointer = publish(climate, cells, "chirps", tmp_path / "chirps", settings, 1)
-    folder, _ = load_publication(pointer)
-    with xr.open_dataset(folder / "annual_grid.nc") as grid:
-        assert grid.r20mm.sel(period="2001", latitude=1, longitude=4).item() == 365
-        assert grid.r20mm.sel(period="2001", latitude=1, longitude=3).item() == 0
-    with xr.open_dataset(folder / "annual_basin.nc") as basin:
-        assert basin.r20mm.sel(period="2001").item() == 0
-        assert basin.prcptot.sel(period="2001").item() == 730
-    with xr.open_dataset(folder / "basin_contributing_cells.nc") as coverage:
-        assert (coverage.precip == 2).all()
+    qualified, _ = qualified_source_data(climate, "chirps")
+    xr.testing.assert_equal(qualified.precip.drop_attrs(), data.precip.drop_attrs())
+
+
+def test_stable_results_render_series_without_spatial_maps(exported, tmp_path):
+    from blueearth_cst.climate_analysis.climate_index_figures import render_indices
+    from blueearth_cst.climate_analysis.climate_indices import load_index_results
+    from blueearth_cst.climate_analysis.figure_naming import figure_filename
+
+    _, options, expected, _ = exported
+    table, spells, record = load_index_results(options["record_path"])
+    assert len(table) == len(expected)
+    assert record["source"] == options["source"]
+    output = tmp_path / "plots/indices"
+    output.mkdir(parents=True)
+    old_name = figure_filename(
+        options["source"], "r20mm", "annual_clim_map", "basin_ext"
+    )
+    old_map = output / old_name
+    old_map.write_bytes(b"old managed index map")
+    unrelated = output / "notes.txt"
+    unrelated.write_text("keep me", encoding="utf-8")
+    (output / "figure_availability.json").write_text(
+        json.dumps({"figures": [old_name]}), encoding="utf-8"
+    )
+    render_indices(options["record_path"], {"index_products": str(output)})
+    inventory = json.loads((output / "figure_availability.json").read_text())
+    assert inventory["figures"]
+    assert not any("_map_" in name for name in inventory["figures"])
+    assert not old_map.exists()
+    assert unrelated.read_text() == "keep me"
+    assert any("annual" in name for name in inventory["figures"])
+    assert any("seasonal" in name for name in inventory["figures"])

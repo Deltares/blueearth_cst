@@ -390,30 +390,33 @@ impacts or hydrological drought measurements.
 
 ### Retained products and reruns
 
-Each source writes an immutable `indices/<evaluation-id>/` bundle containing `annual_grid.nc`,
-`annual_basin.nc`, optional `seasonal_*.nc`, `reference_*.nc`, `events_*.csv`,
-`wet_spell_exceedance_*.csv`, `basin_contributing_cells.nc` and `calculation.json`. The completion record
-identifies source/input hashes, settings, implementation and numerical-library versions, unavailable
-variables, and payload checksums. `_engine/climate_indices.json` points to the completed bundle and is
-written last. Readers verify its manifest and payloads before rendering. Changed scientific inputs or
-settings create a new bundle; unchanged evaluations reuse verified products. Existing schema-2 diagnostic
-tables and formulas retain their previous meaning, including their legacy precipitation totals.
+Each source writes one `tables/climate_indices.csv` containing all registered indices for basin,
+upstream subbasins and configured locations, for annual and configured seasonal periods. Rows retain
+support identifiers, units, availability and missing-value reasons, including unavailable source variables
+and out-of-domain locations. Original daily extraction and source-level `basin_cells.csv` remain the
+calculation inputs. Existing diagnostic tables keep their previous formulas and precipitation totals.
+
+Only `_engine/climate_indices.json` (settings, input/code fingerprints and product hashes) and
+`_engine/wet_spell_exceedance.csv` (basin plotting data) support this CSV. New calculations retain no
+gridded index arrays, threshold arrays, event catalogues or daily contributing-cell counts, and create
+no hashed directories. Changed inputs/settings recalculate from the daily source in memory. Products
+are staged before replacement; the record is published last. Readers verify code and product hashes.
+Legacy bundles remain readable and are preserved; this change does not delete existing case evidence.
 
 Figures under `plots/indices/` split annual and configured-season basin panels into dry/wet spells,
 heavy rainfall, rainfall amount and frequency, temperature extremes, and heatwaves. Only available
-indices, scopes and native-grid maps are emitted, alongside complete wet-spell exceedance when available.
+indices and scopes are emitted, alongside complete wet-spell exceedance when available. Spatial index
+maps are no longer generated.
 Compact sheets share unit labels within compatible rows and year titles by column. Single-source plots
 omit empty boundary periods while preserving internal gaps. `figure_availability.json` lists emitted
 PNGs and omitted indices; the adjacent captions JSON records interpretation and evaluation identity.
-The workflow owns this directory as one availability-dependent rendering product, replacing the former
-combined annual/seasonal sheets and individually declared index maps. This bundle is source/basin based;
-existing optional subbasin diagnostics continue separately. Comparison tables do not acquire new
+The workflow owns this directory as one availability-dependent rendering product. Previously inventoried
+index maps are retired after successful rendering; unrelated files are preserved. Comparison tables do not acquire new
 climate-index columns.
 The retained-source mode of `scripts/render_figures.py` also renders enabled index bundles into its
 separate output directory, preserving the original publication and its reference.
 
-Failed calculations leave visibly incomplete staging directories without publishing their pointer.
-Integrity failures stop reuse rather than overwriting evidence. Preserve the affected bundle for diagnosis
-and move a damaged evaluation out of `indices/` before explicitly rerunning its compute job. Snakemake
-tracks the completion pointer; it does not individually schedule missing internal payloads. Large grids
-and long reference periods need substantial compute and memory; no locations are silently sampled or capped.
+Failures before publication preserve previous outputs. Integrity failures stop rendering and require
+recalculation. Snakemake declares the CSV, record and small plotting table separately, so missing products
+are scheduled again. Long reference periods need substantial compute and memory; no locations are
+silently sampled or capped.

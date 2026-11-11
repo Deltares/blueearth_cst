@@ -29,8 +29,14 @@ def test_enabled_climate_indices_wire_compute_pointer_and_render_outputs(
     workflow = _parse_workflow("analyze_climate.smk", write_config(tmp_path, cfg))
     compute = workflow.get_rule("compute_climate_diagnostics_era5")
     render = workflow.get_rule("plot_climate_diagnostics_era5")
-    assert compute.output.climate_indices in render.input
-    assert len(compute.params.climate_indices_code_digest) == 64
+    exporter = workflow.get_rule("export_climate_index_table_era5")
+    assert "climate_indices" not in compute.output.keys()
+    assert exporter.output.record in render.input
+    assert len(exporter.params.climate_indices_code_digest) == 64
+    assert exporter.output.table in workflow.get_rule("all").input
+    assert exporter.output.spells in workflow.get_rule("all").input
+    assert "subbasins" in exporter.input.keys()
+    assert "locations" in exporter.input.keys()
     assert render.output.index_products in workflow.get_rule("all").input
     if anomalies:
         annual = workflow.get_rule("prepare_annual_spatial_anomalies_era5")

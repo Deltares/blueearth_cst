@@ -197,7 +197,8 @@ def config_paths(tmp_path_factory) -> dict[str, Path]:
         tmp_path_factory.mktemp("log_rules"), cfg, stem="project_config_two_sources"
     )
     cfg["workflows"]["analyze_climate"]["diagnostics"] = {
-        "annual_spatial_anomalies": True
+        "annual_spatial_anomalies": True,
+        "climate_indices": {"enabled": True},
     }
     anomaly_path = write_config(tmp_path_factory.mktemp("anomaly_log_rules"), cfg)
     return {"default": CONFIG_FN, "two_source": path, "annual_anomalies": anomaly_path}

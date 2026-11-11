@@ -176,6 +176,8 @@ def inventory(root, sources, settings, comparison=False, comparison_sources=()):
         # Availability is known after calculation; one owned directory contains
         # the available maps/sheets and their completion/availability inventories.
         render["index_products"] = str(root / "plots" / "indices")
+        paths["climate_indices_table"] = str(root / "tables" / "climate_indices.csv")
+        paths["climate_index_plot_data"] = str(root / "_engine" / "wet_spell_exceedance.csv")
     return paths
 
 

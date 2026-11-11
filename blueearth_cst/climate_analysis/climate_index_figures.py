@@ -10,7 +10,10 @@ import pandas as pd
 import xarray as xr
 from matplotlib.ticker import NullLocator
 
-from blueearth_cst.climate_analysis.climate_indices import load_publication
+from blueearth_cst.climate_analysis.climate_indices import (
+    load_index_results,
+    load_publication,
+)
 from blueearth_cst.climate_analysis.diagnostic_figures import source_styles
 from blueearth_cst.climate_analysis.figure_naming import figure_filename
 from blueearth_cst.indicators.climate.definitions import (
@@ -26,21 +29,7 @@ from blueearth_cst.plotting.fundamentals import (
     time_series_style,
     year_ticks,
 )
-from blueearth_cst.plotting.prepared_maps import (
-    MapFrame,
-    MapScale,
-    RasterMap,
-    draw_raster_map,
-)
 from blueearth_cst.plotting.preset import use_preset
-from blueearth_cst.shared.map_frames import basin_frame
-from blueearth_cst.shared.map_reference import (
-    drawing_frame,
-    field_edges,
-    load_reference,
-    reference_arguments,
-)
-from blueearth_cst.shared.plot_colors import CLIMATE_INDEX_COLORMAPS
 from blueearth_cst.shared.plot_preset import CST_PRESET
 
 
@@ -139,6 +128,50 @@ def _series(data, metadata, *, seasonal=False, color=None, source="", columns=3)
     return fig
 
 
+def _retire_index_maps(output_dir: Path, source: str, metadata_dir: Path) -> None:
+    """Remove only previously inventoried index maps, without following links."""
+    if any(
+        path.is_symlink() or getattr(path, "is_junction", lambda: False)()
+        for path in (output_dir, *output_dir.parents)
+    ):
+        return
+    inventory = metadata_dir / "figure_availability.json"
+    if not inventory.is_file():
+        inventory = output_dir / "figure_availability.json"
+    if not inventory.is_file() or inventory.is_symlink():
+        return
+    managed = json.loads(inventory.read_text(encoding="utf-8")).get("figures", [])
+    for metric in INDEX_METADATA:
+        name = figure_filename(source, metric, "annual_clim_map", "basin_ext")
+        for candidate in (name, name.replace("_basin.png", "_basin_ext.png")):
+            path = output_dir / candidate
+            if (
+                candidate in managed
+                and path.parent == output_dir
+                and path.is_file()
+                and not path.is_symlink()
+            ):
+                path.unlink()
+
+
+def _basin_series(table, period):
+    """Adapt the published long-form basin rows to the existing sheet renderer."""
+    rows = table.loc[(table.spatial_scope == "basin") & (table.period_type == period)]
+    periods = rows[["period", "period_start"]].drop_duplicates("period")
+    data = xr.Dataset(
+        coords={
+            "period": periods.period.to_numpy(),
+            "period_start": ("period", pd.to_datetime(periods.period_start).to_numpy()),
+        }
+    )
+    for metric, values in rows.groupby("index", sort=False):
+        data[metric] = (
+            "period",
+            values.set_index("period").value.reindex(periods.period).to_numpy(),
+        )
+    return data
+
+
 def render_indices(
     pointer,
     paths,
@@ -149,29 +182,44 @@ def render_indices(
     reference_record=None,
     map_reference_params=None,
 ):
-    """Write declared maps, series, spell distributions and recoverable captions."""
-    folder, manifest = load_publication(pointer)
-    with xr.open_dataset(folder / "annual_basin.nc") as opened:
-        basin = opened.load()
-    with xr.open_dataset(folder / "annual_grid.nc") as opened:
-        grid = opened.load()
+    """Write basin series, spell distributions and recoverable captions."""
+    record = json.loads(Path(pointer).read_text(encoding="utf-8"))
+    if record.get("schema_version") == "climate-index-results/1":
+        table, exceedance, identity = load_index_results(pointer)
+        series_by_period = {
+            period: _basin_series(table, period) for period in ("annual", "seasonal")
+        }
+        provenance = {"implementation": identity["implementation"]}
+    else:
+        folder, manifest = load_publication(pointer)
+        identity = manifest["identity"]
+        provenance = {"evaluation_id": manifest["evaluation_id"]}
+        series_by_period = {}
+        for period in ("annual", "seasonal"):
+            path = folder / f"{period}_basin.nc"
+            if path.exists():
+                with xr.open_dataset(path) as opened:
+                    series_by_period[period] = opened.load()
+        exceedance = pd.read_csv(folder / "wet_spell_exceedance_basin.csv")
     captions = {}
     omissions = {}
     output_dir = Path(paths["index_products"])
     output_dir.mkdir(parents=True, exist_ok=True)
-    source = manifest["identity"]["source"]
+    metadata_dir = Path(paths.get("index_metadata", output_dir))
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+    source = identity["source"]
     hue = source_styles([source])[source][0]
-    options = manifest["identity"]["settings"]["climate_indices"]
+    options = identity["settings"]["climate_indices"]
     threshold = options.get("mean_temperature_threshold_degc", 25.0)
     metadata = INDEX_METADATA | {
         "mean_temp_above_threshold_days": (f"Mean T > {threshold:g}°C days", "days")
     }
     reference = options["reference_period"]
-    window = manifest["identity"]["settings"]["analysis_window"]
+    window = identity["settings"]["analysis_window"]
     common = (
         f"{source.upper()}; reference calendar years {reference['start']}–{reference['end']}. "
         f"Reporting start years {window['start']}–{window['end']}; "
-        f"annual start month {manifest['identity']['start_month']}. "
+        f"annual start month {identity['start_month']}. "
         "Mean-temperature counts use T < 0°C and "
         f"T > {options.get('mean_temperature_threshold_degc', 25.0):g}°C, without missing-day scaling. "
         f"Minimum reference sample fraction {options['reference_minimum_fraction']:g}. "
@@ -204,16 +252,12 @@ def render_indices(
             "title": title,
             "caption": journal_caption,
             "methods_detail": explanation + " " + common,
-            "evaluation_id": manifest["evaluation_id"],
+            **provenance,
         }
 
     with use_preset(CST_PRESET):
         for period in ("annual", "seasonal") if options["seasons"] else ("annual",):
-            if period == "seasonal":
-                with xr.open_dataset(folder / "seasonal_basin.nc") as opened:
-                    series = opened.load()
-            else:
-                series = basin
+            series = series_by_period[period]
             omissions[period] = [
                 metric
                 for metric in metadata
@@ -250,7 +294,6 @@ def render_indices(
                     "boundary periods omitted and internal gaps retained. Durations count overlapping "
                     f"days within each period. Configured seasons: {options['seasons']}.",
                 )
-        exceedance = pd.read_csv(folder / "wet_spell_exceedance_basin.csv")
         if len(exceedance):
             fig, axes = new_fig(65, width_mm=100)
             ax = axes[0, 0]
@@ -273,88 +316,14 @@ def render_indices(
             )
         else:
             omissions["wet_spell_exceedance"] = "no complete wet spells"
-        # Use a two-dimensional index field, never a scalar support counter.
-        template = next(grid[metric] for metric in INDEX_METADATA if metric in grid)
-        template = template.mean("period").transpose("latitude", "longitude")
-        x, y = field_edges(template)
-        if reference_record is not None:
-            frame = drawing_frame(reference_record)
-        elif map_reference is not None:
-            frame = drawing_frame(
-                load_reference(
-                    map_reference, **reference_arguments(map_reference_params)
-                )
-            )
-        else:
-            frame = MapFrame(
-                (float(x.min()), float(x.max()), float(y.min()), float(y.max())),
-                np.linspace(x.min(), x.max(), 3),
-                np.linspace(y.min(), y.max(), 3),
-                1 / np.cos(np.deg2rad(float(template.latitude.mean()))),
-            )
-        if overlays and overlays.get("basins"):
-            import geopandas as gpd
-
-            basins = gpd.GeoDataFrame.from_features(overlays["basins"], crs="EPSG:4326")
-            frame = basin_frame(
-                basins,
-                within=(x.min(), x.max(), y.min(), y.max()),
-            )
-        for metric, (label, units) in metadata.items():
-            palette = (
-                "dry_spell"
-                if metric == "cdd"
-                else "cold"
-                if metric == "mean_temp_below_zero_days"
-                else "temp"
-                if metric in INDEX_GROUPS["temperature_extremes"][2]
-                or metric in INDEX_GROUPS["heatwaves"][2]
-                else "precip"
-            )
-            cmap = plt.get_cmap(CLIMATE_INDEX_COLORMAPS[palette])
-            field = (
-                grid[metric].mean("period").transpose("latitude", "longitude")
-                if metric in grid
-                else xr.full_like(template, np.nan)
-            )
-            finite = field.values[np.isfinite(field.values)]
-            if not finite.size:
-                omissions.setdefault("maps", []).append(metric)
-                continue
-            lo, hi = float(finite.min()), float(finite.max())
-            if lo == hi:
-                lo, hi = lo - 0.5, hi + 0.5
-            boundaries = np.linspace(lo, hi, 6)
-            scale = MapScale(
-                units,
-                boundaries,
-                boundaries,
-                cmap(np.linspace(0.1, 1, 5)),
-                cmap(0.0),
-                cmap(1.0),
-                "#dddddd",
-                "available",
-            )
-            fig = draw_raster_map(
-                RasterMap(field.values, x, y),
-                frame,
-                scale,
-                overlays or {},
-                colorbar_title=f"{label}\n({units})",
-            )
-            count = int(np.isfinite(field.values).sum())
-            save(
-                fig,
-                figure_filename(source, metric, "annual_clim_map", "basin_ext"),
-                f"{source.upper()} {label}",
-                f"Mean of available annual cellwise {label} values; {count} finite native basin cells. "
-                "Independent colour scales describe this source and metric; they do not establish cross-source agreement.",
-            )
-    write_figure_titles(output_dir, captions)
-    (output_dir / "figure_availability.json").write_text(
+    _retire_index_maps(output_dir, source, metadata_dir)
+    write_figure_titles(
+        output_dir, captions, manifest_path=metadata_dir / "figure_titles.json"
+    )
+    (metadata_dir / "figure_availability.json").write_text(
         json.dumps(
             {
-                "evaluation_id": manifest["evaluation_id"],
+                **provenance,
                 "omitted": omissions,
                 "figures": list(captions),
             },
@@ -363,6 +332,6 @@ def render_indices(
         + "\n",
         encoding="utf-8",
     )
-    (output_dir / "figure_captions.json").write_text(
+    (metadata_dir / "figure_captions.json").write_text(
         json.dumps(captions, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
