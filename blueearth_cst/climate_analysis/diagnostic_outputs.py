@@ -142,9 +142,9 @@ def inventory(root, sources, settings, comparison=False, comparison_sources=()):
         if settings.get("climate_indices", {}).get("enabled", False):
             compute["climate_indices"] = str(root / "_engine" / "climate_indices.json")
     render = {
-        "titles_json": str(root / "plots" / "_engine" / "figure_titles.json"),
+        "titles_json": str(root / "_engine" / "plots" / "figure_titles.json"),
         "titles_md": str(root / "plots" / "figure_titles.md"),
-        "captions_json": str(root / "plots" / "_engine" / "figure_captions.json"),
+        "captions_json": str(root / "_engine" / "plots" / "figure_captions.json"),
         "captions_md": str(root / "plots" / "figure_captions.md"),
     }
     render.update({f"figure_{k}": v for k, v in figures.items()})
@@ -176,6 +176,7 @@ def inventory(root, sources, settings, comparison=False, comparison_sources=()):
         # Availability is known after calculation; one owned directory contains
         # the available maps/sheets and their completion/availability inventories.
         render["index_products"] = str(root / "plots" / "indices")
+        render["index_metadata"] = str(root / "_engine" / "plots" / "indices")
         paths["climate_indices_table"] = str(root / "tables" / "climate_indices.csv")
         paths["climate_index_plot_data"] = str(root / "_engine" / "wet_spell_exceedance.csv")
     return paths
@@ -225,7 +226,7 @@ def diagnostic_comparison_outputs(comparison_dir, sources, settings):
                 )
     for key in ("titles_json", "captions_json"):
         paths["render"][key] = str(
-            root / "_engine/basin-average" / Path(paths["render"][key]).name
+            root / "_engine/plots/basin-average" / Path(paths["render"][key]).name
         )
     # These summaries describe extracted stores alongside their diagnostics.
     paths["source_summary"] = {
@@ -235,6 +236,13 @@ def diagnostic_comparison_outputs(comparison_dir, sources, settings):
         for suffix in ("csv", "md")
     }
     return paths
+
+
+def retained_captions_path(root):
+    """Prefer consolidated metadata while still reading existing retained runs."""
+    root = Path(root)
+    current = root / "_engine/plots/figure_captions.json"
+    return current if current.is_file() else root / "plots/_engine/figure_captions.json"
 
 
 def location_comparison_outputs(root):

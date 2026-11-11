@@ -9,6 +9,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Consolidate WF0 figure metadata under dataset-level `_engine/plots/`, including index inventories;
+  keep older retained metadata readable in place.
+
 - Export one climate-index CSV per source for basin, subbasins and locations; retain only a small
   calculation record and basin wet-spell plotting table instead of hashed gridded evidence bundles.
   Replace spatial index maps with tabular results while preserving basin series figures.

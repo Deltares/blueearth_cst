@@ -19,6 +19,7 @@ from pathlib import Path
 from blueearth_cst.climate_analysis.diagnostic_outputs import (
     diagnostic_comparison_outputs,
     diagnostic_source_outputs,
+    retained_captions_path,
     retarget_render,
 )
 from blueearth_cst.climate_analysis.diagnostic_render import render
@@ -94,7 +95,7 @@ def rerender_sources(
         paths = retarget_render(
             diagnostic_source_outputs(store, source, settings), out_dir / store.name
         )
-        captions_path = store / "plots/_engine/figure_captions.json"
+        captions_path = retained_captions_path(store)
         if captions_path.is_file():
             selected = json.loads(captions_path.read_text(encoding="utf-8")).get(
                 "selected_forms"

@@ -182,7 +182,7 @@ def test_canonical_inventory_and_one_source_refusal():
         for x in (era5, chirps, comparison)
         for p in x["figures"].values()
     )
-    assert "plots/_engine/figure_captions.json" in era5["render"][
+    assert "_engine/plots/figure_captions.json" in era5["render"][
         "captions_json"
     ].replace("\\", "/")
     with pytest.raises(ValueError, match="two sources"):
@@ -215,7 +215,7 @@ def test_unavailable_records_keep_table_headers_and_round_trip(tmp_path, kind, c
         records = render(paths, settings, 1, ["chirps"], [paths["root"]])
         assert len(records) == 12
         titles = json.loads(
-            (tmp_path / "plots/_engine/figure_titles.json").read_text(encoding="utf-8")
+            (tmp_path / "_engine/plots/figure_titles.json").read_text(encoding="utf-8")
         )["figures"]
         assert set(titles) == set(records)
         assert all("CHIRPS" in entry["title"] for entry in titles.values())
@@ -227,7 +227,7 @@ def test_unavailable_records_keep_table_headers_and_round_trip(tmp_path, kind, c
         assert "no usable data or reference fit" in series["caption"]
         output = capsys.readouterr().out
         assert (
-            "Wrote 12 diagnostic figures for chirps → plots/_engine/figure_captions.json"
+            "Wrote 12 diagnostic figures for chirps → _engine/plots/figure_captions.json"
         ) in output
         assert "no native temperature" in output
 
@@ -288,7 +288,7 @@ def test_opt_in_subbasin_tables_pngs_and_caption_inventory(tmp_path):
         assert (root / "plots" / "figure_captions.md").is_file()
         assert not (root / "figure_captions.md").exists()
         records = json.loads(
-            (root / "plots" / "_engine" / "figure_captions.json").read_text()
+            (root / "_engine" / "plots" / "figure_captions.json").read_text()
         )["figures"]
         assert len(records) == (3 if sources == ["era5"] else 2)
         assert all(

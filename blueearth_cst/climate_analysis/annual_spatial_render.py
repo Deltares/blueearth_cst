@@ -301,7 +301,9 @@ def retire_pages(
 
 def retained_enabled(root: str | Path) -> bool:
     """A retained numerical file alone does not re-enable a retired figure family."""
-    inventory = Path(root) / "plots/_engine/figure_captions.json"
+    from blueearth_cst.climate_analysis.diagnostic_outputs import retained_captions_path
+
+    inventory = retained_captions_path(root)
     if not inventory.is_file():
         return False
     records = json.loads(inventory.read_text(encoding="utf-8"))["figures"]

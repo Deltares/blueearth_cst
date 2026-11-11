@@ -32,8 +32,8 @@ combined horizontal extent; account for any tight-cropped export before mapping 
 - Keep readable captions in `plots/figure_captions.md`. Put machine manifests and internal analysis
   records in the output unit's single root `_engine/` under the
   [output naming rule](../../../dev/reference/dev-naming-conventions.md#generated-outputs-under-project_dir).
-  WF2's manifest paths resolve relative to its ensemble `plots/`; existing WF0 `plots/_engine/`
-  awaits migration. User-facing JSON stays with its data product.
+  WF0 figure metadata lives in `_engine/plots/`, including per-family subfolders.
+  WF2's manifest paths resolve relative to its ensemble `plots/`. User-facing JSON stays with its data product.
 - Generated names use lowercase snake_case, including `full_period/` and
   `period_<start>_<end>/`. WF2 source-specific names stay in
   `projections/projection_figures.FIGURE_FILENAMES`; the [figure naming reference](figure-naming.md)

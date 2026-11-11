@@ -226,8 +226,18 @@ def test_stable_results_render_series_without_spatial_maps(exported, tmp_path):
     (output / "figure_availability.json").write_text(
         json.dumps({"figures": [old_name]}), encoding="utf-8"
     )
-    render_indices(options["record_path"], {"index_products": str(output)})
-    inventory = json.loads((output / "figure_availability.json").read_text())
+    metadata = tmp_path / "_engine/plots/indices"
+    render_indices(
+        options["record_path"],
+        {
+            "index_products": str(output),
+            "index_metadata": str(metadata),
+        },
+    )
+    inventory = json.loads((metadata / "figure_availability.json").read_text())
+    assert (metadata / "figure_titles.json").is_file()
+    assert (metadata / "figure_captions.json").is_file()
+    assert not (output / "_engine").exists()
     assert inventory["figures"]
     assert not any("_map_" in name for name in inventory["figures"])
     assert not old_map.exists()

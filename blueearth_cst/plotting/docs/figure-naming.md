@@ -129,8 +129,9 @@ and panel membership remain in titles, captions and the source's retained anomal
 
 Climate-index sheets export `<dataset>_<scope>_<period>_<location>.png`, with scopes `spells`,
 `heavy_rainfall`, `rainfall_characteristics`, `temperature_extremes`, and `heatwaves`. They replace
-the combined `annual_indices_ts`/`seasonal_indices_ts` exports. Only available sheets and maps are
-emitted in the owned `plots/indices/` directory; its captions and availability records list the set.
+the combined `annual_indices_ts`/`seasonal_indices_ts` exports. Only available sheets are
+emitted in the owned `plots/indices/` directory; `_engine/plots/indices/` holds their JSON inventories.
+Comparison names omit the dataset field and its separator: the comparison directory supplies context.
 
 Logical support keys remain explicit in the API:
 

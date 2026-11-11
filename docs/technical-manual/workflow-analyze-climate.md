@@ -43,23 +43,31 @@ extraction requires overlap between the source record and that period.
 | `diagnostics.max_missing_days_year` | Allowed missing days per water year; default 15. |
 | `diagnostics.wet_day_threshold_mm` | Wet-day threshold; default 1 mm/day. |
 | `diagnostics.spi_distribution` | SPI distribution: `gamma` (default) or `pearson3`. |
-| `plotting.comparison` | Render comparison figures; default `true`. |
-| `plotting.source` | Include individual-source figures also covered by comparisons; default `false`. |
-| `plotting.location` | Reporting-location and upstream-subbasin figures; default `false`. |
+| `plotting.comparison` | Render basin comparison figures; default `true`. |
+| `plotting.source` | Include individual-source copies of comparison figures; default `false`. |
+| `plotting.location` | Render reporting-location and upstream-subbasin figures; default `false`. |
 
 The reference period defaults to the climate window, and the comparison period defaults to the
 reference period. Missing-day tolerances must match the project settings in `climate.map_reference`.
 See [execution and run management](configuration-and-execution.md) for running the workflow.
 
 Basin-average comparison figures and unique source maps remain on by default. With multiple sources,
-individual-source figures duplicating those comparisons are omitted. Comparisons include temperature when at least one source
-provides it; legends identify the contributing source. Unique source-specific precipitation–temperature
-relationships absent from the comparison remain enabled. With one source, or comparison figures disabled, source basin diagnostics remain on.
-Set `plotting.source: true` to restore the complete individual-source figure set.
+individual-source figures duplicating those comparisons are omitted. A comparison includes temperature
+when at least one source provides it; its legend identifies the contributing source. Unique source-specific
+precipitation–temperature relationships remain. With one source, or comparison figures disabled, source
+basin diagnostics remain on. Set `plotting.source: true` to restore individual-source copies.
 
-Location and subbasin figures are opt-in. `plotting.location: false` preserves the per-location comparison
+Location and upstream-subbasin figures share `plotting.location`. Its default `false` preserves comparison
 data and numerical tables. These figure switches accept booleans only and leave existing disabled PNGs
 untouched; title and caption inventories describe the figures selected for the current run.
+
+These switches belong under `plotting:` in this workflow's YAML; shared `plotting.annotation` stays in
+the project YAML. Old `source_figures`, `location_figures` and `subbasin_figures` are accepted with
+deprecation warnings. The latter two both map to `plotting.location`; conflicting declarations are errors.
+Unknown keys and nonboolean switches are rejected. Comparison filenames omit the `comparison_` prefix.
+Machine-readable figure inventories live under the dataset's `_engine/plots/`, with an `indices/`
+subfolder for index metadata; readable title/caption Markdown stays beside the figures. Older retained
+metadata remains readable in place.
 
 ### Map annual departures {#annual-spatial-anomalies}
 
@@ -383,9 +391,9 @@ counts as percentile exceedance. The event catalogue spans the full extracted re
 outside the requested reporting periods.
 
 Basin series are equal-weight means of available basin cells each day; contributing-cell counts are
-retained. Their indices differ from spatial means of cellwise indices. Maps show means of available annual
-cellwise indices on the source's native basin grid. Their source-specific colour scales and percentile
-references do not establish agreement between datasets. These are meteorological pressures, not flood
+retained. Their indices differ from spatial means of cellwise indices. Basin and upstream-subbasin
+indices use daily equal-weight means of available native cells before index calculation. Locations
+sample the native cell containing their original coordinates. These are meteorological pressures, not flood
 impacts or hydrological drought measurements.
 
 ### Retained products and reruns
@@ -416,7 +424,8 @@ climate-index columns.
 The retained-source mode of `scripts/render_figures.py` also renders enabled index bundles into its
 separate output directory, preserving the original publication and its reference.
 
-Failures before publication preserve previous outputs. Integrity failures stop rendering and require
-recalculation. Snakemake declares the CSV, record and small plotting table separately, so missing products
+Calculation and input-drift failures preserve previous outputs. An interruption during replacement can
+leave inconsistent products; checksum verification stops rendering until recalculation. Snakemake
+declares the CSV, record and small plotting table separately, so missing products
 are scheduled again. Long reference periods need substantial compute and memory; no locations are
 silently sampled or capped.

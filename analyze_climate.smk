@@ -523,6 +523,7 @@ for _source in CANDIDATE_SOURCES:
     _render_outputs = dict(_diag["render"])
     if "index_products" in _render_outputs:
         _render_outputs["index_products"] = directory(_render_outputs["index_products"])
+        _render_outputs["index_metadata"] = directory(_render_outputs["index_metadata"])
     _render_inputs = {"tables": list(_diag["compute"].values()),
         "pooled": [p for spec in SOURCE_DIAGNOSTICS.values() for key, p in spec["compute"].items() if key in {"monthly_values", "metadata"}],
         "map_reference": MAP_REFERENCE.outputs["reference"],
