@@ -255,6 +255,19 @@ def figure_filename(
     return f"{dataset_scope}_{subject}_{diagnostic}_{place}.{extension}"
 
 
+def annual_anomaly_filename(
+    source: str, variable: str, page: int, page_count: int
+) -> str:
+    """Name one multi-panel anomaly figure, suffixing only split figures."""
+    if not 1 <= page <= page_count:
+        raise ValueError("figure page must be between one and the total page count")
+    filename = figure_filename(source, variable, "annual_anomaly_map", "basin_ext")
+    if page_count == 1:
+        return filename
+    width = max(2, len(str(page_count)))
+    return f"{filename[:-4]}_page_{page:0{width}d}.png"
+
+
 def map_spatial_scope(extent_policy: Optional[str]) -> str:
     """The ``spatial_scope`` a map figure takes, from how it is FRAMED.
 

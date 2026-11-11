@@ -239,14 +239,14 @@ def run(sm) -> None:
     if hashes != {str(path): file_hash(path) for path in inputs}:
         raise ValueError(f"{source}: inputs changed during annual anomaly preparation")
     record.update(input_hashes=hashes, lineage=lineage, forcing_recipe=recipe.to_dict())
-    from blueearth_cst.climate_analysis.figure_naming import figure_filename
+    from blueearth_cst.climate_analysis.figure_naming import annual_anomaly_filename
 
     record["figure_pages"] = [
         {
             "years": years,
             "figures": {
-                variable: f"plots/annual_anomalies/page_{page:03d}/"
-                + figure_filename(source, variable, "annual_anomaly_map", "basin_ext")
+                variable: "plots/"
+                + annual_anomaly_filename(source, variable, page, len(record["pages"]))
                 for variable in record["variables"]
             },
         }

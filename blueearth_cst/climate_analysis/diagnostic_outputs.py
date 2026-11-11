@@ -3,7 +3,10 @@
 from pathlib import Path
 
 from blueearth_cst.climate_analysis.diagnostic_settings import carries_temp
-from blueearth_cst.climate_analysis.figure_naming import figure_filename
+from blueearth_cst.climate_analysis.figure_naming import (
+    annual_anomaly_filename,
+    figure_filename,
+)
 
 
 def parse_figure_settings(block: dict) -> dict[str, bool]:
@@ -160,17 +163,14 @@ def inventory(root, sources, settings, comparison=False, comparison_sources=()):
         )
 
         paths["annual_spatial"] = anomaly_paths(root)
-        for page, _ in enumerate(page_years(settings), 1):
+        pages = page_years(settings)
+        for page, _ in enumerate(pages, 1):
             for variable in ("precip", "temp") if temp else ("precip",):
                 key = f"annual-map-{variable}-{page:03d}"
                 filename = str(
                     root
                     / "plots"
-                    / "annual_anomalies"
-                    / f"page_{page:03d}"
-                    / figure_filename(
-                        scope, variable, "annual_anomaly_map", "basin_ext"
-                    )
+                    / annual_anomaly_filename(scope, variable, page, len(pages))
                 )
                 figures[key] = filename
                 render[f"figure_{key}"] = filename

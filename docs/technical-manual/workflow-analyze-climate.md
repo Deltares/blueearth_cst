@@ -110,14 +110,17 @@ These are descriptive departures, not trends or significance estimates.
 Each source store retains `tables/annual_spatial_anomalies.nc` with native annual values, anomalies,
 reference means/counts and validity masks. `_engine/annual_spatial_anomalies.json` records settings,
 source/input identity, requested/eligible/excluded years, exact dates, availability and page inventory.
-Figures live under `plots/annual_anomalies/page_001/`, `page_002/`, etc., with filenames
-`<source>_<variable>_annual_anomaly_map_basin_ext.png`. Six chronological years fit each page; all pages
-are produced. Ordinary title/caption inventories and `plotting.annotation` modes apply.
+Figures live directly under `plots/`, with filenames
+`<source>_<variable>_annual_anomaly_map_basin.png`. Six chronological years fit in one multi-panel
+figure. Longer periods produce multiple figures with suffixes `_page_01.png`, `_page_02.png`, etc.;
+every requested year is included. Ordinary title/caption inventories and `plotting.annotation` modes apply.
 
 Run the usual historical analysis entry point. Retained rerendering through
 `scripts/render_figures.py wf0 --project <run> --out <review>` uses saved annual fields without
 daily source data. Disabling the option or shortening the comparison period retires only previously
 managed anomaly figures and their inventory entries, preserving unrelated files and retained data.
+Rerunning also retires previously managed PNGs from the older `plots/annual_anomalies/page_001/`
+layout after writing the replacement figures directly under `plots/`.
 
 ### Compare daily rain gauges {#rain-gauges}
 

@@ -9,6 +9,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Write annual anomaly multi-panel figures directly under `plots/`; use `_page_01` suffixes only
+  when the panel limit requires multiple figures, and retire managed PNGs from the older nested layout.
+
 - Keep historical climate comparison plots and unique source plots by default; make duplicate
   single-source views, model-forcing figures and individual location figures opt-in through YAML.
   Preserve spatial maps, numerical diagnostics, simulation responses and performance tables.

@@ -483,7 +483,7 @@ for _source in CANDIDATE_SOURCES:
                 source=_source, m0=DIAGNOSTIC_M0, data_sources=DATA_SOURCES,
                 settings={k: DIAGNOSTIC_SETTINGS[k] for k in ("reference_period", "comparison_period", "max_missing_days_month", "max_missing_days_year")},
                 forcing=climate_cfg.get("forcing") if _source == clim_source else None,
-                code_digest={path: file_sha256(path) for path in ("blueearth_cst/climate_analysis/annual_spatial_anomalies.py", "blueearth_cst/climate_analysis/diagnostics.py", "blueearth_cst/climate_analysis/diagnostic_tables.py")},
+                code_digest={path: file_sha256(path) for path in ("blueearth_cst/climate_analysis/annual_spatial_anomalies.py", "blueearth_cst/climate_analysis/diagnostics.py", "blueearth_cst/climate_analysis/diagnostic_tables.py", "blueearth_cst/climate_analysis/figure_naming.py")},
                 environment=MAP_REFERENCE.params["environment"],
             log: PREPARE_ANNUAL_ANOMALIES.log(_source),
             benchmark: PREPARE_ANNUAL_ANOMALIES.benchmark(_source),

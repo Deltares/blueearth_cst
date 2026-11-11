@@ -122,9 +122,10 @@ producer. `monthly_box` remains registered for the WF1 producer. `monthly_agreem
 monthly observation/grid scatter panels. WF0 emits PNGs only. Optional captioned copies use the
 same filename under `plots/captioned/`; captions never add a fifth field.
 
-Optional annual spatial anomalies use `annual_anomaly_map` under
-`plots/annual_anomalies/page_001/`, `page_002/`, etc. Each page retains the ordinary four-field filename;
-dates and page membership live in titles, captions and the source's retained anomaly record.
+Optional annual spatial anomalies use `annual_anomaly_map` directly under the source's `plots/`.
+If more than six year panels are requested, append `_page_01`, `_page_02`, etc. before `.png`;
+a single figure has no suffix. `annual_anomaly_filename` owns this pagination exception. Exact dates
+and panel membership remain in titles, captions and the source's retained anomaly record.
 
 Climate-index sheets export `<dataset>_<scope>_<period>_<location>.png`, with scopes `spells`,
 `heavy_rainfall`, `rainfall_characteristics`, `temperature_extremes`, and `heatwaves`. They replace
