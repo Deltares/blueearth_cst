@@ -147,9 +147,7 @@ def run(sm):
     ]
     agreement_path = Path(paths["compute"]["agreement_md"])
     agreement_path.parent.mkdir(parents=True, exist_ok=True)
-    agreement_path.write_text(
-        "\n".join(lines) + "\n", encoding="utf-8"
-    )
+    agreement_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     write_tables(paths, tables, settings, m0, period, lineage)
     render(
         paths,

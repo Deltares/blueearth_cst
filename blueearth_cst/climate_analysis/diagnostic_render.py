@@ -289,10 +289,7 @@ def render(
         Path(paths["compute"]["metadata"]).read_text(encoding="utf-8")
     )
     period = metadata["period"]
-    results = {
-        s: load_result(root, s, table_paths=paths["compute"])
-        for s in sources
-    }
+    results = {s: load_result(root, s, table_paths=paths["compute"]) for s in sources}
     months = artists.month_order(m0)
     calendar = pd.date_range(
         pd.Timestamp(year=period[0], month=m0, day=1),
