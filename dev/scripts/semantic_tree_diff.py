@@ -445,6 +445,7 @@ def build_project_tree_rules(
     # elevation_basin depicts elevation, so it is drawn from the spatial
     # foundation and lands beside it rather than inside the model tree.
     same("data/spatial/plots/")
+    same("data/spatial/_engine/plots/")
     # The climate store is keyed by <clim_source>_<window>; the key is a CACHE
     # KEY, so the rule is keyed by a variable exactly as the R9 map's is.
     same(f"data/climate/historical/{dataset_key}/")
@@ -469,6 +470,7 @@ def build_project_tree_rules(
         "stage_b_settings.json",
         "analysis_record.json",
         "plots/figure_captions.json",
+        "plots/figure_titles.json",
     ):
         same(f"data/climate/projections/{clim_project}/_engine/{leaf}")
     # Launcher-observed production record and retained copies of its generations'
@@ -528,6 +530,7 @@ def build_project_tree_rules(
     for directory in (
         "staticgeoms/",
         "forcing/plots/",
+        "forcing/_engine/plots/",
         "run_default/",
         "evaluation/",
     ):

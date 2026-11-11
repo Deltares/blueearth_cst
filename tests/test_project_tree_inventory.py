@@ -132,7 +132,9 @@ COVERED: dict[str, list[str]] = {
         "data/spatial/geoms/subbasins.geojson",
         # ADR 0007: elevation_basin depicts elevation, so it sits with the data.
         "data/spatial/plots/elevation_basin.png",
+        "data/spatial/_engine/plots/figure_captions.json",
         f"data/climate/historical/{KEY}/extract_historical.nc",
+        "data/climate/historical/comparison/_engine/plots/locations/figure_captions.json",
         # The basin-cell mask that ships with every extraction (2026-08-10).
         f"data/climate/historical/{KEY}/basin_cells.csv",
         f"data/climate/historical/{KEY}/.guard_ok",
@@ -154,6 +156,7 @@ COVERED: dict[str, list[str]] = {
         f"data/climate/projections/{CP}/plots/period_2070_2099/cmip6_precip_temp_annual_change_cloud_basin_avg.png",
         f"data/climate/projections/{CP}/plots/figure_captions.md",
         f"data/climate/projections/{CP}/_engine/plots/figure_captions.json",
+        f"data/climate/projections/{CP}/_engine/plots/figure_titles.json",
         f"data/climate/projections/{CP}/_engine/execution/production.json",
         f"data/climate/projections/{CP}/_engine/execution/{'b' * 32}/wf2.log",
         f"data/climate/projections/{CP}/_engine/execution/{'b' * 32}/wf2-benchmarks.tsv",
@@ -179,6 +182,9 @@ COVERED: dict[str, list[str]] = {
         "models/hydrology/wflow/config/climate_store_catalog.yml",
         "models/hydrology/wflow/forcing/inmaps_historical.nc",
         "models/hydrology/wflow/forcing/plots/forcing_precip_map.png",
+        "models/hydrology/wflow/forcing/_engine/plots/figure_titles.json",
+        "models/hydrology/wflow/evaluation/_engine/plots/stations/figure_captions.json",
+        "models/hydrology/wflow/evaluation/budyko/_engine/plots/figure_titles.json",
         "models/hydrology/wflow/staticgeoms/outlet_index.csv",
         "models/hydrology/wflow/staticgeoms/gauges_locations.geojson",
         "models/hydrology/wflow/run_default/_engine/response_tables.json",
