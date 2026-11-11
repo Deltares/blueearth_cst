@@ -23,7 +23,7 @@ def render(
     """Draw retained ratios with water/energy bounds and explicit exclusions."""
     root = Path(root)
     destination = Path(destination) if destination else root
-    plots, engine = destination / "plots", destination / "_engine"
+    plots, engine = destination / "plots", destination / "_engine" / "plots"
     plots.mkdir(parents=True, exist_ok=True)
     engine.mkdir(parents=True, exist_ok=True)
     summary = pd.read_csv(root / "tables/summary.csv", keep_default_na=False)
@@ -108,7 +108,8 @@ def render(
     )
     (engine / "figure_captions.json").write_text(
         json.dumps(
-            {"schema_version": 1, "path_base": "../plots", "figures": figures}, indent=2
+            {"schema_version": 1, "path_base": "../../plots", "figures": figures},
+            indent=2,
         )
         + "\n",
         encoding="utf-8",

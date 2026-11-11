@@ -26,7 +26,11 @@ import scipy.stats as stats
 import xarray as xr
 from hydromt.stats import skills
 
-from blueearth_cst.plotting.figure_titles import write_figure_titles
+from blueearth_cst.plotting.figure_titles import (
+    figure_engine_dir,
+    figure_inventory_paths,
+    write_figure_titles,
+)
 from blueearth_cst.shared import plot_style
 from blueearth_cst.shared.snake_utils import save_figure
 
@@ -276,7 +280,7 @@ def plot_basavg(
 
     # Refresh this family's metadata, preserving unrelated captions and PNGs.
     for folder in (Path(Folder_out), Path(Folder_out) / SUBBASIN_PLOT_DIRNAME):
-        path = folder / "_engine/figure_captions.json"
+        path = figure_engine_dir(folder) / "figure_captions.json"
         if path.exists():
             inventory = json.loads(path.read_text(encoding="utf-8"))
             inventory["figures"] = {
@@ -417,8 +421,8 @@ def _basavg_caption(
     """Update the owning directory's durable caption inventory."""
     import json
 
-    engine = folder / "_engine"
-    engine.mkdir(exist_ok=True)
+    engine = figure_engine_dir(folder)
+    engine.mkdir(parents=True, exist_ok=True)
     path = engine / "figure_captions.json"
     inventory = (
         json.loads(path.read_text(encoding="utf-8"))
@@ -488,13 +492,10 @@ def _basavg_write_inventory(folder, inventory):
     import json
 
     write_figure_titles(folder, inventory["figures"])
-    path = folder / "_engine/figure_captions.json"
-    inventory["produced_paths"] = list(inventory["figures"]) + [
-        "figure_titles.md",
-        "_engine/figure_titles.json",
-        "figure_captions.md",
-        "_engine/figure_captions.json",
-    ]
+    path = figure_engine_dir(folder) / "figure_captions.json"
+    inventory["produced_paths"] = list(inventory["figures"]) + figure_inventory_paths(
+        folder
+    )
     path.write_text(
         json.dumps(inventory, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )

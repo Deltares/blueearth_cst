@@ -267,7 +267,7 @@ def test_retained_tables_render_without_source_runs_and_damage_refuses(
     monkeypatch.setattr(plotting, "export_figure", inspect_empty_domains)
     render(root, destination)
     assert len(list((destination / "plots").glob("*.png"))) == 12
-    assert (destination / "_engine/figure_titles.json").is_file()
+    assert (destination / "_engine/plots/figure_titles.json").is_file()
     with (root / "tables/daily.csv").open("a") as stream:
         stream.write("changed")
     with pytest.raises(ValueError, match="damaged"):

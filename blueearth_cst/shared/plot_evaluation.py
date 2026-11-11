@@ -46,7 +46,11 @@ import os
 # order to learn the word "stations". The constant stays HERE, beside the code
 # that draws into the bin, for the reason its own comment gives; it is the
 # imports that move.
-from blueearth_cst.plotting.figure_titles import write_figure_titles
+from blueearth_cst.plotting.figure_titles import (
+    figure_engine_dir,
+    figure_inventory_paths,
+    write_figure_titles,
+)
 from blueearth_cst.shared import plot_style
 from blueearth_cst.shared.plot_colors import EVALUATION_COLORS, NEUTRAL_COLORS
 from blueearth_cst.shared.plot_setup import STYLE_SETTINGS
@@ -794,7 +798,7 @@ def _hydrograph_caption(prepared, station, plot_dir, caveat):
     else:
         caption += " No overlapping comparison span."
     caption += " " + " ".join(details)
-    engine = root / "_engine"
+    engine = figure_engine_dir(root)
     engine.mkdir(parents=True, exist_ok=True)
     path = engine / "figure_captions.json"
     inventory = (
@@ -828,12 +832,9 @@ def _hydrograph_caption(prepared, station, plot_dir, caveat):
         },
     }
     write_figure_titles(root, inventory["figures"])
-    inventory["produced_paths"] = list(inventory["figures"]) + [
-        "figure_titles.md",
-        "_engine/figure_titles.json",
-        "figure_captions.md",
-        "_engine/figure_captions.json",
-    ]
+    inventory["produced_paths"] = list(inventory["figures"]) + figure_inventory_paths(
+        root
+    )
     path.write_text(
         json.dumps(inventory, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
@@ -1055,7 +1056,7 @@ def _extremes_caption(simulated, station, plot_dir, kind, selection, caveat):
         + (caveat or "")
     ).strip()
     root = Path(plot_dir)
-    engine = root / "_engine"
+    engine = figure_engine_dir(root)
     engine.mkdir(parents=True, exist_ok=True)
     path = engine / "figure_captions.json"
     inventory = (
@@ -1083,12 +1084,9 @@ def _extremes_caption(simulated, station, plot_dir, kind, selection, caveat):
         },
     }
     write_figure_titles(root, inventory["figures"])
-    inventory["produced_paths"] = list(inventory["figures"]) + [
-        "figure_titles.md",
-        "_engine/figure_titles.json",
-        "figure_captions.md",
-        "_engine/figure_captions.json",
-    ]
+    inventory["produced_paths"] = list(inventory["figures"]) + figure_inventory_paths(
+        root
+    )
     path.write_text(
         json.dumps(inventory, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
@@ -1270,7 +1268,7 @@ def _performance_caption(support, station, plot_dir, caveat):
         "The daily observed–simulated scatter is shown in hydrograph panel d. "
         + (f"{caveat}" if caveat else "")
     )
-    engine = root / "_engine"
+    engine = figure_engine_dir(root)
     engine.mkdir(parents=True, exist_ok=True)
     path = engine / "figure_captions.json"
     inventory = (
@@ -1300,12 +1298,9 @@ def _performance_caption(support, station, plot_dir, caveat):
         },
     }
     write_figure_titles(root, inventory["figures"])
-    inventory["produced_paths"] = list(inventory["figures"]) + [
-        "figure_titles.md",
-        "_engine/figure_titles.json",
-        "figure_captions.md",
-        "_engine/figure_captions.json",
-    ]
+    inventory["produced_paths"] = list(inventory["figures"]) + figure_inventory_paths(
+        root
+    )
     path.write_text(
         json.dumps(inventory, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )

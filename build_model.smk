@@ -13,6 +13,7 @@ from blueearth_cst.shared.provenance import append_journal_line, configuration_i
 from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS, DEFAULT_JULIA_THREADS, DEFAULT_WFLOW_OUTVARS, catalog_root, climate_store_rule, declare_path_tokens, declare_project_root, declare_warning_tally, get_config, historical_window_bounds, julia_prefix, listed, patch_psutil_windows_benchmark, region_rule, resolve_simulation_window, resolve_water_year_start, spatial_units_rule, validate_historical_window, warning_count
 from blueearth_cst.shared.console_style import defer_warning, install_console_style, open_run_header, RuleRegistry, rule_banner, run_header, run_summary, target_banner, warn_if_project_dir_in_repo
 from blueearth_cst.shared.console_style import header_config_path
+from blueearth_cst.plotting.figure_titles import figure_engine_dir
 from blueearth_cst.shared.config_composition import compose_config
 from blueearth_cst.shared.workflow_archive_launch import captured_projection, require_capture
 from blueearth_cst.spatial.config import parse_spatial_config
@@ -1213,9 +1214,9 @@ _basavg_pngs = lambda key: [
 _basavg_captions = lambda key: (
     [
         f"{_hp(key, 'evaluation_dir')}/plots/figure_titles.md",
-        f"{_hp(key, 'evaluation_dir')}/plots/_engine/figure_titles.json",
+        f"{_hp(key, 'evaluation_dir')}/_engine/plots/figure_titles.json",
         f"{_hp(key, 'evaluation_dir')}/plots/figure_captions.md",
-        f"{_hp(key, 'evaluation_dir')}/plots/_engine/figure_captions.json",
+        f"{_hp(key, 'evaluation_dir')}/_engine/plots/figure_captions.json",
     ]
     if _basavg_pngs(key)
     else []
@@ -1452,9 +1453,9 @@ rule plot_basin_map:
         # or the platform read the vector deliverable, and 600 dpi at 180 mm
         # carries the figure everywhere it is used.
         titles_md = f"{spatial_dir}/plots/figure_titles.md",
-        titles_json = f"{spatial_dir}/plots/_engine/figure_titles.json",
+        titles_json = f"{spatial_dir}/_engine/plots/figure_titles.json",
         captions_md = f"{spatial_dir}/plots/figure_captions.md",
-        captions_json = f"{spatial_dir}/plots/_engine/figure_captions.json",
+        captions_json = f"{spatial_dir}/_engine/plots/figure_captions.json",
         basin_png = f"{spatial_dir}/plots/elevation_basin.png",
         # From the registry the plotter iterates, not restated here — the same
         # contract rule 1.12 has with climate_figures.figure_names(). Only the
@@ -1521,9 +1522,9 @@ for _k in FORCING_KEYS:
         output:
             _forcing_pngs(_k),
             titles_md = f"{_hp(_k, 'forcing_plots_dir')}/figure_titles.md",
-            titles_json = f"{_hp(_k, 'forcing_plots_dir')}/_engine/figure_titles.json",
+            titles_json = (figure_engine_dir(_hp(_k, "forcing_plots_dir")) / "figure_titles.json").as_posix(),
             captions_md = f"{_hp(_k, 'forcing_plots_dir')}/figure_captions.md",
-            captions_json = f"{_hp(_k, 'forcing_plots_dir')}/_engine/figure_captions.json",
+            captions_json = (figure_engine_dir(_hp(_k, "forcing_plots_dir")) / "figure_captions.json").as_posix(),
         params:
             annotation = plot_annotation,
             plot_setup_digest = plot_setup_digest,
@@ -1563,8 +1564,8 @@ if _budyko_settings is not None:
                 figure = f"{_hp(_k, 'evaluation_dir')}/budyko/plots/observed_runoff_coefficient_budyko_stations.png",
                 titles = f"{_hp(_k, 'evaluation_dir')}/budyko/plots/figure_titles.md",
                 captions = f"{_hp(_k, 'evaluation_dir')}/budyko/plots/figure_captions.md",
-                titles_json = f"{_hp(_k, 'evaluation_dir')}/budyko/_engine/figure_titles.json",
-                captions_json = f"{_hp(_k, 'evaluation_dir')}/budyko/_engine/figure_captions.json",
+                titles_json = f"{_hp(_k, 'evaluation_dir')}/budyko/_engine/plots/figure_titles.json",
+                captions_json = f"{_hp(_k, 'evaluation_dir')}/budyko/_engine/plots/figure_captions.json",
             params:
                 root = f"{_hp(_k, 'evaluation_dir')}/budyko",
                 settings = _budyko_settings,
