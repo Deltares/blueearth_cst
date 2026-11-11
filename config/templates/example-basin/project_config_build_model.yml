@@ -80,7 +80,10 @@ simulation_window:
 
 # Optional native grids at each simulation timestep; retained in run_default/output_grid.nc.
 # Output settings are independent of the simulation workflow. Omitted/null disables grids.
-#output:
+# Retained scalar time series; evaluation uses these rounded values. Integer 0–15.
+output:
+  csv:
+    decimal_places: 5
 #  netcdf_grid:
 #    compressionlevel: 1
 #    variables:
