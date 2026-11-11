@@ -38,7 +38,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     env:
-      PYTEST_ADDOPTS: -n 2 --dist loadfile
+      # faulthandler_timeout dumps every thread's traceback when one test runs
+      # longer than 15 min (it does not fail the test), so a hung worker names
+      # its test before the job timeout cancels the run.
+      PYTEST_ADDOPTS: -n 2 --dist loadfile -o faulthandler_timeout=900
     strategy:
       # Both legs always report: a win-64-only failure must not mask the
       # linux-64 result, and vice versa. The two platforms fail differently here
