@@ -775,6 +775,9 @@ def _check_t2_names(
     when this runs over a file outside the composed set.
     """
     rejected = _rejected_in_t2(t1)
+    # Local figure selection is separate from shared plotting.annotation.
+    if name in {"analyze_climate", "build_model"}:
+        rejected -= {"plotting"}
     stray = sorted(key for key in body if key in rejected)
     if not stray:
         return
@@ -1044,6 +1047,14 @@ def compose_config(
     probes = [
         probe._replace(body=normalize_generation(probe.body, t1["schema_version"]))
         if probe.name == "generate_scenarios" and probe.status == "ok"
+        else probe
+        for probe in probes
+    ]
+    from blueearth_cst.shared.workflow_plotting import normalize_workflow_plotting
+
+    probes = [
+        probe._replace(body=normalize_workflow_plotting(probe.name, probe.body))
+        if probe.status == "ok"
         else probe
         for probe in probes
     ]

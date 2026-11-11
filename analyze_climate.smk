@@ -327,9 +327,10 @@ if COMPARE_LOCATIONS:
 # The opt-in owns a separate product; it does not change existing numerical diagnostics.
 BASE_DIAGNOSTIC_SETTINGS = {k: v for k, v in DIAGNOSTIC_SETTINGS.items() if k != "annual_spatial_anomalies"}
 FIGURE_SETTINGS = parse_figure_settings(my_cfg)
-DIAGNOSTIC_SETTINGS["subbasin_figures"] = FIGURE_SETTINGS["subbasin_figures"]
-BASE_DIAGNOSTIC_SETTINGS["subbasin_figures"] = FIGURE_SETTINGS["subbasin_figures"]
-SOURCE_RENDER_SETTINGS = DIAGNOSTIC_SETTINGS | {"source_figures": FIGURE_SETTINGS["source_figures"]}
+DIAGNOSTIC_SETTINGS["subbasin_figures"] = FIGURE_SETTINGS["location"]
+BASE_DIAGNOSTIC_SETTINGS["subbasin_figures"] = FIGURE_SETTINGS["location"]
+SOURCE_RENDER_SETTINGS = DIAGNOSTIC_SETTINGS | {"source_figures": FIGURE_SETTINGS["source"], "comparison_figures": FIGURE_SETTINGS["comparison"]}
+COMPARISON_RENDER_SETTINGS = DIAGNOSTIC_SETTINGS | {"comparison_figures": FIGURE_SETTINGS["comparison"]}
 from blueearth_cst.shared.wf3_science import water_year_start_number
 DIAGNOSTIC_M0 = water_year_start_number(WATER_YEAR_START)
 MAP_REFERENCE = historical_map_reference_rule(
@@ -345,12 +346,12 @@ from blueearth_cst.climate_analysis.climate_indices import implementation_digest
 CLIMATE_INDICES_DIGEST = climate_indices_digest() if DIAGNOSTIC_SETTINGS["climate_indices"]["enabled"] else None
 POOLED_ROOTS = [SOURCE_DIAGNOSTICS[s]["root"] for s in CANDIDATE_SOURCES]
 COMPARISON_DIR = f"{project_dir}/data/climate/historical/comparison"
-COMPARISON_DIAGNOSTICS = diagnostic_comparison_outputs(COMPARISON_DIR, CANDIDATE_SOURCES, DIAGNOSTIC_SETTINGS) if len(CANDIDATE_SOURCES) > 1 else None
+COMPARISON_DIAGNOSTICS = diagnostic_comparison_outputs(COMPARISON_DIR, CANDIDATE_SOURCES, COMPARISON_RENDER_SETTINGS) if len(CANDIDATE_SOURCES) > 1 else None
 WF0_TERMINALS = [p for spec in SOURCE_DIAGNOSTICS.values() for p in spec["render"].values()]
 if COMPARE_LOCATIONS:
     location_inventory = location_comparison_outputs(COMPARISON_DIR)
     WF0_TERMINALS += list(location_inventory["compute"].values())
-    if FIGURE_SETTINGS["location_figures"]:
+    if FIGURE_SETTINGS["location"]:
         WF0_TERMINALS += list(location_inventory["render"].values())
 if COMPARISON_DIAGNOSTICS:
     WF0_TERMINALS += list(COMPARISON_DIAGNOSTICS["compute"].values()) + list(COMPARISON_DIAGNOSTICS["render"].values()) + list(COMPARISON_DIAGNOSTICS["source_summary"].values())
@@ -585,7 +586,7 @@ if COMPARISON_DIAGNOSTICS:
         params:
             annotation=plot_annotation,
             plot_setup_digest=plot_setup_digest,
-            settings=DIAGNOSTIC_SETTINGS, sources=CANDIDATE_SOURCES,
+            settings=COMPARISON_RENDER_SETTINGS, sources=CANDIDATE_SOURCES,
             comparison_dir=COMPARISON_DIR, m0=DIAGNOSTIC_M0,
             pooled_roots=POOLED_ROOTS,
         log: COMPARE_DIAGNOSTICS.log(),

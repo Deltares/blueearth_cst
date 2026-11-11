@@ -43,7 +43,7 @@ See [hydrological model building](workflow-build-model.md) for inputs, settings 
 | `add_climate_forcing` | Add model forcing and complete the model. |
 | `write_gauge_index` | Map Wflow IDs to named stations. |
 | `plot_basin_map` | Plot basin and thematic maps. |
-| `plot_model_forcing` | Optionally plot the model forcing grid (`forcing_plots: true`). |
+| `plot_model_forcing` | Optionally plot the model forcing grid (`plotting.forcing: true`). |
 | `evaluate_budyko` | Optional observed upstream water balance against prepared forcing, without simulated Q. |
 | `run_historical_simulation` | Run Wflow on the historical window. |
 | `export_simulation_tables` | Export per-variable response tables. |

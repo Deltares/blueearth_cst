@@ -93,8 +93,7 @@ def fabricated_project(tmp_path):
     project_dir = tmp_path / "proj"
     project_dir.mkdir()
     cfg["project"]["project_dir"] = project_dir.as_posix()
-    cfg["workflows"]["build_model"]["forcing_plots"] = True
-    cfg["workflows"]["build_model"]["evaluation"] = {"station_plots": True}
+    cfg["workflows"]["build_model"]["plotting"] = {"forcing": True, "location": True}
     # Repo-relative leaves (templates, catalog) keep working: snakemake runs
     # with cwd=SNAKEDIR.
     cfg_path = write_config(tmp_path, cfg, stem="project_config_fabricated")
@@ -191,7 +190,7 @@ def project_with_basavg_outvar(tmp_path, request):
         "actual evapotranspiration",
         "temperature",
     ]
-    cfg["workflows"]["build_model"]["evaluation"] = {"subbasin_plots": request.param}
+    cfg["workflows"]["build_model"]["plotting"] = {"location": request.param}
     cfg_path = write_config(tmp_path, cfg, stem="project_config_basavg")
 
     basin_figures = [project_dir / rel for rel in _BASAVG_RELS]

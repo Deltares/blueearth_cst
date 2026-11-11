@@ -43,9 +43,9 @@ extraction requires overlap between the source record and that period.
 | `diagnostics.max_missing_days_year` | Allowed missing days per water year; default 15. |
 | `diagnostics.wet_day_threshold_mm` | Wet-day threshold; default 1 mm/day. |
 | `diagnostics.spi_distribution` | SPI distribution: `gamma` (default) or `pearson3`. |
-| `source_figures` | Include individual-source figures also covered by comparisons; default `false`. |
-| `location_figures` | Render per-location comparison figures; default `false`. |
-| `subbasin_figures` | Additional per-source area-average subbasin tables and figures; default `false`. |
+| `plotting.comparison` | Render comparison figures; default `true`. |
+| `plotting.source` | Include individual-source figures also covered by comparisons; default `false`. |
+| `plotting.location` | Reporting-location and upstream-subbasin figures; default `false`. |
 
 The reference period defaults to the climate window, and the comparison period defaults to the
 reference period. Missing-day tolerances must match the project settings in `climate.map_reference`.
@@ -54,10 +54,10 @@ See [execution and run management](configuration-and-execution.md) for running t
 Basin-average comparison figures and unique source maps remain on by default. With multiple sources,
 individual-source figures duplicating those comparisons are omitted. Comparisons include temperature when at least one source
 provides it; legends identify the contributing source. Unique source-specific precipitation–temperature
-relationships absent from the comparison remain enabled. With one source, its basin-level diagnostic figures remain on.
-Set `source_figures: true` to restore the complete individual-source figure set.
+relationships absent from the comparison remain enabled. With one source, or comparison figures disabled, source basin diagnostics remain on.
+Set `plotting.source: true` to restore the complete individual-source figure set.
 
-Location and subbasin figures are opt-in. `location_figures: false` preserves the per-location comparison
+Location and subbasin figures are opt-in. `plotting.location: false` preserves the per-location comparison
 data and numerical tables. These figure switches accept booleans only and leave existing disabled PNGs
 untouched; title and caption inventories describe the figures selected for the current run.
 
@@ -134,7 +134,7 @@ rain_gauges:
 ```
 
 Omission or `null` disables observation input; gridded per-location comparison calculations still run when
-multiple candidates are selected. Their figures require `location_figures: true`. A populated mapping
+multiple candidates are selected. Their figures require `plotting.location: true`. A populated mapping
 requires these three fields and accepts optional `temp_path`.
 That CSV uses the same `time` and station-ID columns for daily mean temperature in degrees Celsius;
 negative temperatures are valid. It uses the same time-label declaration as precipitation.
@@ -183,7 +183,7 @@ data/climate/historical/comparison/
 
 The basin-average view compares gridded basin means. The location view replaces the former comparison
 `plots/subbasins/`: each dataset is sampled at the original coordinates of every declared spatial location
-and rainfall-gauge site. These are native-cell values, not subbasin averages. The `subbasin_figures` switch
+and rainfall-gauge site. These are native-cell values, not subbasin averages. The `plotting.location` switch
 continues to control optional area-average diagnostics inside individual source stores.
 
 `locations.csv` maps each directory ID to its name, coordinates, location role, spatial location code,
@@ -247,7 +247,7 @@ for each source. The main outputs are:
   Per-location tables and figures under `tables/locations/<id>/` and `plots/locations/<id>/` include
   observations when available; `locations.csv` indexes every site.
 - **Subbasin results (`tables/subbasins/` and `plots/subbasins/`).** Additional tables and figures when
-  `subbasin_figures: true`. Basin maps show subbasin outlines regardless of this setting.
+  `plotting.location: true`. Basin maps show subbasin outlines regardless of this setting.
 - **Diagnostic record (`_engine/diagnostics.json`).** Methods, data availability and provenance.
 
 Two shared outputs support the analysis:

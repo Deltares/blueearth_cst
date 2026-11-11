@@ -64,6 +64,17 @@ def test_source_opt_in_restores_full_inventory_without_changing_compute_paths():
     assert opted_in == full
 
 
+def test_disabled_comparison_restores_unique_source_figures():
+    sources = ["era5", "chirps"]
+    settings = parse_settings(None, {"start": 2000, "end": 2016}, sources)
+    settings["comparison_figures"] = False
+    source = diagnostic_source_outputs("store", "era5", settings, sources)
+    assert source == diagnostic_source_outputs("store", "era5", settings)
+    comparison = diagnostic_comparison_outputs("comparison", sources, settings)
+    assert not comparison["figures"]
+    assert "agreement" in comparison["compute"]
+
+
 @pytest.mark.parametrize(
     "key", ["source_figures", "location_figures", "subbasin_figures"]
 )
@@ -173,20 +184,23 @@ def test_selected_source_inventory_renders_unique_products_and_preserves_old_png
 
 
 @pytest.mark.workflow_contract
-@pytest.mark.parametrize("enabled", [False, True])
-def test_workflow_figure_switches_preserve_computation(tmp_path, enabled):
+@pytest.mark.parametrize(
+    "enabled,comparison", [(False, True), (True, True), (False, False)]
+)
+def test_workflow_figure_switches_preserve_computation(tmp_path, enabled, comparison):
     from blueearth_cst.shared.config_composition import load_composed_config
     from tests.conftest import parse_workflow, write_config
 
     cfg = load_composed_config(Path(__file__).with_name("project_config_fixture.yml"))
     cfg["climate"]["sources"] = ["era5", "chirps"]
     cfg["workflows"]["analyze_climate"].update(
-        source_figures=enabled, location_figures=enabled
+        plotting={"source": enabled, "location": enabled, "comparison": comparison}
     )
     workflow = parse_workflow("analyze_climate.smk", write_config(tmp_path, cfg))
     source = workflow.get_rule("plot_climate_diagnostics_era5")
-    assert ("figure_seasonal" in source.output.keys()) is enabled
-    assert ("figure_temperature" in source.output.keys()) is enabled
+    source_full = enabled or not comparison
+    assert ("figure_seasonal" in source.output.keys()) is source_full
+    assert ("figure_temperature" in source.output.keys()) is source_full
     assert "figure_map-precip" in source.output.keys()
     assert (
         "source_figures"
@@ -198,3 +212,10 @@ def test_workflow_figure_switches_preserve_computation(tmp_path, enabled):
     figures = workflow.get_rule("plot_location_comparisons")
     assert bool(set(figures.output) & requested) is enabled
     assert set(workflow.get_rule("plot_climate_comparison").output) <= requested
+    assert (
+        any(
+            str(path).endswith(".png")
+            for path in workflow.get_rule("plot_climate_comparison").output
+        )
+        is comparison
+    )

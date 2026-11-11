@@ -1,4 +1,7 @@
 # Sources and analysis years are shared project settings.
 # Canonical WF0 PNGs cover the basin; subbasin plots are opt-in.
-subbasin_figures: false
+plotting:
+  comparison: true
+  source: false
+  location: false
 # diagnostics:

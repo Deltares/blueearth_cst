@@ -11,13 +11,9 @@ from blueearth_cst.climate_analysis.figure_naming import (
 
 def parse_figure_settings(block: dict) -> dict[str, bool]:
     """Resolve presentation switches independently of numerical diagnostics."""
-    settings = {}
-    for key in ("source_figures", "location_figures", "subbasin_figures"):
-        value = block.get(key, False)
-        if type(value) is not bool:
-            raise ValueError(f"{key} must be a boolean")
-        settings[key] = value
-    return settings
+    from blueearth_cst.shared.workflow_plotting import workflow_plotting
+
+    return workflow_plotting("analyze_climate", block)
 
 
 def rain_gauge_outputs(root, tokens):
@@ -110,6 +106,8 @@ def inventory(root, sources, settings, comparison=False, comparison_sources=()):
         not comparison and not temp
     ):
         forms.pop("pt")
+    if comparison and not settings.get("comparison_figures", True):
+        forms.clear()
     if (
         not comparison
         and len(comparison_sources) > 1

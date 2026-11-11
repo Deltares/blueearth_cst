@@ -205,9 +205,10 @@ _budyko_evaluation = get_config(my_cfg, "evaluation", {})
 if not isinstance(_budyko_evaluation, dict):
     raise ValueError("build_model.evaluation must be a mapping")
 _budyko_settings = budyko_settings(_budyko_evaluation.get("budyko"), observations_timeseries)
-_forcing_plots = get_config(my_cfg, "forcing_plots", False)
-if not isinstance(_forcing_plots, bool):
-    raise ValueError("build_model.forcing_plots must be a boolean")
+from blueearth_cst.shared.workflow_plotting import workflow_plotting
+_plotting = workflow_plotting("build_model", my_cfg)
+_forcing_plots = _plotting["forcing"]
+_spatial_plots = _plotting["spatial"]
 _unconsumed_observations = sorted(
     name
     for name, source in _observations.items()
@@ -630,7 +631,7 @@ WF1_TERMINALS = [
     # the whole set (WFLOW_TABLE_PATHS) in a single job, so requesting the
     # discharge table schedules every other table with it.
     *[f"{_hp(key, 'run_dir')}/output_q.csv" for key in FORCING_KEYS],
-    f"{spatial_dir}/plots/elevation_basin.png",
+    *([f"{spatial_dir}/plots/elevation_basin.png"] if _spatial_plots else []),
     # One representative schedules the full model-forcing figure set.
     *(
         [f"{_hp(key, 'forcing_plots_dir')}/forcing_precip_map.png" for key in FORCING_KEYS]
@@ -663,7 +664,7 @@ WF1_TARGETS = [
 # the cost of one stat per path. A file deleted inside a declared directory,
 # such as one station figure, is not detected.
 _FIGURE_RULES = (
-    "plot_basin_map",
+    *(["plot_basin_map"] if _spatial_plots else []),
     *(_rule_name("plot_model_evaluation", key) for key in FORCING_KEYS),
     *(_rule_name("plot_model_forcing", key) for key in FORCING_KEYS if _forcing_plots),
 )
@@ -1199,12 +1200,8 @@ if FORCING_IDS is not None:
 _evaluation_cfg = get_config(my_cfg, "evaluation", {})
 if not isinstance(_evaluation_cfg, dict):
     raise ValueError("build_model.evaluation must be a mapping")
-_subbasin_plots = get_config(_evaluation_cfg, "subbasin_plots", False)
-if not isinstance(_subbasin_plots, bool):
-    raise ValueError("build_model.evaluation.subbasin_plots must be a boolean")
-_station_plots = get_config(_evaluation_cfg, "station_plots", False)
-if not isinstance(_station_plots, bool):
-    raise ValueError("build_model.evaluation.station_plots must be a boolean")
+_subbasin_plots = _plotting["location"]
+_station_plots = _plotting["location"]
 _WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT = ("river discharge", "precipitation")
 _basavg_pngs = lambda key: [
     f"{_hp(key, 'evaluation_dir')}/plots/wflow_{BASAVG_FIGURE_STEMS[WFLOW_OUTPUT_CODES[var]]}_{kind}_basin_avg.png"

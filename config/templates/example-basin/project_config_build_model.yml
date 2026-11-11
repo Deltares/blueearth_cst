@@ -21,18 +21,17 @@ observations:
   # Observed daily series for evaluation. Input: CSV path or null.
   river discharge: null
 
-# Spatial maps and unique basin-average response figures are standard.
-# Enable model-forcing plots when checks beyond the historical climate plots are needed.
-# Generate model-grid forcing maps and time series. Options: true | false.
-forcing_plots: false
+# Figure selection is independent of model calculation and numerical evaluation.
+plotting:
+  # Render basin and spatial-input maps. Options: true | false.
+  spatial: true
+  # Render model-grid forcing maps and time series. Options: true | false.
+  forcing: false
+  # Render station and individual-subbasin evaluation figures. Options: true | false.
+  location: false
 
-# Individual subbasin and station figures are optional; numerical evaluation stays enabled.
 # Model evaluation settings. Input: mapping.
-evaluation:
-  # Generate individual subbasin evaluation figures. Options: true | false.
-  subbasin_plots: false
-  # Generate discharge figures for each reporting location. Options: true | false.
-  station_plots: false
+#evaluation:
 # Optional observed catchment water-balance screening, independent of simulated Q.
 # Requires observations.river discharge and an explicit assertion of daily means
 # over midnight-to-midnight UTC days. Labels: interval_end | interval_start.

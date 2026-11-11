@@ -9,6 +9,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Group workflow figure switches under `plotting`, with one location switch for reporting points
+  and upstream subbasins. Preserve deprecated aliases with conflict checks and migration warnings.
+
 - Include a variable in comparison figures when only one source provides it; suppress its duplicate
   individual-source figure when source figures are disabled.
 

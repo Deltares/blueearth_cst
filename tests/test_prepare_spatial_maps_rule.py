@@ -102,7 +102,7 @@ def test_evaluation_changes_preserve_thematic_parameters(tmp_path, model_workflo
     cfg = load_composed_config(CONFIG)
     cfg["workflows"]["build_model"].update(
         observations={"river discharge": "tests/data/new_observations.csv"},
-        evaluation={"subbasin_plots": True},
+        plotting={"location": True},
     )
     changed = parse_workflow("build_model.smk", write_config(tmp_path, cfg))
     original_rule = model_workflow.get_rule("prepare_land_and_soil_maps")
@@ -143,8 +143,7 @@ def test_optional_figures_preserve_spatial_maps_and_numerical_outputs(
     cfg["project"]["project_dir"] = (tmp_path / "project").as_posix()
     settings = cfg["workflows"]["build_model"]
     if enabled:
-        settings["forcing_plots"] = True
-        settings["evaluation"] = {"station_plots": True}
+        settings["plotting"] = {"forcing": True, "location": True}
     workflow = parse_workflow("build_model.smk", write_config(tmp_path, cfg))
     missing = workflow.globals["_missing_figure_outputs"](None)
     forcing = workflow.get_rule("plot_model_forcing")
@@ -172,6 +171,22 @@ def test_optional_plot_settings_reject_non_booleans(tmp_path, field):
         settings[field] = "false"
     with pytest.raises(ValueError, match=rf"{field} must be a boolean"):
         parse_workflow("build_model.smk", write_config(tmp_path, cfg))
+
+
+@pytest.mark.workflow_contract
+def test_spatial_figures_can_be_disabled_without_removing_model_inputs(tmp_path):
+    cfg = load_composed_config(CONFIG)
+    cfg["project"]["project_dir"] = (tmp_path / "project").as_posix()
+    cfg["workflows"]["build_model"]["plotting"] = {"spatial": False}
+    workflow = parse_workflow("build_model.smk", write_config(tmp_path, cfg))
+    spatial = workflow.get_rule("plot_basin_map")
+    requested = set(workflow.globals["WF1_TERMINALS"])
+    missing = set(workflow.globals["_missing_figure_outputs"](None))
+    assert not set(spatial.output) & (requested | missing)
+    assert any(path.endswith("spatial_catalog.yml") for path in requested)
+    assert workflow.get_rule("run_historical_simulation").output.csv_path in (
+        workflow.get_rule("plot_model_evaluation").input
+    )
 
 
 @pytest.mark.workflow_contract
