@@ -48,7 +48,9 @@ def collection_run_forcing(
     from blueearth_cst.shared.workflow_config_snapshot import resolve_file_reference
 
     manifest_path = Path(manifest_path).resolve(strict=True)
-    project = manifest_path.parents[4]
+    from blueearth_cst.experiment.collection_index import marker_project_root
+
+    project = marker_project_root(manifest_path)
     output = Path(catalog_out).resolve()
     if output.is_relative_to(manifest_path.parent):
         raise ValueError("transient preparation catalog must be outside the collection")

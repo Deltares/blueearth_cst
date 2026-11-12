@@ -111,7 +111,7 @@ def run_owned(
             invocation_history.update(*history_pair)
         manifest = operation.run(project_root, preview=preview)
         if not preview:
-            rebuild_collection_index(project_root)
+            operation.index(project_root, manifest)
         if history_pair is not None:
             history_pair[1]["generation"].update(
                 manifest_path=str(manifest), published=not preview

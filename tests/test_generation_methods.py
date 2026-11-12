@@ -236,3 +236,68 @@ def test_explicit_delta_reservation_capture_does_not_plan_stochastic(
     assert request["generation"] is None
     assert request["selection"]["mode"] == "explicit-manifest"
     assert "generate_scenarios" not in {role for role, _, _ in captures}
+
+
+def v3_project(tmp_path, monkeypatch, *, name=None):
+    """A composed case with WF2 products and the derived historical location."""
+    from tests.test_delta_wf2 import wf2_project, wf2_settings
+
+    (tmp_path / "wf2").mkdir(parents=True)
+    project_root, *_ = wf2_project(tmp_path / "wf2", monkeypatch)
+    body = wf2_settings(**({"name": name} if name else {}))
+    path = write_split(
+        tmp_path,
+        sections={
+            "basin": {"region": "{'bbox': [0.0, 0.0, 1.0, 1.0]}"},
+            "climate": {
+                "sources": ["era5"],
+                "selected": "era5",
+                "window": {"start": 1980, "end": 2010},
+            },
+        },
+        schema_version=3,
+        bodies={"generate_scenarios": {"method": "delta_change", "delta_change": body}},
+    )
+    project = yaml.safe_load(path.read_text())
+    project["project"]["project_dir"] = project_root.as_posix()
+    project["project"]["catalog"] = "catalog.yml"
+    for workflow in ("analyze_climate", "build_model", "analyze_projections"):
+        project["workflows"][workflow] = {"enabled": False}
+    path.write_text(yaml.safe_dump(project))
+    return path, project_root
+
+
+def test_v3_capture_derives_baseline_pending_and_indexes(tmp_path, monkeypatch):
+    from tests.test_delta_wf2 import era5_historical
+
+    path, root = v3_project(tmp_path, monkeypatch)
+    store = root / "data/climate/historical/era5_19800101_20101231"
+    extract = store / "extract_historical.nc"
+    with pytest.raises(
+        ValueError, match="historical record missing.*extract_historical"
+    ):
+        capture_delta(path, [], project_dir=root)
+    pending = capture_delta(path, [], project_dir=root, historical_producer=True)
+    assert pending.historical == {"path": extract, "source": "era5"}
+    assert pending.run(root, preview=True) is None
+    with pytest.raises(ValueError, match="not produced by this invocation"):
+        pending.run(root, preview=False)
+    store.mkdir(parents=True)
+    incomplete = era5_historical().drop_vars("kin")
+    incomplete.to_netcdf(extract)
+    with pytest.raises(ValueError, match="lacks era5 variables \\['kin'\\]"):
+        pending.run(root, preview=False)
+    era5_historical().to_netcdf(extract)
+    manifest = pending.run(root, preview=False)
+    pending.index(root, manifest)
+    assert manifest == root / "scenarios/delta-cmip6-near-far/_engine/collection.json"
+    # A renamed rerun of identical content reuses the set and records an alias.
+    renamed, _ = v3_project(tmp_path / "renamed", monkeypatch, name="mine")
+    project = yaml.safe_load(renamed.read_text())
+    project["project"]["project_dir"] = root.as_posix()
+    renamed.write_text(yaml.safe_dump(project))
+    operation = capture_delta(renamed, [], project_dir=root)
+    assert operation.run(root, preview=False) == manifest
+    operation.index(root, manifest)
+    index = (root / "scenarios/collections.csv").read_text().splitlines()
+    assert index[1].startswith("delta-cmip6-near-far,mine,delta_change,")

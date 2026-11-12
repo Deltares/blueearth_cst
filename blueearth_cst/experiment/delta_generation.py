@@ -71,6 +71,16 @@ class DeltaGeneration:
         self.recheck()
         return manifest
 
+    def index(self, root: Path, manifest: Path) -> None:
+        """Rebuild ``collections.csv``; a configured name differing from the reused
+        set's folder becomes an alias (design §5.3). Call under the project lock."""
+        from blueearth_cst.experiment.collection_index import rebuild_collection_index
+        from blueearth_cst.experiment.content_identity import read_canonical_json
+
+        name = self.settings.get("name")
+        identity = read_canonical_json(manifest)["collection_id"]
+        rebuild_collection_index(root, alias=(identity, name) if name else None)
+
     def _snapshot_outside_inputs(self, root: Path) -> None:
         """Content-addressed copies of admitted inputs outside the project."""
         from blueearth_cst.experiment.generation_plan import snapshot_generation_input

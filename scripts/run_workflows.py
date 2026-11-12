@@ -1976,11 +1976,7 @@ def _run_owned(
                                 project_dir, preview=preview
                             )
                             if not preview:
-                                from blueearth_cst.experiment.collection_index import (
-                                    rebuild_collection_index,
-                                )
-
-                                rebuild_collection_index(project_dir)
+                                delta_operation.index(project_dir, published)
                             child_record["generation"]["manifest_path"] = (
                                 None if published is None else str(published)
                             )

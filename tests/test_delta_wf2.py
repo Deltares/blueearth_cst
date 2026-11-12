@@ -296,3 +296,14 @@ def test_derived_historical_uses_the_stochastic_store_rule(tmp_path):
         "path": tmp_path / "own.nc",
         "source": "era5",
     }
+
+
+def test_default_name_sanitises_horizon_names():
+    from blueearth_cst.experiment.delta_scenarios import default_delta_name
+
+    windows = [
+        {"names": ["mid century"], "window_id": "2040-2069"},
+        {"names": ["—"], "window_id": "2070-2099"},
+    ]
+    resolved = {"projections": {"ensemble": "cmip6"}, "windows": windows}
+    assert default_delta_name(resolved) == "delta-cmip6-mid-century-2070-2099"

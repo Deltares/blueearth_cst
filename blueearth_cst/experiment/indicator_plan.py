@@ -356,9 +356,14 @@ def _provider_request(request, collection):
     from blueearth_cst.experiment.collection_method import is_delta
 
     if is_delta(collection):
+        windows = collection["schema_version"] == "delta-scenario-collection/2"
         return {
             **request,
-            "grouping": "delta-change/model/scenario; collection-fixed periods and method; separate controls",
+            "grouping": (
+                "delta-change/model/scenario/window; WF2 windows never pooled; separate controls"
+                if windows
+                else "delta-change/model/scenario; collection-fixed periods and method; separate controls"
+            ),
             "reference": "historical control; first native q location; monthly sum; first month on ties",
         }
     return request
@@ -709,7 +714,18 @@ def build_indicator_plan(experiment_root, request, *, _observed_code=None):
             "with include_unperturbed: true."
         )
     bundles = tuple(
-        DeclaredBundle("model/scenario" if delta else "st_id", key, members)
+        DeclaredBundle(
+            (
+                "model/scenario/window"
+                if delta
+                and collection["schema_version"] == "delta-scenario-collection/2"
+                else "model/scenario"
+            )
+            if delta
+            else "st_id",
+            key,
+            members,
+        )
         for key, members in groups.items()
     )
     unit_rows = indicator_unit_index(

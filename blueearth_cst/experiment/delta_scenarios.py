@@ -793,6 +793,15 @@ def _prepare_wf2(project_root: Path, settings: dict, historical: dict):
     paths = [historical_path] + [m["source_path"] for m in selection["members"]]
     factors, policies = [], set()
     with xr.open_dataset(historical_path) as data:
+        missing = sorted(
+            set(SUPPORTED_SOURCES[historical["source"]]) - set(data.data_vars)
+        )
+        if missing:
+            raise ValueError(
+                f"historical record {historical_path} lacks {historical['source']} "
+                f"variables {missing}; the delta method needs all of "
+                f"{sorted(SUPPORTED_SOURCES[historical['source']])}"
+            )
         for member in selection["members"]:
             with xr.open_dataset(member["source_path"]) as changes:
                 factors.append(member_factors(changes, data))
@@ -1079,8 +1088,18 @@ _NAMED_INTENT_KEYS = {
 def default_delta_name(resolved: dict) -> str:
     """Readable default set name: ensemble and window names (design §5.3)."""
     ensemble = resolved["projections"]["ensemble"]
+    import re
+
     labels = [
-        w["names"][0] if w["names"] else w["window_id"] for w in resolved["windows"]
+        re.sub(r"[^A-Za-z0-9._-]+", "-", w["names"][0]).strip("-._")
+        if w["names"]
+        else ""
+        for w in resolved["windows"]
+    ]
+    # Horizon names are user text; fall back to the window id when unusable.
+    labels = [
+        label or w["window_id"]
+        for label, w in zip(labels, resolved["windows"], strict=True)
     ]
     name = f"delta-{ensemble}-" + "-".join(labels)
     if len(name) > 64:
