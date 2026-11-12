@@ -143,7 +143,7 @@ reader code and cannot substitute for this check.
 Outputs land under configured `project_dir`, outside the repository for production cases. Untracked
 `test_case/test_local` is the development exception.
 
-Execution diagnostics share `logs/<UTC timestamp>-<short invocation ID>/`: summary, console transcript,
+Execution diagnostics share `logs/<YYYY-MM-DD_HH-MM-SSZ>__<scope>[__dry-run]/`: summary, console transcript,
 workflow logs and Markdown/TSV benchmarks. Child invocations share their parent's folder; each retry
 has fresh part namespaces. Historical shared logs and benchmark files remain untouched. The maintained
 layout and interpretation live in `docs/guide/running.md` § Execution logs and benchmarks.
