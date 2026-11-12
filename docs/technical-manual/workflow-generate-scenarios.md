@@ -66,21 +66,26 @@ Running through `scripts/run_workflows.py` completes both phases, as described i
 
 ## Outputs {#outputs}
 
-Paths below are relative to `project_dir`. The main outputs are:
+Paths below are relative to `project_dir`. Each scenario set has one folder, `scenarios/<name>/`.
+The name defaults to `stochastic-<start>-<end>`; set `name` in the generation settings to choose another.
+A set with new content under a used name gets `-2`, `-3`; an unchanged rerun reuses its set whatever the
+configured name, which is then listed as an alias. Names never affect a set's identity.
 
-- **Daily weather (`scenarios/series/<run_id>.nc`).** One NetCDF series per unperturbed or perturbed run.
-- **Scenario lookup (`scenarios/scenario_run_lookup.csv`).** Links run identifiers to realizations and
+- **Daily weather (`series/<run_id>.nc`).** One NetCDF series per unperturbed or perturbed run.
+- **Scenario lookup (`scenario_run_lookup.csv`).** Links run identifiers to realizations and
   points on the perturbation grid.
-- **Perturbation lookup (`scenarios/perturbation_lookup.csv`).** Twelve monthly temperature and
+- **Perturbation lookup (`perturbation_lookup.csv`).** Twelve monthly temperature and
   precipitation changes for each grid point.
-- **Generation settings (`scenarios/config/` and `scenarios/weathergenr/`).** Configuration,
-  weather-generator settings and generation products.
-- **Saved scenarios (`scenarios/_engine/data/<collection-id>/`).** Checked series and lookups used by
-  hydrological simulation. Completion and the file inventory are recorded in
-  `scenarios/_engine/collections/<collection-id>/collection.json`.
+- **Generation settings (`config/` and `weathergenr/`).** Configuration, weather-generator settings and
+  generation products.
+- **Set record (`_engine/collection.json`).** Completion, identity and the checked file inventory used by
+  hydrological simulation.
+- **Index (`scenarios/collections.csv`).** Every set in the project: `name, aliases, method, id,
+  description, created, status`. It is rebuilt from the set records after each generation.
 
-The readable scenario files are refreshed after successful generation or reuse. See
-[saved results](retained-handoffs.md#scenario-exports-and-lookups) for lookup columns and reuse requirements.
+Sets from earlier versions stay where they are (`scenarios/_engine/data/<id>/`) and are listed in the index as
+`retained-<id>`. See [saved results](retained-handoffs.md#scenario-exports-and-lookups) for lookup columns and
+reuse requirements.
 
 ## Diagnostics and interpretation {#interpretation}
 

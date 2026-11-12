@@ -490,14 +490,23 @@ def read_collection_v2(marker_path: Path) -> dict[str, Any]:
         raise ValueError("collection marker cannot be a symbolic link")
     marker_path = marker_path.resolve(strict=True)
     record_dir = marker_path.parent
-    if marker_path.name != "collection.json" or record_dir.parent.name != "collections":
+    if marker_path.name != "collection.json":
         raise ValueError("collection discovery must start at its engine marker")
-    if (
-        record_dir.parent.parent.name != "_engine"
-        or record_dir.parent.parent.parent.name != "scenarios"
+    # Named sets: scenarios/<name>/_engine/collection.json, data root scenarios/<name>.
+    # Retained sets: scenarios/_engine/collections/<id>/collection.json.
+    named = (
+        record_dir.name == "_engine" and record_dir.parent.parent.name == "scenarios"
+    )
+    if named:
+        project_root = record_dir.parents[2]
+    elif (
+        record_dir.parent.name == "collections"
+        and record_dir.parent.parent.name == "_engine"
+        and record_dir.parent.parent.parent.name == "scenarios"
     ):
+        project_root = record_dir.parents[3]
+    else:
         raise ValueError("collection marker is outside the scenario engine")
-    project_root = record_dir.parents[3]
     marker = read_canonical_json(marker_path)
     from blueearth_cst.experiment.collection_method import is_delta
 
@@ -534,10 +543,14 @@ def read_collection_v2(marker_path: Path) -> dict[str, Any]:
         )
     full_id = _digest(marker["collection_id"], "collection_id")
     segment = identity_segment(full_id, "collection_id")
-    if record_dir.name != segment or marker["data_root"] not in (
-        f"scenarios/_engine/data/{segment}",
-        f"scenarios/{segment}",  # Completed collections retain their original paths.
-    ):
+    if named:
+        valid_root = marker["data_root"] == f"scenarios/{record_dir.parent.name}"
+    else:
+        valid_root = record_dir.name == segment and marker["data_root"] in (
+            f"scenarios/_engine/data/{segment}",
+            f"scenarios/{segment}",  # Completed collections retain their original paths.
+        )
+    if not valid_root:
         raise ValueError("collection full ID, engine path, and data root differ")
     data_root = project_root / marker["data_root"]
     if not data_root.is_dir() or data_root.is_symlink():

@@ -119,7 +119,7 @@ it describes**:
 
 | workflow | configuration archive |
 |---|---|
-| `generate_scenarios` | `scenarios/_engine/data/<id>/config/` |
+| `generate_scenarios` | `scenarios/<name>/config/` |
 | `simulate_system` | `experiments/<name>/config/` |
 
 Two collections mean two snapshots, each true of its own. Both are sealed with

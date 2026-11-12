@@ -148,17 +148,19 @@ def test_candidate_intent_uses_wf3_only_seed_projection(tmp_path, monkeypatch):
     request_id = generation_plan.content_sha256(settings["request"])
     request_dir = project / "scenarios/_engine/requests" / request_id[:12]
     settings["request_path"] = request_dir / "request.json"
+    settings["collection_name"] = "stochastic-test"
     plan = generation_plan.build_create_plan(settings, intent)
+    assert plan["outputs"]["record_root"] == "scenarios/stochastic-test/_engine"
     path, digest = generation_plan.publish_plan_pointer(settings, plan)
     assert path.name == f"{digest}.json"
     assert plan["outputs"]["temporary_members"] == [
         {
             "run_id": "run_01",
-            "path": f"scenarios/_engine/data/{intent['collection_id'][:12]}/weathergenr/output/run_01.nc",
+            "path": "scenarios/stochastic-test/weathergenr/output/run_01.nc",
         },
         {
             "run_id": "run_06",
-            "path": f"scenarios/_engine/data/{intent['collection_id'][:12]}/weathergenr/output/run_06.nc",
+            "path": "scenarios/stochastic-test/weathergenr/output/run_06.nc",
         },
     ]
     assert generation_plan.publish_plan_pointer(settings, plan) == (path, digest)
@@ -174,8 +176,10 @@ def test_candidate_intent_uses_wf3_only_seed_projection(tmp_path, monkeypatch):
         generation_plan.read_pinned_plan(path, digest, project)
     data_root = project / plan["outputs"]["data_root"]
     data_root.mkdir(parents=True)
-    with pytest.raises(ValueError, match="partial collection namespace"):
-        generation_plan.select_generation_plan(settings, intent)
+    # An occupied folder is never adopted: the new set takes the next name.
+    suffixed = generation_plan.select_generation_plan(settings, intent)
+    assert suffixed["outputs"]["data_root"] == "scenarios/stochastic-test-2"
+    assert suffixed["collection_id"] == plan["collection_id"]
 
 
 @pytest.mark.parametrize("legacy_storage", [False, True], ids=["engine-data", "legacy"])

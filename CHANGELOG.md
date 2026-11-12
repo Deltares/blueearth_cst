@@ -9,6 +9,11 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Store each new stochastic scenario set in its own folder, `scenarios/<name>/`, with its record in
+  `<name>/_engine/`, and list every set in `scenarios/collections.csv`. Optional WF3 `name` (default
+  `stochastic-<start>-<end>`) never changes identity; reuse is by identity. The top-level copy of the selected
+  set is retired: delete old top-level `series/`, lookups, `config/`, `weathergenr/` and
+  `scenarios/_engine/current.json` by hand. Retained sets stay readable in place.
 - Keep figure title/caption JSON in each output unit's `_engine/plots/` across WF0–WF2, mirroring family
   subfolders (for example `evaluation/_engine/plots/stations/`). Existing projects re-render affected
   figure families once on their next run; JSON at the old locations is left in place and can be deleted.

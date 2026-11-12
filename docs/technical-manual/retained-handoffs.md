@@ -13,7 +13,7 @@ Relative paths below start at `project_dir`, unless an experiment folder is name
 
 | Product | Immutable data and authoritative record |
 |---|---|
-| Scenario collection | `scenarios/_engine/data/<id>/`; marker `scenarios/_engine/collections/<id>/collection.json` |
+| Scenario collection | `scenarios/<name>/`; marker `scenarios/<name>/_engine/collection.json` (retained: `scenarios/_engine/data/<id>/`, `scenarios/_engine/collections/<id>/`) |
 | Simulation | `experiments/<name>/_engine/simulation.json`; per-variable `hydrology/wflow/output/<run_id>/` and `_engine/response_inventory.json` inside that experiment |
 | Indicator set | Experiment `_engine/indicator_sets/<id>/indicators.json`; immutable tables in its `data/` |
 | Named indicator view | Experiment `results/indicator_sets/<set-id>/`; committed by `_engine/indicator_sets/names/<set-id>/current.json` |
@@ -49,17 +49,11 @@ fit a saved experiment. Records and existing results remain available for inspec
 
 ## Scenario exports and lookups
 
-Successful scenario generation generation or reuse mirrors the complete selected collection directly into
-`scenarios/`:
-`scenario_run_lookup.csv`, `perturbation_lookup.csv`, `series/`, `config/` and `weathergenr/`.
-`scenarios/_engine/current.json` records the collection/revision, source marker and exported file hashes.
-The immutable data root remains the hydrological simulation input. Generation snapshots are shared at
-`scenarios/_engine/generation_inputs/<hash>/`; collections retain recorded references to them.
-
-Exports require additional space. Matching files are retained. Publication updates files individually;
-read after completion. Validation failures leave the prior export intact, and ordinary export I/O failures
-roll back replaced files. Only previously exported files can be removed during refresh. Unrelated files
-remain; untracked filename collisions fail. Dry runs do not refresh exports.
+Each set is read in place from `scenarios/<name>/`; nothing is copied to the top of `scenarios/`.
+`scenarios/collections.csv` lists every set and is rebuilt from the set records, which remain authoritative.
+Generation snapshots are shared at `scenarios/_engine/generation_inputs/<hash>/`; collections retain recorded
+references to them. Projects generated before this layout may still hold top-level copies and
+`scenarios/_engine/current.json`; these are no longer refreshed and can be deleted.
 
 | Lookup | Exact columns and meaning |
 |---|---|
@@ -157,7 +151,7 @@ When interpreting indicator tables or constructing response surfaces, preserve r
 units and the configured monthly perturbation trajectories. State how those monthly perturbations are
 represented on each axis so that readers can relate a plotted response to its climate inputs.
 
-Implementation references: `experiment/generation_plan.py`, `scenario_collection_v2.py`, `scenario_export.py`,
+Implementation references: `experiment/generation_plan.py`, `scenario_collection_v2.py`, `collection_index.py`,
 `simulation_record.py`, `response_inventory.py`, `indicator_plan.py`, `indicator_artifacts.py` and
-`named_export.py`. Relevant tests include `test_scenario_collection_v2.py`, `test_scenario_export.py`,
+`named_export.py`. Relevant tests include `test_scenario_collection_v2.py`, `test_collection_index.py`,
 `test_response_inventory_v2.py`, `test_named_indicator_sets_workflow.py` and `test_partial_indicators.py`.

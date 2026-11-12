@@ -500,14 +500,14 @@ def _shorten_console_paths(text, project_root, tokens):
 
     Match the spelling already used by the tee, such as ``<model>/config``.
     Saved log rows retain their original catalog identities and config paths.
-    Scenario data paths name the export tree available after successful completion.
+    Retained scenario data paths name the export tree of their original layout.
     """
     aliases = _declared_tokens(variable=_CONSOLE_PATH_TOKENS_ENV)
     for token, path in sorted(aliases, key=lambda pair: len(pair[1]), reverse=True):
         shown = _relativize_paths(path, project_root, tokens)
         text = _tokenize_prefix(text, shown, token)
-    # The complete collection data tree is copied to scenarios/ on success.
-    # Metadata elsewhere under _engine has no equivalent and keeps its path.
+    # Retained sets (scenarios/_engine/data/<id>) were copied to scenarios/ on
+    # success; new sets already live in scenarios/<name>/ and need no rewrite.
     text = re.sub(
         r"(<scenarios>|<project>/scenarios)/_engine/data/[0-9a-f]{12}(?=/|\s|$)",
         r"\1",

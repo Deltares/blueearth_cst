@@ -16,6 +16,8 @@ from blueearth_cst.shared import run_log_core, snake_utils
 GENERATION_INVENTORY = {
     "blueearth_cst/__init__.py",
     "blueearth_cst/experiment/__init__.py",
+    # Set names and identity lookup used by plan selection.
+    "blueearth_cst/experiment/collection_index.py",
     # The single method discriminator every collection reader dispatches on.
     "blueearth_cst/experiment/collection_method.py",
     "blueearth_cst/experiment/content_identity.py",

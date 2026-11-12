@@ -545,7 +545,11 @@ def build_project_tree_rules(
     # run-record rows use -- one constant, so a tree written by the engine and a
     # tree this tool accepts cannot disagree about name length.
     digest = _hex
-    collection = rf"scenarios/(?:_engine/data/)?{digest}"
+    # Named sets live in scenarios/<name>/ (t016); retained sets keep
+    # scenarios/<id>/ or scenarios/_engine/data/<id>/. A name starts with a
+    # letter or digit and is never 8+ hex characters, so it matches neither
+    # the engine directory nor a retained or malformed identity segment.
+    collection = rf"scenarios/(?:(?:_engine/data/)?{digest}|(?![0-9a-f]{{8,}}/)[A-Za-z0-9][A-Za-z0-9._-]*)"
     for leaf in (
         "config/run_record.yml",
         "scenario_run_lookup.csv",
@@ -564,6 +568,8 @@ def build_project_tree_rules(
     same_rx(rf"{collection}/weathergenr/evaluation/plots/[^/]+\.(png|pdf)")
     for leaf in ("collection.json", "collection_intent.json"):
         same_rx(rf"scenarios/_engine/collections/{digest}/{re.escape(leaf)}")
+        same_rx(rf"{collection}/_engine/{re.escape(leaf)}")
+    same_rx(r"scenarios/collections\.csv")
     request = rf"scenarios/_engine/requests/{digest}"
     same_rx(rf"{request}/request\.json")
     same_rx(rf"{request}/[0-9a-f]{{64}}\.json")
