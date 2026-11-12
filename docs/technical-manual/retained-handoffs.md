@@ -49,7 +49,7 @@ fit a saved experiment. Records and existing results remain available for inspec
 
 ## Scenario exports and lookups
 
-Successful scenario generation generation or reuse mirrors the complete selected collection directly into
+Successful scenario generation or reuse mirrors the complete selected collection directly into
 `scenarios/`:
 `scenario_run_lookup.csv`, `perturbation_lookup.csv`, `series/`, `config/` and `weathergenr/`.
 `scenarios/_engine/current.json` records the collection/revision, source marker and exported file hashes.

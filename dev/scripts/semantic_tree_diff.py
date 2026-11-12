@@ -355,7 +355,15 @@ def build_project_tree_rules(
     # be closed by grammar -- only by the fact that nobody names an experiment
     # `a3f9c2b10d4e`.
     _hex = f"[0-9a-f]{{{SHORT_DIGEST_CHARS}}}"
-    execution = r"logs/[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}"
+    # `execution_outputs._directory_name`: `<YYYY-MM-DD_HH-MM-SSZ>__<scope>`, an
+    # optional `__dry-run` and an `__<id12>` collision suffix. A child without a
+    # recorded directory still falls back to `logs/<invocation id>`.
+    scope = r"(?:all-workflows|workflows|[a-z]+(?:-[a-z]+)+|wf[0-4](?:-wf[0-4])*)"
+    execution = (
+        r"logs/(?:[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}"
+        rf"|[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}_[0-9]{{2}}-[0-9]{{2}}-[0-9]{{2}}Z__{scope}"
+        r"(?:__dry-run)?(?:__[0-9a-f]{12})?)"
+    )
     same_rx(
         rf"{execution}/(?:summary\.md|console\.log|wf[0-4]\.log|wf[0-4]-benchmarks\.(?:md|tsv)|wf4-indicators\.log)"
     )
@@ -611,7 +619,8 @@ def build_project_tree_rules(
         same_rx(rf"{indicator_set}/group_(members|metadata)\.csv")
         same_rx(rf"{indicator_set}/[a-z][a-z0-9_]*_(run|group)_indicators\.csv")
         # Named per-set exports (indicator-set/4) and their committed pointers.
-        named = r"[a-z][a-z0-9_]{0,63}"
+        # As `indicator_sets.SET_ID_PATTERN`, so a shipped `crop-water` maps.
+        named = r"[a-z][a-z0-9_-]{0,63}"
         same_rx(
             rf"experiments/{exp}/results/indicator_sets/{named}/"
             r"(?:group_(?:members|metadata)|indicators|[a-z][a-z0-9_]*_(?:run|group)_indicators)\.csv"
