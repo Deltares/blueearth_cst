@@ -1,10 +1,11 @@
 # WF0 diagnostics; shared sources/window belong in the project file.
-# Figure selection is local to this workflow; shared annotation stays in the project YAML.
+# Shared annotation stays in the project YAML.
+# Figures this workflow renders. Input: mapping.
 plotting:
   # Render basin-level comparisons. Options: true | false.
   comparison: true
-  # Add individual-source figures duplicated by comparisons. Options: true | false.
   # Unique source maps remain on; absent comparisons, source basin figures remain on.
+  # Add individual-source figures duplicated by comparisons. Options: true | false.
   source: false
   # Render location comparisons and per-source subbasin figures. Options: true | false.
   location: false

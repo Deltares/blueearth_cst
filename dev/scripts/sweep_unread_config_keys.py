@@ -183,6 +183,15 @@ ALLOWANCES = (
         ),
         line_patterns=(r"^(start|end)$",),
     ),
+    Allowance(
+        name="workflow figure switches",
+        reason=(
+            "shared/workflow_plotting.py validates each workflow's closed plotting "
+            "block against PLOTTING_DEFAULTS and resolves defaults; the Snakefiles "
+            "then subscript the resolved mapping (FIGURE_SETTINGS, _plotting)"
+        ),
+        line_patterns=(r"^(spatial|comparison|location)$",),
+    ),
 )
 
 #: Measured on the live tree. The floors sit well under the counts so honest
