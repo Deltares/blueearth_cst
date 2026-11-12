@@ -57,8 +57,9 @@ The [retained-handoffs reference](../../docs/site/toolbox-reference/retained-han
 product contract and recovery behavior.
 
 Store each file once: workflows, collections and experiments reference shared data, configuration and
-results by path and content hash instead of copying them. A new duplicate needs a stated reason and owner
-approval in its design or task.
+results by path and content hash instead of copying them, and that single copy of data and user-facing
+files lives outside `_engine/`, which holds machine records only. A new duplicate needs a stated reason
+and owner approval in its design or task.
 
 WF4 forcing elevation is project-owned ancillary data, shared by content identity rather than copied
 into each WF3 collection. [`shared_orography.py`](../../blueearth_cst/experiment/shared_orography.py)
