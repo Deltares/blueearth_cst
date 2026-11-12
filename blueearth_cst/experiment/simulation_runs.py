@@ -133,7 +133,9 @@ def selected_run_ids(
     )
     with lookup.open(encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
-        if collection.get("schema_version") == "delta-scenario-collection/1":
+        from blueearth_cst.experiment.collection_method import is_delta
+
+        if is_delta(collection):
             perturbed = {row["run_id"] for row in rows if row["role"] == "projection"}
         else:
             perturbed = {row["run_id"] for row in rows if row["st_id"]}

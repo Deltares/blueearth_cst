@@ -16,6 +16,8 @@ from blueearth_cst.shared import run_log_core, snake_utils
 GENERATION_INVENTORY = {
     "blueearth_cst/__init__.py",
     "blueearth_cst/experiment/__init__.py",
+    # The single method discriminator every collection reader dispatches on.
+    "blueearth_cst/experiment/collection_method.py",
     "blueearth_cst/experiment/content_identity.py",
     # The collection reader validates the delta backend and its variable bindings.
     "blueearth_cst/experiment/delta_scenarios.py",

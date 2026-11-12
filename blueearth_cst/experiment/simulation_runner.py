@@ -573,7 +573,9 @@ def verify_selected_collection_source(project, selection, marker):
     configured_root = Path(project["project"]["project_dir"]).resolve()
     if project_root != configured_root:
         raise ValueError("selected collection is outside the WF4 project root")
-    if marker.get("schema_version") == "delta-scenario-collection/1":
+    from blueearth_cst.experiment.collection_method import is_delta
+
+    if is_delta(marker):
         from blueearth_cst.experiment.content_identity import read_canonical_json
 
         intent = read_canonical_json(

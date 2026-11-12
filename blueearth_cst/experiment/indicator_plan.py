@@ -353,7 +353,9 @@ def current_indicator_requests(experiment_root, calculation_sets, anchor):
 
 def _provider_request(request, collection):
     """Freeze grouping meaning before naming the request or verifying its plan."""
-    if collection["schema_version"] == "delta-scenario-collection/1":
+    from blueearth_cst.experiment.collection_method import is_delta
+
+    if is_delta(collection):
         return {
             **request,
             "grouping": "delta-change/model/scenario; collection-fixed periods and method; separate controls",
@@ -668,7 +670,9 @@ def build_indicator_plan(experiment_root, request, *, _observed_code=None):
         raise IndicatorPlanStale(
             "response source calendar differs from retained collection"
         )
-    delta = collection["schema_version"] == "delta-scenario-collection/1"
+    from blueearth_cst.experiment.collection_method import is_delta
+
+    delta = is_delta(collection)
     if delta:
         from blueearth_cst.experiment.delta_scenarios import delta_groups
 
