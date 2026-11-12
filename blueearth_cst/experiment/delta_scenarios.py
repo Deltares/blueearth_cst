@@ -49,9 +49,106 @@ def _period(value: Any, label: str) -> dict:
     return value
 
 
+#: Authored delta-change/3 keys; members and periods come from WF2.
+V3_KEYS = {
+    "schema_version",
+    "historical_path",
+    "source_like",
+    "reader",
+    "simulation_window",
+    "unit_id_capacity",
+    "projections",
+}
+#: Keys the producer adds when it resolves a v3 request into its intent.
+V3_RESOLVED_KEYS = {
+    "factor_layout",
+    "reference_period",
+    "future_period",
+    "members",
+    "wf2",
+}
+
+
+def _validate_v3(value: dict) -> dict:
+    """Authored or resolved delta-change/3 settings (WF2 projection source)."""
+    from blueearth_cst.experiment.delta_wf2 import projection_settings
+
+    resolved = V3_RESOLVED_KEYS <= set(value)
+    _fields(
+        value,
+        V3_KEYS
+        | (V3_RESOLVED_KEYS if resolved else set())
+        | ({"pet"} if "pet" in value else set()),
+        "delta-change/3 configuration",
+    )
+    projection_settings(value["projections"])
+    if "pet" in value:
+        raise ValueError("delta-change/3 does not yet accept pet settings")
+    if value["source_like"] != "era5":
+        raise ValueError(
+            "delta-change/3 currently supports extracted ERA5 forcing only"
+        )
+    _period(value["simulation_window"], "simulation_window")
+    if type(value["historical_path"]) is not str or not value["historical_path"]:
+        raise ValueError("historical_path must be nonempty text")
+    _historical_units(value)
+    capacity = value["unit_id_capacity"]
+    if type(capacity) is not int or capacity < 3:
+        raise ValueError("unit_id_capacity must be an integer of at least 3")
+    if resolved:
+        if value["factor_layout"] != "grid":
+            raise ValueError("WF2-derived factors are always gridded")
+        for name in ("reference_period", "future_period"):
+            _period(value[name], name)
+        members = value["members"]
+        if type(members) is not list or not members:
+            raise ValueError("resolved members must be a nonempty list")
+        for member in members:
+            _fields(member, {"model", "scenario", "member", "changes_path"}, "member")
+        if capacity < len(members) + 2:
+            raise ValueError(
+                "unit_id_capacity must accommodate all WF2 members and both controls"
+            )
+    return value
+
+
+def _historical_units(value: dict) -> None:
+    """Bind the historical reader to WF4's extracted-ERA5 units (and PET)."""
+    units = dict(reader_unit_interpretation(value["reader"]).variables)
+    if "pet" in value:
+        pet = _fields(value["pet"], {"mode", "method"}, "PET settings")
+        if (
+            pet["mode"] != "projection_ratio"
+            or not isinstance(pet["method"], str)
+            or not pet["method"].strip()
+        ):
+            raise ValueError(
+                "PET requires projection_ratio mode and an explicit method"
+            )
+        if units.get("pet") != "mm/day":
+            raise ValueError("historical supplied PET requires effective units mm/day")
+    expected_units = {
+        "temp": "degC",
+        "temp_min": "degC",
+        "temp_max": "degC",
+        "precip": "mm/day",
+        "press_msl": "hPa",
+        "kin": "W/m2",
+        "kout": "W/m2",
+    }
+    required = {"temp", "temp_min", "temp_max", "precip"}
+    for name, expected in expected_units.items():
+        if (name in required or name in units) and units.get(name) != expected:
+            raise ValueError(
+                f"delta-change/1 requires historical effective units {name}={expected}"
+            )
+
+
 def validate_settings(settings: Any) -> dict:
     """Validate the producer configuration, with no implicit scientific choices."""
     version = settings.get("schema_version") if isinstance(settings, dict) else None
+    if version == "delta-change/3":
+        return _validate_v3(settings)
     value = _fields(
         settings,
         {
@@ -82,35 +179,8 @@ def validate_settings(settings: Any) -> dict:
         )
     for name in ("reference_period", "future_period", "simulation_window"):
         _period(value[name], name)
-    units = dict(reader_unit_interpretation(value["reader"]).variables)
-    if "pet" in value:
-        pet = _fields(value["pet"], {"mode", "method"}, "PET settings")
-        if (
-            pet["mode"] != "projection_ratio"
-            or not isinstance(pet["method"], str)
-            or not pet["method"].strip()
-        ):
-            raise ValueError(
-                "PET requires projection_ratio mode and an explicit method"
-            )
-        if units.get("pet") != "mm/day":
-            raise ValueError("historical supplied PET requires effective units mm/day")
     # This profile feeds WF4's reviewed extracted-ERA5 reader without conversion.
-    expected_units = {
-        "temp": "degC",
-        "temp_min": "degC",
-        "temp_max": "degC",
-        "precip": "mm/day",
-        "press_msl": "hPa",
-        "kin": "W/m2",
-        "kout": "W/m2",
-    }
-    required = {"temp", "temp_min", "temp_max", "precip"}
-    for name, expected in expected_units.items():
-        if (name in required or name in units) and units.get(name) != expected:
-            raise ValueError(
-                f"delta-change/1 requires historical effective units {name}={expected}"
-            )
+    _historical_units(value)
     if type(value["historical_path"]) is not str or not value["historical_path"]:
         raise ValueError("historical_path must be nonempty text")
     members = value["members"]
@@ -531,34 +601,37 @@ def delta_groups(
     return {key: tuple(value) for key, value in groups.items()}, tuple(references)
 
 
-def generate_collection(
-    config_path: Path,
-    project_root: Path,
-    *,
-    settings: dict | None = None,
-    preview: bool = False,
-    expected_input_hashes: list[str] | None = None,
-) -> Path:
-    """Publish an immutable collection, or verify an identical completed request."""
-    config_path, project_root = config_path.resolve(strict=True), project_root.resolve()
-    settings = validate_settings(
-        yaml.safe_load(config_path.read_text(encoding="utf-8"))
-        if settings is None
-        else settings
+def input_names(resolved: dict) -> list[str]:
+    """Retained input names, historical first, in member order."""
+    names = [resolved["historical_path"]]
+    keys = (
+        ("changes_path",)
+        if resolved["schema_version"] == "delta-change/3"
+        else ("reference_path", "future_path")
     )
-    paths = [Path(settings["historical_path"])]
-    for member in settings["members"]:
-        paths.extend(Path(member[key]) for key in ("reference_path", "future_path"))
-    paths = [(config_path.parent / path).resolve(strict=True) for path in paths]
-    factors = []
-    pet_factors = []
+    for member in resolved["members"]:
+        names.extend(member[key] for key in keys)
+    return names
+
+
+def _file_policy() -> dict:
     precipitation = VARIABLES["precip"].projections
-    factor_policy = {
+    return {
         "precip": {
             "min_denominator": precipitation.min_denominator,
             "units": precipitation.units,
         }
     }
+
+
+def _prepare_files(config_path: Path, settings: dict):
+    """Explicit reference/future projection files (delta-change/1 and /2)."""
+    paths = [Path(settings["historical_path"])]
+    for member in settings["members"]:
+        paths.extend(Path(member[key]) for key in ("reference_path", "future_path"))
+    paths = [(config_path.parent / path).resolve(strict=True) for path in paths]
+    factors, pet_factors = [], []
+    factor_policy = _file_policy()
     for index in range(len(settings["members"])):
         with (
             xr.open_dataset(paths[1 + index * 2]) as reference,
@@ -574,6 +647,105 @@ def generate_collection(
                 pet_factors.append(
                     derive_pet_ratios(reference, future, historical, settings)
                 )
+    resolved = dict(settings)
+    resolved["historical_path"] = "inputs/historical.nc"
+    resolved["members"] = [
+        {
+            **member,
+            "reference_path": f"inputs/reference_{i}.nc",
+            "future_path": f"inputs/future_{i}.nc",
+        }
+        for i, member in enumerate(settings["members"], 1)
+    ]
+    return paths, resolved, factors, pet_factors, factor_policy
+
+
+def _wf2_policy(changes: xr.Dataset) -> dict:
+    threshold = changes["precip_monthly_ratio"].attrs.get("min_reference")
+    if type(threshold) is str or threshold is None:
+        raise ValueError("WF2 precipitation ratios carry no min_reference threshold")
+    return {"precip": {"min_denominator": float(threshold), "units": "mm/day"}}
+
+
+def _prepare_wf2(config_path: Path, project_root: Path, settings: dict):
+    """WF2 gridded changes for one analysis window (delta-change/3)."""
+    from blueearth_cst.experiment.delta_wf2 import member_factors, resolve_members
+
+    selection = resolve_members(project_root, settings["projections"])
+    historical_path = (config_path.parent / settings["historical_path"]).resolve(
+        strict=True
+    )
+    paths = [historical_path] + [m["source_path"] for m in selection["members"]]
+    factors, policies = [], set()
+    with xr.open_dataset(historical_path) as historical:
+        for member in selection["members"]:
+            with xr.open_dataset(member["source_path"]) as changes:
+                factors.append(member_factors(changes, historical))
+                policies.add(content_sha256(_wf2_policy(changes)))
+                factor_policy = _wf2_policy(changes)
+    if len(policies) != 1:
+        raise ValueError("WF2 members disagree on the precipitation threshold")
+    resolved = dict(settings)
+    resolved.update(
+        historical_path="inputs/historical.nc",
+        factor_layout="grid",
+        reference_period=selection["reference_period"],
+        future_period=selection["future_period"],
+        members=[
+            {
+                **{key: member[key] for key in ("model", "scenario", "member")},
+                "changes_path": f"inputs/changes_{i}.nc",
+            }
+            for i, member in enumerate(selection["members"], 1)
+        ],
+        wf2={
+            "water_year_start": selection["water_year_start"],
+            "unavailable": selection["unavailable"],
+            "inventory_sha256": file_sha256(selection["inventory_path"]),
+            "analysis_record_sha256": file_sha256(selection["record_path"]),
+        },
+    )
+    validate_settings(resolved)
+    if selection["unavailable"]:
+        # No logging helpers here: their imports would enter the generation
+        # code inventory. The full list, with reasons, is in the intent's wf2 block.
+        missing = selection["unavailable"]
+        names = [f"{m['model']}/{m['scenario']}/{m['member']}" for m in missing]
+        shown = ", ".join(names[:6]) + (
+            f" (+{len(names) - 6} more)" if len(names) > 6 else ""
+        )
+        noun = "member" if len(names) == 1 else "members"
+        print(
+            f"WARNING delta - {len(names)} WF2 {noun} unavailable for window "
+            f"{settings['projections']['window_id']}, excluded: {shown}",
+            flush=True,
+        )
+    return paths, resolved, factors, [], factor_policy
+
+
+def generate_collection(
+    config_path: Path,
+    project_root: Path,
+    *,
+    settings: dict | None = None,
+    preview: bool = False,
+    expected_input_hashes: list[str] | None = None,
+) -> Path:
+    """Publish an immutable collection, or verify an identical completed request."""
+    config_path, project_root = config_path.resolve(strict=True), project_root.resolve()
+    settings = validate_settings(
+        yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        if settings is None
+        else settings
+    )
+    if settings["schema_version"] == "delta-change/3":
+        paths, resolved, factors, pet_factors, factor_policy = _prepare_wf2(
+            config_path, project_root, settings
+        )
+    else:
+        paths, resolved, factors, pet_factors, factor_policy = _prepare_files(
+            config_path, settings
+        )
     # Observe the physical source before publishing anything. WF4 uses the same
     # evidenced interpretation when binding the existing preparation catalog.
     descriptor = collection_forcing_descriptor(paths[0], settings["reader"])
@@ -585,19 +757,7 @@ def generate_collection(
         or descriptor["end"][:10] < f"{window['end']:04d}-12-31"
     ):
         raise ValueError("historical forcing does not cover simulation_window")
-    resolved = dict(settings)
-    resolved["historical_path"] = "inputs/historical.nc"
-    resolved["members"] = [
-        {
-            **member,
-            "reference_path": f"inputs/reference_{i}.nc",
-            "future_path": f"inputs/future_{i}.nc",
-        }
-        for i, member in enumerate(settings["members"], 1)
-    ]
-    relative = [resolved["historical_path"]]
-    for member in resolved["members"]:
-        relative.extend(member[key] for key in ("reference_path", "future_path"))
+    relative = input_names(resolved)
     intent = {
         "schema_version": "delta-scenario-intent/2",
         "factor_policy": factor_policy,
@@ -611,7 +771,7 @@ def generate_collection(
             for name in ("numpy", "xarray", "netCDF4")
             + (
                 ("hydromt", "rasterio", "pyproj")
-                if settings.get("factor_layout") == "grid"
+                if resolved.get("factor_layout") == "grid"
                 else ()
             )
         },
@@ -627,10 +787,14 @@ def generate_collection(
             for i, (offsets, ratios) in enumerate(factors)
         ],
     }
-    if (
-        expected_input_hashes is not None
-        and intent["input_hashes"] != expected_input_hashes
-    ):
+    # Runner admission captures the authored inputs; WF2 member grids may be
+    # produced later in the same invocation and are checked by resolve_members.
+    admitted = (
+        intent["input_hashes"][:1]
+        if settings["schema_version"] == "delta-change/3"
+        else intent["input_hashes"]
+    )
+    if expected_input_hashes is not None and admitted != expected_input_hashes:
         raise ValueError("delta generation inputs changed after admission")
     identity = content_sha256(intent)
     engine = project_root / "scenarios/_engine/collections" / identity[:12]
@@ -659,7 +823,7 @@ def generate_collection(
             raise ValueError(
                 "input changed during capture; incomplete collection retained"
             )
-    rows = scenario_records(settings)
+    rows = scenario_records(resolved)
     atomic_record(engine / "collection_intent.json", intent)
     with (data / "scenario_run_lookup.csv").open(
         "w", encoding="utf-8", newline=""
@@ -802,12 +966,15 @@ def read_delta_collection(marker_path: Path) -> dict:
     data = root / marker["data_root"]
     if data.is_symlink():
         raise ValueError("delta data root cannot be a symbolic link")
+    wf2 = settings["schema_version"] == "delta-change/3"
     expected_names = ["inputs/historical.nc"]
     for i in range(1, len(settings["members"]) + 1):
-        expected_names.extend([f"inputs/reference_{i}.nc", f"inputs/future_{i}.nc"])
-    names = [settings["historical_path"]]
-    for member in settings["members"]:
-        names.extend(member[key] for key in ("reference_path", "future_path"))
+        expected_names.extend(
+            [f"inputs/changes_{i}.nc"]
+            if wf2
+            else [f"inputs/reference_{i}.nc", f"inputs/future_{i}.nc"]
+        )
+    names = input_names(settings)
     if (
         names != expected_names
         or len(intent["input_hashes"]) != len(names)
@@ -838,6 +1005,23 @@ def read_delta_collection(marker_path: Path) -> dict:
             | ({"pet_ratio"} if "pet" in settings else set()),
             "monthly factors",
         )
+        if wf2:
+            from blueearth_cst.experiment.delta_wf2 import member_factors
+
+            with (
+                xr.open_dataset(data / member["changes_path"]) as changes,
+                xr.open_dataset(data / names[0]) as historical,
+            ):
+                offsets, ratios = member_factors(changes, historical)
+                if content_sha256(_wf2_policy(changes)) != content_sha256(
+                    intent["factor_policy"]
+                ):
+                    raise ValueError("retained WF2 threshold differs from the intent")
+            if content_sha256(factors) != content_sha256(
+                {"temp_offset_degC": offsets.tolist(), "precip_ratio": ratios.tolist()}
+            ):
+                raise ValueError("retained factors differ from WF2 member grids")
+            continue
         with (
             xr.open_dataset(data / member["reference_path"]) as reference,
             xr.open_dataset(data / member["future_path"]) as future,

@@ -19,6 +19,8 @@ GENERATION_INVENTORY = {
     "blueearth_cst/experiment/content_identity.py",
     # The collection reader validates the delta backend and its variable bindings.
     "blueearth_cst/experiment/delta_scenarios.py",
+    # delta-change/3 reads WF2 gridded changes through this adapter.
+    "blueearth_cst/experiment/delta_wf2.py",
     "blueearth_cst/experiment/forcing_descriptor.py",
     "blueearth_cst/experiment/generation_plan.py",
     "blueearth_cst/experiment/generation_sources.py",

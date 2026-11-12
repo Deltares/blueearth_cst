@@ -10,6 +10,41 @@ weather generator or projection-independent sampling.
 
 ## Inputs and configuration
 
+### WF2 gridded changes (recommended)
+
+The GCM delta method is the projection-conditioned ("top-down") alternative to the stochastic stress
+test, so it can take its projection changes directly from WF2. With `schema_version: delta-change/3`,
+name the WF2 ensemble and one analysis window instead of listing member files and periods:
+
+```yaml
+schema_version: delta-change/3
+historical_path: <extracted historical forcing>.nc
+source_like: era5
+simulation_window: {start: 2001, end: 2020}
+unit_id_capacity: 100
+projections:
+  ensemble: cmip6          # WF2 `ensemble`; products under <project_dir>/data/climate/projections/<ensemble>
+  window_id: 2040-2069     # a WF2 analysis window id, as in analysis/gridded_changes/inventory.json
+reader: {...}              # as below
+```
+
+Every WF2 member available for that window becomes one projection run. Members, reference and future
+periods come from `analysis/gridded_changes/inventory.json` and the member grids; WF2's monthly kernel
+supplies the temperature offsets and precipitation ratios, which are mapped to the historical forcing
+grid by nearest neighbour as in the grid layout below. Factors are therefore always gridded. Members WF2
+reported unavailable for the window are named in the run log and retained in the intent's `wf2` block,
+together with the inventory and analysis-record hashes and WF2's `water_year_start`.
+
+In the owned runner, an enabled `analyze_projections` runs before generation and must use the same
+`ensemble`; with WF2 disabled, its products must already exist. A `--dry-run` that would create the WF2
+products reports the delta collection as pending. WF2 gridded changes written before inventory schema 2
+lack the monthly reference means and are refused; re-run `analyze_projections`. WF2 withholds a monthly
+ratio where the reference mean is below the precipitation `min_denominator`; such cells in the active
+historical domain are refused with the affected months named. The stochastic workflow keeps no WF2
+dependency. PET settings are not yet accepted in this version.
+
+### Explicit projection files
+
 Start with the optional
 [delta configuration](../../config/templates/example-basin/project_config_delta.yml) in the basin starter.
 The standalone producer takes its own closed configuration. Schema-3 projects can instead put those

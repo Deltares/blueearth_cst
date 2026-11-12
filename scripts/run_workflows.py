@@ -103,8 +103,9 @@ from blueearth_cst.shared.workflow_config_snapshot import (  # noqa: E402
 # Fixed order: climate -> model -> projections -> generation -> simulation.
 # WF0 is optional and supplies shared region and climate inputs. Generation and
 # model construction are independent prerequisites of simulation; projections
-# remain a plausibility overlay and do not drive generation. Consumer preflights
-# run after the preceding enabled producers.
+# remain a plausibility overlay for stochastic generation. Only the GCM delta
+# method (delta-change/3) reads WF2's gridded changes, so WF2 precedes it.
+# Consumer preflights run after the preceding enabled producers.
 # Each workflow maps to its Snakefile and preserved execution flags below;
 # only analyze_projections uses --keep-going.
 WORKFLOW_ORDER = (
@@ -1479,7 +1480,17 @@ def _run_owned(
     ):
         from blueearth_cst.experiment.delta_generation import capture_delta
 
-        delta_operation = capture_delta(Path(config_path), extra)
+        # The GCM delta method may read WF2 products; WF2 runs first when enabled.
+        wf2_ensemble = (
+            load_composed_config(config_path, entry="analyze_projections")["workflows"][
+                "analyze_projections"
+            ].get("ensemble")
+            if flags["analyze_projections"]
+            else None
+        )
+        delta_operation = capture_delta(
+            Path(config_path), extra, project_dir=project_dir, wf2_ensemble=wf2_ensemble
+        )
         if flags["simulate_system"]:
             from blueearth_cst.experiment.collection_resolution import (
                 resolve_explicit_collection_v2,
@@ -1960,11 +1971,15 @@ def _run_owned(
                             published = delta_operation.run(
                                 project_dir, preview=preview
                             )
-                            child_record["generation"]["manifest_path"] = str(published)
+                            child_record["generation"]["manifest_path"] = (
+                                None if published is None else str(published)
+                            )
                             child_record["generation"]["published"] = not preview
                             invocation_history.update(child_path, child_record)
                             print(
-                                f"Delta collection {'preview' if preview else 'published'}: {published}",
+                                "Delta collection preview: pending WF2 gridded changes from this invocation"
+                                if published is None
+                                else f"Delta collection {'preview' if preview else 'published'}: {published}",
                                 flush=True,
                             )
                             result = subprocess.CompletedProcess(cmd, 0)

@@ -5,7 +5,11 @@
 # Version 2 can also add pet: {mode: projection_ratio, method: makkink}.
 # That option requires historical and projection PET, matching pet_method attributes,
 # and [pet, mm/day] in the historical reader's evidenced variables below.
-# Select the standalone producer schema. Options: delta-change/1, delta-change/2.
+# Version 3 takes members, periods and gridded factors from WF2 instead: replace
+# reference_period, future_period and members with
+#   projections: {ensemble: cmip6, window_id: 2040-2069}
+# (a WF2 ensemble and analysis window id), and omit factor_layout.
+# Select the standalone producer schema. Options: delta-change/1, delta-change/2, delta-change/3.
 schema_version: delta-change/1
 # Locate the extracted historical forcing. Input: NetCDF path beside this YAML.
 historical_path: data/extract_historical.nc
