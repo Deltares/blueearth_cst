@@ -124,12 +124,13 @@ def selected_run_ids(
     runs = [item["run_id"] for item in collection["series"]]
     if include:
         return runs
+    from blueearth_cst.experiment.collection_index import marker_project_root
     from blueearth_cst.shared.workflow_config_snapshot import resolve_file_reference
 
     path = Path(manifest_path).resolve()
     lookup = resolve_file_reference(
         collection["scenario_run_lookup"],
-        {"project_root": path.parent.parents[3], "record_directory": path.parent},
+        {"project_root": marker_project_root(path), "record_directory": path.parent},
     )
     with lookup.open(encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))

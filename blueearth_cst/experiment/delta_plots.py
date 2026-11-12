@@ -56,18 +56,21 @@ def plot_delta_collection(
 
     manifest = manifest.resolve(strict=True)
     marker = read_delta_collection(manifest)
-    project = manifest.parents[4]
+    from blueearth_cst.experiment.collection_index import marker_project_root
+    from blueearth_cst.experiment.delta_scenarios import collection_input_root
+
+    project = marker_project_root(manifest)
+    inputs = collection_input_root(project, marker)
     intent = read_canonical_json(
         resolve_file_reference(marker["intent"], {"project_root": project})
     )
-    data = project / marker["data_root"]
     output = output.resolve()
     if output.is_relative_to(project / "scenarios/_engine"):
         raise ValueError("plots must be outside immutable collection storage")
     settings = intent["settings"]
     if member_summary not in {"median", "mean"}:
         raise ValueError("member_summary must be median or mean")
-    with xr.open_dataset(data / settings["historical_path"]) as historical:
+    with xr.open_dataset(inputs / settings["historical_path"]) as historical:
         if annual_matrix:
             historical.load()
         active = historical.precip.notnull().any("time")
@@ -250,7 +253,7 @@ def plot_delta_collection(
                 summarize_members,
             )
 
-            fields = annual_member_maps(data, settings, historical)
+            fields = annual_member_maps(inputs, settings, historical)
             models = list(
                 dict.fromkeys(member["model"] for member in settings["members"])
             )

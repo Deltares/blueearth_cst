@@ -43,6 +43,8 @@ class DeltaGeneration:
             grids = ensemble_dir(root, self.settings["projections"])
             if not (grids / "analysis/gridded_changes/inventory.json").is_file():
                 return None
+        if not preview and self.settings["schema_version"] == "delta-change/3":
+            self._snapshot_outside_inputs(root)
         manifest = generate_collection(
             self.config_path,
             root,
@@ -52,6 +54,17 @@ class DeltaGeneration:
         )
         self.recheck()
         return manifest
+
+    def _snapshot_outside_inputs(self, root: Path) -> None:
+        """Content-addressed copies of admitted inputs outside the project."""
+        from blueearth_cst.experiment.generation_plan import snapshot_generation_input
+
+        root = Path(root).resolve()
+        for path, digest in self.inputs:
+            if not path.resolve().is_relative_to(root):
+                _, copied, _ = snapshot_generation_input(root, path)
+                if copied != digest:
+                    raise ValueError(f"delta input changed during snapshot: {path}")
 
     def provenance(self) -> dict:
         """Return the independent operation's effective settings and input evidence."""

@@ -17,6 +17,11 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 - WF3 no longer copies the historical climate extract and basin cells into
   `scenarios/_engine/generation_inputs/`; they are referenced in place by path and hash. Published sets stay
   readable after the climate store is rebuilt.
+- WF2-sourced delta collections (`delta-change/3`) publish to `scenarios/<name>/` (default
+  `delta-<ensemble>-<window>`) like stochastic sets and appear in `scenarios/collections.csv`. WF2 grids and
+  the climate store are referenced in place; monthly factors are kept per run in `delta/factors/<run_id>.nc`
+  with `factor_lookup.csv`. `delta-change/1` and `/2` keep their earlier layout. WF4 now resolves the
+  project root of named sets correctly.
 - Keep figure title/caption JSON in each output unit's `_engine/plots/` across WF0–WF2, mirroring family
   subfolders (for example `evaluation/_engine/plots/stations/`). Existing projects re-render affected
   figure families once on their next run; JSON at the old locations is left in place and can be deleted.

@@ -116,13 +116,28 @@ def _write_inputs(tmp_path, config=None):
 def test_wf2_factors_equal_the_file_based_grid_path(tmp_path, monkeypatch):
     project, hist, fut = wf2_project(tmp_path, monkeypatch)
     config, baseline = _write_inputs(tmp_path)
+    historical_file = config.parent / wf2_settings()["historical_path"]
+    with pytest.raises(ValueError, match="no snapshot"):
+        generate_collection(config, project)
+    # The runner (delta_generation) snapshots outside-project inputs first.
+    from blueearth_cst.experiment.generation_plan import snapshot_generation_input
+
+    snapshot_generation_input(project, historical_file)
     manifest = generate_collection(config, project)
     marker = read_delta_collection(manifest)
     intent = json.loads(manifest.with_name("collection_intent.json").read_text())
     resolved = intent["settings"]
     assert resolved["reference_period"] == {"start": 1985, "end": 2004}
     assert resolved["future_period"] == {"start": 2040, "end": 2059}
-    assert [m["changes_path"] for m in resolved["members"]] == ["inputs/changes_1.nc"]
+    # Named set; WF2 grids referenced in place, the outside historical file snapshotted.
+    assert manifest.parent.parent == project / "scenarios" / "delta-cmip6-2040-2059"
+    assert [m["changes_path"] for m in resolved["members"]] == [
+        "data/climate/projections/cmip6/analysis/gridded_changes/member_0001.nc"
+    ]
+    assert resolved["historical_path"].startswith(
+        "scenarios/_engine/generation_inputs/"
+    )
+    assert [i["role"] for i in intent["inputs"]] == ["historical", "changes"]
     assert resolved["wf2"]["unavailable"] == []
     assert intent["factor_policy"]["precip"]["min_denominator"] == 0.1
     assert len(marker["series"]) == 3
@@ -142,10 +157,18 @@ def test_wf2_factors_equal_the_file_based_grid_path(tmp_path, monkeypatch):
         v2,
         {"min_denominator": 0.1, "units": "mm/day"},
     )
-    factors = intent["factors"][0]
-    np.testing.assert_allclose(factors["temp_offset_degC"], offsets, rtol=1e-12)
-    np.testing.assert_allclose(factors["precip_ratio"], ratios, rtol=1e-12)
+    folder = manifest.parent.parent
+    with xr.open_dataset(folder / "delta/factors/run_003.nc") as retained:
+        np.testing.assert_allclose(retained["temp_offset"], offsets, rtol=1e-12)
+        np.testing.assert_allclose(retained["precip_ratio"], ratios, rtol=1e-12)
+    assert (folder / "factor_lookup.csv").read_text().splitlines()[0] == (
+        "run_id,factor_file,model,scenario,member"
+    )
     assert generate_collection(config, project) == manifest
+    # A rebuilt store (changed in-place input) leaves the set readable.
+    member = project / resolved["members"][0]["changes_path"]
+    member.write_bytes(member.read_bytes() + b"extra")
+    read_delta_collection(manifest)
 
 
 def test_wf2_dry_reference_cell_is_refused_with_months(tmp_path, monkeypatch):

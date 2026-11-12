@@ -104,12 +104,14 @@ def run_owned(
             raise ValueError("generate_scenarios is disabled")
         if Path(selected["project"]["project_dir"]).resolve() != project_root:
             raise ValueError("project directory differs from generation configuration")
-        operation = capture_delta(config_path, extra)
+        operation = capture_delta(config_path, extra, project_dir=project_root)
         preview = any(flag in extra for flag in ("--dry-run", "--dryrun", "-n"))
         if history_pair is not None:
             history_pair[1]["generation"] = operation.provenance()
             invocation_history.update(*history_pair)
         manifest = operation.run(project_root, preview=preview)
+        if not preview:
+            rebuild_collection_index(project_root)
         if history_pair is not None:
             history_pair[1]["generation"].update(
                 manifest_path=str(manifest), published=not preview

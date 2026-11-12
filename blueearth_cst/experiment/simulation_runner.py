@@ -569,7 +569,9 @@ def verify_selected_collection_source(project, selection, marker):
 
     path = Path(selection["manifest_path"]).resolve(strict=True)
     record_dir = path.parent
-    project_root = record_dir.parents[3]
+    from blueearth_cst.experiment.collection_index import marker_project_root
+
+    project_root = marker_project_root(path)
     configured_root = Path(project["project"]["project_dir"]).resolve()
     if project_root != configured_root:
         raise ValueError("selected collection is outside the WF4 project root")

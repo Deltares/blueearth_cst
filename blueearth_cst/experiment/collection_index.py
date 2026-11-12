@@ -71,6 +71,12 @@ def collection_marker_paths(project_root: Path) -> list[Path]:
     return paths
 
 
+def marker_project_root(marker_path: Path) -> Path:
+    """Project root of a marker in either layout (named set or retained record)."""
+    record = Path(marker_path).parent
+    return record.parents[2] if record.name == "_engine" else record.parents[3]
+
+
 def find_ready_marker(project_root: Path, collection_id: str) -> Path | None:
     """Locate a marker by full identity; the caller validates what it found."""
     found = [
@@ -142,7 +148,7 @@ def _row(marker_path: Path, name: str, aliases: list[str]) -> dict[str, str]:
     from blueearth_cst.experiment.collection_method import collection_method
 
     marker = read_canonical_json(marker_path)
-    project_root = marker_path.parents[3 if marker_path.parent.name == "_engine" else 4]
+    project_root = marker_project_root(marker_path)
     data_root = marker.get("data_root")
     status = (
         "ready"

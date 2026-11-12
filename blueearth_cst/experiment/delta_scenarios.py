@@ -660,6 +660,22 @@ def _prepare_files(config_path: Path, settings: dict):
     return paths, resolved, factors, pet_factors, factor_policy
 
 
+def _input_location(project_root: Path, path: Path) -> str:
+    """Project-relative path of an input referenced in place, or of its snapshot.
+
+    Files inside the project (the climate store, WF2 grids) are referenced in
+    place by path and hash; a file outside it gets a content-addressed copy at
+    publication, whose location is known from its bytes alone.
+    """
+    from blueearth_cst.experiment.content_identity import identity_segment
+
+    path = Path(path).resolve(strict=True)
+    if path.is_relative_to(project_root):
+        return path.relative_to(project_root).as_posix()
+    segment = identity_segment(file_sha256(path), "generation_input")
+    return f"scenarios/_engine/generation_inputs/{segment}/{path.name}"
+
+
 def _wf2_policy(changes: xr.Dataset) -> dict:
     threshold = changes["precip_monthly_ratio"].attrs.get("min_reference")
     if type(threshold) is str or threshold is None:
@@ -687,16 +703,16 @@ def _prepare_wf2(config_path: Path, project_root: Path, settings: dict):
         raise ValueError("WF2 members disagree on the precipitation threshold")
     resolved = dict(settings)
     resolved.update(
-        historical_path="inputs/historical.nc",
+        historical_path=_input_location(project_root, historical_path),
         factor_layout="grid",
         reference_period=selection["reference_period"],
         future_period=selection["future_period"],
         members=[
             {
                 **{key: member[key] for key in ("model", "scenario", "member")},
-                "changes_path": f"inputs/changes_{i}.nc",
+                "changes_path": _input_location(project_root, member["source_path"]),
             }
-            for i, member in enumerate(selection["members"], 1)
+            for member in selection["members"]
         ],
         wf2={
             "water_year_start": selection["water_year_start"],
@@ -757,6 +773,18 @@ def generate_collection(
         or descriptor["end"][:10] < f"{window['end']:04d}-12-31"
     ):
         raise ValueError("historical forcing does not cover simulation_window")
+    if settings["schema_version"] == "delta-change/3":
+        return _publish_named(
+            project_root,
+            settings,
+            resolved,
+            paths,
+            factors,
+            factor_policy,
+            descriptor,
+            preview=preview,
+            expected_input_hashes=expected_input_hashes,
+        )
     relative = input_names(resolved)
     intent = {
         "schema_version": "delta-scenario-intent/2",
@@ -883,12 +911,360 @@ def generate_collection(
     return marker_path
 
 
+#: Named-set delta collections (``scenarios/<name>/``), produced from WF2.
+NAMED_SCHEMA = "delta-scenario-collection/2"
+NAMED_INTENT = "delta-scenario-intent/3"
+FACTOR_FIELDS = ["run_id", "factor_file", "model", "scenario", "member"]
+_NAMED_MARKER_KEYS = {
+    "schema_version",
+    "scenario_type",
+    "status",
+    "collection_id",
+    "collection_revision",
+    "data_root",
+    "intent",
+    "scenario_run_lookup",
+    "factor_lookup",
+    "factors",
+    "series",
+}
+_NAMED_INTENT_KEYS = {
+    "schema_version",
+    "scenario_type",
+    "factor_policy",
+    "settings",
+    "scenario_spec",
+    "inputs",
+    "provider_revision",
+    "environment",
+    "historical_descriptor",
+    "run_group_id_capacity",
+    "run_group_id_width",
+    "factors",
+}
+
+
+def default_delta_name(projections: dict) -> str:
+    """Readable default set name from the WF2 ensemble and window."""
+    return f"delta-{projections['ensemble']}-{projections['window_id']}"
+
+
+def _factor_digest(offsets: np.ndarray, ratios: np.ndarray) -> str:
+    return content_sha256(
+        {"temp_offset_degC": offsets.tolist(), "precip_ratio": ratios.tolist()}
+    )
+
+
+def _factor_dataset(
+    offsets: np.ndarray, ratios: np.ndarray, historical: xr.Dataset
+) -> xr.Dataset:
+    """Monthly factors on the historical grid, with its CRS when it has one."""
+    dims = ("month", "latitude", "longitude")
+    coords = {
+        "month": np.arange(1, 13),
+        "latitude": historical["latitude"].values,
+        "longitude": historical["longitude"].values,
+    }
+    dataset = xr.Dataset(
+        {
+            "temp_offset": (dims, offsets, {"units": "degC"}),
+            "precip_ratio": (dims, ratios, {"units": "1"}),
+        },
+        coords=coords,
+    )
+    if "spatial_ref" in historical.variables:
+        dataset = dataset.assign_coords(spatial_ref=historical["spatial_ref"])
+    return dataset
+
+
+def _publish_named(
+    project_root: Path,
+    settings: dict,
+    resolved: dict,
+    paths: list[Path],
+    factors: list,
+    factor_policy: dict,
+    descriptor: dict,
+    *,
+    preview: bool,
+    expected_input_hashes: list[str] | None,
+) -> Path:
+    """Publish a WF2-sourced collection as ``scenarios/<name>/``.
+
+    Large inputs (climate store, WF2 grids) are referenced in place by path and
+    hash; the reader never re-reads them, so a rebuilt store leaves the set
+    readable. Factors are retained per run as NetCDF; the intent keeps their
+    content digests, so identity follows the factor values.
+    """
+    from blueearth_cst.experiment.collection_index import (
+        allocate_collection_name,
+        find_ready_marker,
+    )
+
+    inputs = [
+        {
+            "role": role,
+            "path": location,
+            "sha256": file_sha256(path),
+            "size_bytes": path.stat().st_size,
+        }
+        for role, location, path in zip(
+            ["historical"] + ["changes"] * len(resolved["members"]),
+            [resolved["historical_path"]]
+            + [m["changes_path"] for m in resolved["members"]],
+            paths,
+            strict=True,
+        )
+    ]
+    if (
+        expected_input_hashes is not None
+        and [inputs[0]["sha256"]] != expected_input_hashes
+    ):
+        raise ValueError("delta generation inputs changed after admission")
+    intent = {
+        "schema_version": NAMED_INTENT,
+        "scenario_type": "delta_change",
+        "factor_policy": factor_policy,
+        "settings": resolved,
+        "scenario_spec": {"simulation_window": dict(settings["simulation_window"])},
+        "inputs": inputs,
+        "provider_revision": file_sha256(Path(__file__)),
+        "environment": {
+            name: importlib.metadata.version(name)
+            for name in ("numpy", "xarray", "netCDF4", "hydromt", "rasterio", "pyproj")
+        },
+        "historical_descriptor": descriptor,
+        "run_group_id_capacity": settings["unit_id_capacity"],
+        "run_group_id_width": len(str(settings["unit_id_capacity"])),
+        "factors": [_factor_digest(o, r) for o, r in factors],
+    }
+    identity = content_sha256(intent)
+    existing = find_ready_marker(project_root, identity)
+    if existing is not None:
+        read_delta_collection(existing)
+        return existing
+    name = allocate_collection_name(
+        project_root, default_delta_name(settings["projections"])
+    )
+    folder = project_root / "scenarios" / name
+    engine = folder / "_engine"
+    marker_path = engine / "collection.json"
+    if preview:
+        return marker_path
+    # Outside-project inputs are snapshotted by the runner (delta_generation)
+    # before publication; importing the snapshot helper here would pull
+    # generation planning into every WF4 indicator code inventory.
+    for entry, source in zip(inputs, paths, strict=True):
+        target = project_root / entry["path"]
+        if not source.resolve().is_relative_to(project_root) and (
+            not target.is_file() or file_sha256(target) != entry["sha256"]
+        ):
+            raise ValueError(
+                f"delta input outside the project has no snapshot at {target}; "
+                "generate through scripts/run_workflows.py or generate_scenarios.py"
+            )
+    engine.mkdir(parents=True, exist_ok=False)
+    shutil.copyfile(Path(__file__), engine / "producer.py")
+    atomic_record(engine / "collection_intent.json", intent)
+    rows = scenario_records(resolved)
+    with (folder / "scenario_run_lookup.csv").open(
+        "w", encoding="utf-8", newline=""
+    ) as handle:
+        writer = csv.DictWriter(handle, fieldnames=ROW_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
+    (folder / "series").mkdir()
+    (folder / "delta" / "factors").mkdir(parents=True)
+    factor_rows, factor_refs, series = [], [], []
+    historical_path = project_root / resolved["historical_path"]
+    with xr.open_dataset(historical_path) as historical:
+        historical.load()
+        for index, row in enumerate(rows):
+            if index >= 2:
+                offsets, ratios = factors[index - 2]
+                factor_path = folder / "delta" / "factors" / f"{row['run_id']}.nc"
+                _factor_dataset(offsets, ratios, historical).to_netcdf(factor_path)
+                factor_rows.append(
+                    {
+                        "run_id": row["run_id"],
+                        "factor_file": factor_path.relative_to(folder).as_posix(),
+                        **{k: row[k] for k in ("model", "scenario", "member")},
+                    }
+                )
+                factor_refs.append(
+                    file_reference(factor_path, "project_root", project_root)
+                )
+                transformed = apply_factors(historical, offsets, ratios, None)
+            elif index == 1:
+                transformed = apply_factors(historical, np.zeros(12), np.ones(12), None)
+            else:
+                transformed = historical
+            path = folder / "series" / f"{row['run_id']}.nc"
+            transformed.to_netcdf(path)
+            series.append(
+                {
+                    "run_id": row["run_id"],
+                    "file": file_reference(path, "project_root", project_root),
+                    "descriptor": collection_forcing_descriptor(
+                        path, settings["reader"]
+                    ),
+                }
+            )
+    with (folder / "factor_lookup.csv").open(
+        "w", encoding="utf-8", newline=""
+    ) as handle:
+        writer = csv.DictWriter(handle, fieldnames=FACTOR_FIELDS)
+        writer.writeheader()
+        writer.writerows(factor_rows)
+    if file_sha256(historical_path) != inputs[0]["sha256"]:
+        raise ValueError(
+            "historical input changed during generation; incomplete set retained "
+            f"at {folder}"
+        )
+    marker = {
+        "schema_version": NAMED_SCHEMA,
+        "scenario_type": "delta_change",
+        "status": "ready",
+        "collection_id": identity,
+        "data_root": folder.relative_to(project_root).as_posix(),
+        "intent": file_reference(
+            engine / "collection_intent.json", "project_root", project_root
+        ),
+        "scenario_run_lookup": file_reference(
+            folder / "scenario_run_lookup.csv", "project_root", project_root
+        ),
+        "factor_lookup": file_reference(
+            folder / "factor_lookup.csv", "project_root", project_root
+        ),
+        "factors": factor_refs,
+        "series": series,
+    }
+    marker["collection_revision"] = content_sha256(marker)
+    atomic_record(marker_path, marker)
+    read_delta_collection(marker_path)
+    return marker_path
+
+
+def _read_named_delta_collection(marker_path: Path) -> dict:
+    """Validate a named-set delta collection without re-reading its inputs."""
+    engine = marker_path.parent
+    folder = engine.parent
+    if engine.name != "_engine" or folder.parent.name != "scenarios":
+        raise ValueError("delta collection must be discovered through its set marker")
+    root = folder.parent.parent
+    anchors = {"project_root": root}
+    marker = _fields(read_canonical_json(marker_path), _NAMED_MARKER_KEYS, "marker")
+    if (
+        marker["schema_version"] != NAMED_SCHEMA
+        or marker["scenario_type"] != "delta_change"
+        or marker["status"] != "ready"
+        or marker["data_root"] != f"scenarios/{folder.name}"
+    ):
+        raise ValueError("unsupported, unready or relocated delta collection")
+    if marker["collection_revision"] != content_sha256(
+        {key: value for key, value in marker.items() if key != "collection_revision"}
+    ):
+        raise ValueError("delta collection revision differs")
+    intent_path = resolve_file_reference(marker["intent"], anchors)
+    if intent_path != engine / "collection_intent.json":
+        raise ValueError("delta intent must be the sibling frozen record")
+    intent = _fields(read_canonical_json(intent_path), _NAMED_INTENT_KEYS, "intent")
+    if (
+        intent["schema_version"] != NAMED_INTENT
+        or intent["scenario_type"] != marker["scenario_type"]
+        or content_sha256(intent) != marker["collection_id"]
+    ):
+        raise ValueError("delta identity differs")
+    settings = validate_settings(intent["settings"])
+    if intent["run_group_id_capacity"] != settings["unit_id_capacity"] or intent[
+        "run_group_id_width"
+    ] != len(str(settings["unit_id_capacity"])):
+        raise ValueError("delta namespace differs")
+    if file_sha256(engine / "producer.py") != intent["provider_revision"]:
+        raise ValueError("retained producer bytes differ")
+    expected_inputs = [settings["historical_path"]] + [
+        m["changes_path"] for m in settings["members"]
+    ]
+    if [item.get("path") for item in intent["inputs"]] != expected_inputs:
+        raise ValueError("delta input references differ from the settings")
+    rows = scenario_records(settings)
+    lookup = resolve_file_reference(marker["scenario_run_lookup"], anchors)
+    if lookup != folder / "scenario_run_lookup.csv":
+        raise ValueError("delta lookup path differs")
+    with lookup.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames != ROW_FIELDS or list(reader) != rows:
+            raise ValueError("delta lookup differs from declared members")
+    projections = rows[2:]
+    if not (
+        len(projections)
+        == len(intent["factors"])
+        == len(marker["factors"])
+        == len(settings["members"])
+    ):
+        raise ValueError("delta factor count differs")
+    factor_lookup = resolve_file_reference(marker["factor_lookup"], anchors)
+    if factor_lookup != folder / "factor_lookup.csv":
+        raise ValueError("delta factor lookup path differs")
+    with factor_lookup.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        expected = [
+            {
+                "run_id": row["run_id"],
+                "factor_file": f"delta/factors/{row['run_id']}.nc",
+                **{k: row[k] for k in ("model", "scenario", "member")},
+            }
+            for row in projections
+        ]
+        if reader.fieldnames != FACTOR_FIELDS or list(reader) != expected:
+            raise ValueError("delta factor lookup differs from declared members")
+    for item, reference, digest in zip(
+        expected, marker["factors"], intent["factors"], strict=True
+    ):
+        path = resolve_file_reference(reference, anchors)
+        if path != folder / item["factor_file"]:
+            raise ValueError("delta factor file path differs")
+        with xr.open_dataset(path) as factors:
+            if (
+                _factor_digest(
+                    factors["temp_offset"].values, factors["precip_ratio"].values
+                )
+                != digest
+            ):
+                raise ValueError("retained factor values differ from the intent")
+    if type(marker["series"]) is not list or len(marker["series"]) != len(rows):
+        raise ValueError("delta series count differs")
+    for row, entry in zip(rows, marker["series"], strict=True):
+        _fields(entry, {"run_id", "file", "descriptor"}, "delta series")
+        path = resolve_file_reference(entry["file"], anchors)
+        if (
+            entry["run_id"] != row["run_id"]
+            or path != folder / "series" / f"{row['run_id']}.nc"
+        ):
+            raise ValueError("delta series identity/path differs")
+        if (
+            collection_forcing_descriptor(path, settings["reader"])
+            != entry["descriptor"]
+        ):
+            raise ValueError("delta forcing descriptor differs")
+    return marker
+
+
+def collection_input_root(project_root: Path, marker: dict) -> Path:
+    """Base for intent input paths: the project for named sets, else the data root."""
+    if marker["schema_version"] == NAMED_SCHEMA:
+        return Path(project_root)
+    return Path(project_root) / marker["data_root"]
+
+
 def read_delta_collection(marker_path: Path) -> dict:
     """Validate the complete delta collection, including retained physical inputs."""
     marker_path = Path(marker_path)
     if marker_path.is_symlink():
         raise ValueError("collection marker cannot be a symbolic link")
     marker_path = marker_path.resolve(strict=True)
+    if marker_path.parent.name == "_engine":
+        return _read_named_delta_collection(marker_path)
     directory = marker_path.parent
     if (
         marker_path.name != "collection.json"
