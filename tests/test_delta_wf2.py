@@ -470,3 +470,39 @@ def test_members_without_pet_are_reported_unavailable(tmp_path, monkeypatch):
     binding["pet_method"] = "debruin"
     with pytest.raises(ValueError, match="no WF2 member has a PET ratio"):
         generate_collection(config, project, historical=binding)
+
+
+def render_v3_plots(tmp_path, monkeypatch, output):
+    """A capped two-window set, its basin geometry and the rendered plots."""
+    import geopandas as gpd
+    from shapely.geometry import box
+
+    from blueearth_cst.experiment.delta_plots import plot_delta_collection
+
+    project, *_ = wf2_project(tmp_path, monkeypatch, dry_cell=True)
+    _add_wf2_pet(project)
+    cap = wf2_settings(
+        dry_reference={"policy": "cap", "max_change": 0.25},
+        pet={"mode": "projection_ratio"},
+    )
+    config, _, binding = _write_inputs(tmp_path, project, cap)
+    binding["pet_method"] = "debruin"
+    manifest = generate_collection(config, project, historical=binding)
+    geoms = project / "models/hydrology/wflow/staticgeoms"
+    geoms.mkdir(parents=True)
+    gpd.GeoDataFrame(geometry=[box(-0.5, -0.5, 1.5, 1.5)], crs=4326).to_file(
+        geoms / "basins.geojson"
+    )
+    return plot_delta_collection(manifest, output)
+
+
+def test_v3_plots_render_each_window_with_capped_captions(tmp_path, monkeypatch):
+    output = tmp_path / "plots"
+    paths = render_v3_plots(tmp_path, monkeypatch, output)
+    windows = {path.relative_to(output).parts[0] for path in paths}
+    assert windows == {"2040-2059", "2070-2089"}
+    near = (output / "2040-2059/figure_captions.md").read_text(encoding="utf-8")
+    assert "WF2 window 2040-2059 (near)" in near
+    assert "capped at ±25%: A/ssp245/r1 months 01, 02" in near
+    assert (output / "2040-2059/run_3_pet_ratio_monthly_map_basin_ext.png").is_file()
+    assert (output / "2070-2089/run_4_precip_ratio_monthly_map_basin_ext.png").is_file()

@@ -47,6 +47,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
   scaled by WF2's monthly PET ratio, and passed to WF4 as provided PET. WF2 must use the same formula;
   members without a PET ratio are excluded and reported per window. Without `pet`, WF4 keeps recomputing PET
   from perturbed temperature.
+- Delta plots (`scripts/plot_delta_scenarios.py`) render `delta-change/3` sets per WF2 window into
+  `<output>/<window_id>/`, with factors read from the set's factor files; captions name the window, list
+  capped dry-reference months and count unavailable members.
 - Keep figure title/caption JSON in each output unit's `_engine/plots/` across WF0–WF2, mirroring family
   subfolders (for example `evaluation/_engine/plots/stations/`). Existing projects re-render affected
   figure families once on their next run; JSON at the old locations is left in place and can be deleted.
