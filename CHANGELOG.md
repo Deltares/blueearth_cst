@@ -34,6 +34,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
   months); `cap` uses future / reference limited to ±`max_change` and records the capped members and months
   in the collection. A zero reference or missing future mean is always refused. Multiplicative scaling still
   never adds rain days.
+- WF4 selects a scenario collection with `scenario_collection: {name: <set or alias>}` or
+  `{id: <at least 12 hex characters>}`, for both methods; an unknown value stops and lists the sets.
+  `scenario_collection.manifest_path` is deprecated and will be removed in the next release.
 - Keep figure title/caption JSON in each output unit's `_engine/plots/` across WF0–WF2, mirroring family
   subfolders (for example `evaluation/_engine/plots/stations/`). Existing projects re-render affected
   figure families once on their next run; JSON at the old locations is left in place and can be deleted.

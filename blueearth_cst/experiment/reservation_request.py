@@ -289,7 +289,9 @@ def capture_request(
             resolve_explicit_collection_v2,
         )
 
-        selected, _ = resolve_explicit_collection_v2(workflow["scenario_collection"])
+        selected, _ = resolve_explicit_collection_v2(
+            workflow["scenario_collection"], root
+        )
         manifest_path = Path(selected["manifest_path"]).resolve(strict=True)
         if not manifest_path.is_relative_to(root):
             raise ValueError("selected collection must lie in the project root")

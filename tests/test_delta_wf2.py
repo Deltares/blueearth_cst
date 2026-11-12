@@ -359,3 +359,32 @@ def test_default_name_sanitises_horizon_names():
     ]
     resolved = {"projections": {"ensemble": "cmip6"}, "windows": windows}
     assert default_delta_name(resolved) == "delta-cmip6-mid-century-2070-2099"
+
+
+def test_wf4_selects_a_set_by_name_alias_or_short_id(tmp_path, monkeypatch):
+    from blueearth_cst.experiment.collection_index import rebuild_collection_index
+    from blueearth_cst.experiment.collection_resolution import (
+        resolve_explicit_collection_v2,
+    )
+
+    project, *_ = wf2_project(tmp_path, monkeypatch)
+    config, _, binding = _write_inputs(tmp_path, project)
+    manifest = generate_collection(config, project, historical=binding)
+    identity = json.loads(manifest.read_text())["collection_id"]
+    rebuild_collection_index(project, alias=(identity, "mine"))
+    for selector in (
+        {"name": "delta-cmip6-near-far"},
+        {"name": "mine"},
+        {"id": identity[:12]},
+        {"manifest_path": str(manifest)},
+    ):
+        selection, _ = resolve_explicit_collection_v2(selector, project)
+        assert selection["collection_id"] == identity
+        assert selection["manifest_path"] == manifest.resolve().as_posix()
+    with pytest.raises(
+        ValueError, match="matches no collection; available: delta-cmip6-near-far"
+    ):
+        resolve_explicit_collection_v2({"name": "other"}, project)
+    for bad in ({"id": "abc"}, {"name": "a", "id": identity[:12]}, {"path": "x"}):
+        with pytest.raises(ValueError):
+            resolve_explicit_collection_v2(bad, project)

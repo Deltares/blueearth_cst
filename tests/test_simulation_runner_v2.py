@@ -110,7 +110,7 @@ def test_explicit_selector_uses_v2_reader(tmp_path, monkeypatch):
     monkeypatch.setattr(
         collection_resolution,
         "resolve_explicit_collection_v2",
-        lambda selector: (
+        lambda selector, *_: (
             (selection, {"schema_version": "scenario-collection/3"})
             if selector == {"manifest_path": marker}
             else pytest.fail("wrong selector")

@@ -1506,9 +1506,11 @@ def _run_owned(
                 raise ValueError(
                     "delta generation with WF4 requires an explicit existing scenario_collection.manifest_path"
                 )
-            resolve_explicit_collection_v2(simulation["scenario_collection"])
+            selected, _ = resolve_explicit_collection_v2(
+                simulation["scenario_collection"], project_dir
+            )
             print(
-                f"WF4 explicitly selected collection: {simulation['scenario_collection']['manifest_path']}; "
+                f"WF4 explicitly selected collection: {selected['manifest_path']}; "
                 "delta generation will not replace this selection.",
                 flush=True,
             )

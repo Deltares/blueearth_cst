@@ -474,7 +474,8 @@ def resolve_collection_with_plan(config_path, repository):
     project, settings = simulation_settings(config_path)
     if "scenario_collection" in settings:
         selection, marker = resolve_explicit_collection_v2(
-            settings["scenario_collection"]
+            settings["scenario_collection"],
+            project.get("project", {}).get("project_dir"),
         )
         verify_selected_collection_source(project, selection, marker)
         return selection, marker, None
