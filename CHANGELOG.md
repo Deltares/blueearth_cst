@@ -29,6 +29,11 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
   windows are never pooled. `historical_path`, `source_like`, `reader`, `simulation_window` and
   `projections.window_id` are removed from v3 (unreleased). Delta plots refuse v3 sets until the showcase
   commit.
+- `delta-change/3` adds `dry_reference: {policy: refuse | cap, max_change}`. Months whose WF2 reference
+  precipitation is below WF2's `min_denominator` stop generation by default (naming member, window and
+  months); `cap` uses future / reference limited to ±`max_change` and records the capped members and months
+  in the collection. A zero reference or missing future mean is always refused. Multiplicative scaling still
+  never adds rain days.
 - Keep figure title/caption JSON in each output unit's `_engine/plots/` across WF0–WF2, mirroring family
   subfolders (for example `evaluation/_engine/plots/stations/`). Existing projects re-render affected
   figure families once on their next run; JSON at the old locations is left in place and can be deleted.

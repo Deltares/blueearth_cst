@@ -217,14 +217,33 @@ def map_monthly(
     return mapped.transpose("month", "latitude", "longitude")
 
 
+def _active_months(flags, crs, target, active, label) -> list[int]:
+    """Months in which any active historical cell carries a source flag."""
+    mapped = map_monthly(
+        flags.astype(float), crs, target, active, neutral=None, label=label
+    )
+    hit = (mapped.where(active, 0) > 0).any(("latitude", "longitude")).values
+    return [int(m) for m in mapped.month.values[hit]]
+
+
+def _listed(months: list[int]) -> str:
+    return ", ".join(f"{m:02d}" for m in months)
+
+
 def member_factors(
-    changes: xr.Dataset, historical: xr.Dataset
+    changes: xr.Dataset,
+    historical: xr.Dataset,
+    dry_reference: dict | None = None,
+    capped: list | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """WF2 monthly offsets and precipitation ratios on the historical grid.
 
-    A missing ratio in the active domain means WF2 withheld it (reference below
-    ``min_denominator``) or the source cell is incomplete; both are refused here
-    with the affected months named.
+    WF2 withholds the ratio where the monthly reference mean is below its
+    ``min_denominator`` (a dry cell/month). ``dry_reference`` (design §1.2)
+    decides: ``refuse`` (default) stops with the months named; ``cap`` uses
+    future / reference limited to [1 - max_change, 1 + max_change], still
+    refusing a zero or missing reference or a missing future mean. The capped
+    months are appended to ``capped``.
     """
     import hydromt  # noqa: F401
 
@@ -242,28 +261,36 @@ def member_factors(
         neutral=0.0,
         label="WF2 temperature change",
     )
+    policy = dry_reference or {"policy": "refuse"}
     ratio = changes["precip_monthly_ratio"]
     reference = changes["precip_monthly_reference"]
     dry = ratio.isnull() & reference.notnull()
     if bool(dry.any()):
-        mapped_dry = map_monthly(
-            dry.astype(float),
-            crs,
-            target,
-            active,
-            neutral=None,
-            label="WF2 dry-reference flags",
-        )
-        months = mapped_dry.month.values[
-            (mapped_dry.where(active, 0) > 0).any(("latitude", "longitude")).values
-        ]
-        if len(months):
-            threshold = ratio.attrs.get("min_reference", "the WF2 threshold")
-            listed = ", ".join(f"{int(m):02d}" for m in months)
+        months = _active_months(dry, crs, target, active, "WF2 dry-reference flags")
+        threshold = ratio.attrs.get("min_reference", "the WF2 threshold")
+        if months and policy["policy"] == "refuse":
             raise ValueError(
                 f"reference precipitation below {threshold} mm/day in active grid "
-                f"cells in months {listed}; relative factors are refused, not clipped"
+                f"cells in months {_listed(months)}; relative factors are refused "
+                "(set dry_reference: {policy: cap, max_change: ...} to cap them)"
             )
+        if months:
+            future = changes["precip_monthly_future"]
+            for flags, problem in (
+                (dry & (reference <= 0), "is zero, so no ratio exists"),
+                (dry & future.isnull(), "has no future mean"),
+            ):
+                bad = _active_months(flags, crs, target, active, "WF2 dry flags")
+                if bad:
+                    raise ValueError(
+                        f"reference precipitation {problem} in active grid cells in "
+                        f"months {_listed(bad)}; capping cannot apply"
+                    )
+            change = policy["max_change"]
+            bounded = (future / reference).clip(1 - change, 1 + change)
+            ratio = ratio.where(~dry, bounded)
+            if capped is not None:
+                capped.extend(months)
         ratio = ratio.fillna(1.0).where(reference.notnull())
     ratios = map_monthly(
         ratio, crs, target, active, neutral=1.0, label="WF2 precipitation ratio"

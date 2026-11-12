@@ -28,7 +28,7 @@ SPEC = {
 REFERENCE, FUTURE, FAR = (1985, 2004), (2040, 2059), (2070, 2089)
 
 
-def _raw(path, start, years, *, warming, wetting, dry_cell=False):
+def _raw(path, start, years, *, warming, wetting, dry_cell=False, dry_value=0.05):
     """Monthly raw grid on the historical fixture's cells, varying by year/month."""
     import hydromt  # noqa: F401
 
@@ -38,7 +38,7 @@ def _raw(path, start, years, *, warming, wetting, dry_cell=False):
     temp = 20 + month / 2 + rng.normal(0, 0.5, (time.size, 2, 2)) + warming
     precip = (1 + month / 4 + rng.gamma(2, 0.2, (time.size, 2, 2))) * wetting
     if dry_cell:
-        precip[:, 1, 1] = 0.05
+        precip[:, 1, 1] = dry_value
     ds = xr.Dataset(
         {
             "temp": (("time", "lat", "lon"), temp, {"units": "degC"}),
@@ -52,7 +52,7 @@ def _raw(path, start, years, *, warming, wetting, dry_cell=False):
     return ds
 
 
-def wf2_project(tmp_path, monkeypatch, *, dry_cell=False):
+def wf2_project(tmp_path, monkeypatch, *, dry_cell=False, dry_value=0.05):
     """A project root holding WF2 products for one member and one window."""
     monkeypatch.setattr(series_identity, "assert_raw_identity", lambda *a: None)
     monkeypatch.setattr(series_identity, "assert_raw_coverage", lambda *a: None)
@@ -61,10 +61,22 @@ def wf2_project(tmp_path, monkeypatch, *, dry_cell=False):
     raw = tmp_path / "raw"
     raw.mkdir()
     hist = _raw(
-        raw / "hist.nc", "1980-01-01", 35, warming=0, wetting=1, dry_cell=dry_cell
+        raw / "hist.nc",
+        "1980-01-01",
+        35,
+        warming=0,
+        wetting=1,
+        dry_cell=dry_cell,
+        dry_value=dry_value,
     )
     fut = _raw(
-        raw / "fut.nc", "2015-01-01", 86, warming=2, wetting=1.2, dry_cell=dry_cell
+        raw / "fut.nc",
+        "2015-01-01",
+        86,
+        warming=2,
+        wetting=1.2,
+        dry_cell=dry_cell,
+        dry_value=dry_value * 1.6,
     )
     point = {
         "model": "A",
@@ -229,7 +241,42 @@ def test_historical_period_override_and_coverage(tmp_path, monkeypatch):
 def test_wf2_dry_reference_cell_is_refused_with_months(tmp_path, monkeypatch):
     project, *_ = wf2_project(tmp_path, monkeypatch, dry_cell=True)
     config, _, binding = _write_inputs(tmp_path, project)
-    with pytest.raises(ValueError, match="below 0.1 mm/day.*months 01, 02"):
+    with pytest.raises(
+        ValueError,
+        match="A/ssp245/r1/2040-2059.*below 0.1 mm/day.*months 01, 02.*policy: cap",
+    ):
+        generate_collection(config, project, historical=binding)
+
+
+def test_dry_reference_cap_limits_ratio_and_is_recorded(tmp_path, monkeypatch):
+    project, *_ = wf2_project(tmp_path, monkeypatch, dry_cell=True)
+    cap = wf2_settings(
+        projections={"ensemble": "cmip6", "future_windows": ["near"]},
+        dry_reference={"policy": "cap", "max_change": 0.25},
+    )
+    config, _, binding = _write_inputs(tmp_path, project, cap)
+    manifest = generate_collection(config, project, historical=binding)
+    resolved = _intent(manifest)["settings"]
+    assert resolved["dry_reference"] == {"policy": "cap", "max_change": 0.25}
+    (entry,) = resolved["wf2"]["capped"]
+    assert entry["window_id"] == "2040-2059" and entry["months"] == list(range(1, 13))
+    # The future dry mean is 1.6 x the reference: limited to 1 + 0.25.
+    with xr.open_dataset(manifest.parent.parent / "delta/factors/run_3.nc") as factors:
+        np.testing.assert_allclose(factors["precip_ratio"].values[:, 1, 1], 1.25)
+        wet = factors["precip_ratio"].values[:, 0, 1]
+        assert np.all(wet != 1.25)
+    # A different cap is a different collection; refusal is the default.
+    refuse = wf2_settings(projections={"ensemble": "cmip6", "future_windows": ["near"]})
+    config, _, binding = _write_inputs(tmp_path, project, refuse)
+    with pytest.raises(ValueError, match="relative factors are refused"):
+        generate_collection(config, project, historical=binding)
+
+
+def test_zero_reference_is_refused_even_when_capping(tmp_path, monkeypatch):
+    project, *_ = wf2_project(tmp_path, monkeypatch, dry_cell=True, dry_value=0.0)
+    cap = wf2_settings(dry_reference={"policy": "cap", "max_change": 0.5})
+    config, _, binding = _write_inputs(tmp_path, project, cap)
+    with pytest.raises(ValueError, match="is zero, so no ratio exists"):
         generate_collection(config, project, historical=binding)
 
 
@@ -262,6 +309,11 @@ OVERRIDE_FILE = {"path": "x.nc", "source": "era5", "units_note": "note"}
         {"historical_override": {**OVERRIDE_FILE, "units": {"temp": "K"}}},
         {"name": "_engine"},
         {"unit_id_capacity": 2},
+        {"dry_reference": {"policy": "clip"}},
+        {"dry_reference": {"policy": "cap"}},
+        {"dry_reference": {"policy": "cap", "max_change": 0}},
+        {"dry_reference": {"policy": "cap", "max_change": 1.5}},
+        {"dry_reference": {"policy": "refuse", "max_change": 0.5}},
     ],
 )
 def test_wf2_settings_are_closed(change):

@@ -66,6 +66,7 @@ V3_AUTHORED = {
     "projections",
     "unit_id_capacity",
     "historical_override",
+    "dry_reference",
 }
 #: Keys the producer adds when it resolves a v3 request into its intent.
 V3_RESOLVED_KEYS = {
@@ -146,6 +147,19 @@ def _validate_override(value: Any) -> dict:
     return value
 
 
+def _validate_dry_reference(value: Any) -> dict:
+    """``{policy: refuse}`` or ``{policy: cap, max_change: (0, 1]}`` (design §1.2)."""
+    if type(value) is not dict or value.get("policy") not in {"refuse", "cap"}:
+        raise ValueError("dry_reference.policy must be refuse or cap")
+    expected = {"policy", "max_change"} if value["policy"] == "cap" else {"policy"}
+    _fields(value, expected, f"dry_reference ({value['policy']})")
+    if value["policy"] == "cap":
+        change = value["max_change"]
+        if type(change) not in (int, float) or not 0 < change <= 1:
+            raise ValueError("dry_reference.max_change must be a fraction in (0, 1]")
+    return value
+
+
 def _validate_v3(value: dict) -> dict:
     """Authored or resolved delta-change/3 settings (WF2 projection source)."""
     from blueearth_cst.experiment.collection_index import validate_collection_name
@@ -170,6 +184,8 @@ def _validate_v3(value: dict) -> dict:
         validate_collection_name(value["name"])
     if "historical_override" in value:
         _validate_override(value["historical_override"])
+    if "dry_reference" in value:
+        _validate_dry_reference(value["dry_reference"])
     capacity = value.get("unit_id_capacity")
     if capacity is not None and (type(capacity) is not int or capacity < 3):
         raise ValueError("unit_id_capacity must be an integer of at least 3")
@@ -791,7 +807,8 @@ def _prepare_wf2(project_root: Path, settings: dict, historical: dict):
     else:
         effective = list(selection["reference"]["effective"])
     paths = [historical_path] + [m["source_path"] for m in selection["members"]]
-    factors, policies = [], set()
+    factors, policies, capped = [], set(), []
+    dry_reference = settings.get("dry_reference", {"policy": "refuse"})
     with xr.open_dataset(historical_path) as data:
         missing = sorted(
             set(SUPPORTED_SOURCES[historical["source"]]) - set(data.data_vars)
@@ -804,13 +821,31 @@ def _prepare_wf2(project_root: Path, settings: dict, historical: dict):
             )
         for member in selection["members"]:
             with xr.open_dataset(member["source_path"]) as changes:
-                factors.append(member_factors(changes, data))
+                months: list[int] = []
+                label = "/".join(
+                    member[k] for k in ("model", "scenario", "member", "window_id")
+                )
+                try:
+                    factors.append(member_factors(changes, data, dry_reference, months))
+                except ValueError as error:
+                    raise ValueError(f"WF2 member {label}: {error}") from error
+                if months:
+                    capped.append(
+                        {
+                            **{
+                                k: member[k]
+                                for k in ("model", "scenario", "member", "window_id")
+                            },
+                            "months": months,
+                        }
+                    )
                 factor_policy = _wf2_policy(changes)
                 policies.add(content_sha256(factor_policy))
     if len(policies) != 1:
         raise ValueError("WF2 members disagree on the precipitation threshold")
     resolved = {key: value for key, value in settings.items() if key != "name"}
     resolved.setdefault("unit_id_capacity", len(selection["members"]) + 2)
+    resolved["dry_reference"] = dry_reference
     resolved.update(
         historical_path=_input_location(project_root, historical_path),
         source_like=historical["source"],
@@ -834,6 +869,7 @@ def _prepare_wf2(project_root: Path, settings: dict, historical: dict):
         ],
         windows=selection["windows"],
         wf2={
+            "capped": capped,
             "water_year_start": selection["water_year_start"],
             "inventory_sha256": file_sha256(selection["inventory_path"]),
             "analysis_record_sha256": file_sha256(selection["record_path"]),
@@ -853,6 +889,17 @@ def _prepare_wf2(project_root: Path, settings: dict, historical: dict):
             f"delta - window {entry['window_id']} ({names}): {entry['members']} "
             f"members"
             + (f"; {len(listed)} unavailable, excluded: {shown}" if listed else ""),
+            flush=True,
+        )
+    if capped:
+        shown = "; ".join(
+            f"{c['model']}/{c['scenario']}/{c['member']} {c['window_id']} "
+            f"months {', '.join(f'{m:02d}' for m in c['months'])}"
+            for c in capped[:6]
+        ) + (f" (+{len(capped) - 6} more)" if len(capped) > 6 else "")
+        print(
+            f"WARNING delta - dry reference months capped at "
+            f"±{dry_reference['max_change']:.0%}: {shown}",
             flush=True,
         )
     if "period" in override:
