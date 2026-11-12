@@ -114,6 +114,21 @@ class DeltaGeneration:
         }
 
 
+MIGRATION = (
+    "docs/technical-manual/delta-change-scenarios.md#migrating-from-delta-change1-and-2"
+)
+
+
+def refuse_retired_schema(settings: dict) -> None:
+    """delta-change/1 and /2 are read-only: retained sets stay readable."""
+    version = settings.get("schema_version")
+    if version in {"delta-change/1", "delta-change/2"}:
+        raise ValueError(
+            f"{version} is read-only: retained collections stay readable, but new "
+            "delta generation uses delta-change/3 (WF2 projections). See " + MIGRATION
+        )
+
+
 def historical_binding(config: dict, settings: dict) -> dict:
     """The historical record of a delta-change/3 request (design §3.1).
 
@@ -195,6 +210,7 @@ def capture_delta(
         source_bytes={source: source_bytes},
     )
     settings = config["workflows"]["generate_scenarios"]["delta_change"]
+    refuse_retired_schema(settings)
     historical, pending = None, False
     if settings["schema_version"] == "delta-change/3":
         projections = settings["projections"]

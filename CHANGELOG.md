@@ -50,6 +50,11 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 - Delta plots (`scripts/plot_delta_scenarios.py`) render `delta-change/3` sets per WF2 window into
   `<output>/<window_id>/`, with factors read from the set's factor files; captions name the window, list
   capped dry-reference months and count unavailable members.
+- **Migration:** `delta-change/1` and `/2` are read-only. Their retained collections stay readable and
+  selectable, but new generation refuses them and `scripts/generate_delta_scenarios.py` is retired; the
+  standalone `project_config_delta.yml` starter is replaced by a commented `delta_change` block in the
+  generation template. Regenerate with `delta-change/3` as described in the delta-change guide's migration
+  section.
 - Keep figure title/caption JSON in each output unit's `_engine/plots/` across WF0–WF2, mirroring family
   subfolders (for example `evaluation/_engine/plots/stations/`). Existing projects re-render affected
   figure families once on their next run; JSON at the old locations is left in place and can be deleted.

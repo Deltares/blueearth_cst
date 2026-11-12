@@ -26,8 +26,9 @@ Saved inputs and settings allow later checks that reused scenarios represent the
 `config/templates/example-basin/project_config_generate_scenarios.yml`.
 
 For schema-3 projects, set `method: stochastic` and place the settings below under `stochastic:`.
-The alternative `method: delta_change` takes an inline `delta_change:` section using the
-[delta producer schema](delta-change-scenarios.md). Supply exactly the selected section; mixed methods,
+The alternative `method: delta_change` takes an inline `delta_change:` section
+([`delta-change/3`](delta-change-scenarios.md), driven by WF2's gridded changes). Supply exactly the
+selected section; mixed methods,
 unknown methods and mixed flat/nested fields are refused. Legacy flat stochastic files remain supported
 under project schemas 2 and 3. Nested stochastic settings normalize to the same effective producer inputs.
 Relative paths remain anchored beside their declaring workflow YAML. Existing stochastic collection
