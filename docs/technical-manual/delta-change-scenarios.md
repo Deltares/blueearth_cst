@@ -49,13 +49,15 @@ admitted when WF0 or WF1 runs earlier in the same invocation, and refused otherw
 ## Generate and simulate
 
 ```powershell
-python scripts/run_workflows.py --config <case>/project_config.yml --dry-run
+python scripts/run_workflows.py --config <case>/project_config.yml -- --dry-run
 python scripts/run_workflows.py --config <case>/project_config.yml
 ```
 
 A dry run computes the factors and reports the set it would publish, or reports it as pending when WF2 or
-the historical extract are produced by the same invocation. Only `--dry-run`/`-n`/`--dryrun` are forwarded;
-`--unlock` and `--rebuild` are refused.
+the historical extract are produced by the same invocation. Delta generation accepts only the dry-run
+flags after `--`; other forwarded options and `--rebuild` are refused. Run an upstream workflow alone when
+it needs one, for example `-- --forcerun prepare_projection_analysis` to republish older WF2 gridded
+changes (inventory schema 1).
 
 WF4 finds the set from the current generation settings, as it does for stochastic sets; a set produced in
 the same invocation is bound after WF3 publishes it. A missing or stale set stops with "run scenario

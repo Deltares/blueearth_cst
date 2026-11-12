@@ -506,3 +506,29 @@ def test_v3_plots_render_each_window_with_capped_captions(tmp_path, monkeypatch)
     assert "capped at ±25%: A/ssp245/r1 months 01, 02" in near
     assert (output / "2040-2059/run_3_pet_ratio_monthly_map_basin_ext.png").is_file()
     assert (output / "2070-2089/run_4_precip_ratio_monthly_map_basin_ext.png").is_file()
+
+
+def test_derived_historical_resolves_named_forcings(tmp_path):
+    from blueearth_cst.experiment.delta_generation import historical_binding
+
+    config = {
+        "project": {"project_dir": str(tmp_path), "catalog": "catalog.yml"},
+        "climate": {
+            "sources": ["era5", "chirps"],
+            "window": {"start": 1991, "end": 2020},
+            "forcing": {
+                "precip_source": "era5",
+                "temp_source": "era5",
+                "pet": {"mode": "computed", "method": "debruin"},
+            },
+            "forcings": {"era5": {"selected": "era5"}},
+            "default_forcing": "era5",
+            "forcing_id": "era5",
+        },
+        "basin": {"region": "{'subbasin': [10.0, 0.5]}"},
+    }
+    binding = historical_binding(config, wf2_settings())
+    assert binding["source"] == "era5"
+    assert binding["recipe"] == "era5"
+    assert binding["pet_method"] == "debruin"
+    assert binding["path"].parent.name == "era5_19910101_20201231"

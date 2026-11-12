@@ -152,7 +152,20 @@ def historical_binding(config: dict, settings: dict) -> dict:
 
     project, climate, basin = config["project"], config["climate"], config["basin"]
     sources = basin.get("sources") or {}
-    recipe = normalize_forcing_recipe(climate["selected"], climate.get("forcing"))
+    if "selected" in climate:
+        recipe = normalize_forcing_recipe(climate["selected"], climate.get("forcing"))
+    else:
+        # Delta composition keeps the public form (named or forcing-mapping
+        # recipes); resolve it as WF1 and stochastic WF3 do.
+        from blueearth_cst.shared.forcing_recipe import resolve_climate_forcing
+
+        public = {
+            key: climate[key]
+            for key in ("sources", "window", "forcing", "water_year_start")
+            if key in climate
+        }
+        resolved, recipe = resolve_climate_forcing(public, required=True, notices=False)
+        climate = {**climate, "selected": resolved["selected"]}
     store = climate_store_rule(
         project_dir=project["project_dir"],
         model_region=basin["region"],
