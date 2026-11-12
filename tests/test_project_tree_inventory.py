@@ -24,6 +24,7 @@ Two instruments here, and the second matters more than the first:
 import os
 import re
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -527,3 +528,28 @@ def test_rules_are_well_formed():
     for old, new in INVENTORY:
         assert isinstance(old, (str, re.Pattern))
         assert isinstance(new, str) and new
+
+
+def test_every_path_of_a_real_showcase_tree_is_declared():
+    """A complete WF0-WF4 tree (two experiments, two forcing recipes, a
+    retained historical run and comparison) resolves with zero unmapped paths
+    (t017 step 1; rule R14)."""
+    lines = (
+        (Path(__file__).parent / "data" / "showcase-project-tree.txt")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
+    paths = [line for line in lines if line and not line.startswith("#")]
+    rules = std.build_project_tree_rules(
+        "showcase_stochastic_01",
+        "era5_19910101_20201231",
+        CP,
+        retained_experiment_names=("showcase_gcm_delta_01",),
+    )
+    unmapped = [
+        rel
+        for rel, _, kind in std.classify_path_map(paths, rules)
+        if kind != "IDENTITY"
+    ]
+    assert len(paths) > 1000
+    assert not unmapped

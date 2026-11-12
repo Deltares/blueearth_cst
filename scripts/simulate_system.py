@@ -19,6 +19,7 @@ from blueearth_cst.experiment.simulation_runner import (
 from blueearth_cst.shared import (
     execution_outputs,
     invocation_history,
+    layout_stamp,
     resource_tracking,
 )
 from blueearth_cst.shared.console_style import run_summary
@@ -73,6 +74,10 @@ def main(argv=None):
         root = Path(project["project"]["project_dir"]).resolve()
     else:
         root = args.project_dir.resolve()
+    try:
+        layout_stamp.admit(root)
+    except layout_stamp.LayoutMismatch as exc:
+        parser.error(str(exc))
     record_path, record = invocation_history.start(
         root,
         workflow="simulate_system",
