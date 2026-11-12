@@ -855,9 +855,9 @@ def validate_hm7_v2(
     series,
     collection_run_ids,
 ) -> list[str]:
-    """HM-7 for indicator-set/3 (read-only) to /6; table keys are ``<token>_<run|group>``.
+    """HM-7 for indicator-set/3 (read-only) to /7; table keys are ``<token>_<run|group>``.
 
-    indicator-set/6 tables add ``status`` and ``reason``; an unavailable bundle row
+    indicator-set/6+ tables add ``status`` and ``reason``; an unavailable bundle row
     carries no value.
 
     The historical function name remains for callers. Legacy /2 manifests are
@@ -873,9 +873,10 @@ def validate_hm7_v2(
         "indicator-set/4",
         "indicator-set/5",
         "indicator-set/6",
+        "indicator-set/7",
     ):
         return [
-            f"{label}: expected indicator-set/3 to /6; legacy mixed-ID sets must be recomputed"
+            f"{label}: expected indicator-set/3 to /7; legacy mixed-ID sets must be recomputed"
         ]
     if tuple(lookup.columns) != HM7_V2_LOOKUP_COLUMNS:
         return [f"{label}: lookup header is not group_id,run_id"]
@@ -917,7 +918,9 @@ def validate_hm7_v2(
     ):
         diffs.append(f"{label}: tables differ from declared token scopes")
     statused = (
-        ("status", "reason") if manifest["schema_version"] == "indicator-set/6" else ()
+        ("status", "reason")
+        if manifest["schema_version"] in ("indicator-set/6", "indicator-set/7")
+        else ()
     )
     for entry in entries:
         token, scope = entry["token"], entry["scope"]

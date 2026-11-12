@@ -153,7 +153,7 @@ asymmetries in that table are ruled, not accidental:
 
 ## 3. Row identifiers
 
-New `indicator-set/6` run and group tables carry six columns, in this order:
+New `indicator-set/7` (as `/6`) run and group tables carry six columns, in this order:
 
 | column | meaning |
 | --- | --- |
@@ -172,7 +172,7 @@ and `is_reference=true` identify an unperturbed group. Run-grain group summaries
 indicators with equal weight and NaN propagation; return levels pool member-local blocks.
 
 An empty `value` with `undefined` is a calculated NaN; an empty `value` with `unavailable` names a
-missing input in `reason`. Neither is zero. A missing response can also exclude a calculation from value
+missing input or a data refusal (such as too few annual blocks) in `reason`. Neither is zero. A missing response can also exclude a calculation from value
 tables while retaining its declaration and reason in the manifest and named dictionary. See
 [retained handoffs](../../docs/technical-manual/retained-handoffs.md) for current table and reuse rules.
 

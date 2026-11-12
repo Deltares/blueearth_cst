@@ -61,7 +61,10 @@ these indicators.
 High-flow return levels are fitted to annual maxima; low-flow return levels use annual minima of
 seven-day averages. Only finite annual values enter the fit. The calculation requires at least
 the larger of ten values or the requested return period rounded up to a whole year, but passing
-this minimum does not establish that the estimate is reliable.
+this minimum does not establish that the estimate is reliable. A group below the minimum, or one
+whose fit the estimator refuses, is published as `unavailable` with the reason; other groups,
+locations and indicators are still calculated. Values pool only members of one group, so five-year
+runs give singleton groups five values and no return level.
 
 The supplied method has been checked against a limited set of synthetic cases and supports only
 its assessed probability range. It provides no uncertainty intervals and does not establish

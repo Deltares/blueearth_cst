@@ -74,6 +74,15 @@ def unavailable_summary(document) -> list[str]:
         f"{indicator} at {plural(len(locations), 'location')} ({reason})"
         for (indicator, reason), locations in sorted(by_indicator.items())
     ]
+    refused = {}
+    for row in document.get("refused_results", []):
+        refused.setdefault((row["indicator"], row["reason"]), set()).add(
+            row["run_group_id"]
+        )
+    phrases += [
+        f"{indicator} for {plural(len(units), 'group')} ({reason})"
+        for (indicator, reason), units in sorted(refused.items())
+    ]
     return phrases
 
 

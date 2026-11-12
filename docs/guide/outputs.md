@@ -311,8 +311,8 @@ See the [default conventions](../../blueearth_cst/indicators/sets/default/README
 
 - `available`: a value was calculated.
 - `undefined`: the calculation is undefined under the set's conventions.
-- `unavailable`: no value could be calculated; in partial mode this can reflect missing parameters
-  at locations included in the saved simulations.
+- `unavailable`: no value could be calculated. The reason names a missing parameter, or a data
+  limit such as `5 annual blocks; 10 required` for a return level from too-short runs.
 
 If a required response variable is absent, the calculation is omitted from the value tables.
 Check its declaration and explanation in the dictionary

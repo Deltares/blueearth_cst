@@ -79,7 +79,8 @@ def test_missing_location_qcrit_publishes_explicit_unavailable_rows(experiment):
     assert request["unavailable_results"] == [
         {"indicator": "summer_low_flow_days", "location": "10", "reason": REASON}
     ]
-    assert manifest["schema_version"] == "indicator-set/6"
+    assert manifest["schema_version"] == "indicator-set/7"
+    assert manifest["refused_results"] == []
     rows = _rows(root, manifest, "summer_low_flow_days")
     by_location = {}
     for row in rows:
@@ -95,6 +96,45 @@ def test_missing_location_qcrit_publishes_explicit_unavailable_rows(experiment):
     # Strict evaluation refuses the same request at the plan job.
     with pytest.raises(ValueError, match="summer_low_flow_days at 1 location"):
         prepare_indicator_plan(root, request, [resolved], "strict")
+
+
+def test_short_runs_publish_refused_return_levels_beside_complete_indicators(
+    experiment,
+):
+    """Too few annual blocks refuses only the return levels, per group."""
+    from blueearth_cst.experiment.console_reporting import unavailable_summary
+    from blueearth_cst.experiment.indicator_sets import default_calculations
+
+    built, _ = experiment
+    root = built.root
+    request = current_indicator_request(root, default_calculations(["q"]), "YE-SEP")
+    plan = build_indicator_plan(root, request)
+    manifest = publish_indicator_set(root, plan)
+    assert manifest["schema_version"] == "indicator-set/7"
+    assert request["unavailable_results"] == []
+    groups = sorted(plan["bundle_run_group_ids"].values())
+    return_levels = ("q_return_level_10yr_max", "q_return_level_2yr_7day_min")
+    refused = manifest["refused_results"]
+    assert {(row["indicator"], row["run_group_id"]) for row in refused} == {
+        (indicator, group) for indicator in return_levels for group in groups
+    }
+    assert {row["reason"] for row in refused} == {"2 annual blocks; 10 required"}
+    for indicator in return_levels:
+        assert {
+            (row["status"], row["value"]) for row in _rows(root, manifest, indicator)
+        } == {("unavailable", "")}
+    assert all(
+        row["status"] == "available" for row in _rows(root, manifest, "q_mean_annual")
+    )
+    assert unavailable_summary(manifest) == [
+        f"{indicator} for {len(groups)} groups (2 annual blocks; 10 required)"
+        for indicator in sorted(return_levels)
+    ]
+    assert read_indicator_set(root, plan["targets"]["manifest"]) == manifest
+    evidence = (
+        root / manifest["engine_root"] / "return_level_evidence.json"
+    ).read_text(encoding="utf-8")
+    assert "required=10, actual=2" in evidence
 
 
 def test_supplying_qcrit_later_publishes_a_new_complete_set(experiment):

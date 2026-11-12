@@ -92,7 +92,8 @@ with changed code or model inputs.
 
 ## Indicator tables and dictionary
 
-New sets use `indicator-set/6`. On disk, immutable `data/` and named exports use the same split run/group
+New sets use `indicator-set/7`, which adds manifest `refused_results` to the `/6` layout; `/6` sets
+remain readable. On disk, immutable `data/` and named exports use the same split run/group
 table headers below. The validator normalizes their identity column to `run_group_id` internally;
 that internal key is not an additional CSV column. Named exports copy the immutable tables and add a
 dictionary derived from declarations and coverage evidence.
@@ -113,11 +114,12 @@ locations; `unavailable_reason` explains missing inputs. It is distinct from eac
 |---|---|---|
 | `available` | Numerical value | Empty |
 | `undefined` | Empty, representing a calculated NaN | Empty |
-| `unavailable` | Empty | Location-level reason, e.g. `missing_parameter:thresholds` |
+| `unavailable` | Empty | Missing input or data refusal, e.g. `5 annual blocks; 10 required` |
 
 Never turn either empty case into zero. Undefined results retain their method-specific interpretation;
 for example, absent zero-flow events can leave ERFA timing undefined. An unexpected calculation error
-propagates as an error rather than an undefined result. Rejected return-level fits also remain explicit.
+propagates as an error rather than an undefined result. Return levels refused for too few annual blocks
+or a rejected fit are unavailable for that group and location only, listed in `refused_results`.
 
 A completely absent response excludes the affected calculation from value tables and records it under
 manifest `unavailable_calculations`, for example with `missing_response:pet`. The dictionary retains the

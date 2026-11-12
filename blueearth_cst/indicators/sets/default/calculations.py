@@ -1,7 +1,7 @@
 """Default formulas with native pandas missingness and explicit water years."""
 
 from blueearth_cst.indicators.contract import IndicatorResult
-from blueearth_cst.indicators.extremes import reduce_bundle
+from blueearth_cst.indicators.extremes import return_level_result
 from blueearth_cst.indicators.series import annual_blocks, prepared_frame
 
 
@@ -46,18 +46,8 @@ def reference_month_mean(indicator, series, context) -> IndicatorResult:
 
 
 def pooled_return_level(indicator, series, context) -> IndicatorResult:
-    """Use the qualified estimator and preserve screening/refusal exceptions."""
-    values, evidence = reduce_bundle(
-        indicator,
-        series,
-        expected_run_ids=context.expected_run_ids,
-        anchor=context.anchor,
-        validation=context.validation,
-        _prepared=context.prepared,
-    )
-    return IndicatorResult(
-        values, metadata={"evidence": evidence, "estimator": "gf15-lmoments-c/1"}
-    )
+    """Use the qualified estimator; refused locations become unavailable."""
+    return return_level_result(indicator, series, context)
 
 
 PARAMETERS = {
