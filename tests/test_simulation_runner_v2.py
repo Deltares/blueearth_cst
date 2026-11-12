@@ -480,6 +480,8 @@ def test_named_simulation_preflight_refuses_unavailable_outputs(monkeypatch, tmp
         {
             "indicator_sets": ["q_only"],
             "indicator_set_definitions": {"q_only": {"config_path": "q_only.yml"}},
+            # The default, partial, warns here and simulates; strict refuses.
+            "indicator_evaluation": "strict",
         },
         project={"model": {"outvars": ["river discharge"]}},
     )

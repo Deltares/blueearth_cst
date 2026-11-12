@@ -114,7 +114,7 @@ limits.
 
 Before simulation, selected requirements are checked against `model.outvars`. Indicators-only requests
 check retained variables and locations. Paired methods require aligned inputs. Supplied malformed
-parameters always fail. `indicator_evaluation` is `strict` by default; `partial` permits absent inputs.
+parameters always fail. `indicator_evaluation` is `partial` by default; set `strict` to refuse any gap.
 
 | Mode/input | Result |
 |---|---|

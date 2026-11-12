@@ -212,7 +212,7 @@ def test_evaluation_mode_is_validated_and_snapshotted(tmp_path):
     path = indicator_sets.write_selection_snapshot(selection, tmp_path / "s.json")
     assert indicator_sets.read_selection_snapshot(path).evaluation == "partial"
     assert indicator_sets.parse_selection({}, tmp_path / "wf4.yml").evaluation == (
-        "strict"
+        "partial"
     )
     with pytest.raises(IndicatorSetError, match="indicator_evaluation"):
         indicator_sets.parse_selection(

@@ -96,9 +96,10 @@ indicator_sets:
 # Drop indicators by published name. Input: nonempty list of indicator names.
 #    exclude: [summer_low_flow_days]
 
-# strict refuses an indicator lacking an input; partial publishes it as unavailable.
-# Choose how missing indicator inputs are handled. Options: strict | partial.
-#indicator_evaluation: strict
+# partial (default) publishes an indicator lacking an input or enough data as
+# unavailable, with a warning; strict refuses the set instead.
+# Choose how unavailable indicators are handled. Options: partial | strict.
+#indicator_evaluation: partial
 
 # -----------------------------------------------------------------------------
 #  COMPUTE
