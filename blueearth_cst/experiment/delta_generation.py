@@ -126,6 +126,7 @@ def historical_binding(config: dict, settings: dict) -> dict:
             "path": Path(override["path"]),
             "source": override["source"],
             "recipe": None,
+            "pet_method": None,
         }
     from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
     from blueearth_cst.shared.wf3_science import (
@@ -152,6 +153,8 @@ def historical_binding(config: dict, settings: dict) -> dict:
         "source": climate["selected"],
         # The named recipe WF4 must match (None without named forcings).
         "recipe": climate.get("forcing_id", climate.get("default_forcing")),
+        # The case's PET formula; delta PET uses it on the source grid.
+        "pet_method": recipe.pet_method,
     }
 
 

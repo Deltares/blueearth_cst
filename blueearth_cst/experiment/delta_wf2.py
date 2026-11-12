@@ -168,6 +168,7 @@ def resolve_windows(project_root: Path, projections: dict) -> dict:
         "members": members,
         "reference": entries[0]["reference"],
         "water_year_start": record.get("water_year_start", "Jan"),
+        "variable_spec": record.get("variable_spec", {}),
         "inventory_path": inventory_path,
         "record_path": record_path,
     }
@@ -296,3 +297,61 @@ def member_factors(
         ratio, crs, target, active, neutral=1.0, label="WF2 precipitation ratio"
     )
     return offsets.values.astype(float), ratios.values.astype(float)
+
+
+def wf2_pet_method(variable_spec: dict) -> str | None:
+    """WF2's PET formula from its recorded variable spec (None without PET)."""
+    # Positional VariableSpec record (method is the seventh field); importing
+    # the WF2 module would add it to the generation code inventory.
+    value = variable_spec.get("pet")
+    return value[6] if value and len(value) > 6 else None
+
+
+def member_pet_ratios(changes: xr.Dataset, historical: xr.Dataset) -> np.ndarray:
+    """WF2 monthly PET ratios on the historical grid (neutral outside it)."""
+    import hydromt  # noqa: F401
+
+    target, active = historical_target(historical)
+    ratios = map_monthly(
+        changes["pet_monthly_ratio"],
+        changes.raster.crs,
+        target,
+        active,
+        neutral=1.0,
+        label="WF2 PET ratio",
+    )
+    return ratios.values.astype(float)
+
+
+def historical_pet(historical: xr.Dataset, method: str) -> xr.DataArray:
+    """Daily source-grid PET with the case's formula (HydroMT meteo).
+
+    Uses mean-sea-level pressure without elevation correction: no orography
+    enters the delta set, unlike WF4's model-grid PET. All runs of the set,
+    controls included, share this PET, so their differences carry the WF2
+    PET signal only.
+    """
+    from hydromt.model.processes import meteo
+
+    press = historical["press_msl"]
+    if method == "makkink":
+        pet = meteo.pet_makkink(
+            historical["temp"], press, historical["kin"], timestep=86400
+        )
+    elif method == "debruin":
+        pet = meteo.pet_debruin(
+            historical["temp"],
+            press,
+            historical["kin"],
+            historical["kout"],
+            timestep=86400,
+        )
+    else:
+        raise ValueError(f"delta PET supports debruin or makkink, not {method!r}")
+    pet = pet.where(historical["temp"].notnull()).astype(historical["temp"].dtype)
+    pet.attrs.update(
+        units="mm/day",
+        pet_method=method,
+        cst_pet_corrections="mean-sea-level pressure; no elevation correction",
+    )
+    return pet.rename("pet")

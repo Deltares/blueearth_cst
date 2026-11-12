@@ -341,6 +341,7 @@ def test_derived_historical_uses_the_stochastic_store_rule(tmp_path):
     }
     binding = historical_binding(config, wf2_settings())
     assert binding["source"] == "era5"
+    assert binding["pet_method"] in {"debruin", "makkink"}
     assert binding["path"].name == "extract_historical.nc"
     assert binding["path"].parent.parent == tmp_path / "data/climate/historical"
     override = {**OVERRIDE_FILE, "path": str(tmp_path / "own.nc")}
@@ -348,6 +349,7 @@ def test_derived_historical_uses_the_stochastic_store_rule(tmp_path):
         "path": tmp_path / "own.nc",
         "source": "era5",
         "recipe": None,
+        "pet_method": None,
     }
 
 
@@ -389,3 +391,82 @@ def test_wf4_selects_a_set_by_name_alias_or_short_id(tmp_path, monkeypatch):
     for bad in ({"id": "abc"}, {"name": "a", "id": identity[:12]}, {"path": "x"}):
         with pytest.raises(ValueError):
             resolve_explicit_collection_v2(bad, project)
+
+
+def _add_wf2_pet(project, method="debruin", ratio=1.1):
+    """Give the fixture's WF2 products a monthly PET ratio and PET spec."""
+    from blueearth_cst.shared.provenance import file_sha256
+
+    ensemble = project / "data/climate/projections/cmip6"
+    grids = ensemble / "analysis/gridded_changes"
+    inventory = json.loads((grids / "inventory.json").read_text())
+    for member in inventory["members"]:
+        path = grids / member["path"]
+        with xr.open_dataset(path) as ds:
+            ds = ds.load()
+        ds["pet_monthly_ratio"] = xr.full_like(ds["precip_monthly_ratio"], ratio)
+        ds.to_netcdf(path)
+        member["sha256"] = file_sha256(path)
+    (grids / "inventory.json").write_text(json.dumps(inventory))
+    record_path = ensemble / "_engine/analysis_record.json"
+    record = json.loads(record_path.read_text())
+    record["variable_spec"]["pet"] = list(
+        VariableSpec("pet", "pet", "rate", "mm/day", "relative", 0.1, method)
+    )
+    record_path.write_text(json.dumps(record))
+
+
+def test_pet_ratio_scales_source_grid_pet(tmp_path, monkeypatch):
+    project, *_ = wf2_project(tmp_path, monkeypatch)
+    _add_wf2_pet(project)
+    pet = wf2_settings(
+        projections={"ensemble": "cmip6", "future_windows": ["near"]},
+        pet={"mode": "projection_ratio"},
+    )
+    config, _, binding = _write_inputs(tmp_path, project, pet)
+    with pytest.raises(ValueError, match="case's formula None"):
+        generate_collection(config, project, historical=binding)
+    binding["pet_method"] = "makkink"
+    with pytest.raises(ValueError, match="WF2 computed 'debruin'"):
+        generate_collection(config, project, historical=binding)
+    binding["pet_method"] = "debruin"
+    manifest = generate_collection(config, project, historical=binding)
+    resolved = _intent(manifest)["settings"]
+    assert resolved["pet"] == {"mode": "projection_ratio", "method": "debruin"}
+    assert ["pet", "mm/day"] in resolved["reader"]["metadata"][
+        "cst_unit_interpretation"
+    ]["variables"]
+    folder = manifest.parent.parent
+    with (
+        xr.open_dataset(folder / "series/run_1.nc") as control,
+        xr.open_dataset(folder / "series/run_2.nc") as neutral,
+        xr.open_dataset(folder / "series/run_3.nc") as projection,
+    ):
+        assert control["pet"].attrs["pet_method"] == "debruin"
+        np.testing.assert_array_equal(neutral["pet"].values, control["pet"].values)
+        active = np.isfinite(control["pet"].values)
+        np.testing.assert_allclose(
+            projection["pet"].values[active],
+            (control["pet"].values * np.float32(1.1)).astype("float32")[active],
+            rtol=1e-6,
+        )
+    with xr.open_dataset(folder / "delta/factors/run_3.nc") as factors:
+        assert "pet_ratio" in factors
+    read_delta_collection(manifest)
+
+
+def test_members_without_pet_are_reported_unavailable(tmp_path, monkeypatch):
+    project, *_ = wf2_project(tmp_path, monkeypatch)
+    record_path = (
+        project / "data/climate/projections/cmip6/_engine/analysis_record.json"
+    )
+    record = json.loads(record_path.read_text())
+    record["variable_spec"]["pet"] = list(
+        VariableSpec("pet", "pet", "rate", "mm/day", "relative", 0.1, "debruin")
+    )
+    record_path.write_text(json.dumps(record))
+    pet = wf2_settings(pet={"mode": "projection_ratio"})
+    config, _, binding = _write_inputs(tmp_path, project, pet)
+    binding["pet_method"] = "debruin"
+    with pytest.raises(ValueError, match="no WF2 member has a PET ratio"):
+        generate_collection(config, project, historical=binding)

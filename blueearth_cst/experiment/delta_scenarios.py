@@ -67,6 +67,7 @@ V3_AUTHORED = {
     "unit_id_capacity",
     "historical_override",
     "dry_reference",
+    "pet",
 }
 #: Keys the producer adds when it resolves a v3 request into its intent.
 V3_RESOLVED_KEYS = {
@@ -187,6 +188,22 @@ def _validate_v3(value: dict) -> dict:
         _validate_override(value["historical_override"])
     if "dry_reference" in value:
         _validate_dry_reference(value["dry_reference"])
+    if "pet" in value:
+        pet = value["pet"]
+        authored = {"mode"}
+        if type(pet) is not dict or not authored <= set(pet) <= authored | {"method"}:
+            raise ValueError("pet: expected {mode: projection_ratio}")
+        if pet["mode"] != "projection_ratio":
+            raise ValueError("pet.mode must be projection_ratio")
+        if "method" in pet and not resolved:
+            raise ValueError(
+                "pet.method is taken from the case's PET formula; do not set it"
+            )
+        if "path" in value.get("historical_override", {}):
+            raise ValueError(
+                "pet cannot combine with historical_override.path; PET is derived "
+                "from the case's historical record"
+            )
     capacity = value.get("unit_id_capacity")
     if capacity is not None and (type(capacity) is not int or capacity < 3):
         raise ValueError("unit_id_capacity must be an integer of at least 3")
@@ -217,7 +234,10 @@ def _validate_v3(value: dict) -> dict:
 def _historical_units(value: dict) -> None:
     """Bind the historical reader to WF4's extracted-ERA5 units (and PET)."""
     units = dict(reader_unit_interpretation(value["reader"]).variables)
-    if "pet" in value:
+    if "pet" in value and value["schema_version"] == "delta-change/3":
+        if units.get("pet") != "mm/day":
+            raise ValueError("delta PET requires effective units pet=mm/day")
+    elif "pet" in value:
         pet = _fields(value["pet"], {"mode", "method"}, "PET settings")
         if (
             pet["mode"] != "projection_ratio"
@@ -764,6 +784,30 @@ def _prepare_files(config_path: Path, settings: dict):
     return paths, resolved, factors, pet_factors, factor_policy
 
 
+def _drop_members_without_pet(selection: dict) -> None:
+    """Exclude WF2 members without a PET ratio, reporting them per window."""
+    kept = []
+    for member in selection["members"]:
+        with xr.open_dataset(member["source_path"]) as changes:
+            has_pet = "pet_monthly_ratio" in changes
+        if has_pet:
+            kept.append(member)
+            continue
+        for entry in selection["windows"]:
+            if entry["window_id"] == member["window_id"]:
+                entry["members"] -= 1
+                entry["unavailable"].append(
+                    {
+                        **{k: member[k] for k in ("model", "scenario", "member")},
+                        "reason": "no WF2 PET ratio (missing PET inputs)",
+                    }
+                )
+    empty = [e["window_id"] for e in selection["windows"] if e["members"] == 0]
+    if empty:
+        raise ValueError(f"no WF2 member has a PET ratio for window(s) {empty}")
+    selection["members"] = kept
+
+
 def _input_location(project_root: Path, path: Path) -> str:
     """Project-relative path of an input referenced in place, or of its snapshot.
 
@@ -807,8 +851,24 @@ def _prepare_wf2(project_root: Path, settings: dict, historical: dict):
         effective = [f"{period['start']:04d}-01-01", f"{period['end']:04d}-12-31"]
     else:
         effective = list(selection["reference"]["effective"])
+    pet_method = None
+    if "pet" in settings:
+        from blueearth_cst.experiment.delta_wf2 import wf2_pet_method
+
+        pet_method = historical.get("pet_method")
+        wf2_method = wf2_pet_method(selection["variable_spec"])
+        if wf2_method is None or pet_method != wf2_method:
+            raise ValueError(
+                f"delta PET needs WF2 PET with the case's formula {pet_method!r}; "
+                f"WF2 computed {wf2_method!r}. Set analyze_projections variables.pet."
+                "method to match climate forcing PET, or omit pet"
+            )
+        _drop_members_without_pet(selection)
+        reader["metadata"]["cst_unit_interpretation"]["variables"].append(
+            ["pet", "mm/day"]
+        )
     paths = [historical_path] + [m["source_path"] for m in selection["members"]]
-    factors, policies, capped = [], set(), []
+    factors, policies, capped, pet_factors = [], set(), [], []
     dry_reference = settings.get("dry_reference", {"policy": "refuse"})
     with xr.open_dataset(historical_path) as data:
         missing = sorted(
@@ -828,6 +888,12 @@ def _prepare_wf2(project_root: Path, settings: dict, historical: dict):
                 )
                 try:
                     factors.append(member_factors(changes, data, dry_reference, months))
+                    if pet_method is not None:
+                        from blueearth_cst.experiment.delta_wf2 import (
+                            member_pet_ratios,
+                        )
+
+                        pet_factors.append(member_pet_ratios(changes, data))
                 except ValueError as error:
                     raise ValueError(f"WF2 member {label}: {error}") from error
                 if months:
@@ -847,6 +913,8 @@ def _prepare_wf2(project_root: Path, settings: dict, historical: dict):
     resolved = {key: value for key, value in settings.items() if key != "name"}
     resolved.setdefault("unit_id_capacity", len(selection["members"]) + 2)
     resolved["dry_reference"] = dry_reference
+    if pet_method is not None:
+        resolved["pet"] = {"mode": "projection_ratio", "method": pet_method}
     resolved.update(
         historical_path=_input_location(project_root, historical_path),
         source_like=historical["source"],
@@ -911,7 +979,7 @@ def _prepare_wf2(project_root: Path, settings: dict, historical: dict):
             f"{selection['reference']['effective'][0]}..{selection['reference']['effective'][1]}",
             flush=True,
         )
-    return paths, resolved, factors, [], factor_policy
+    return paths, resolved, factors, pet_factors, factor_policy
 
 
 def generate_collection(
@@ -950,7 +1018,7 @@ def generate_collection(
         )
     # Observe the physical source before publishing anything. WF4 uses the same
     # evidenced interpretation when binding the existing preparation catalog.
-    descriptor = collection_forcing_descriptor(paths[0], resolved["reader"])
+    descriptor = collection_forcing_descriptor(paths[0], _source_reader(resolved))
     if descriptor["timestep"] != "P1D":
         raise ValueError("delta-change/1 requires daily historical forcing")
     window = resolved["simulation_window"]
@@ -973,6 +1041,7 @@ def generate_collection(
             factors,
             factor_policy,
             descriptor,
+            pet_factors=pet_factors,
             preview=preview,
             expected_input_hashes=expected_input_hashes,
             documents=documents,
@@ -1158,14 +1227,32 @@ def default_delta_name(resolved: dict) -> str:
     return name[:64].rstrip(".")
 
 
-def _factor_digest(offsets: np.ndarray, ratios: np.ndarray) -> str:
+def _source_reader(resolved: dict) -> dict:
+    """The reader of the historical file itself (delta adds PET to the series)."""
+    if "pet" not in resolved or resolved["schema_version"] != "delta-change/3":
+        return resolved["reader"]
+    import copy
+
+    reader = copy.deepcopy(resolved["reader"])
+    binding = reader["metadata"]["cst_unit_interpretation"]
+    binding["variables"] = [v for v in binding["variables"] if v[0] != "pet"]
+    return reader
+
+
+def _factor_digest(
+    offsets: np.ndarray, ratios: np.ndarray, pet: np.ndarray | None = None
+) -> str:
     return content_sha256(
         {"temp_offset_degC": offsets.tolist(), "precip_ratio": ratios.tolist()}
+        | ({"pet_ratio": pet.tolist()} if pet is not None else {})
     )
 
 
 def _factor_dataset(
-    offsets: np.ndarray, ratios: np.ndarray, historical: xr.Dataset
+    offsets: np.ndarray,
+    ratios: np.ndarray,
+    historical: xr.Dataset,
+    pet: np.ndarray | None = None,
 ) -> xr.Dataset:
     """Monthly factors on the historical grid, with its CRS when it has one."""
     dims = ("month", "latitude", "longitude")
@@ -1178,7 +1265,8 @@ def _factor_dataset(
         {
             "temp_offset": (dims, offsets, {"units": "degC"}),
             "precip_ratio": (dims, ratios, {"units": "1"}),
-        },
+        }
+        | ({"pet_ratio": (dims, pet, {"units": "1"})} if pet is not None else {}),
         coords=coords,
     )
     if "spatial_ref" in historical.variables:
@@ -1198,6 +1286,7 @@ def _publish_named(
     preview: bool,
     expected_input_hashes: list[str] | None,
     documents: tuple[tuple[str, bytes], ...] = (),
+    pet_factors: list | None = None,
 ) -> Path:
     """Publish a WF2-sourced collection as ``scenarios/<name>/``.
 
@@ -1253,7 +1342,10 @@ def _publish_named(
         "historical_descriptor": descriptor,
         "run_group_id_capacity": resolved["unit_id_capacity"],
         "run_group_id_width": len(str(resolved["unit_id_capacity"])),
-        "factors": [_factor_digest(o, r) for o, r in factors],
+        "factors": [
+            _factor_digest(o, r, pet_factors[i] if pet_factors else None)
+            for i, (o, r) in enumerate(factors)
+        ],
     }
     identity = content_sha256(intent)
     existing = find_ready_marker(project_root, identity)
@@ -1303,11 +1395,17 @@ def _publish_named(
     first, last = resolved["historical_period"]["effective"]
     with xr.open_dataset(historical_path) as source:
         historical = source.sel(time=slice(first, last)).load()
+        if "pet" in resolved:
+            from blueearth_cst.experiment.delta_wf2 import historical_pet
+
+            historical["pet"] = historical_pet(historical, resolved["pet"]["method"])
+        neutral_pet = np.ones(12) if "pet" in resolved else None
         for index, row in enumerate(rows):
             if index >= 2:
                 offsets, ratios = factors[index - 2]
+                pet = pet_factors[index - 2] if pet_factors else None
                 factor_path = folder / "delta" / "factors" / f"{row['run_id']}.nc"
-                _factor_dataset(offsets, ratios, historical).to_netcdf(factor_path)
+                _factor_dataset(offsets, ratios, historical, pet).to_netcdf(factor_path)
                 factor_rows.append(
                     {
                         "run_id": row["run_id"],
@@ -1321,9 +1419,11 @@ def _publish_named(
                 factor_refs.append(
                     file_reference(factor_path, "project_root", project_root)
                 )
-                transformed = apply_factors(historical, offsets, ratios, None)
+                transformed = apply_factors(historical, offsets, ratios, pet)
             elif index == 1:
-                transformed = apply_factors(historical, np.zeros(12), np.ones(12), None)
+                transformed = apply_factors(
+                    historical, np.zeros(12), np.ones(12), neutral_pet
+                )
             else:
                 transformed = historical
             path = folder / "series" / f"{row['run_id']}.nc"
@@ -1454,7 +1554,9 @@ def _read_named_delta_collection(marker_path: Path) -> dict:
         with xr.open_dataset(path) as factors:
             if (
                 _factor_digest(
-                    factors["temp_offset"].values, factors["precip_ratio"].values
+                    factors["temp_offset"].values,
+                    factors["precip_ratio"].values,
+                    factors["pet_ratio"].values if "pet_ratio" in factors else None,
                 )
                 != digest
             ):

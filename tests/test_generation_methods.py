@@ -276,7 +276,12 @@ def test_v3_capture_derives_baseline_pending_and_indexes(tmp_path, monkeypatch):
     ):
         capture_delta(path, [], project_dir=root)
     pending = capture_delta(path, [], project_dir=root, historical_producer=True)
-    assert pending.historical == {"path": extract, "source": "era5", "recipe": None}
+    assert pending.historical == {
+        "path": extract,
+        "source": "era5",
+        "recipe": None,
+        "pet_method": "debruin",
+    }
     assert pending.run(root, preview=True) is None
     with pytest.raises(ValueError, match="not produced by this invocation"):
         pending.run(root, preview=False)

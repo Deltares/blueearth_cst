@@ -42,6 +42,11 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
   (WF2 → WF3 → WF4) is bound after generation. A missing set stops with "run scenario generation".
   `delta-change/1` and `/2` still need an explicit selection. Delta sets keep their authored settings in
   `<name>/config/` and record the historical recipe, so WF4 also accepts named historical forcings for them.
+- `delta-change/3` accepts `pet: {mode: projection_ratio}`: daily PET is computed on the historical source
+  grid with the case's PET formula (De Bruin or Makkink, mean-sea-level pressure, no elevation correction),
+  scaled by WF2's monthly PET ratio, and passed to WF4 as provided PET. WF2 must use the same formula;
+  members without a PET ratio are excluded and reported per window. Without `pet`, WF4 keeps recomputing PET
+  from perturbed temperature.
 - Keep figure title/caption JSON in each output unit's `_engine/plots/` across WF0–WF2, mirroring family
   subfolders (for example `evaluation/_engine/plots/stations/`). Existing projects re-render affected
   figure families once on their next run; JSON at the old locations is left in place and can be deleted.
