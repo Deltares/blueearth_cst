@@ -572,8 +572,8 @@ def read_collection_v2(marker_path: Path) -> dict[str, Any]:
         or archive["workflow"] != "generate_scenarios"
     ):
         raise ValueError("collection creator archive owner differs")
-    for source in intent["documents"]["source_inventory"]["sources"]:
-        resolve_file_reference(source["file"], {"project_root": project_root})
+    # Inputs are not re-read: series are self-contained, and a store rebuilt
+    # after publication must not make the set unreadable.
     scenario_path = resolve_file_reference(marker["scenario_run_lookup"], anchors)
     perturbation_path = resolve_file_reference(marker["perturbation_lookup"], anchors)
     if scenario_path != data_root / "scenario_run_lookup.csv":

@@ -233,3 +233,28 @@ def test_partial_legacy_namespace_is_not_adopted(tmp_path):
     (tmp_path / "scenarios" / intent["collection_id"][:12]).mkdir(parents=True)
     with pytest.raises(ValueError, match="partial collection namespace"):
         generation_plan.select_generation_plan({"project_dir": tmp_path}, intent)
+
+
+def test_in_project_store_files_are_referenced_in_place(tmp_path):
+    project = tmp_path / "project"
+    store = project / "data/climate/historical/key"
+    store.mkdir(parents=True)
+    historical = store / "extract_historical.nc"
+    historical.write_bytes(b"historical")
+    outside = tmp_path / "extract_historical.nc"
+    outside.write_bytes(b"historical")
+    template = tmp_path / "weathergen_config.yml"
+    template.write_bytes(b"template")
+    resolved = project.resolve()
+    assert (
+        generation_plan._generation_input(resolved, "historical_climate", historical)
+        == historical.resolve()
+    )
+    assert not (project / "scenarios/_engine/generation_inputs").exists()
+    # Outside the project, and for small external inputs, a copy is still pinned.
+    for role, path in (
+        ("historical_climate", outside),
+        ("generator_template", template),
+    ):
+        pinned = generation_plan._generation_input(resolved, role, path)
+        assert pinned.is_relative_to(resolved / "scenarios/_engine/generation_inputs")

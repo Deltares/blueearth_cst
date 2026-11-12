@@ -14,6 +14,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
   `stochastic-<start>-<end>`) never changes identity; reuse is by identity. The top-level copy of the selected
   set is retired: delete old top-level `series/`, lookups, `config/`, `weathergenr/` and
   `scenarios/_engine/current.json` by hand. Retained sets stay readable in place.
+- WF3 no longer copies the historical climate extract and basin cells into
+  `scenarios/_engine/generation_inputs/`; they are referenced in place by path and hash. Published sets stay
+  readable after the climate store is rebuilt.
 - Keep figure title/caption JSON in each output unit's `_engine/plots/` across WF0–WF2, mirroring family
   subfolders (for example `evaluation/_engine/plots/stations/`). Existing projects re-render affected
   figure families once on their next run; JSON at the old locations is left in place and can be deleted.

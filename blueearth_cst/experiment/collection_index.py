@@ -134,14 +134,23 @@ def _description(intent: dict) -> str:
 
 
 def _row(marker_path: Path, name: str, aliases: list[str]) -> dict[str, str]:
-    from blueearth_cst.experiment.collection_method import collection_method
-    from blueearth_cst.experiment.scenario_collection_v2 import read_collection_v2
+    """One index row from cheap marker fields; full validation happens on use.
 
-    try:
-        marker = read_collection_v2(marker_path)
-        status = "ready"
-    except (ValueError, OSError, KeyError):
-        marker, status = read_canonical_json(marker_path), "invalid"
+    Re-validating would byte-hash every series of every set after each
+    generation; the set just published was validated at publication.
+    """
+    from blueearth_cst.experiment.collection_method import collection_method
+
+    marker = read_canonical_json(marker_path)
+    project_root = marker_path.parents[3 if marker_path.parent.name == "_engine" else 4]
+    data_root = marker.get("data_root")
+    status = (
+        "ready"
+        if marker.get("status") == "ready"
+        and isinstance(data_root, str)
+        and (project_root / data_root).is_dir()
+        else "invalid"
+    )
     intent_path = marker_path.with_name("collection_intent.json")
     intent = read_canonical_json(intent_path) if intent_path.is_file() else {}
     created = datetime.fromtimestamp(marker_path.stat().st_mtime, timezone.utc)

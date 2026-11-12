@@ -51,8 +51,10 @@ fit a saved experiment. Records and existing results remain available for inspec
 
 Each set is read in place from `scenarios/<name>/`; nothing is copied to the top of `scenarios/`.
 `scenarios/collections.csv` lists every set and is rebuilt from the set records, which remain authoritative.
-Generation snapshots are shared at `scenarios/_engine/generation_inputs/<hash>/`; collections retain recorded
-references to them. Projects generated before this layout may still hold top-level copies and
+The historical climate extract and basin cells are referenced in place by path and hash; generation refuses to
+publish if they change mid-run, and a later rebuild does not affect sets already published (their series are
+self-contained, but exact regeneration is no longer possible). The small generator template and catalog inputs
+keep content-addressed copies in `scenarios/_engine/generation_inputs/<hash>/`. Projects generated before this layout may still hold top-level copies and
 `scenarios/_engine/current.json`; these are no longer refreshed and can be deleted.
 
 | Lookup | Exact columns and meaning |

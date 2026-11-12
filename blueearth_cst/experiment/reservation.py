@@ -577,8 +577,9 @@ def _seed(value: Any, request: dict, root: Path, *, verify: bool = False) -> Non
                 raise ValueError("seed binding differs from pinned plan")
             projection = resolution["projection"]
             for intent in (plan["intent"], candidate):
+                # Structure only: in-place inputs may be rebuilt after publication.
                 for source in intent["documents"]["source_inventory"]["sources"]:
-                    _ref(source["file"], root, verify=True)
+                    _ref(source["file"], root)
             for key in (
                 "n_realizations",
                 "simulation_window",

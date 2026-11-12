@@ -358,6 +358,24 @@ def _historical_calendar(path: Path) -> str:
         return str(dataset.time.dt.calendar)
 
 
+# Large store files already inside the project are referenced in place by path
+# and hash; generation byte-checks them at initialization, provider binding and
+# publication, so a change mid-run refuses publication. Small external inputs
+# (generator template, catalogs) keep a content-addressed project copy.
+_IN_PLACE_ROLES = {"historical_climate", "basin_cells"}
+
+
+def _generation_input(project_root: Path, role: str, original: Path) -> Path:
+    if role in _IN_PLACE_ROLES:
+        live = Path(original)
+        if live.is_symlink():
+            raise ValueError("generation source cannot be a symbolic link")
+        live = live.resolve(strict=True)
+        if live.is_file() and live.is_relative_to(project_root):
+            return live
+    return snapshot_generation_input(project_root, original)[0]
+
+
 def build_candidate_intent(settings: dict) -> dict:
     """Freeze a v2 WF3 scientific intent from project-owned source snapshots."""
     project_root = Path(settings["project_dir"]).resolve()
@@ -371,7 +389,7 @@ def build_candidate_intent(settings: dict) -> dict:
     sources = []
     pinned_paths = {}
     for role, original in sorted(source_paths.items()):
-        pinned, _, _ = snapshot_generation_input(project_root, original)
+        pinned = _generation_input(project_root, role, original)
         pinned_paths[role] = pinned
         metadata = {}
         if role == "historical_climate":

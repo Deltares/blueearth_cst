@@ -66,3 +66,15 @@ def test_index_rebuilds_from_markers_and_keeps_aliases(tmp_path):
     # A configured alias also blocks a new set from taking that name.
     ci.rebuild_collection_index(tmp_path, alias=("a" * 64, "renamed"))
     assert ci.allocate_collection_name(tmp_path, "renamed") == "renamed-2"
+
+
+def test_published_set_stays_readable_after_its_inputs_change(tmp_path):
+    from blueearth_cst.experiment.scenario_collection_v2 import read_collection_v2
+    from tests._v2_experiment import build_v2_experiment
+
+    experiment = build_v2_experiment(tmp_path, publish=False)
+    for role in ("basin_cells", "historical_climate"):
+        live = experiment.project / f"data/{role}.dat"
+        live.write_bytes(b"rebuilt store")
+    (experiment.project / "data/historical_climate.dat").unlink()
+    assert read_collection_v2(experiment.collection_marker)["status"] == "ready"
