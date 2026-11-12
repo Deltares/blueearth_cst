@@ -107,6 +107,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from blueearth_cst.projections.series_identity import (  # noqa: E402
     INHERITED_SINGLE_SOURCE_ATTRS,
 )
+from blueearth_cst.shared import layout_paths  # noqa: E402
 from blueearth_cst.shared.provenance import SHORT_DIGEST_CHARS  # noqa: E402
 
 VOLATILE_NC_ATTRS = cb.VOLATILE_NC_ATTRS
@@ -277,6 +278,7 @@ def build_project_tree_rules(
     clim_project: str = "cmip6",
     *,
     retained_experiment_names: Iterable[str] = (),
+    model_name: str = "wflow",
 ) -> list[tuple[str | re.Pattern, str]]:
     """Identity rules for the CURRENT project tree, including v2 handoffs.
 
@@ -305,6 +307,11 @@ def build_project_tree_rules(
     hazard on the R9 map, and `test_a_broad_data_prefix_would_empty_the_report`
     keeps demonstrating it here).
 
+    The current-layout rows are GENERATED from `blueearth_cst.shared.layout_paths`
+    (t017 step 1), the one declaration of what the toolbox writes; add or change
+    a path there, in the same commit as its writer (rule R14). Only legacy rows
+    for shapes no current writer produces remain hand-written below.
+
     DIRECTORY PREFIXES are used only where the contents are genuinely open —
     `plots/`, `staticgeoms/`, a wflow run directory, the projection tiers. Where
     the set of files is fixed, they are enumerated, so a new file in a settled
@@ -318,242 +325,26 @@ def build_project_tree_rules(
     retained_experiment_names
         Additional verified owners in the inspected root. Each receives the
         same enumerated artifact rules; unknown names and leaves stay unmapped.
+    model_name
+        The hydrological model folder under `models/hydrology/` (rule R16).
     """
-    rules: list[tuple[str | re.Pattern, str]] = []
+    del dataset_key  # store keys match the `{store}` grammar, whatever the source
+    experiments = {experiment_name, *retained_experiment_names}
+    rules: list[tuple[str | re.Pattern, str]] = [
+        (pattern, r"\g<0>")
+        for _, pattern in layout_paths.bind(
+            layout_paths.declarations(),
+            clim_project=clim_project,
+            experiments=experiments,
+            model_name=model_name,
+        )
+    ]
 
-    def same(path: str) -> None:
-        rules.append((path, path))
-
-    def same_rx(pattern: str) -> None:
-        rules.append((re.compile(f"({pattern})"), r"\1"))
-
-    # -- project root ---------------------------------------------------------
-    # All three workflows' run records live here since 2026-08-11. WF3 and WF4
-    # KEY THEIRS IN THE FILENAME, so they get their own rows rather than
-    # widening the wf1/wf2 ones to `wf[123]`: the key fragment is what
-    # distinguishes them, and a row that does not say so would accept
-    # `wf3_anything.log`.
-    #
-    # The two key on DIFFERENT THINGS, and therefore take SEPARATE rows. WF4
-    # keys on its experiment name, whose grammar is validate_experiment_name's
-    # `[a-z0-9_]+`. WF3 has no user-facing name, so since R12 it keys on its
-    # scenario-request fingerprint, shortened to SHORT_DIGEST_CHARS hex
-    # (t2609151643) -- imported, not restated. Since t2609152107 that same
-    # constant also names the `scenarios/_engine/requests/` directory the key is READ
-    # from, so one import now pins the row, the filename and the directory
-    # together.
-    #
-    # A single `wf[34]_..._[a-z0-9_]+` row covering both would be WIDE ENOUGH TO
-    # MISS REAL ORPHANS: short hex is a subset of the experiment grammar, so
-    # that row accepted every pre-R12 experiment-keyed WF3 benchmark table as
-    # though it were a current request-keyed one, and the rapid tree read clean
-    # while holding two of them (t2609151800). Splitting the row is what makes
-    # a stale WF3 record resolve as UNMAPPED.
-    #
-    # Residual ambiguity, accepted: an experiment named as 12 hex characters
-    # would satisfy WF3's row too. It is a legal experiment name, so this cannot
-    # be closed by grammar -- only by the fact that nobody names an experiment
-    # `a3f9c2b10d4e`.
-    _hex = f"[0-9a-f]{{{SHORT_DIGEST_CHARS}}}"
-    # `execution_outputs._directory_name`: `<YYYY-MM-DD_HH-MM-SSZ>__<scope>`, an
-    # optional `__dry-run` and an `__<id12>` collision suffix. A child without a
-    # recorded directory still falls back to `logs/<invocation id>`.
-    scope = r"(?:all-workflows|workflows|[a-z]+(?:-[a-z]+)+|wf[0-4](?:-wf[0-4])*)"
-    execution = (
-        r"logs/(?:[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}"
-        rf"|[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}_[0-9]{{2}}-[0-9]{{2}}-[0-9]{{2}}Z__{scope}"
-        r"(?:__dry-run)?(?:__[0-9a-f]{12})?)"
-    )
-    same_rx(
-        rf"{execution}/(?:summary\.md|console\.log|wf[0-4]\.log|wf[0-4]-benchmarks\.(?:md|tsv)|wf4-indicators\.log)"
-    )
-    same_rx(rf"{execution}/_parts/.+")
-    same_rx(r"logs/wf[012]_[^/]+\.log")
-    same_rx(rf"logs/wf3_generate_scenarios_{_hex}\.log")
-    same_rx(r"logs/wf4_simulate_system_[a-z0-9_]+\.log")
-    same_rx(r"logs/\.wf[012]_[^/]+\.log\.tally")
-    same_rx(rf"logs/\.wf3_generate_scenarios_{_hex}\.log\.tally")
-    same_rx(r"logs/\.wf4_simulate_system_[a-z0-9_]+\.log\.tally")
-    same("logs/_parts/")
-    same("logs/dag/")
-    same_rx(r"benchmarks/wf[012]_benchmarks\.md")
-    same_rx(rf"benchmarks/wf3_benchmarks_{_hex}\.md")
-    same_rx(r"benchmarks/wf4_benchmarks_[a-z0-9_]+\.md")
-    same("benchmarks/_parts/")
-
-    # -- config/ --------------------------------------------------------------
-    # WF0--WF2 publish exact source archives and use immutable execution views.
-    for workflow_name in ("analyze_climate", "build_model", "analyze_projections"):
-        same(f"config/{workflow_name}/sources/")
-        same_rx(rf"config/{workflow_name}/(?:catalogs/)?[^/]+")
-    same("config/_engine/execution-configs/")
-    same("config/_engine/archive-transactions/")
-    same("config/_engine/configuration-snapshots/")
-    same("experiments/_engine/allocation.json")
-    transaction = r"experiments/_engine/transactions/[0-9a-f]{32}"
-    same_rx(rf"{transaction}/transaction\.json")
-    captured_role = (
-        r"(?:project|simulate_system|generate_scenarios|generator_template|build_model|"
-        r"build_template|waterbodies_template|region|output_locations|catalog_(?:0|[1-9][0-9]*))"
-    )
-    same_rx(rf"{transaction}/sources/{captured_role}\.bin")
-    same_rx(rf"{transaction}/experiment/experiment\.yml")
-    same_rx(rf"{transaction}/experiment/_engine/reservation\.json")
-    # `scripts/run_workflows.py`'s invocation manifest, one immutable file per
-    # wrapper run. A PREFIX, because the set is genuinely open — the filename is
-    # `<utc stamp>-<uuid12>.json`, so a new one appears every run.
-    #
-    # It needs its own row and cannot ride the workflow regex below: that regex
-    # requires a `<digest>/` directory between the workflow name and the file,
-    # and a manifest sits DIRECTLY under `invocations/`. `invocations` is not a
-    # workflow anyway — it is a SIBLING of the `<workflow>/<digest>/` bundles,
-    # since an invocation spans workflows (`run_workflows.py`, R9 follow-up
-    # ruling of 2026-08-05). Registered BEFORE the regex to match the R9 map's
-    # ordering and its reasoning, though here the two are disjoint outright.
-    #
-    # MISSED UNTIL 2026-08-11 because no tree the gate was pointed at had one:
-    # the wrapper is not a rule, so the declared tier cannot see it, and
-    # `test_local`'s runs were all direct `snakemake` calls. It surfaced the
-    # first time a fixture (`test_rapid`) was rebuilt THROUGH the wrapper. The
-    # R9 map has carried the equivalent row since 2026-08-05; this is the
-    # mirror that was never made.
-    same("config/_engine/invocations/")
-    # Latest views remain named by workflow. Immutable generations belong to
-    # the private configuration-snapshots namespace above, not these views.
-    same("config/analyze_climate/run_record.yml")
-    same("config/build_model/run_record.yml")
-    same("config/analyze_projections/run_record.yml")
-    # The run journal. An UNDECLARED SIDE EFFECT and the only one in this tree:
-    # it is written by the workflow's lifecycle handlers, not by a rule, so the
-    # declared tier cannot see it and it has to be whitelisted here by hand. It
-    # is deliberately not a rule output -- Snakemake deletes those before a job
-    # runs, which would truncate the ledger to one line every time.
-    same("config/_engine/journal.jsonl")
-    # The bin's own README, rewritten by rule X.01 on every run.
-    same("config/README.md")
-    # Both still receive copies, but only of files the toolbox repository
-    # cannot give back: a tracked, unmodified catalog or template is recorded
-    # by git blob id instead. In a normal checkout these are usually EMPTY.
-    same("config/catalogs/")
-    same("config/templates/")
-    same("config/basin_data/")
-    # Generated build config lives in the model's own config/ (R9 design v10).
-
-    # -- data/ ----------------------------------------------------------------
-    for leaf in (
-        "spatial_maps.nc",
-        "spatial_catalog.yml",
-        "spatial_report.yml",
-        "location_registry.csv",
-        # Hydrography grid seam.
-        "hydrography.nc",
-    ):
-        same(f"data/spatial/{leaf}")
-    same("data/spatial/geoms/")
-    # elevation_basin depicts elevation, so it is drawn from the spatial
-    # foundation and lands beside it rather than inside the model tree.
-    same("data/spatial/plots/")
-    same("data/spatial/_engine/plots/")
-    # The climate store is keyed by <clim_source>_<window>; the key is a CACHE
-    # KEY, so the rule is keyed by a variable exactly as the R9 map's is.
-    same(f"data/climate/historical/{dataset_key}/")
-    same_rx(r"data/climate/historical/(?!_engine/)[^/]+/.*")
-    same("data/climate/historical/_engine/map_reference.json")
-    # Rule 0.04b pools its colour scale ACROSS sources, so `shared_plot_scales.json`
-    # lands at the historical root rather than inside a store key -- one level
-    # above what the pattern on the line before can match. The per-source sidecar
-    # that used to live under `<key>/plots/` was retired 2026-08-16
-    # (`climate_analysis/climate_figures.py`), so a tree carrying the old
-    # spelling is a predecessor tree, not a second copy of this file.
-    same("data/climate/historical/shared_plot_scales.json")
-    # Shared orography preserves the original portable netCDF basename.
-    same_rx(
-        rf"data/climate/ancillary/[a-z][a-z0-9_]*/{_hex}/"
-        r"[a-zA-Z0-9][a-zA-Z0-9_.-]*\.nc"
-    )
-    for tier in ("raw", "scalar", "summary", "analysis", "plots"):
-        same(f"data/climate/projections/{clim_project}/{tier}/")
-    same(f"data/climate/projections/{clim_project}/report.md")
-    for leaf in (
-        "stage_b_settings.json",
-        "analysis_record.json",
-        "plots/figure_captions.json",
-        "plots/figure_titles.json",
-    ):
-        same(f"data/climate/projections/{clim_project}/_engine/{leaf}")
-    # Launcher-observed production record and retained copies of its generations'
-    # diagnostics (`blueearth_cst/shared/product_record.py`).
-    production = f"data/climate/projections/{re.escape(clim_project)}/_engine/execution"
-    same(f"data/climate/projections/{clim_project}/_engine/execution/production.json")
-    same_rx(rf"{production}/[0-9a-f]{{32}}/wf2(?:\.log|-benchmarks\.(?:md|tsv))")
-    # Provenance an import carried in (`blueearth_cst/shared/result_bundle.py`):
-    # bundle manifest, import record, region and exact configuration snapshots.
-    # Staged imports (`.<ensemble>.import-*.staged`) stay unmapped on purpose.
-    imported = f"data/climate/projections/{re.escape(clim_project)}/_engine/imported/[0-9a-f]{{12}}"
-    same_rx(rf"{imported}/(?:manifest|import_record)\.json")
-    same_rx(rf"{imported}/dependencies/region\.geojson")
-    same_rx(rf"{imported}/configuration/[0-9a-f]{{12}}/.+")
-
-    # -- models/ --------------------------------------------------------------
-    wflow = "models/hydrology/wflow"
-    for leaf in (
-        "staticmaps.nc",
-        "wflow_sbm.toml",
-        "wflow_sbm.toml.grid.toml",
-        "hydromt.log",
-        "hydromt_data.yml",
-        ".model_built",
-        ".outputs_configured",
-        # Terminal model-build sentinel.
-        ".model_final",
-        "config/build_historical_forcing.yml",
-        # The one-entry catalog pointing hydromt at the climate store — a
-        # DECLARED, non-temp() output of rule 1.09 beside the build YAML from
-        # the same rule (`build_model.smk`, `store_catalog`). Added
-        # 2026-08-11: `test_local`'s WF1 predates the output, so no tree the
-        # gate was pointed at held one until `test_rapid` was rebuilt.
-        #
-        # An ENUMERATED leaf, not a `config/` prefix — the model's `config/`
-        # holds a fixed set, so a genuinely new file there should still report.
-        # It had deliberately NO row in the R9 migration map either: no pre-R9
-        # form, so a relocation row could never have fired — the same argument
-        # that map already made for `.model_final`.
-        "config/climate_store_catalog.yml",
-        "forcing/inmaps_historical.nc",
-        # The values hydromt was ACTUALLY handed, from rules 1.06 and 1.07
-        # (config-snapshot redesign §5.6). Not copies of the build templates:
-        # arguments are replaced with the P1 spatial products and some are
-        # derived at call time, so these record what the template cannot.
-        # Enumerated leaves for the same reason as the store catalog above --
-        # the model root holds a fixed set, so a genuinely new file here
-        # should still report.
-        "hydromt_build_config.yml",
-        "hydromt_update_waterbodies.yml",
-        # The staleness sidecar, at the model root since t2609152104 rather than
-        # inside `evaluation/`: it describes when the MODEL was last run, which
-        # is not a property of the evaluation beside it.
-        "run_metadata.json",
-    ):
-        same(f"{wflow}/{leaf}")
-    for directory in (
-        "staticgeoms/",
-        "forcing/plots/",
-        "forcing/_engine/plots/",
-        "run_default/",
-        "evaluation/",
-    ):
-        same(f"{wflow}/{directory}")
-    # `{wflow}/plots/` is deliberately absent: the basin-map relocation moved its only member,
-    # elevation_basin, to `data/spatial/plots/`. A leftover directory there is stale
-    # output from a pre-0007 run and SHOULD report as undeclared.
-
-    # Durable v2 collection products and separate rebuildable engine records.
-    # Every content-digest PATH SEGMENT is the identity's first
-    # SHORT_DIGEST_CHARS since t2609152107, so this is the same `_hex` the WF3
-    # run-record rows use -- one constant, so a tree written by the engine and a
-    # tree this tool accepts cannot disagree about name length.
-    digest = _hex
-    collection = rf"scenarios/(?:_engine/data/)?{digest}"
+    # -- legacy rows: shapes no current writer produces -----------------------
+    # Hand-written on purpose (t017 step 1): `layout_paths` declares what the
+    # toolbox writes today; these keep older trees readable as evidence.
+    hex12 = f"[0-9a-f]{{{SHORT_DIGEST_CHARS}}}"
+    legacy = rf"scenarios/{hex12}"
     for leaf in (
         "config/run_record.yml",
         "scenario_run_lookup.csv",
@@ -562,103 +353,24 @@ def build_project_tree_rules(
         "weathergenr/output/sim_dates.csv",
         "weathergenr/output/resampled_dates.csv",
     ):
-        same_rx(rf"{collection}/{re.escape(leaf)}")
-    # Source archives preserve caller-supplied filenames; diagnostic plots are
-    # provider-owned. Neither is a fixed leaf set.
-    same_rx(rf"{collection}/config/sources/[^/]+")
-    same_rx(rf"{collection}/config/(?:catalogs/)?[^/]+")
-    same_rx(rf"{collection}/series/run_[0-9]+\.nc")
-    same_rx(rf"{collection}/weathergenr/output/run_[0-9]+\.nc")
-    same_rx(rf"{collection}/weathergenr/evaluation/plots/[^/]+\.(png|pdf)")
-    for leaf in ("collection.json", "collection_intent.json"):
-        same_rx(rf"scenarios/_engine/collections/{digest}/{re.escape(leaf)}")
-    request = rf"scenarios/_engine/requests/{digest}"
-    same_rx(rf"{request}/request\.json")
-    same_rx(rf"{request}/[0-9a-f]{{64}}\.json")
-    same_rx(rf"{request}/initializations/[0-9a-f]{{32}}\.json")
-    same_rx(rf"{request}/generation/config/stress_test_lookup\.csv")
-    # Pinned inputs preserve the source name: catalogs and generator templates
-    # are configurable. The digest directory remains constrained.
-    same_rx(rf"scenarios/_engine/generation_inputs/{digest}/[^/]+\.(yml|yaml)")
-    for leaf in ("basin_cells.csv", "extract_historical.nc"):
-        same_rx(rf"scenarios/_engine/generation_inputs/{digest}/{re.escape(leaf)}")
-
-    # The caller supplies verified retained owners; apply the same closed leaf inventory.
-    for e in sorted({experiment_name, *retained_experiment_names}):
+        rules.append((re.compile(rf"{legacy}/{re.escape(leaf)}"), r"\g<0>"))
+    for pattern in (
+        rf"{legacy}/config/sources/[^/]+",
+        rf"{legacy}/config/(?:catalogs/)?[^/]+",
+        rf"{legacy}/series/run_[0-9]+\.nc",
+        rf"{legacy}/weathergenr/output/run_[0-9]+\.nc",
+        rf"{legacy}/weathergenr/evaluation/plots/[^/]+\.(png|pdf)",
+    ):
+        rules.append((re.compile(pattern), r"\g<0>"))
+    # The retired flat indicator export.
+    for e in sorted(experiments):
         exp = re.escape(e)
-        # Simulation identities are frozen separately from indicator-set identities.
-        same(f"experiments/{e}/experiment.yml")
-        same(f"experiments/{e}/.model_reference_ok")
-        for leaf in (
-            "reservation.json",
-            "simulation-freeze.json",
-            "model_reference.yml",
-            "simulation.json",
-            "simulation_intent.json",
+        for pattern in (
+            rf"experiments/{exp}/_engine/indicator_sets/current\.json",
+            rf"experiments/{exp}/results/indicator_sets/group_(members|metadata)\.csv",
+            rf"experiments/{exp}/results/indicator_sets/[a-z][a-z0-9_]*_(run|group)_indicators\.csv",
         ):
-            same(f"experiments/{e}/_engine/{leaf}")
-        same(f"experiments/{e}/config/run_record.yml")
-        same(f"experiments/{e}/config/sources/")
-        same_rx(rf"experiments/{exp}/config/(?:catalogs/)?[^/]+")
-        same(f"experiments/{e}/_engine/response_inventory.json")
-        same_rx(rf"experiments/{exp}/_engine/indicator_requests/{digest}\.json")
-        indicator_set = rf"experiments/{exp}/(?:results/indicator_sets/{digest}|_engine/indicator_sets/{digest}/data)"
-        # `return_level_benchmark.json` is GF15 D5: the checked benchmark report is
-        # copied into every set so a reader can validate it without the installed
-        # asset or the estimator dependency. It is a leaf of the set like the rest.
-        for leaf in (
-            "indicators.json",
-            "indicator_environment.json",
-            "return_level_benchmark.json",
-            "return_level_evidence.json",
-            "coverage_evidence.json",
-        ):
-            same_rx(
-                rf"experiments/{exp}/_engine/indicator_sets/{digest}/{re.escape(leaf)}"
-            )
-        same_rx(rf"{indicator_set}/group_(members|metadata)\.csv")
-        same_rx(rf"{indicator_set}/[a-z][a-z0-9_]*_(run|group)_indicators\.csv")
-        # Named per-set exports (indicator-set/4) and their committed pointers.
-        # As `indicator_sets.SET_ID_PATTERN`, so a shipped `crop-water` maps.
-        named = r"[a-z][a-z0-9_-]{0,63}"
-        same_rx(
-            rf"experiments/{exp}/results/indicator_sets/{named}/"
-            r"(?:group_(?:members|metadata)|indicators|[a-z][a-z0-9_]*_(?:run|group)_indicators)\.csv"
-        )
-        names = rf"experiments/{exp}/_engine/indicator_sets/names/{named}"
-        same_rx(rf"{names}/current\.json")
-        same_rx(rf"{names}/definitions/[0-9a-f]{{64}}\.yml")
-        same_rx(rf"{names}/publications/[0-9a-f]{{64}}\.json")
-        # The retired flat export stays readable evidence in older trees.
-        same(f"experiments/{e}/_engine/indicator_sets/current.json")
-        same_rx(
-            rf"experiments/{exp}/results/indicator_sets/group_(members|metadata)\.csv"
-        )
-        same_rx(
-            rf"experiments/{exp}/results/indicator_sets/[a-z][a-z0-9_]*_(run|group)_indicators\.csv"
-        )
-        native = rf"experiments/{exp}/hydrology/wflow"
-        same_rx(
-            rf"{native}/run_settings/run_[0-9]+\.(toml|toml\.grid\.toml|yml|temporal\.json)"
-        )
-        same(
-            f"experiments/{e}/hydrology/wflow/run_settings/forcing_elevation_catalog.yml"
-        )
-        same_rx(rf"{native}/forcing/inmaps_run_[0-9]+\.nc")
-        same_rx(rf"{native}/output/run_[0-9]+\.(csv|nc)")
-        same_rx(
-            rf"{native}/output/run_[0-9]+/output_(?:q|p|pet|aet|gwr|qof|swe|temp)\.csv"
-        )
-        same_rx(rf"{native}/output/run_[0-9]+/_engine/response_tables\.json")
-        same_rx(rf"{native}/output/_log/run_[0-9]+\.log")
-        same_rx(rf"{native}/output/outstates_run_[0-9]+\.nc")
-
-        same(f"experiments/{e}/_engine/freeze-payloads/run_record.yml")
-        same_rx(
-            rf"experiments/{exp}/_engine/freeze-payloads/sources/(?:catalogs/)?[^/]+"
-        )
-        same_rx(rf"experiments/{exp}/_engine/freeze-payloads/(?:catalogs/)?[^/]+")
-        same_rx(rf"experiments/{exp}/_engine/batch_staging/run_[0-9]+\.(csv|expect|ok)")
+            rules.append((re.compile(pattern), r"\g<0>"))
     return rules
 
 

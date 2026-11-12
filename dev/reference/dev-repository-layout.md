@@ -111,6 +111,11 @@ against the project-tree inventory (`pixi run tree-check`). Deletion requires `-
 a reference snapshot so it excludes orphans. Directories routed wholesale by the path map also need
 an mtime sweep; the pruners do not see every file.
 
+The project-tree inventory is generated from `blueearth_cst/shared/layout_paths.py`, which declares every
+path the toolbox writes, with its kind (`tests/test_layout_paths.py` checks placement). Change a
+declaration in the same commit as its writer; only legacy shapes stay hand-written in
+`semantic_tree_diff.build_project_tree_rules`.
+
 ## docs/
 
 `docs/guide/` owns the canonical Markdown user guides and their assets.
