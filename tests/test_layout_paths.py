@@ -157,3 +157,80 @@ def test_a_missing_binding_is_an_error():
 def test_template_syntax(path, rel, matches):
     pattern = re.compile(L.Declaration("wf1", path, "product").pattern({}))
     assert bool(pattern.fullmatch(rel)) is matches
+
+
+#: Today's R10 placement violations, removed by the t017 migration step named
+#: beside each group. The ratchet fails on a new violation and on a fixed one
+#: still listed, so this set only shrinks.
+KNOWN_MISPLACED = {
+    # shared logs: benchmarks move into the log folder (step 2)
+    "benchmarks/{wf0|wf1|wf2}_benchmarks.md",
+    "benchmarks/wf3_benchmarks_{hex12}.md",
+    "benchmarks/wf4_benchmarks_{experiment_name}.md",
+    "benchmarks/_parts/",
+    # WF0 (open point 1 for the spatial YAMLs)
+    "data/spatial/spatial_catalog.yml",
+    "data/spatial/spatial_report.yml",
+    "data/climate/historical/shared_plot_scales.json",
+    # WF1
+    "models/hydrology/{model}/.model_built",
+    "models/hydrology/{model}/.outputs_configured",
+    "models/hydrology/{model}/.model_final",
+    "models/hydrology/{model}/wflow_sbm.toml.grid.toml",
+    "models/hydrology/{model}/wflow_sbm_{recipe}.toml.grid.toml",
+    "models/hydrology/{model}/config/{build_historical_forcing|climate_store_catalog}.yml",
+    "models/hydrology/{model}/config/{recipe}/{build_historical_forcing|climate_store_catalog}.yml",
+    "models/hydrology/{model}/config/{recipe}/historical_forcing.json",
+    "models/hydrology/{model}/hydromt_build_config.yml",
+    "models/hydrology/{model}/hydromt_update_waterbodies.yml",
+    "models/hydrology/{model}/run_metadata.json",
+    "simulations/historical/{historical_run}/run.json",
+    "simulations/historical/{historical_run}/complete.json",
+    "comparisons/historical/{historical_run}/comparison.json",
+    # WF3 (R7)
+    "scenarios/_engine/data/{hex12}/config/sources/{segment}",
+    "scenarios/_engine/data/{hex12}/config/{?catalogs/}{segment}",
+    "scenarios/_engine/data/{hex12}/weathergenr/weather_generation_input.yml",
+    "scenarios/_engine/data/{hex12}/{scenario_run_lookup|perturbation_lookup}.csv",
+    "scenarios/_engine/data/{hex12}/weathergenr/output/{sim_dates|resampled_dates}.csv",
+    "scenarios/_engine/data/{hex12}/series/{run}.nc",
+    "scenarios/_engine/data/{hex12}/weathergenr/output/{run}.nc",
+    "scenarios/_engine/data/{hex12}/weathergenr/evaluation/plots/{segment}.{png|pdf}",
+    # WF4 (R9, R11, R17)
+    "experiments/{experiment}/.model_reference_ok",
+    "experiments/{experiment}/_engine/freeze-payloads/run_record.yml",
+    "experiments/{experiment}/_engine/freeze-payloads/sources/{?catalogs/}{segment}",
+    "experiments/{experiment}/_engine/freeze-payloads/{?catalogs/}{segment}",
+    "experiments/{experiment}/_engine/indicator_sets/{hex12}/data/{indicator_table}.csv",
+    "experiments/{experiment}/hydrology/wflow/run_settings/{run}.{toml|toml.grid.toml|yml|temporal.json}",
+    "experiments/{experiment}/hydrology/wflow/run_settings/forcing_elevation_catalog.yml",
+    "experiments/{experiment}/hydrology/wflow/output/_log/{run}.log",
+}
+
+
+def test_no_new_misplaced_kind():
+    found = {item.path for item in L.misplaced(DECLARED)}
+    assert not found - KNOWN_MISPLACED, (
+        "a machine file in a readable folder, or the reverse"
+    )
+
+
+def test_fixed_placements_leave_the_known_list():
+    found = {item.path for item in L.misplaced(DECLARED)}
+    assert not KNOWN_MISPLACED - found, "remove fixed entries from KNOWN_MISPLACED"
+
+
+@pytest.mark.parametrize(
+    ("path", "kind", "flagged"),
+    [
+        ("x/_engine/a.json", "record", False),
+        ("x/a.json", "record", True),
+        ("x/_engine/a.csv", "product", True),
+        ("logs/a.log", "log", False),
+        ("x/a.log", "log", True),
+        ("x/hydromt.log", L.ENGINE_OWNED, False),
+    ],
+)
+def test_placement_rule(path, kind, flagged):
+    item = L.Declaration("wf1", path, kind)
+    assert (L.misplaced([item]) == [item]) is flagged

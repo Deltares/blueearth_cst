@@ -478,3 +478,24 @@ def bind(
         else:
             out.append((item, re.compile(item.pattern(base))))
     return out
+
+
+def misplaced(declared: Iterable[Declaration]) -> list[Declaration]:
+    """Declarations that break rule R10's placement by kind.
+
+    A machine kind outside ``_engine/`` (top-level ``logs/`` excepted, rule
+    R13), or a readable kind inside it. Engine-owned paths are exempt (R3a).
+    """
+    out = []
+    for item in declared:
+        if item.kind == ENGINE_OWNED:
+            continue
+        if item.kind in ENGINE_KINDS:
+            allowed = item.in_engine or (
+                item.kind == "log" and item.path.startswith("logs/")
+            )
+        else:
+            allowed = not item.in_engine
+        if not allowed:
+            out.append(item)
+    return out
