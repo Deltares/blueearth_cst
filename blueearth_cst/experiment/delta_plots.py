@@ -12,6 +12,11 @@ from blueearth_cst.experiment.delta_scenarios import read_delta_collection
 from blueearth_cst.shared.workflow_config_snapshot import resolve_file_reference
 
 
+def _years(period: dict) -> str:
+    """Inclusive year span for captions, e.g. 2040–2069."""
+    return f"{period['start']}–{period['end']}"
+
+
 def _scenario_title(scenario: str) -> str:
     """Format standard ScenarioMIP IDs; preserve unrecognized identifiers."""
     match = re.fullmatch(r"ssp([1-5])([0-9]{2})", scenario)
@@ -189,7 +194,7 @@ def plot_delta_collection(
             plt.close(fig)
             paths.append(path)
             captions.append(
-                f"{path.name}: {', '.join(labels)}. Future {settings['future_period']}. "
+                f"{path.name}: {', '.join(labels)}. Future {_years(settings['future_period'])}. "
                 "Grid lines are unweighted active-cell means; shaded ranges are spatial minima/maxima, "
                 "not confidence intervals. Scalar lines show basin factors. Members are not pooled."
                 + notes
@@ -266,7 +271,7 @@ def plot_delta_collection(
                         captions.append(
                             f"{path.name}: {member['model']} / {member['scenario']} / {member['member']}; "
                             f"{', '.join(page_months)}, left to right by row; page {page}/{len(figures)}; "
-                            f"future {settings['future_period']}. "
+                            f"future {_years(settings['future_period'])}. "
                             "Factors on the historical forcing grid; common scale across members and months. "
                             f"Compact {CST_PRESET.map_panels['columns']}-column panels retain basin outline, subbasin divides, rivers "
                             "and location markers; coordinate and location labels are omitted. "
@@ -373,7 +378,7 @@ def plot_delta_collection(
                     plt.close(fig)
                     paths.append(path)
                     captions.append(
-                        f"{path.name}: Annual projection change, {settings['future_period']} versus {settings['reference_period']}; "
+                        f"{path.name}: Annual projection change, {_years(settings['future_period'])} versus {_years(settings['reference_period'])}; "
                         f"cell-wise {member_summary} of member changes; model rows and scenario columns; page {page}/{len(figures)}. "
                         "Temperature uses day-weighted annual means; precipitation/PET use mean annual totals, not averaged monthly percentages. "
                         "Each input uses its own calendar; annual changes are mapped before member aggregation. "

@@ -132,11 +132,14 @@ def _read_index(path: Path) -> list[dict[str, str]]:
 def _description(intent: dict) -> str:
     spec = intent.get("scenario_spec") or {}
     runs = intent.get("run_count")
+    members = (intent.get("settings") or {}).get("members")
+    if runs is None and isinstance(members, list):
+        runs = len(members) + 2  # delta: projection runs plus both controls
     window = spec.get("simulation_window")
-    text = f"{runs} runs" if runs is not None else ""
+    parts = [f"{runs} runs"] if runs is not None else []
     if isinstance(window, dict) and {"start", "end"} <= set(window):
-        text += f", {window['start']}-{window['end']}"
-    return text
+        parts.append(f"{window['start']}-{window['end']}")
+    return ", ".join(parts)
 
 
 def _row(marker_path: Path, name: str, aliases: list[str]) -> dict[str, str]:

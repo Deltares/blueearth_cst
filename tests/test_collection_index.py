@@ -78,3 +78,13 @@ def test_published_set_stays_readable_after_its_inputs_change(tmp_path):
         live.write_bytes(b"rebuilt store")
     (experiment.project / "data/historical_climate.dat").unlink()
     assert read_collection_v2(experiment.collection_marker)["status"] == "ready"
+
+
+def test_index_description_counts_delta_runs_without_a_leading_comma():
+    from blueearth_cst.experiment.collection_index import _description
+
+    window = {"simulation_window": {"start": 1991, "end": 2014}}
+    assert _description(
+        {"settings": {"members": [{}] * 10}, "scenario_spec": window}
+    ) == ("12 runs, 1991-2014")
+    assert _description({"scenario_spec": window}) == "1991-2014"
