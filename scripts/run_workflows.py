@@ -1502,18 +1502,24 @@ def _run_owned(
             from blueearth_cst.experiment.simulation_runner import simulation_settings
 
             _, simulation = simulation_settings(config_path)
-            if "scenario_collection" not in simulation:
+            if (
+                "scenario_collection" not in simulation
+                and delta_operation.settings["schema_version"] != "delta-change/3"
+            ):
                 raise ValueError(
-                    "delta generation with WF4 requires an explicit existing scenario_collection.manifest_path"
+                    "delta-change/1 and /2 collections cannot be found from the "
+                    "settings; WF4 requires an explicit existing scenario_collection "
+                    "(name, id or manifest_path)"
                 )
-            selected, _ = resolve_explicit_collection_v2(
-                simulation["scenario_collection"], project_dir
-            )
-            print(
-                f"WF4 explicitly selected collection: {selected['manifest_path']}; "
-                "delta generation will not replace this selection.",
-                flush=True,
-            )
+            if "scenario_collection" in simulation:
+                selected, _ = resolve_explicit_collection_v2(
+                    simulation["scenario_collection"], project_dir
+                )
+                print(
+                    f"WF4 explicitly selected collection: {selected['manifest_path']}; "
+                    "delta generation will not replace this selection.",
+                    flush=True,
+                )
     manifest_path, manifest = _initialize_manifest(
         cfg=cfg,
         config_path=config_path,
@@ -1663,8 +1669,7 @@ def _run_owned(
                         REPO_ROOT,
                         project_dir,
                         history["invocation_id"],
-                        execute_generation=flags["generate_scenarios"]
-                        and delta_operation is None,
+                        execute_generation=flags["generate_scenarios"],
                         execute_model=flags["build_model"],
                         new_experiment=new_experiment,
                         note=note,

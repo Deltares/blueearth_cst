@@ -347,6 +347,7 @@ def test_derived_historical_uses_the_stochastic_store_rule(tmp_path):
     assert historical_binding(config, wf2_settings(historical_override=override)) == {
         "path": tmp_path / "own.nc",
         "source": "era5",
+        "recipe": None,
     }
 
 

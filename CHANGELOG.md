@@ -37,6 +37,11 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 - WF4 selects a scenario collection with `scenario_collection: {name: <set or alias>}` or
   `{id: <at least 12 hex characters>}`, for both methods; an unknown value stops and lists the sets.
   `scenario_collection.manifest_path` is deprecated and will be removed in the next release.
+- WF4 finds a `delta-change/3` collection from the current generation settings when no
+  `scenario_collection` is given, as it does for stochastic sets; a set generated earlier in the same run
+  (WF2 → WF3 → WF4) is bound after generation. A missing set stops with "run scenario generation".
+  `delta-change/1` and `/2` still need an explicit selection. Delta sets keep their authored settings in
+  `<name>/config/` and record the historical recipe, so WF4 also accepts named historical forcings for them.
 - Keep figure title/caption JSON in each output unit's `_engine/plots/` across WF0–WF2, mirroring family
   subfolders (for example `evaluation/_engine/plots/stations/`). Existing projects re-render affected
   figure families once on their next run; JSON at the old locations is left in place and can be deleted.

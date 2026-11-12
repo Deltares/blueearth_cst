@@ -67,6 +67,7 @@ class DeltaGeneration:
             preview=preview,
             expected_input_hashes=expected,
             historical=self.historical,
+            documents=tuple((path.name, data) for path, data in self.sources),
         )
         self.recheck()
         return manifest
@@ -121,7 +122,11 @@ def historical_binding(config: dict, settings: dict) -> dict:
     """
     override = settings.get("historical_override", {})
     if "path" in override:
-        return {"path": Path(override["path"]), "source": override["source"]}
+        return {
+            "path": Path(override["path"]),
+            "source": override["source"],
+            "recipe": None,
+        }
     from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
     from blueearth_cst.shared.wf3_science import (
         DEFAULT_BASIN_INDEX,
@@ -145,6 +150,8 @@ def historical_binding(config: dict, settings: dict) -> dict:
     return {
         "path": Path(store.store_dir) / "extract_historical.nc",
         "source": climate["selected"],
+        # The named recipe WF4 must match (None without named forcings).
+        "recipe": climate.get("forcing_id", climate.get("default_forcing")),
     }
 
 

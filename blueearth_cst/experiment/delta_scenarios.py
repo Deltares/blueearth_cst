@@ -79,6 +79,7 @@ V3_RESOLVED_KEYS = {
     "members",
     "windows",
     "wf2",
+    "historical_recipe",
 }
 OVERRIDE_KEYS = {"period", "path", "source", "units", "units_note"}
 #: Effective units of supported historical sources, supplied by the toolbox
@@ -849,6 +850,7 @@ def _prepare_wf2(project_root: Path, settings: dict, historical: dict):
     resolved.update(
         historical_path=_input_location(project_root, historical_path),
         source_like=historical["source"],
+        historical_recipe=historical.get("recipe"),
         reader=reader,
         simulation_window={
             "start": int(effective[0][:4]),
@@ -920,6 +922,7 @@ def generate_collection(
     preview: bool = False,
     expected_input_hashes: list[str] | None = None,
     historical: dict | None = None,
+    documents: tuple[tuple[str, bytes], ...] = (),
 ) -> Path:
     """Publish an immutable collection, or verify an identical completed request.
 
@@ -972,6 +975,7 @@ def generate_collection(
             descriptor,
             preview=preview,
             expected_input_hashes=expected_input_hashes,
+            documents=documents,
         )
     relative = input_names(resolved)
     intent = {
@@ -1193,6 +1197,7 @@ def _publish_named(
     *,
     preview: bool,
     expected_input_hashes: list[str] | None,
+    documents: tuple[tuple[str, bytes], ...] = (),
 ) -> Path:
     """Publish a WF2-sourced collection as ``scenarios/<name>/``.
 
@@ -1277,6 +1282,12 @@ def _publish_named(
             )
     engine.mkdir(parents=True, exist_ok=False)
     shutil.copyfile(Path(__file__), engine / "producer.py")
+    # The authored settings that produced the set, for the reader (design §5.4);
+    # display only, never identity.
+    if documents:
+        (folder / "config").mkdir()
+        for name, data in documents:
+            (folder / "config" / Path(name).name).write_bytes(data)
     atomic_record(engine / "collection_intent.json", intent)
     rows = scenario_records(resolved)
     with (folder / "scenario_run_lookup.csv").open(

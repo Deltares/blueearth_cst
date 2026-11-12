@@ -134,6 +134,37 @@ def generation_request(config, repository, *, captures=None):
     }
 
 
+def delta_request(config: dict, root: Path) -> dict:
+    """The delta science a pending WF4 selection is bound to (design §6.1).
+
+    Only authored settings and the historical location: no input hashes or
+    existence, so the request stays stable while WF0-WF2 produce inputs within
+    one invocation. The published set is checked against it at binding.
+    """
+    from blueearth_cst.experiment.delta_generation import historical_binding
+
+    settings = {
+        key: value
+        for key, value in config["workflows"]["generate_scenarios"][
+            "delta_change"
+        ].items()
+        if key != "name"
+    }
+    historical = historical_binding(config, settings)
+    path = Path(historical["path"]).resolve()
+    return {
+        "schema_version": "reservation-delta-request/1",
+        "settings": settings,
+        "historical": {
+            "path": path.relative_to(root).as_posix()
+            if path.is_relative_to(root)
+            else path.as_posix(),
+            "source": historical["source"],
+            "recipe": historical["recipe"],
+        },
+    }
+
+
 def capture_request(
     config_path, repository, *, execute_generation=False, execute_model=False
 ):
@@ -186,9 +217,12 @@ def capture_request(
     for item in local:
         original = Path(item["path"])
         captures.append((item["role"], original, original.read_bytes()))
+    from blueearth_cst.shared.generation_config import generation_method
+
+    delta = need_generation and generation_method(config) == "delta_change"
     generated = (
         generation_request(config, repository, captures=captures)
-        if need_generation
+        if need_generation and not delta
         else None
     )
     model_request = None
@@ -297,10 +331,17 @@ def capture_request(
             raise ValueError("selected collection must lie in the project root")
         manifest = file_reference(manifest_path, "project_root", root)
         mode = "explicit-manifest"
+    selection = {"mode": mode, "manifest": manifest}
+    if delta and manifest is None:
+        selection = {
+            "mode": "delta-generation",
+            "manifest": None,
+            "delta": delta_request(config, root),
+        }
     request = {
         "schema_version": "experiment-request/2",
         "generation": generated,
-        "selection": {"mode": mode, "manifest": manifest},
+        "selection": selection,
         "input_catalogs": semantic_catalogs,
         "simulation": {
             "climate_source": config["climate"]["selected"],

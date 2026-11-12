@@ -139,9 +139,7 @@ def test_runner_delta_with_missing_selection_fails_before_generation(tmp_path):
     project["climate"] = {"selected": "era5", "window": {"start": 2000, "end": 2000}}
     (tmp_path / "simulation.yml").write_text("operation: simulate-and-indicators\n")
     path.write_text(yaml.safe_dump(project))
-    with pytest.raises(
-        ValueError, match="explicit existing scenario_collection.manifest_path"
-    ):
+    with pytest.raises(ValueError, match="explicit existing scenario_collection"):
         run_workflows.run(str(path), 1, [])
     assert not (tmp_path / "proj/scenarios").exists()
 
@@ -197,7 +195,7 @@ def test_runner_delta_failure_does_not_launch_wf4(tmp_path, monkeypatch):
     monkeypatch.setattr(run_workflows, "run_project_child", unexpected)
     with pytest.raises(ValueError, match="injected delta publication failure"):
         run_workflows.run(str(path), 1, [])
-    assert observed == [False]
+    assert observed == [True]
 
 
 def test_explicit_delta_reservation_capture_does_not_plan_stochastic(
@@ -278,7 +276,7 @@ def test_v3_capture_derives_baseline_pending_and_indexes(tmp_path, monkeypatch):
     ):
         capture_delta(path, [], project_dir=root)
     pending = capture_delta(path, [], project_dir=root, historical_producer=True)
-    assert pending.historical == {"path": extract, "source": "era5"}
+    assert pending.historical == {"path": extract, "source": "era5", "recipe": None}
     assert pending.run(root, preview=True) is None
     with pytest.raises(ValueError, match="not produced by this invocation"):
         pending.run(root, preview=False)
@@ -301,3 +299,79 @@ def test_v3_capture_derives_baseline_pending_and_indexes(tmp_path, monkeypatch):
     operation.index(root, manifest)
     index = (root / "scenarios/collections.csv").read_text().splitlines()
     assert index[1].startswith("delta-cmip6-near-far,mine,delta_change,")
+
+
+def test_wf4_default_selects_the_delta_set_of_the_current_settings(
+    tmp_path, monkeypatch
+):
+    from blueearth_cst.experiment.collection_resolution import (
+        GeneratedCollectionUnavailable,
+        resolve_default_delta,
+    )
+    from tests.test_delta_wf2 import era5_historical
+
+    path, root = v3_project(tmp_path, monkeypatch)
+    store = root / "data/climate/historical/era5_19800101_20101231"
+    store.mkdir(parents=True)
+    with pytest.raises(
+        GeneratedCollectionUnavailable, match="historical record missing"
+    ):
+        resolve_default_delta(path, root)
+    era5_historical().to_netcdf(store / "extract_historical.nc")
+    with pytest.raises(GeneratedCollectionUnavailable, match="run scenario generation"):
+        resolve_default_delta(path, root)
+    manifest = capture_delta(path, [], project_dir=root).run(root, preview=False)
+    selection, marker = resolve_default_delta(path, root)
+    assert selection["manifest_path"] == manifest.resolve().as_posix()
+    assert selection["resolution_mode"] == "project-generation"
+    config = manifest.parent.parent / "config"
+    assert sorted(p.name for p in config.iterdir()) == sorted(
+        [path.name, "project_config_test_generate_scenarios.yml"]
+    )
+    intent = yaml.safe_load(manifest.with_name("collection_intent.json").read_text())
+    assert intent["settings"]["historical_recipe"] is None
+    # Changed WF2 products no longer match the published set: stale, not reused.
+    inventory = root / "data/climate/projections/cmip6/analysis/gridded_changes"
+    member = next(inventory.glob("member_*.nc"))
+    member.write_bytes(member.read_bytes() + b"extra")
+    with pytest.raises(
+        GeneratedCollectionUnavailable, match="differs from its inventory"
+    ):
+        resolve_default_delta(path, root)
+
+
+def test_pending_delta_request_is_stable_and_seedless(tmp_path, monkeypatch):
+    from blueearth_cst.experiment.reservation import validate_request
+    from blueearth_cst.experiment.reservation_request import delta_request
+    from blueearth_cst.shared.config_composition import load_composed_config
+
+    path, root = v3_project(tmp_path, monkeypatch)
+    config = load_composed_config(path, entry="generate_scenarios")
+    before = delta_request(config, root)
+    assert before["historical"] == {
+        "path": "data/climate/historical/era5_19800101_20101231/extract_historical.nc",
+        "source": "era5",
+        "recipe": None,
+    }
+    assert "name" not in before["settings"]
+    # Producing the extract within the invocation never changes the request.
+    from tests.test_delta_wf2 import era5_historical
+
+    extract = root / before["historical"]["path"]
+    extract.parent.mkdir(parents=True)
+    era5_historical().to_netcdf(extract)
+    assert delta_request(config, root) == before
+    request = {
+        "schema_version": "experiment-request/2",
+        "generation": None,
+        "selection": {"mode": "delta-generation", "manifest": None, "delta": before},
+        "input_catalogs": [],
+        "simulation": {},
+    }
+    try:
+        validate_request(request, root)
+    except ValueError as error:
+        assert "delta" not in str(error) and "selection" not in str(error)
+    bad = {**request, "selection": {**request["selection"], "delta": {"x": 1}}}
+    with pytest.raises(ValueError, match="delta"):
+        validate_request(bad, root)
