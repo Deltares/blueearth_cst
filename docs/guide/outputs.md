@@ -48,6 +48,10 @@ run and is replaced when the model workflow reruns. `simulations/historical/<nam
 unchanged for later comparison, and `comparisons/historical/` compares them. Stress-test simulations
 belong to their experiment. See [retained historical simulations](../technical-manual/workflow-build-model.md#retain-historical-simulations).
 
+A new output directory records the layout it was written with in `config/_engine/layout.json`; a
+directory without it uses layout 1. The runners refuse a directory written with a different layout:
+set `project.project_dir` to a new folder and rerun. Existing directories are not converted.
+
 Keep the complete output directory when archiving an assessment. Indicator CSVs alone do not preserve
 the model, climate conditions or calculation settings needed to understand a result. Edit the source
 case files when changing settings; the configuration copies in the output directory document past runs.

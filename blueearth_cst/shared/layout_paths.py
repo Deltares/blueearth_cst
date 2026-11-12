@@ -203,6 +203,8 @@ def declarations() -> tuple[Declaration, ...]:
         "config/_engine/configuration-snapshots/",
         "config/_engine/invocations/",
         "config/_engine/journal.jsonl",
+        # Layout version stamp (rule R18; `layout_stamp`).
+        "config/_engine/layout.json",
         "experiments/_engine/allocation.json",
         "experiments/_engine/transactions/{hex32}/transaction.json",
         "experiments/_engine/transactions/{hex32}/experiment/experiment.yml",
