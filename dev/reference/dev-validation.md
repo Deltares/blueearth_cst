@@ -109,6 +109,8 @@ or fixture issues; never hide an access failure with a longer workflow timeout.
   fast does not waive affected tooling checks at task, landing or publishing stages.
 - Fast uses `-n auto --dist loadfile` to keep a test file's module-level state on one worker.
   `--dist load` can break that isolation; adding workers eventually meets per-worker import cost.
+  While another session runs a parallel suite, cap workers, e.g. `pixi run test-fast -n 4`; the later
+  `-n` wins. Two concurrent `-n auto` suites can exhaust memory on a 16 GB machine, which kills both runs.
   `test-contract` stays serial because isolated engine state does not prove independent output and
   process resources. [Test-author isolation](dev-validation-procedures.md#test-author-isolation-details)
   covers Snakemake profiles, pytest scratch and import-time stubs.
