@@ -23,6 +23,7 @@ from blueearth_cst.experiment.indicator_artifacts import (
     ImmutableIndicatorSetError,
     _validate_tables,
     read_indicator_set,
+    refused_results,
 )
 from blueearth_cst.experiment.indicator_groups import indicator_groups
 from blueearth_cst.experiment.indicator_registry import (
@@ -1050,6 +1051,8 @@ def reduce_indicator_plan(
                         "locations": [
                             _plain(asdict(item)) for item in result.metadata["evidence"]
                         ],
+                        # Refused locations keep their full screening evidence.
+                        "refusals": result.metadata.get("refusals", {}),
                     }
                 )
             else:
@@ -1119,15 +1122,23 @@ def reduce_indicator_plan(
                                 ],
                             }
                         )
+                refusals = checked.metadata.get("refusals", {})
                 for location, value in values.items():
+                    refusal = refusals.get(str(location))
                     output[token].append(
                         {
                             "indicator": indicator.name,
                             "location": str(location),
                             "run_group_id": unit,
-                            "value": _format_value(np.float32(value)),
-                            "status": "undefined" if np.isnan(value) else "available",
-                            "reason": "",
+                            "value": ""
+                            if refusal
+                            else _format_value(np.float32(value)),
+                            "status": "unavailable"
+                            if refusal
+                            else "undefined"
+                            if np.isnan(value)
+                            else "available",
+                            "reason": refusal["reason"] if refusal else "",
                         }
                     )
             units = list(members) if indicator.grain == "run" else []
@@ -1206,6 +1217,7 @@ def _publish_indicator_set_v2(experiment_root, plan):
     _validate_tables(
         tables, plan["expected_result_keys"], declarations_by_name, plan["units"]
     )
+    refused = refused_results(tables, plan["request"]["unavailable_results"])
     payloads = {
         f"{token}_{scope}_indicators.csv": _csv_bytes(
             ["indicator", "location", f"{scope}_id", "value", "status", "reason"],
@@ -1305,7 +1317,7 @@ def _publish_indicator_set_v2(experiment_root, plan):
         }
     )
     manifest = {
-        "schema_version": "indicator-set/6",
+        "schema_version": "indicator-set/7",
         "canonicalization_id": "collection-canon/1",
         "status": "ready",
         "indicator_set_id": plan["indicator_set_id"],
@@ -1326,6 +1338,7 @@ def _publish_indicator_set_v2(experiment_root, plan):
         "calculations": plan["request"]["calculations"],
         "unavailable_calculations": plan["request"]["unavailable_calculations"],
         "unavailable_results": plan["request"]["unavailable_results"],
+        "refused_results": refused,
         "declarations": plan["request"]["declarations"],
         "execution_context": {
             "request": plan["request"],

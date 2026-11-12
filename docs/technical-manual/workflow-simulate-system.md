@@ -35,7 +35,7 @@ simulations. Climate projections are not simulation inputs.
 |---|---|
 | `operations` | Simulations, indicators, or both. |
 | `indicator_sets`, `indicator_selection` | Indicator calculations and optional narrower selection. |
-| `indicator_evaluation` | `strict` rejects missing inputs; `partial` records unavailable calculations. |
+| `indicator_evaluation` | `partial` (default) publishes gaps as unavailable with a warning; `strict` refuses. |
 | `include_unperturbed` | Include reference simulations required by reference-based indicators. |
 | `initialization` | Initial state (`auto`, `historical`, `cold`) and discarded `warmup_years` (default 1). |
 | `experiment_name` | Name of the saved experiment. |

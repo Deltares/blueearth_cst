@@ -9,6 +9,19 @@ import pandas as pd
 from blueearth_cst.indicators.series import ResponseSeries
 
 
+class IndicatorUnavailable(ValueError):
+    """The data cannot support this indicator at one location; not a code fault.
+
+    ``reason`` is a short, stable phrase published in the result row; the
+    exception message keeps the full evidence. Reductions record these per
+    location as unavailable results. Any other exception remains a fault.
+    """
+
+    def __init__(self, message: str, *, reason: str):
+        super().__init__(message)
+        self.reason = reason
+
+
 @dataclass(frozen=True)
 class ResponseRequirement:
     """Physical and temporal interpretation required before a reduction."""

@@ -37,7 +37,7 @@ def publish_selected_sets(
     """Publish every selected set whose indicator set is ready; report each outcome.
 
     Returns one record per set: ``status`` is ``current``, ``partial`` (published
-    with unavailable indicators; only under ``indicator_evaluation: partial``)
+    with unavailable indicators; only under ``indicator_evaluation: partial``, the default)
     or ``failed``, with the indicator-set and publication ids, the failure
     reason, and any prior publication a failed set keeps (a mixed-age export).
     """
@@ -95,7 +95,8 @@ def publish_selected_sets(
             unavailable = unavailable_summary(manifest)
             if unavailable and not selection.partial:
                 raise ValueError(
-                    f"strict evaluation refuses unavailable indicators: {listed(unavailable)}"
+                    f"strict evaluation refuses unavailable indicators: {listed(unavailable)}; "
+                    "set indicator_evaluation: partial to publish the rest"
                 )
             record = publish_named_set(
                 root, item, Path(plan["targets"]["manifest"]), water_year_start=month

@@ -121,7 +121,7 @@ class Selection:
     legacy: bool
     #: Per-set ``(set_id, mode, indicator keys)``; mode is include or exclude.
     choices: tuple[tuple[str, str, tuple[str, ...]], ...] = ()
-    evaluation: str = "strict"
+    evaluation: str = "partial"
 
     @property
     def partial(self) -> bool:
@@ -205,7 +205,8 @@ def parse_selection(settings: dict, workflow_path) -> Selection:
             "inline sets cannot also have indicator_set_definitions"
         )
     choices = _parse_choices(settings.get("indicator_selection", {}), names)
-    evaluation = settings.get("indicator_evaluation", "strict")
+    # Partial publishes what the data support and warns about the rest.
+    evaluation = settings.get("indicator_evaluation", "partial")
     if evaluation not in EVALUATION_MODES:
         raise IndicatorSetError(
             f"indicator_evaluation must be one of {list(EVALUATION_MODES)}; "

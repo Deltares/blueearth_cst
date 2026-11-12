@@ -628,8 +628,13 @@ def reduce_group_mean(
 
 
 def reduce_bundle(indicator, series, *, expected_run_ids, anchor, validation=None):
-    """Resolve workflow qualification outside the neutral calculation module."""
+    """Resolve workflow qualification outside the neutral calculation module.
+
+    Refusals raise here. Publication instead records them as unavailable
+    locations through the set calculation (``extremes.return_level_result``).
+    """
     from blueearth_cst.experiment import return_level_validation
+    from blueearth_cst.indicators import extremes
 
     validation = (
         return_level_validation.build_declaration()
@@ -642,14 +647,13 @@ def reduce_bundle(indicator, series, *, expected_run_ids, anchor, validation=Non
             validation.get("tested_domain", {}), shapes_c=_declared_shapes(validation)
         ),
     )
-    result = loader.evaluate(
-        indicator,
+    return extremes.reduce_bundle(
+        loader.local_declaration(indicator),
         series,
-        anchor=anchor,
         expected_run_ids=expected_run_ids,
+        anchor=anchor,
         validation=validation,
     )
-    return result.values, result.metadata["evidence"]
 
 
 def _declared_shapes(validation):

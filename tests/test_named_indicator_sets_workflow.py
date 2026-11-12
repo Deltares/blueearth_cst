@@ -217,7 +217,7 @@ def test_named_sets_publish_independent_immutable_sets(tmp_path, include):
     markers = sorted((root / "_engine/indicator_sets").glob("*/indicators.json"))
     assert len(markers) == 2, markers
     manifests = [read_canonical_json(marker) for marker in markers]
-    assert {m["schema_version"] for m in manifests} == {"indicator-set/6"}
+    assert {m["schema_version"] for m in manifests} == {"indicator-set/7"}
     by_indicator = {m["calculations"][0]["indicator"]: m for m in manifests}
     assert set(by_indicator) == {"gwr_annual_total", "recharge_depth"}
     alias = by_indicator["recharge_depth"]["calculations"][0]

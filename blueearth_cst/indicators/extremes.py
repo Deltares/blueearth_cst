@@ -8,7 +8,12 @@ import numpy as np
 import pandas as pd
 
 from blueearth_cst.indicators import gev_lmoments
-from blueearth_cst.indicators.contract import EvaluationContext, IndicatorDeclaration
+from blueearth_cst.indicators.contract import (
+    EvaluationContext,
+    IndicatorDeclaration,
+    IndicatorResult,
+    IndicatorUnavailable,
+)
 from blueearth_cst.indicators.series import (
     ResponseSeries,
     annual_blocks,
@@ -19,11 +24,11 @@ from blueearth_cst.indicators.temporal import validate_requirement
 GEV_SCREENING_BLOCK_FLOOR = 10
 
 
-class InsufficientReturnLevelBlocks(ValueError):
+class InsufficientReturnLevelBlocks(IndicatorUnavailable):
     """Operational screening refused a location before fitting."""
 
 
-class InvalidReturnLevelFit(ValueError):
+class InvalidReturnLevelFit(IndicatorUnavailable):
     """The estimator refused this location; its structured record is attached.
 
     Only a refusal reaches this exception. An unexpected fault keeps its own
@@ -32,8 +37,8 @@ class InvalidReturnLevelFit(ValueError):
     declined (D3).
     """
 
-    def __init__(self, message: str, *, fit_result=None):
-        super().__init__(message)
+    def __init__(self, message: str, *, reason: str, fit_result=None):
+        super().__init__(message, reason=reason)
         self.fit_result = fit_result
 
 
@@ -116,11 +121,10 @@ def _shape_coverage(shape: float, declared: list | None) -> dict | None:
     the width of the tested domain itself. Gating on it would refuse fits whose
     true shape is inside the domain and admit fits whose true shape is outside.
 
-    And a refusal here is not local. ``InvalidReturnLevelFit`` is caught nowhere
-    in this package, so one refused fit aborts the whole indicator set -- every
-    other location, every other indicator, including statistics that are fully
-    inside the assessed domain. A reporting field costs a consumer nothing and
-    keeps that blast radius at zero.
+    And a refusal here would remove a published value: ``InvalidReturnLevelFit``
+    makes that location unavailable, including fits whose true shape is inside
+    the assessed domain. A reporting field costs a consumer nothing and keeps
+    every accepted fit published.
 
     ``excess`` is recorded alongside the boolean on purpose: a fitted shape just
     outside the tested range is consistent with a true shape inside it, so a
@@ -165,12 +169,18 @@ def reduce_bundle(
     anchor: str,
     validation=None,
     _prepared=None,
+    refusals: dict | None = None,
 ) -> tuple[pd.Series, tuple[ReturnLevelEvidence, ...]]:
     """Extract blocks within each member, screen and fit without splicing runs.
 
     `validation` is the verified return-level declaration whose tested domain
     bounds the probabilities that may be requested. The publication path passes
     the declaration retained in its plan; omitting it resolves the shipped one.
+
+    A location the data cannot support raises an ``IndicatorUnavailable``
+    subclass. When ``refusals`` is a dict, that location instead gets a NaN
+    value and its exception is stored under the location, and the remaining
+    locations are still fitted.
     """
     if (
         indicator.grain != "bundle"
@@ -251,23 +261,37 @@ def reduce_bundle(
             f"indicator={indicator.name}, unit_members={tuple(expected_run_ids)}, location={location}, "
             f"T={indicator.return_period}, required={required}, actual={len(sample)}, per_member={counts}"
         )
-        if len(sample) < required:
-            raise InsufficientReturnLevelBlocks(context)
-        context += (
-            f", sample_range={(float(sample.min()), float(sample.max()))}, "
-            f"estimator={gev_lmoments.ESTIMATOR_ID}/"
-            f"lmoments3-{gev_lmoments.DEPENDENCY_VERSION}, "
-            f"implementation_revision={indicator.implementation_revision}"
-        )
-        # A constant sample is no longer screened out here: it reaches the
-        # adapter and comes back as a structured invalid_range refusal (D1).
-        _covered_probability(quantile, declared)
-        result = gev_lmoments.fit_case(sample, (quantile,))
-        if not result.accepted:
-            raise InvalidReturnLevelFit(
-                f"{context}: estimator refused: {', '.join(result.refusal_reasons)}",
-                fit_result=result,
+        try:
+            # Screening precedes qualification; only refusals are caught below,
+            # so an uncovered probability still aborts as a configuration fault.
+            if len(sample) < required:
+                raise InsufficientReturnLevelBlocks(
+                    context,
+                    reason=f"{len(sample)} annual blocks; {required} required",
+                )
+            context += (
+                f", sample_range={(float(sample.min()), float(sample.max()))}, "
+                f"estimator={gev_lmoments.ESTIMATOR_ID}/"
+                f"lmoments3-{gev_lmoments.DEPENDENCY_VERSION}, "
+                f"implementation_revision={indicator.implementation_revision}"
             )
+            # A constant sample is no longer screened out here: it reaches the
+            # adapter and comes back as a structured invalid_range refusal (D1).
+            _covered_probability(quantile, declared)
+            result = gev_lmoments.fit_case(sample, (quantile,))
+            if not result.accepted:
+                reasons = ", ".join(result.refusal_reasons)
+                raise InvalidReturnLevelFit(
+                    f"{context}: estimator refused: {reasons}",
+                    reason=f"estimator refused: {reasons}",
+                    fit_result=result,
+                )
+        except IndicatorUnavailable as refusal:
+            if refusals is None:
+                raise
+            refusals[location] = refusal
+            values[location] = np.nan
+            continue
         value = result.value(quantile)
         parameters = result.physical_parameters
         values[location] = value
@@ -285,3 +309,34 @@ def reduce_bundle(
             )
         )
     return pd.Series(values), tuple(evidence)
+
+
+def return_level_result(indicator, series, context) -> IndicatorResult:
+    """Fit every location; publish refused locations as unavailable, not fatal.
+
+    Each refused location gets status ``unavailable`` and its short reason in
+    ``metadata["refusals"]``; accepted fits keep their evidence. Faults and
+    configuration refusals (``ReturnLevelProbabilityNotCovered``) still raise.
+    """
+    refusals = {}
+    values, evidence = reduce_bundle(
+        indicator,
+        series,
+        expected_run_ids=context.expected_run_ids,
+        anchor=context.anchor,
+        validation=context.validation,
+        _prepared=context.prepared,
+        refusals=refusals,
+    )
+    return IndicatorResult(
+        values,
+        metadata={
+            "evidence": evidence,
+            "estimator": "gf15-lmoments-c/1",
+            "refusals": {
+                str(location): {"reason": refusal.reason, "detail": str(refusal)}
+                for location, refusal in sorted(refusals.items())
+            },
+        },
+        statuses={str(location): "unavailable" for location in refusals},
+    )

@@ -233,7 +233,7 @@ def test_indicator_set_v2_publishes_paired_paths_and_headers(
         assert not (engine / "indicators.json").exists()
         return
     marker = indicator_plan._publish_indicator_set_v2(tmp_path, plan)
-    assert marker["schema_version"] == "indicator-set/6"
+    assert marker["schema_version"] == "indicator-set/7"
     assert engine.joinpath("indicators.json").is_file()
     assert result.joinpath("group_members.csv").is_file()
     assert marker["group_members"]["path"] == (

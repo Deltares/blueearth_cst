@@ -15,10 +15,11 @@ from blueearth_cst.shared.provenance import file_sha256
 
 RETURN_LEVEL_EVIDENCE_FILENAME = "return_level_evidence.json"
 COVERAGE_EVIDENCE_FILENAME = "coverage_evidence.json"
-SUPPORTED_VERSIONS = tuple(f"indicator-set/{v}" for v in (3, 4, 5, 6))
+SUPPORTED_VERSIONS = tuple(f"indicator-set/{v}" for v in (3, 4, 5, 6, 7))
 #: Versions carrying an execution context; /6 adds status/reason columns and
-#: the request's unavailable entries.
-CONTEXT_VERSIONS = ("indicator-set/5", "indicator-set/6")
+#: the request's unavailable entries; /7 adds calculation ``refused_results``.
+CONTEXT_VERSIONS = ("indicator-set/5", "indicator-set/6", "indicator-set/7")
+STATUSED_VERSIONS = ("indicator-set/6", "indicator-set/7")
 UNAVAILABLE_FIELDS = ("unavailable_calculations", "unavailable_results")
 
 
@@ -26,8 +27,8 @@ class ImmutableIndicatorSetError(ValueError):
     """A result set is incomplete or inconsistent with its saved contract."""
 
 
-#: indicator-set/6 result status: a value, a native-reduction NaN, or an input
-#: the request declared absent (with its reason).
+#: indicator-set/6+ result status: a value, a native-reduction NaN, or an input
+#: the request declared absent or (/7) the calculation refused, with its reason.
 RESULT_STATUSES = ("available", "undefined", "unavailable")
 
 
@@ -44,8 +45,35 @@ def _validate_status(row, bundle):
         )
 
 
+def refused_results(tables, unavailable_results) -> list[dict]:
+    """Unavailable rows a calculation refused, beyond the request's declared gaps.
+
+    Request gaps cover every unit of an (indicator, location); refusals are
+    outcomes of one unit's data, such as too few annual blocks.
+    """
+    declared = {
+        (item["indicator"], item["location"], item["reason"])
+        for item in unavailable_results
+    }
+    return sorted(
+        (
+            {
+                "indicator": row["indicator"],
+                "location": row["location"],
+                "run_group_id": row["run_group_id"],
+                "reason": row["reason"],
+            }
+            for rows in tables.values()
+            for row in rows
+            if row["status"] == "unavailable"
+            and (row["indicator"], row["location"], row["reason"]) not in declared
+        ),
+        key=lambda item: (item["indicator"], item["location"], item["run_group_id"]),
+    )
+
+
 def _validate_tables(tables, expected_keys, declarations_by_name, units, statused=True):
-    """Check rows against the declared schema; ``statused`` for indicator-set/6."""
+    """Check rows against the declared schema; ``statused`` for indicator-set/6+."""
     grains = {}
     key = "run_group_id"
     for row in units:
@@ -144,7 +172,7 @@ def _read_indicator_set_v2(experiment_root, marker, *, integrity_only=False):
     prefix = "metric" if legacy else "indicator"
     if (
         manifest.get("schema_version")
-        not in tuple(f"{prefix}-set/{v}" for v in (3, 4, 5, 6))
+        not in tuple(f"{prefix}-set/{v}" for v in (3, 4, 5, 6, 7))
         or manifest.get("status") != "ready"
     ):
         raise ImmutableIndicatorSetError("unsupported or unready indicator set")
@@ -155,7 +183,11 @@ def _read_indicator_set_v2(experiment_root, marker, *, integrity_only=False):
         raise ImmutableIndicatorSetError("indicator manifest digest differs")
     if content_sha256(manifest["identity_projection"]) != manifest[f"{prefix}_set_id"]:
         raise ImmutableIndicatorSetError("indicator-set identity projection differs")
-    if manifest.get("schema_version") in (f"{prefix}-set/5", f"{prefix}-set/6"):
+    if manifest.get("schema_version") in (
+        f"{prefix}-set/5",
+        f"{prefix}-set/6",
+        f"{prefix}-set/7",
+    ):
         if (
             content_sha256(manifest["execution_context"][f"{prefix}_definition"])
             != (manifest["identity_projection"][f"{prefix}_definition_sha256"])
@@ -179,7 +211,7 @@ def _read_indicator_set_v2(experiment_root, marker, *, integrity_only=False):
             or context["indicator_definition"]["declarations"]
             != request["declarations"]
             or (
-                version == "indicator-set/6"
+                version in STATUSED_VERSIONS
                 and any(
                     request[field] != manifest[field]
                     or context["indicator_definition"][field] != request[field]
@@ -327,7 +359,7 @@ def _read_indicator_set_v2(experiment_root, marker, *, integrity_only=False):
                 "location",
                 f"{scope}_id",
                 "value",
-                *(("status", "reason") if version == "indicator-set/6" else ()),
+                *(("status", "reason") if version in STATUSED_VERSIONS else ()),
             ]:
                 raise ImmutableIndicatorSetError("indicator table schema differs")
             scoped_rows = list(reader)
@@ -417,12 +449,19 @@ def _read_indicator_set_v2(experiment_root, marker, *, integrity_only=False):
         expected_keys,
         {item["name"]: item for item in manifest["declarations"]},
         manifest["run_groups"],
-        statused=version == "indicator-set/6",
+        statused=version in STATUSED_VERSIONS,
     )
-    if version == "indicator-set/6":
+    if version in STATUSED_VERSIONS:
+        refused = manifest.get("refused_results", [])
+        if (version == "indicator-set/7") != ("refused_results" in manifest) or (
+            refused != refused_results(tables, manifest["unavailable_results"])
+        ):
+            raise ImmutableIndicatorSetError(
+                "unavailable rows differ from the declared refused results"
+            )
         declared = {
             (item["indicator"], item["location"], item["reason"])
-            for item in manifest["unavailable_results"]
+            for item in [*manifest["unavailable_results"], *refused]
         }
         published = {
             (row["indicator"], row["location"], row["reason"])

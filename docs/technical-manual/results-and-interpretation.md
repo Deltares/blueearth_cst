@@ -135,11 +135,11 @@ See [table joins and reference groups](retained-handoffs.md#joins-and-reference-
 |---|---|
 | `available` | A numerical result was calculated. |
 | `undefined` | The calculation returned an undefined value; the value cell is empty. |
-| `unavailable` | Required location-level input was missing; the reason identifies it. |
+| `unavailable` | Input was missing or the data could not support it; the reason identifies which. |
 
 Never replace these empty values with zero. An absent response variable can omit the entire calculation
 from value tables, while its declaration remains in the dictionary and saved set record.
-`strict` evaluation refuses missing required inputs; `partial` allows explicit unavailable results.
+`partial` evaluation (the default) allows explicit unavailable results; `strict` refuses them.
 Thus a successful partial run can contain no values for a requested indicator.
 See [input evaluation](indicator-requests.md#inputs-evaluation-and-recovery).
 
