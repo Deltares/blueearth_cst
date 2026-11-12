@@ -30,6 +30,16 @@ from blueearth_cst.shared.workflow_config_snapshot import (
 
 SCHEMA = "delta-scenario-collection/1"
 ROW_FIELDS = ["run_id", "evaluate", "type", "role", "model", "scenario", "member"]
+#: delta-change/3 rows also name the WF2 window; windows are never pooled.
+WINDOW_ROW_FIELDS = [*ROW_FIELDS, "window_id"]
+
+
+def row_fields(settings: dict) -> list[str]:
+    return (
+        WINDOW_ROW_FIELDS
+        if settings["schema_version"] == "delta-change/3"
+        else ROW_FIELDS
+    )
 
 
 def _fields(value: Any, names: set[str], label: str) -> dict:
@@ -49,65 +59,140 @@ def _period(value: Any, label: str) -> dict:
     return value
 
 
-#: Authored delta-change/3 keys; members and periods come from WF2.
-V3_KEYS = {
+#: Authored delta-change/3 keys; members, periods and the historical record are derived.
+V3_AUTHORED = {
     "schema_version",
+    "name",
+    "projections",
+    "unit_id_capacity",
+    "historical_override",
+}
+#: Keys the producer adds when it resolves a v3 request into its intent.
+V3_RESOLVED_KEYS = {
     "historical_path",
     "source_like",
     "reader",
     "simulation_window",
-    "unit_id_capacity",
-    "projections",
-}
-#: Keys the producer adds when it resolves a v3 request into its intent.
-V3_RESOLVED_KEYS = {
+    "historical_period",
     "factor_layout",
-    "reference_period",
-    "future_period",
     "members",
+    "windows",
     "wf2",
 }
+OVERRIDE_KEYS = {"period", "path", "source", "units", "units_note"}
+#: Effective units of supported historical sources, supplied by the toolbox
+#: (design §3.3). Extraction labels are never trusted for these.
+SUPPORTED_SOURCES = {
+    "era5": {
+        "precip": "mm/day",
+        "temp": "degC",
+        "temp_min": "degC",
+        "temp_max": "degC",
+        "press_msl": "hPa",
+        "kin": "W/m2",
+        "kout": "W/m2",
+    }
+}
+SOURCE_EVIDENCE = (
+    "toolbox-supplied effective units of the CST {source} historical extraction "
+    "(delta-change/3, design §3.3)"
+)
+
+
+def source_reader(source: str, *, evidence: str | None = None) -> dict:
+    """The unit interpretation of a supported historical source."""
+    if source not in SUPPORTED_SOURCES:
+        raise ValueError(
+            f"delta-change/3 supports historical sources {sorted(SUPPORTED_SOURCES)}, "
+            f"not {source!r}"
+        )
+    return {
+        "metadata": {
+            "cst_unit_interpretation": {
+                "revision": "extracted-daily-forcing/1",
+                "evidence": evidence or SOURCE_EVIDENCE.format(source=source),
+                "variables": [list(item) for item in SUPPORTED_SOURCES[source].items()],
+            }
+        }
+    }
+
+
+def _validate_override(value: Any) -> dict:
+    if type(value) is not dict or not value or not set(value) <= OVERRIDE_KEYS:
+        raise ValueError(
+            f"historical_override: expected a nonempty subset of {sorted(OVERRIDE_KEYS)}"
+        )
+    if "period" in value:
+        _period(value["period"], "historical_override.period")
+    file_keys = OVERRIDE_KEYS - {"period"}
+    if file_keys & set(value) and not file_keys <= set(value):
+        raise ValueError(
+            "historical_override.path requires source, units and units_note"
+        )
+    if "path" in value:
+        for key in ("path", "units_note"):
+            if type(value[key]) is not str or not value[key].strip():
+                raise ValueError(f"historical_override.{key} must be nonempty text")
+        source = value["source"]
+        if source not in SUPPORTED_SOURCES:
+            raise ValueError(
+                f"historical_override.source must be one of {sorted(SUPPORTED_SOURCES)}"
+            )
+        if value["units"] != SUPPORTED_SOURCES[source]:
+            raise ValueError(
+                f"historical_override.units must list every variable with the "
+                f"{source} effective units {SUPPORTED_SOURCES[source]}"
+            )
+    return value
 
 
 def _validate_v3(value: dict) -> dict:
     """Authored or resolved delta-change/3 settings (WF2 projection source)."""
+    from blueearth_cst.experiment.collection_index import validate_collection_name
     from blueearth_cst.experiment.delta_wf2 import projection_settings
 
-    resolved = V3_RESOLVED_KEYS <= set(value)
-    _fields(
-        value,
-        V3_KEYS
-        | (V3_RESOLVED_KEYS if resolved else set())
-        | ({"pet"} if "pet" in value else set()),
-        "delta-change/3 configuration",
-    )
-    projection_settings(value["projections"])
-    if "pet" in value:
-        raise ValueError("delta-change/3 does not yet accept pet settings")
-    if value["source_like"] != "era5":
+    if type(value) is not dict:
+        raise ValueError("delta-change/3 configuration must be a mapping")
+    resolved = "members" in value
+    allowed = V3_AUTHORED | (V3_RESOLVED_KEYS if resolved else set())
+    unknown = set(value) - allowed
+    if unknown or "projections" not in value:
         raise ValueError(
-            "delta-change/3 currently supports extracted ERA5 forcing only"
+            f"delta-change/3 configuration: unknown keys {sorted(unknown)}; "
+            f"allowed {sorted(V3_AUTHORED)} with projections required"
+            if unknown
+            else "delta-change/3 configuration requires projections"
         )
-    _period(value["simulation_window"], "simulation_window")
-    if type(value["historical_path"]) is not str or not value["historical_path"]:
-        raise ValueError("historical_path must be nonempty text")
-    _historical_units(value)
-    capacity = value["unit_id_capacity"]
-    if type(capacity) is not int or capacity < 3:
+    if resolved and not V3_RESOLVED_KEYS <= set(value):
+        raise ValueError("resolved delta-change/3 settings are incomplete")
+    projection_settings(value["projections"])
+    if "name" in value:
+        validate_collection_name(value["name"])
+    if "historical_override" in value:
+        _validate_override(value["historical_override"])
+    capacity = value.get("unit_id_capacity")
+    if capacity is not None and (type(capacity) is not int or capacity < 3):
         raise ValueError("unit_id_capacity must be an integer of at least 3")
     if resolved:
         if value["factor_layout"] != "grid":
             raise ValueError("WF2-derived factors are always gridded")
-        for name in ("reference_period", "future_period"):
-            _period(value[name], name)
+        _period(value["simulation_window"], "simulation_window")
+        if type(value["historical_path"]) is not str or not value["historical_path"]:
+            raise ValueError("historical_path must be nonempty text")
+        _historical_units(value)
         members = value["members"]
         if type(members) is not list or not members:
             raise ValueError("resolved members must be a nonempty list")
         for member in members:
-            _fields(member, {"model", "scenario", "member", "changes_path"}, "member")
-        if capacity < len(members) + 2:
+            _fields(
+                member,
+                {"model", "scenario", "member", "window_id", "changes_path"},
+                "member",
+            )
+        if capacity is None or capacity < len(members) + 2:
             raise ValueError(
-                "unit_id_capacity must accommodate all WF2 members and both controls"
+                f"unit_id_capacity must be at least {len(members) + 2} "
+                "(WF2 member runs across windows plus both controls)"
             )
     return value
 
@@ -555,17 +640,18 @@ def derive_pet_ratios(reference, future, historical, settings):
 
 
 def scenario_records(settings: dict) -> list[dict[str, str]]:
-    """Allocate controls first, then members in explicit configuration order."""
+    """Allocate controls first, then members in resolved order (WF2: per window)."""
     width = len(str(settings["unit_id_capacity"]))
+    keys = [
+        k
+        for k in row_fields(settings)
+        if k in {"model", "scenario", "member", "window_id"}
+    ]
     rows = [
-        dict(role=role, model="", scenario="", member="")
-        for role in ("historical", "neutral")
+        dict(role=role, **dict.fromkeys(keys, "")) for role in ("historical", "neutral")
     ]
     rows.extend(
-        {
-            "role": "projection",
-            **{key: member[key] for key in ("model", "scenario", "member")},
-        }
+        {"role": "projection", **{key: member[key] for key in keys}}
         for member in settings["members"]
     )
     return [
@@ -592,9 +678,10 @@ def delta_groups(
     groups: dict[str, list[str]] = {}
     references = []
     for row in rows:
-        key = json.dumps(
-            [row["role"], row["model"], row["scenario"]], separators=(",", ":")
-        )
+        parts = [row["role"], row["model"], row["scenario"]]
+        if row.get("window_id"):
+            parts.append(row["window_id"])
+        key = json.dumps(parts, separators=(",", ":"))
         groups.setdefault(key, []).append(row["run_id"])
         if row["role"] == "historical":
             references.append(row["run_id"])
@@ -683,57 +770,87 @@ def _wf2_policy(changes: xr.Dataset) -> dict:
     return {"precip": {"min_denominator": float(threshold), "units": "mm/day"}}
 
 
-def _prepare_wf2(config_path: Path, project_root: Path, settings: dict):
-    """WF2 gridded changes for one analysis window (delta-change/3)."""
-    from blueearth_cst.experiment.delta_wf2 import member_factors, resolve_members
+def _prepare_wf2(project_root: Path, settings: dict, historical: dict):
+    """WF2 gridded changes for the selected windows (delta-change/3).
 
-    selection = resolve_members(project_root, settings["projections"])
-    historical_path = (config_path.parent / settings["historical_path"]).resolve(
-        strict=True
+    ``historical`` is ``{"path": Path, "source": str}``: the case's derived
+    climate-store extract, or the override file with its declared source.
+    """
+    from blueearth_cst.experiment.delta_wf2 import member_factors, resolve_windows
+
+    selection = resolve_windows(project_root, settings["projections"])
+    override = settings.get("historical_override", {})
+    historical_path = Path(historical["path"]).resolve(strict=True)
+    reader = source_reader(
+        historical["source"],
+        evidence=override.get("units_note") if "path" in override else None,
     )
+    if "period" in override:
+        period = override["period"]
+        effective = [f"{period['start']:04d}-01-01", f"{period['end']:04d}-12-31"]
+    else:
+        effective = list(selection["reference"]["effective"])
     paths = [historical_path] + [m["source_path"] for m in selection["members"]]
     factors, policies = [], set()
-    with xr.open_dataset(historical_path) as historical:
+    with xr.open_dataset(historical_path) as data:
         for member in selection["members"]:
             with xr.open_dataset(member["source_path"]) as changes:
-                factors.append(member_factors(changes, historical))
-                policies.add(content_sha256(_wf2_policy(changes)))
+                factors.append(member_factors(changes, data))
                 factor_policy = _wf2_policy(changes)
+                policies.add(content_sha256(factor_policy))
     if len(policies) != 1:
         raise ValueError("WF2 members disagree on the precipitation threshold")
-    resolved = dict(settings)
+    resolved = {key: value for key, value in settings.items() if key != "name"}
+    resolved.setdefault("unit_id_capacity", len(selection["members"]) + 2)
     resolved.update(
         historical_path=_input_location(project_root, historical_path),
+        source_like=historical["source"],
+        reader=reader,
+        simulation_window={
+            "start": int(effective[0][:4]),
+            "end": int(effective[1][:4]),
+        },
+        historical_period={
+            "effective": effective,
+            "wf2_reference": selection["reference"],
+            "override": "period" in override,
+        },
         factor_layout="grid",
-        reference_period=selection["reference_period"],
-        future_period=selection["future_period"],
         members=[
             {
-                **{key: member[key] for key in ("model", "scenario", "member")},
-                "changes_path": _input_location(project_root, member["source_path"]),
+                **{key: m[key] for key in ("model", "scenario", "member", "window_id")},
+                "changes_path": _input_location(project_root, m["source_path"]),
             }
-            for member in selection["members"]
+            for m in selection["members"]
         ],
+        windows=selection["windows"],
         wf2={
             "water_year_start": selection["water_year_start"],
-            "unavailable": selection["unavailable"],
             "inventory_sha256": file_sha256(selection["inventory_path"]),
             "analysis_record_sha256": file_sha256(selection["record_path"]),
         },
     )
     validate_settings(resolved)
-    if selection["unavailable"]:
-        # No logging helpers here: their imports would enter the generation
-        # code inventory. The full list, with reasons, is in the intent's wf2 block.
-        missing = selection["unavailable"]
-        names = [f"{m['model']}/{m['scenario']}/{m['member']}" for m in missing]
-        shown = ", ".join(names[:6]) + (
-            f" (+{len(names) - 6} more)" if len(names) > 6 else ""
+    # No logging helpers here: their imports would enter the generation code
+    # inventory. Membership per window is retained in the intent's windows block.
+    for entry in selection["windows"]:
+        names = ", ".join(entry["names"]) or entry["window_id"]
+        missing = entry["unavailable"]
+        listed = [f"{m['model']}/{m['scenario']}/{m['member']}" for m in missing]
+        shown = ", ".join(listed[:6]) + (
+            f" (+{len(listed) - 6} more)" if len(listed) > 6 else ""
         )
-        noun = "member" if len(names) == 1 else "members"
         print(
-            f"WARNING delta - {len(names)} WF2 {noun} unavailable for window "
-            f"{settings['projections']['window_id']}, excluded: {shown}",
+            f"delta - window {entry['window_id']} ({names}): {entry['members']} "
+            f"members"
+            + (f"; {len(listed)} unavailable, excluded: {shown}" if listed else ""),
+            flush=True,
+        )
+    if "period" in override:
+        print(
+            f"WARNING delta - historical period {effective[0]}..{effective[1]} "
+            "overrides the WF2 reference "
+            f"{selection['reference']['effective'][0]}..{selection['reference']['effective'][1]}",
             flush=True,
         )
     return paths, resolved, factors, [], factor_policy
@@ -746,8 +863,13 @@ def generate_collection(
     settings: dict | None = None,
     preview: bool = False,
     expected_input_hashes: list[str] | None = None,
+    historical: dict | None = None,
 ) -> Path:
-    """Publish an immutable collection, or verify an identical completed request."""
+    """Publish an immutable collection, or verify an identical completed request.
+
+    delta-change/3 requires ``historical`` (``{"path", "source"}``), resolved
+    from the case configuration by :mod:`delta_generation`.
+    """
     config_path, project_root = config_path.resolve(strict=True), project_root.resolve()
     settings = validate_settings(
         yaml.safe_load(config_path.read_text(encoding="utf-8"))
@@ -755,8 +877,13 @@ def generate_collection(
         else settings
     )
     if settings["schema_version"] == "delta-change/3":
+        if historical is None:
+            raise ValueError(
+                "delta-change/3 derives its historical record from the case; "
+                "generate through scripts/run_workflows.py or generate_scenarios.py"
+            )
         paths, resolved, factors, pet_factors, factor_policy = _prepare_wf2(
-            config_path, project_root, settings
+            project_root, settings, historical
         )
     else:
         paths, resolved, factors, pet_factors, factor_policy = _prepare_files(
@@ -764,15 +891,20 @@ def generate_collection(
         )
     # Observe the physical source before publishing anything. WF4 uses the same
     # evidenced interpretation when binding the existing preparation catalog.
-    descriptor = collection_forcing_descriptor(paths[0], settings["reader"])
+    descriptor = collection_forcing_descriptor(paths[0], resolved["reader"])
     if descriptor["timestep"] != "P1D":
         raise ValueError("delta-change/1 requires daily historical forcing")
-    window = settings["simulation_window"]
-    if (
-        descriptor["start"][:10] > f"{window['start']:04d}-01-01"
-        or descriptor["end"][:10] < f"{window['end']:04d}-12-31"
-    ):
-        raise ValueError("historical forcing does not cover simulation_window")
+    window = resolved["simulation_window"]
+    first, last = (
+        resolved["historical_period"]["effective"]
+        if "historical_period" in resolved
+        else (f"{window['start']:04d}-01-01", f"{window['end']:04d}-12-31")
+    )
+    if descriptor["start"][:10] > first or descriptor["end"][:10] < last:
+        raise ValueError(
+            f"historical forcing {descriptor['start'][:10]}..{descriptor['end'][:10]} "
+            f"({paths[0]}) does not cover the required period {first}..{last}"
+        )
     if settings["schema_version"] == "delta-change/3":
         return _publish_named(
             project_root,
@@ -914,7 +1046,7 @@ def generate_collection(
 #: Named-set delta collections (``scenarios/<name>/``), produced from WF2.
 NAMED_SCHEMA = "delta-scenario-collection/2"
 NAMED_INTENT = "delta-scenario-intent/3"
-FACTOR_FIELDS = ["run_id", "factor_file", "model", "scenario", "member"]
+FACTOR_FIELDS = ["run_id", "factor_file", "model", "scenario", "member", "window_id"]
 _NAMED_MARKER_KEYS = {
     "schema_version",
     "scenario_type",
@@ -944,9 +1076,16 @@ _NAMED_INTENT_KEYS = {
 }
 
 
-def default_delta_name(projections: dict) -> str:
-    """Readable default set name from the WF2 ensemble and window."""
-    return f"delta-{projections['ensemble']}-{projections['window_id']}"
+def default_delta_name(resolved: dict) -> str:
+    """Readable default set name: ensemble and window names (design §5.3)."""
+    ensemble = resolved["projections"]["ensemble"]
+    labels = [
+        w["names"][0] if w["names"] else w["window_id"] for w in resolved["windows"]
+    ]
+    name = f"delta-{ensemble}-" + "-".join(labels)
+    if len(name) > 64:
+        name = f"delta-{ensemble}-{len(labels)}-windows"
+    return name[:64].rstrip(".")
 
 
 def _factor_digest(offsets: np.ndarray, ratios: np.ndarray) -> str:
@@ -1026,7 +1165,14 @@ def _publish_named(
         "scenario_type": "delta_change",
         "factor_policy": factor_policy,
         "settings": resolved,
-        "scenario_spec": {"simulation_window": dict(settings["simulation_window"])},
+        "scenario_spec": {
+            "simulation_window": dict(resolved["simulation_window"]),
+            "historical_period": resolved["historical_period"]["effective"],
+            "windows": [
+                {"window_id": w["window_id"], "members": w["members"]}
+                for w in resolved["windows"]
+            ],
+        },
         "inputs": inputs,
         "provider_revision": file_sha256(Path(__file__)),
         "environment": {
@@ -1034,8 +1180,8 @@ def _publish_named(
             for name in ("numpy", "xarray", "netCDF4", "hydromt", "rasterio", "pyproj")
         },
         "historical_descriptor": descriptor,
-        "run_group_id_capacity": settings["unit_id_capacity"],
-        "run_group_id_width": len(str(settings["unit_id_capacity"])),
+        "run_group_id_capacity": resolved["unit_id_capacity"],
+        "run_group_id_width": len(str(resolved["unit_id_capacity"])),
         "factors": [_factor_digest(o, r) for o, r in factors],
     }
     identity = content_sha256(intent)
@@ -1044,7 +1190,7 @@ def _publish_named(
         read_delta_collection(existing)
         return existing
     name = allocate_collection_name(
-        project_root, default_delta_name(settings["projections"])
+        project_root, settings.get("name") or default_delta_name(resolved)
     )
     folder = project_root / "scenarios" / name
     engine = folder / "_engine"
@@ -1070,15 +1216,16 @@ def _publish_named(
     with (folder / "scenario_run_lookup.csv").open(
         "w", encoding="utf-8", newline=""
     ) as handle:
-        writer = csv.DictWriter(handle, fieldnames=ROW_FIELDS)
+        writer = csv.DictWriter(handle, fieldnames=row_fields(resolved))
         writer.writeheader()
         writer.writerows(rows)
     (folder / "series").mkdir()
     (folder / "delta" / "factors").mkdir(parents=True)
     factor_rows, factor_refs, series = [], [], []
     historical_path = project_root / resolved["historical_path"]
-    with xr.open_dataset(historical_path) as historical:
-        historical.load()
+    first, last = resolved["historical_period"]["effective"]
+    with xr.open_dataset(historical_path) as source:
+        historical = source.sel(time=slice(first, last)).load()
         for index, row in enumerate(rows):
             if index >= 2:
                 offsets, ratios = factors[index - 2]
@@ -1088,7 +1235,10 @@ def _publish_named(
                     {
                         "run_id": row["run_id"],
                         "factor_file": factor_path.relative_to(folder).as_posix(),
-                        **{k: row[k] for k in ("model", "scenario", "member")},
+                        **{
+                            k: row[k]
+                            for k in ("model", "scenario", "member", "window_id")
+                        },
                     }
                 )
                 factor_refs.append(
@@ -1106,7 +1256,7 @@ def _publish_named(
                     "run_id": row["run_id"],
                     "file": file_reference(path, "project_root", project_root),
                     "descriptor": collection_forcing_descriptor(
-                        path, settings["reader"]
+                        path, resolved["reader"]
                     ),
                 }
             )
@@ -1193,7 +1343,7 @@ def _read_named_delta_collection(marker_path: Path) -> dict:
         raise ValueError("delta lookup path differs")
     with lookup.open(encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
-        if reader.fieldnames != ROW_FIELDS or list(reader) != rows:
+        if reader.fieldnames != row_fields(settings) or list(reader) != rows:
             raise ValueError("delta lookup differs from declared members")
     projections = rows[2:]
     if not (
@@ -1212,7 +1362,7 @@ def _read_named_delta_collection(marker_path: Path) -> dict:
             {
                 "run_id": row["run_id"],
                 "factor_file": f"delta/factors/{row['run_id']}.nc",
-                **{k: row[k] for k in ("model", "scenario", "member")},
+                **{k: row[k] for k in ("model", "scenario", "member", "window_id")},
             }
             for row in projections
         ]

@@ -24,12 +24,35 @@ INVENTORY_SCHEMA = 2
 
 def projection_settings(value: Any) -> dict:
     """Validate the closed authored ``projections`` mapping."""
-    if type(value) is not dict or set(value) != {"ensemble", "window_id"}:
-        raise ValueError("projections: expected exactly ['ensemble', 'window_id']")
-    for key in ("ensemble", "window_id"):
-        item = value[key]
-        if type(item) is not str or not item.strip() or any(c in item for c in "/\\"):
-            raise ValueError(f"projections.{key} must be nonempty text without slashes")
+    if (
+        type(value) is not dict
+        or "ensemble" not in value
+        or not set(value)
+        <= {
+            "ensemble",
+            "future_windows",
+        }
+    ):
+        raise ValueError(
+            "projections: expected 'ensemble' and optionally 'future_windows'"
+        )
+    ensemble = value["ensemble"]
+    if (
+        type(ensemble) is not str
+        or not ensemble.strip()
+        or any(c in ensemble for c in "/\\")
+    ):
+        raise ValueError("projections.ensemble must be nonempty text without slashes")
+    if "future_windows" in value:
+        names = value["future_windows"]
+        if (
+            type(names) is not list
+            or not names
+            or any(type(n) is not str or not n.strip() for n in names)
+        ):
+            raise ValueError("projections.future_windows must be a nonempty name list")
+        if len(set(names)) != len(names):
+            raise ValueError(f"projections.future_windows repeats a name: {names}")
     return value
 
 
@@ -38,12 +61,44 @@ def ensemble_dir(project_root: Path, projections: dict) -> Path:
     return Path(project_root) / "data/climate/projections" / projections["ensemble"]
 
 
-def resolve_members(project_root: Path, projections: dict) -> dict:
-    """Select one WF2 window's members, refusing stale or incomplete products.
+def _select_windows(record: dict, projections: dict) -> list[dict]:
+    """WF2 windows named by ``future_windows`` (all by default), in record order."""
+    windows = record.get("windows")
+    if type(windows) is not list or not windows:
+        raise ValueError("WF2 analysis record lists no windows")
+    if "future_windows" not in projections:
+        return windows
+    by_name = {name: w for w in windows for name in w.get("horizons", [])}
+    requested = projections["future_windows"]
+    unknown = [name for name in requested if name not in by_name]
+    if unknown:
+        raise ValueError(
+            f"unknown WF2 future window(s) {unknown}; available: {sorted(by_name)}"
+        )
+    ids = [by_name[name]["window_id"] for name in requested]
+    if len(set(ids)) != len(ids):
+        raise ValueError(
+            f"future_windows {requested} select the same WF2 window more than once"
+        )
+    return [w for w in windows if w["window_id"] in set(ids)]
 
-    Return the member files, the window's periods, the WF2 record path and the
-    members WF2 reported unavailable for this window (never silently dropped:
-    they are retained in the collection intent and reported by the caller).
+
+def _period_entry(window: dict, part: str, labels: list) -> dict:
+    configured = next(iter(window["configured"].values()))[part]
+    effective = window["effective"][part]
+    return {
+        "configured": [int(v) for v in configured],
+        "effective": [effective["start"], effective["end"]],
+        "labels": [int(v) for v in labels],
+    }
+
+
+def resolve_windows(project_root: Path, projections: dict) -> dict:
+    """Select WF2 windows and their members, refusing stale or inconsistent products.
+
+    Returns structured window entries (design §2.1), the members per window with
+    their grid files, WF2's single reference period and the record/inventory
+    paths. Unavailable members are retained per window, never dropped silently.
     """
     root = ensemble_dir(project_root, projections)
     grids = root / "analysis/gridded_changes"
@@ -61,43 +116,60 @@ def resolve_members(project_root: Path, projections: dict) -> dict:
             f"WF2 gridded changes at {grids} predate schema {INVENTORY_SCHEMA}; "
             "re-run analyze_projections to publish monthly reference means"
         )
-    window = projections["window_id"]
-    selected = [m for m in inventory["members"] if m["window_id"] == window]
-    unavailable = [m for m in inventory["unavailable"] if m["window_id"] == window]
-    if not selected:
-        windows = sorted({m["window_id"] for m in inventory["members"]})
-        raise ValueError(
-            f"WF2 has no members for window {window!r}; available: {windows}"
-        )
-    members, periods = [], set()
-    for member in selected:
-        path = (grids / member["path"]).resolve(strict=True)
-        if not path.is_relative_to(grids.resolve()):
-            raise ValueError("WF2 member path escapes its gridded_changes directory")
-        if file_sha256(path) != member["sha256"]:
-            raise ValueError(f"WF2 member grid differs from its inventory: {path}")
-        with xr.open_dataset(path) as ds:
-            periods.add((ds.attrs["reference_period"], ds.attrs["future_period"]))
-        members.append(
-            {key: member[key] for key in ("model", "scenario", "member")}
-            | {"source_path": path}
-        )
-    if len(periods) != 1:
-        raise ValueError(f"WF2 window {window!r} members disagree on periods")
-    (reference, future), *_ = periods
     record = json.loads(record_path.read_text(encoding="utf-8"))
-    return {
-        "members": members,
-        "reference_period": _years(json.loads(reference)),
-        "future_period": _years(json.loads(future)),
-        "water_year_start": record.get("water_year_start", "Jan"),
-        "unavailable": [
+    entries, members = [], []
+    for window in _select_windows(record, projections):
+        window_id = window["window_id"]
+        entry = {
+            "window_id": window_id,
+            "names": list(window.get("horizons", [])),
+            "reference": _period_entry(window, "reference", window["reference"]),
+            "future": _period_entry(window, "future", window["used"]),
+        }
+        selected = [m for m in inventory["members"] if m["window_id"] == window_id]
+        if not selected:
+            raise ValueError(f"WF2 has no available members for window {window_id!r}")
+        for member in selected:
+            path = (grids / member["path"]).resolve(strict=True)
+            if not path.is_relative_to(grids.resolve()):
+                raise ValueError(
+                    "WF2 member path escapes its gridded_changes directory"
+                )
+            if file_sha256(path) != member["sha256"]:
+                raise ValueError(f"WF2 member grid differs from its inventory: {path}")
+            with xr.open_dataset(path) as ds:
+                periods = (
+                    json.loads(ds.attrs["reference_period"]),
+                    json.loads(ds.attrs["future_period"]),
+                )
+            if [int(v) for v in periods[0]] != entry["reference"]["labels"] or [
+                int(v) for v in periods[1]
+            ] != entry["future"]["labels"]:
+                raise ValueError(
+                    f"WF2 member grid {path.name} periods {periods} disagree with "
+                    f"the analysis record for window {window_id}"
+                )
+            members.append(
+                {key: member[key] for key in ("model", "scenario", "member")}
+                | {"window_id": window_id, "source_path": path}
+            )
+        entry["members"] = len(selected)
+        entry["unavailable"] = [
             {key: item[key] for key in ("model", "scenario", "member", "reason")}
-            for item in unavailable
-        ],
+            for item in inventory["unavailable"]
+            if item["window_id"] == window_id
+        ]
+        entries.append(entry)
+    references = {json.dumps(entry["reference"]) for entry in entries}
+    if len(references) != 1:
+        raise ValueError("selected WF2 windows disagree on the reference period")
+    return {
+        "windows": entries,
+        "members": members,
+        "reference": entries[0]["reference"],
+        "water_year_start": record.get("water_year_start", "Jan"),
         "inventory_path": inventory_path,
         "record_path": record_path,
-        "variable_spec": record.get("variable_spec", {}),
     }
 
 

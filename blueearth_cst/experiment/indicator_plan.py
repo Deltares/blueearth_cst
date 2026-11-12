@@ -553,20 +553,24 @@ def _v2_scenario_rows(records):
     expected = {"run_id", "evaluate", "type", "rlz", "st_id"}
     values = list(records)
     if values and values[0].get("type") == "delta-change":
-        from blueearth_cst.experiment.delta_scenarios import ROW_FIELDS
+        from blueearth_cst.experiment.delta_scenarios import (
+            ROW_FIELDS,
+            WINDOW_ROW_FIELDS,
+        )
 
-        if any(set(record) != set(ROW_FIELDS) for record in values):
+        fields = set(values[0])
+        if fields not in (set(ROW_FIELDS), set(WINDOW_ROW_FIELDS)) or any(
+            set(record) != fields for record in values
+        ):
             raise IndicatorPlanStale("delta scenario lookup has unknown fields")
+        keys = [k for k in WINDOW_ROW_FIELDS[3:] if k in fields]
         return tuple(
             ScenarioRow(
                 record["run_id"],
                 "",
                 record["evaluate"] == "true",
                 "delta-change",
-                tuple(
-                    (key, record[key])
-                    for key in ("role", "model", "scenario", "member")
-                ),
+                tuple((key, record[key]) for key in keys),
             )
             for record in values
         )

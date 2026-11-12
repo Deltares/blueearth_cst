@@ -68,6 +68,11 @@ def plot_delta_collection(
     if output.is_relative_to(project / "scenarios/_engine"):
         raise ValueError("plots must be outside immutable collection storage")
     settings = intent["settings"]
+    if settings["schema_version"] == "delta-change/3":
+        # Multi-window figures land with the delta showcase (t016 commit 7).
+        raise ValueError(
+            "delta plots do not yet support WF2-sourced (multi-window) sets"
+        )
     if member_summary not in {"median", "mean"}:
         raise ValueError("member_summary must be median or mean")
     with xr.open_dataset(inputs / settings["historical_path"]) as historical:

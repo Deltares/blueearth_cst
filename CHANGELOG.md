@@ -22,6 +22,13 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
   the climate store are referenced in place; monthly factors are kept per run in `delta/factors/<run_id>.nc`
   with `factor_lookup.csv`. `delta-change/1` and `/2` keep their earlier layout. WF4 now resolves the
   project root of named sets correctly.
+- `delta-change/3` settings shrink to `projections: {ensemble, future_windows}` plus optional `name`,
+  `unit_id_capacity` (default: runs + 2) and `historical_override: {period, path, source, units, units_note}`.
+  The historical record is the case's climate-store extract over WF2's effective reference dates; units come
+  from the toolbox for supported sources (ERA5). One run per member and window, with a `window_id` column;
+  windows are never pooled. `historical_path`, `source_like`, `reader`, `simulation_window` and
+  `projections.window_id` are removed from v3 (unreleased). Delta plots refuse v3 sets until the showcase
+  commit.
 - Keep figure title/caption JSON in each output unit's `_engine/plots/` across WF0–WF2, mirroring family
   subfolders (for example `evaluation/_engine/plots/stations/`). Existing projects re-render affected
   figure families once on their next run; JSON at the old locations is left in place and can be deleted.

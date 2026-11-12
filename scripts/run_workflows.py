@@ -1489,7 +1489,11 @@ def _run_owned(
             else None
         )
         delta_operation = capture_delta(
-            Path(config_path), extra, project_dir=project_dir, wf2_ensemble=wf2_ensemble
+            Path(config_path),
+            extra,
+            project_dir=project_dir,
+            wf2_ensemble=wf2_ensemble,
+            historical_producer=flags["analyze_climate"] or flags["build_model"],
         )
         if flags["simulate_system"]:
             from blueearth_cst.experiment.collection_resolution import (
@@ -1983,7 +1987,7 @@ def _run_owned(
                             child_record["generation"]["published"] = not preview
                             invocation_history.update(child_path, child_record)
                             print(
-                                "Delta collection preview: pending WF2 gridded changes from this invocation"
+                                "Delta collection preview: pending upstream products (WF2 gridded changes or historical record) from this invocation"
                                 if published is None
                                 else f"Delta collection {'preview' if preview else 'published'}: {published}",
                                 flush=True,

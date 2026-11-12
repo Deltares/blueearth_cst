@@ -20,6 +20,10 @@ class DeltaGeneration:
     settings: dict
     sources: tuple[tuple[Path, bytes], ...]
     inputs: tuple[tuple[Path, str], ...]
+    #: delta-change/3: ``{"path", "source"}`` of the historical record.
+    historical: dict | None = None
+    #: The derived record is produced by WF0/WF1 later in this invocation.
+    historical_pending: bool = False
 
     def recheck(self) -> None:
         """Refuse changed authored files or input bytes before publication."""
@@ -37,20 +41,32 @@ class DeltaGeneration:
         this invocation would create do not exist yet.
         """
         self.recheck()
-        if preview and self.settings["schema_version"] == "delta-change/3":
+        expected = [digest for _, digest in self.inputs]
+        if self.settings["schema_version"] == "delta-change/3":
             from blueearth_cst.experiment.delta_wf2 import ensemble_dir
 
             grids = ensemble_dir(root, self.settings["projections"])
-            if not (grids / "analysis/gridded_changes/inventory.json").is_file():
+            ready = (grids / "analysis/gridded_changes/inventory.json").is_file()
+            if self.historical_pending:
+                path = Path(self.historical["path"])
+                if not path.is_file():
+                    if preview:
+                        return None
+                    raise ValueError(
+                        f"historical record was not produced by this invocation: {path}"
+                    )
+                expected = [file_sha256(path)]
+            if preview and not ready:
                 return None
-        if not preview and self.settings["schema_version"] == "delta-change/3":
-            self._snapshot_outside_inputs(root)
+            if not preview:
+                self._snapshot_outside_inputs(root)
         manifest = generate_collection(
             self.config_path,
             root,
             settings=self.settings,
             preview=preview,
-            expected_input_hashes=[digest for _, digest in self.inputs],
+            expected_input_hashes=expected,
+            historical=self.historical,
         )
         self.recheck()
         return manifest
@@ -87,19 +103,56 @@ class DeltaGeneration:
         }
 
 
+def historical_binding(config: dict, settings: dict) -> dict:
+    """The historical record of a delta-change/3 request (design §3.1).
+
+    Default: the case's climate-store extract, derived with the stochastic rule;
+    ``historical_override.path`` replaces it with a declared supported source.
+    """
+    override = settings.get("historical_override", {})
+    if "path" in override:
+        return {"path": Path(override["path"]), "source": override["source"]}
+    from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
+    from blueearth_cst.shared.wf3_science import (
+        DEFAULT_BASIN_INDEX,
+        DEFAULT_HYDROGRAPHY,
+        climate_store_rule,
+    )
+
+    project, climate, basin = config["project"], config["climate"], config["basin"]
+    sources = basin.get("sources") or {}
+    recipe = normalize_forcing_recipe(climate["selected"], climate.get("forcing"))
+    store = climate_store_rule(
+        project_dir=project["project_dir"],
+        model_region=basin["region"],
+        data_sources=project["catalog"],
+        hydrography=sources.get("hydrography", DEFAULT_HYDROGRAPHY),
+        basin_index=sources.get("basin_index", DEFAULT_BASIN_INDEX),
+        clim_source=climate["selected"],
+        historical_window=climate["window"],
+        forcing=recipe.settings(),
+    )
+    return {
+        "path": Path(store.store_dir) / "extract_historical.nc",
+        "source": climate["selected"],
+    }
+
+
 def capture_delta(
     config_path: Path,
     extra: list[str],
     *,
     project_dir: Path | None = None,
     wf2_ensemble: str | None = None,
+    historical_producer: bool = False,
 ) -> DeltaGeneration:
     """Admit supported flags and capture all producer inputs before other stages.
 
     For a WF2-sourced request (``delta-change/3``), ``wf2_ensemble`` is the
-    ensemble WF2 produces in this invocation (None when WF2 is disabled). WF2
-    outputs are then captured at publication by the producer's own identity
-    checks; with WF2 disabled they must already exist.
+    ensemble WF2 produces in this invocation (None when WF2 is disabled), and
+    ``historical_producer`` says WF0 or WF1 runs first and may create the
+    derived historical record. Products a stage creates later are admitted as
+    pending and captured at publication; otherwise they must already exist.
     """
     unsupported = set(extra) - {"--dry-run", "--dryrun", "-n"}
     if unsupported:
@@ -122,7 +175,7 @@ def capture_delta(
         source_bytes={source: source_bytes},
     )
     settings = config["workflows"]["generate_scenarios"]["delta_change"]
-    paths = [Path(settings["historical_path"])]
+    historical, pending = None, False
     if settings["schema_version"] == "delta-change/3":
         projections = settings["projections"]
         if wf2_ensemble is not None and wf2_ensemble != projections["ensemble"]:
@@ -133,11 +186,26 @@ def capture_delta(
         if wf2_ensemble is None:
             if project_dir is None:
                 raise ValueError("WF2-sourced delta generation requires project_dir")
-            from blueearth_cst.experiment.delta_wf2 import resolve_members
+            from blueearth_cst.experiment.delta_wf2 import resolve_windows
 
             # Refuse before any stage runs when the upstream products are absent.
-            resolve_members(project_dir, projections)
+            resolve_windows(project_dir, projections)
+        historical = historical_binding(config, settings)
+        derived = "path" not in settings.get("historical_override", {})
+        if not historical["path"].is_file():
+            if not (derived and historical_producer):
+                raise ValueError(
+                    f"historical record missing: {historical['path']}. "
+                    + (
+                        "Enable analyze_climate or build_model to extract it."
+                        if derived
+                        else "Check historical_override.path."
+                    )
+                )
+            pending = True
+        paths = [] if pending else [historical["path"]]
     else:
+        paths = [Path(settings["historical_path"])]
         paths.extend(
             Path(member[key])
             for member in settings["members"]
@@ -148,6 +216,8 @@ def capture_delta(
         settings,
         ((config_path, project_bytes), (source, source_bytes)),
         tuple((path, file_sha256(path)) for path in paths),
+        historical,
+        pending,
     )
     operation.recheck()
     return operation

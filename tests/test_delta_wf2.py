@@ -9,6 +9,7 @@ import xarray as xr
 import yaml
 
 from blueearth_cst.experiment.delta_scenarios import (
+    delta_groups,
     generate_collection,
     gridded_factors,
     read_delta_collection,
@@ -16,14 +17,15 @@ from blueearth_cst.experiment.delta_scenarios import (
 )
 from blueearth_cst.projections import series_identity, spatial_diagnostics
 from blueearth_cst.projections.get_change_climate_proj import analysis_windows
+from blueearth_cst.projections.prepare_projection_analysis import distinct_windows
 from blueearth_cst.projections.variable_spec import VariableSpec
-from tests.test_delta_scenarios import historical, settings
+from tests.test_delta_scenarios import settings
 
 SPEC = {
     "temp": VariableSpec("temp", "temp", "level", "degC", "absolute"),
     "precip": VariableSpec("precip", "precip", "rate", "mm/day", "relative", 0.1),
 }
-REFERENCE, FUTURE = (1985, 2004), (2040, 2059)
+REFERENCE, FUTURE, FAR = (1985, 2004), (2040, 2059), (2070, 2089)
 
 
 def _raw(path, start, years, *, warming, wetting, dry_cell=False):
@@ -73,9 +75,8 @@ def wf2_project(tmp_path, monkeypatch, *, dry_cell=False):
         "raw_digest_hist": "h",
         "raw_digest_fut": "f",
     }
-    windows = list(
-        analysis_windows({"near": FUTURE}, reference_window=REFERENCE).values()
-    )
+    by_name = analysis_windows({"near": FUTURE, "far": FAR}, reference_window=REFERENCE)
+    windows = list(by_name.values())
     spatial_diagnostics.prepare_spatial_changes(
         [point],
         windows,
@@ -85,62 +86,86 @@ def wf2_project(tmp_path, monkeypatch, *, dry_cell=False):
     )
     record = ensemble / "_engine/analysis_record.json"
     record.parent.mkdir(parents=True)
-    record.write_text(json.dumps({"water_year_start": "Jan", "variable_spec": {}}))
+    record.write_text(
+        json.dumps(
+            {
+                "water_year_start": "Jan",
+                "variable_spec": {},
+                "windows": distinct_windows(by_name),
+            }
+        )
+    )
     return project, hist, fut
 
 
-def wf2_settings():
-    base = settings()
+def wf2_settings(**changes):
     return {
         "schema_version": "delta-change/3",
-        "historical_path": "historical.nc",
-        "source_like": "era5",
-        "reader": base["reader"],
-        "simulation_window": base["simulation_window"],
-        "unit_id_capacity": 100,
-        "projections": {"ensemble": "cmip6", "window_id": "2040-2059"},
+        "projections": {"ensemble": "cmip6"},
+        **changes,
     }
 
 
-def _write_inputs(tmp_path, config=None):
+STORE = "data/climate/historical/era5_1980-2010/extract_historical.nc"
+ERA5 = ("temp", "temp_min", "temp_max", "precip", "press_msl", "kin", "kout")
+
+
+def era5_historical(start="1984-01-01", end="2005-12-31"):
+    """Daily 2x2 forcing with every supported ERA5 variable (design 3.3)."""
     import hydromt  # noqa: F401
 
-    baseline = historical().rename({"y": "latitude", "x": "longitude"})
-    baseline.raster.set_crs(4326)
-    baseline.to_netcdf(tmp_path / "historical.nc")
-    path = tmp_path / "delta.yml"
-    path.write_text(yaml.safe_dump(config or wf2_settings()), encoding="utf-8")
-    return path, baseline
+    times = pd.date_range(start, end)
+    data = np.full((len(times), 2, 2), 10.0, dtype="float32")
+    data[:, 0, 0] = np.nan
+    ds = xr.Dataset(
+        {name: (("time", "latitude", "longitude"), data.copy()) for name in ERA5},
+        coords={"time": times, "latitude": [1.0, 0.0], "longitude": [0.0, 1.0]},
+    )
+    ds.raster.set_crs(4326)
+    return ds
+
+
+def _write_inputs(tmp_path, project, config=None):
+    baseline = era5_historical()
+    path = project / STORE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    baseline.to_netcdf(path)
+    config_path = tmp_path / "delta.yml"
+    config_path.write_text(yaml.safe_dump(config or wf2_settings()), encoding="utf-8")
+    return config_path, baseline, {"path": path, "source": "era5"}
+
+
+def _intent(manifest):
+    return json.loads(manifest.with_name("collection_intent.json").read_text())
 
 
 def test_wf2_factors_equal_the_file_based_grid_path(tmp_path, monkeypatch):
     project, hist, fut = wf2_project(tmp_path, monkeypatch)
-    config, baseline = _write_inputs(tmp_path)
-    historical_file = config.parent / wf2_settings()["historical_path"]
-    with pytest.raises(ValueError, match="no snapshot"):
+    near = wf2_settings(projections={"ensemble": "cmip6", "future_windows": ["near"]})
+    config, baseline, binding = _write_inputs(tmp_path, project, near)
+    with pytest.raises(ValueError, match="derives its historical record"):
         generate_collection(config, project)
-    # The runner (delta_generation) snapshots outside-project inputs first.
-    from blueearth_cst.experiment.generation_plan import snapshot_generation_input
-
-    snapshot_generation_input(project, historical_file)
-    manifest = generate_collection(config, project)
+    manifest = generate_collection(config, project, historical=binding)
     marker = read_delta_collection(manifest)
-    intent = json.loads(manifest.with_name("collection_intent.json").read_text())
+    intent = _intent(manifest)
     resolved = intent["settings"]
-    assert resolved["reference_period"] == {"start": 1985, "end": 2004}
-    assert resolved["future_period"] == {"start": 2040, "end": 2059}
-    # Named set; WF2 grids referenced in place, the outside historical file snapshotted.
-    assert manifest.parent.parent == project / "scenarios" / "delta-cmip6-2040-2059"
+    folder = manifest.parent.parent
+    assert folder == project / "scenarios" / "delta-cmip6-near"
+    assert resolved["historical_path"] == STORE
+    assert resolved["unit_id_capacity"] == 3
+    assert resolved["historical_period"]["effective"] == ["1985-01-01", "2004-12-31"]
+    (window,) = resolved["windows"]
+    assert window["names"] == ["near"]
+    assert window["future"]["labels"] == [2040, 2059]
     assert [m["changes_path"] for m in resolved["members"]] == [
         "data/climate/projections/cmip6/analysis/gridded_changes/member_0001.nc"
     ]
-    assert resolved["historical_path"].startswith(
-        "scenarios/_engine/generation_inputs/"
-    )
-    assert [i["role"] for i in intent["inputs"]] == ["historical", "changes"]
-    assert resolved["wf2"]["unavailable"] == []
     assert intent["factor_policy"]["precip"]["min_denominator"] == 0.1
     assert len(marker["series"]) == 3
+    # Series cover exactly the WF2 reference dates.
+    with xr.open_dataset(folder / "series/run_1.nc") as series:
+        assert str(series.time.values[0])[:10] == "1985-01-01"
+        assert str(series.time.values[-1])[:10] == "2004-12-31"
     # The same raw member through the existing delta-change/2 grid arithmetic.
     v2 = {
         **settings(),
@@ -157,39 +182,70 @@ def test_wf2_factors_equal_the_file_based_grid_path(tmp_path, monkeypatch):
         v2,
         {"min_denominator": 0.1, "units": "mm/day"},
     )
-    folder = manifest.parent.parent
-    with xr.open_dataset(folder / "delta/factors/run_003.nc") as retained:
+    with xr.open_dataset(folder / "delta/factors/run_3.nc") as retained:
         np.testing.assert_allclose(retained["temp_offset"], offsets, rtol=1e-12)
         np.testing.assert_allclose(retained["precip_ratio"], ratios, rtol=1e-12)
-    assert (folder / "factor_lookup.csv").read_text().splitlines()[0] == (
-        "run_id,factor_file,model,scenario,member"
-    )
-    assert generate_collection(config, project) == manifest
+    assert generate_collection(config, project, historical=binding) == manifest
     # A rebuilt store (changed in-place input) leaves the set readable.
     member = project / resolved["members"][0]["changes_path"]
     member.write_bytes(member.read_bytes() + b"extra")
     read_delta_collection(manifest)
 
 
+def test_all_windows_by_default_run_per_member_and_window(tmp_path, monkeypatch):
+    project, *_ = wf2_project(tmp_path, monkeypatch)
+    config, _, binding = _write_inputs(tmp_path, project)
+    manifest = generate_collection(config, project, historical=binding)
+    folder = manifest.parent.parent
+    assert folder.name == "delta-cmip6-near-far"
+    lines = (folder / "scenario_run_lookup.csv").read_text().splitlines()
+    header = lines[0].split(",")
+    assert header[-1] == "window_id"
+    rows = [dict(zip(header, line.split(","), strict=True)) for line in lines[1:]]
+    assert [row["window_id"] for row in rows] == ["", "", "2040-2059", "2070-2089"]
+    groups, references = delta_groups(rows)
+    assert len(groups) == 4 and references == ("run_1",)
+    # A renamed rerun of identical content reuses the set.
+    renamed = tmp_path / "renamed.yml"
+    renamed.write_text(yaml.safe_dump(wf2_settings(name="mine")), encoding="utf-8")
+    assert generate_collection(renamed, project, historical=binding) == manifest
+
+
+def test_historical_period_override_and_coverage(tmp_path, monkeypatch):
+    project, *_ = wf2_project(tmp_path, monkeypatch)
+    period = wf2_settings(historical_override={"period": {"start": 1990, "end": 1999}})
+    config, _, binding = _write_inputs(tmp_path, project, period)
+    manifest = generate_collection(config, project, historical=binding)
+    resolved = _intent(manifest)["settings"]
+    assert resolved["historical_period"]["effective"] == ["1990-01-01", "1999-12-31"]
+    assert resolved["historical_period"]["override"] is True
+    era5_historical("1990-01-01", "2000-12-31").to_netcdf(binding["path"])
+    plain = tmp_path / "plain.yml"
+    plain.write_text(yaml.safe_dump(wf2_settings()), encoding="utf-8")
+    with pytest.raises(ValueError, match="does not cover the required period 1985"):
+        generate_collection(plain, project, historical=binding)
+
+
 def test_wf2_dry_reference_cell_is_refused_with_months(tmp_path, monkeypatch):
     project, *_ = wf2_project(tmp_path, monkeypatch, dry_cell=True)
-    config, _ = _write_inputs(tmp_path)
-    with pytest.raises(ValueError, match=r"below 0.1 mm/day.*months 01, 02"):
-        generate_collection(config, project)
+    config, _, binding = _write_inputs(tmp_path, project)
+    with pytest.raises(ValueError, match="below 0.1 mm/day.*months 01, 02"):
+        generate_collection(config, project, historical=binding)
 
 
 def test_wf2_window_and_product_errors(tmp_path, monkeypatch):
-    config, _ = _write_inputs(tmp_path)
+    empty = tmp_path / "empty"
+    config, _, binding = _write_inputs(tmp_path, empty)
     with pytest.raises(ValueError, match="WF2 product missing"):
-        generate_collection(config, tmp_path / "empty")
+        generate_collection(config, empty, historical=binding)
     project, *_ = wf2_project(tmp_path, monkeypatch)
-    other = {
-        **wf2_settings(),
-        "projections": {"ensemble": "cmip6", "window_id": "2070-2099"},
-    }
-    config, _ = _write_inputs(tmp_path, other)
-    with pytest.raises(ValueError, match="available: \\['2040-2059'\\]"):
-        generate_collection(config, project)
+    unknown = wf2_settings(projections={"ensemble": "cmip6", "future_windows": ["mid"]})
+    config, _, binding = _write_inputs(tmp_path, project, unknown)
+    with pytest.raises(ValueError, match="unknown WF2 future window"):
+        generate_collection(config, project, historical=binding)
+
+
+OVERRIDE_FILE = {"path": "x.nc", "source": "era5", "units_note": "note"}
 
 
 @pytest.mark.parametrize(
@@ -197,10 +253,46 @@ def test_wf2_window_and_product_errors(tmp_path, monkeypatch):
     [
         {"members": []},
         {"pet": {"mode": "projection_ratio", "method": "makkink"}},
-        {"projections": {"ensemble": "cmip6"}},
-        {"projections": {"ensemble": "a/b", "window_id": "2040-2059"}},
+        {"historical_path": "x.nc"},
+        {"projections": {"ensemble": "cmip6", "window_id": "2040-2059"}},
+        {"projections": {"ensemble": "a/b"}},
+        {"projections": {"ensemble": "cmip6", "future_windows": []}},
+        {"projections": {"ensemble": "cmip6", "future_windows": ["a", "a"]}},
+        {"historical_override": {"path": "x.nc"}},
+        {"historical_override": {**OVERRIDE_FILE, "units": {"temp": "K"}}},
+        {"name": "_engine"},
+        {"unit_id_capacity": 2},
     ],
 )
 def test_wf2_settings_are_closed(change):
     with pytest.raises(ValueError):
         validate_settings({**wf2_settings(), **change})
+
+
+def test_override_file_requires_the_full_source_units():
+    units = dict(zip(ERA5, ("degC",) * 3 + ("mm/day", "hPa", "W/m2", "W/m2")))
+    validate_settings(
+        wf2_settings(historical_override={**OVERRIDE_FILE, "units": units})
+    )
+
+
+def test_derived_historical_uses_the_stochastic_store_rule(tmp_path):
+    from blueearth_cst.experiment.delta_generation import historical_binding
+
+    config = {
+        "project": {"project_dir": str(tmp_path), "catalog": "catalog.yml"},
+        "climate": {
+            "selected": "era5",
+            "window": {"start": 1980, "end": 2010},
+        },
+        "basin": {"region": "{'subbasin': [10.0, 0.5]}"},
+    }
+    binding = historical_binding(config, wf2_settings())
+    assert binding["source"] == "era5"
+    assert binding["path"].name == "extract_historical.nc"
+    assert binding["path"].parent.parent == tmp_path / "data/climate/historical"
+    override = {**OVERRIDE_FILE, "path": str(tmp_path / "own.nc")}
+    assert historical_binding(config, wf2_settings(historical_override=override)) == {
+        "path": tmp_path / "own.nc",
+        "source": "era5",
+    }
