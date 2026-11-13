@@ -50,15 +50,18 @@ def _rain_gauges(args):
 
     if args.source:
         raise ValueError("--source does not apply to rain-gauges (common source mask)")
+    from blueearth_cst.climate_analysis.diagnostic_outputs import comparison_root
+
     historical = args.project / "data/climate/historical"
-    if (historical / "comparison/locations.csv").is_file():
+    comparison = comparison_root(historical)
+    if (comparison / "locations.csv").is_file():
         from blueearth_cst.climate_analysis.plot_location_comparison import (
             render as render_locations,
         )
 
-        render_locations(historical / "comparison", args.out, args.annotation)
+        render_locations(comparison, args.out, args.annotation)
         return {"locations": args.out / "plots/locations"}
-    root = historical / "comparison/stations"
+    root = comparison / "stations"
     if not root.exists():
         # Retained runs created before station comparisons joined comparison/.
         root = historical / "rain_gauges"

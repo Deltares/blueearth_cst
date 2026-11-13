@@ -157,8 +157,8 @@ def test_canonical_inventory_and_one_source_refusal():
         plot_root = Path(name) / "plots"
         table_root = Path(name) / "tables"
         if name == "comparison":
-            plot_root /= "basin-average"
-            table_root = Path(name) / "_engine/basin-average"
+            plot_root /= "basin_average"
+            table_root = Path(name) / "_engine/basin_average"
         assert Path(paths["root"]) == Path(name)
         assert all(Path(p).parent == plot_root for p in paths["figures"].values())
         assert Path(paths["compute"]["coverage"]).parent == table_root
@@ -259,7 +259,7 @@ def test_comparison_split_tables_and_single_temperature_carrier_render(tmp_path)
     visible = {
         key
         for key, path in paths["compute"].items()
-        if Path(path).parent == tmp_path / "comparison/tables/basin-average"
+        if Path(path).parent == tmp_path / "comparison/tables/basin_average"
     }
     assert visible == COMPARISON_RESULT_TABLES
     assert all(Path(paths["compute"][key]).is_file() for key in TABLES)

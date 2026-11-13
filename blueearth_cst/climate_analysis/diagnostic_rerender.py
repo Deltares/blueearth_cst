@@ -17,6 +17,7 @@ import json
 from pathlib import Path
 
 from blueearth_cst.climate_analysis.diagnostic_outputs import (
+    comparison_root,
     diagnostic_comparison_outputs,
     diagnostic_source_outputs,
     retained_captions_path,
@@ -158,7 +159,7 @@ def rerender_comparisons(
 ) -> dict[str, Path]:
     """Render both comparison views; older basin tables remain readable in place."""
     project_dir, out_dir = Path(project_dir), Path(out_dir)
-    root = project_dir / "data/climate/historical/comparison"
+    root = comparison_root(project_dir / "data/climate/historical")
     written = {}
     metadata_path = root / "_engine/diagnostics.json"
     if metadata_path.is_file():
@@ -166,9 +167,10 @@ def rerender_comparisons(
         sources = metadata["sources"]
         paths = diagnostic_comparison_outputs(root, sources, metadata["settings"])
         for key, path in paths["compute"].items():
-            if not Path(path).is_file() and "basin-average" in Path(path).parts:
+            if not Path(path).is_file() and "basin_average" in Path(path).parts:
                 for legacy in (
                     root / "tables/basin-average" / Path(path).name,
+                    root / "_engine/basin-average" / Path(path).name,
                     root / "tables" / Path(path).name,
                 ):
                     if legacy.is_file():
@@ -184,7 +186,7 @@ def rerender_comparisons(
             [str(stores[source]) for source in sources],
             annotation=annotation,
         )
-        written["basin-average"] = out_dir / "plots/basin-average"
+        written["basin_average"] = out_dir / "plots/basin_average"
     if (root / "locations.csv").is_file():
         from blueearth_cst.climate_analysis.plot_location_comparison import (
             render as render_locations,

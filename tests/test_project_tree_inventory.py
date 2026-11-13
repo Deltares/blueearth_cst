@@ -136,7 +136,7 @@ COVERED: dict[str, list[str]] = {
         "data/spatial/plots/elevation_basin.png",
         "data/spatial/_engine/plots/figure_captions.json",
         f"data/climate/historical/{KEY}/extract_historical.nc",
-        "data/climate/historical/comparison/_engine/plots/locations/figure_captions.json",
+        "data/climate/historical/source_comparison/_engine/plots/locations/figure_captions.json",
         # The basin-cell mask that ships with every extraction (2026-08-10).
         f"data/climate/historical/{KEY}/basin_cells.csv",
         f"data/climate/historical/{KEY}/.guard_ok",

@@ -217,6 +217,18 @@ def diagnostic_source_outputs(store_dir, source, settings, comparison_sources=()
     )
 
 
+#: WF0's comparison of climate datasets (rule R5); `comparison` before layout 3.
+SOURCE_COMPARISON = "source_comparison"
+
+
+def comparison_root(historical_dir):
+    """The source-comparison folder, reading layouts before 3 as well."""
+    historical_dir = Path(historical_dir)
+    current = historical_dir / SOURCE_COMPARISON
+    legacy = historical_dir / "comparison"
+    return legacy if not current.exists() and legacy.exists() else current
+
+
 def diagnostic_comparison_outputs(comparison_dir, sources, settings):
     if len(sources) < 2:
         raise ValueError("A comparison requires at least two sources")
@@ -232,17 +244,17 @@ def diagnostic_comparison_outputs(comparison_dir, sources, settings):
             relative = Path(value).relative_to(root)
             if relative.parts[0] == folder:
                 paths[section][key] = str(
-                    root / folder / "basin-average" / Path(*relative.parts[1:])
+                    root / folder / "basin_average" / Path(*relative.parts[1:])
                 )
     for key in ("titles_json", "captions_json"):
         paths["render"][key] = str(
-            root / "_engine/plots/basin-average" / Path(paths["render"][key]).name
+            root / "_engine/plots/basin_average" / Path(paths["render"][key]).name
         )
     for key, path in paths["compute"].items():
         if key in TABLES or key == "agreement_md":
             if key not in COMPARISON_RESULT_TABLES:
                 paths["compute"][key] = str(
-                    root / "_engine/basin-average" / Path(path).name
+                    root / "_engine/basin_average" / Path(path).name
                 )
     # These summaries describe extracted stores alongside their diagnostics.
     paths["source_summary"] = {

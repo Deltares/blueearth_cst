@@ -69,10 +69,10 @@ Machine-readable figure inventories live under the dataset's `_engine/plots/`, w
 subfolder for index metadata; readable title/caption Markdown stays beside the figures. Older retained
 metadata remains readable in place.
 
-Comparison `tables/basin-average/` exposes seven CSVs: `annual_indices`, `monthly_values`,
+Comparison `tables/basin_average/` exposes seven CSVs: `annual_indices`, `monthly_values`,
 `precip_climatology`, `temp_climatology`, `drought_events`, `trends` and `agreement`. Supporting coverage,
 fit checks, timing, SPI, spell, autocorrelation, homogeneity and sensitivity tables, plus `agreement.md`,
-live under `_engine/basin-average/`. Calculations and rerendering retain all these data. Existing files
+live under `_engine/basin_average/`. Calculations and rerendering retain all these data. Existing files
 are preserved when switching layouts; new runs use the consolidated paths.
 
 ### Map annual departures {#annual-spatial-anomalies}
@@ -186,11 +186,11 @@ of precipitation and use means rather than totals.
 Run the usual historical analysis entry point. The comparison area has two views:
 
 ```text
-data/climate/historical/comparison/
+data/climate/historical/source_comparison/
   locations.csv
-  plots/basin-average/
+  plots/basin_average/
   plots/locations/<id>/
-  tables/basin-average/
+  tables/basin_average/
   tables/locations/<id>/
   _engine/
 ```
@@ -226,12 +226,12 @@ coordinates/CRS, exclusions and optional temperature means. Monthly agreement me
 counts, Pearson r, mean bias and RMSE; precipitation errors are in mm/month and temperature errors in °C.
 Figures show unavailable comparisons explicitly. Each location's plot directory contains readable
 `figure_titles.md` and `figure_captions.md`; sampled daily data live under `_engine/locations/` and
-machine figure inventories under `_engine/plots/locations/`. Basin figure inventories live under `_engine/basin-average/`.
+machine figure inventories under `_engine/plots/locations/`. Basin figure inventories live under `_engine/basin_average/`.
 
 Rerender both views with
 `scripts/render_figures.py wf0-comparison --project <run> --out <review>`.
 The `rain-gauges` family renders the location view for new runs and continues reading legacy
-`comparison/stations/` or `historical/rain_gauges/` products. Older flat basin tables are readable by the
+`source_comparison/stations/` (`comparison/stations/` before layout 3) or `historical/rain_gauges/` products. Older flat basin tables are readable by the
 comparison rerender command. Rerunning historical analysis writes the new layout; obsolete generated
 directories from earlier runs should be retired separately after verifying the replacement products.
 
@@ -256,8 +256,8 @@ for each source. The main outputs are:
   including daily basin series in `daily_basin.csv` and annual climatology in `annual_climatology.nc`.
 - **Maps and time-series figures (`plots/`).** Precipitation, temperature and potential
   evapotranspiration where available, with titles and captions.
-- **Source comparisons (`comparison/`).** Basin-average tables and figures under
-  `tables/basin-average/` and `plots/basin-average/`, including `agreement.csv` and `agreement.md`.
+- **Source comparisons (`source_comparison/`).** Basin-average tables and figures under
+  `tables/basin_average/` and `plots/basin_average/`, including `agreement.csv` and `agreement.md`.
   Per-location tables and figures under `tables/locations/<id>/` and `plots/locations/<id>/` include
   observations when available; `locations.csv` indexes every site.
 - **Subbasin results (`tables/subbasins/` and `plots/subbasins/`).** Additional tables and figures when

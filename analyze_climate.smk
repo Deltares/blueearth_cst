@@ -351,7 +351,7 @@ SOURCE_DIAGNOSTICS = {s: diagnostic_source_outputs(CLIMATE_STORES[s].store_dir, 
 from blueearth_cst.climate_analysis.climate_indices import implementation_digest as climate_indices_digest
 CLIMATE_INDICES_DIGEST = climate_indices_digest() if DIAGNOSTIC_SETTINGS["climate_indices"]["enabled"] else None
 POOLED_ROOTS = [SOURCE_DIAGNOSTICS[s]["root"] for s in CANDIDATE_SOURCES]
-COMPARISON_DIR = f"{project_dir}/data/climate/historical/comparison"
+COMPARISON_DIR = f"{project_dir}/data/climate/historical/source_comparison"
 COMPARISON_DIAGNOSTICS = diagnostic_comparison_outputs(COMPARISON_DIR, CANDIDATE_SOURCES, COMPARISON_RENDER_SETTINGS) if len(CANDIDATE_SOURCES) > 1 else None
 WF0_TERMINALS = [p for spec in SOURCE_DIAGNOSTICS.values() for p in spec["render"].values()]
 if DIAGNOSTIC_SETTINGS["climate_indices"]["enabled"]:
