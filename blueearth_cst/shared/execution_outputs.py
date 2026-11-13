@@ -10,6 +10,7 @@ import contextlib
 import json
 import os
 import re
+import shutil
 import sys
 import threading
 import traceback
@@ -85,9 +86,49 @@ def bind_directory(path: Path, record: dict[str, Any]) -> None:
     if not directory.is_relative_to((root / "logs").resolve()):
         raise ValueError("execution directory must be beneath project logs")
     record["execution_directory"] = relative
+    if not parent and record["mode"] == "dry_run":
+        _keep_latest_dry_run(root, directory, path.parent)
     stack = _CAPTURE_STACK.get()
     if stack is not None:
         stack.enter_context(console_capture((path, record)))
+
+
+_DRY_RUN = re.compile(
+    r"\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}Z__(?P<scope>[a-z0-9-]+)__dry-run"
+    r"(?:__[0-9a-f]{12})?"
+)
+
+
+def _keep_latest_dry_run(root: Path, current: Path, invocations: Path) -> None:
+    """Remove earlier dry-run folders of this scope (rule R13).
+
+    Only exact dry-run folder names of the same scope are touched, never one a
+    still-running invocation uses; a folder that cannot be removed stays.
+    """
+    match = _DRY_RUN.fullmatch(current.name)
+    if match is None:
+        return
+    running = set()
+    for record_path in invocations.glob("*.json"):
+        try:
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if record.get("status") == "running" and record.get("execution_directory"):
+            running.add(Path(record["execution_directory"]).name)
+    for candidate in (root / "logs").iterdir():
+        other = _DRY_RUN.fullmatch(candidate.name)
+        if (
+            other is None
+            or other["scope"] != match["scope"]
+            or candidate.name == current.name
+            or candidate.name in running
+            or not candidate.is_dir()
+            or candidate.is_symlink()
+            or candidate.is_junction()
+        ):
+            continue
+        shutil.rmtree(candidate, ignore_errors=True)
 
 
 def capture_launch(function):
@@ -145,7 +186,7 @@ def workflow_paths(
     if not directory:
         return WorkflowPaths(
             f"{project}/logs/{log_name}",
-            f"{project}/benchmarks/{benchmark_name}",
+            f"{project}/logs/benchmarks/{benchmark_name}",
             log_parts,
             benchmark_parts,
         )

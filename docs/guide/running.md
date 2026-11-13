@@ -70,6 +70,11 @@ options; not every Snakemake option can be forwarded.
 timing reports. See [Reading outputs](outputs.md) for result checks and
 [runtime and resource use](../technical-manual/runtime-and-resources.md) for interpreting benchmarks.
 
+Each launch writes `logs/<YYYY-MM-DD_HH-MM-SSZ>__<scope>[__dry-run]/`. Executed runs are kept, failed
+ones included; only the latest dry run of each scope is kept. To list old log folders, run
+`pixi run python dev/scripts/prune_logs.py --project-dir <project_dir> --older-than 30`; add
+`--delete` to remove them. Folders a retained projection product refers to are never listed.
+
 ## Select, resume or create an experiment
 
 An experiment groups hydrological simulations made with a particular model, set of climate scenarios

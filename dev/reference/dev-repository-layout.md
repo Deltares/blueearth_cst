@@ -105,7 +105,8 @@ writing. Keep configured tool state, including pytest and Ruff caches, in its co
 Before cleanup, verify the target is within the intended scratch root, inspect links and other writers,
 and preserve evidence still needed by a reader or gate. Completion alone grants no deletion authority.
 
-Three helpers report by default: `prune_series_cache.py` finds orphaned WF2 series;
+Four helpers report by default: `prune_series_cache.py` finds orphaned WF2 series; `prune_logs.py`
+lists log folders older than `--older-than` days, skipping those a WF2 product refers to;
 `prune_climate_store.py` finds stale `<source>_<window>` stores; `snapshot_project_tree.py` lists paths
 against the project-tree inventory (`pixi run tree-check`). Deletion requires `--delete`. Prune before
 a reference snapshot so it excludes orphans. Directories routed wholesale by the path map also need
@@ -150,7 +151,9 @@ Outputs land under configured `project_dir`, outside the repository for producti
 
 Execution diagnostics share `logs/<YYYY-MM-DD_HH-MM-SSZ>__<scope>[__dry-run]/`: summary, console transcript,
 workflow logs and Markdown/TSV benchmarks. Child invocations share their parent's folder; each retry
-has fresh part namespaces. Historical shared logs and benchmark files remain untouched. The maintained
+has fresh part namespaces. Only the latest dry-run folder per scope is kept. A bare `snakemake` WF0–WF2 run
+writes `logs/<name>.log` and `logs/benchmarks/`. Historical shared logs and benchmark files remain
+untouched. The maintained
 layout and interpretation live in `docs/guide/running.md` § Execution logs and benchmarks.
 The WF2 product additionally owns `_engine/execution/` (production attribution and retained copies of
 contributing logs) and, after an import, `_engine/imported/`; `docs/guide/outputs.md` owns both.

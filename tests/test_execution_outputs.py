@@ -278,6 +278,7 @@ def test_unowned_parse_keeps_legacy_paths_and_rejects_foreign_execution(
         tmp_path, "wf0", "old.log", "old.md", "parts", "benchparts"
     )
     assert paths.log == f"{tmp_path}/logs/old.log"
+    assert paths.benchmark == f"{tmp_path}/logs/benchmarks/old.md"
     monkeypatch.setenv(outputs.DIRECTORY_ENV, str(tmp_path.parent / "other/logs/run"))
     with pytest.raises(ValueError, match="another project"):
         outputs.workflow_paths(
@@ -339,3 +340,27 @@ def test_new_execution_preserves_existing_outputs(tmp_path):
             assert directory != first_diagnostics
             assert not (directory / "wf0.log").exists()
             assert not (directory / "wf0-benchmarks.tsv").exists()
+
+
+def test_only_the_latest_dry_run_per_scope_is_kept(tmp_path, monkeypatch):
+    clock = ["2026-10-20T11:00:00Z"]
+    monkeypatch.setattr(invocation_history, "_now", lambda: clock[0])
+    executed = tmp_path / "logs/2026-10-19_09-00-00Z__build-model"
+    other_scope = tmp_path / "logs/2026-10-19_09-00-00Z__analyze-climate__dry-run"
+    for folder in (executed, other_scope):
+        folder.mkdir(parents=True)
+    first, record = _start(tmp_path, mode="dry_run")
+    invocation_history.finish(first, record, exit_code=0)
+    clock[0] = "2026-10-20T12:00:00Z"
+    _, latest = _start(tmp_path, mode="dry_run")
+    assert not (tmp_path / record["execution_directory"]).exists()
+    assert (tmp_path / latest["execution_directory"]).is_dir()
+    assert executed.is_dir() and other_scope.is_dir()
+
+
+def test_a_running_dry_run_keeps_its_folder(tmp_path, monkeypatch):
+    times = iter(["2026-10-20T11:00:00Z", "2026-10-20T12:00:00Z"])
+    monkeypatch.setattr(invocation_history, "_now", lambda: next(times))
+    _, running = _start(tmp_path, mode="dry_run")
+    _start(tmp_path, mode="dry_run")
+    assert (tmp_path / running["execution_directory"]).is_dir()

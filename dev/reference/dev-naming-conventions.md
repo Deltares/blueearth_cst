@@ -249,7 +249,8 @@ It exists in exactly two places:
 
 - A comment header above each rule, such as `# 1.06  build_wflow_model`.
 - **The `log:` / `benchmark:` filename prefix** — `1.06_build_wflow_model.log` or `.tsv`.
-  Managed launches place parts under `logs/<execution>/_parts/wfN-<child-id>/{logs,benchmarks}/`.
+  Managed launches place parts under `logs/<execution>/_parts/wfN-<child-id>/{logs,benchmarks}/`;
+  a bare `snakemake` WF0–WF2 run uses `logs/_parts/` and `logs/benchmarks/_parts/`.
   For wildcard rules the prefix goes on the subdirectory (`4.05_run_wflow_simulations/batch_{b}.log`).
   The `W` digit keeps rule labels disambiguated and sorts them by workflow then step within each namespace.
 

@@ -163,8 +163,7 @@ def test_template_syntax(path, rel, matches):
 #: beside each group. The ratchet fails on a new violation and on a fixed one
 #: still listed, so this set only shrinks.
 KNOWN_MISPLACED = {
-    # shared logs: benchmarks move into the log folder (step 2)
-    "benchmarks/{wf0|wf1|wf2}_benchmarks.md",
+    # WF3/WF4 benchmarks move under logs/ with their workflow steps
     "benchmarks/wf3_benchmarks_{hex12}.md",
     "benchmarks/wf4_benchmarks_{experiment_name}.md",
     "benchmarks/_parts/",

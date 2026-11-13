@@ -282,7 +282,7 @@ WORKFLOW_LOG_NAME = "wf0_analyze_climate.log"
 # `snake_utils.declare_warning_tally`.
 declare_warning_tally(project_dir, WORKFLOW_LOG_NAME)
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
-_paths = workflow_paths(project_dir, "wf0", WORKFLOW_LOG_NAME, "wf0_benchmarks.md", LOG_PARTS_DIR, f"{project_dir}/benchmarks/_parts")
+_paths = workflow_paths(project_dir, "wf0", WORKFLOW_LOG_NAME, "wf0_benchmarks.md", LOG_PARTS_DIR, f"{project_dir}/logs/benchmarks/_parts")
 LOG_PARTS_DIR, BENCH_PARTS_DIR = _paths.log_parts, _paths.benchmark_parts
 
 # The run's key folders, stated ONCE. `run_header` prints them at the top of the
