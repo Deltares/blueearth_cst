@@ -1,4 +1,4 @@
-"""Publish monthly delta-change forcing for the existing WF4 runner."""
+"""Retired standalone delta producer; use the workflow runner (delta-change/3)."""
 
 import argparse
 import sys
@@ -6,18 +6,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from blueearth_cst.experiment.delta_scenarios import generate_collection
-from blueearth_cst.shared.workflow_config_snapshot import archive_lock
-
 
 def main() -> None:
-    """Generate an explicit delta collection and print its WF4 manifest path."""
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, required=True)
-    parser.add_argument("--project-dir", type=Path, required=True)
-    args = parser.parse_args()
-    with archive_lock(args.project_dir.resolve(), "project-execution"):
-        print(generate_collection(args.config, args.project_dir))
+    """Retired: delta generation runs through the workflow runner."""
+    argparse.ArgumentParser(description=__doc__).parse_args()
+    raise SystemExit(
+        "scripts/generate_delta_scenarios.py is retired: delta-change/1 and /2 are "
+        "read-only. Configure generate_scenarios with method: delta_change and "
+        "delta-change/3, then run scripts/run_workflows.py. See "
+        "docs/technical-manual/delta-change-scenarios.md"
+    )
 
 
 if __name__ == "__main__":

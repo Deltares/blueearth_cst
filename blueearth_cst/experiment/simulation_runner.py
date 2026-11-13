@@ -474,7 +474,8 @@ def resolve_collection_with_plan(config_path, repository):
     project, settings = simulation_settings(config_path)
     if "scenario_collection" in settings:
         selection, marker = resolve_explicit_collection_v2(
-            settings["scenario_collection"]
+            settings["scenario_collection"],
+            project.get("project", {}).get("project_dir"),
         )
         verify_selected_collection_source(project, selection, marker)
         return selection, marker, None
@@ -490,6 +491,18 @@ def resolve_collection_with_plan(config_path, repository):
             "workflows.generate_scenarios",
         ),
     )
+    from blueearth_cst.shared.generation_config import generation_method
+
+    if generation_method(composed) == "delta_change":
+        from blueearth_cst.experiment.collection_resolution import (
+            resolve_default_delta,
+        )
+
+        selection, marker = resolve_default_delta(
+            Path(config_path), project["project"]["project_dir"]
+        )
+        verify_selected_collection_source(project, selection, marker)
+        return selection, marker, None
     generation = generation_configuration(composed, repository)
     command = f'python scripts/run_workflows.py --config "{config_path}" --project-dir "{generation["project_dir"]}"'
     pointer_path = Path(generation["request_path"])
@@ -569,25 +582,37 @@ def verify_selected_collection_source(project, selection, marker):
 
     path = Path(selection["manifest_path"]).resolve(strict=True)
     record_dir = path.parent
-    project_root = record_dir.parents[3]
+    from blueearth_cst.experiment.collection_index import marker_project_root
+
+    project_root = marker_project_root(path)
     configured_root = Path(project["project"]["project_dir"]).resolve()
     if project_root != configured_root:
         raise ValueError("selected collection is outside the WF4 project root")
-    if marker.get("schema_version") == "delta-scenario-collection/1":
+    from blueearth_cst.experiment.collection_method import is_delta
+
+    if is_delta(marker):
         from blueearth_cst.experiment.content_identity import read_canonical_json
 
         intent = read_canonical_json(
             resolve_file_reference(marker["intent"], {"project_root": project_root})
         )
-        selected = intent["settings"]["source_like"]
+        settings = intent["settings"]
+        selected = settings["source_like"]
         if selected != project["climate"]["selected"]:
             raise ValueError("WF4 climate source differs from delta collection source")
-        # Delta intents record no forcing recipe, so only the default named
-        # recipe keeps the pre-t014 guarantee; another one cannot be checked.
         climate = project["climate"]
-        if climate.get("forcing_id", climate.get("default_forcing")) != climate.get(
-            "default_forcing"
-        ):
+        recipe = climate.get("forcing_id", climate.get("default_forcing"))
+        if "historical_recipe" in settings:
+            # delta-change/3 records the recipe of its derived historical record.
+            if settings["historical_recipe"] != recipe:
+                raise ValueError(
+                    f"WF4 historical forcing {recipe!r} differs from the delta "
+                    f"collection's {settings['historical_recipe']!r}"
+                )
+            return selected
+        # Older delta intents record no forcing recipe, so only the default named
+        # recipe keeps the pre-t014 guarantee; another one cannot be checked.
+        if recipe != climate.get("default_forcing"):
             raise ValueError(
                 "delta collections record no forcing recipe; WF4 may select only "
                 "the default historical forcing for them (historical_forcing: default)"

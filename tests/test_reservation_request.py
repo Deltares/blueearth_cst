@@ -21,7 +21,7 @@ def case(tmp_path, monkeypatch):
     monkeypatch.setattr(
         collection_resolution,
         "resolve_explicit_collection_v2",
-        lambda selector: (
+        lambda selector, *_: (
             {"manifest_path": str(marker)},
             {},
         ),

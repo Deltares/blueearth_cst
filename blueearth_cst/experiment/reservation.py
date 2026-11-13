@@ -235,9 +235,30 @@ def validate_request(request: dict, project_root: Path | str) -> dict:
         "experiment-request/2",
     ):
         raise ValueError("unsupported reservation request")
-    selection = _fields(request["selection"], {"mode", "manifest"}, "selection")
-    if selection["mode"] not in {"project-generation", "explicit-manifest"}:
+    delta_mode = (
+        type(request["selection"]) is dict
+        and request["selection"].get("mode") == "delta-generation"
+    )
+    selection = _fields(
+        request["selection"],
+        {"mode", "manifest"} | ({"delta"} if delta_mode else set()),
+        "selection",
+    )
+    if selection["mode"] not in {
+        "project-generation",
+        "explicit-manifest",
+        "delta-generation",
+    }:
         raise ValueError("unsupported selection mode")
+    if delta_mode:
+        delta = _fields(
+            selection["delta"], {"schema_version", "settings", "historical"}, "delta"
+        )
+        if delta["schema_version"] != "reservation-delta-request/1":
+            raise ValueError("unsupported delta selection request")
+        _fields(delta["historical"], {"path", "source", "recipe"}, "delta historical")
+        if request["generation"] is not None:
+            raise ValueError("delta selection carries no stochastic generation request")
     if (selection["mode"] == "explicit-manifest") != (
         selection["manifest"] is not None
     ):
@@ -577,8 +598,9 @@ def _seed(value: Any, request: dict, root: Path, *, verify: bool = False) -> Non
                 raise ValueError("seed binding differs from pinned plan")
             projection = resolution["projection"]
             for intent in (plan["intent"], candidate):
+                # Structure only: in-place inputs may be rebuilt after publication.
                 for source in intent["documents"]["source_inventory"]["sources"]:
-                    _ref(source["file"], root, verify=True)
+                    _ref(source["file"], root)
             for key in (
                 "n_realizations",
                 "simulation_window",

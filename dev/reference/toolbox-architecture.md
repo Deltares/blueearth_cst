@@ -1,6 +1,6 @@
 # Toolbox architecture
 
-Last updated: 2026-11-05
+Last updated: 2026-11-12
 
 Use this reference when changing workflow responsibilities, shared configuration or retained outputs.
 The [workflow implementation map](toolbox-workflow-map.md) locates rules and their consumers; the
@@ -55,6 +55,11 @@ inventories and indicator sets. Retained readers validate content and identity, 
 existence. Indicator recalculation uses the retained responses and does not cause a new simulation.
 The [retained-handoffs reference](../../docs/site/toolbox-reference/retained-handoffs.qmd) owns the
 product contract and recovery behavior.
+
+Store each file once: workflows, collections and experiments reference shared data, configuration and
+results by path and content hash instead of copying them, and that single copy of data and user-facing
+files lives outside `_engine/`, which holds machine records only. A new duplicate needs a stated reason
+and owner approval in its design or task.
 
 WF4 forcing elevation is project-owned ancillary data, shared by content identity rather than copied
 into each WF3 collection. [`shared_orography.py`](../../blueearth_cst/experiment/shared_orography.py)

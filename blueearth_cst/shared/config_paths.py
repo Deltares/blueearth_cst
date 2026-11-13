@@ -110,8 +110,15 @@ def resolve_workflow_paths(
             )
             return result
         if result.get("method") == "delta_change":
-            _resolve_fields(result, ("delta_change.historical_path",), source)
-            for member in result["delta_change"]["members"]:
+            _resolve_fields(
+                result,
+                (
+                    "delta_change.historical_path",
+                    "delta_change.historical_override.path",
+                ),
+                source,
+            )
+            for member in result["delta_change"].get("members", []):
                 _resolve_fields(member, ("reference_path", "future_path"), source)
             return result
     fields = {

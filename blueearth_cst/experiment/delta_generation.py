@@ -20,6 +20,10 @@ class DeltaGeneration:
     settings: dict
     sources: tuple[tuple[Path, bytes], ...]
     inputs: tuple[tuple[Path, str], ...]
+    #: delta-change/3: ``{"path", "source"}`` of the historical record.
+    historical: dict | None = None
+    #: The derived record is produced by WF0/WF1 later in this invocation.
+    historical_pending: bool = False
 
     def recheck(self) -> None:
         """Refuse changed authored files or input bytes before publication."""
@@ -30,18 +34,64 @@ class DeltaGeneration:
             if file_sha256(path) != digest:
                 raise ValueError(f"delta generation input changed: {path}")
 
-    def run(self, root: Path, *, preview: bool) -> Path:
-        """Validate and publish through the same producer as the standalone CLI."""
+    def run(self, root: Path, *, preview: bool) -> Path | None:
+        """Validate and publish through the same producer as the standalone CLI.
+
+        A preview of a WF2-sourced request returns None when the WF2 products
+        this invocation would create do not exist yet.
+        """
         self.recheck()
+        expected = [digest for _, digest in self.inputs]
+        if self.settings["schema_version"] == "delta-change/3":
+            from blueearth_cst.experiment.delta_wf2 import ensemble_dir
+
+            grids = ensemble_dir(root, self.settings["projections"])
+            ready = (grids / "analysis/gridded_changes/inventory.json").is_file()
+            if self.historical_pending:
+                path = Path(self.historical["path"])
+                if not path.is_file():
+                    if preview:
+                        return None
+                    raise ValueError(
+                        f"historical record was not produced by this invocation: {path}"
+                    )
+                expected = [file_sha256(path)]
+            if preview and not ready:
+                return None
+            if not preview:
+                self._snapshot_outside_inputs(root)
         manifest = generate_collection(
             self.config_path,
             root,
             settings=self.settings,
             preview=preview,
-            expected_input_hashes=[digest for _, digest in self.inputs],
+            expected_input_hashes=expected,
+            historical=self.historical,
+            documents=tuple((path.name, data) for path, data in self.sources),
         )
         self.recheck()
         return manifest
+
+    def index(self, root: Path, manifest: Path) -> None:
+        """Rebuild ``collections.csv``; a configured name differing from the reused
+        set's folder becomes an alias (design §5.3). Call under the project lock."""
+        from blueearth_cst.experiment.collection_index import rebuild_collection_index
+        from blueearth_cst.experiment.content_identity import read_canonical_json
+
+        name = self.settings.get("name")
+        identity = read_canonical_json(manifest)["collection_id"]
+        rebuild_collection_index(root, alias=(identity, name) if name else None)
+
+    def _snapshot_outside_inputs(self, root: Path) -> None:
+        """Content-addressed copies of admitted inputs outside the project."""
+        from blueearth_cst.experiment.generation_plan import snapshot_generation_input
+
+        root = Path(root).resolve()
+        for path, digest in self.inputs:
+            if not path.resolve().is_relative_to(root):
+                _, copied, _ = snapshot_generation_input(root, path)
+                if copied != digest:
+                    raise ValueError(f"delta input changed during snapshot: {path}")
 
     def provenance(self) -> dict:
         """Return the independent operation's effective settings and input evidence."""
@@ -64,8 +114,94 @@ class DeltaGeneration:
         }
 
 
-def capture_delta(config_path: Path, extra: list[str]) -> DeltaGeneration:
-    """Admit supported flags and capture all producer inputs before other stages."""
+MIGRATION = (
+    "docs/technical-manual/delta-change-scenarios.md#migrating-from-delta-change1-and-2"
+)
+
+
+def refuse_retired_schema(settings: dict) -> None:
+    """delta-change/1 and /2 are read-only: retained sets stay readable."""
+    version = settings.get("schema_version")
+    if version in {"delta-change/1", "delta-change/2"}:
+        raise ValueError(
+            f"{version} is read-only: retained collections stay readable, but new "
+            "delta generation uses delta-change/3 (WF2 projections). See " + MIGRATION
+        )
+
+
+def historical_binding(config: dict, settings: dict) -> dict:
+    """The historical record of a delta-change/3 request (design §3.1).
+
+    Default: the case's climate-store extract, derived with the stochastic rule;
+    ``historical_override.path`` replaces it with a declared supported source.
+    """
+    override = settings.get("historical_override", {})
+    if "path" in override:
+        return {
+            "path": Path(override["path"]),
+            "source": override["source"],
+            "recipe": None,
+            "pet_method": None,
+        }
+    from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
+    from blueearth_cst.shared.wf3_science import (
+        DEFAULT_BASIN_INDEX,
+        DEFAULT_HYDROGRAPHY,
+        climate_store_rule,
+    )
+
+    project, climate, basin = config["project"], config["climate"], config["basin"]
+    sources = basin.get("sources") or {}
+    if "selected" in climate:
+        recipe = normalize_forcing_recipe(climate["selected"], climate.get("forcing"))
+    else:
+        # Delta composition keeps the public form (named or forcing-mapping
+        # recipes); resolve it as WF1 and stochastic WF3 do.
+        from blueearth_cst.shared.forcing_recipe import resolve_climate_forcing
+
+        public = {
+            key: climate[key]
+            for key in ("sources", "window", "forcing", "water_year_start")
+            if key in climate
+        }
+        resolved, recipe = resolve_climate_forcing(public, required=True, notices=False)
+        climate = {**climate, "selected": resolved["selected"]}
+    store = climate_store_rule(
+        project_dir=project["project_dir"],
+        model_region=basin["region"],
+        data_sources=project["catalog"],
+        hydrography=sources.get("hydrography", DEFAULT_HYDROGRAPHY),
+        basin_index=sources.get("basin_index", DEFAULT_BASIN_INDEX),
+        clim_source=climate["selected"],
+        historical_window=climate["window"],
+        forcing=recipe.settings(),
+    )
+    return {
+        "path": Path(store.store_dir) / "extract_historical.nc",
+        "source": climate["selected"],
+        # The named recipe WF4 must match (None without named forcings).
+        "recipe": climate.get("forcing_id", climate.get("default_forcing")),
+        # The case's PET formula; delta PET uses it on the source grid.
+        "pet_method": recipe.pet_method,
+    }
+
+
+def capture_delta(
+    config_path: Path,
+    extra: list[str],
+    *,
+    project_dir: Path | None = None,
+    wf2_ensemble: str | None = None,
+    historical_producer: bool = False,
+) -> DeltaGeneration:
+    """Admit supported flags and capture all producer inputs before other stages.
+
+    For a WF2-sourced request (``delta-change/3``), ``wf2_ensemble`` is the
+    ensemble WF2 produces in this invocation (None when WF2 is disabled), and
+    ``historical_producer`` says WF0 or WF1 runs first and may create the
+    derived historical record. Products a stage creates later are admitted as
+    pending and captured at publication; otherwise they must already exist.
+    """
     unsupported = set(extra) - {"--dry-run", "--dryrun", "-n"}
     if unsupported:
         raise ValueError(
@@ -87,17 +223,50 @@ def capture_delta(config_path: Path, extra: list[str]) -> DeltaGeneration:
         source_bytes={source: source_bytes},
     )
     settings = config["workflows"]["generate_scenarios"]["delta_change"]
-    paths = [Path(settings["historical_path"])]
-    paths.extend(
-        Path(member[key])
-        for member in settings["members"]
-        for key in ("reference_path", "future_path")
-    )
+    refuse_retired_schema(settings)
+    historical, pending = None, False
+    if settings["schema_version"] == "delta-change/3":
+        projections = settings["projections"]
+        if wf2_ensemble is not None and wf2_ensemble != projections["ensemble"]:
+            raise ValueError(
+                f"delta projections.ensemble {projections['ensemble']!r} differs from "
+                f"the enabled analyze_projections ensemble {wf2_ensemble!r}"
+            )
+        if wf2_ensemble is None:
+            if project_dir is None:
+                raise ValueError("WF2-sourced delta generation requires project_dir")
+            from blueearth_cst.experiment.delta_wf2 import resolve_windows
+
+            # Refuse before any stage runs when the upstream products are absent.
+            resolve_windows(project_dir, projections)
+        historical = historical_binding(config, settings)
+        derived = "path" not in settings.get("historical_override", {})
+        if not historical["path"].is_file():
+            if not (derived and historical_producer):
+                raise ValueError(
+                    f"historical record missing: {historical['path']}. "
+                    + (
+                        "Enable analyze_climate or build_model to extract it."
+                        if derived
+                        else "Check historical_override.path."
+                    )
+                )
+            pending = True
+        paths = [] if pending else [historical["path"]]
+    else:
+        paths = [Path(settings["historical_path"])]
+        paths.extend(
+            Path(member[key])
+            for member in settings["members"]
+            for key in ("reference_path", "future_path")
+        )
     operation = DeltaGeneration(
         config_path,
         settings,
         ((config_path, project_bytes), (source, source_bytes)),
         tuple((path, file_sha256(path)) for path in paths),
+        historical,
+        pending,
     )
     operation.recheck()
     return operation

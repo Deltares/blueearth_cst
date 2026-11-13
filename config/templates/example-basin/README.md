@@ -56,8 +56,9 @@ required variables.
 - `project_config_<workflow>.yml`: one workflow's settings.
 - `historical-comparison.yml`: optional retained-run comparison; review both directory paths and run names.
   See [historical hydrology](../../../docs/technical-manual/workflow-build-model.md#compare-retained-historical-runs).
-- `project_config_delta.yml`: optional standalone projection-conditioned producer; see the
-  [delta-change guide](../../../docs/technical-manual/delta-change-scenarios.md). It is not enabled by a workflow stanza.
+- The GCM delta-change alternative is a commented block at the end of
+  `project_config_generate_scenarios.yml`; see the
+  [delta-change guide](../../../docs/technical-manual/delta-change-scenarios.md).
 - `data/`: case sidecars and their [local instructions](data/README.md).
 - `notes.md`: retained findings and evidence pointers.
 

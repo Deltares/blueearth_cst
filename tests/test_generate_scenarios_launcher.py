@@ -48,7 +48,7 @@ def test_preview_stops_after_snakemake(tmp_path, monkeypatch, flag, exit_code):
 
 
 @pytest.mark.parametrize("ready,exit_code", [(False, 0), (False, 9), (True, 0)])
-def test_success_and_ready_reuse_export_the_selected_collection(
+def test_success_and_ready_reuse_index_the_selected_collection(
     tmp_path, monkeypatch, ready, exit_code, capsys
 ):
     from blueearth_cst.experiment import reservation_generation
@@ -81,7 +81,10 @@ def test_success_and_ready_reuse_export_the_selected_collection(
         reservation_generation,
         "select_reserved_plan_owned",
         lambda *a: (
-            {"request_path": str(tmp_path / "request.json")},
+            {
+                "request_path": str(tmp_path / "request.json"),
+                "collection_name": "configured",
+            },
             plan,
             tmp_path / "plan.json",
             "hash",
@@ -99,9 +102,11 @@ def test_success_and_ready_reuse_export_the_selected_collection(
         "run_project_child",
         lambda *a, **kw: children.append(a) or exit_code,
     )
-    exports = []
+    indexed = []
     monkeypatch.setattr(
-        generate_scenarios, "export_scenario_collection", lambda *a: exports.append(a)
+        generate_scenarios,
+        "rebuild_collection_index",
+        lambda root, alias: indexed.append((root, alias)),
     )
     context = SimpleNamespace(
         reservation_id="reserved", request={}, name="experiment", recheck=lambda: None
@@ -125,10 +130,8 @@ def test_success_and_ready_reuse_export_the_selected_collection(
         assert "1 stochastic realization across 1 perturbation point" in console
         assert "planned collection: 2 runs" in console
         assert "Up to date" not in captured.err
-    assert exports == (
-        [(tmp_path, tmp_path / plan["outputs"]["record_root"] / "collection.json")]
-        if exit_code == 0
-        else []
+    assert indexed == (
+        [(tmp_path, ("selected", "configured"))] if exit_code == 0 else []
     )
 
 
@@ -233,8 +236,8 @@ def test_source_phase_replay_reaches_a_real_terminal_fd():
 def test_direct_dry_run_records_terminal_invocation(tmp_path, monkeypatch, exit_code):
     monkeypatch.setattr(
         generate_scenarios,
-        "export_scenario_collection",
-        lambda *a: pytest.fail("dry-run cannot export"),
+        "rebuild_collection_index",
+        lambda *a, **kw: pytest.fail("dry-run cannot index"),
     )
     config = tmp_path / "project_config.yml"
     config.write_text("project: {}\n", encoding="utf-8")

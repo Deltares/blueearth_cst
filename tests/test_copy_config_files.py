@@ -622,7 +622,7 @@ def test_the_runs_bin_carries_its_own_readme(tmp_path, sources):
     # It states which workflows write here. A reader who counts three
     # directories for five workflows cannot otherwise tell design from omission.
     assert "Only THREE workflows write here" in readme
-    assert "scenarios/_engine/data/<id>/config/" in readme
+    assert "scenarios/<name>/config/" in readme
 
     # In the BIN, not in the workflow subdirectory beside the snapshot --
     # otherwise every workflow drops its own copy of the bin's README.
