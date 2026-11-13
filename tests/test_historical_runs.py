@@ -1,305 +1,95 @@
-"""Historical publications retain executed provenance and survive mutable runs."""
-
-import json
-from pathlib import Path
+"""Recipe runs are read in place within their model (R16, t017 ruling D18)."""
 
 import pandas as pd
 import pytest
 import xarray as xr
 
 from blueearth_cst.model.historical_runs import (
-    completion_inputs,
-    completion_path,
+    _check_inputs,
     execution_inputs,
-    historical_run_name,
-    read_historical_run,
-    retain_historical_run,
-    run_directory,
-    write_completion,
+    read_recipe_run,
+    warn_retired_historical_run,
     write_forcing_record,
 )
-from blueearth_cst.shared.provenance import file_sha256
+from blueearth_cst.shared.named_forcings import HistoricalLayout
 
 
 @pytest.fixture
 def historical_model(tmp_path):
-    """Use the native output contract and a two-cell model map."""
+    """One named recipe in the layout 4 shape, with published response tables."""
+    from blueearth_cst.experiment.wflow_response_reader import NativeRunArtifacts
+    from blueearth_cst.shared.response_tables import publish_response_tables
+
     model = tmp_path / "model"
-    model.mkdir()
-    (model / "run_default").mkdir()
+    layout = HistoricalLayout("era5")
+    (model / layout.run_dir).mkdir(parents=True)
+    (model / layout.config_dir).mkdir(parents=True)
+    (model / layout.forcing).parent.mkdir(parents=True)
     xr.Dataset({"gauges": (("y", "x"), [[1010, 1020]])}).to_netcdf(
         model / "staticmaps.nc"
     )
-    xr.Dataset({"precip": ("time", [1.0, 2.0])}).to_netcdf(model / "forcing.nc")
-    toml_path = model / "wflow_sbm.toml"
+    xr.Dataset({"precip": ("time", [1.0, 2.0])}).to_netcdf(model / layout.forcing)
+    toml_path = model / layout.toml
     toml_path.write_text(
-        'dir_output="run_default"\n[time]\ncalendar="standard"\ntimestepsecs=86400\n'
-        'starttime="2000-01-01"\nendtime="2000-01-03"\n'
+        f'dir_output="{layout.run_dir}"\n[time]\ncalendar="standard"\n'
+        'timestepsecs=86400\nstarttime="2000-01-01"\nendtime="2000-01-03"\n'
         '[model]\ncold_start__flag=true\nriver_routing="kinematic_wave"\n'
-        '[input]\npath_static="staticmaps.nc"\npath_forcing="forcing.nc"\n'
+        f'[input]\npath_static="staticmaps.nc"\npath_forcing="{layout.forcing}"\n'
         '[output.csv]\npath="output.csv"\n[[output.csv.column]]\n'
         'header="Q"\nmap="gauges"\nparameter="river_water__volume_flow_rate"\n',
         encoding="utf-8",
     )
+    native = model / layout.discharge_csv
+    pd.DataFrame(
+        {"Q_1010": [1.25, 2.0], "Q_1020": [3.0, 4.0]},
+        index=pd.date_range("2000-01-02", periods=2),
+    ).to_csv(native, index_label="time")
+    publish_response_tables(
+        NativeRunArtifacts(native, toml_path), model / layout.run_dir
+    )
     registry = tmp_path / "location_registry.csv"
     registry.write_text(
-        "wflow_id,subbasin_id,is_primary,station_name\n1010,101,True,Upstream\n1020,102,True,Outlet\n"
+        "wflow_id,subbasin_id,is_primary,station_name\n"
+        "1010,101,True,Upstream\n1020,102,True,Outlet\n"
     )
-    source = tmp_path / "project.yml"
-    source.write_text("project: fixture\n")
-    config = {"climate": {"selected": "era5"}}
-    forcing_record = model / "forcing.json"
-    write_forcing_record(toml_path, forcing_record, "era5", None)
-    return dict(
-        project_dir=tmp_path / "project",
-        toml_path=toml_path,
-        registry_path=registry,
-        forcing_record_path=forcing_record,
-        config=config,
-        config_path=source,
-        workflow_config_path=None,
-        repo_root=Path(__file__).resolve().parents[1],
+    write_forcing_record(
+        toml_path, model / layout.config_dir / "historical_forcing.json", "era5", None
     )
+    return model, toml_path, registry
 
 
-def write_response(model, value=1.2345678901234567):
-    """Write the configured native CSV shape (mapped header plus integer ID)."""
-    path = model["toml_path"].parent / "run_default/output.csv"
-    pd.DataFrame(
-        {"Q_1010": [value, 2.0], "Q_1020": [3.0, 4.0]},
-        index=pd.date_range("2000-01-02", periods=2),
-    ).to_csv(path, index_label="time", float_format="%.17g")
-
-
-def test_two_runs_preserve_selected_precision_and_read_without_model(historical_model):
-    model = historical_model
-    with retain_historical_run(name="a", **model):
-        write_response(model)
-    root = run_directory(model["project_dir"], "a")
-    before = {
-        str(p.relative_to(root)): file_sha256(p) for p in root.rglob("*") if p.is_file()
-    }
-    with retain_historical_run(name="b", **model):
-        write_response(model, 9.0)
-    model["toml_path"].unlink()
-    record, frame, stations = read_historical_run(model["project_dir"], "a")
-    assert frame.iloc[0, 0] == 1.23457
+def test_a_recipe_run_is_read_in_place(historical_model):
+    model, _, registry = historical_model
+    record, frame, stations, files = read_recipe_run(model, "era5", registry)
     assert record["recipe"]["precip_source"] == "era5"
+    assert record["stations"] == ["1010", "1020"] == sorted(frame.columns)
     assert stations.wflow_id.tolist() == ["1010", "1020"]
-    assert before == {
-        str(p.relative_to(root)): file_sha256(p) for p in root.rglob("*") if p.is_file()
-    }
+    assert record["units"] == "m3 s-1"
+    _check_inputs(files)
 
 
-def test_collision_preserves_publication(historical_model):
-    model = historical_model
-    with retain_historical_run(name="a", **model):
-        write_response(model)
-    with pytest.raises(FileExistsError, match="already exists"):
-        with retain_historical_run(name="a", **model):
-            pytest.fail("collision admitted execution")
-    read_historical_run(model["project_dir"], "a")
+def test_a_run_changed_during_use_is_refused(historical_model):
+    model, _, registry = historical_model
+    *_, files = read_recipe_run(model, "era5", registry)
+    record = model / HistoricalLayout("era5").response_record
+    record.write_text(record.read_text() + " ")
+    with pytest.raises(ValueError, match="changed during"):
+        _check_inputs(files)
 
 
-def test_historical_precision_uses_workflow_setting(historical_model):
-    model = historical_model
-    model["config"]["workflows"] = {
-        "build_model": {"output": {"csv": {"decimal_places": 8}}}
-    }
-    with retain_historical_run(name="precise", **model):
-        write_response(model)
-    record, frame, _ = read_historical_run(model["project_dir"], "precise")
-    assert record["decimal_places"] == 8
-    assert frame.iloc[0, 0] == 1.23456789
-    root = run_directory(model["project_dir"], "precise")
-    assert (root / "output_q.csv").is_file()
-    assert not (root / "output.csv").exists()
-    assert not (root / "discharge.csv").exists()
-
-
-@pytest.mark.parametrize("damage", ["archive", "payload", "receipt", "completion"])
-def test_workflow_completion_validates_retention(historical_model, damage):
-    model = historical_model
-    project = model["project_dir"]
-    assert completion_inputs(project, "a") == []
-    with retain_historical_run(name="a", **model):
-        write_response(model)
-    write_completion(project, "a")
-    assert completion_inputs(project, "a") == []
-    root = run_directory(project, "a")
-    if damage == "archive":
-        root.rename(root.with_name("saved_archive"))
-    elif damage == "payload":
-        (root / "output_q.csv").write_text("damaged")
-    elif damage == "completion":
-        (root / "complete.json").unlink()
-    else:
-        completion_path(project, "a").write_text("{}")
-    with pytest.raises((ValueError, FileNotFoundError)):
-        completion_inputs(project, "a")
-
-
-@pytest.mark.workflow_contract
-def test_wf1_declares_named_completion_without_parse_time_collision(
-    historical_model, tmp_path
-):
-    from blueearth_cst.shared.config_composition import load_composed_config
-    from tests.conftest import parse_workflow, write_config
-
-    model = historical_model
-    with retain_historical_run(name="a", **model):
-        write_response(model)
-    write_completion(model["project_dir"], "a")
-    config = load_composed_config(
-        Path(__file__).with_name("project_config_fixture.yml")
-    )
-    config["project"]["project_dir"] = model["project_dir"].as_posix()
-    config["workflows"]["build_model"]["historical_run"] = {"name": "a"}
-    workflow = parse_workflow("build_model.smk", write_config(tmp_path, config))
-    rule = workflow.get_rule("run_historical_simulation")
-    receipt = completion_path(model["project_dir"], "a")
-    assert receipt in map(Path, rule.output)
-    assert receipt in map(Path, workflow.get_rule("all").input)
-    assert not any(
-        Path(path).is_relative_to(run_directory(model["project_dir"], "a"))
-        for path in rule.output
-    )
-
-
-@pytest.mark.workflow_contract
-def test_named_retention_dag_noop_new_label_collision_and_unrelated_target(
-    historical_model, isolated_snakemake
-):
-    """Exercise actual engine scheduling/cleanup with the native retention context."""
-    import subprocess
-    import sys
-
-    model = historical_model
-    work = isolated_snakemake
-    write_response(model)
-    native = model["toml_path"].parent / "run_default/output.csv"
-    fixture = work / "fixture.json"
-    fixture.write_text(
-        json.dumps(
-            {
-                "arguments": {
-                    key: str(value) if isinstance(value, Path) else value
-                    for key, value in model.items()
-                },
-                "native": native.as_posix(),
-                "response": native.read_text(),
-            }
-        )
-    )
-    snakefile = work / "Snakefile"
-    snakefile.write_text(
-        "import json\nfrom pathlib import Path\n"
-        "from blueearth_cst.model.historical_runs import completion_inputs, completion_path, retain_historical_run, write_completion\n"
-        f"fixture=json.loads(Path({fixture.as_posix()!r}).read_text())\n"
-        'arguments=fixture["arguments"]\n'
-        'for key in ("toml_path", "registry_path", "forcing_record_path", "config_path", "repo_root"):\n'
-        "    arguments[key]=Path(arguments[key])\n"
-        'project=arguments["project_dir"]\nname=config["name"]\n'
-        "rule all:\n    input: str(completion_path(project, name))\n"
-        "rule simulate:\n"
-        "    input: guard=lambda wc: completion_inputs(project, name)\n"
-        '    output: receipt=str(completion_path(project, name)), csv=fixture["native"]\n'
-        "    run:\n"
-        "        with retain_historical_run(name=name, **arguments):\n"
-        '            Path(output.csv).write_text(fixture["response"])\n'
-        "        write_completion(project, name)\n"
-        'rule figure:\n    output: "figure.txt"\n'
-        '    run:\n        Path(output[0]).write_text("unrelated figure")\n'
-    )
-
-    def invoke(name="a", *options):
-        return subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "snakemake",
-                "--snakefile",
-                str(snakefile),
-                "--directory",
-                str(work),
-                "--cores",
-                "1",
-                *options,
-                "--config",
-                f"name={name}",
-            ],
-            capture_output=True,
-            text=True,
-        )
-
-    dry = invoke("a", "--dry-run")
-    assert dry.returncode == 0, dry.stderr
-    assert "simulate" in dry.stdout + dry.stderr
-    first = invoke()
-    assert first.returncode == 0, first.stdout + first.stderr
-    root = run_directory(model["project_dir"], "a")
-    hashes = {
-        str(p.relative_to(root)): file_sha256(p) for p in root.rglob("*") if p.is_file()
-    }
-    for options in (("--dry-run",), ()):
-        repeated = invoke("a", *options)
-        assert repeated.returncode == 0, repeated.stderr
-        assert "Nothing to be done" in repeated.stdout + repeated.stderr
-    fresh = invoke("b", "--dry-run")
-    assert fresh.returncode == 0 and "simulate" in fresh.stdout + fresh.stderr
-    fresh = invoke("b")
-    assert fresh.returncode == 0, fresh.stdout + fresh.stderr
-    assert completion_path(model["project_dir"], "b").is_file()
-    collision = invoke("a", "--forcerun", "simulate")
-    assert collision.returncode != 0
-    assert "already exists" in collision.stdout + collision.stderr
-    assert hashes == {
-        str(p.relative_to(root)): file_sha256(p) for p in root.rglob("*") if p.is_file()
-    }
-    # Engine cleanup may remove its receipt; the archive is never an engine output.
-    missing_receipt = invoke("a")
-    assert missing_receipt.returncode != 0
-    assert "already exists" in missing_receipt.stdout + missing_receipt.stderr
-    unrelated = invoke("a", "figure")
-    assert unrelated.returncode == 0, unrelated.stdout + unrelated.stderr
-    assert hashes == {
-        str(p.relative_to(root)): file_sha256(p) for p in root.rglob("*") if p.is_file()
-    }
-
-
-@pytest.mark.parametrize("failure", ["interruption", "input_drift", "station_mismatch"])
-def test_failed_execution_never_publishes(historical_model, failure):
-    model = historical_model
-    with pytest.raises((ValueError, RuntimeError)):
-        with retain_historical_run(name="a", **model):
-            write_response(model)
-            if failure == "interruption":
-                raise RuntimeError("interrupted engine")
-            if failure == "input_drift":
-                model["toml_path"].write_text("changed")
-            else:
-                output = model["toml_path"].parent / "run_default/output.csv"
-                output.write_text(output.read_text().replace("Q_1010", "Q_9999"))
-    assert not run_directory(model["project_dir"], "a").exists()
-    with pytest.raises(FileNotFoundError):
-        read_historical_run(model["project_dir"], "a")
-
-
-def test_forcing_drift_before_execution_refuses(historical_model):
-    model = historical_model
-    (model["toml_path"].parent / "forcing.nc").write_bytes(b"edited")
-    with pytest.raises(ValueError, match="prepared forcing"):
-        with retain_historical_run(name="a", **model):
-            pytest.fail("wrong forcing admitted")
+def test_forcing_that_differs_from_its_record_is_refused(historical_model):
+    model, _, registry = historical_model
+    (model / HistoricalLayout("era5").forcing).write_bytes(b"other forcing")
+    with pytest.raises(ValueError, match="forcing differs from its record"):
+        read_recipe_run(model, "era5", registry)
 
 
 def test_model_identity_excludes_forcing_but_includes_physics(historical_model):
-    model = historical_model
-    toml = model["toml_path"]
+    model, toml, registry = historical_model
     original = toml.read_text()
-    _, identity = execution_inputs(toml, model["registry_path"])
-    (toml.parent / "forcing.nc").write_bytes(b"different forcing")
-    _, changed = execution_inputs(toml, model["registry_path"])
+    _, identity = execution_inputs(toml, registry)
+    (model / HistoricalLayout("era5").forcing).write_bytes(b"different forcing")
+    _, changed = execution_inputs(toml, registry)
     assert identity["model_sha256"] == changed["model_sha256"]
     assert identity["forcing_sha256"] != changed["forcing_sha256"]
     toml.write_text(
@@ -308,18 +98,8 @@ def test_model_identity_excludes_forcing_but_includes_physics(historical_model):
         )
     )
     assert (
-        execution_inputs(toml, model["registry_path"])[1]["model_sha256"]
-        != identity["model_sha256"]
+        execution_inputs(toml, registry)[1]["model_sha256"] != identity["model_sha256"]
     )
-
-
-def test_damaged_payload_refuses(historical_model):
-    model = historical_model
-    with retain_historical_run(name="a", **model):
-        write_response(model)
-    (run_directory(model["project_dir"], "a") / "output_q.csv").write_text("damaged")
-    with pytest.raises(ValueError, match="checksum|damaged"):
-        read_historical_run(model["project_dir"], "a")
 
 
 @pytest.mark.parametrize(
@@ -333,50 +113,26 @@ def test_damaged_payload_refuses(historical_model):
 def test_forcing_variable_scale_and_offset_affect_model_identity(
     historical_model, binding
 ):
-    model = historical_model
-    toml = model["toml_path"]
+    _, toml, registry = historical_model
     original = toml.read_text()
     section = "\n[input.forcing.atmosphere_water__precipitation_volume_flux]\n"
     toml.write_text(original + section + 'name="precip"\nscale=1.0\noffset=0.0\n')
-    baseline = execution_inputs(toml, model["registry_path"])[1]["model_sha256"]
+    baseline = execution_inputs(toml, registry)[1]["model_sha256"]
     toml.write_text(original + section + binding + "\n")
-    assert execution_inputs(toml, model["registry_path"])[1]["model_sha256"] != baseline
-
-
-def test_retired_historical_format_refuses(historical_model):
-    model = historical_model
-    with retain_historical_run(name="old", **model):
-        write_response(model)
-    root = run_directory(model["project_dir"], "old")
-    marker = root / "complete.json"
-    complete = json.loads(marker.read_text())
-    complete["schema_version"] = "historical-run/1"
-    marker.write_text(json.dumps(complete))
-    with pytest.raises(ValueError, match="Unsupported historical run format"):
-        read_historical_run(model["project_dir"], "old")
+    assert execution_inputs(toml, registry)[1]["model_sha256"] != baseline
 
 
 def test_cold_state_pointer_is_unused_but_warm_state_is_required(historical_model):
-    model = historical_model
-    path = model["toml_path"]
+    _, path, registry = historical_model
     original = path.read_text() + '\n[state]\npath_input="missing.nc"\n'
     path.write_text(original)
-    execution_inputs(path, model["registry_path"])
+    execution_inputs(path, registry)
     path.write_text(original.replace("cold_start__flag=true", "cold_start__flag=false"))
     with pytest.raises(FileNotFoundError, match="missing executed input"):
-        execution_inputs(path, model["registry_path"])
+        execution_inputs(path, registry)
 
 
-@pytest.mark.parametrize(
-    "settings",
-    [
-        {},
-        {"name": "../x"},
-        {"name": "con"},
-        {"name": "A"},
-        {"name": "a", "extra": True},
-    ],
-)
-def test_invalid_names(settings):
-    with pytest.raises(ValueError):
-        historical_run_name(settings)
+def test_the_retired_historical_run_setting_only_warns():
+    warn_retired_historical_run(None)
+    with pytest.warns(FutureWarning, match="no longer used"):
+        warn_retired_historical_run({"name": "era5_reference"})

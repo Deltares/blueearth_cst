@@ -1100,15 +1100,11 @@ def compose_config(
     bodies = {probe.name: probe.body for probe in probes if probe.status == "ok"}
     for owner, body in bodies.items():
         if owner == "build_model":
-            from blueearth_cst.model.historical_runs import historical_run_name
-            from blueearth_cst.shared.named_forcing_producers import (
-                retained_run_names,
+            from blueearth_cst.model.historical_runs import (
+                warn_retired_historical_run,
             )
 
-            retained_run_names(
-                historical_run_name(body.get("historical_run")),
-                historical_forcing_ids(t1.get("climate") or {}, body),
-            )
+            warn_retired_historical_run(body.get("historical_run"))
         if owner in {"build_model", "simulate_system"}:
             from blueearth_cst.shared.grid_output import normalize_grid_output
 

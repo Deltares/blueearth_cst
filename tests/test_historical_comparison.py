@@ -196,41 +196,37 @@ def write_tables(root: Path, metadata: dict, tables: dict) -> None:
     (root / "comparison.json").write_text(json.dumps(metadata))
 
 
-def test_public_comparison_expands_year_window_without_trimming(tmp_path, monkeypatch):
-    import yaml
-
+def test_recipe_comparison_expands_year_window_without_trimming(tmp_path, monkeypatch):
     from blueearth_cst.model import historical_comparison as comparison
+    from blueearth_cst.model import historical_runs
 
     runs = runs_for(pd.date_range("1999-01-01", "2002-12-31"))
-    for name in runs:
-        directory = tmp_path / name
-        directory.mkdir()
-        (directory / "complete.json").write_text("retained fixture")
     monkeypatch.setattr(
-        comparison, "run_directory", lambda project, name: project / name
+        historical_runs,
+        "read_recipe_run",
+        lambda root, recipe, registry: (*runs[recipe], {}),
     )
-    monkeypatch.setattr(
-        comparison, "read_historical_run", lambda project, name: runs[name]
-    )
-    config = tmp_path / "comparison.yml"
     settings = {
-        "project_dir": ".",
-        "runs": ["a", "b"],
-        "output_dir": "result",
+        "model_root": str(tmp_path),
+        "registry_path": str(tmp_path / "registry.csv"),
+        "recipes": ["a", "b"],
+        "output_dir": str(tmp_path / "result"),
         "evaluation_window": {"start": 2000, "end": 2001},
         "water_year_start": "Oct",
     }
-    config.write_text(yaml.safe_dump(settings))
-    metadata, tables = read_comparison(comparison.compare(config))
+    root = comparison.compare(settings)
+    # Layout 4: JSON in _engine/, the support check under tables/supporting/.
+    assert (root / "_engine/comparison.json").is_file()
+    assert (root / "tables/supporting/support.csv").is_file()
+    metadata, tables = read_comparison(root)
     assert metadata["requested_start"] == "2000-10-01"
     assert metadata["requested_end"] == "2002-09-30"
     assert metadata["warmup_exclusive_end"] == "2000-01-01"
     assert len(tables["support"]) == 730 * 2
-    settings["output_dir"] = "unavailable"
+    settings["output_dir"] = str(tmp_path / "unavailable")
     settings["evaluation_window"]["end"] = 2002
-    config.write_text(yaml.safe_dump(settings))
     with pytest.raises(ValueError, match="unavailable"):
-        comparison.compare(config)
+        comparison.compare(settings)
     assert not (tmp_path / "unavailable").exists()
 
 

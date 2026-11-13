@@ -374,6 +374,14 @@ def build_project_tree_rules(
     rules.append((re.compile(r"benchmarks/wf[012]_benchmarks\.md"), r"\g<0>"))
     # Layout 2 homes of the spatial unit's machine files (moved in layout 3, R10).
     rules.append((re.compile(r"data/spatial/spatial_(catalog|report)\.yml"), r"\g<0>"))
+    # Retained historical runs and their comparison (removed in layout 4, D18).
+    for pattern in (
+        r"simulations/historical/_engine/[a-z][a-z0-9_]{0,63}\.json",
+        r"simulations/historical/[a-z][a-z0-9_]{0,63}/(_engine/)?[^/]+",
+        r"comparisons/historical/_engine/[a-z][a-z0-9_]{0,63}\.yml",
+        r"comparisons/historical/[a-z][a-z0-9_]{0,63}/.+",
+    ):
+        rules.append((re.compile(pattern), r"\g<0>"))
     # Layout 3 recipe shapes and toolbox files in staticgeoms/ (layout 4, R16).
     old = re.escape(f"models/hydrology/{model_name}")
     recipe = "[a-z][a-z0-9_]{0,31}"

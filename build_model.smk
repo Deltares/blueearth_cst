@@ -97,8 +97,8 @@ climate_cfg = config.get("climate") or {}
 # number -- but a figure labelled 'annual' should mean the basin's year.
 WATER_YEAR_START = resolve_water_year_start(get_config(climate_cfg, "water_year_start"))
 my_cfg = config["workflows"]["build_model"]
-from blueearth_cst.model.historical_runs import historical_run_name, completion_path, completion_inputs
-historical_name = historical_run_name(my_cfg.get("historical_run"))
+from blueearth_cst.model.historical_runs import warn_retired_historical_run
+warn_retired_historical_run(my_cfg.get("historical_run"))
 
 # Project — paths and external resources
 project_dir = get_config(project_cfg, "project_dir", optional=False)
@@ -332,11 +332,10 @@ spatial_dir = f"{project_dir}/data/spatial"
 # Rule 1.12 draws the model forcing; source diagnostics belong to WF0.
 # Variable x kind is a fixed cross-product, fully knowable at parse time.
 # One key per executed recipe: `None` is the single-recipe layout (t014).
-from blueearth_cst.shared.named_forcing_producers import forcing_store_sources, retained_run_names
+from blueearth_cst.shared.named_forcing_producers import forcing_store_sources
 from blueearth_cst.shared.named_forcings import HistoricalLayout, composed_forcing_ids
 FORCING_IDS = composed_forcing_ids(climate_cfg, my_cfg)
 FORCING_KEYS = (None,) if FORCING_IDS is None else FORCING_IDS
-RETAINED = retained_run_names(historical_name, FORCING_IDS)
 RECIPES = (
     {None: {"selected": clim_source, "forcing": climate_cfg.get("forcing")}}
     if FORCING_IDS is None
@@ -352,21 +351,6 @@ def _hp(key, attr):
 
 def _rule_name(base, key):
     return base if key is None else f"{base}_{key}"
-
-
-def _recipe_config(key):
-    """The composed config as this recipe executed it, for retained provenance.
-
-    Composition resolves the default recipe into `climate.selected`/`forcing`;
-    a non-default recipe's retained run must record its own.
-    """
-    if key is None:
-        return config
-    climate = {k: v for k, v in config["climate"].items() if k != "forcing"}
-    climate.update(selected=RECIPES[key]["selected"], forcing_id=key)
-    if RECIPES[key]["forcing"] is not None:
-        climate["forcing"] = RECIPES[key]["forcing"]
-    return {**config, "climate": climate}
 
 
 def _forcing_pngs(key):
@@ -611,10 +595,10 @@ PLOT_MODEL_FORCING = RULES.logged("1.12", "plot_model_forcing", summary="render 
 if _budyko_settings is not None:
     EVALUATE_BUDYKO = RULES.logged("1.12b", "evaluate_budyko", summary="screen observed catchment water balance")
 RUN_HISTORICAL_SIMULATION = RULES.logged("1.13", "run_historical_simulation", summary="run Wflow-SBM with historical forcing")
-# Two or more named recipes always carry retained names (named_forcings).
+# Two or more named recipes are compared within the model (R16, D18).
 COMPARE_FORCINGS = FORCING_IDS is not None and len(FORCING_IDS) > 1
 if COMPARE_FORCINGS:
-    COMPARE_HISTORICAL_FORCINGS = RULES.logged("1.13b", "compare_historical_forcings", summary="compare the retained runs of every forcing recipe")
+    COMPARE_HISTORICAL_FORCINGS = RULES.logged("1.13b", "compare_historical_forcings", summary="compare the runs of every forcing recipe")
 EXPORT_SIMULATION_TABLES = RULES.logged("1.14", "export_simulation_tables", summary="export simulation time-series tables")
 PLOT_MODEL_EVALUATION = RULES.logged("1.15", "plot_model_evaluation", summary="compare simulation outputs with available discharge observations")
 WRITE_RUN_METADATA = RULES.banner_only("1.16", "write_run_metadata", summary="record configuration and input digests for these outputs")
@@ -628,8 +612,7 @@ WRITE_RUN_METADATA = RULES.banner_only("1.16", "write_run_metadata", summary="re
 # independently of the build and needs no gather waiting on it) and the two
 # gather outputs themselves.
 WF1_TERMINALS = [
-    *[str(completion_path(project_dir, RETAINED[key])) for key in FORCING_KEYS if RETAINED[key]],
-    *([f"{project_dir}/comparisons/historical/{historical_name}"] if COMPARE_FORCINGS else []),
+    *([f"{basin_dir}/historical_comparison"] if COMPARE_FORCINGS else []),
     *([f"{_hp(key, 'evaluation_dir')}/budyko/tables/summary.csv" for key in FORCING_KEYS] if _budyko_settings is not None else []),
     # The evaluation rule's terminal is its INDICATORS TABLE, not one of its
     # figures: since 2026-08-10 the figures are keyed by wflow_id and none of
@@ -942,7 +925,9 @@ for _k in FORCING_KEYS:
             # incidental: the script writes it, so an undeclared file here would be
             # invisible to Snakemake exactly as `output_gwr.csv` was.
             store_catalog = f"{_hp(_k, 'config_dir')}/climate_store_catalog.yml",
-            forcing_record = [f"{_hp(_k, 'config_dir')}/historical_forcing.json"] if RETAINED[_k] else [],
+            # Binds the prepared forcing bytes to the recipe; the recipe comparison
+            # checks it against the run it reads.
+            forcing_record = [f"{_hp(_k, 'config_dir')}/historical_forcing.json"] if _k is not None else [],
             forcing_path = _hp(_k, "forcing"),
             # A named recipe's own run configuration beside the shared model.
             wflow_toml = [] if _k is None else [_hp(_k, "toml")],
@@ -1004,11 +989,8 @@ for _k in FORCING_KEYS:
         name: _rule_name("run_historical_simulation", _k)
         message: RUN_HISTORICAL_SIMULATION.banner(part=_k)
         input:
-            retained_validation = lambda wildcards, _name=RETAINED[_k]: completion_inputs(project_dir, _name),
             forcing_path = _hp(_k, "forcing"),
             wflow_toml = [] if _k is None else [_hp(_k, "toml")],
-            forcing_record = [f"{_hp(_k, 'config_dir')}/historical_forcing.json"] if RETAINED[_k] else [],
-            registry_path = [f"{spatial_dir}/location_registry.csv"] if RETAINED[_k] else [],
             # the model-root ordering contract. Already ordered after 1.09 through forcing_path; declared
             # anyway so the invariant is LOCAL rather than transitive -- a reader is
             # correct because of what it declares, not because of a chain someone
@@ -1019,9 +1001,8 @@ for _k in FORCING_KEYS:
                 "blueearth_cst/shared/wflow_grid.jl",
                 # This helper constructs Wflow.Config and invokes Wflow.run.
                 "blueearth_cst/shared/wflow_progress.jl",
-            ] + (["blueearth_cst/model/historical_runs.py"] if RETAINED[_k] else []),
+            ],
         output:
-            retained_completion = [str(completion_path(project_dir, RETAINED[_k]))] if RETAINED[_k] else [],
             # Wflow's native CSV is a temporary conversion input, never a retained response.
             csv_path = temp(_hp(_k, "discharge_csv")),
             grid_path = [f"{_hp(_k, 'run_dir')}/output_grid.nc"] if grid_output else [],
@@ -1060,11 +1041,6 @@ for _k in FORCING_KEYS:
             wflow_log = f"{_hp(_k, 'run_dir')}/log.txt",
         params:
             toml_path = _hp(_k, "toml"),
-            historical_name = RETAINED[_k],
-            # The archived composed config is read at execution, not a param: a
-            # param would make every unrelated config edit (another recipe,
-            # enabling WF3/WF4) reschedule this immutable run, which the
-            # collision guard then refuses. Scientific settings arrive as inputs.
             driver = str(Path(workflow.basedir) / "blueearth_cst" / "model" / "run_wflow.jl"),
             netcdf_grid = grid_output,
         log:
@@ -1079,30 +1055,15 @@ for _k in FORCING_KEYS:
             # toolbox animates. It is also the shape rule 3.15 already has.
             import shlex
             import subprocess
-            from contextlib import nullcontext
-            from blueearth_cst.model.historical_runs import retain_historical_run, write_completion
-            retention = retain_historical_run(
-                project_dir=project_dir, name=params.historical_name,
-                toml_path=Path(params.toml_path), registry_path=Path(input.registry_path[0]),
-                forcing_record_path=Path(input.forcing_record[0]),
-                # From the executed TOML, never the loop variable (late binding).
-                config=_recipe_config(HistoricalLayout.from_toml(Path(params.toml_path).name).forcing_id),
-                config_path=Path(config_path),
-                workflow_config_path=WORKFLOW_CONFIG_PATHS.get("build_model"),
-                repo_root=Path(workflow.basedir),
-            ) if params.historical_name else nullcontext()
-            with retention:
-                subprocess.run([sys.executable, "-u", run_logged, str(log[0]), "--",
-                    *shlex.split(wflow_julia), params.driver, params.toml_path], check=True)
-                if params.netcdf_grid:
-                    from blueearth_cst.shared.grid_output import validate_grid
-                    validate_grid(output.grid_path[0], params.toml_path)
-            if params.historical_name:
-                write_completion(project_dir, params.historical_name)
+            subprocess.run([sys.executable, "-u", run_logged, str(log[0]), "--",
+                *shlex.split(wflow_julia), params.driver, params.toml_path], check=True)
+            if params.netcdf_grid:
+                from blueearth_cst.shared.grid_output import validate_grid
+                validate_grid(output.grid_path[0], params.toml_path)
 
-# 1.13b  compare_historical_forcings — one comparison of every recipe's retained
-# run, through the same engine as scripts/compare_historical.py. It reads the
-# immutable retained responses only, never the mutable run_<id>/ folders. The
+# 1.13b  compare_historical_forcings — one comparison of every recipe's current
+# run within this model (R16, D18). Each run is hashed before and after; a
+# changed model setting goes to a new model folder, never into these runs. The
 # window is every complete reporting year the runs share: Wflow labels output
 # at interval end, so the first simulated year is always incomplete.
 if COMPARE_FORCINGS:
@@ -1112,20 +1073,24 @@ if COMPARE_FORCINGS:
     rule compare_historical_forcings:
         message: COMPARE_HISTORICAL_FORCINGS.banner()
         input:
-            completions = [str(completion_path(project_dir, RETAINED[key])) for key in FORCING_IDS],
+            responses = [f"{_hp(key, 'run_dir')}/_engine/response_tables.json" for key in FORCING_IDS],
+            forcing_records = [f"{_hp(key, 'config_dir')}/historical_forcing.json" for key in FORCING_IDS],
+            registry = f"{spatial_dir}/location_registry.csv",
+            # Reads the recipe TOMLs at the model root (ordering contract).
+            model_final = ancient(f"{basin_dir}/_engine/markers/.model_final"),
             observations = [observations_timeseries] if observations_timeseries else [],
             scientific_code = [
                 "blueearth_cst/model/historical_comparison.py",
+                "blueearth_cst/model/historical_runs.py",
                 "blueearth_cst/model/plot_historical_comparison.py",
             ],
         output:
-            # The standalone script's input, kept beside the comparisons.
-            settings = f"{project_dir}/comparisons/historical/_engine/{historical_name}.yml",
-            comparison = directory(f"{project_dir}/comparisons/historical/{historical_name}"),
+            comparison = directory(f"{basin_dir}/historical_comparison"),
         params:
             settings = {
-                "project_dir": str(Path(project_dir).resolve()),
-                "runs": [RETAINED[key] for key in FORCING_IDS],
+                "model_root": str(Path(basin_dir).resolve()),
+                "registry_path": str(Path(f"{spatial_dir}/location_registry.csv").resolve()),
+                "recipes": list(FORCING_IDS),
                 "evaluation_window": complete_reporting_years(
                     SIMULATION_BOUNDS[0] + timedelta(days=1),
                     SIMULATION_BOUNDS[1],
@@ -1134,7 +1099,7 @@ if COMPARE_FORCINGS:
                 "water_year_start": WATER_YEAR_START,
                 **({"observations_path": str(Path(observations_timeseries).resolve())}
                    if observations_timeseries else {}),
-                "output_dir": str(Path(f"{project_dir}/comparisons/historical/{historical_name}").resolve()),
+                "output_dir": str(Path(f"{basin_dir}/historical_comparison").resolve()),
             },
             annotation = plot_annotation,
         log:

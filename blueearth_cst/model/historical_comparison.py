@@ -9,10 +9,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import xarray as xr
-import yaml
 
 from blueearth_cst.indicators.climate.periods import annual_periods
-from blueearth_cst.model.historical_runs import read_historical_run, run_directory
 from blueearth_cst.shared.func_plot_signature import compute_indicators
 from blueearth_cst.shared.provenance import (
     environment_file_hashes,
@@ -353,52 +351,60 @@ def prepare_comparison(
     return metadata, tables
 
 
-def compare(config_path: Path) -> Path:
-    """Read an explicit selection and publish self-contained numerical tables."""
-    config_path = config_path.resolve()
-    settings = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    required = {"project_dir", "runs", "evaluation_window", "output_dir"}
+#: Tables that check the comparison's support rather than report results (R15).
+SUPPORTING = {"support"}
+
+
+def _table_path(key: str) -> str:
+    return f"supporting/{key}.csv" if key in SUPPORTING else f"{key}.csv"
+
+
+def compare(settings: dict) -> Path:
+    """Compare the current runs of a model's forcing recipes (R16, D18).
+
+    ``settings``: ``model_root``, ``registry_path``, ``recipes`` (two or more
+    forcing IDs), ``evaluation_window``, ``output_dir`` and optional
+    ``water_year_start`` and ``observations_path``. Every input is hashed before
+    and after the comparison, so a run that changes meanwhile is refused.
+    """
+    from blueearth_cst.model.historical_runs import _check_inputs, read_recipe_run
+
+    required = {
+        "model_root",
+        "registry_path",
+        "recipes",
+        "evaluation_window",
+        "output_dir",
+    }
     allowed = required | {"water_year_start", "observations_path"}
-    if (
-        not isinstance(settings, dict)
-        or not required <= settings.keys()
-        or settings.keys() - allowed
-    ):
+    if not required <= settings.keys() or settings.keys() - allowed:
         raise ValueError(
             f"comparison requires {sorted(required)}; optional water_year_start, observations_path"
         )
-    names = settings["runs"]
+    recipes = settings["recipes"]
     if (
-        not isinstance(names, list)
-        or not all(isinstance(name, str) for name in names)
-        or len(names) < 2
-        or len(set(names)) != len(names)
+        not isinstance(recipes, list)
+        or not all(isinstance(name, str) for name in recipes)
+        or len(recipes) < 2
+        or len(set(recipes)) != len(recipes)
     ):
-        raise ValueError("runs must contain at least two distinct retained names")
-    for key in ("project_dir", "output_dir", "observations_path"):
-        value = settings.get(key)
-        if key == "observations_path" and value is None:
-            continue
-        if not isinstance(value, str) or not value.strip():
-            raise ValueError(f"{key} must be a nonempty path string")
-    project = (config_path.parent / settings["project_dir"]).resolve()
-    output = (config_path.parent / settings["output_dir"]).resolve()
-    if output.exists():
-        raise FileExistsError(
-            f"comparison output already exists: {output}; choose a new output_dir"
+        raise ValueError("recipes must list at least two distinct forcing IDs")
+    output = Path(settings["output_dir"]).resolve()
+    if output.exists() and any(output.iterdir()):
+        raise FileExistsError(f"comparison output already exists: {output}")
+    runs, inputs = {}, {}
+    for recipe in recipes:
+        record, frame, stations, files = read_recipe_run(
+            Path(settings["model_root"]), recipe, Path(settings["registry_path"])
         )
-    retained_hashes = {
-        name: file_sha256(run_directory(project, name) / "complete.json")
-        for name in names
-    }
-    runs = {name: read_historical_run(project, name) for name in names}
+        runs[recipe] = (record, frame, stations)
+        inputs.update(files)
     observation_path = settings.get("observations_path")
     observations = None
-    observation_hash = None
     if observation_path is not None:
-        observation_path = (config_path.parent / observation_path).resolve()
-        observation_hash = file_sha256(observation_path)
-        ids = set(next(iter(runs.values()))[1].columns) if runs else set()
+        observation_path = Path(observation_path).resolve()
+        inputs[str(observation_path)] = file_sha256(observation_path)
+        ids = set(next(iter(runs.values()))[1].columns)
         observations = read_observations(observation_path, ids)
     metadata, tables = prepare_comparison(
         runs,
@@ -410,37 +416,40 @@ def compare(config_path: Path) -> Path:
     )
     repo = Path(__file__).resolve().parents[2]
     metadata.update(
-        config=settings,
+        config={
+            key: str(value) if isinstance(value, Path) else value
+            for key, value in settings.items()
+        },
         toolbox=toolbox_identity(repo),
         environment=environment_file_hashes(repo),
-        retained_runs=retained_hashes,
-        observations_sha256=observation_hash,
+        inputs=inputs,
     )
-    if observation_path and file_sha256(observation_path) != observation_hash:
-        raise ValueError("observations changed while preparing comparison")
-    for name, digest in retained_hashes.items():
-        if file_sha256(run_directory(project, name) / "complete.json") != digest:
-            raise ValueError(f"retained run changed while preparing comparison: {name}")
-    output.mkdir(parents=True)
-    (output / "tables").mkdir()
+    _check_inputs(inputs)
+    (output / "tables/supporting").mkdir(parents=True, exist_ok=True)
     for key, table in tables.items():
         table.to_csv(
-            output / "tables" / f"{key}.csv", index=False, float_format="%.17g"
+            output / "tables" / _table_path(key), index=False, float_format="%.17g"
         )
     metadata["table_hashes"] = {
-        path.name: file_sha256(path) for path in sorted((output / "tables").iterdir())
+        _table_path(key): file_sha256(output / "tables" / _table_path(key))
+        for key in sorted(tables)
     }
-    (output / "comparison.json").write_text(
+    (output / "_engine").mkdir(exist_ok=True)
+    (output / "_engine/comparison.json").write_text(
         json.dumps(metadata, indent=2, allow_nan=False) + "\n", encoding="utf-8"
     )
     return output
 
 
 def read_comparison(root: Path) -> tuple[dict, dict[str, pd.DataFrame]]:
-    """Verify retained numerical products; never access model or observation inputs."""
-    metadata = json.loads((root / "comparison.json").read_text(encoding="utf-8"))
+    """Verify the numerical products; never access model or observation inputs."""
+    record = root / "_engine/comparison.json"
+    if not record.is_file():
+        record = root / "comparison.json"  # before layout 4
+    metadata = json.loads(record.read_text(encoding="utf-8"))
+    supporting = "supporting/" if record.parent.name == "_engine" else ""
     expected = {
-        f"{name}.csv"
+        f"{supporting}{name}.csv" if name in SUPPORTING else f"{name}.csv"
         for name in (
             "coverage",
             "performance",
@@ -463,7 +472,7 @@ def read_comparison(root: Path) -> tuple[dict, dict[str, pd.DataFrame]]:
         path = root / "tables" / name
         if path.is_symlink() or file_sha256(path) != digest:
             raise ValueError(f"damaged comparison table: {name}")
-        tables[path.stem] = pd.read_csv(
+        tables[Path(name).stem] = pd.read_csv(
             path, dtype={"wflow_id": str}, float_precision="round_trip"
         )
     return metadata, tables
@@ -475,11 +484,4 @@ if __name__ == "__main__":
     from blueearth_cst.shared.snake_utils import tee_to_log
 
     with tee_to_log(sm.log[0]):
-        # The settings file is the standalone script's input, so the same
-        # comparison can be reproduced or varied with scripts/compare_historical.py.
-        settings_path = Path(sm.output.settings)
-        settings_path.parent.mkdir(parents=True, exist_ok=True)
-        settings_path.write_text(
-            yaml.safe_dump(dict(sm.params.settings), sort_keys=False), encoding="utf-8"
-        )
-        render(compare(settings_path), annotation=sm.params.annotation)
+        render(compare(dict(sm.params.settings)), annotation=sm.params.annotation)

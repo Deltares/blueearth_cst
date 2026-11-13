@@ -66,18 +66,19 @@ DECLARED_PLOT_OUTPUTS = (
     # No per-station FIGURE is declared: they are keyed by wflow_id, which is
     # a product of the model build and so unknowable at parse time. The
     # indicators table is rule 1.15's config-invariant artifact.
-    "models/hydrology/wflow/evaluation/tables/performance_indicators.csv",
+    "models/hydrology/wflow/historical/default/evaluation/tables/performance_indicators.csv",
     # Rule 1.12's basin map. PNG only since 2026-08-10; the vector deliverable
     # was dropped because nothing read it.
     "data/spatial/plots/elevation_basin.png",
     "data/spatial/plots/figure_titles.md",
     "data/spatial/_engine/plots/figure_titles.json",
-    "models/hydrology/wflow/forcing/plots/figure_titles.md",
-    "models/hydrology/wflow/forcing/_engine/plots/figure_titles.json",
-    "models/hydrology/wflow/forcing/plots/figure_captions.md",
-    "models/hydrology/wflow/forcing/_engine/plots/figure_captions.json",
+    "models/hydrology/wflow/historical/default/forcing/plots/figure_titles.md",
+    "models/hydrology/wflow/historical/default/forcing/_engine/plots/figure_titles.json",
+    "models/hydrology/wflow/historical/default/forcing/plots/figure_captions.md",
+    "models/hydrology/wflow/historical/default/forcing/_engine/plots/figure_captions.json",
 ) + tuple(
-    f"models/hydrology/wflow/forcing/plots/{name}" for name in _figure_names("forcing")
+    f"models/hydrology/wflow/historical/default/forcing/plots/{name}"
+    for name in _figure_names("forcing")
 )
 
 
@@ -105,7 +106,7 @@ def fabricated_project(tmp_path):
     # that --delete-all-output now reaches it.
     expected.append(
         project_dir
-        / "models/hydrology/wflow/evaluation/plots/stations/hydrograph_1010.png"
+        / "models/hydrology/wflow/historical/default/evaluation/plots/stations/hydrograph_1010.png"
     )
     # Knowingly UNDECLARED (config-dependent): it must survive, which is what
     # makes the assertion below a discriminating check rather than a tautology
@@ -115,7 +116,8 @@ def fabricated_project(tmp_path):
     # It used to be `signatures_wflow_1.png`, which the stations/ bin now
     # covers; leaving it there would have made the control a tautology.
     undeclared = (
-        project_dir / "models/hydrology/wflow/evaluation/plots/legacy_leftover.png"
+        project_dir
+        / "models/hydrology/wflow/historical/default/evaluation/plots/legacy_leftover.png"
     )
     for path in [*expected, undeclared]:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -164,10 +166,10 @@ def test_delete_all_output_removes_the_declared_plot_outputs(fabricated_project)
 
 #: The standard annual and seasonal basin products declared by rule 1.15.
 _BASAVG_RELS = (
-    "models/hydrology/wflow/evaluation/plots/wflow_aet_annual_ts_basin_avg.png",
-    "models/hydrology/wflow/evaluation/plots/wflow_aet_monthly_clim_band_basin_avg.png",
-    "models/hydrology/wflow/evaluation/plots/wflow_temp_annual_ts_basin_avg.png",
-    "models/hydrology/wflow/evaluation/plots/wflow_temp_monthly_clim_band_basin_avg.png",
+    "models/hydrology/wflow/historical/default/evaluation/plots/wflow_aet_annual_ts_basin_avg.png",
+    "models/hydrology/wflow/historical/default/evaluation/plots/wflow_aet_monthly_clim_band_basin_avg.png",
+    "models/hydrology/wflow/historical/default/evaluation/plots/wflow_temp_annual_ts_basin_avg.png",
+    "models/hydrology/wflow/historical/default/evaluation/plots/wflow_temp_monthly_clim_band_basin_avg.png",
 )
 
 
@@ -218,7 +220,8 @@ def project_with_basavg_outvar(tmp_path, request):
     # It used to be `signatures_wflow_1.png`, which the stations/ bin now
     # covers; leaving it there would have made the control a tautology.
     undeclared = (
-        project_dir / "models/hydrology/wflow/evaluation/plots/legacy_leftover.png"
+        project_dir
+        / "models/hydrology/wflow/historical/default/evaluation/plots/legacy_leftover.png"
     )
     undeclared.write_bytes(b"placeholder")
     return cfg_path, basin_figures, captions, undeclared

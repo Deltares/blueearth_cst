@@ -24,12 +24,11 @@ project file. For the external case example, this is `C:/cst-cases/runs/my-basin
 │           └── <ensemble>/              projection products
 ├── models/
 │   └── hydrology/
-│       └── wflow/                       model, forcing, current historical run and evaluation
-├── simulations/
-│   └── historical/<name>/               retained historical runs (optional `historical_run`)
-├── comparisons/
-│   └── historical/<name>/               comparison of retained runs for named forcings
-├── scenarios/                           exported climate series and lookup tables
+│       └── wflow/                       one model: static maps, TOMLs, _engine/
+│           ├── historical/<recipe>/     forcing, run and evaluation per forcing recipe
+│           └── historical_comparison/   comparison of two or more recipes
+├── scenarios/
+│   └── <name>/                          one scenario set: series, lookups, settings
 ├── experiments/
 │   └── <name>/
 │       ├── hydrology/
@@ -43,10 +42,12 @@ project file. For the external case example, this is `C:/cst-cases/runs/my-basin
 └── config/                              copies of settings used for each attempt
 ```
 
-Historical simulations appear in three places. `models/hydrology/wflow/historical/default/run/` holds the current
-run and is replaced when the model workflow reruns. `simulations/historical/<name>/` holds named runs kept
-unchanged for later comparison, and `comparisons/historical/` compares them. Stress-test simulations
-belong to their experiment. See [retained historical simulations](../technical-manual/workflow-build-model.md#retain-historical-simulations).
+Historical simulations live with their model. Each forcing recipe has
+`models/hydrology/wflow/historical/<recipe>/` (`default` for a single recipe) with its forcing, run and
+evaluation; with two or more recipes, `historical_comparison/` beside them compares the runs. A model's runs
+change only when it is rerun with the same model settings: different settings belong in a new model folder.
+Stress-test simulations belong to their experiment. See
+[one model per folder](../technical-manual/workflow-build-model.md#model-versions).
 
 A new output directory records the layout it was written with in `config/_engine/layout.json`; a
 directory without it uses layout 1. The runners refuse a directory written with a different layout:

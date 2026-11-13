@@ -162,57 +162,22 @@ storage changes, regulation, transfers, basin area and forcing/observation error
 The residual `1-Q/P` is not measured ET. Unusual points remain visible; no automatic pass/fail or source
 ranking is supplied. Tables retain counts, actual years and exclusion reasons for inspection.
 
-## Retain historical simulations
+## One model per folder {#model-versions}
 
-By default, historical simulation writes the current `run_default` results. To keep a named response
-for later forcing comparisons, add this optional setting to the model workflow configuration:
+Each folder under `models/hydrology/` is one self-contained model: its static maps, TOMLs, every forcing
+recipe's run and their comparison. A model's runs change only when it is rerun with the same model
+settings. To try different model settings (another soil dataset, a calibration), build them into a new
+model folder; until model folders can be named (task t2609281102), use a new `project_dir`. WF1 refuses to
+rebuild an existing model whose model-building settings changed and names the setting that differs.
 
-```yaml
-# project_config_build_model.yml
-historical_run:
-  # Unique lowercase label; changing the forcing does not change this label automatically.
-  name: era5_reference
-```
+The former `historical_run` setting, which published named copies under `simulations/historical/`, is no
+longer used. It is accepted with a deprecation warning and ignored; remove it from the configuration.
 
-Run the model workflow through the usual runner. Retention requires a fresh historical simulation;
-it does not attach today's configuration to an older `output.csv`. Choose a new name for each run.
-Names use lowercase letters, digits and underscores, start with a letter, and contain at most 64 characters.
-An unchanged completed run permits normal up-to-date workflow requests. A scheduled execution under an
-existing name is refused before Wflow runs; changed inputs require a new name. Inputs are the model, TOML,
-forcing file and record, station registry and simulation code. Other configuration edits, such as adding a
-recipe or enabling later workflows, do not reschedule a retained run; its archive keeps the configuration
-it executed with. Unrelated figure targets
-remain usable. When the simulation enters the DAG, retained payloads and its completion receipt are validated.
-Omitting `historical_run` or setting it to null preserves the existing behavior.
-
-Completed runs live under `simulations/historical/<name>/` in the project. Each contains rounded
-per-variable `output_<code>.csv` and `_engine/response_tables.json`, the executed TOML,
-station registry and crosswalk, effective forcing recipe, composed configuration, input fingerprints,
-and completion evidence. Publication is atomic; incomplete staging directories are not readable runs.
-Source changes during execution prevent publication. Retained readers verify every payload hash.
-The declared workflow output `simulations/historical/_engine/<name>.json` binds the archive completion hash.
-Every new label therefore schedules retention even when `run_default` already exists. Receipts live outside
-immutable archives so workflow cleanup cannot delete archival evidence. Missing/damaged archives or receipts
-are not accepted as completed workflow state. Only `historical-run/2` archives with the new table format
-are accepted. Create a new historical run rather than rewriting an older archive.
-Use the normal workflow or target the completion receipt for an up-to-date check. Explicitly targeting
-`run_historical_simulation` also requests fresh invocation logs/benchmarks and can schedule execution;
-the existing-name collision guard still applies.
-Failed stages remain as hidden `.partial` directories for inspection. A killed process can also leave
-a hidden `.lock` reservation; inspect it and confirm no writer is active before removing that reservation.
-Choose a new run name when uncertain. Readers never treat either location as a completed run.
-
-The fixed-model identity covers scientific TOML settings and referenced static, cyclic, waterbody and
-initial-state inputs, including forcing variable bindings, scales and offsets. It excludes the forcing file
-contents and pointer, simulation dates, output configuration and logging paths; those have separate provenance
-and compatibility checks. Older retained identities recover forcing mappings from their verified TOML snapshot
-in memory, preserving archived bytes. NetCDF inputs use content
-hashes independent of compression and container timestamps. Station identities are checked separately.
-
-Retention supports comparison after the current model or `run_default` changes. It is **not a complete
-model archive for re-execution**: the fingerprints identify model and forcing inputs but do not copy them.
-Keep those inputs and the recorded software environment separately if model re-execution is required.
-
+The model identity recorded with each comparison covers scientific TOML settings and referenced static,
+cyclic, waterbody and initial-state inputs, including forcing variable bindings, scales and offsets. It
+excludes the forcing file contents and pointer, simulation dates, output configuration and logging paths,
+which have separate provenance and compatibility checks. NetCDF inputs use content hashes independent of
+compression and container timestamps.
 ## Named historical recipes {#named-recipes}
 
 With [named recipes](configuration.md#named-historical-forcing-recipes), WF1 builds the model once and simulates
@@ -222,46 +187,23 @@ YAML, store catalog and forcing record), plus its TOML `wflow_sbm_<id>.toml` at 
 recipe uses `historical/default/` and the model's own `wflow_sbm.toml`. TOMLs stay at the model root
 because HydroMT-Wflow resolves model inputs from there. The shared `wflow_sbm.toml`, `staticmaps.nc` and
 geometries are never rewritten per recipe, and rerunning one recipe leaves the others' files untouched. Two
-or more recipes require `historical_run.name`; each is retained as `<name>_<id>` and the runs are compared
-automatically.
+or more recipes are compared automatically.
 
-## Compare retained historical runs
+## Compare forcing recipes {#compare-recipes}
 
-When `build_model.historical_forcings` runs two or more named recipes, WF1 compares their retained runs
-itself (rule 1.13b) into `comparisons/historical/<historical_run.name>/`. It evaluates every complete
-reporting year the runs share: responses are labelled at interval end, so the first simulated year is
-never complete. The generated settings are kept as `comparisons/historical/_engine/<name>.yml`, a valid
-input for the script below.
-
-Use `scripts/compare_historical.py --config comparison.yml` after retaining the runs. This command
-reads retained responses and never launches Wflow. Paths resolve beside the comparison YAML.
-The output directory must not exist; choose a new directory for a changed comparison.
-
-```yaml
-project_dir: ./my-basin
-runs:
-  - era5_reference
-  - chirps_reference
-evaluation_window:
-  # First reporting year, labelled by its start year. Input: integer year.
-  start: 2002
-  # Last reporting year, inclusive. Input: integer year >= start.
-  end: 2004
-# Start-year labels: October 2002 through September 2003 is water year 2002.
-# The complete evaluation window here is 2002-10-01 through 2005-09-30.
-water_year_start: Oct
-# Optional semicolon CSV: time;1010;1020 (stable registry wflow_id columns).
-# Values are daily discharge in m3/s, labelled at interval end, like native WF1 output.
-observations_path: ./observations.csv
-output_dir: ./my-basin/comparisons/historical/forcing_comparison
-```
-
+When `build_model.historical_forcings` runs two or more named recipes, WF1 compares their current runs
+(rule 1.13b) into `models/hydrology/<model>/historical_comparison/`: `tables/` (performance, coverage,
+daily, monthly, seasonal, flow duration, stations, inventory), `tables/supporting/support.csv` (per-day
+support flags), `plots/` and `_engine/comparison.json`. It evaluates every complete reporting year the runs
+share: responses are labelled at interval end, so the first simulated year is never complete. Every input
+(TOMLs, forcing records, response tables, registry, observations) is hashed before and after the
+comparison, so a run that changes meanwhile is refused. Comparisons across models come with t2609281102.
 The requested dates must all exist in every run. The comparison requires identical fixed-model identity,
 simulation dates, timestep, initialization and station identity; only daily Gregorian responses are supported.
-Recipe names select runs, not new forcing settings. The inventory retains each executed recipe and provenance.
+The inventory records each recipe and its provenance.
 The window expands inclusive integer reporting-year labels using `water_year_start`; no water-year trimming
 or endpoint shortening occurs. Water-year labels use their starting year and seasonal months start at
-`water_year_start`. Exact requested and warm-up boundaries are retained in `comparison.json`.
+`water_year_start`. Exact requested and warm-up boundaries are recorded in `_engine/comparison.json`.
 
 Warm-up preserves WF1's current behavior: when a run has more than 365 samples, exclude timestamps before
 its first response timestamp plus one calendar year. This can exclude 366 samples across a leap year.

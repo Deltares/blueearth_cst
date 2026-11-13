@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from blueearth_cst.shared import config_composition as cc
-from blueearth_cst.shared.named_forcing_producers import retained_run_names
 from blueearth_cst.shared.named_forcings import (
     HistoricalLayout,
     historical_forcing_ids,
@@ -240,16 +239,9 @@ def test_build_model_requests_and_retained_names(tmp_path):
         historical_forcing_ids(climate, {"historical_forcings": ["eobs"]})
     with pytest.raises(ValueError, match="requires climate.forcings"):
         historical_forcing_ids({"sources": ["era5"]}, {"historical_forcings": ["era5"]})
-    assert retained_run_names("v2", ("era5", "chirps")) == {
-        "era5": "v2_era5",
-        "chirps": "v2_chirps",
-    }
-    assert retained_run_names("v2", None) == {None: "v2"}
-    with pytest.raises(ValueError, match="historical_run.name is required"):
-        retained_run_names(None, ("era5", "chirps"))
+    # Two or more recipes no longer need a retained-run name (D18).
     path = _named(tmp_path, build={"historical_forcings": ["era5", "chirps"]})
-    with pytest.raises(ValueError, match="historical_run.name is required"):
-        cc.load_composed_config(path, entry="build_model")
+    cc.load_composed_config(path, entry="build_model")
 
 
 def test_layouts_key_every_recipe_and_keep_tomls_at_the_model_root():
