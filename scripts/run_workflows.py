@@ -1850,26 +1850,38 @@ def _run_owned(
                     resource_tracking.phase(child_path, "snakemake")
                     # The simulation runner builds its own environment; the
                     # announcement rides on top of it rather than replacing it.
-                    result = subprocess.CompletedProcess(
-                        cmd,
-                        run_project_child(
-                            cmd,
-                            cwd=REPO_ROOT,
-                            writing=not preview,
-                            env={
-                                **environment,
-                                **execution_outputs.environment(
-                                    child_path, child_record
-                                ),
-                                "CST_SIMULATION_INVOCATION_ID": child_id,
-                                "CST_SIMULATION_FINALIZE": "1",
-                                console_style.ANNOUNCED_ENV: "1",
-                                invocation_history.PARENT_ENV: history["invocation_id"],
-                                invocation_history.INVOCATION_ENV: child_id,
-                                RUN_WARNING_TALLY_ENV: str(warning_path),
-                            },
-                        ),
+                    from blueearth_cst.experiment.simulation_runner import (
+                        simulation_phases,
                     )
+
+                    # Simulations first, then indicators (R11, W2).
+                    for phase_cmd, phase_environment in simulation_phases(
+                        cmd, environment
+                    ):
+                        result = subprocess.CompletedProcess(
+                            phase_cmd,
+                            run_project_child(
+                                phase_cmd,
+                                cwd=REPO_ROOT,
+                                writing=not preview,
+                                env={
+                                    **phase_environment,
+                                    **execution_outputs.environment(
+                                        child_path, child_record
+                                    ),
+                                    "CST_SIMULATION_INVOCATION_ID": child_id,
+                                    "CST_SIMULATION_FINALIZE": "1",
+                                    console_style.ANNOUNCED_ENV: "1",
+                                    invocation_history.PARENT_ENV: history[
+                                        "invocation_id"
+                                    ],
+                                    invocation_history.INVOCATION_ENV: child_id,
+                                    RUN_WARNING_TALLY_ENV: str(warning_path),
+                                },
+                            ),
+                        )
+                        if result.returncode != 0:
+                            break
                     resource_tracking.phase(child_path, "finalization")
                     snapshot = environment.get("CST_INDICATOR_SELECTION")
                     if (

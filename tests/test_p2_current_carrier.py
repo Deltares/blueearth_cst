@@ -193,13 +193,17 @@ def test_current_carrier_operation_target_matrix(
         invocation_dir = root.parents[1] / "config/_engine/invocations"
         assert not list(invocation_dir.glob("*.json"))
         assert harness.main(argv) == 0
-        assert len(calls) == 1
+        # A full run is two Snakemake phases: simulations, then indicators.
+        assert len(calls) == (2 if target in {"default", "all"} else 1)
         if target == "simulations_only":
             assert exports == []
         else:
             assert len(exports) == 1
             assert exports[0][0] == root
-        command, kwargs = calls[0]
+        if len(calls) == 2:
+            # A full run simulates first, then computes indicators (R11, W2).
+            assert calls[0][0][3] == "simulations_only"
+        command, kwargs = calls[-1]
         assert command[:3] == [sys.executable, "-m", "snakemake"]
         expected = "all" if target == "default" else targets[target][0]
         # A retired target name reaches Snakemake as its current rule name.

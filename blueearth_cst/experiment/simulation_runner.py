@@ -443,6 +443,31 @@ def simulation_command(
     return command, environment
 
 
+def simulation_phases(command, environment):
+    """The Snakemake invocations one WF4 run makes (t017 R11, W2).
+
+    A full simulate-and-indicators run is split into ``simulations_only`` and
+    then ``all``: while the indicator checkpoint is pending Snakemake keeps
+    every ``temp()`` intermediate, so in one invocation the per-run forcing and
+    native CSVs survived the run. Dry runs, maintenance options (``--unlock``,
+    ``--touch``, listings) and explicit targets stay single.
+    """
+    from blueearth_cst.shared.workflow_archive_launch import _NON_PRODUCING_OPTIONS
+
+    if (
+        environment.get("CST_SIMULATION_OPERATION") != "simulate-and-indicators"
+        or environment.get("CST_SIMULATION_TARGET") != "all"
+        or any(option.split("=")[0] in _NON_PRODUCING_OPTIONS for option in command)
+    ):
+        return [(command, environment)]
+    first = list(command)
+    first[first.index("all")] = "simulations_only"
+    return [
+        (first, {**environment, "CST_SIMULATION_TARGET": "simulations_only"}),
+        (command, environment),
+    ]
+
+
 def resolve_selected_collection(config_path, repository):
     """Consume an exact ready collection; never invoke its producers."""
     selection, marker, _ = resolve_collection_with_plan(config_path, repository)

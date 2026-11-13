@@ -455,10 +455,12 @@ def test_indicators_only_uses_retained_readiness_without_new_input_reads(
         root = retained.project / "experiments" / name
         records = {}
         for run_id in helper.RUN_IDS:
-            source = retained.legacy_root / "hydrology/wflow/output" / run_id
-            target = root / "hydrology/wflow/output" / run_id
-            shutil.copytree(source, target)
-            records[run_id] = target / "_engine/response_tables.json"
+            # R17: tables in simulations/<run>/, their record mirrored in _engine/.
+            for relative in (f"simulations/{run_id}", f"_engine/simulations/{run_id}"):
+                shutil.copytree(retained.legacy_root / relative, root / relative)
+            records[run_id] = (
+                root / f"_engine/simulations/{run_id}/response_tables.json"
+            )
         with archive_lock(retained.project, "project-execution"):
             response_inventory = publish_response_inventory_v2(
                 root, records, helper.default_responses().temporal
