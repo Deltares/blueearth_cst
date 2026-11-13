@@ -1,12 +1,15 @@
 """Tests for blueearth_cst/model/setup_reservoirs_lakes_glaciers.py (R3 sections 7b, 8).
 
-Hermetic: exercises method dispatch + no-data capture + structured sentinel
-without hydromt (the heavy import is lazy inside the main function).
+Method dispatch, no-data capture and the structured sentinel run without
+hydromt (the heavy import is lazy inside the main function); the missing-source
+check uses a real hydromt catalog over temporary files.
 """
 
+import pytest
 import yaml
 
 from blueearth_cst.model.setup_reservoirs_lakes_glaciers import (  # noqa: E402
+    _missing_waterbody_sources,
     _run_waterbody_methods,
     write_sentinel,
     write_values_used,
@@ -77,6 +80,51 @@ def test_values_used_record_separates_a_method_that_ran_from_one_skipped(tmp_pat
     }
     assert by_method["setup_glaciers"]["status"] == "skipped"
     assert by_method["setup_glaciers"]["reason"] == "no glaciers in basin"
+
+
+def test_missing_source_is_reported_but_an_empty_one_is_not(tmp_path):
+    """A missing file and a basin without features look identical downstream.
+
+    hydromt_wflow reads waterbody sources with ``NoDataStrategy.IGNORE`` and
+    logs one "no data" line for both, so the distinction has to be drawn
+    before the methods run: a present-but-empty source passes, an absent file
+    is named. Keywords (``timeseries_fn: jrc``) and non-catalog values are left
+    to hydromt.
+    """
+    pytest.importorskip("pyogrio")
+    gpd = pytest.importorskip("geopandas")
+    from hydromt import DataCatalog
+    from hydromt.error import NoDataException, NoDataStrategy
+    from shapely.geometry import Point
+
+    # Present but empty for any basin: holds no features at all.
+    gpd.GeoDataFrame({"a": [1]}, geometry=[Point(0, 0)], crs=4326).iloc[:0].to_file(
+        tmp_path / "empty.gpkg"
+    )
+    (tmp_path / "catalog.yml").write_text(
+        "empty: {data_type: GeoDataFrame, driver: {name: pyogrio}, uri: empty.gpkg}\n"
+        "absent: {data_type: GeoDataFrame, driver: {name: pyogrio}, uri: absent.gpkg}\n",
+        encoding="utf-8",
+    )
+    config = {
+        "setup_reservoirs_simple_control": {
+            "reservoirs_fn": "empty",
+            "timeseries_fn": "jrc",
+        },
+        "setup_reservoirs_no_control": None,
+        "setup_glaciers": {"glaciers_fn": "absent", "min_area": 1.0},
+    }
+
+    missing = _missing_waterbody_sources(
+        DataCatalog(str(tmp_path / "catalog.yml")),
+        config,
+        NoDataStrategy.RAISE,
+        (NoDataException,),
+    )
+
+    assert len(missing) == 1
+    assert missing[0].startswith("setup_glaciers: glaciers_fn='absent'")
+    assert missing[0].endswith("absent.gpkg")
 
 
 def test_write_sentinel_is_structured_tsv(tmp_path):

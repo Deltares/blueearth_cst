@@ -35,12 +35,48 @@ from blueearth_cst.shared.progress import hydromt_progress
 from blueearth_cst.shared.wflow_write import write_model_except_forcing
 
 
+def _missing_waterbody_sources(catalog, config, raise_strategy, no_data_errors):
+    """List configured catalog sources whose files do not resolve.
+
+    hydromt_wflow reads waterbody sources with ``NoDataStrategy.IGNORE`` and logs
+    the same "Skipping method, as no data has been found" whether the file is
+    absent or the basin holds no features, so the outcome alone cannot tell a
+    missing source from an empty basin. Resolving each configured ``*_fn``
+    catalog entry first, through the source's own URI resolver, separates them.
+
+    Only string ``*_fn`` values that name a catalog entry are checked: keywords
+    such as ``timeseries_fn: jrc`` and direct paths are left to hydromt. Remote
+    URIs are not probed.
+    """
+    missing = []
+    for method, kwargs in config.items():
+        for key, value in (kwargs or {}).items():
+            if not key.endswith("_fn") or not isinstance(value, str):
+                continue
+            if not catalog.contains_source(value):
+                continue
+            source = catalog.get_source(value)
+            uri = source.full_uri
+            if "://" in uri:
+                continue
+            try:
+                found = source.uri_resolver.resolve(uri, handle_nodata=raise_strategy)
+            except no_data_errors:
+                found = []
+            if not found:
+                missing.append(
+                    f"{method}: {key}={value!r} resolves to no file at {uri}"
+                )
+    return missing
+
+
 def _run_waterbody_methods(mod, config, no_data_errors):
     """Run each configured method on ``mod``, capturing per-method outcome.
 
     Returns a list of ``{"method", "status", "reason"}`` dicts where status is
-    ``"ok"`` or ``"skipped"`` (the method's data source was absent for this
-    basin — a legitimate outcome, not a failure).
+    ``"ok"`` or ``"skipped"`` (the source holds no data for this basin — a
+    legitimate outcome, not a failure; a missing source is rejected earlier by
+    ``_missing_waterbody_sources``).
     """
     results = []
     for method, kwargs in config.items():
@@ -124,7 +160,7 @@ def update_wflow_waterbodies_glaciers(
     """
     # Lazy import: heavy plugin deps, only needed to touch the model. Keeps this
     # module importable (e.g. for unit tests) without hydromt installed/stubbed.
-    from hydromt.error import NoDataException
+    from hydromt.error import NoDataException, NoDataStrategy
     from hydromt_wflow import WflowSbmModel
 
     mod = WflowSbmModel(wflow_root, mode="r+", data_libs=data_catalog)
@@ -132,7 +168,20 @@ def update_wflow_waterbodies_glaciers(
     with open(config_fn, "r") as f:
         config = yaml.safe_load(f) or {}
 
-    results = _run_waterbody_methods(mod, config, (NoDataException, FileNotFoundError))
+    # A missing source must fail here: downstream it is indistinguishable from
+    # a basin without reservoirs, lakes or glaciers.
+    missing = _missing_waterbody_sources(
+        mod.data_catalog, config, NoDataStrategy.RAISE, (NoDataException,)
+    )
+    if missing:
+        raise FileNotFoundError(
+            f"Waterbody sources configured in {config_fn} are missing: "
+            + "; ".join(missing)
+        )
+
+    # Only NoDataException counts as "no water bodies here"; a missing file is
+    # an error, not an empty basin.
+    results = _run_waterbody_methods(mod, config, (NoDataException,))
 
     if any(r["status"] == "ok" for r in results):
         with hydromt_progress("model"):
