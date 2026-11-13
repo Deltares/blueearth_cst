@@ -191,11 +191,10 @@ Record the baseline only from the baseline config; never point `check_baseline.p
 unresolvable fixture). Treat 2 as no evidence; `--workflow generate_scenarios` has no non-figure
 target and returns 2 by construction.
 
-**The tracked baseline manifest is stale** after the P-drive catalog and GlobCover switch; its
-recorded paths also predate the current config archive. Regenerate `test_case/test_local` from the
-current baseline config and re-record `dev/baseline/manifest.json` before using it as a numerical
-gate. Agreement with the old manifest does not accept current inputs. A predecessor comparison
-with changed settings cannot isolate a layout or numerical effect.
+The tracked baseline manifest was re-recorded on 2026-11-13 from a fresh all-five baseline run on
+layout 5 (local-first catalogs). Re-record it whenever inputs, catalogs or output placement change;
+agreement with an older manifest does not accept current inputs, and a predecessor comparison with
+changed settings cannot isolate a layout or numerical effect.
 
 `test_case/test_local` is untracked and independent per worktree. Inspect provenance, then re-seed
 or regenerate affected trees; repairing one does not repair others. `project_dir` resolves from the
