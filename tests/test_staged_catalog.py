@@ -12,7 +12,9 @@ import write_staged_catalog as staged  # noqa: E402
 
 
 def test_the_committed_overlay_is_current():
-    assert staged.OUTPUT.read_text(encoding="utf-8") == staged.staged_catalog(), (
+    # Line endings follow the checkout (`*.yml text`); content must match.
+    committed = staged.OUTPUT.read_text(encoding="utf-8").replace("\r\n", "\n")
+    assert committed == staged.staged_catalog(), (
         "run python dev/scripts/write_staged_catalog.py"
     )
 
