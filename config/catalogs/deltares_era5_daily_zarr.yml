@@ -8,8 +8,11 @@
 # requested ERA5 dates against this metadata before reading. A request extending
 # beyond it warns and reads the overlap; delivered coverage is checked afterwards.
 
+# The local mirror (dev/scripts/stage_data.py) comes first; hydromt takes the
+# first root that exists, so machines without it read the P: drive.
 meta:
   roots:
+    - C:/data/wflow_global/hydromt
     - p:/wflow_global/hydromt
     - /mnt/p/wflow_global/hydromt
     - /p/wflow_global/hydromt
