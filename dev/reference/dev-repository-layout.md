@@ -111,6 +111,11 @@ against the project-tree inventory (`pixi run tree-check`). Deletion requires `-
 a reference snapshot so it excludes orphans. Directories routed wholesale by the path map also need
 an mtime sweep; the pruners do not see every file.
 
+The project-tree inventory is generated from `blueearth_cst/shared/layout_paths.py`, which declares every
+path the toolbox writes, with its kind (`tests/test_layout_paths.py` checks placement). Change a
+declaration in the same commit as its writer; only legacy shapes stay hand-written in
+`semantic_tree_diff.build_project_tree_rules`.
+
 ## docs/
 
 `docs/guide/` owns the canonical Markdown user guides and their assets.
@@ -143,7 +148,7 @@ reader code and cannot substitute for this check.
 Outputs land under configured `project_dir`, outside the repository for production cases. Untracked
 `test_case/test_local` is the development exception.
 
-Execution diagnostics share `logs/<UTC timestamp>-<short invocation ID>/`: summary, console transcript,
+Execution diagnostics share `logs/<YYYY-MM-DD_HH-MM-SSZ>__<scope>[__dry-run]/`: summary, console transcript,
 workflow logs and Markdown/TSV benchmarks. Child invocations share their parent's folder; each retry
 has fresh part namespaces. Historical shared logs and benchmark files remain untouched. The maintained
 layout and interpretation live in `docs/guide/running.md` § Execution logs and benchmarks.

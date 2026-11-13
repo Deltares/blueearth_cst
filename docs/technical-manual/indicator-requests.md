@@ -114,22 +114,30 @@ limits.
 
 Before simulation, selected requirements are checked against `model.outvars`. Indicators-only requests
 check retained variables and locations. Paired methods require aligned inputs. Supplied malformed
-parameters always fail. `indicator_evaluation` is `strict` by default; `partial` permits absent inputs.
+parameters always fail. `indicator_evaluation` is `partial` by default; set `strict` to refuse any gap.
 
 | Mode/input | Result |
 |---|---|
 | `strict`: any missing input | Refuses; names the affected calculation and input |
 | `partial`: absent response | Omits the calculation from value tables; records its reason in dictionary/manifest |
 | `partial`: missing location parameter | Publishes unavailable rows for affected locations |
+| Either mode: data refuse a calculation | Publishes unavailable rows for that group and location |
 
 An absent response drops the whole affected calculation into manifest `unavailable_calculations`, with a
 reason such as `missing_response:pet`; no value rows are invented for that calculation. A set-declared
 missing parameter at retained locations instead produces blank value rows with `status: unavailable` and
 a reason such as `missing_parameter:thresholds`, recorded in `unavailable_results`.
+A calculation can also refuse one group's data at one location while the other groups, locations and
+indicators complete. Return levels do so with too few annual blocks (`5 annual blocks; 10 required`) or a
+refused fit (`estimator refused: invalid_range`). These blank rows are recorded in manifest
+`refused_results` (`indicator-set/7`), and their full screening evidence in `return_level_evidence.json`.
+Publication then follows the mode: `partial` warns and publishes; `strict` keeps the computed set but
+refuses to publish it.
 The dictionary retains unavailable declarations and reports `partial` or `unavailable` coverage.
 A request with no calculable declarations can therefore have an empty `tables` inventory.
 This is successful only under partial mode. Calculated NaNs instead have `status: undefined`.
-Unexpected programming errors are never converted into successful undefined/unavailable results.
+Unexpected programming errors and configuration faults, such as a return period outside the qualified
+domain, are never converted into successful undefined/unavailable results.
 See [table statuses](retained-handoffs.md#indicator-tables-and-dictionary).
 
 Providing a missing parameter or selecting another calculation can create a new immutable set over

@@ -20,7 +20,7 @@ from blueearth_cst.experiment.generation_plan import (
     select_generation_plan,
 )
 from blueearth_cst.experiment.generation_publication import initialize_generation
-from blueearth_cst.shared import execution_outputs, invocation_history
+from blueearth_cst.shared import execution_outputs, invocation_history, layout_stamp
 from blueearth_cst.shared.config_composition import compose_config
 from blueearth_cst.shared.console_style import up_to_date_verdict
 from blueearth_cst.shared.output_capture import captured_output
@@ -262,6 +262,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     extra = args.extra[1:] if args.extra[:1] == ["--"] else args.extra
     project_root = args.project_dir.resolve()
+    try:
+        layout_stamp.admit(project_root)
+    except layout_stamp.LayoutMismatch as exc:
+        parser.error(str(exc))
     history_path, history = invocation_history.start(
         project_root,
         workflow="generate_scenarios",

@@ -109,9 +109,24 @@ def check(
     )
     try:
         validate_result(result)
-        expected = module.expected(indicator, series, context, group=group)
-        actual = result.values.reindex(expected.index).to_numpy(dtype=float)
-        if set(result.values.index) != set(expected.index) or not np.allclose(
+        # Refused locations publish no value; recheck only the fitted ones.
+        refused = {
+            location
+            for location, status in result.statuses.items()
+            if status == "unavailable"
+        }
+        is_refused = [str(location) in refused for location in result.values.index]
+        if result.values[is_refused].notna().any():
+            raise ValueError("unavailable locations must not carry a value")
+        values = result.values[[not item for item in is_refused]]
+        series = [item for item in series if str(item.location_id) not in refused]
+        expected = (
+            module.expected(indicator, series, context, group=group)
+            if series
+            else values
+        )
+        actual = values.reindex(expected.index).to_numpy(dtype=float)
+        if set(values.index) != set(expected.index) or not np.allclose(
             actual,
             expected.to_numpy(dtype=float),
             rtol=1e-10,
@@ -119,7 +134,7 @@ def check(
             equal_nan=True,
         ):
             raise ValueError(
-                f"numerical mismatch: expected {expected.to_dict()}, observed {result.values.to_dict()}"
+                f"numerical mismatch: expected {expected.to_dict()}, observed {values.to_dict()}"
             )
         if hasattr(module, "check_result"):
             module.check_result(indicator, series, result, context, group=group)

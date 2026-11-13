@@ -328,6 +328,46 @@ def test_constant_sample_reaches_the_adapter_as_a_structured_refusal():
     assert "constant sample" not in str(caught.value)
 
 
+def test_publication_path_marks_refused_locations_unavailable_and_fits_the_rest():
+    """One refused location never removes the group's other fitted locations."""
+    from blueearth_cst.experiment import return_level_validation
+    from blueearth_cst.indicators import loader
+
+    series = responses()
+    indicator = next(
+        item for item in declarations(("q",)) if item.statistic == "return_level_max"
+    )
+    mixed = tuple(
+        replace(item, values=np.ones(len(item.time)))
+        if item.location_id == "2"
+        else item
+        for item in series
+    )
+    validation = return_level_validation.build_declaration()
+    context = {
+        "anchor": "YE-DEC",
+        "expected_run_ids": ("run_01", "run_08"),
+        "validation": validation,
+    }
+    result = loader.evaluate(indicator, mixed, **context)
+    assert result.statuses == {"2": "unavailable", "9": "available"}
+    assert np.isnan(result.values["2"])
+    assert (
+        result.metadata["refusals"]["2"]["reason"] == "estimator refused: invalid_range"
+    )
+    fitted, _ = reduce_bundle(
+        indicator,
+        [item for item in series if item.location_id == "9"],
+        expected_run_ids=("run_01", "run_08"),
+        anchor="YE-DEC",
+    )
+    assert result.values["9"] == fitted["9"]
+    assert [item.location_id for item in result.metadata["evidence"]] == ["9"]
+    # The independent checker rechecks the fitted location and skips the refusal.
+    outcome = loader.check(indicator, mixed, result, group=True, **context)
+    assert (outcome["status"], outcome["numerical_checks"]) == ("passed", 1)
+
+
 @pytest.mark.parametrize("field,value", [("units", "mm"), ("time_label", "instant")])
 def test_indicator_refuses_incompatible_response_metadata(field, value):
     indicator = declarations(("q",))[0]

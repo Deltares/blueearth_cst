@@ -421,10 +421,11 @@ def evaluate(
         # Preserve exception type, evidence attributes, cause and traceback.
         error.args = (f"{identity}/location={locations}: {error}", *error.args[1:])
         raise
-    statuses = result.statuses or {
+    # A calculation may state only exceptional statuses, such as unavailable.
+    statuses = {
         str(location): "undefined" if pd.isna(value) else "available"
         for location, value in result.values.items()
-    }
+    } | dict(result.statuses)
     return replace(result, statuses=statuses)
 
 

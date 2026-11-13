@@ -27,6 +27,7 @@ from blueearth_cst.indicators import (
 from blueearth_cst.indicators.extremes import (
     InsufficientReturnLevelBlocks,
     ReturnLevelProbabilityNotCovered,
+    reduce_bundle,
 )
 from blueearth_cst.indicators.validation import validate_result
 
@@ -224,11 +225,22 @@ def test_flood_screening_precedes_qualification_and_qualification_is_not_expande
         {"return_period": 25},
         indicator_name="too_long",
     )
-    with pytest.raises(
-        InsufficientReturnLevelBlocks,
-        match="flood_risk/too_long/location=.*required=25, actual=20",
-    ):
-        evaluate(indicator, series, anchor="YE-DEC", validation=validation)
+    # Too few blocks is a data refusal: published unavailable, never fatal.
+    refused = evaluate(indicator, series, anchor="YE-DEC", validation=validation)
+    location = str(series[0].location_id)
+    assert refused.statuses == {location: "unavailable"}
+    assert np.isnan(refused.values[series[0].location_id])
+    refusal = refused.metadata["refusals"][location]
+    assert refusal["reason"] == "20 annual blocks; 25 required"
+    assert "required=25, actual=20" in refusal["detail"]
+    with pytest.raises(InsufficientReturnLevelBlocks, match="required=25, actual=20"):
+        reduce_bundle(
+            loader.local_declaration(indicator),
+            series,
+            expected_run_ids=(series[0].run_id,),
+            anchor="YE-DEC",
+            validation=validation,
+        )
     indicator = resolve(
         "flood_risk",
         "flood_return_level/1",

@@ -48,6 +48,10 @@ run and is replaced when the model workflow reruns. `simulations/historical/<nam
 unchanged for later comparison, and `comparisons/historical/` compares them. Stress-test simulations
 belong to their experiment. See [retained historical simulations](../technical-manual/workflow-build-model.md#retain-historical-simulations).
 
+A new output directory records the layout it was written with in `config/_engine/layout.json`; a
+directory without it uses layout 1. The runners refuse a directory written with a different layout:
+set `project.project_dir` to a new folder and rerun. Existing directories are not converted.
+
 Keep the complete output directory when archiving an assessment. Indicator CSVs alone do not preserve
 the model, climate conditions or calculation settings needed to understand a result. Edit the source
 case files when changing settings; the configuration copies in the output directory document past runs.
@@ -311,8 +315,8 @@ See the [default conventions](../../blueearth_cst/indicators/sets/default/README
 
 - `available`: a value was calculated.
 - `undefined`: the calculation is undefined under the set's conventions.
-- `unavailable`: no value could be calculated; in partial mode this can reflect missing parameters
-  at locations included in the saved simulations.
+- `unavailable`: no value could be calculated. The reason names a missing parameter, or a data
+  limit such as `5 annual blocks; 10 required` for a return level from too-short runs.
 
 If a required response variable is absent, the calculation is omitted from the value tables.
 Check its declaration and explanation in the dictionary

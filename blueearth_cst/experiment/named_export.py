@@ -190,7 +190,10 @@ def dictionary_rows(resolved_set, manifest, evidence, water_year_start) -> list[
         for item in manifest.get("unavailable_calculations", [])
     }
     gaps = {}
-    for item in manifest.get("unavailable_results", []):
+    for item in [
+        *manifest.get("unavailable_results", []),
+        *manifest.get("refused_results", []),
+    ]:
         gaps.setdefault(item["indicator"], {}).setdefault(item["reason"], set()).add(
             item["location"]
         )
@@ -405,8 +408,9 @@ def publish_named_set(
         "indicator-set/4",
         "indicator-set/5",
         "indicator-set/6",
+        "indicator-set/7",
     ):
-        raise NamedExportError(f"{set_id}: named exports require indicator-set/4 to /6")
+        raise NamedExportError(f"{set_id}: named exports require indicator-set/4 to /7")
     engine = root / manifest["engine_root"]
     evidence = read_canonical_json(engine / manifest["coverage_evidence"]["path"])
     if evidence.get("schema_version") != COVERAGE_EVIDENCE_SCHEMA:

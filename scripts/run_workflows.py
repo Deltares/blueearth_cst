@@ -62,6 +62,7 @@ from blueearth_cst.shared import (  # noqa: E402
     console_style,
     execution_outputs,
     invocation_history,
+    layout_stamp,
     product_record,
 )
 from blueearth_cst.shared.command_display import sanitize_argv  # noqa: E402
@@ -1257,6 +1258,8 @@ def _run_rebuild(
         invocation_history.update(path, record)
         try:
             erase_outputs(plan, Path(config_path))
+            # Every output is regenerated, so the folder takes this layout.
+            layout_stamp.write(root)
             record["rebuild"]["status"] = "completed"
             invocation_history.update(path, record)
             return _run_owned(
@@ -1314,6 +1317,8 @@ def run(
         except OSError as error:
             raise ValueError(f"rebuild stopped: {error}") from error
     history_pair = None
+    if project_dir is not None:
+        layout_stamp.admit(Path(project_dir).resolve())
     try:
         flags = None
         try:
@@ -1356,6 +1361,7 @@ def run(
         resolved_root = _project_dir(cfg, config_path)
         if project_dir is not None and resolved_root != supplied_root:
             raise ConfigError("--project-dir differs from composed project root")
+        layout_stamp.admit(resolved_root)
         with archive_lock(resolved_root, "project-execution"):
             return _run_owned(
                 config_path,
