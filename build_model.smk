@@ -652,7 +652,7 @@ WF1_TERMINALS = [
     # the indicators table and nothing consumes it, and listing it here is what
     # schedules it at all -- no rule reads a sidecar, so without this it would
     # never build.
-    f"{basin_dir}/run_metadata.json",
+    f"{basin_dir}/_engine/run_metadata.json",
 ]
 
 # all — target aggregator: full historical build + performance plots
@@ -793,7 +793,7 @@ rule build_wflow_model:
         # a copy of the parameter template: arguments are popped, P1 objects
         # replace them, and `lulc_mapping_fn` is derived at call time from the
         # grid's own source attribute, so it exists in no file on disk.
-        values_used = f"{basin_dir}/hydromt_build_config.yml",
+        values_used = f"{basin_dir}/_engine/hydromt_build_config.yml",
         # Completion sentinel (R7-1). `wflow_sbm.toml` is CREATED here and then
         # updated IN PLACE by rules 1.07-1.09, but only this rule declares it,
         # so a re-fire of the build rule alone used to leave the toml stripped of
@@ -807,7 +807,7 @@ rule build_wflow_model:
         # .outputs_configured -> 1.09). The forcing-yml hop that used to sit in
         # the middle of that chain is gone: R10-1 merged 1.06 into 1.09, which
         # now writes the yml it used to consume.
-        built = touch(f"{basin_dir}/.model_built"),
+        built = touch(f"{basin_dir}/_engine/markers/.model_built"),
     log:
         BUILD_WFLOW_MODEL.log(),
     benchmark:
@@ -823,14 +823,14 @@ rule add_reservoirs_lakes_glaciers:
         # plain input would re-trigger it on its own output. Ordering and
         # rebuild-detection come from the sentinel below instead (R7-1).
         basin_nc = ancient(f"{basin_dir}/staticmaps.nc"),
-        model_built = f"{basin_dir}/.model_built",
+        model_built = f"{basin_dir}/_engine/markers/.model_built",
         scientific_code = ["blueearth_cst/shared/wflow_write.py"],
     output:
         text_out = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt",
         # The values each method was handed, plus whether it ran (R3). The
         # status is half the provenance: a skipped method leaves no trace in
         # the model, so values alone would describe water bodies never added.
-        values_used = f"{basin_dir}/hydromt_update_waterbodies.yml",
+        values_used = f"{basin_dir}/_engine/hydromt_update_waterbodies.yml",
     params:
         data_catalog = DATA_SOURCES,
         config = waterbodies_config,
@@ -877,7 +877,7 @@ rule write_gauge_index:
         # rule 1.09 rewrites every staticgeoms/ layer, so this read
         # needs the terminal anchor. Nothing in WF1 consumes outlet_index.csv,
         # so waiting for the model to be final costs only a schedule slot.
-        model_final = ancient(f"{basin_dir}/.model_final"),
+        model_final = ancient(f"{basin_dir}/_engine/markers/.model_final"),
     output:
         outlet_index_path = f"{basin_dir}/staticgeoms/outlet_index.csv"
     log:
@@ -911,7 +911,7 @@ for _k in FORCING_KEYS:
         input:
             outputs_configured = f"{basin_dir}/.outputs_configured",
             # Named recipes read the finalized shared model and never rewrite it.
-            model_root_final = [] if _k is None else [f"{basin_dir}/.model_final"],
+            model_root_final = [] if _k is None else [f"{basin_dir}/_engine/markers/.model_final"],
             # The climate store, as the forcing SOURCE (2026-08-10). This rule used
             # to re-read the global dataset from the catalog, a second full pass
             # over the source rule 1.03 had already clipped to this basin. Declaring
@@ -965,7 +965,7 @@ for _k in FORCING_KEYS:
             # consumed 1.06's YAML. The merge folded 1.06 in, so the rule that
             # carries the sentinel now also WRITES that YAML -- it is still the last
             # writer of the model root, so the anchor is unchanged.
-            model_final = [touch(f"{basin_dir}/.model_final")] if _k is None else [],
+            model_final = [touch(f"{basin_dir}/_engine/markers/.model_final")] if _k is None else [],
         params:
             # The SIMULATION window, not the extraction window. These two params set
             # both halves of the same span: the forcing hydromt builds, and the
@@ -1007,7 +1007,7 @@ for _k in FORCING_KEYS:
             # anyway so the invariant is LOCAL rather than transitive -- a reader is
             # correct because of what it declares, not because of a chain someone
             # has to re-derive.
-            model_final = ancient(f"{basin_dir}/.model_final"),
+            model_final = ancient(f"{basin_dir}/_engine/markers/.model_final"),
             scientific_code = [
                 "blueearth_cst/model/run_wflow.jl",
                 "blueearth_cst/shared/wflow_grid.jl",
@@ -1184,7 +1184,7 @@ if FORCING_IDS is not None:
     rule finalize_model_root:
         message: FINALIZE_MODEL_ROOT.banner()
         input: f"{basin_dir}/.outputs_configured",
-        output: touch(f"{basin_dir}/.model_final"),
+        output: touch(f"{basin_dir}/_engine/markers/.model_final"),
 
 # 1.15  plot_model_evaluation — analyse + plot the wflow RUN (parallel leaf
 # with 1.11/1.12). Discharge only since the climate-plot consolidation; the climate figures it used
@@ -1279,7 +1279,7 @@ for _k in FORCING_KEYS:
             # the model-root ordering contract. Ordered after 1.09 transitively through csv_path, declared
             # anyway for the same reason 1.13 and 1.15 declare it: the invariant is
             # LOCAL, not something a reader has to re-derive from a chain.
-            model_final = ancient(f"{basin_dir}/.model_final"),
+            model_final = ancient(f"{basin_dir}/_engine/markers/.model_final"),
             # Its [output.csv] columns and static maps label each table column
             # with the registry wflow_id (shared/native_locations).
             toml_path = ancient(_hp(_k, "toml")),
@@ -1310,7 +1310,7 @@ for _k in FORCING_KEYS:
             response_tables = WFLOW_TABLE_PATHS(_k),
             # the model-root ordering contract; transitively ordered after 1.09 via 1.13, declared for the
             # same reason as there.
-            model_final = ancient(f"{basin_dir}/.model_final"),
+            model_final = ancient(f"{basin_dir}/_engine/markers/.model_final"),
             # The climate-store inputs went with the subcatchment climate figures
             # (the climate-plot consolidation). This rule evaluates DISCHARGE now, so it no longer waits
             # on rule 1.03 at all.
@@ -1408,7 +1408,7 @@ rule write_run_metadata:
         # table already orders this rule after 1.15, so the marker adds no edge
         # in practice -- it is declared because the convention is mechanical,
         # and a reader exempted by an argument is how the next one gets missed.
-        model_final = ancient(f"{basin_dir}/.model_final"),
+        model_final = ancient(f"{basin_dir}/_engine/markers/.model_final"),
     params:
         workflow_name = "build_model",
         config_path = config_path,
@@ -1420,7 +1420,7 @@ rule write_run_metadata:
             CAPTURE_RECORD["referenced_inputs"] if CAPTURE_RECORD else referenced_inputs_for_digest(CONFIG_REFERENCES),
         ),
     output:
-        run_metadata = f"{basin_dir}/run_metadata.json",
+        run_metadata = f"{basin_dir}/_engine/run_metadata.json",
     script:
         "blueearth_cst/shared/write_run_metadata.py"
 
@@ -1514,7 +1514,7 @@ for _k in FORCING_KEYS:
             map_reference = MAP_REFERENCE.outputs["reference"],
             **{key: value for key, value in MAP_REFERENCE.inputs.items() if key != "basins"},
             # the model-root ordering contract; see rule 1.13.
-            model_final = ancient(f"{basin_dir}/.model_final"),
+            model_final = ancient(f"{basin_dir}/_engine/markers/.model_final"),
             **_locations_input,
             # Shared spatial context also used by WF0's source-grid diagnostics.
             **{name: SPATIAL_UNITS.outputs[name] for name in
@@ -1558,7 +1558,7 @@ if _budyko_settings is not None:
                 forcing_path = _hp(_k, "forcing"),
                 observations_path = observations_timeseries,
                 recipe_path = f"{_hp(_k, 'config_dir')}/build_historical_forcing.yml",
-                model_final = ancient(f"{basin_dir}/.model_final"),
+                model_final = ancient(f"{basin_dir}/_engine/markers/.model_final"),
             output:
                 stations = f"{_hp(_k, 'evaluation_dir')}/budyko/tables/stations.csv",
                 annual = f"{_hp(_k, 'evaluation_dir')}/budyko/tables/annual.csv",

@@ -292,9 +292,9 @@ def declarations() -> tuple[Declaration, ...]:
     d += _declare(
         "wf1",
         "marker",
-        f"{m}/.model_built",
+        f"{m}/_engine/markers/.model_built",
         f"{m}/.outputs_configured",
-        f"{m}/.model_final",
+        f"{m}/_engine/markers/.model_final",
     )
     d += _declare(
         "wf1",
@@ -304,9 +304,9 @@ def declarations() -> tuple[Declaration, ...]:
         f"{m}/config/{{build_historical_forcing|climate_store_catalog}}.yml",
         f"{m}/config/{{recipe}}/{{build_historical_forcing|climate_store_catalog}}.yml",
         f"{m}/config/{{recipe}}/historical_forcing.json",
-        f"{m}/hydromt_build_config.yml",
-        f"{m}/hydromt_update_waterbodies.yml",
-        f"{m}/run_metadata.json",
+        f"{m}/_engine/hydromt_build_config.yml",
+        f"{m}/_engine/hydromt_update_waterbodies.yml",
+        f"{m}/_engine/run_metadata.json",
         f"{m}/forcing/_engine/plots/",
         f"{m}/forcing/{{recipe}}/_engine/plots/",
     )

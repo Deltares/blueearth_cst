@@ -39,7 +39,7 @@ configured setup calls, but a new build still needs checks suited to the changed
 
 HydroMT build and update steps write into one model directory. A file produced by the initial build
 does not prove later mutations finished. Readers that need the completed model must depend on the
-terminal `.model_final` sentinel from the last model-writing step. Intermediate build and update
+terminal `_engine/markers/.model_final` sentinel from the last model-writing step. Intermediate build and update
 steps depend on their preceding stage; making them depend on the terminal sentinel would create a
 cycle.
 

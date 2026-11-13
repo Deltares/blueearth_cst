@@ -373,6 +373,17 @@ def build_project_tree_rules(
     rules.append((re.compile(r"benchmarks/wf[012]_benchmarks\.md"), r"\g<0>"))
     # Layout 2 homes of the spatial unit's machine files (moved in layout 3, R10).
     rules.append((re.compile(r"data/spatial/spatial_(catalog|report)\.yml"), r"\g<0>"))
+    # Layout 2 homes of WF1 markers and build records (moved in layout 3, R10).
+    model = re.escape(f"models/hydrology/{model_name}")
+    rules.append(
+        (
+            re.compile(
+                rf"{model}/(\.model_built|\.model_final|hydromt_build_config\.yml"
+                r"|hydromt_update_waterbodies\.yml|run_metadata\.json)"
+            ),
+            r"\g<0>",
+        )
+    )
     # The retired flat indicator export.
     for e in sorted(experiments):
         exp = re.escape(e)
