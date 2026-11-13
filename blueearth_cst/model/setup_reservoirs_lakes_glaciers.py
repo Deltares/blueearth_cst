@@ -192,7 +192,9 @@ def update_wflow_waterbodies_glaciers(
         mod.close()  # commits deferred staticmaps writes
 
     write_sentinel(
-        join(wflow_root, "staticgeoms", "reservoirs_lakes_glaciers.txt"), results
+        # A toolbox record, kept out of HydroMT's staticgeoms/ (R6, R10).
+        join(wflow_root, "_engine", "reservoirs_lakes_glaciers.txt"),
+        results,
     )
 
     if values_used_path is not None:

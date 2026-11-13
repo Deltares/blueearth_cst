@@ -19,15 +19,15 @@ from blueearth_cst.experiment.indicator_sets import (
 @pytest.fixture
 def baseline(tmp_path):
     model = tmp_path / "model"
-    (model / "run_default").mkdir(parents=True)
+    (model / "historical/default/run").mkdir(parents=True)
     time = pd.date_range("1999-01-01", "1999-12-31")
     pd.DataFrame({"Q_9": np.arange(365)}, index=time).to_csv(
-        model / "run_default/output.csv", index_label="time"
+        model / "historical/default/run/output.csv", index_label="time"
     )
     (model / "wflow_sbm.toml").write_text(
         '[time]\ncalendar="standard"\ntimestepsecs=86400\n'
         'starttime="1998-12-31T00:00:00"\nendtime="1999-12-31T00:00:00"\n'
-        '[input]\npath_forcing="forcing/inmaps_historical.nc"\n'
+        '[input]\npath_forcing="historical/default/forcing/inmaps_historical.nc"\n'
         '[[output.csv.column]]\nheader="Q"\nparameter="river_water__volume_flow_rate"\n',
         encoding="utf-8",
     )
@@ -35,8 +35,10 @@ def baseline(tmp_path):
     from blueearth_cst.shared.response_tables import publish_response_tables
 
     publish_response_tables(
-        NativeRunArtifacts(model / "run_default/output.csv", model / "wflow_sbm.toml"),
-        model / "run_default",
+        NativeRunArtifacts(
+            model / "historical/default/run/output.csv", model / "wflow_sbm.toml"
+        ),
+        model / "historical/default/run",
     )
     parameters = {
         "season": "summer",
@@ -109,7 +111,7 @@ def test_inline_q90_binds_project_model_and_inherits_summer(baseline):
     assert threshold["source_id"].startswith(
         "wf1-historical-model-discharge;response-record-sha256="
     )
-    (model / "run_default/_engine/response_tables.json").unlink()
+    (model / "historical/default/run/_engine/response_tables.json").unlink()
     pending = selected_sets(
         project, settings, selection, prepare_baseline=False, **kwargs
     )
@@ -138,7 +140,7 @@ def test_owned_set_resolution_prepares_fixed_thresholds_and_changes_identity(bas
         calculation_records(resolve_set(source(path, parameters)).indicators) != records
     )
     parameters["thresholds"]["baseline_quantile"]["reference_period"] = "annual"
-    csv_path = path.parent / "model/run_default/output.csv"
+    csv_path = path.parent / "model/historical/default/run/output.csv"
     csv_path.write_text(csv_path.read_text().replace(",0", ",0.5", 1), encoding="utf-8")
     from blueearth_cst.experiment.wflow_response_reader import NativeRunArtifacts
     from blueearth_cst.shared.response_tables import publish_response_tables
@@ -208,7 +210,7 @@ def test_static_resolution_validates_without_historical_io_or_identity(
 
 
 @pytest.mark.parametrize(
-    "missing", ["run_default/_engine/response_tables.json", "wflow_sbm.toml"]
+    "missing", ["historical/default/run/_engine/response_tables.json", "wflow_sbm.toml"]
 )
 @pytest.mark.parametrize("extra", [[], ["--dry-run"]])
 @pytest.mark.parametrize("inline", [False, True])
@@ -275,7 +277,7 @@ def test_direct_wf4_reports_missing_historical_prerequisite(
 
 def test_corrupt_existing_toml_is_not_a_pending_prerequisite(baseline):
     path, parameters = baseline
-    (path.parent / "model/run_default/output.csv").unlink()
+    (path.parent / "model/historical/default/run/output.csv").unlink()
     (path.parent / "model/wflow_sbm.toml").write_text("[broken", encoding="utf-8")
     with pytest.raises(ValueError) as error:
         resolve_thresholds(parameters, path)
@@ -298,11 +300,11 @@ def test_all_year_spellings_share_identity_but_explicit_intent_differs(baseline)
 def _named_copy(path, forcing_id, forcing=None):
     """Move the legacy fixture into one named recipe's WF1 layout."""
     model = path.parent / "model"
-    (model / "run_default").rename(model / f"run_{forcing_id}")
+    (model / "historical/default").rename(model / f"historical/{forcing_id}")
     toml = model / "wflow_sbm.toml"
     text = toml.read_text().replace(
-        "forcing/inmaps_historical.nc",
-        forcing or f"forcing/{forcing_id}/inmaps_historical.nc",
+        "historical/default/forcing/inmaps_historical.nc",
+        forcing or f"historical/{forcing_id}/forcing/inmaps_historical.nc",
     )
     toml.unlink()
     (model / f"wflow_sbm_{forcing_id}.toml").write_text(text, encoding="utf-8")
@@ -326,6 +328,8 @@ def test_named_recipe_refuses_another_recipes_forcing(baseline):
     from blueearth_cst.shared.named_forcings import HistoricalLayout
 
     path, parameters = baseline
-    _named_copy(path, "chirps", forcing="forcing/era5/inmaps_historical.nc")
-    with pytest.raises(ValueError, match="forcing/chirps/inmaps_historical.nc"):
+    _named_copy(path, "chirps", forcing="historical/era5/forcing/inmaps_historical.nc")
+    with pytest.raises(
+        ValueError, match="historical/chirps/forcing/inmaps_historical.nc"
+    ):
         resolve_thresholds(parameters, path, historical=HistoricalLayout("chirps"))

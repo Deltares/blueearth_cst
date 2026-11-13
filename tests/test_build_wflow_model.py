@@ -447,3 +447,61 @@ def test_the_shipped_template_declares_neither_coupled_key():
 
     for key in ("river_upa:", "soil_fn:", "lulc_fn:", "lai_fn:"):
         assert key not in text, f"{key} is coupled to P1 and must not be declared"
+
+
+def _built_model(tmp_path, steps, spatial=None):
+    from blueearth_cst.model.build_wflow_model import build_record, write_values_used
+
+    root = tmp_path / "models/hydrology/wflow"
+    (root / "_engine").mkdir(parents=True)
+    (root / "staticmaps.nc").write_bytes(b"model")
+    record = root / "_engine/hydromt_build_config.yml"
+    spatial = spatial or {"spatial_maps.nc": "a", "location_registry.csv": "b"}
+    write_values_used(record, steps, "template.yml", spatial)
+    return (
+        root,
+        record,
+        lambda new_steps, new_spatial=spatial: build_record(
+            new_steps, "template.yml", new_spatial
+        ),
+    )
+
+
+def test_an_unchanged_rebuild_is_allowed(tmp_path):
+    from blueearth_cst.model.build_wflow_model import refuse_changed_rebuild
+
+    steps = [("setup_soilmaps", {"soil_fn": "soilgrids"})]
+    root, record, document = _built_model(tmp_path, steps)
+    refuse_changed_rebuild(root, record, document(steps))
+
+
+@pytest.mark.parametrize("change", ["step", "spatial", "added"])
+def test_a_rebuild_with_changed_settings_is_refused(tmp_path, change):
+    from blueearth_cst.model.build_wflow_model import refuse_changed_rebuild
+
+    steps = [("setup_soilmaps", {"soil_fn": "soilgrids"})]
+    root, record, document = _built_model(tmp_path, steps)
+    if change == "step":
+        new = document([("setup_soilmaps", {"soil_fn": "soilgrids_2020"})])
+        named = "setup_soilmaps"
+    elif change == "spatial":
+        new = document(steps, {"spatial_maps.nc": "c", "location_registry.csv": "b"})
+        named = "spatial_maps.nc"
+    else:
+        new = document([*steps, ("setup_laimaps", {"lai_fn": "modis"})])
+        named = "setup_laimaps"
+    with pytest.raises(ValueError, match=named) as raised:
+        refuse_changed_rebuild(root, record, new)
+    assert "new model folder" in str(raised.value)
+
+
+def test_a_first_build_has_nothing_to_compare(tmp_path):
+    from blueearth_cst.model.build_wflow_model import (
+        build_record,
+        refuse_changed_rebuild,
+    )
+
+    root = tmp_path / "models/hydrology/wflow"
+    refuse_changed_rebuild(
+        root, root / "_engine/hydromt_build_config.yml", build_record([], "t.yml")
+    )

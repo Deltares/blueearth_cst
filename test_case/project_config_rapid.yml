@@ -26,10 +26,12 @@ schema_version: 3
 project:
   project_dir: test_rapid
   # Catalog order is precedence order. Use the Deltares P-drive base catalog,
-  # then replace only `era5` with the faster P-drive Zarr source. ERA5 requests
-  # must end by 2023-02-01.
+  # then the datasets staged locally (C:/data/wflow_global/hydromt, falling back
+  # to P: where the mirror is absent), then replace only `era5` with the Zarr
+  # source (also local first). ERA5 requests must end by 2023-02-01.
   catalog:
   - toolbox:config/catalogs/deltares_data_pdrive.yml
+  - toolbox:config/catalogs/deltares_data_staged.yml
   - toolbox:config/catalogs/deltares_era5_daily_zarr.yml
 
 

@@ -264,7 +264,7 @@ def test_historical_state_must_match_its_frozen_bytes(tmp_path):
     )
     from blueearth_cst.shared.provenance import file_sha256
 
-    path = tmp_path / "run_default/outstate/outstates.nc"
+    path = tmp_path / "historical/default/run/outstate/outstates.nc"
     path.parent.mkdir(parents=True)
     path.write_bytes(b"state")
     config = {"model": {"cold_start__flag": True}, "state": {"variables": {"a": "a"}}}

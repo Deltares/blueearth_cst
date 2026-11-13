@@ -648,6 +648,12 @@ def run_workflow(
     """One captured WF0--WF2 execution with a common invocation record."""
     if workflow not in WORKFLOWS or cores < 1:
         raise ValueError("invalid workflow or core count")
+    # Before anything writes to the folder: stamp a new one, refuse another
+    # layout (rule R18). The all-workflow runner checks too; this covers
+    # scripts/run_workflow.py, which reaches WF0--WF2 only through here.
+    from blueearth_cst.shared.layout_stamp import admit
+
+    admit(Path(project_root).resolve())
     path, record = invocation_history.start(
         Path(project_root),
         workflow=workflow,

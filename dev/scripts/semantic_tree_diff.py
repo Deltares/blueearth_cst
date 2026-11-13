@@ -374,6 +374,35 @@ def build_project_tree_rules(
     rules.append((re.compile(r"benchmarks/wf[012]_benchmarks\.md"), r"\g<0>"))
     # Layout 2 homes of the spatial unit's machine files (moved in layout 3, R10).
     rules.append((re.compile(r"data/spatial/spatial_(catalog|report)\.yml"), r"\g<0>"))
+    # Layout 3 WF4 freeze record and its permanent payload copies (R9, R12).
+    for e in sorted(experiments):
+        exp = re.escape(e)
+        for pattern in (
+            rf"experiments/{exp}/_engine/simulation-freeze\.json",
+            rf"experiments/{exp}/_engine/freeze-payloads/(?:sources/)?(?:catalogs/)?[^/]+",
+        ):
+            rules.append((re.compile(pattern), r"\g<0>"))
+    # Retained historical runs and their comparison (removed in layout 4, D18).
+    for pattern in (
+        r"simulations/historical/_engine/[a-z][a-z0-9_]{0,63}\.json",
+        r"simulations/historical/[a-z][a-z0-9_]{0,63}/(_engine/)?[^/]+",
+        r"comparisons/historical/_engine/[a-z][a-z0-9_]{0,63}\.yml",
+        r"comparisons/historical/[a-z][a-z0-9_]{0,63}/.+",
+    ):
+        rules.append((re.compile(pattern), r"\g<0>"))
+    # Layout 3 recipe shapes and toolbox files in staticgeoms/ (layout 4, R16).
+    old = re.escape(f"models/hydrology/{model_name}")
+    recipe = "[a-z][a-z0-9_]{0,31}"
+    for pattern in (
+        rf"{old}/forcing/(?:{recipe}/)?inmaps_historical\.nc",
+        rf"{old}/forcing/(?:{recipe}/)?(?:_engine/)?plots/.+",
+        rf"{old}/(?:run_default|run_{recipe})/.+",
+        rf"{old}/evaluation/.+",
+        rf"{old}/config/(?:{recipe}/)?(?:build_historical_forcing|climate_store_catalog)\.yml",
+        rf"{old}/config/{recipe}/historical_forcing\.json",
+        rf"{old}/staticgeoms/(outlet_index\.csv|reservoirs_lakes_glaciers\.txt)",
+    ):
+        rules.append((re.compile(pattern), r"\g<0>"))
     # Layout 2 homes of WF1 markers and build records (moved in layout 3, R10).
     model = re.escape(f"models/hydrology/{model_name}")
     rules.append(

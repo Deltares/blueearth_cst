@@ -74,7 +74,9 @@ def _render_hydro(project_dir: Path, out_dir: Path) -> list[Path]:
     from blueearth_cst.shared.plot_evaluation import Station, plot_hydrograph
     from blueearth_cst.shared.response_tables import open_table_responses
 
-    record = _model_dir(project_dir) / "run_default/_engine/response_tables.json"
+    record = (
+        _model_dir(project_dir) / "historical/default/run/_engine/response_tables.json"
+    )
     response = open_table_responses("preview", record, ResponseRequest(("q",)))[0]
     qsim = xr.DataArray(
         response.values,
@@ -94,7 +96,7 @@ def _render_hydro(project_dir: Path, out_dir: Path) -> list[Path]:
 RENDERERS = {
     "hydro": (
         "Simulated hydrograph at the first discharge column",
-        lambda p: _model_dir(p) / "run_default/_engine/response_tables.json",
+        lambda p: _model_dir(p) / "historical/default/run/_engine/response_tables.json",
         _render_hydro,
     ),
 }

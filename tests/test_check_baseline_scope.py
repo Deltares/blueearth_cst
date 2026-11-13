@@ -353,7 +353,8 @@ def test_record_workflow_merges_and_preserves_other_slices(project):
     # A correct merge must re-record wf1 yet leave the (now stale) wf2 row as it
     # was — proving it did not recompute or drop the unselected slice.
     disch_path = cb.resolve(
-        "{project_dir}/models/hydrology/wflow/run_default/output.csv", project_dir
+        "{project_dir}/models/hydrology/wflow/historical/default/run/output.csv",
+        project_dir,
     )
     Path(cp_path).write_text("a,b\n9,9\n")  # wf2 content now differs from cp_before
     Path(disch_path).write_text(

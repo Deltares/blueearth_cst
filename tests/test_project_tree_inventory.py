@@ -178,31 +178,31 @@ COVERED: dict[str, list[str]] = {
         "models/hydrology/wflow/.outputs_configured",
         # ADR 0004's terminal build sentinel.
         "models/hydrology/wflow/_engine/markers/.model_final",
-        "models/hydrology/wflow/config/build_historical_forcing.yml",
+        "models/hydrology/wflow/historical/default/_engine/build_historical_forcing.yml",
         # Rule 1.10's second declared config output, beside the build YAML
         # (2026-08-11).
-        "models/hydrology/wflow/config/climate_store_catalog.yml",
-        "models/hydrology/wflow/forcing/inmaps_historical.nc",
-        "models/hydrology/wflow/forcing/plots/forcing_precip_map.png",
-        "models/hydrology/wflow/forcing/_engine/plots/figure_titles.json",
-        "models/hydrology/wflow/evaluation/_engine/plots/stations/figure_captions.json",
-        "models/hydrology/wflow/evaluation/budyko/_engine/plots/figure_titles.json",
-        "models/hydrology/wflow/staticgeoms/outlet_index.csv",
+        "models/hydrology/wflow/historical/default/_engine/climate_store_catalog.yml",
+        "models/hydrology/wflow/historical/default/forcing/inmaps_historical.nc",
+        "models/hydrology/wflow/historical/default/forcing/plots/forcing_precip_map.png",
+        "models/hydrology/wflow/historical/default/forcing/_engine/plots/figure_titles.json",
+        "models/hydrology/wflow/historical/default/evaluation/_engine/plots/stations/figure_captions.json",
+        "models/hydrology/wflow/historical/default/evaluation/budyko/_engine/plots/figure_titles.json",
+        "models/hydrology/wflow/_engine/outlet_index.csv",
         "models/hydrology/wflow/staticgeoms/gauges_locations.geojson",
-        "models/hydrology/wflow/run_default/_engine/response_tables.json",
-        "models/hydrology/wflow/run_default/output_grid.nc",
-        "models/hydrology/wflow/run_default/output_q.csv",
+        "models/hydrology/wflow/historical/default/run/_engine/response_tables.json",
+        "models/hydrology/wflow/historical/default/run/output_grid.nc",
+        "models/hydrology/wflow/historical/default/run/output_q.csv",
         # Wflow's log is retained but excluded as non-content-bearing evidence.
-        "models/hydrology/wflow/run_default/outstate/outstates.nc",
-        "models/hydrology/wflow/evaluation/tables/performance_indicators.csv",
+        "models/hydrology/wflow/historical/default/run/outstate/outstates.nc",
+        "models/hydrology/wflow/historical/default/evaluation/tables/performance_indicators.csv",
         # Keyed by wflow_id since 2026-08-10; four sheets per station. They sit
         # in a `stations/` bin since 2026-08-18 (t2608071206) because rule 1.15
         # declares that bin as a directory() -- their count is a product of the
         # model build, so the files themselves cannot be declared.
-        "models/hydrology/wflow/evaluation/plots/stations/hydrograph_1010.png",
-        "models/hydrology/wflow/evaluation/plots/stations/signatures_peaks_1010.png",
-        "models/hydrology/wflow/evaluation/plots/stations/signatures_lows_1010.png",
-        "models/hydrology/wflow/evaluation/plots/stations/performance_1010.png",
+        "models/hydrology/wflow/historical/default/evaluation/plots/stations/hydrograph_1010.png",
+        "models/hydrology/wflow/historical/default/evaluation/plots/stations/signatures_peaks_1010.png",
+        "models/hydrology/wflow/historical/default/evaluation/plots/stations/signatures_lows_1010.png",
+        "models/hydrology/wflow/historical/default/evaluation/plots/stations/performance_1010.png",
         # The staleness sidecar (rule 1.15b) and the two values-used records
         # (rules 1.07 and 1.08) -- see design §5.6 and §5.8.
         "models/hydrology/wflow/_engine/run_metadata.json",
@@ -212,10 +212,10 @@ COVERED: dict[str, list[str]] = {
     "experiments": [
         f"experiments/{E}/experiment.yml",
         f"experiments/{E}/_engine/reservation.json",
-        f"experiments/{E}/_engine/simulation-freeze.json",
-        f"experiments/{E}/_engine/freeze-payloads/run_record.yml",
-        f"experiments/{E}/_engine/freeze-payloads/sources/project.yml",
-        f"experiments/{E}/_engine/freeze-payloads/sources/catalogs/custom-catalog.yml",
+        f"experiments/{E}/_engine/simulation_freeze.json",
+        f"experiments/{E}/_engine/freeze_payloads/run_record.yml",
+        f"experiments/{E}/_engine/freeze_payloads/sources/project.yml",
+        f"experiments/{E}/_engine/freeze_payloads/sources/catalogs/custom-catalog.yml",
         f"experiments/{E}/_engine/batch_staging/run_01.csv",
         f"experiments/{E}/_engine/batch_staging/run_01.expect",
         f"experiments/{E}/_engine/batch_staging/run_01.ok",
@@ -228,9 +228,9 @@ COVERED: dict[str, list[str]] = {
         f"experiments/{E}/config/SOURCES.md",
         f"experiments/{E}/config/simulate_system.yml",
         f"experiments/{E}/config/catalogs/custom-catalog.yml",
-        f"experiments/{E}/_engine/freeze-payloads/SOURCES.md",
-        f"experiments/{E}/_engine/freeze-payloads/simulate_system.yml",
-        f"experiments/{E}/_engine/freeze-payloads/catalogs/custom-catalog.yml",
+        f"experiments/{E}/_engine/freeze_payloads/SOURCES.md",
+        f"experiments/{E}/_engine/freeze_payloads/simulate_system.yml",
+        f"experiments/{E}/_engine/freeze_payloads/catalogs/custom-catalog.yml",
         f"experiments/{E}/_engine/response_inventory.json",
         f"experiments/{E}/_engine/indicator_requests/{'a' * 12}.json",
         f"experiments/{E}/_engine/indicator_sets/{'b' * 12}/indicators.json",
@@ -403,7 +403,7 @@ UNDECLARED = [
     "data/spatial/leftover_intermediate.nc",  # a settled dir: enumerated
     "data/spatial/spatial_maps.tmp.nc",  # a crashed write
     "models/hydrology/wflow/stray_output.nc",
-    "models/hydrology/wflow/forcing/inmaps_2050.nc",
+    "models/hydrology/wflow/historical/default/forcing/inmaps_2050.nc",
     "config/something_new.yml",  # not the two contract paths
     "config/whatever_new_thing.yml",
     # Guards on the two rows added 2026-08-11. `invocations/` is a PREFIX

@@ -457,10 +457,56 @@ def _validate_written_model(
     reopened.close()
 
 
+def build_record(
+    records: list[tuple[str, dict[str, Any]]],
+    parameter_template: str | os.PathLike[str],
+    spatial_inputs: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """What a build was made from, normalized through YAML for comparison."""
+    document = {
+        "schema_version": 2,
+        "parameter_template": str(parameter_template),
+        "spatial_inputs": dict(spatial_inputs or {}),
+        "steps": [{"method": name, "values_used": kwargs} for name, kwargs in records],
+    }
+    return yaml.safe_load(yaml.safe_dump(document, sort_keys=False, allow_unicode=True))
+
+
+def refuse_changed_rebuild(root: Path, record_path: Path, document: dict) -> None:
+    """Refuse to rebuild an existing model with different settings (ruling D19).
+
+    Each folder under ``models/hydrology/`` is one model (D18): different
+    settings belong in a new model folder, never over this one.
+    """
+    if not (root / "staticmaps.nc").is_file() or not record_path.is_file():
+        return
+    previous = yaml.safe_load(record_path.read_text(encoding="utf-8")) or {}
+    old_steps, new_steps = previous.get("steps", []), document["steps"]
+    changed = [
+        step["method"]
+        for index, step in enumerate(new_steps)
+        if index >= len(old_steps) or old_steps[index] != step
+    ]
+    if len(old_steps) != len(new_steps):
+        changed.append("the list of build steps")
+    for name, digest in document["spatial_inputs"].items():
+        if previous.get("spatial_inputs", {}).get(name, digest) != digest:
+            changed.append(name)
+    if changed:
+        raise ValueError(
+            f"{root} was built with different model settings (changed: "
+            f"{', '.join(dict.fromkeys(changed))}). Build the new settings into a new "
+            "model folder: set project.project_dir to a new folder until model "
+            "folders can be named. To rebuild this model in place deliberately, "
+            "delete the model folder first."
+        )
+
+
 def write_values_used(
     path: str | os.PathLike[str],
     records: list[tuple[str, dict[str, Any]]],
     parameter_template: str | os.PathLike[str],
+    spatial_inputs: dict[str, str] | None = None,
 ) -> None:
     """Record the post-normalization values hydromt was handed.
 
@@ -475,11 +521,7 @@ def write_values_used(
     ran: hydromt's setup methods mutate the model in sequence, and the same
     steps in another order are a different build.
     """
-    document = {
-        "schema_version": 1,
-        "parameter_template": str(parameter_template),
-        "steps": [{"method": name, "values_used": kwargs} for name, kwargs in records],
-    }
+    document = build_record(records, parameter_template, spatial_inputs)
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", encoding="utf-8", newline="\n") as stream:
@@ -539,7 +581,18 @@ def build_wflow_model(
     model.set_flwdir(ftype="ldd")
     records = _apply_parameter_steps(model, steps, maps, geoms["river_attributes"])
     if values_used_path is not None:
-        write_values_used(values_used_path, records, parameter_template)
+        from blueearth_cst.shared.provenance import file_sha256
+
+        spatial_inputs = {
+            name: file_sha256(spatial_catalog.parent.parent / name)
+            for name in ("spatial_maps.nc", "location_registry.csv")
+        }
+        refuse_changed_rebuild(
+            root,
+            Path(values_used_path),
+            build_record(records, parameter_template, spatial_inputs),
+        )
+        write_values_used(values_used_path, records, parameter_template, spatial_inputs)
     model.setup_gauges(
         gauges_fn=geoms["locations"],
         index_col="wflow_id",

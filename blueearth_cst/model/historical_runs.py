@@ -1,124 +1,35 @@
-"""Publish and read immutable historical responses without the mutable model."""
+"""Read each forcing recipe's current historical run for comparison (R16, D18).
+
+A run lives with its model, in ``<model>/historical/<recipe>/run/``; there are
+no named retained copies (t017 ruling D18). Changed model settings go to a new
+model folder, so a model's recipe runs only change when rerun unchanged.
+"""
 
 from __future__ import annotations
 
 import copy
-import csv
 import json
-import re
-import shutil
 import tomllib
-import uuid
-from contextlib import contextmanager
-from datetime import datetime, timezone
+import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING
 
 from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
-from blueearth_cst.shared.native_locations import native_location_labels
-from blueearth_cst.shared.provenance import (
-    collection_sha256,
-    environment_file_hashes,
-    file_sha256,
-    toolbox_identity,
-)
-from blueearth_cst.shared.workflow_config_snapshot import snapshot_bytes
-
-SCHEMA = "historical-run/2"
+from blueearth_cst.shared.provenance import collection_sha256, file_sha256
 
 if TYPE_CHECKING:
     import pandas as pd
 
 
-def historical_run_name(settings: object) -> str | None:
-    """Validate the optional closed retention mapping and portable label."""
-    if settings is None:
-        return None
-    if not isinstance(settings, dict) or set(settings) != {"name"}:
-        raise ValueError("historical_run must be null or a mapping with only name")
-    name = settings["name"]
-    if not isinstance(name, str) or not re.fullmatch("[a-z][a-z0-9_]{0,63}", name):
-        raise ValueError("historical_run.name must match [a-z][a-z0-9_]{0,63}")
-    if name in {
-        "con",
-        "prn",
-        "aux",
-        "nul",
-        *[f"com{i}" for i in range(10)],
-        *[f"lpt{i}" for i in range(10)],
-    }:
-        raise ValueError("historical_run.name is a reserved device name")
-    return name
-
-
-def run_directory(project_dir: str | Path, name: str) -> Path:
-    """Resolve one named historical run beneath the project publication root."""
-    historical_run_name({"name": name})
-    root = Path(project_dir).resolve() / "simulations" / "historical"
-    target = root / name
-    if target.resolve().parent != root.resolve() or target.is_symlink():
-        raise ValueError("historical run must not resolve outside its publication root")
-    return target
-
-
-def require_new_run(project_dir: str | Path, name: str) -> Path:
-    """Refuse reuse, including damaged publications, before running Wflow."""
-    target = run_directory(project_dir, name)
-    if target.exists():
-        raise FileExistsError(
-            f"historical run {name!r} already exists; choose a new name"
-        )
-    return target
-
-
-def completion_path(project_dir: str | Path, name: str) -> Path:
-    """Declare workflow state outside immutable payloads that engines may clean."""
-    root = run_directory(project_dir, name).parent / "_engine"
-    if root.is_symlink() or root.resolve() != root:
-        raise ValueError("historical completion receipt directory is aliased")
-    return root / f"{name}.json"
-
-
-def completion_inputs(project_dir: str | Path, name: str | None) -> list[str]:
-    """Validate retained state when the simulation job enters the DAG.
-
-    Return no artificial dependencies: adding archive files only after execution
-    would itself trigger a rerun. The per-name receipt is the declared output.
-    An archive without a receipt still schedules execution, whose collision guard
-    refuses it. Unrelated targets do not call this input function.
-    """
-    if name is None:
-        return []
-    target = run_directory(project_dir, name)
-    receipt = completion_path(project_dir, name)
-    if target.exists() or receipt.exists():
-        read_historical_run(project_dir, name)
-    if receipt.exists():
-        if receipt.is_symlink() or json.loads(receipt.read_text(encoding="utf-8")) != {
-            "schema_version": SCHEMA,
-            "name": name,
-            "complete_sha256": file_sha256(target / "complete.json"),
-        }:
-            raise ValueError("damaged historical workflow completion receipt")
-    return []
-
-
-def write_completion(project_dir: str | Path, name: str) -> None:
-    """Publish the declared receipt only after the immutable archive is complete."""
-    read_historical_run(project_dir, name)
-    receipt = completion_path(project_dir, name)
-    receipt.parent.mkdir(parents=True, exist_ok=True)
-    with receipt.open("xb") as stream:
-        stream.write(
-            _json_bytes(
-                {
-                    "schema_version": SCHEMA,
-                    "name": name,
-                    "complete_sha256": file_sha256(
-                        run_directory(project_dir, name) / "complete.json"
-                    ),
-                }
-            )
+def warn_retired_historical_run(settings: object) -> None:
+    """``historical_run`` named retained copies; it is accepted and ignored."""
+    if settings is not None:
+        warnings.warn(
+            "build_model.historical_run is no longer used: each recipe's run stays "
+            "in models/hydrology/<model>/historical/<recipe>/run/, and changed model "
+            "settings belong in a new model folder. Remove the setting.",
+            FutureWarning,
+            stacklevel=2,
         )
 
 
@@ -220,209 +131,53 @@ def _check_inputs(files: dict[str, str]) -> None:
             )
 
 
-@contextmanager
-def retain_historical_run(
-    *,
-    project_dir: str | Path,
-    name: str,
-    toml_path: Path,
-    registry_path: Path,
-    forcing_record_path: Path,
-    config: dict,
-    config_path: Path,
-    workflow_config_path: Path | None,
-    repo_root: Path,
-) -> Iterator[None]:
-    """Capture before execution, then publish only after a successful caller body.
+def read_recipe_run(
+    model_root: Path, forcing_id: str, registry_path: Path
+) -> tuple[dict, pd.DataFrame, pd.DataFrame, dict[str, str]]:
+    """One recipe's current run: identity record, discharge, stations, input hashes.
 
-    The caller runs Wflow and validates optional native grids inside this context.
-    Staging is a sibling of the final directory, so rename is one filesystem action.
-    The reservation is exclusive and never expires automatically after a crash.
+    The identity fingerprints the executed TOML and its inputs now; the caller
+    re-checks the returned hashes after use so a concurrent change is refused.
     """
     import pandas as pd
 
     from blueearth_cst.experiment.response_series import response_frame
-    from blueearth_cst.experiment.wflow_response_reader import (
-        NativeRunArtifacts,
-        ResponseRequest,
-    )
-
-    target = require_new_run(project_dir, name)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    reservation = target.parent / f".{name}.lock"
-    reservation.mkdir()
-    stage = target.parent / f".{name}.{uuid.uuid4().hex}.partial"
-    try:
-        require_new_run(project_dir, name)
-        stage.mkdir()
-        files, identity = execution_inputs(toml_path, registry_path)
-        files[str(forcing_record_path.resolve())] = file_sha256(forcing_record_path)
-        record = json.loads(forcing_record_path.read_text(encoding="utf-8"))
-        recipe = normalize_forcing_recipe(
-            config["climate"]["selected"], config["climate"].get("forcing")
-        )
-        if record != {
-            "recipe": recipe.to_dict(),
-            "forcing_sha256": identity["forcing_sha256"],
-        }:
-            raise ValueError(
-                "prepared forcing provenance disagrees with executed recipe or forcing"
-            )
-        stage.joinpath("composed_config.yml").write_bytes(
-            snapshot_bytes("build_model", config_path, workflow_config_path, config)
-        )
-        shutil.copyfile(toml_path, stage / "wflow_sbm.toml")
-        shutil.copyfile(registry_path, stage / "location_registry.csv")
-        evidence = {
-            "schema_version": SCHEMA,
-            "name": name,
-            **identity,
-            "recipe": record["recipe"],
-            "inputs": files,
-            "toolbox": toolbox_identity(repo_root),
-            "environment": environment_file_hashes(repo_root),
-            "started_at": datetime.now(timezone.utc).isoformat(),
-        }
-        _check_inputs(files)
-        yield
-        _check_inputs(files)
-        native_config = tomllib.loads(toml_path.read_text(encoding="utf-8"))
-        output_path = (
-            toml_path.parent
-            / native_config.get("dir_output", ".")
-            / native_config["output"]["csv"]["path"]
-        )
-        with output_path.open(encoding="utf-8", newline="") as stream:
-            native_headers = next(csv.reader(stream))
-        duplicates: dict[str, str] = {}
-        crosswalk = native_location_labels(
-            native_config["output"]["csv"]["column"],
-            native_headers,
-            _input_path(
-                toml_path, native_config, native_config["input"]["path_static"]
-            ),
-            duplicates,
-        )
-        unknown = (
-            {key for key in native_headers if key.startswith("Q_")}
-            - crosswalk.keys()
-            - duplicates.keys()
-        )
-        if unknown:
-            raise ValueError(
-                f"historical native discharge stations are unrecognized: {sorted(unknown)}"
-            )
-        from blueearth_cst.shared.csv_output import normalize_csv_output
-        from blueearth_cst.shared.response_tables import (
-            open_table_responses,
-            publish_response_tables,
-        )
-
-        places = normalize_csv_output(
-            config.get("workflows", {}).get("build_model", {}).get("output")
-        )["decimal_places"]
-        table_record = publish_response_tables(
-            NativeRunArtifacts(output_path, toml_path), stage, decimal_places=places
-        )
-        responses = open_table_responses(name, table_record, ResponseRequest(("q",)))
-        frame = response_frame(responses)
-        registry = pd.read_csv(registry_path, dtype={"wflow_id": str})
-        if registry["wflow_id"].duplicated().any() or not set(frame.columns) <= set(
-            registry["wflow_id"]
-        ):
-            raise ValueError(
-                "historical response stations do not match the stable registry"
-            )
-        registry[registry.wflow_id.isin(frame.columns)].sort_values("wflow_id").to_csv(
-            stage / "stations.csv", index=False
-        )
-        evidence.update(
-            decimal_places=places,
-            native_crosswalk=crosswalk,
-            duplicate_native_columns=duplicates,
-            units="m3 s-1",
-            time_label="interval_end",
-            completed_at=datetime.now(timezone.utc).isoformat(),
-            samples=len(frame),
-            stations=sorted(frame.columns),
-        )
-        (stage / "run.json").write_bytes(_json_bytes(evidence))
-        _check_inputs(files)
-        payloads = {
-            path.relative_to(stage).as_posix(): file_sha256(path)
-            for path in stage.rglob("*")
-            if path.is_file()
-        }
-        (stage / "complete.json").write_bytes(
-            _json_bytes({"schema_version": SCHEMA, "payloads": payloads})
-        )
-        # rename refuses an existing nonempty publication; never replace it.
-        require_new_run(project_dir, name)
-        stage.rename(target)
-    finally:
-        # Interrupted stages remain unavailable and inspectable; never delete evidence.
-        reservation.rmdir()
-
-
-def read_historical_run(
-    project_dir: str | Path, name: str
-) -> tuple[dict, pd.DataFrame, pd.DataFrame]:
-    """Verify a complete publication and read it without accessing original inputs."""
-    import pandas as pd
-
-    from blueearth_cst.experiment.response_series import response_frame
-
-    target = run_directory(project_dir, name)
-    marker = target / "complete.json"
-    if marker.is_symlink() or marker.resolve().parent != target.resolve():
-        raise ValueError("historical completion marker escapes the retained run")
-    complete = json.loads(marker.read_text(encoding="utf-8"))
-    if complete.get("schema_version") != SCHEMA:
-        raise ValueError(
-            "Unsupported historical run format; create a new historical run"
-        )
-    expected = {
-        "run.json",
-        "_engine/response_tables.json",
-        "stations.csv",
-        "location_registry.csv",
-        "wflow_sbm.toml",
-        "composed_config.yml",
-    }
     from blueearth_cst.experiment.wflow_response_reader import ResponseRequest
-    from blueearth_cst.shared.response_tables import (
-        open_table_responses,
-        read_table_record,
-    )
+    from blueearth_cst.shared.named_forcings import HistoricalLayout
+    from blueearth_cst.shared.response_tables import open_table_responses
 
-    tables = read_table_record(target / "_engine/response_tables.json")
-    expected.update(item["path"] for item in tables["variables"].values())
-    if (
-        complete.get("schema_version") != SCHEMA
-        or set(complete.get("payloads", {})) != expected
-    ):
-        raise ValueError("unsupported or incomplete historical run")
-    for filename, digest in complete["payloads"].items():
-        path = target / filename
-        if (
-            path.is_symlink()
-            or not path.resolve().is_relative_to(target.resolve())
-            or file_sha256(path) != digest
-        ):
-            raise ValueError(f"damaged historical run payload: {filename}")
-    record = json.loads((target / "run.json").read_text(encoding="utf-8"))
-    if record.get("schema_version") != SCHEMA or record.get("name") != name:
-        raise ValueError("historical run identity mismatch")
-    if collection_sha256(record["model"]) != record["model_sha256"]:
-        raise ValueError("historical scientific model digest mismatch")
-    native = tomllib.loads((target / "wflow_sbm.toml").read_text(encoding="utf-8"))
-    record["forcing_mapping"] = native.get("input", {}).get("forcing", {})
+    model_root = Path(model_root)
+    layout = HistoricalLayout(forcing_id)
+    toml_path = model_root / layout.toml
+    files, identity = execution_inputs(toml_path, registry_path)
+    forcing_record_path = model_root / layout.config_dir / "historical_forcing.json"
+    files[str(forcing_record_path.resolve())] = file_sha256(forcing_record_path)
+    forcing_record = json.loads(forcing_record_path.read_text(encoding="utf-8"))
+    if forcing_record["forcing_sha256"] != identity["forcing_sha256"]:
+        raise ValueError(f"recipe {forcing_id}: forcing differs from its record")
+    table_record = model_root / layout.response_record
+    files[str(table_record.resolve())] = file_sha256(table_record)
     frame = response_frame(
-        open_table_responses(
-            name, target / "_engine/response_tables.json", ResponseRequest(("q",))
-        )
+        open_table_responses(forcing_id, table_record, ResponseRequest(("q",)))
     )
-    stations = pd.read_csv(target / "stations.csv", dtype={"wflow_id": str})
-    if sorted(frame.columns) != record["stations"] or len(frame) != record["samples"]:
-        raise ValueError("retained discharge shape disagrees with completion evidence")
-    return record, frame, stations
+    registry = pd.read_csv(registry_path, dtype={"wflow_id": str})
+    if registry["wflow_id"].duplicated().any() or not set(frame.columns) <= set(
+        registry["wflow_id"]
+    ):
+        raise ValueError(f"recipe {forcing_id}: stations do not match the registry")
+    stations = (
+        registry[registry.wflow_id.isin(frame.columns)]
+        .sort_values("wflow_id")
+        .reset_index(drop=True)
+    )
+    native = tomllib.loads(toml_path.read_text(encoding="utf-8"))
+    record = {
+        **identity,
+        "recipe": forcing_record["recipe"],
+        "forcing_mapping": native.get("input", {}).get("forcing", {}),
+        "units": "m3 s-1",
+        "time_label": "interval_end",
+        "samples": len(frame),
+        "stations": sorted(frame.columns),
+    }
+    return record, frame, stations, files

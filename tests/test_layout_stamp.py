@@ -62,3 +62,24 @@ def test_admission_is_idempotent(tmp_path):
     before = (tmp_path / layout_stamp.STAMP).read_bytes()
     layout_stamp.admit(tmp_path)
     assert (tmp_path / layout_stamp.STAMP).read_bytes() == before
+
+
+def test_the_wf0_wf2_launcher_stamps_before_it_writes(tmp_path, monkeypatch):
+    """scripts/run_workflow.py reaches WF0-WF2 only through run_workflow."""
+    from blueearth_cst.shared import invocation_history
+    from blueearth_cst.shared import workflow_archive_launch as launch
+
+    class Stop(Exception):
+        pass
+
+    def stop(root, **kwargs):
+        assert layout_stamp.read(root) == LAYOUT_VERSION
+        raise Stop
+
+    monkeypatch.setattr(invocation_history, "start", stop)
+    with pytest.raises(Stop):
+        launch.run_workflow("build_model", tmp_path / "c.yml", tmp_path / "new")
+    old = tmp_path / "old"
+    (old / "models").mkdir(parents=True)
+    with pytest.raises(layout_stamp.LayoutMismatch):
+        launch.run_workflow("build_model", tmp_path / "c.yml", old)

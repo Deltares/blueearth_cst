@@ -82,11 +82,11 @@ def _budyko(args):
 
     if args.source:
         raise ValueError("--source does not apply to budyko")
-    render(
-        args.project / "models/hydrology/wflow/evaluation/budyko",
-        args.out,
-        args.annotation,
-    )
+    model = args.project / "models/hydrology/wflow"
+    root = model / "historical/default/evaluation/budyko"
+    if not root.is_dir():
+        root = model / "evaluation/budyko"  # before layout 4
+    render(root, args.out, args.annotation)
     return {"budyko": args.out / "plots"}
 
 

@@ -164,7 +164,7 @@ avoid `--forceall` when you only want new figures.
 Replace `<source>` with a configured source such as `era5`. Some plotting tasks also recalculate
 summaries or indicators, so they are not all image-only operations. Retain the underlying climate,
 spatial and model-response files. In particular, historical evaluation uses the model's native
-`run_default/output.csv`; rounded exported tables cannot replace it.
+`historical/default/run/output.csv`; rounded exported tables cannot replace it.
 
 Use `plotting.annotation` in the project file to select `none`, `caption` or `title`.
 See [plot annotations](../technical-manual/shared-configuration.md#plot-annotations) for details.

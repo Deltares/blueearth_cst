@@ -542,8 +542,6 @@ def test_named_recipe_store_has_one_contract_in_wf0_and_wf1(tmp_path, executed):
     climate["default_forcing"] = "era5"
     build = cfg["workflows"]["build_model"]
     build["historical_forcings"] = executed
-    if len(executed) > 1:
-        build["historical_run"] = {"name": "pin"}
     cfg_path = write_config(tmp_path, cfg, stem="project_config_named_stores")
 
     wf0 = _parse_workflow("analyze_climate.smk", cfg_path)

@@ -52,7 +52,7 @@ rerun.
 ## Outputs and consumers
 
 The spatial registry owns stable location identities. WF1 writes
-`staticgeoms/outlet_index.csv` to connect model outlet positions to primary registry locations.
+`_engine/outlet_index.csv` to connect model outlet positions to primary registry locations.
 Positional `wflow_1` labels are conveniences for model outputs, not substitutes for basin, subbasin
 or location IDs. [`write_outlet_index.py`](../../blueearth_cst/model/write_outlet_index.py) owns the
 crosswalk.
@@ -70,8 +70,8 @@ need one series each; automatic outlets may have a series but do not require one
 unrecognized IDs fail. The baseline discharge reader uses the outlet index to select a deterministic
 outlet when the model has multiple discharge columns.
 
-WF1 converts temporary `run_default/output.csv` into per-variable rounded response tables and
-`run_default/_engine/response_tables.json`, then removes the native CSV. Model evaluation reads these
+WF1 converts temporary `historical/default/run/output.csv` into per-variable rounded response tables and
+`historical/default/run/_engine/response_tables.json`, then removes the native CSV. Model evaluation reads these
 responses and optional observations; historical climate diagnostics use the shared model-free
 producers. Do not add a second subcatchment climate-plotting path under model evaluation. WF4
 consumes the validated model through its own runner and retained-response contract.

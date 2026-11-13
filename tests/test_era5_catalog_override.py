@@ -16,7 +16,12 @@ def test_rapid_config_composes_pdrive_base_then_era5_override():
     )
     catalogs = project["project"]["catalog"]
 
-    assert catalogs == ["toolbox:" + BASE_CATALOG, "toolbox:" + ERA5_OVERRIDE]
+    # The local-first overlay of staged datasets sits between the two.
+    assert catalogs == [
+        "toolbox:" + BASE_CATALOG,
+        "toolbox:config/catalogs/deltares_data_staged.yml",
+        "toolbox:" + ERA5_OVERRIDE,
+    ]
     assert project["basin"]["sources"] == {
         "rivers": "hydro_rivers_lin",
         "lulc": "globcover",
@@ -30,7 +35,9 @@ def test_rapid_config_composes_pdrive_base_then_era5_override():
     assert set(composed_sources) == set(base_sources)
     for name in base_sources.keys() - {"era5", "meta"}:
         assert composed_sources[name] == base_sources[name]
-    assert override["meta"]["roots"][0].lower() == "p:/wflow_global/hydromt"
+    # Local mirror first, the P: drive as the fallback.
+    assert override["meta"]["roots"][0] == "C:/data/wflow_global/hydromt"
+    assert override["meta"]["roots"][1].lower() == "p:/wflow_global/hydromt"
     assert base_sources["meta"]["roots"][0].lower() == "p:/wflow_global/hydromt"
     assert era5["uri"].endswith("meteo/era5_daily.zarr")
     assert era5["driver"] == {

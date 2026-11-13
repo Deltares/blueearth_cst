@@ -42,7 +42,7 @@ UNITS = ("project", "spatial", "wf0", "wf1", "wf2", "wf3", "wf4")
 
 #: Layout version this toolbox writes (rule R18). A project folder without a
 #: stamp is layout 1. Bumped once per landed t017 migration step.
-LAYOUT_VERSION = 3
+LAYOUT_VERSION = 4
 
 #: Mirrors ``blueearth_cst.shared.provenance.SHORT_DIGEST_CHARS``.
 SHORT_DIGEST_CHARS = 12
@@ -71,8 +71,6 @@ GRAMMARS: dict[str, str] = {
     "experiment_name": "[a-z0-9_]+",
     # `named_forcings.FORCING_ID`.
     "recipe": "[a-z][a-z0-9_]{0,31}",
-    # `historical_runs.historical_run_name`.
-    "historical_run": "[a-z][a-z0-9_]{0,63}",
     # `indicator_sets.SET_ID_PATTERN` within `SET_ID_MAX_LENGTH`.
     "set_id": "[a-z][a-z0-9_-]{0,63}",
     "slug": "[a-z][a-z0-9_]*",
@@ -299,60 +297,42 @@ def declarations() -> tuple[Declaration, ...]:
         "record",
         f"{m}/wflow_sbm.toml.grid.toml",
         f"{m}/wflow_sbm_{{recipe}}.toml.grid.toml",
-        f"{m}/config/{{build_historical_forcing|climate_store_catalog}}.yml",
-        f"{m}/config/{{recipe}}/{{build_historical_forcing|climate_store_catalog}}.yml",
-        f"{m}/config/{{recipe}}/historical_forcing.json",
         f"{m}/_engine/hydromt_build_config.yml",
         f"{m}/_engine/hydromt_update_waterbodies.yml",
         f"{m}/_engine/run_metadata.json",
-        f"{m}/forcing/_engine/plots/",
-        f"{m}/forcing/{{recipe}}/_engine/plots/",
+        f"{m}/_engine/{{reservoirs_lakes_glaciers.txt|outlet_index.csv}}",
     )
-    d += _declare(
-        "wf1",
-        "product",
-        f"{m}/forcing/inmaps_historical.nc",
-        f"{m}/forcing/{{recipe}}/inmaps_historical.nc",
-        f"{m}/forcing/plots/",
-        f"{m}/forcing/{{recipe}}/plots/",
-        f"{m}/run_default/",
-        f"{m}/run_{{recipe}}/",
-        f"{m}/evaluation/",
-    )
-    sim = "simulations/historical"
-    d += _declare(
-        "wf1",
-        "product",
-        f"{sim}/{{historical_run}}/output_{{output_variable}}.csv",
-        f"{sim}/{{historical_run}}/{{stations.csv|location_registry.csv}}",
-    )
-    d += _declare(
-        "wf1",
-        "settings",
-        f"{sim}/{{historical_run}}/{{wflow_sbm.toml|composed_config.yml}}",
-    )
+    # One folder per forcing recipe, `default` for a single recipe (R16,
+    # layout 4); the recipe TOML stays at the model root (open point 2).
+    h = f"{m}/historical/{{recipe}}"
     d += _declare(
         "wf1",
         "record",
-        f"{sim}/_engine/{{historical_run}}.json",
-        f"{sim}/{{historical_run}}/run.json",
-        f"{sim}/{{historical_run}}/_engine/response_tables.json",
-        "comparisons/historical/_engine/{historical_run}.yml",
-        "comparisons/historical/{historical_run}/comparison.json",
-        "comparisons/historical/{historical_run}/_engine/plots/",
+        f"{h}/_engine/{{build_historical_forcing|climate_store_catalog}}.yml",
+        f"{h}/_engine/historical_forcing.json",
+        f"{h}/forcing/_engine/plots/",
     )
-    d += _declare("wf1", "marker", f"{sim}/{{historical_run}}/complete.json")
     d += _declare(
         "wf1",
         "product",
-        "comparisons/historical/{historical_run}/tables/{segment}.csv",
-        "comparisons/historical/{historical_run}/plots/",
+        f"{h}/forcing/inmaps_historical.nc",
+        f"{h}/forcing/plots/",
+        f"{h}/run/",
+        f"{h}/evaluation/",
     )
+    # Recipe runs compared within their model (R5, R16, D18).
+    c = f"{m}/historical_comparison"
     d += _declare(
         "wf1",
-        ENGINE_OWNED,
-        "comparisons/historical/{historical_run}/.snakemake_timestamp",
+        "product",
+        f"{c}/tables/{{segment}}.csv",
+        f"{c}/tables/supporting/support.csv",
+        f"{c}/plots/",
     )
+    d += _declare(
+        "wf1", "record", f"{c}/_engine/comparison.json", f"{c}/_engine/plots/"
+    )
+    d += _declare("wf1", ENGINE_OWNED, f"{c}/.snakemake_timestamp")
 
     # -- WF3: scenario collections --------------------------------------------
     # Retained collection data under `_engine/data/` and named sets in
@@ -420,7 +400,7 @@ def declarations() -> tuple[Declaration, ...]:
     d += _declare(
         "wf4",
         "record",
-        f"{e}/_engine/{{reservation.json|simulation-freeze.json|model_reference.yml"
+        f"{e}/_engine/{{reservation.json|simulation_freeze.json|model_reference.yml"
         "|simulation.json|simulation_intent.json|response_inventory.json}",
         f"{e}/_engine/indicator_requests/{{hex12}}.json",
         f"{e}/_engine/indicator_sets/{{hex12}}/{{indicators.json|indicator_environment.json"
@@ -431,13 +411,9 @@ def declarations() -> tuple[Declaration, ...]:
         f"{e}/_engine/indicator_sets/names/{{set_id}}/publications/{{hex64}}.json",
         f"{e}/_engine/batch_staging/{{run}}.{{csv|expect|ok}}",
     )
-    d += _declare(
-        "wf4",
-        "settings",
-        f"{e}/_engine/freeze-payloads/run_record.yml",
-        f"{e}/_engine/freeze-payloads/sources/{{?catalogs/}}{{segment}}",
-        f"{e}/_engine/freeze-payloads/{{?catalogs/}}{{segment}}",
-    )
+    # Crash-recovery staging of the creator archive, removed once config/ is
+    # published (R9); present only after an interrupted reservation.
+    d += _declare("wf4", "pin", f"{e}/_engine/freeze_payloads/")
     indicator_tables = "{indicator_table}.csv"
     d += _declare(
         "wf4",

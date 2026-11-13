@@ -141,18 +141,18 @@ def crop_water_experiment(tmp_path, monkeypatch):
     responses, _ = _responses()
     experiment = build_v2_experiment(tmp_path, responses)
     historical = tmp_path / "historical-model"
-    (historical / "run_default").mkdir(parents=True)
+    (historical / "historical/default/run").mkdir(parents=True)
     pd.DataFrame({"Q_9": 2.0}, index=pd.date_range("1999-01-01", "1999-12-31")).to_csv(
-        historical / "run_default/output.csv", index_label="time"
+        historical / "historical/default/run/output.csv", index_label="time"
     )
     (historical / "wflow_sbm.toml").write_text(
         '[time]\ncalendar="standard"\ntimestepsecs=86400\n'
         'starttime="1998-12-31T00:00:00"\nendtime="1999-12-31T00:00:00"\n'
-        '[input]\npath_forcing="forcing/inmaps_historical.nc"\n'
+        '[input]\npath_forcing="historical/default/forcing/inmaps_historical.nc"\n'
         '[[output.csv.column]]\nheader="Q"\nparameter="river_water__volume_flow_rate"\n',
         encoding="utf-8",
     )
-    native = historical / "run_default/output.csv"
+    native = historical / "historical/default/run/output.csv"
     publish_response_tables(
         NativeRunArtifacts(native, historical / "wflow_sbm.toml"), native.parent
     )

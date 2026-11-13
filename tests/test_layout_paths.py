@@ -65,7 +65,6 @@ def _owners():
         SET_ID_MAX_LENGTH,
         SET_ID_PATTERN,
     )
-    from blueearth_cst.model.historical_runs import historical_run_name
     from blueearth_cst.shared.named_forcings import FORCING_ID
     from blueearth_cst.shared.snake_utils import (
         _EXPERIMENT_NAME_MAX_LEN,
@@ -88,13 +87,10 @@ def _owners():
         "set_id": set_id,
         "recipe": recipe,
         "experiment_name": experiment,
-        "historical_run": lambda name: historical_run_name({"name": name}),
     }
 
 
-@pytest.mark.parametrize(
-    "grammar", ["set_id", "recipe", "experiment_name", "historical_run"]
-)
+@pytest.mark.parametrize("grammar", ["set_id", "recipe", "experiment_name"])
 def test_grammar_accepts_every_name_its_owner_accepts(grammar):
     check = _owners()[grammar]
     pattern = re.compile(L.GRAMMARS[grammar])
@@ -171,12 +167,6 @@ KNOWN_MISPLACED = {
     "models/hydrology/{model}/.outputs_configured",
     "models/hydrology/{model}/wflow_sbm.toml.grid.toml",
     "models/hydrology/{model}/wflow_sbm_{recipe}.toml.grid.toml",
-    "models/hydrology/{model}/config/{build_historical_forcing|climate_store_catalog}.yml",
-    "models/hydrology/{model}/config/{recipe}/{build_historical_forcing|climate_store_catalog}.yml",
-    "models/hydrology/{model}/config/{recipe}/historical_forcing.json",
-    "simulations/historical/{historical_run}/run.json",
-    "simulations/historical/{historical_run}/complete.json",
-    "comparisons/historical/{historical_run}/comparison.json",
     # WF3 (R7)
     "scenarios/_engine/data/{hex12}/config/sources/{segment}",
     "scenarios/_engine/data/{hex12}/config/{?catalogs/}{segment}",
@@ -188,9 +178,6 @@ KNOWN_MISPLACED = {
     "scenarios/_engine/data/{hex12}/weathergenr/evaluation/plots/{segment}.{png|pdf}",
     # WF4 (R9, R11, R17)
     "experiments/{experiment}/.model_reference_ok",
-    "experiments/{experiment}/_engine/freeze-payloads/run_record.yml",
-    "experiments/{experiment}/_engine/freeze-payloads/sources/{?catalogs/}{segment}",
-    "experiments/{experiment}/_engine/freeze-payloads/{?catalogs/}{segment}",
     "experiments/{experiment}/_engine/indicator_sets/{hex12}/data/{indicator_table}.csv",
     "experiments/{experiment}/hydrology/wflow/run_settings/{run}.{toml|toml.grid.toml|yml|temporal.json}",
     "experiments/{experiment}/hydrology/wflow/run_settings/forcing_elevation_catalog.yml",

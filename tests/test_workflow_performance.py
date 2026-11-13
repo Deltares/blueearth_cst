@@ -169,7 +169,7 @@ def test_no_output_state_is_required_for_wf3(tmp_path):
     from tests.test_interchange_contracts import _hm4_good
 
     basin = _model(tmp_path)
-    (basin / "run_default/outstate/outstates.nc").unlink()
+    (basin / "historical/default/run/outstate/outstates.nc").unlink()
     assert measure_member_footprint(basin, 2046, 2054) is None
     footprint = measure_member_footprint(basin, 2046, 2054, write_states=False)
     assert footprint.state_bytes == 0

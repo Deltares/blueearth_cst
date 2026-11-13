@@ -199,7 +199,7 @@ with changed settings cannot isolate a layout or numerical effect.
 
 `test_case/test_local` is untracked and independent per worktree. Inspect provenance, then re-seed
 or regenerate affected trees; repairing one does not repair others. `project_dir` resolves from the
-run directory. WF1's retained `run_default/output.csv` is required by the manifest. If older cleanup
+run directory. WF1's retained `historical/default/run/output.csv` is required by the manifest. If older cleanup
 removed it, rerun the historical simulation; rounded `output_q.csv` is not a substitute.
 
 ## Read the CI run after you push

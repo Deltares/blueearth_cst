@@ -10,7 +10,7 @@ Compatible indicator calculations can also use saved simulations without rerunni
 ## Inputs {#inputs}
 
 - **Prepared basin model.** Completed Wflow-SBM model and the information needed to prepare its forcing.
-- **Historical end state.** WF1's `run_default/outstate/outstates.nc` (`run_<id>/` for a named recipe),
+- **Historical end state.** WF1's `historical/default/run/outstate/outstates.nc` (`historical/<id>/run/` for a named recipe),
   the default initial state for every run unless the model TOML configures its own warm state.
 - **Generated weather.** Climate NetCDFs for selected runs, including pressure and radiation alongside
   perturbed rainfall and temperature.

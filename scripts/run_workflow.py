@@ -68,16 +68,21 @@ def main(argv: list[str] | None = None) -> int:
         if forwarded or extra:
             owned_args += ["--", *forwarded, *extra]
         return owned_main(owned_args)
-    return run_workflow(
-        args.workflow,
-        args.config,
-        args.project_dir,
-        cores=args.cores,
-        targets=args.target or ["all"],
-        dry_run=args.dry_run,
-        keep_going=args.keep_going,
-        extra=extra,
-    )
+    from blueearth_cst.shared.layout_stamp import LayoutMismatch
+
+    try:
+        return run_workflow(
+            args.workflow,
+            args.config,
+            args.project_dir,
+            cores=args.cores,
+            targets=args.target or ["all"],
+            dry_run=args.dry_run,
+            keep_going=args.keep_going,
+            extra=extra,
+        )
+    except LayoutMismatch as exc:
+        parser.error(str(exc))
 
 
 if __name__ == "__main__":

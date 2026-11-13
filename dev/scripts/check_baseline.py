@@ -14,7 +14,7 @@ ran, and until 2026-09-17 those two cases reported `OK - 0 target(s)` and a
 traceback respectively.
 
 One target is special: the workflow-1 Wflow **discharge** series
-(`models/hydrology/wflow/run_default/output.csv`).
+(`models/hydrology/wflow/historical/default/run/output.csv`).
 
 **Produce the run with `--notemp`.** Since 2026-08-10 rule 1.13 declares that
 file as `temp()`, so an ordinary run deletes it once rules 1.14 and 1.15 have
@@ -265,7 +265,7 @@ TARGETS: list[tuple[str, str, str]] = [
     (
         "build_model",
         "discharge",
-        "{project_dir}/models/hydrology/wflow/run_default/output.csv",
+        "{project_dir}/models/hydrology/wflow/historical/default/run/output.csv",
     ),
     # analyze_projections.smk -- aligned numeric summary tables.
     # S8-05: a SWAP, not a subtraction. The three wide
@@ -764,7 +764,8 @@ def read_discharge_series(path: str) -> tuple[list[str], np.ndarray, str]:
     Returns (time_strings, q_values, column_name). The first column is the time
     index; the discharge column is the sole remaining column, the sole one named
     ``Q``/``Q_*``, or the primary outlet identified by the sibling deterministic
-    ``staticgeoms/outlet_index.csv`` crosswalk. Raises on ambiguity.
+    ``_engine/outlet_index.csv`` crosswalk (``staticgeoms/`` before layout 4).
+    Raises on ambiguity.
     """
     df = pd.read_csv(path)
     if df.shape[1] < 2:
@@ -781,8 +782,15 @@ def read_discharge_series(path: str) -> tuple[list[str], np.ndarray, str]:
         if len(q_cols) == 1:
             col = q_cols[0]
         else:
-            model_root = Path(path).parent.parent
-            outlet_index_path = model_root / "staticgeoms" / "outlet_index.csv"
+            # The model root holds staticmaps.nc: two levels above run_default/
+            # before layout 4, four above historical/<recipe>/run/ since.
+            model_root = next(
+                (p for p in Path(path).parents if (p / "staticmaps.nc").is_file()),
+                Path(path).parent.parent,
+            )
+            outlet_index_path = model_root / "_engine" / "outlet_index.csv"
+            if not outlet_index_path.is_file():
+                outlet_index_path = model_root / "staticgeoms" / "outlet_index.csv"
             if not outlet_index_path.is_file():
                 raise ValueError(
                     f"{path}: cannot identify the primary outlet discharge among "

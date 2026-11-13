@@ -175,10 +175,23 @@ class HistoricalLayout:
         return cls(match[1])
 
     @property
+    def key(self) -> str:
+        """The recipe folder: the forcing ID, or ``default`` for one recipe (D3)."""
+        return self.forcing_id or "default"
+
+    @property
+    def root(self) -> str:
+        """Everything this recipe owns except its TOML (R16, layout 4).
+
+        The TOML stays at the model root: HydroMT-Wflow resolves input paths
+        from the model root and Wflow from the TOML's folder, which agree only
+        there (t017 open point 2).
+        """
+        return f"historical/{self.key}"
+
+    @property
     def forcing(self) -> str:
-        if self.forcing_id is None:
-            return "forcing/inmaps_historical.nc"
-        return f"forcing/{self.forcing_id}/inmaps_historical.nc"
+        return f"{self.root}/forcing/inmaps_historical.nc"
 
     @property
     def toml(self) -> str:
@@ -190,23 +203,19 @@ class HistoricalLayout:
 
     @property
     def run_dir(self) -> str:
-        return "run_default" if self.forcing_id is None else f"run_{self.forcing_id}"
+        return f"{self.root}/run"
 
     @property
     def config_dir(self) -> str:
-        return "config" if self.forcing_id is None else f"config/{self.forcing_id}"
+        return f"{self.root}/_engine"
 
     @property
     def evaluation_dir(self) -> str:
-        return (
-            "evaluation" if self.forcing_id is None else f"evaluation/{self.forcing_id}"
-        )
+        return f"{self.root}/evaluation"
 
     @property
     def forcing_plots_dir(self) -> str:
-        if self.forcing_id is None:
-            return "forcing/plots"
-        return f"forcing/{self.forcing_id}/plots"
+        return f"{self.root}/forcing/plots"
 
     @property
     def end_state(self) -> str:

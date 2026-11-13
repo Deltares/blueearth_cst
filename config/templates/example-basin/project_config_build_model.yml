@@ -54,14 +54,9 @@ simulation_window:
   # Last simulation water year. Input: integer year, >= start.
   end: 2016
 
-# Optional immutable historical response, separate from mutable run_default.
-# Requires a fresh simulation; choose a new name for each forcing recipe/run.
-#historical_run:
-#  name: era5_reference
-
 # With named climate.forcings: recipes to simulate (default: [default_forcing]).
-# Each runs in run_<id>/; two or more need historical_run.name, retained as
-# <name>_<id> and compared under comparisons/historical/<name>/.
+# Each runs in models/hydrology/wflow/historical/<id>/; two or more are compared
+# in models/hydrology/wflow/historical_comparison/.
 # Select named historical recipes. Input: list of climate.forcings names.
 #historical_forcings: [era5, chirps]
 

@@ -58,7 +58,7 @@ an adequate initial state after one year.
 Stress-test simulations (WF4) set initialization through `simulate_system.initialization`:
 
 - **State.** `auto` (default) keeps a warm state configured in the model TOML; otherwise it starts every
-  run from WF1's historical end state (`run_default/outstate/outstates.nc`). `historical` requires that
+  run from WF1's historical end state (`historical/default/run/outstate/outstates.nc`). `historical` requires that
   end state and `cold` uses Wflow's cold initialization; either is refused when the model TOML already
   configures a warm state. The end state's bytes are part of the simulation identity, so a rerun WF1
   history requires a new experiment.

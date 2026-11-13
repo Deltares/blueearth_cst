@@ -26,7 +26,7 @@ from blueearth_cst.shared.plot_style import RASTER_DPI
 def render(
     root: Path, destination: Path | None = None, annotation: str = "none"
 ) -> None:
-    """Draw every station and support from hash-verified retained tables."""
+    """Draw every station and support from hash-verified comparison tables."""
     root = Path(root)
     destination = Path(destination) if destination else root
     metadata, tables = read_comparison(root)
@@ -165,7 +165,7 @@ def render(
                     caption = (
                         f"{title}. {metadata['requested_start']} to {metadata['requested_end']}, inclusive interval-end timestamps. "
                         f"{support_text} {method} {warmup} "
-                        "Different styles identify retained runs; their recipes are recorded in inventory.csv."
+                        "Different styles identify forcing recipes; their identities are recorded in inventory.csv."
                     )
                     try:
                         export_figure(

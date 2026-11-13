@@ -38,7 +38,7 @@ class PendingFreeze:
 
     @property
     def recipe(self):
-        return self.root / "_engine/simulation-freeze.json"
+        return self.root / "_engine/simulation_freeze.json"
 
     @property
     def intent_path(self):
@@ -311,7 +311,7 @@ def test_corrupted_recipe_or_payload_refuses_without_mutation(
         relative = recipe["payloads"][0]["file"]["path"]
         (pending.project / relative).write_bytes(b"corrupted creator source")
     elif damage == "archive bytes":
-        (pending.root / "_engine/freeze-payloads/run_record.yml").write_bytes(
+        (pending.root / "_engine/freeze_payloads/run_record.yml").write_bytes(
             b"invalid: archive\n"
         )
     elif damage == "payload redirected":
@@ -374,7 +374,7 @@ def test_legacy_partial_pair_keeps_existing_refusal_and_no_recipe(pending):
             root, intent, invocation_id=pending.invocation, command=["fixture"]
         )
     assert inventory(pending.project) == before
-    assert not (root / "_engine/simulation-freeze.json").exists()
+    assert not (root / "_engine/simulation_freeze.json").exists()
     assert not (root / "_engine/reservation.json").exists()
 
 

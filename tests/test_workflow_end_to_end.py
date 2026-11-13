@@ -198,7 +198,7 @@ def _run_and_assert_all_five(
         assert str(chirps.time.values[0])[:10] == "2000-01-01"
         assert str(chirps.time.values[-1])[:10] == "2016-12-31"
     assert (historical / "comparison/dataset_comparison.csv").stat().st_size > 0
-    discharge = project / "models/hydrology/wflow/run_default/output_q.csv"
+    discharge = project / "models/hydrology/wflow/historical/default/run/output_q.csv"
     assert discharge.stat().st_size > 0
     # WF2: the CMIP6 change factors.
     annual = project / "data/climate/projections/cmip6/summary"
