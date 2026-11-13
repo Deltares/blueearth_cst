@@ -9,6 +9,9 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Fix WF0–WF2 dry runs rescheduling up-to-date rules (for example WF2 `prepare_projection_analysis` and its
+  figures): a dry run now reads the configuration in the same sorted key order as a real run, so recorded
+  params match.
 - Store each new stochastic scenario set in its own folder, `scenarios/<name>/`, with its record in
   `<name>/_engine/`, and list every set in `scenarios/collections.csv`. Optional WF3 `name` (default
   `stochastic-<start>-<end>`) never changes identity; reuse is by identity. The top-level copy of the selected
