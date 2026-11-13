@@ -133,7 +133,7 @@ def stage_shared_dependency(
         Path(project_root).resolve()
         / "config"
         / "_engine"
-        / "execution-configs"
+        / "execution_configs"
         / "_shared"
         / dependency_id
         / digest
@@ -340,7 +340,7 @@ def prepare_workflow(
     # the dependency's own hash instead means an unchanged file resolves to the
     # same execution path no matter which workflow staged it first.
     dependency_root = (
-        project_root / "config" / "_engine" / "execution-configs" / "_shared"
+        project_root / "config" / "_engine" / "execution_configs" / "_shared"
     )
     replacements: dict[Path, Path] = {}
     generated_paths = []
@@ -453,7 +453,7 @@ def prepare_workflow(
         ).hexdigest()
     )
     stage = (
-        project_root / "config" / "_engine" / "execution-configs" / workflow / digest
+        project_root / "config" / "_engine" / "execution_configs" / workflow / digest
     )
     if workflow_source is not None:
         execution_workflow = stage / "workflow.yml"

@@ -90,7 +90,7 @@ def test_round_trip_without_the_source(exported):
         path.relative_to(destination).as_posix()
         for path in (destination / "config").rglob("*")
         if path.is_file()
-    } == {"config/_engine/archive-transactions/project-execution.lock"}
+    } == {"config/_engine/archive_transactions/project-execution.lock"}
     assert not (destination / "data/spatial").exists()
     assert not list((destination / PRODUCT).parent.glob(".*.staged"))
 

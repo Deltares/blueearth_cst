@@ -48,7 +48,7 @@ def same_configuration(left: Mapping[str, Any], right: Mapping[str, Any]) -> boo
 
 
 def snapshot_root(project: Path, workflow: str) -> Path:
-    return project / "config/_engine/configuration-snapshots" / workflow
+    return project / "config/_engine/snapshots" / workflow
 
 
 def _inside(project: Path, path: Path) -> Path:
@@ -142,7 +142,7 @@ def _remove_directory(project: Path, directory: Path) -> None:
 
 def finish_archive_transaction(project: Path, workflow: str) -> None:
     """Retire committed replacement machinery after retaining both generations."""
-    root = project / "config/_engine/archive-transactions"
+    root = project / "config/_engine/archive_transactions"
     journal = root / f"{workflow}.json"
     if not journal.exists():
         return
@@ -170,7 +170,7 @@ def finish_archive_transaction(project: Path, workflow: str) -> None:
 def remove_launch_context(project: Path, path: Path) -> None:
     """Remove a completed child's private launch context, preserving inputs."""
     path = _inside(project, path)
-    base = (project / "config/_engine/execution-configs").resolve()
+    base = (project / "config/_engine/execution_configs").resolve()
     if not path.is_relative_to(base) or not path.name.startswith("launch-"):
         raise ValueError("not a configuration launch context")
     try:
@@ -182,7 +182,7 @@ def remove_launch_context(project: Path, path: Path) -> None:
 
 def remove_stale_launch_contexts(project: Path, workflow: str) -> None:
     """Collect prior launch contexts while holding the project execution lock."""
-    root = project / "config/_engine/execution-configs" / workflow
+    root = project / "config/_engine/execution_configs" / workflow
     if root.exists():
         for path in root.glob("*/launch-*.json"):
             context = json.loads(path.read_text(encoding="utf-8"))
@@ -209,7 +209,7 @@ def maintenance_report(project: Path) -> dict[str, Any]:
     workflows = [
         name for name in WORKFLOWS if (config / name / "run_record.yml").is_file()
     ]
-    contexts = list((config / "_engine/execution-configs").glob("*/*/launch-*.json"))
+    contexts = list((config / "_engine/execution_configs").glob("*/*/launch-*.json"))
     missing = 0
     for path in (config / "_engine/invocations").glob("*.json"):
         attempt = json.loads(path.read_text(encoding="utf-8"))
@@ -223,13 +223,11 @@ def maintenance_report(project: Path) -> dict[str, Any]:
         "project": str(project),
         "workflows": workflows,
         "snapshots": len(
-            list(
-                (config / "_engine/configuration-snapshots").glob("*/*/run_record.yml")
-            )
+            list((config / "_engine/snapshots").glob("*/*/run_record.yml"))
         ),
         "launch_contexts": len(contexts),
         "completed_transactions": len(
-            list((config / "_engine/archive-transactions/completed").glob("*.json"))
+            list((config / "_engine/archive_transactions/completed").glob("*.json"))
         ),
         "unavailable_history_references": missing,
     }
@@ -258,7 +256,7 @@ def maintain_archives(project: Path) -> dict[str, Any]:
             remove_stale_launch_contexts(project, workflow)
         # Completed journals are recovery bookkeeping, not configuration history.
         # Preserve any surviving displaced archive before retiring its journal.
-        completed = project / "config/_engine/archive-transactions/completed"
+        completed = project / "config/_engine/archive_transactions/completed"
         for journal in completed.glob("*.json"):
             transaction = json.loads(journal.read_text(encoding="utf-8"))
             workflow = transaction.get("owner")

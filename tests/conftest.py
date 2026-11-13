@@ -59,6 +59,21 @@ def _no_ambient_path_tokens(monkeypatch):
     monkeypatch.setenv("CST_CONSOLE_PATH_TOKENS", "")
 
 
+@pytest.fixture(autouse=True)
+def _hand_built_trees_are_current_layout(request, monkeypatch):
+    """Admit unstamped trees a test builds by hand as the current layout.
+
+    Such trees are minimal fixtures, not layout-1 projects, so a runner would
+    otherwise refuse them (rule R18). `tests/test_layout_stamp.py` owns the
+    real unstamped behaviour and is left alone.
+    """
+    if request.module.__name__.endswith("test_layout_stamp"):
+        return
+    from blueearth_cst.shared import layout_paths, layout_stamp
+
+    monkeypatch.setattr(layout_stamp, "UNSTAMPED_VERSION", layout_paths.LAYOUT_VERSION)
+
+
 #: Screen resolution, for tests that SAVE a figure to assert something about it.
 #: Low enough to be cheap, high enough that a render still exercises the same
 #: draw path; nothing here asserts on pixel counts.

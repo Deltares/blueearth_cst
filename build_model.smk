@@ -96,6 +96,10 @@ historical_name = historical_run_name(my_cfg.get("historical_run"))
 
 # Project — paths and external resources
 project_dir = get_config(project_cfg, "project_dir", optional=False)
+# A bare `snakemake` run stamps the folder it creates (rule R18); runners refuse.
+from blueearth_cst.shared.layout_stamp import stamp_new
+
+stamp_new(Path(project_dir))
 # O-22: make the two-tier project_dir rule mechanical rather than
 # documentary. Warns, never raises; test_case/ is the one exemption.
 warn_if_project_dir_in_repo(project_dir, workflow.basedir)

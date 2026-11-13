@@ -55,7 +55,7 @@ verification, with one rename. A staged folder left by an interruption is never 
 import removes it. Import adds `_engine/imported/<bundle id>/` with the manifest, `import_record.json`,
 the configuration snapshots and region. It does not write the destination's `config/` archives,
 `data/spatial/`, invocation records or logs; it only holds the project's execution lock under
-`config/_engine/archive-transactions/`.
+`config/_engine/archive_transactions/`.
 
 ## Using imported results {#post-import-limits}
 

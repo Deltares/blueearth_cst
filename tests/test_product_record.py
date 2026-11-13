@@ -93,9 +93,7 @@ def test_runs_keep_truthful_attribution(project, monkeypatch):
     retained = product / RECORD_DIRECTORY / success / "wf2.log"
     assert retained.read_text() == f"log {sorted(first)}\n"
     reference = generation["configuration"]["run_record"]
-    assert reference["path"].startswith(
-        "config/_engine/configuration-snapshots/analyze_projections/"
-    )
+    assert reference["path"].startswith("config/_engine/snapshots/analyze_projections/")
     assert record["shared_steps"][0]["outputs"] == "data/spatial/geoms"
 
     # A no-op, successful or failed, leaves the production evidence untouched.

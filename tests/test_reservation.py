@@ -341,7 +341,7 @@ def test_unknown_numeric_occupants_are_never_adopted(api, prepared, occupied):
     with pytest.raises(ValueError):
         admit(api, prepared, "wet")
     assert inventory(root) == before | {
-        "config/_engine/archive-transactions/project-execution.lock": "lock-size:1"
+        "config/_engine/archive_transactions/project-execution.lock": "lock-size:1"
     }
     assert not (root / "experiments/_engine/allocation.json").exists()
 

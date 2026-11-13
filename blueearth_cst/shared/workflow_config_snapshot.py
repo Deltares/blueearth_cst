@@ -608,7 +608,7 @@ def archive_lock(project_root: Path, owner_key: str) -> Iterator[None]:
         project_root
         / "config"
         / "_engine"
-        / "archive-transactions"
+        / "archive_transactions"
         / f"{owner_key}.lock"
     )
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1145,7 +1145,7 @@ def _matches_archive(directory: Path, expected_hash: str | None) -> bool:
 
 
 def _transaction_paths(project_root: Path, owner_key: str) -> tuple[Path, Path]:
-    journal_dir = project_root / "config" / "_engine" / "archive-transactions"
+    journal_dir = project_root / "config" / "_engine" / "archive_transactions"
     journal_dir.mkdir(parents=True, exist_ok=True)
     return journal_dir / f"{owner_key}.json", journal_dir / "completed"
 

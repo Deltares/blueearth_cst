@@ -97,8 +97,8 @@ COVERED: dict[str, list[str]] = {
         "config/build_model/project_config_rapid_build_model.yml",
         "config/analyze_projections/catalogs/cmip6_data.yml",
         "config/analyze_projections/SOURCES.md",
-        "config/_engine/execution-configs/build_model/abc/project_config_baseline.yml",
-        "config/_engine/archive-transactions/build_model.json",
+        "config/_engine/execution_configs/build_model/abc/project_config_baseline.yml",
+        "config/_engine/archive_transactions/build_model.json",
         # The wrapper's per-invocation manifest. Not reachable through the
         # `config/<workflow>/<digest>/` regex below -- it sits DIRECTLY
         # under `invocations/`, with no digest level -- so it carries its own

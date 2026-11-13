@@ -116,7 +116,7 @@ def test_rebuild_allows_republishing_artifact_archive(
         publish_archive(project.root, owner, target, record, payloads)
         if missing_target:
             # Reproduce an earlier rebuild that erased outputs but left journals.
-            journal = project.root / f"config/_engine/archive-transactions/{owner}.json"
+            journal = project.root / f"config/_engine/archive_transactions/{owner}.json"
             transaction = journal.read_bytes()
             erase_outputs(plan_rebuild(project.root, project.config), project.config)
             journal.write_bytes(transaction)
@@ -130,8 +130,8 @@ def test_erasure_preserves_sources_unrelated_paths_and_the_held_lock(project):
         _write(project.root / relative / "nested/product.bin")
     staged = project.root / f"config/.build_model.{'a' * 32}.previous"
     _write(staged / "run_record.yml")
-    _write(project.root / "config/_engine/archive-transactions/build_model.json")
-    transactions = project.root / "config/_engine/archive-transactions"
+    _write(project.root / "config/_engine/archive_transactions/build_model.json")
+    transactions = project.root / "config/_engine/archive_transactions"
     completed = _write(
         transactions / "completed/old-artifact.json",
         json.dumps({"target": "scenarios/_engine/data/old/config"}),
@@ -142,7 +142,7 @@ def test_erasure_preserves_sources_unrelated_paths_and_the_held_lock(project):
         "models/custom/readme.txt",
         "config/source.yml",
         "config/_engine/invocations/previous.json",
-        "config/_engine/configuration-snapshots/build_model/old/run_record.yml",
+        "config/_engine/snapshots/build_model/old/run_record.yml",
         "logs/previous/console.log",
         "notes.txt",
     ]
@@ -157,7 +157,7 @@ def test_erasure_preserves_sources_unrelated_paths_and_the_held_lock(project):
     before = {name: (project.root / name).read_bytes() for name in retained}
     with archive_lock(project.root, "project-execution"):
         lock = (
-            project.root / "config/_engine/archive-transactions/project-execution.lock"
+            project.root / "config/_engine/archive_transactions/project-execution.lock"
         )
         identity = lock.stat().st_ino
         plan = plan_rebuild(project.root, project.config)

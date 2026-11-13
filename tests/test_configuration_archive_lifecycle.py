@@ -83,7 +83,7 @@ def test_identical_attempt_reuses_capture_without_rewriting_payloads(case, workf
     execution, first_context = _prepare(case, workflow, "first")
     current = output / "config" / workflow
     before = _files(current)
-    snapshots = output / "config/_engine/configuration-snapshots" / workflow
+    snapshots = output / "config/_engine/snapshots" / workflow
     snapshot_files = _files(snapshots)
     assert len(list(snapshots.glob("*/run_record.yml"))) == 1
 
@@ -117,7 +117,7 @@ def test_changed_capture_keeps_previous_attempt_reference_valid(case, monkeypatc
     first_reference = first["configuration"]["run_record"]
     first_record = resolve_file_reference(first_reference, {"project_root": output})
     assert first_record.is_relative_to(
-        output / "config/_engine/configuration-snapshots/analyze_climate"
+        output / "config/_engine/snapshots/analyze_climate"
     )
     original = _files(first_record.parent)
     original_catalog = catalog.read_bytes()
@@ -238,8 +238,8 @@ def legacy_case(case):
     )
     for path in (
         directory,
-        output / "config/_engine/configuration-snapshots",
-        output / "config/_engine/archive-transactions",
+        output / "config/_engine/snapshots",
+        output / "config/_engine/archive_transactions",
     ):
         assert path.resolve().is_relative_to(output.resolve())
         shutil.rmtree(path)
@@ -282,7 +282,7 @@ def legacy_case(case):
     assert (
         len(
             list(
-                (output / "config/_engine/archive-transactions/completed").glob(
+                (output / "config/_engine/archive_transactions/completed").glob(
                     "*.json"
                 )
             )
@@ -314,7 +314,7 @@ def test_maintenance_reports_without_writes_and_migrates_legacy_history(
         path: path.stat().st_mtime_ns for path in output.rglob("*") if path.is_dir()
     } == directories
 
-    execution = output / "config/_engine/execution-configs"
+    execution = output / "config/_engine/execution_configs"
     inputs = {
         name: value
         for name, value in _files(execution).items()
@@ -329,8 +329,8 @@ def test_maintenance_reports_without_writes_and_migrates_legacy_history(
     assert report["completed_transactions"] == 0
     assert report["unavailable_history_references"] == 2
     assert not list((output / "config").glob(".*.previous"))
-    assert not list((output / "config/_engine/archive-transactions").rglob("*.json"))
-    snapshots = output / "config/_engine/configuration-snapshots/analyze_climate"
+    assert not list((output / "config/_engine/archive_transactions").rglob("*.json"))
+    snapshots = output / "config/_engine/snapshots/analyze_climate"
     assert {path.read_bytes() for path in snapshots.glob("*/run_record.yml")} == set(
         records
     )
@@ -388,14 +388,14 @@ def test_setup_failure_after_capture_removes_launch_context(case, monkeypatch, r
         run()
     assert failed
     assert not list(
-        (output / "config/_engine/execution-configs").glob("*/*/launch-*.json")
+        (output / "config/_engine/execution_configs").glob("*/*/launch-*.json")
     )
 
 
 @pytest.mark.parametrize("journal_kind", ["current", "completed"])
 def test_maintenance_refuses_unrelated_deletion_target(legacy_case, journal_kind):
     _, output, _, _ = legacy_case
-    journals = output / "config/_engine/archive-transactions"
+    journals = output / "config/_engine/archive_transactions"
     journal = (
         journals / "analyze_climate.json"
         if journal_kind == "current"
@@ -447,7 +447,7 @@ def test_maintenance_retains_rerun_predecessor_closure(legacy_case):
     )
     maintain_archives(rerun_root)
     snapshot = next(
-        (rerun_root / "config/_engine/configuration-snapshots/analyze_climate").glob(
+        (rerun_root / "config/_engine/snapshots/analyze_climate").glob(
             "*/run_record.yml"
         )
     ).parent

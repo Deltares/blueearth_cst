@@ -42,7 +42,7 @@ UNITS = ("project", "spatial", "wf0", "wf1", "wf2", "wf3", "wf4")
 
 #: Layout version this toolbox writes (rule R18). A project folder without a
 #: stamp is layout 1. Bumped once per landed t017 migration step.
-LAYOUT_VERSION = 1
+LAYOUT_VERSION = 2
 
 #: Mirrors ``blueearth_cst.shared.provenance.SHORT_DIGEST_CHARS``.
 SHORT_DIGEST_CHARS = 12
@@ -198,9 +198,9 @@ def declarations() -> tuple[Declaration, ...]:
     d += _declare(
         "project",
         "record",
-        "config/_engine/execution-configs/",
-        "config/_engine/archive-transactions/",
-        "config/_engine/configuration-snapshots/",
+        "config/_engine/execution_configs/",
+        "config/_engine/archive_transactions/",
+        "config/_engine/snapshots/",
         "config/_engine/invocations/",
         "config/_engine/journal.jsonl",
         # Layout version stamp (rule R18; `layout_stamp`).

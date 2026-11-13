@@ -9,7 +9,7 @@ only as historical text; nothing in a bundle needs the source project, its
 The working project keeps its one configuration home under `config/`. Bundles
 carry snapshots; import never writes the destination's configuration archives,
 spatial foundation, invocation history or logs. It only creates the project's
-runtime execution lock under `config/_engine/archive-transactions/`. Import supports reading and
+runtime execution lock under `config/_engine/archive_transactions/`. Import supports reading and
 interpreting results, not runner adoption: no future no-recompute behaviour
 is implied.
 """
@@ -100,7 +100,7 @@ def _region(project: Path, product: Path, expected: str) -> Path:
 
 def _snapshots(project: Path, product: Path) -> list[Path]:
     """Retained project snapshots, then snapshots an earlier import carried."""
-    root = project / "config/_engine/configuration-snapshots" / WORKFLOW
+    root = project / "config/_engine/snapshots" / WORKFLOW
     local = sorted(root.iterdir()) if root.is_dir() else []
     carried = sorted((product / "_engine/imported").glob("*/configuration/*"))
     return [

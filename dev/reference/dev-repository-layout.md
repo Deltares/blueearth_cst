@@ -158,7 +158,7 @@ contributing logs) and, after an import, `_engine/imported/`; `docs/guide/output
 For new output projects, `config/<workflow>/` holds `run_record.yml`, captured files,
 `SOURCES.md`, and `catalogs/` for the latest WF0–WF2
 configuration archives. `SOURCES.md` lists the original source paths within each workflow folder.
-Immutable generations live in `config/_engine/configuration-snapshots/<workflow>/<record-sha256>/`;
+Immutable generations live in `config/_engine/snapshots/<workflow>/<record-sha256>/`;
 attempt history references those exact records, while unchanged captures reuse their creator generation.
 Shared execution inputs, archive locks and invocation history live in `config/_engine/`.
 Completed replacement backups and child launch contexts are transient. Existing cases can be inspected

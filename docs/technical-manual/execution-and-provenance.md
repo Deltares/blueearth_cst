@@ -27,7 +27,7 @@ records are not environment-variable dumps.
 `configuration` records source/effective/input digests, `run_record` and archive availability.
 Historical climate analysis, model building and projection analysis latest captures live in
 `config/<workflow>/run_record.yml` and `sources/`; retained configuration
-snapshots live in `config/_engine/configuration-snapshots/<workflow>/`. Scenario generation and hydrological
+snapshots live in `config/_engine/snapshots/<workflow>/`. Scenario generation and hydrological
 simulation captures belong to their
 collection/experiment. Edit source YAML, never generated archives. Archives preserve exact source bytes,
 resolved locators and relevant input references; provenance does not mean all external datasets are copied.
@@ -193,7 +193,7 @@ a new experiment when rerunning simulations after a code change.
 Runs launched through `scripts/run_workflows.py` or `scripts/run_workflow.py` keep
 `_engine/execution/production.json` at the ensemble root. It names, for every current product file,
 the invocation whose bytes are present, with that invocation's outcome, configuration snapshot under
-`config/_engine/configuration-snapshots/analyze_projections/`, and `region.geojson` checksum.
+`config/_engine/snapshots/analyze_projections/`, and `region.geojson` checksum.
 Copies of each contributing invocation's `wf2.log` and `wf2-benchmarks.md`/`.tsv` sit beside it in
 `_engine/execution/<invocation id>/`. They remain while a file is still attributed to that run. Central
 `logs/` folders and invocation records are never pruned by this.

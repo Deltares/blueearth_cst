@@ -165,7 +165,7 @@ def reporting_run(tmp_path, monkeypatch):
         "prepare_workflow",
         lambda _name, path, _root, **kwargs: (
             path,
-            _root / "config/_engine/execution-configs/launch-test.json",
+            _root / "config/_engine/execution_configs/launch-test.json",
         ),
     )
     monkeypatch.setattr(run_workflows, "_bind_workflow_archive", lambda *args: None)

@@ -48,6 +48,20 @@ def write(root: Path, version: int = LAYOUT_VERSION) -> Path:
     return path
 
 
+def stamp_new(root: Path) -> bool:
+    """Stamp ``root`` if it is missing or empty; never check or refuse.
+
+    WF0--WF2 Snakefiles call this at parse time so a bare ``snakemake`` run
+    stamps the folder it creates. Refusing there would break dry runs of
+    older folders; the runners own the refusal (`admit`).
+    """
+    root = Path(root)
+    if root.exists() and any(root.iterdir()):
+        return False
+    write(root)
+    return True
+
+
 def admit(root: Path) -> int:
     """Stamp a new project folder, or refuse one with a different layout.
 
@@ -55,11 +69,10 @@ def admit(root: Path) -> int:
     new and receives the stamp.
     """
     root = Path(root)
+    if stamp_new(root):
+        return LAYOUT_VERSION
     version = read(root)
     if version is None:
-        if not root.exists() or not any(root.iterdir()):
-            write(root)
-            return LAYOUT_VERSION
         version = UNSTAMPED_VERSION
     if version != LAYOUT_VERSION:
         raise LayoutMismatch(
