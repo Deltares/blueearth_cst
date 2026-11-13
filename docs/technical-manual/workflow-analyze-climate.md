@@ -411,7 +411,7 @@ and out-of-domain locations. Original daily extraction and source-level `basin_c
 calculation inputs. Existing diagnostic tables keep their previous formulas and precipitation totals.
 
 Only `_engine/climate_indices.json` (settings, input/code fingerprints and product hashes) and
-`_engine/wet_spell_exceedance.csv` (basin plotting data) support this CSV. New calculations retain no
+`_engine/figure_data/wet_spell_exceedance.csv` (basin plotting data) support this CSV. New calculations retain no
 gridded index arrays, threshold arrays, event catalogues or daily contributing-cell counts, and create
 no hashed directories. Changed inputs/settings recalculate from the daily source in memory. Products
 are staged before replacement; the record is published last. Readers verify code and product hashes.

@@ -187,7 +187,7 @@ def inventory(root, sources, settings, comparison=False, comparison_sources=()):
         render["index_metadata"] = str(root / "_engine" / "plots" / "indices")
         paths["climate_indices_table"] = str(root / "tables" / "climate_indices.csv")
         paths["climate_index_plot_data"] = str(
-            root / "_engine" / "wet_spell_exceedance.csv"
+            root / "_engine" / "figure_data" / "wet_spell_exceedance.csv"
         )
     return paths
 

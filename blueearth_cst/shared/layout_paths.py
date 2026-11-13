@@ -42,7 +42,7 @@ UNITS = ("project", "spatial", "wf0", "wf1", "wf2", "wf3", "wf4")
 
 #: Layout version this toolbox writes (rule R18). A project folder without a
 #: stamp is layout 1. Bumped once per landed t017 migration step.
-LAYOUT_VERSION = 2
+LAYOUT_VERSION = 3
 
 #: Mirrors ``blueearth_cst.shared.provenance.SHORT_DIGEST_CHARS``.
 SHORT_DIGEST_CHARS = 12
@@ -227,14 +227,12 @@ def declarations() -> tuple[Declaration, ...]:
         "data/spatial/geoms/",
         "data/spatial/plots/",
     )
-    # t017 open point 1: a machine catalog and a report YAML in a readable folder.
     d += _declare(
         "spatial",
         "record",
-        "data/spatial/spatial_catalog.yml",
-        "data/spatial/spatial_report.yml",
+        "data/spatial/_engine/{spatial_catalog|spatial_report}.yml",
+        "data/spatial/_engine/plots/",
     )
-    d += _declare("spatial", "record", "data/spatial/_engine/plots/")
 
     # -- WF0: historical climate stores and their comparison ------------------
     d += _declare("wf0", "record", "data/climate/historical/{store}/_engine/{rest}")
@@ -243,8 +241,6 @@ def declarations() -> tuple[Declaration, ...]:
         "wf0",
         "record",
         "data/climate/historical/_engine/map_reference.json",
-        # Pooled across sources, so it sits above any store key.
-        "data/climate/historical/shared_plot_scales.json",
     )
     d += _declare(
         "wf0", "product", "data/climate/ancillary/{slug}/{hex12}/{netcdf_name}.nc"

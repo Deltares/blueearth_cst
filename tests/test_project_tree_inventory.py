@@ -124,8 +124,8 @@ COVERED: dict[str, list[str]] = {
     ],
     "data": [
         "data/spatial/spatial_maps.nc",
-        "data/spatial/spatial_catalog.yml",
-        "data/spatial/spatial_report.yml",
+        "data/spatial/_engine/spatial_catalog.yml",
+        "data/spatial/_engine/spatial_report.yml",
         "data/spatial/location_registry.csv",
         # ADR 0003 §8a — the seam intermediate this inventory has to cover.
         "data/spatial/hydrography.nc",

@@ -167,10 +167,6 @@ KNOWN_MISPLACED = {
     "benchmarks/wf3_benchmarks_{hex12}.md",
     "benchmarks/wf4_benchmarks_{experiment_name}.md",
     "benchmarks/_parts/",
-    # WF0 (open point 1 for the spatial YAMLs)
-    "data/spatial/spatial_catalog.yml",
-    "data/spatial/spatial_report.yml",
-    "data/climate/historical/shared_plot_scales.json",
     # WF1
     "models/hydrology/{model}/.model_built",
     "models/hydrology/{model}/.outputs_configured",

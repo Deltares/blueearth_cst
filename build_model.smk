@@ -647,7 +647,7 @@ WF1_TERMINALS = [
     f"{basin_dir}/staticgeoms/outlet_index.csv",
     # P1 spatial foundation. One representative output schedules the complete
     # multi-output rule and makes both gather rules wait for its log/benchmark.
-    f"{spatial_dir}/spatial_catalog.yml",
+    f"{spatial_dir}/_engine/spatial_catalog.yml",
     # The staleness sidecar (1.16). A terminal in its own right: it consumes
     # the indicators table and nothing consumes it, and listing it here is what
     # schedules it at all -- no rule reads a sidecar, so without this it would
@@ -756,8 +756,8 @@ rule prepare_land_and_soil_maps:
         ],
     output:
         spatial_maps = f"{spatial_dir}/spatial_maps.nc",
-        spatial_catalog = f"{spatial_dir}/spatial_catalog.yml",
-        spatial_report = f"{spatial_dir}/spatial_report.yml",
+        spatial_catalog = f"{spatial_dir}/_engine/spatial_catalog.yml",
+        spatial_report = f"{spatial_dir}/_engine/spatial_report.yml",
     params:
         basin_config = basin_cfg,
         # Only this legacy field is consumed by parse_spatial_config. Evaluation,
@@ -781,8 +781,8 @@ rule build_wflow_model:
         rivers = f"{spatial_dir}/geoms/rivers.geojson",
         locations = f"{spatial_dir}/geoms/locations.geojson",
         location_registry = f"{spatial_dir}/location_registry.csv",
-        spatial_catalog = f"{spatial_dir}/spatial_catalog.yml",
-        spatial_report = f"{spatial_dir}/spatial_report.yml",
+        spatial_catalog = f"{spatial_dir}/_engine/spatial_catalog.yml",
+        spatial_report = f"{spatial_dir}/_engine/spatial_report.yml",
         data_catalogs = DATA_SOURCES,
     output:
         staticmaps = f"{basin_dir}/staticmaps.nc",

@@ -106,7 +106,7 @@ def exported(tmp_path_factory, request):
         "settings": settings,
         "start_month": 1,
         "record_path": store / "_engine/climate_indices.json",
-        "spell_path": store / "_engine/wet_spell_exceedance.csv",
+        "spell_path": store / "_engine/figure_data/wet_spell_exceedance.csv",
     }
     assert export_climate_index_table(*args, **options) == args[-1]
     return args, options, _read(args[-1]), data
@@ -225,7 +225,7 @@ def test_only_csv_record_and_basin_spell_product_are_retained(exported):
     } == {
         "tables/climate_indices.csv",
         "_engine/climate_indices.json",
-        "_engine/wet_spell_exceedance.csv",
+        "_engine/figure_data/wet_spell_exceedance.csv",
     }
     record = json.loads(options["record_path"].read_text())
     assert record["schema_version"] == "climate-index-results/1"
@@ -242,7 +242,7 @@ def _existing_targets(tmp_path, options):
     root = tmp_path / "store"
     replacement = options | {
         "record_path": root / "_engine/climate_indices.json",
-        "spell_path": root / "_engine/wet_spell_exceedance.csv",
+        "spell_path": root / "_engine/figure_data/wet_spell_exceedance.csv",
     }
     output = root / "tables/climate_indices.csv"
     targets = [output, replacement["record_path"], replacement["spell_path"]]

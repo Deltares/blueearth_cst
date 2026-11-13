@@ -371,6 +371,8 @@ def build_project_tree_rules(
         rules.append((re.compile(rf"config/_engine/{name}/.+"), r"\g<0>"))
     # Layout 1 home of the bare-snakemake WF0-WF2 benchmark reports (R13).
     rules.append((re.compile(r"benchmarks/wf[012]_benchmarks\.md"), r"\g<0>"))
+    # Layout 2 homes of the spatial unit's machine files (moved in layout 3, R10).
+    rules.append((re.compile(r"data/spatial/spatial_(catalog|report)\.yml"), r"\g<0>"))
     # The retired flat indicator export.
     for e in sorted(experiments):
         exp = re.escape(e)

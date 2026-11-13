@@ -1154,6 +1154,11 @@ def spatial_report(
     }
 
 
+#: Spatial unit machine files, relative to `data/spatial/`.
+SPATIAL_CATALOG = "_engine/spatial_catalog.yml"
+SPATIAL_REPORT = "_engine/spatial_report.yml"
+
+
 def _catalog_dict() -> dict[str, Any]:
     """Return the portable HydroMT catalog for a written spatial product.
 
@@ -1165,7 +1170,7 @@ def _catalog_dict() -> dict[str, Any]:
     entries: dict[str, Any] = {
         "spatial_maps": {
             "data_type": "RasterDataset",
-            "uri": "spatial_maps.nc",
+            "uri": "../spatial_maps.nc",
             "driver": {"name": "raster_xarray"},
             "metadata": {
                 "category": "topography",
@@ -1174,7 +1179,7 @@ def _catalog_dict() -> dict[str, Any]:
         },
         "location_registry": {
             "data_type": "DataFrame",
-            "uri": "location_registry.csv",
+            "uri": "../location_registry.csv",
             "driver": {"name": "pandas"},
             "metadata": {
                 "category": "hydrography",
@@ -1193,7 +1198,7 @@ def _catalog_dict() -> dict[str, Any]:
     ):
         entries[name] = {
             "data_type": "GeoDataFrame",
-            "uri": f"geoms/{name}.geojson",
+            "uri": f"../geoms/{name}.geojson",
             "driver": {"name": "pyogrio"},
             "metadata": {
                 "category": "hydrography",
@@ -1247,9 +1252,12 @@ def write_spatial_maps(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     _write_dataset(maps, output_dir / "spatial_maps.nc")
-    with (output_dir / "spatial_catalog.yml").open("w", encoding="utf-8") as stream:
+    # Machine files of the spatial unit live in its `_engine/` (rule R10); the
+    # catalog's URIs are relative to that folder.
+    (output_dir / "_engine").mkdir(exist_ok=True)
+    with (output_dir / SPATIAL_CATALOG).open("w", encoding="utf-8") as stream:
         yaml.safe_dump(_catalog_dict(), stream, sort_keys=False)
-    with (output_dir / "spatial_report.yml").open("w", encoding="utf-8") as stream:
+    with (output_dir / SPATIAL_REPORT).open("w", encoding="utf-8") as stream:
         yaml.safe_dump(report, stream, sort_keys=False)
 
 
@@ -1331,7 +1339,7 @@ def _validate_vector_relations(geoms: Mapping[str, gpd.GeoDataFrame]) -> None:
 def validate_written_spatial_products(output_dir: str | Path) -> None:
     """Open every generated catalog entry and verify the core ID joins."""
     output_dir = Path(output_dir)
-    catalog = DataCatalog(data_libs=str(output_dir / "spatial_catalog.yml"))
+    catalog = DataCatalog(data_libs=str(output_dir / SPATIAL_CATALOG))
     maps = catalog.get_rasterdataset("spatial_maps", single_var_as_array=False)
     registry = catalog.get_dataframe("location_registry")
     geoms = {
