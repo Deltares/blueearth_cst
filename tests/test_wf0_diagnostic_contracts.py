@@ -15,6 +15,7 @@ from blueearth_cst.climate_analysis.diagnostic_outputs import (
 from blueearth_cst.climate_analysis.diagnostic_render import load_result, render
 from blueearth_cst.climate_analysis.diagnostic_settings import parse_settings
 from blueearth_cst.climate_analysis.diagnostic_tables import compute, write_tables
+from blueearth_cst.climate_analysis.table_files import FILES
 
 
 def test_short_record_acf_confidence_limits_fit_inside_axes():
@@ -158,10 +159,14 @@ def test_canonical_inventory_and_one_source_refusal():
         table_root = Path(name) / "tables"
         if name == "comparison":
             plot_root /= "basin_average"
-            table_root = Path(name) / "_engine/basin_average"
+            table_root /= "basin_average"
         assert Path(paths["root"]) == Path(name)
         assert all(Path(p).parent == plot_root for p in paths["figures"].values())
-        assert Path(paths["compute"]["coverage"]).parent == table_root
+        assert Path(paths["compute"]["monthly"]).parent == table_root
+        assert Path(paths["compute"]["homogeneity"]).parent == table_root / "supporting"
+        assert Path(paths["compute"]["pt_anomalies"]).parent == (
+            Path(name) / "_engine/figure_data"
+        )
         assert Path(paths["compute"]["metadata"]).parent == Path(name) / "_engine"
         assert Path(paths["render"]["captions_md"]) == plot_root / "figure_captions.md"
     assert comparison["source_summary"] == {
@@ -207,7 +212,7 @@ def test_unavailable_records_keep_table_headers_and_round_trip(tmp_path, kind, c
     assert all(len(t.columns) for t in tables.values())
     paths = diagnostic_source_outputs(tmp_path, "chirps", settings)
     write_tables(paths, {"chirps": tables}, settings, 1, period, {})
-    assert all(Path(paths["compute"][k]).is_file() for k in TABLES)
+    assert all(Path(paths["compute"][k]).is_file() for k in FILES)
     loaded = load_result(paths["root"], "chirps")
     assert loaded["tclim"] is None
     if kind in {"missing", "no_overlap"}:
@@ -252,17 +257,21 @@ def test_comparison_split_tables_and_single_temperature_carrier_render(tmp_path)
     paths = diagnostic_comparison_outputs(tmp_path / "comparison", sources, settings)
     write_tables(paths, results, settings, 1, (2000, 2002), {})
     # Agreement is written by the comparison adapter, independently of diagnostic tables.
-    from blueearth_cst.climate_analysis.diagnostic_outputs import (
-        COMPARISON_RESULT_TABLES,
-    )
-
     visible = {
         key
         for key, path in paths["compute"].items()
         if Path(path).parent == tmp_path / "comparison/tables/basin_average"
     }
-    assert visible == COMPARISON_RESULT_TABLES
-    assert all(Path(paths["compute"][key]).is_file() for key in TABLES)
+    assert visible == {
+        "annual",
+        "monthly",
+        "climatology",
+        "spi",
+        "drought_events",
+        "trends",
+        "agreement",
+    }
+    assert all(Path(paths["compute"][key]).is_file() for key in FILES)
     paths["figures"] = {"temperature": paths["figures"]["temperature"]}
     records = render(paths, settings, 1, sources, stores)
     assert len(records) == 1
@@ -305,10 +314,8 @@ def test_comparison_rerender_reads_legacy_table_layout(
     calls = []
     monkeypatch.setattr(retained, "render", lambda *args, **kwargs: calls.append(args))
     retained.rerender_comparisons(tmp_path, tmp_path / "preview")
+    # load_result reads the per-table files of schema 1-2 itself.
     assert len(calls) == 1
-    assert all(
-        Path(calls[0][0]["compute"][name]) == folder / f"{name}.csv" for name in TABLES
-    )
 
 
 def test_opt_in_subbasin_tables_pngs_and_caption_inventory(tmp_path):

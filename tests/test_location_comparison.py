@@ -129,22 +129,31 @@ def test_location_views_sample_native_points_and_retain_observations(
     }
     assert registry.loc["location_1010", "gauge_id"] == ("001" if with_gauges else "")
     assert registry.loc["location_1010", "location_code"] == "B001-S01-L01"
-    table_root = root / "tables/locations/location_1010"
-    monthly = pd.read_csv(table_root / "monthly.csv")
-    february = monthly[monthly.month == "2000-02"].set_index("source")
+    # One long table per kind of result, keyed by location_id (layout 3, R15).
+    table_root = root / "tables/locations"
+    assert not (table_root / "location_1010").exists()
+
+    def rows(name, variable=None):
+        frame = pd.read_csv(table_root / f"{name}.csv", dtype={"location_id": str})
+        frame = frame[frame.location_id == "location_1010"]
+        return frame if variable is None else frame[frame.variable == variable]
+
+    monthly = rows("monthly", "precip")
+    february = monthly[monthly.period == "2000-02"].set_index("source")
     assert february.loc["era5", "total_mm"] == 58
     assert february.loc["chirps", "total_mm"] == 116
-    annual = pd.read_csv(table_root / "annual.csv").set_index("source")
+    annual = rows("annual", "precip").set_index("source")
     expected = sum(calendar.monthrange(2000, m)[1] * m for m in range(1, 13))
     assert annual.loc["era5", "total_mm"] == expected
     assert annual.loc["chirps", "total_mm"] == expected * 2
-    temperatures = pd.read_csv(table_root / "temp_monthly.csv")
+    temperatures = rows("monthly", "temp")
     january = temperatures[temperatures.period == "2000-01"].set_index("source")
     assert january.loc["era5", "mean_degC"] == -5
     if with_gauges:
         assert february.loc["observed", "total_mm"] == 58
         assert january.loc["observed", "mean_degC"] == -5
-        metrics = pd.read_csv(table_root / "monthly_agreement.csv").set_index("source")
+        agreement = rows("agreement", "precip")
+        metrics = agreement[agreement.scope == "monthly"].set_index("source")
         assert metrics.loc["era5", "paired_months"] == 12
         assert metrics.loc["era5", "pearson_r"] == pytest.approx(1)
         assert metrics.loc["era5", "bias"] == 0
@@ -176,7 +185,7 @@ def test_location_views_sample_native_points_and_retain_observations(
             item for item in records.values() if item["variable"] == "temp"
         )
         assert "ALTERNATE (on ERA5 grid)" in temperature_record["caption"]
-        cells = pd.read_csv(table_root / "native_cells.csv")
+        cells = rows("native_cells")
         assert cells.loc[cells.variable == "temp", "data_source"].eq("alternate").all()
 
 

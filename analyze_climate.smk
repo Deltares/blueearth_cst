@@ -529,7 +529,7 @@ for _source in CANDIDATE_SOURCES:
         _render_outputs["index_products"] = directory(_render_outputs["index_products"])
         _render_outputs["index_metadata"] = directory(_render_outputs["index_metadata"])
     _render_inputs = {"tables": list(_diag["compute"].values()),
-        "pooled": [p for spec in SOURCE_DIAGNOSTICS.values() for key, p in spec["compute"].items() if key in {"monthly_values", "metadata"}],
+        "pooled": [p for spec in SOURCE_DIAGNOSTICS.values() for key, p in spec["compute"].items() if key in {"monthly", "metadata"}],
         "map_reference": MAP_REFERENCE.outputs["reference"],
         **MAP_REFERENCE.inputs,
         **{key: SPATIAL_UNITS.outputs[key] for key in ("basins", "subbasins", "rivers", "locations")}}
@@ -611,7 +611,7 @@ if COMPARISON_DIAGNOSTICS:
         "source_stores": [CLIMATE_STORES[s].outputs["climate_nc"] for s in CANDIDATE_SOURCES],
         "daily": [SOURCE_DIAGNOSTICS[s]["compute"]["daily"] for s in CANDIDATE_SOURCES],
         "metadata": [SOURCE_DIAGNOSTICS[s]["compute"]["metadata"] for s in CANDIDATE_SOURCES],
-        "pooled": [SOURCE_DIAGNOSTICS[s]["compute"]["monthly_values"] for s in CANDIDATE_SOURCES],
+        "pooled": [SOURCE_DIAGNOSTICS[s]["compute"]["monthly"] for s in CANDIDATE_SOURCES],
     }
 
     rule plot_climate_comparison:

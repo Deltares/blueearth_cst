@@ -22,6 +22,7 @@ from blueearth_cst.climate_analysis.diagnostics import (
     monthly_reference_diagnostics,
     sen_trend,
 )
+from blueearth_cst.climate_analysis.table_files import FILE_OF, relative_path, split
 from blueearth_cst.plotting.export import export_figure
 from blueearth_cst.plotting.figure_titles import write_figure_titles
 from blueearth_cst.plotting.fundamentals import new_fig
@@ -148,6 +149,14 @@ def prepared_map(
     return fig, info, notes
 
 
+def _monthly_anomalies(root):
+    """A store's monthly anomalies, from either table layout."""
+    current = root / relative_path("monthly")
+    if current.is_file():
+        return split("monthly_values", pd.read_csv(current)).anomaly.to_numpy()
+    return pd.read_csv(root / "tables" / "monthly_values.csv").anomaly.to_numpy()
+
+
 def load_result(root, source, *, table_dir=None, table_paths=None):
     """Restore artist inputs from explicit plot-ready tables, never raw climate."""
     folder = Path(table_dir) if table_dir is not None else Path(root) / "tables"
@@ -155,10 +164,34 @@ def load_result(root, source, *, table_dir=None, table_paths=None):
         (Path(root) / "_engine" / "diagnostics.json").read_text(encoding="utf-8")
     )
     renames = table_renames(metadata["schema_version"])
+    files = {}
+
+    def legacy(name):
+        # Schema 1-2 wrote one file per table: a store's tables/, or a
+        # comparison's tables/basin-average/ and _engine/basin-average/.
+        for candidate in (
+            folder / f"{name}.csv",
+            Path(root) / "tables/basin-average" / f"{name}.csv",
+            Path(root) / "_engine/basin-average" / f"{name}.csv",
+        ):
+            if candidate.is_file():
+                return pd.read_csv(candidate)
+        raise FileNotFoundError(f"retained WF0 table {name} is missing under {root}")
 
     def read(name):
-        path = table_paths[name] if table_paths is not None else folder / f"{name}.csv"
-        frame = pd.read_csv(path).rename(columns=renames)
+        if metadata["schema_version"] < 3:
+            frame = legacy(name)
+        else:
+            key = FILE_OF[name]
+            path = (
+                table_paths[key]
+                if table_paths is not None
+                else Path(root) / relative_path(key)
+            )
+            if path not in files:
+                files[path] = pd.read_csv(path)
+            frame = split(name, files[path])
+        frame = frame.rename(columns=renames)
         return frame[frame.source == source].drop(
             columns=["source", "period_start", "period_end"]
         )
@@ -304,10 +337,7 @@ def render(
             )
         for scale in (3, 6, 12):
             result["spi"][scale] = result["spi"][scale].reindex(calendar)
-    pooled = [
-        pd.read_csv(Path(p) / "tables" / "monthly_values.csv").anomaly.to_numpy()
-        for p in pooled_roots
-    ]
+    pooled = [_monthly_anomalies(Path(p)) for p in pooled_roots]
     bounds = artists.anomaly_bounds(np.concatenate(pooled))
     view = artists.View(
         sources=sources,

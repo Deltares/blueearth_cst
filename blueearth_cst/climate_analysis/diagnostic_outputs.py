@@ -7,6 +7,7 @@ from blueearth_cst.climate_analysis.figure_naming import (
     annual_anomaly_filename,
     figure_filename,
 )
+from blueearth_cst.climate_analysis.table_files import FILES, relative_path
 
 
 def parse_figure_settings(block: dict) -> dict[str, bool]:
@@ -56,6 +57,7 @@ def rain_gauge_outputs(root, tokens):
     return {"compute": compute, "render": render}
 
 
+#: Logical WF0 diagnostic tables; `table_files` says which file holds each.
 TABLES = (
     "coverage",
     "valid_years",
@@ -75,15 +77,6 @@ TABLES = (
     "pt_anomalies",
     "homogeneity",
 )
-COMPARISON_RESULT_TABLES = {
-    "annual_indices",
-    "monthly_values",
-    "precip_climatology",
-    "temp_climatology",
-    "drought_events",
-    "trends",
-    "agreement",
-}
 FORMS = {
     "seasonal": ("precip", "monthly_clim_band"),
     "temperature": ("temp", "monthly_clim_band"),
@@ -140,11 +133,10 @@ def inventory(root, sources, settings, comparison=False, comparison_sources=()):
                 / "plots"
                 / figure_filename(scope, variable, "annual_clim_map", "basin_ext")
             )
-    compute = {k: str(root / "tables" / f"{k}.csv") for k in TABLES}
+    compute = {key: str(root / relative_path(key)) for key in FILES}
     compute["metadata"] = str(root / "_engine" / "diagnostics.json")
     if comparison:
         compute["agreement"] = str(root / "tables" / "agreement.csv")
-        compute["agreement_md"] = str(root / "tables" / "agreement.md")
     else:
         compute["daily"] = str(root / "tables" / "daily_basin.csv")
         compute["maps"] = str(root / "tables" / "annual_climatology.nc")
@@ -250,12 +242,6 @@ def diagnostic_comparison_outputs(comparison_dir, sources, settings):
         paths["render"][key] = str(
             root / "_engine/plots/basin_average" / Path(paths["render"][key]).name
         )
-    for key, path in paths["compute"].items():
-        if key in TABLES or key == "agreement_md":
-            if key not in COMPARISON_RESULT_TABLES:
-                paths["compute"][key] = str(
-                    root / "_engine/basin_average" / Path(path).name
-                )
     # These summaries describe extracted stores alongside their diagnostics.
     paths["source_summary"] = {
         f"dataset_comparison_{suffix}": str(

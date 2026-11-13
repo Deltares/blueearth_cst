@@ -165,17 +165,8 @@ def rerender_comparisons(
     if metadata_path.is_file():
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         sources = metadata["sources"]
+        # Tables written before schema 3 are found by `load_result` itself.
         paths = diagnostic_comparison_outputs(root, sources, metadata["settings"])
-        for key, path in paths["compute"].items():
-            if not Path(path).is_file() and "basin_average" in Path(path).parts:
-                for legacy in (
-                    root / "tables/basin-average" / Path(path).name,
-                    root / "_engine/basin-average" / Path(path).name,
-                    root / "tables" / Path(path).name,
-                ):
-                    if legacy.is_file():
-                        paths["compute"][key] = str(legacy)
-                        break
         paths = retarget_render(paths, out_dir)
         stores = source_stores(project_dir, load_retained_reference(project_dir))
         render(

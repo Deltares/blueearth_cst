@@ -9,15 +9,17 @@ import pandas as pd
 import xarray as xr
 
 from blueearth_cst.climate_analysis import diagnostics as dg
+from blueearth_cst.climate_analysis.table_files import FILES, combine
 from blueearth_cst.shared.grid_cells import LAT, LON, cells_csv_mask
 
 #: Version of the retained WF0 tables and ``_engine/diagnostics.json``. Bump it
 #: with any change to a retained table's columns, and add the upgrade below.
 #: 2: the trend column "metric" became "indicator" (4faf0580).
-SCHEMA_VERSION = 2
+#: 3: tables sharing a key share a file (`table_files`, t017 layout 3).
+SCHEMA_VERSION = 3
 
 #: Column renames that read tables written under an older schema version.
-_COLUMN_UPGRADES = {1: {"metric": "indicator"}}
+_COLUMN_UPGRADES = {1: {"metric": "indicator"}, 2: {}}
 
 
 def table_renames(schema_version):
@@ -499,21 +501,23 @@ def compute(daily, settings, m0, period, temperature=None, temperature_source=No
 def write_tables(paths, tables_by_source, settings, m0, period, lineage):
     """Write fixed source-tagged CSVs plus a retained calculation record."""
     for key, path in paths["compute"].items():
-        if key not in next(iter(tables_by_source.values())):
+        if key not in FILES:
             continue
-        frame = pd.concat(
-            [
-                table[key].assign(
-                    source=s, period_start=period[0], period_end=period[1]
-                )
-                for s, table in tables_by_source.items()
-            ],
-            ignore_index=True,
-        )
-        if key == "pt_anomalies":
-            frame["precip_source"] = frame.source
+        frames = {}
+        for name in FILES[key][1]:
+            frames[name] = pd.concat(
+                [
+                    table[name].assign(
+                        source=s, period_start=period[0], period_end=period[1]
+                    )
+                    for s, table in tables_by_source.items()
+                ],
+                ignore_index=True,
+            )
+        if "pt_anomalies" in frames:
+            frames["pt_anomalies"]["precip_source"] = frames["pt_anomalies"].source
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-        frame.to_csv(path, index=False)
+        combine(key, frames).to_csv(path, index=False)
     metadata = {
         "schema_version": SCHEMA_VERSION,
         "settings": settings,
