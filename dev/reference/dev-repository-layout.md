@@ -105,7 +105,8 @@ writing. Keep configured tool state, including pytest and Ruff caches, in its co
 Before cleanup, verify the target is within the intended scratch root, inspect links and other writers,
 and preserve evidence still needed by a reader or gate. Completion alone grants no deletion authority.
 
-Three helpers report by default: `prune_series_cache.py` finds orphaned WF2 series;
+Four helpers report by default: `prune_series_cache.py` finds orphaned WF2 series; `prune_logs.py`
+lists log folders older than `--older-than` days, skipping those a WF2 product refers to;
 `prune_climate_store.py` finds stale `<source>_<window>` stores; `snapshot_project_tree.py` lists paths
 against the project-tree inventory (`pixi run tree-check`). Deletion requires `--delete`. Prune before
 a reference snapshot so it excludes orphans. Directories routed wholesale by the path map also need
@@ -150,7 +151,9 @@ Outputs land under configured `project_dir`, outside the repository for producti
 
 Execution diagnostics share `logs/<YYYY-MM-DD_HH-MM-SSZ>__<scope>[__dry-run]/`: summary, console transcript,
 workflow logs and Markdown/TSV benchmarks. Child invocations share their parent's folder; each retry
-has fresh part namespaces. Historical shared logs and benchmark files remain untouched. The maintained
+has fresh part namespaces. Only the latest dry-run folder per scope is kept. A bare `snakemake` WF0–WF2 run
+writes `logs/<name>.log` and `logs/benchmarks/`. Historical shared logs and benchmark files remain
+untouched. The maintained
 layout and interpretation live in `docs/guide/running.md` § Execution logs and benchmarks.
 The WF2 product additionally owns `_engine/execution/` (production attribution and retained copies of
 contributing logs) and, after an import, `_engine/imported/`; `docs/guide/outputs.md` owns both.
@@ -158,8 +161,11 @@ contributing logs) and, after an import, `_engine/imported/`; `docs/guide/output
 For new output projects, `config/<workflow>/` holds `run_record.yml`, captured files,
 `SOURCES.md`, and `catalogs/` for the latest WF0–WF2
 configuration archives. `SOURCES.md` lists the original source paths within each workflow folder.
-Immutable generations live in `config/_engine/configuration-snapshots/<workflow>/<record-sha256>/`;
+Immutable generations live in `config/_engine/snapshots/<workflow>/<record-sha256>/`;
 attempt history references those exact records, while unchanged captures reuse their creator generation.
+Each byte is stored once (R9): the current generation's snapshot holds `run_record.yml` and its
+sources stay in `config/<workflow>/`; a superseded generation's snapshot takes its sources.
+`configuration_archive.snapshot_source` resolves either.
 Shared execution inputs, archive locks and invocation history live in `config/_engine/`.
 Completed replacement backups and child launch contexts are transient. Existing cases can be inspected
 or migrated with `scripts/maintain_config_archives.py` (`--apply` opts into changes).

@@ -33,7 +33,6 @@ from blueearth_cst.shared.config_composition import (
 )
 from blueearth_cst.shared.config_paths import TOOLBOX_ROOT
 from blueearth_cst.shared.configuration_archive import (
-    archive_payloads,
     finish_archive_transaction,
     matching_archive,
     remove_launch_context,
@@ -133,7 +132,7 @@ def stage_shared_dependency(
         Path(project_root).resolve()
         / "config"
         / "_engine"
-        / "execution-configs"
+        / "execution_configs"
         / "_shared"
         / dependency_id
         / digest
@@ -340,7 +339,7 @@ def prepare_workflow(
     # the dependency's own hash instead means an unchanged file resolves to the
     # same execution path no matter which workflow staged it first.
     dependency_root = (
-        project_root / "config" / "_engine" / "execution-configs" / "_shared"
+        project_root / "config" / "_engine" / "execution_configs" / "_shared"
     )
     replacements: dict[Path, Path] = {}
     generated_paths = []
@@ -453,7 +452,7 @@ def prepare_workflow(
         ).hexdigest()
     )
     stage = (
-        project_root / "config" / "_engine" / "execution-configs" / workflow / digest
+        project_root / "config" / "_engine" / "execution_configs" / workflow / digest
     )
     if workflow_source is not None:
         execution_workflow = stage / "workflow.yml"
@@ -519,8 +518,9 @@ def prepare_workflow(
         if prior is not None:
             from blueearth_cst.shared.workflow_config_snapshot import validate_archive
 
-            record = validate_archive(prior)
-            payloads = archive_payloads(prior, record)
+            # Same settings, so this capture's bytes are the generation's;
+            # publishing checks every one against the reused record.
+            record = validate_archive(prior, check_bytes=False)
         publish_archive(project_root, workflow, relative, record, payloads)
         finish_archive_transaction(project_root, workflow)
     write_config_readme(project_root)

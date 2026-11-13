@@ -9,7 +9,7 @@ only as historical text; nothing in a bundle needs the source project, its
 The working project keeps its one configuration home under `config/`. Bundles
 carry snapshots; import never writes the destination's configuration archives,
 spatial foundation, invocation history or logs. It only creates the project's
-runtime execution lock under `config/_engine/archive-transactions/`. Import supports reading and
+runtime execution lock under `config/_engine/archive_transactions/`. Import supports reading and
 interpreting results, not runner adoption: no future no-recompute behaviour
 is implied.
 """
@@ -100,8 +100,18 @@ def _region(project: Path, product: Path, expected: str) -> Path:
 
 def _snapshots(project: Path, product: Path) -> list[Path]:
     """Retained project snapshots, then snapshots an earlier import carried."""
-    root = project / "config/_engine/configuration-snapshots" / WORKFLOW
-    local = sorted(root.iterdir()) if root.is_dir() else []
+    from blueearth_cst.shared.configuration_archive import snapshot_source
+
+    root = project / "config/_engine/snapshots" / WORKFLOW
+    local = []
+    for item in sorted(root.iterdir()) if root.is_dir() else []:
+        if item.is_dir() and not item.name.startswith("."):
+            try:
+                local.append(snapshot_source(project, item))
+            except ValueError:
+                # Bytes lost with no readable copy: the digest search below
+                # reports the generation as unbundleable.
+                continue
     carried = sorted((product / "_engine/imported").glob("*/configuration/*"))
     return [
         item

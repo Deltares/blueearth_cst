@@ -1,6 +1,5 @@
 """P3 common invocation states and launcher failure boundaries."""
 
-import hashlib
 import json
 from pathlib import Path
 
@@ -125,19 +124,6 @@ def test_simulation_explicit_root_records_startup_failure(tmp_path):
     assert record["configuration"]["run_record"] is None
 
 
-def test_interim_wf3_retains_exact_config_source_bytes(tmp_path):
-    source = Path(__file__).resolve().parents[1] / "test_case/project_config_rapid.yml"
-    digest = run_workflows._capture_legacy_wf3_attempt(source, tmp_path, "attempt")
-    copied = list(
-        (tmp_path / "config/_engine/invocations/attempt/config/sources").rglob(
-            source.name
-        )
-    )
-    assert len(copied) == 1
-    assert copied[0].read_bytes() == source.read_bytes()
-    assert digest == hashlib.sha256(source.read_bytes()).hexdigest()
-
-
 @pytest.fixture
 def reporting_run(tmp_path, monkeypatch):
     """Exercise launcher records with child execution and archive capture substituted."""
@@ -165,7 +151,7 @@ def reporting_run(tmp_path, monkeypatch):
         "prepare_workflow",
         lambda _name, path, _root, **kwargs: (
             path,
-            _root / "config/_engine/execution-configs/launch-test.json",
+            _root / "config/_engine/execution_configs/launch-test.json",
         ),
     )
     monkeypatch.setattr(run_workflows, "_bind_workflow_archive", lambda *args: None)

@@ -728,7 +728,7 @@ def test_console_aliases_preserve_saved_commands(
     model = tmp_path / "models/hydrology/wflow"
     catalog = (
         tmp_path
-        / "config/_engine/execution-configs/_shared/project_catalog_0/459d6135261e/project_catalog_0.yml"
+        / "config/_engine/execution_configs/_shared/project_catalog_0/459d6135261e/project_catalog_0.yml"
     )
     declare_folders(
         model=model,
@@ -756,7 +756,7 @@ def test_console_aliases_preserve_saved_commands(
     )
     assert "<model>/config/build_historical_forcing.yml" in logged
     assert (
-        "config/_engine/execution-configs/_shared/project_catalog_0/459d6135261e/project_catalog_0.yml"
+        "config/_engine/execution_configs/_shared/project_catalog_0/459d6135261e/project_catalog_0.yml"
         in logged
     )
     assert "<model-config>" not in logged
@@ -4174,10 +4174,10 @@ def test_run_header_forward_slashes_and_shortens_the_config_path(monkeypatch):
 
 
 def test_run_header_marks_a_staged_execution_config_with_the_project_token():
-    """A generated config under `execution-configs/` reads `<project>/...`.
+    """A generated config under `execution_configs/` reads `<project>/...`.
 
     Regression: `prepare_workflow` stages the composed config INSIDE the
-    project root (`config/_engine/execution-configs/<workflow>/<digest>/
+    project root (`config/_engine/execution_configs/<workflow>/<digest>/
     project_config.yml`), so on a production run -- where the project lives
     outside the repo and matches neither the `<repo>` nor `<site-packages>`
     rewrite -- this row used to print the same absolute prefix as `<project>`
@@ -4190,7 +4190,7 @@ def test_run_header_marks_a_staged_execution_config_with_the_project_token():
         project,
         "config",
         "_engine",
-        "execution-configs",
+        "execution_configs",
         "analyze_projections",
         "91d954f93e17",
         "project_config.yml",
@@ -4198,7 +4198,7 @@ def test_run_header_marks_a_staged_execution_config_with_the_project_token():
     out = cs.run_header("wf2 analyze_projections", project, config)
     row = next(line for line in out.splitlines() if line.startswith("config"))
     assert row.split(None, 1)[1] == (
-        "<project>/config/_engine/execution-configs/"
+        "<project>/config/_engine/execution_configs/"
         "analyze_projections/91d954f93e17/project_config.yml"
     )
     assert "\\" not in row

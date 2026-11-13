@@ -32,7 +32,7 @@ OUTPUT_ROOTS = (
     "scenarios",
     "experiments",
     *(f"config/{name}" for name in WORKFLOWS),
-    "config/_engine/execution-configs",
+    "config/_engine/execution_configs",
 )
 
 
@@ -246,7 +246,7 @@ def plan_rebuild(project_root: Path, config_path: Path) -> RebuildPlan:
     candidates = [root / name for name in OUTPUT_ROOTS]
     for path in [
         *candidates,
-        root / "config/_engine/archive-transactions",
+        root / "config/_engine/archive_transactions",
         root / "config/_engine/invocations",
         root / "logs",
     ]:
@@ -263,12 +263,12 @@ def plan_rebuild(project_root: Path, config_path: Path) -> RebuildPlan:
             ):
                 candidates.append(path)
     candidates.extend(
-        root / f"config/_engine/archive-transactions/{name}.json" for name in WORKFLOWS
+        root / f"config/_engine/archive_transactions/{name}.json" for name in WORKFLOWS
     )
     # Artifact owners use hashed keys rather than workflow names. Their journals
     # must be reset along with the artifacts, even after an earlier partial reset
     # has already removed the target. Keep locks and unrelated archive journals.
-    transactions = root / "config/_engine/archive-transactions"
+    transactions = root / "config/_engine/archive_transactions"
     for directory in (transactions, transactions / "completed"):
         _confined(root, directory)
         for journal in sorted(directory.glob("*.json")):

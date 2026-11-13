@@ -358,7 +358,7 @@ def test_recovery_and_next_writer(tmp_path, failure_after, expected, legacy):
         read_archive(root, "build_model", "config/build_model")["invocation_id"]
         == "third"
     )
-    assert list((root / "config/_engine/archive-transactions/completed").glob("*.json"))
+    assert list((root / "config/_engine/archive_transactions/completed").glob("*.json"))
 
 
 def test_first_publication_failure_stays_unpublished(tmp_path):
@@ -406,7 +406,7 @@ def test_contradictory_candidate_refuses_recovery_reader_and_next_writer(
             second_payloads,
             failure_after=failure_after,
         )
-    journal = root / "config/_engine/archive-transactions/build_model.json"
+    journal = root / "config/_engine/archive_transactions/build_model.json"
     transaction = json.loads(journal.read_text(encoding="utf-8"))
     path = root / transaction[candidate] / "run_record.yml"
     path.write_bytes(b"corrupt")

@@ -608,7 +608,7 @@ def archive_lock(project_root: Path, owner_key: str) -> Iterator[None]:
         project_root
         / "config"
         / "_engine"
-        / "archive-transactions"
+        / "archive_transactions"
         / f"{owner_key}.lock"
     )
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1041,8 +1041,12 @@ def resolve_file_reference(
     return path
 
 
-def validate_archive(directory: Path) -> dict[str, Any]:
-    """Read a complete run-record/2 archive and verify each captured byte hash."""
+def validate_archive(directory: Path, *, check_bytes: bool = True) -> dict[str, Any]:
+    """Read a complete run-record/2 archive and verify each captured byte hash.
+
+    ``check_bytes=False`` verifies only the record itself, for a snapshot that
+    holds the record while its sources live in the readable copy (rule R9).
+    """
     record_path = directory / "run_record.yml"
     record = yaml.safe_load(record_path.read_bytes())
     _validate_run_record_shape(record)
@@ -1067,6 +1071,8 @@ def validate_archive(directory: Path) -> dict[str, Any]:
         if source_id in seen or entry["path_base"] != "record_directory":
             raise ValueError("invalid source entry")
         seen.add(source_id)
+        if not check_bytes:
+            continue
         path = _confined(directory, entry["archived_path"])
         data = path.read_bytes()
         if (
@@ -1096,6 +1102,8 @@ def validate_archive(directory: Path) -> dict[str, Any]:
     )
     if expected != record["archive_id"]:
         raise ValueError("archive id differs")
+    if not check_bytes:
+        return record
     for overlay in record["rerun"]["adjustments"]:
         if overlay.get("schema_version") != "resolver-overlay/1":
             raise ValueError("unknown rerun overlay")
@@ -1145,7 +1153,7 @@ def _matches_archive(directory: Path, expected_hash: str | None) -> bool:
 
 
 def _transaction_paths(project_root: Path, owner_key: str) -> tuple[Path, Path]:
-    journal_dir = project_root / "config" / "_engine" / "archive-transactions"
+    journal_dir = project_root / "config" / "_engine" / "archive_transactions"
     journal_dir.mkdir(parents=True, exist_ok=True)
     return journal_dir / f"{owner_key}.json", journal_dir / "completed"
 

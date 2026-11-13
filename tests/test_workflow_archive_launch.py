@@ -290,14 +290,14 @@ def test_shared_dependency_stages_once_across_workflows(tmp_path):
     catalog_c = yaml.safe_load(execution_c.read_bytes())["project"]["catalog"][0]
     assert catalog_a == catalog_b == catalog_c
     assert Path(catalog_a).is_relative_to(
-        project_root / "config/_engine/execution-configs/_shared"
+        project_root / "config/_engine/execution_configs/_shared"
     )
     locations_a = yaml.safe_load(execution_a.read_bytes())["basin"]["output_locations"]
     locations_b = yaml.safe_load(execution_b.read_bytes())["basin"]["output_locations"]
     locations_c = yaml.safe_load(execution_c.read_bytes())["basin"]["output_locations"]
     assert locations_a == locations_b == locations_c
     assert Path(locations_a).is_relative_to(
-        project_root / "config/_engine/execution-configs/_shared"
+        project_root / "config/_engine/execution_configs/_shared"
     )
 
 
@@ -466,7 +466,7 @@ def test_all_workflow_wrapper_routes_wf0_through_capture(tmp_path, monkeypatch):
     assert child["parent_invocation_id"] == parent["invocation_id"]
     assert resolve_file_reference(
         child["configuration"]["run_record"], {"project_root": output}
-    ).is_relative_to(output / "config/_engine/configuration-snapshots/analyze_climate")
+    ).is_relative_to(output / "config/_engine/snapshots/analyze_climate")
 
 
 @pytest.mark.parametrize(

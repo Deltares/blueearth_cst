@@ -96,6 +96,10 @@ historical_name = historical_run_name(my_cfg.get("historical_run"))
 
 # Project — paths and external resources
 project_dir = get_config(project_cfg, "project_dir", optional=False)
+# A bare `snakemake` run stamps the folder it creates (rule R18); runners refuse.
+from blueearth_cst.shared.layout_stamp import stamp_new
+
+stamp_new(Path(project_dir))
 # O-22: make the two-tier project_dir rule mechanical rather than
 # documentary. Warns, never raises; test_case/ is the one exemption.
 warn_if_project_dir_in_repo(project_dir, workflow.basedir)
@@ -518,7 +522,7 @@ MAP_CANDIDATE_STORES = {
 # EVERY WF1 rule that logs writes a PART under logs/_parts/, and rule 1.18 merges
 # the parts into ONE logs/wf1_build_model.log, then deletes them. So the only
 # WF1 file left in logs/ after a full run is that merged log — matching WF2 (2.08)
-# and WF3 (3.18), and the deal benchmarks/wf1_benchmarks.md already had.
+# and WF3 (3.18), and the deal logs/benchmarks/wf1_benchmarks.md already had.
 #
 # LOG_RULES is the merge order: rule LABELS, not part paths. merge_logs lists each
 # label's part dir to find its members, so a fan-out width lives only in the rule
@@ -557,7 +561,7 @@ WORKFLOW_LOG_NAME = "wf1_build_model.log"
 # `snake_utils.declare_warning_tally`.
 declare_warning_tally(project_dir, WORKFLOW_LOG_NAME)
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
-_paths = workflow_paths(project_dir, "wf1", WORKFLOW_LOG_NAME, "wf1_benchmarks.md", LOG_PARTS_DIR, f"{project_dir}/benchmarks/_parts")
+_paths = workflow_paths(project_dir, "wf1", WORKFLOW_LOG_NAME, "wf1_benchmarks.md", LOG_PARTS_DIR, f"{project_dir}/logs/benchmarks/_parts")
 LOG_PARTS_DIR, BENCH_PARTS_DIR = _paths.log_parts, _paths.benchmark_parts
 
 # The run's key folders, stated ONCE. `run_header` prints them at the top of the

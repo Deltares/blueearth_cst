@@ -48,7 +48,7 @@ def same_configuration(left: Mapping[str, Any], right: Mapping[str, Any]) -> boo
 
 
 def snapshot_root(project: Path, workflow: str) -> Path:
-    return project / "config/_engine/configuration-snapshots" / workflow
+    return project / "config/_engine/snapshots" / workflow
 
 
 def _inside(project: Path, path: Path) -> Path:
@@ -60,13 +60,23 @@ def _inside(project: Path, path: Path) -> Path:
     return resolved
 
 
-def retain_archive(project: Path, directory: Path) -> Path:
-    """Preserve the exact record and captured sources at an immutable address.
+def _record_only(directory: Path) -> bool:
+    return [path.name for path in directory.iterdir()] == ["run_record.yml"]
 
-    The caller owns the project execution lock. Existing run-record/2 bytes and
-    identities remain unchanged, including creator provenance in older projects.
+
+def retain_archive(project: Path, directory: Path, *, superseded: bool = False) -> Path:
+    """Retain a generation's record at an immutable address (rule R9).
+
+    The readable ``config/<workflow>/`` copy is the one copy of the current
+    generation, so its snapshot holds ``run_record.yml`` only. A ``superseded``
+    generation is leaving the readable copy: its snapshot takes the captured
+    sources, which are then their only copy. The caller owns the project
+    execution lock.
     """
     record = validate_archive(directory)
+    readable = (project / "config" / record["workflow"]).resolve()
+    if not superseded and directory.resolve() != readable:
+        raise ValueError("only the readable configuration copy is current")
     checksum = file_sha256(directory / "run_record.yml")
     destination = _inside(
         project, snapshot_root(project, record["workflow"]) / checksum
@@ -76,24 +86,45 @@ def retain_archive(project: Path, directory: Path) -> Path:
             directory / "run_record.yml"
         ).read_bytes():
             raise ValueError("immutable configuration snapshot differs")
-        validate_archive(destination)
-        return destination / "run_record.yml"
+        if _record_only(destination) != superseded:
+            validate_archive(destination, check_bytes=False)
+            return destination / "run_record.yml"
+    names = _archive_files(directory, record) if superseded else ["run_record.yml"]
     destination.parent.mkdir(parents=True, exist_ok=True)
     staging = destination.with_name(f".{checksum}.{uuid.uuid4().hex}.staged")
     try:
         # Copy only declared configuration bytes, not operational leftovers.
         staging.mkdir()
-        for name in _archive_files(directory, record):
+        for name in names:
             source = _inside(project, directory / name)
             target = _inside(project, staging / name)
             target.parent.mkdir(parents=True, exist_ok=True)
             _write_durable(target, source.read_bytes())
-        validate_archive(staging)
+        validate_archive(staging, check_bytes=superseded)
+        if destination.exists():
+            _remove_directory(project, destination)
         _replace(staging, destination)
     finally:
         if staging.exists():
             _remove_directory(project, staging)
     return destination / "run_record.yml"
+
+
+def snapshot_source(project: Path, directory: Path) -> Path:
+    """The directory holding a snapshot's captured bytes.
+
+    A record-only snapshot names the current generation, whose bytes are the
+    readable ``config/<workflow>/`` copy.
+    """
+    if not _record_only(directory):
+        return directory
+    readable = project / "config" / directory.parent.name
+    record = readable / "run_record.yml"
+    if not record.is_file() or file_sha256(record) != directory.name:
+        raise ValueError(
+            f"configuration bytes unavailable for snapshot {directory.name[:12]}"
+        )
+    return readable
 
 
 def matching_archive(project: Path, record: Mapping[str, Any]) -> Path | None:
@@ -103,18 +134,10 @@ def matching_archive(project: Path, record: Mapping[str, Any]) -> Path | None:
         for directory in sorted(root.iterdir()):
             if directory.name.startswith(".") or not directory.is_dir():
                 continue
-            previous = validate_archive(directory)
+            previous = validate_archive(directory, check_bytes=False)
             if same_configuration(previous, record):
                 return directory
     return None
-
-
-def archive_payloads(directory: Path, record: Mapping[str, Any]) -> dict[str, bytes]:
-    return {
-        name: (directory / name).read_bytes()
-        for name in _archive_files(directory, record)
-        if name != "run_record.yml"
-    }
 
 
 def _archive_files(directory: Path, record: Mapping[str, Any]) -> list[str]:
@@ -142,7 +165,7 @@ def _remove_directory(project: Path, directory: Path) -> None:
 
 def finish_archive_transaction(project: Path, workflow: str) -> None:
     """Retire committed replacement machinery after retaining both generations."""
-    root = project / "config/_engine/archive-transactions"
+    root = project / "config/_engine/archive_transactions"
     journal = root / f"{workflow}.json"
     if not journal.exists():
         return
@@ -162,7 +185,7 @@ def finish_archive_transaction(project: Path, workflow: str) -> None:
     if previous.exists():
         if file_sha256(previous / "run_record.yml") != transaction["old_record_sha256"]:
             raise ValueError("previous configuration differs from transaction")
-        retain_archive(project, previous)
+        retain_archive(project, previous, superseded=True)
         _remove_directory(project, previous)
     journal.unlink()
 
@@ -170,7 +193,7 @@ def finish_archive_transaction(project: Path, workflow: str) -> None:
 def remove_launch_context(project: Path, path: Path) -> None:
     """Remove a completed child's private launch context, preserving inputs."""
     path = _inside(project, path)
-    base = (project / "config/_engine/execution-configs").resolve()
+    base = (project / "config/_engine/execution_configs").resolve()
     if not path.is_relative_to(base) or not path.name.startswith("launch-"):
         raise ValueError("not a configuration launch context")
     try:
@@ -182,7 +205,7 @@ def remove_launch_context(project: Path, path: Path) -> None:
 
 def remove_stale_launch_contexts(project: Path, workflow: str) -> None:
     """Collect prior launch contexts while holding the project execution lock."""
-    root = project / "config/_engine/execution-configs" / workflow
+    root = project / "config/_engine/execution_configs" / workflow
     if root.exists():
         for path in root.glob("*/launch-*.json"):
             context = json.loads(path.read_text(encoding="utf-8"))
@@ -209,7 +232,7 @@ def maintenance_report(project: Path) -> dict[str, Any]:
     workflows = [
         name for name in WORKFLOWS if (config / name / "run_record.yml").is_file()
     ]
-    contexts = list((config / "_engine/execution-configs").glob("*/*/launch-*.json"))
+    contexts = list((config / "_engine/execution_configs").glob("*/*/launch-*.json"))
     missing = 0
     for path in (config / "_engine/invocations").glob("*.json"):
         attempt = json.loads(path.read_text(encoding="utf-8"))
@@ -223,13 +246,11 @@ def maintenance_report(project: Path) -> dict[str, Any]:
         "project": str(project),
         "workflows": workflows,
         "snapshots": len(
-            list(
-                (config / "_engine/configuration-snapshots").glob("*/*/run_record.yml")
-            )
+            list((config / "_engine/snapshots").glob("*/*/run_record.yml"))
         ),
         "launch_contexts": len(contexts),
         "completed_transactions": len(
-            list((config / "_engine/archive-transactions/completed").glob("*.json"))
+            list((config / "_engine/archive_transactions/completed").glob("*.json"))
         ),
         "unavailable_history_references": missing,
     }
@@ -258,7 +279,7 @@ def maintain_archives(project: Path) -> dict[str, Any]:
             remove_stale_launch_contexts(project, workflow)
         # Completed journals are recovery bookkeeping, not configuration history.
         # Preserve any surviving displaced archive before retiring its journal.
-        completed = project / "config/_engine/archive-transactions/completed"
+        completed = project / "config/_engine/archive_transactions/completed"
         for journal in completed.glob("*.json"):
             transaction = json.loads(journal.read_text(encoding="utf-8"))
             workflow = transaction.get("owner")
@@ -282,7 +303,7 @@ def maintain_archives(project: Path) -> dict[str, Any]:
                     raise ValueError(
                         "previous configuration differs from completed transaction"
                     )
-                retain_archive(project, previous)
+                retain_archive(project, previous, superseded=True)
                 _remove_directory(project, previous)
             _inside(project, journal).unlink()
         write_config_readme(project)

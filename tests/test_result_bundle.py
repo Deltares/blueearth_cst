@@ -120,7 +120,7 @@ def test_export_carries_product_configuration_and_region(
     assert not any(
         part in name
         for name in members
-        for part in (".lock", ".snakemake", "invocations/", "execution-configs/")
+        for part in (".lock", ".snakemake", "invocations/", "execution_configs/")
     )
     assert product.is_dir()
 

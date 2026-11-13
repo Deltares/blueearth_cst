@@ -362,6 +362,15 @@ def build_project_tree_rules(
         rf"{legacy}/weathergenr/evaluation/plots/[^/]+\.(png|pdf)",
     ):
         rules.append((re.compile(pattern), r"\g<0>"))
+    # Layout 1 names of the shared config records (renamed in layout 2, R12).
+    for name in (
+        "configuration-snapshots",
+        "execution-configs",
+        "archive-transactions",
+    ):
+        rules.append((re.compile(rf"config/_engine/{name}/.+"), r"\g<0>"))
+    # Layout 1 home of the bare-snakemake WF0-WF2 benchmark reports (R13).
+    rules.append((re.compile(r"benchmarks/wf[012]_benchmarks\.md"), r"\g<0>"))
     # The retired flat indicator export.
     for e in sorted(experiments):
         exp = re.escape(e)

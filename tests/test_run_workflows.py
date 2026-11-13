@@ -109,7 +109,6 @@ def capture_runs(monkeypatch):
     monkeypatch.setattr(
         configuration_archive, "remove_launch_context", lambda *_args: None
     )
-    monkeypatch.setattr(rw, "_capture_legacy_wf3_attempt", lambda *_args: "a" * 64)
 
     def fake_run(cmd, cwd=None, **kwargs):
         if cmd[0] == "git":

@@ -82,6 +82,10 @@ climate_cfg = config.get("climate") or {}
 my_cfg = config["workflows"]["analyze_climate"]
 
 project_dir = get_config(project_cfg, "project_dir", optional=False)
+# A bare `snakemake` run stamps the folder it creates (rule R18); runners refuse.
+from blueearth_cst.shared.layout_stamp import stamp_new
+
+stamp_new(Path(project_dir))
 # O-22: make the two-tier project_dir rule mechanical rather than documentary.
 # Warns, never raises; test_case/ is the one exemption.
 warn_if_project_dir_in_repo(project_dir, workflow.basedir)
@@ -278,7 +282,7 @@ WORKFLOW_LOG_NAME = "wf0_analyze_climate.log"
 # `snake_utils.declare_warning_tally`.
 declare_warning_tally(project_dir, WORKFLOW_LOG_NAME)
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts"
-_paths = workflow_paths(project_dir, "wf0", WORKFLOW_LOG_NAME, "wf0_benchmarks.md", LOG_PARTS_DIR, f"{project_dir}/benchmarks/_parts")
+_paths = workflow_paths(project_dir, "wf0", WORKFLOW_LOG_NAME, "wf0_benchmarks.md", LOG_PARTS_DIR, f"{project_dir}/logs/benchmarks/_parts")
 LOG_PARTS_DIR, BENCH_PARTS_DIR = _paths.log_parts, _paths.benchmark_parts
 
 # The run's key folders, stated ONCE. `run_header` prints them at the top of the
