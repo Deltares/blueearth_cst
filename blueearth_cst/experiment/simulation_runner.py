@@ -667,9 +667,18 @@ def validate_retained_indicator_sets(experiment_root, extra):
     """
     if not any(option in FORCE_OPTIONS for option in extra):
         return
+    from blueearth_cst.experiment.indicator_artifacts import (
+        IndicatorTablesUnavailable,
+        retire_indicator_set,
+    )
     from blueearth_cst.experiment.indicator_plan import read_indicator_set
     from blueearth_cst.experiment.legacy_indicator_names import saved_set_markers
 
     root = Path(experiment_root)
     for marker in saved_set_markers(root):
-        read_indicator_set(root, marker)
+        try:
+            read_indicator_set(root, marker)
+        except IndicatorTablesUnavailable:
+            # Its only copy (results/) is gone or edited (R1, D20): retire the
+            # records so the forced run recomputes it.
+            retire_indicator_set(marker)

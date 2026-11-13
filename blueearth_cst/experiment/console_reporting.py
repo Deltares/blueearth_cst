@@ -13,6 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from threading import RLock, local
 
+from blueearth_cst.experiment.indicator_artifacts import stored_table
 from blueearth_cst.shared.run_log_core import _write_console, log_row, plural
 
 
@@ -208,7 +209,7 @@ def undefined_result_summary(root: Path, manifest: dict) -> tuple[int, list[str]
     expected = 0
     other = Counter()
     for table in manifest["tables"]:
-        with (root / table["file"]["path"]).open(
+        with stored_table(root, manifest, table["file"]["path"]).open(
             encoding="utf-8", newline=""
         ) as handle:
             for row in csv.DictReader(handle):
@@ -235,7 +236,7 @@ def result_counts(root: Path, manifest: dict) -> tuple[int, int, int]:
     """
     counts = {"available": 0, "undefined": 0, "unavailable": 0}
     for table in manifest["tables"]:
-        with (root / table["file"]["path"]).open(
+        with stored_table(root, manifest, table["file"]["path"]).open(
             encoding="utf-8", newline=""
         ) as handle:
             for row in csv.DictReader(handle):

@@ -181,7 +181,7 @@ def test_missing_input_keeps_integrity_and_blocks_requested_recheck(
     if change == "missing-inventory":
         (root / "_engine/response_inventory.json").unlink()
     else:
-        native = next((root / "hydrology/wflow/output").glob("*/output_gwr.csv"))
+        native = next((root / "simulations").glob("*/output_gwr.csv"))
         if change == "missing-input":
             native.unlink()
         else:

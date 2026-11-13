@@ -63,9 +63,16 @@ def _published(root):
     return {path: path.read_bytes() for path in files}
 
 
+def _results(root):
+    files = sorted(
+        path for path in (root / "results/indicator_sets").rglob("*") if path.is_file()
+    )
+    return {path: path.read_bytes() for path in files}
+
+
 def _tamper_keeping_timestamps(root):
     """Change a retained response in place without moving its mtime."""
-    native = root / f"hydrology/wflow/output/{RUN_IDS[0]}/output_gwr.csv"
+    native = root / f"simulations/{RUN_IDS[0]}/output_gwr.csv"
     stat = native.stat()
     native.write_bytes(native.read_bytes() + b"\n")
     os.utime(native, ns=(stat.st_atime_ns, stat.st_mtime_ns))
@@ -142,55 +149,51 @@ def test_a_published_set_is_reused_byte_for_byte_under_forceall(tmp_path):
     ), output
     assert output.rstrip().endswith("- DONE all"), output
     marker = next((root / "_engine/indicator_sets").glob("*/indicators.json"))
-    assert (marker.parent / "data").is_dir()
-    assert not (root / "results/indicator_sets" / marker.parent.name).exists()
-    published = _published(root)
+    # One copy of every table (R1, ruling D20): results/ only.
+    assert not (marker.parent / "data").exists()
     assert len(list((root / "_engine/indicator_sets").glob("*/indicators.json"))) == 1
+    results = _results(root)
     assert {
         "gwr_run_indicators.csv",
         "gwr_group_indicators.csv",
         "group_members.csv",
         "group_metadata.csv",
-    } <= {path.name for path in published}
+    } <= {path.name for path in results}
 
     tracking = root / "_engine/indicator_sets/names/default/current.json"
     assert tracking.is_file()
     stable = root / "results/indicator_sets/default/gwr_run_indicators.csv"
     original = stable.read_bytes()
     stable.unlink()
-    # No immutable rule output is missing: successful no-op reuse repairs the export.
-    marker = next((root / "_engine/indicator_sets").glob("*/indicators.json"))
-    code, output = _simulate(experiment, "--target", str(marker))
+    # Its only copy is gone, so the set is recomputed to the same bytes.
+    code, output = _simulate(experiment)
     assert code == 0, output
     assert stable.read_bytes() == original
-    assert _published(root) == published
+    assert _results(root) == results
 
     code, output = _simulate(experiment, "--forceall")
     assert code == 0, output
-    assert _published(root) == published
+    assert _results(root) == results
 
     _tamper_keeping_timestamps(root)
     code, output = _simulate(experiment)
     assert code != 0, output
-    assert _published(root) == published
+    assert _results(root) == results
 
 
 @pytest.mark.skipif(
     os.name != "nt",
     reason="run_project_child refuses project writers off Windows",
 )
-def test_a_forced_run_refuses_a_damaged_retained_set_before_launch(tmp_path):
+def test_an_edited_published_set_is_recomputed(tmp_path):
     experiment = build_v2_experiment(tmp_path)
     root = experiment.root
     code, output = _simulate(experiment)
     assert code == 0, output
-    table = next(
-        (root / "_engine/indicator_sets").glob("*/data/gwr_run_indicators.csv")
-    )
-    table.write_bytes(table.read_bytes() + b"tampered\n")
-    before = _published(root)
+    table = root / "results/indicator_sets/default/gwr_run_indicators.csv"
+    original = table.read_bytes()
+    table.write_bytes(original + b"tampered\n")
+    # Its only copy changed (R1, D20): recompute, never refuse or keep the edit.
     code, output = _simulate(experiment, "--forceall")
-    assert code != 0, output
-    assert "indicator table differs" in output, output
-    assert "Job stats:" not in output, output
-    assert _published(root) == before
+    assert code == 0, output
+    assert table.read_bytes() == original

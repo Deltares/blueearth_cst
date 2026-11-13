@@ -123,7 +123,7 @@ def test_indicators_use_only_simulated_perturbed_members(tmp_path, monkeypatch):
     _live(monkeypatch)
     experiment = build_v2_experiment(tmp_path, include_unperturbed=False)
     root = experiment.root
-    assert not (root / "hydrology/wflow/output/run_1.csv").exists()
+    assert not (root / "_engine/wflow_runs/run_1.csv").exists()
     plan = _plan(root)
     assert {row["run_id"] for row in plan["units"]} == {"run_2"}
     manifest = publish_indicator_set(root, plan)
@@ -581,7 +581,7 @@ def test_an_xclim_revision_changes_only_the_indicator_identity(bare, monkeypatch
 
 
 def test_a_changed_compact_response_byte_refuses_planning(experiment):
-    native = experiment.root / f"hydrology/wflow/output/{RUN_IDS[0]}/output_gwr.csv"
+    native = experiment.root / f"simulations/{RUN_IDS[0]}/output_gwr.csv"
     original = native.read_bytes()
     native.write_bytes(original + b"\n")
     assert native.read_bytes() != original

@@ -575,12 +575,12 @@ def native_runs(root: Path, run_ids=RUN_IDS) -> dict:
     """The transient native artifacts, where rule 4.04/4.05 put them."""
     from blueearth_cst.experiment.wflow_response_reader import NativeRunArtifacts
 
-    wflow = Path(root) / "hydrology/wflow"
+    engine = Path(root) / "_engine"
     return {
         run: NativeRunArtifacts(
-            wflow / f"output/{run}.csv",
-            wflow / f"run_settings/{run}.toml",
-            wflow / f"run_settings/{run}.temporal.json",
+            engine / f"wflow_runs/{run}.csv",
+            engine / f"run_settings/{run}.toml",
+            engine / f"run_settings/{run}.temporal.json",
         )
         for run in run_ids
     }
@@ -612,8 +612,9 @@ def _publish_responses(root: Path, responses: Responses) -> dict:
     records = {
         run: publish_response_tables(
             native,
-            native.csv_path.with_suffix(""),
+            Path(root) / "simulations" / run,
             variables=tuple(item["variable"] for item in responses.variables),
+            record_path=Path(root) / f"_engine/simulations/{run}/response_tables.json",
         )
         for run, native in native_runs(root, responses.csv).items()
     }

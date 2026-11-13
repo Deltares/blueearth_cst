@@ -24,7 +24,13 @@ from blueearth_cst.experiment import indicator_registry as registry
 from blueearth_cst.experiment.content_identity import (
     atomic_record,
     content_sha256,
+    identity_segment,
     read_canonical_json,
+)
+from blueearth_cst.experiment.indicator_artifacts import (
+    ImmutableIndicatorSetError,
+    published_root,
+    stored_table,
 )
 from blueearth_cst.experiment.indicator_plan import (
     COVERAGE_EVIDENCE_SCHEMA,
@@ -422,7 +428,7 @@ def publish_named_set(
         manifest["group_metadata"],
         *(item["file"] for item in manifest["tables"]),
     ]:
-        payload = (root / reference["path"]).read_bytes()
+        payload = stored_table(root, manifest, reference["path"]).read_bytes()
         if hashlib.sha256(payload).hexdigest() != reference["sha256"]:
             raise NamedExportError(f"{set_id}: immutable {reference['path']} differs")
         payloads[Path(reference["path"]).name] = payload
@@ -501,6 +507,14 @@ def publish_named_set(
     else:
         atomic_record(publication, record)
 
+    previous = None
+    if (names / "current.json").exists():
+        try:
+            previous = read_current_publication(root, set_id, verify_export=False)[
+                "indicator_set_id"
+            ]
+        except NamedExportError:
+            previous = None
     staging = names / f".stage-{uuid.uuid4().hex}"
     staging.mkdir(parents=True)
     atomic_record(names / "pending.json", {"files": record["files"]}, replace=True)
@@ -550,7 +564,32 @@ def publish_named_set(
         if not rollback_failed:
             shutil.rmtree(staging, ignore_errors=True)
     (names / "pending.json").unlink(missing_ok=True)
+    _keep_one_copy(root, manifest, previous)
     return read_current_publication(root, set_id)
+
+
+def _keep_one_copy(root: Path, manifest: dict, previous: str | None) -> None:
+    """Leave each table in results/ only (t017 R1, ruling D20).
+
+    The published identity's engine data/ copy is removed now that results/
+    holds its bytes; an identity this publication replaced loses its engine
+    records too, unless another set still publishes it, so selecting it again
+    recomputes it (indicators are cheap to compute).
+    """
+    engine_root = root / "_engine/indicator_sets"
+    data = root / manifest["result_root"]
+    if data.is_dir() and data.resolve().is_relative_to(engine_root.resolve()):
+        shutil.rmtree(data)
+    if previous is None or previous == manifest["indicator_set_id"]:
+        return
+    try:
+        published_root(root, previous)
+        return  # another set still shows it
+    except ImmutableIndicatorSetError:
+        pass
+    retired = engine_root / identity_segment(previous, "indicator_set_id")
+    if retired.is_dir() and retired.resolve().parent == engine_root.resolve():
+        shutil.rmtree(retired)
 
 
 def atomic_bytes(path: Path, payload: bytes) -> None:

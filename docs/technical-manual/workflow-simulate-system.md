@@ -90,8 +90,10 @@ The main outputs are:
   and scenario experiment used, completed simulations and available response data.
 - **Indicator results (`results/indicator_sets/<set-id>/`).** Run and group indicator tables,
   `group_members.csv`, `group_metadata.csv` and the `indicators.csv` dictionary of units and methods.
-- **Calculation records (`_engine/indicator_sets/<id>/`).** Saved indicator definitions, tables,
-  included simulations and evidence of how calculations were completed.
+- **Calculation records (`_engine/indicator_sets/<id>/`).** Saved indicator definitions, table
+  hashes, included simulations and evidence of how calculations were completed. The tables themselves
+  are stored once, in `results/indicator_sets/<set-id>/`; a set whose tables are missing or edited
+  there, or that is selected again after another definition replaced it, is recomputed.
 
 Indicator tables use `<token>_run_indicators.csv` and/or `<token>_group_indicators.csv`. Each value
 identifies its indicator, location and run or group, with a status and reason where needed.
