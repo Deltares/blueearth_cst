@@ -374,6 +374,14 @@ def build_project_tree_rules(
     rules.append((re.compile(r"benchmarks/wf[012]_benchmarks\.md"), r"\g<0>"))
     # Layout 2 homes of the spatial unit's machine files (moved in layout 3, R10).
     rules.append((re.compile(r"data/spatial/spatial_(catalog|report)\.yml"), r"\g<0>"))
+    # Layout 3 WF4 freeze record and its permanent payload copies (R9, R12).
+    for e in sorted(experiments):
+        exp = re.escape(e)
+        for pattern in (
+            rf"experiments/{exp}/_engine/simulation-freeze\.json",
+            rf"experiments/{exp}/_engine/freeze-payloads/(?:sources/)?(?:catalogs/)?[^/]+",
+        ):
+            rules.append((re.compile(pattern), r"\g<0>"))
     # Retained historical runs and their comparison (removed in layout 4, D18).
     for pattern in (
         r"simulations/historical/_engine/[a-z][a-z0-9_]{0,63}\.json",

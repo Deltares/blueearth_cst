@@ -400,7 +400,7 @@ def declarations() -> tuple[Declaration, ...]:
     d += _declare(
         "wf4",
         "record",
-        f"{e}/_engine/{{reservation.json|simulation-freeze.json|model_reference.yml"
+        f"{e}/_engine/{{reservation.json|simulation_freeze.json|model_reference.yml"
         "|simulation.json|simulation_intent.json|response_inventory.json}",
         f"{e}/_engine/indicator_requests/{{hex12}}.json",
         f"{e}/_engine/indicator_sets/{{hex12}}/{{indicators.json|indicator_environment.json"
@@ -411,13 +411,9 @@ def declarations() -> tuple[Declaration, ...]:
         f"{e}/_engine/indicator_sets/names/{{set_id}}/publications/{{hex64}}.json",
         f"{e}/_engine/batch_staging/{{run}}.{{csv|expect|ok}}",
     )
-    d += _declare(
-        "wf4",
-        "settings",
-        f"{e}/_engine/freeze-payloads/run_record.yml",
-        f"{e}/_engine/freeze-payloads/sources/{{?catalogs/}}{{segment}}",
-        f"{e}/_engine/freeze-payloads/{{?catalogs/}}{{segment}}",
-    )
+    # Crash-recovery staging of the creator archive, removed once config/ is
+    # published (R9); present only after an interrupted reservation.
+    d += _declare("wf4", "pin", f"{e}/_engine/freeze_payloads/")
     indicator_tables = "{indicator_table}.csv"
     d += _declare(
         "wf4",

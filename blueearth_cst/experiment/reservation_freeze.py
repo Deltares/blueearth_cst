@@ -55,7 +55,7 @@ def prepare_freeze_owned(
     if reservation["resolution"] is None:
         raise ValueError("simulation freeze requires a bound ready collection")
     payload_root = _plain_path(
-        project, f"experiments/{root.name}/_engine/freeze-payloads"
+        project, f"experiments/{root.name}/_engine/freeze_payloads"
     )
     if payload_root.exists():
         raise ValueError(
@@ -65,7 +65,7 @@ def prepare_freeze_owned(
     references = []
     for relative, data in sorted(payloads.items()):
         path = _plain_path(
-            project, f"experiments/{root.name}/_engine/freeze-payloads/{relative}"
+            project, f"experiments/{root.name}/_engine/freeze_payloads/{relative}"
         )
         _write_exact(path, data)
         references.append(
@@ -90,7 +90,7 @@ def prepare_freeze_owned(
         "payloads": references,
     }
     _validate_recipe(root, recipe)
-    atomic_record(root / "_engine/simulation-freeze.json", recipe)
+    atomic_record(root / "_engine/simulation_freeze.json", recipe)
 
 
 def _validate_recipe(root: Path, recipe: dict) -> tuple[dict, dict]:
@@ -152,6 +152,8 @@ def _validate_recipe(root: Path, recipe: dict) -> tuple[dict, dict]:
         for key in ("collection_id", "collection_revision", "run_ids")
     ):
         raise ValueError("simulation freeze collection differs from reservation")
+    staging = root / "_engine/freeze_payloads"
+    published = not staging.exists() and (root / "config/run_record.yml").is_file()
     payloads = {}
     for item in recipe["payloads"]:
         if (
@@ -161,11 +163,20 @@ def _validate_recipe(root: Path, recipe: dict) -> tuple[dict, dict]:
             raise ValueError("invalid simulation freeze payload")
         relative = item["archive_path"]
         expected = _plain_path(
-            project, f"experiments/{root.name}/_engine/freeze-payloads/{relative}"
+            project, f"experiments/{root.name}/_engine/freeze_payloads/{relative}"
         )
-        actual = resolve_file_reference(item["file"], {"project_root": project})
-        if actual != expected or relative in payloads:
-            raise ValueError("simulation freeze payload is redirected or duplicated")
+        if relative in payloads:
+            raise ValueError("simulation freeze payload is duplicated")
+        if published:
+            # Staging was retired after publication (R9): the published archive
+            # holds the only copy, checked against the recorded hashes below.
+            if item["file"]["path"] != expected.relative_to(project).as_posix():
+                raise ValueError("simulation freeze payload is redirected")
+            actual = _plain_path(project, f"experiments/{root.name}/config/{relative}")
+        else:
+            actual = resolve_file_reference(item["file"], {"project_root": project})
+            if actual != expected:
+                raise ValueError("simulation freeze payload is redirected")
         payloads[relative] = actual.read_bytes()
     expected_paths = {entry["archived_path"] for entry in record["source_files"]} | {
         "sources/SOURCES.md"
@@ -181,7 +192,7 @@ def _validate_recipe(root: Path, recipe: dict) -> tuple[dict, dict]:
             or hashlib.sha256(data).hexdigest() != entry["sha256"]
         ):
             raise ValueError("simulation freeze archive source bytes differ")
-    checked = validate_archive(root / "_engine/freeze-payloads")
+    checked = validate_archive(root / "config" if published else staging)
     if canonical_json_bytes(checked) != canonical_json_bytes(record):
         raise ValueError("simulation freeze prepared archive differs")
     intent_bytes = canonical_json_bytes(recipe["intent"])
@@ -205,8 +216,8 @@ def finish_freeze_owned(root: Path, *, recover: bool = False) -> dict:
     root = Path(root).resolve()
     project = root.parent.parent
     _plain_path(project, f"experiments/{root.name}/config")
-    _plain_path(project, f"experiments/{root.name}/_engine/simulation-freeze.json")
-    recipe = read_canonical_json(root / "_engine/simulation-freeze.json")
+    _plain_path(project, f"experiments/{root.name}/_engine/simulation_freeze.json")
+    recipe = read_canonical_json(root / "_engine/simulation_freeze.json")
     intent, payloads = _validate_recipe(root, recipe)
     path = root / "_engine/simulation_intent.json"
     archive_path = root / "config/run_record.yml"
@@ -249,4 +260,11 @@ def finish_freeze_owned(root: Path, *, recover: bool = False) -> dict:
         "creator_archive": file_reference(archive_path, "project_root", project),
     }
     bind_reservation_owned(project, root.name, simulation=binding)
+    # The published archive is now the one copy of the creator bytes (R9);
+    # the recipe keeps their hashes and later checks read config/.
+    staging = root / "_engine/freeze_payloads"
+    if staging.exists():
+        import shutil
+
+        shutil.rmtree(staging)
     return read_simulation_intent_v2(root)

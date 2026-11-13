@@ -245,7 +245,7 @@ def admit_context_owned(
         # Indicators-only never captures a request; admission compares none either.
         context.compare(read_reservation(root, selected.name)["request"], request)
     recipe = (
-        context.root / "experiments" / context.name / "_engine/simulation-freeze.json"
+        context.root / "experiments" / context.name / "_engine/simulation_freeze.json"
     )
     if not preview and not indicators and recipe.exists() and context.reservation_id:
         from blueearth_cst.experiment.reservation_freeze import finish_freeze_owned

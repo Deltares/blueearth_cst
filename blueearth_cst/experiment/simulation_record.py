@@ -545,7 +545,7 @@ def freeze_simulation_v2(experiment_root, intent, *, invocation_id, command):
     project = root.parent.parent
     path = _simulation_path(root, "_engine/simulation_intent.json")
     reserved = (root / "_engine/reservation.json").exists()
-    recipe_path = root / "_engine/simulation-freeze.json"
+    recipe_path = root / "_engine/simulation_freeze.json"
     if reserved and recipe_path.exists():
         from blueearth_cst.experiment.reservation_freeze import finish_freeze_owned
 
