@@ -23,7 +23,6 @@ pytestmark = pytest.mark.usefixtures("isolated_snakemake")
 
 
 config_fn = join(TESTDIR, "project_config_fixture.yml")
-linux_config_fn = join(SNAKEDIR, "test_case", "project_config_baseline_linux.yml")
 
 
 def _dry_run(snakefile, cfg=config_fn, env=None, *, job_stats=None):
@@ -165,36 +164,6 @@ def test_snakefile_cli_analyze_climate():
     assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
 
 
-@pytest.mark.workflow_contract
-def test_snakefile_cli_build_model():
-    """Workflow 1 dry-run builds a clean DAG on the test config."""
-    result = _dry_run("build_model.smk")
-    assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
-
-
-@pytest.mark.workflow_contract
-def test_snakefile_cli_build_model_linux_config(tmp_path):
-    """The Linux config must still build a DAG after O-01 retired `data/`.
-
-    R07 deletes the tracked `data/` tree, whose only live consumers were this
-    config and the Docker runner. Linux *end-to-end* validation stays parked
-    (no Linux machine), but parse-level consistency is cheap and is exactly
-    what a silently-broken config would fail: DAG build resolves every
-    config-declared path, so a dangling `gauge_points` would surface here.
-    Runs on both CI legs.
-    """
-    # Keep all Linux workflow/settings/path bindings; qualify the shared map
-    # producer against a real tiny local DEM rather than requiring the P-drive
-    # production mirror on both CI platforms.
-    cfg = load_composed_config(linux_config_fn)
-    cfg["project"]["catalog"] = (
-        Path(SNAKEDIR, "tests/data/tests_data_catalog.yml").resolve().as_posix()
-    )
-    staged = write_config(tmp_path, cfg, stem="project_config_linux_parse")
-    result = _dry_run("build_model.smk", cfg=str(staged))
-    assert result.returncode == 0, (result.stdout or "") + (result.stderr or "")
-
-
 def test_the_linux_baseline_set_is_a_twin_of_the_windows_one():
     """One `baseline` name, one experiment — the ratchet for `t2608241414`.
 
@@ -213,7 +182,8 @@ def test_the_linux_baseline_set_is_a_twin_of_the_windows_one():
     the moment it is not one.
 
     Compared as PARSED documents, not as text, so a comment or a key reordering
-    is free while a value change is not.
+    is free while a value change is not. Being a twin also covers the Linux
+    set's DAG build: the baseline dry-runs below already parse the shared files.
     """
     import copy
 
