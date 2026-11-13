@@ -63,7 +63,7 @@ sources may be extracted for shared map scales without changing the selected for
 ## Outputs {#outputs}
 
 Optional `output.netcdf_grid` in this workflow's settings enables native grids at
-`models/hydrology/wflow/run_default/output_grid.nc`. See the shared
+`models/hydrology/wflow/historical/default/run/output_grid.nc`. See the shared
 [configuration reference](configuration.md#netcdf-grid). This request is independent of
 ensemble simulation output and leaves scalar outputs unchanged.
 
@@ -75,10 +75,10 @@ Paths below are relative to `project_dir`. The main outputs are:
   reference, with additional map candidates where needed.
 - **Basin model (`models/hydrology/wflow/`).** Model maps in `staticmaps.nc`, settings in
   `wflow_sbm.toml`, geometries and the HydroMT recipes used to build the model.
-  `staticgeoms/outlet_index.csv` links outlets to reporting locations.
+  `_engine/outlet_index.csv` links outlets to reporting locations.
 - **Historical forcing (`models/hydrology/wflow/forcing/`).** Model-grid forcing in
   `inmaps_historical.nc` and optional forcing-check figures (`plotting.forcing: true`).
-- **Simulated time series (`models/hydrology/wflow/run_default/`).** Per-variable `output_<code>.csv`
+- **Simulated time series (`models/hydrology/wflow/historical/default/run/`).** Per-variable `output_<code>.csv`
   tables and `_engine/response_tables.json`, with registry IDs linking series to reporting locations.
   Native Wflow `output.csv` is removed after successful conversion. Evaluation reads the retained tables.
 - **Evaluation (`models/hydrology/wflow/evaluation/`).** Model-response figures and scores where
@@ -216,12 +216,14 @@ Keep those inputs and the recorded software environment separately if model re-e
 ## Named historical recipes {#named-recipes}
 
 With [named recipes](configuration.md#named-historical-forcing-recipes), WF1 builds the model once and simulates
-each recipe in `build_model.historical_forcings` separately. Each recipe owns
-`forcing/<id>/inmaps_historical.nc`, `wflow_sbm_<id>.toml`, `run_<id>/`, `config/<id>/` and
-`evaluation/<id>/`. The shared `wflow_sbm.toml`, `staticmaps.nc` and geometries are never rewritten per
-recipe, and rerunning one recipe leaves the others' files untouched. Two or more recipes require
-`historical_run.name`; each is retained as `<name>_<id>` and the runs are compared automatically.
-A single-recipe project keeps `forcing/inmaps_historical.nc`, `wflow_sbm.toml` and `run_default/`.
+each recipe in `build_model.historical_forcings` separately. Each recipe owns one folder,
+`historical/<id>/`, holding `forcing/inmaps_historical.nc`, `run/`, `evaluation/` and `_engine/` (its build
+YAML, store catalog and forcing record), plus its TOML `wflow_sbm_<id>.toml` at the model root. A single
+recipe uses `historical/default/` and the model's own `wflow_sbm.toml`. TOMLs stay at the model root
+because HydroMT-Wflow resolves model inputs from there. The shared `wflow_sbm.toml`, `staticmaps.nc` and
+geometries are never rewritten per recipe, and rerunning one recipe leaves the others' files untouched. Two
+or more recipes require `historical_run.name`; each is retained as `<name>_<id>` and the runs are compared
+automatically.
 
 ## Compare retained historical runs
 

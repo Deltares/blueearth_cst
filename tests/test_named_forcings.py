@@ -252,18 +252,20 @@ def test_build_model_requests_and_retained_names(tmp_path):
         cc.load_composed_config(path, entry="build_model")
 
 
-def test_layouts_keep_legacy_paths_and_isolate_named_runs():
+def test_layouts_key_every_recipe_and_keep_tomls_at_the_model_root():
+    # Layout 4 (R16): one historical/<recipe>/ folder per recipe, `default`
+    # for a single recipe; the TOML stays at the model root (open point 2).
     legacy = HistoricalLayout(None)
     assert (legacy.forcing, legacy.toml, legacy.run_dir) == (
-        "forcing/inmaps_historical.nc",
+        "historical/default/forcing/inmaps_historical.nc",
         "wflow_sbm.toml",
-        "run_default",
+        "historical/default/run",
     )
     named = HistoricalLayout("chirps")
     assert (named.forcing, named.toml, named.end_state) == (
-        "forcing/chirps/inmaps_historical.nc",
+        "historical/chirps/forcing/inmaps_historical.nc",
         "wflow_sbm_chirps.toml",
-        "run_chirps/outstate/outstates.nc",
+        "historical/chirps/run/outstate/outstates.nc",
     )
     for layout in (legacy, named):
         assert HistoricalLayout.from_toml(layout.toml) == layout

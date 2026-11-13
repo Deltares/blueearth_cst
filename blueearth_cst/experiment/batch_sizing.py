@@ -31,8 +31,8 @@ disk permanently -- the same model, the same grid, the same writer:
 ===============  ==================================================  ============
 quantity         anchor                                              scaling
 ===============  ==================================================  ============
-forcing          ``<basin>/forcing/inmaps_historical.nc``             by timestep
-state            ``<basin>/run_default/outstate/outstates.nc``        none
+forcing          ``<basin>/historical/default/forcing/inmaps_historical.nc``  by timestep
+state            ``<basin>/historical/default/run/outstate/outstates.nc``     none
 ===============  ==================================================  ============
 
 The forcing anchor works because both files carry the same three variables on
@@ -65,8 +65,9 @@ from pathlib import Path
 #: WF1 artifacts the estimate is anchored on, relative to the wflow basin dir.
 #: Both are ordinary persisted outputs -- neither is ``temp()`` -- which is the
 #: whole reason they can be read at WF3 parse time.
-FORCING_ANCHOR = ("forcing", "inmaps_historical.nc")
-STATE_ANCHOR = ("run_default", "outstate", "outstates.nc")
+#: The single-recipe layout (`HistoricalLayout(None)`, layout 4).
+FORCING_ANCHOR = ("historical", "default", "forcing", "inmaps_historical.nc")
+STATE_ANCHOR = ("historical", "default", "run", "outstate", "outstates.nc")
 
 #: Binary GB (GiB). The unit a file manager shows for free space, which is the
 #: number a user compares `disk_headroom_gb` against when choosing it.

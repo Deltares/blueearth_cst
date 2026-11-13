@@ -83,7 +83,7 @@ def test_initialization_defaults_and_validation():
 
 def _model(tmp_path, *, cold=True, variables=True, state=True):
     model = tmp_path / "models/hydrology/wflow"
-    path = model / "run_default/outstate/outstates.nc"
+    path = model / "historical/default/run/outstate/outstates.nc"
     path.parent.mkdir(parents=True)
     if state:
         path.write_bytes(b"historical end state")
@@ -122,7 +122,7 @@ def test_explicit_state_wins_over_the_default(tmp_path, state, cold, source):
     )
     if source == "historical":
         assert resolved["state_file"]["path"] == (
-            "models/hydrology/wflow/run_default/outstate/outstates.nc"
+            "models/hydrology/wflow/historical/default/run/outstate/outstates.nc"
         )
         assert (
             resolved["state_file"]["sha256"]
@@ -186,9 +186,9 @@ def test_named_recipe_binds_its_own_end_state(tmp_path):
         HistoricalLayout("chirps").end_state,
     )
     assert resolved["state_file"]["path"] == (
-        "models/hydrology/wflow/run_chirps/outstate/outstates.nc"
+        "models/hydrology/wflow/historical/chirps/run/outstate/outstates.nc"
     )
-    with pytest.raises(ValueError, match="run_era5"):
+    with pytest.raises(ValueError, match=r"historical[\\/]era5[\\/]run"):
         resolve_initialization(
             model,
             config,

@@ -299,7 +299,7 @@ def initial_state_settings(
     model_root: Path,
     config: dict,
     initialization: dict | None = None,
-    end_state: str = "run_default/outstate/outstates.nc",
+    end_state: str = "historical/default/run/outstate/outstates.nc",
 ) -> dict:
     """Select the initial state when relocating a WF4 run TOML.
 
@@ -565,7 +565,7 @@ def prepare_collection_run(
     netcdf_grid=None,
     initialization=None,
     model_toml="wflow_sbm.toml",
-    end_state="run_default/outstate/outstates.nc",
+    end_state="historical/default/run/outstate/outstates.nc",
 ):
     """Prepare one retained member with the reviewed physical Wflow binding."""
     from blueearth_cst.experiment.simulator_adapter import (

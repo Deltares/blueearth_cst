@@ -55,7 +55,7 @@ WF0 and WF1 include the same
 [`source_map_preparation.smk`](../../blueearth_cst/climate_analysis/rules/source_map_preparation.smk)
 definition for native-grid map fields. Its `tables/annual_climatology.nc` is a numerical product
 separate from diagnostic tables and display-reference preparation. A display-only change should not
-rerun that numerical producer. WF1 retains `run_default/output.csv` so export and evaluation can
+rerun that numerical producer. WF1 retains `historical/default/run/output.csv` so export and evaluation can
 consume the historical simulation without rerunning it.
 
 [`cross_workflow_leaves.py`](../../blueearth_cst/shared/cross_workflow_leaves.py) names the static

@@ -374,6 +374,19 @@ def build_project_tree_rules(
     rules.append((re.compile(r"benchmarks/wf[012]_benchmarks\.md"), r"\g<0>"))
     # Layout 2 homes of the spatial unit's machine files (moved in layout 3, R10).
     rules.append((re.compile(r"data/spatial/spatial_(catalog|report)\.yml"), r"\g<0>"))
+    # Layout 3 recipe shapes and toolbox files in staticgeoms/ (layout 4, R16).
+    old = re.escape(f"models/hydrology/{model_name}")
+    recipe = "[a-z][a-z0-9_]{0,31}"
+    for pattern in (
+        rf"{old}/forcing/(?:{recipe}/)?inmaps_historical\.nc",
+        rf"{old}/forcing/(?:{recipe}/)?(?:_engine/)?plots/.+",
+        rf"{old}/(?:run_default|run_{recipe})/.+",
+        rf"{old}/evaluation/.+",
+        rf"{old}/config/(?:{recipe}/)?(?:build_historical_forcing|climate_store_catalog)\.yml",
+        rf"{old}/config/{recipe}/historical_forcing\.json",
+        rf"{old}/staticgeoms/(outlet_index\.csv|reservoirs_lakes_glaciers\.txt)",
+    ):
+        rules.append((re.compile(pattern), r"\g<0>"))
     # Layout 2 homes of WF1 markers and build records (moved in layout 3, R10).
     model = re.escape(f"models/hydrology/{model_name}")
     rules.append(

@@ -43,7 +43,7 @@ project file. For the external case example, this is `C:/cst-cases/runs/my-basin
 └── config/                              copies of settings used for each attempt
 ```
 
-Historical simulations appear in three places. `models/hydrology/wflow/run_default/` holds the current
+Historical simulations appear in three places. `models/hydrology/wflow/historical/default/run/` holds the current
 run and is replaced when the model workflow reruns. `simulations/historical/<name>/` holds named runs kept
 unchanged for later comparison, and `comparisons/historical/` compares them. Stress-test simulations
 belong to their experiment. See [retained historical simulations](../technical-manual/workflow-build-model.md#retain-historical-simulations).
@@ -60,7 +60,7 @@ case files when changing settings; the configuration copies in the output direct
 
 Opt into [native grid output](../technical-manual/configuration.md#netcdf-grid) separately in
 the model-building and simulation workflow files. Historical grids are saved at
-`models/hydrology/wflow/run_default/output_grid.nc`; selected scenario runs each produce
+`models/hydrology/wflow/historical/default/run/output_grid.nc`; selected scenario runs each produce
 `experiments/<name>/hydrology/wflow/output/<run_id>.nc`. Open them with xarray or GIS software.
 One file holds all requested variables, including native soil layers where present.
 

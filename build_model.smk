@@ -650,7 +650,7 @@ WF1_TERMINALS = [
         [f"{_hp(key, 'forcing_plots_dir')}/forcing_precip_map.png" for key in FORCING_KEYS]
         if _forcing_plots else []
     ),
-    f"{basin_dir}/staticgeoms/outlet_index.csv",
+    f"{basin_dir}/_engine/outlet_index.csv",
     # P1 spatial foundation. One representative output schedules the complete
     # multi-output rule and makes both gather rules wait for its log/benchmark.
     f"{spatial_dir}/_engine/spatial_catalog.yml",
@@ -832,7 +832,7 @@ rule add_reservoirs_lakes_glaciers:
         model_built = f"{basin_dir}/_engine/markers/.model_built",
         scientific_code = ["blueearth_cst/shared/wflow_write.py"],
     output:
-        text_out = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt",
+        text_out = f"{basin_dir}/_engine/reservoirs_lakes_glaciers.txt",
         # The values each method was handed, plus whether it ran (R3). The
         # status is half the provenance: a skipped method leaves no trace in
         # the model, so values alone would describe water bodies never added.
@@ -852,7 +852,7 @@ rule declare_gauges_and_outputs:
     message: DECLARE_GAUGES_AND_OUTPUTS.banner()
     input:
         basin_nc = ancient(f"{basin_dir}/staticmaps.nc"),
-        text = f"{basin_dir}/staticgeoms/reservoirs_lakes_glaciers.txt",
+        text = f"{basin_dir}/_engine/reservoirs_lakes_glaciers.txt",
         # P2 already created gauge/outlet maps from this registry. This rule
         # only adds output declarations and verifies those identities.
         location_registry = f"{spatial_dir}/location_registry.csv",
@@ -885,7 +885,7 @@ rule write_gauge_index:
         # so waiting for the model to be final costs only a schedule slot.
         model_final = ancient(f"{basin_dir}/_engine/markers/.model_final"),
     output:
-        outlet_index_path = f"{basin_dir}/staticgeoms/outlet_index.csv"
+        outlet_index_path = f"{basin_dir}/_engine/outlet_index.csv"
     log:
         WRITE_GAUGE_INDEX.log(),
     benchmark:
@@ -987,11 +987,11 @@ for _k in FORCING_KEYS:
             basin_dir = basin_dir,
             data_catalog = DATA_SOURCES,
             forcing = RECIPES[_k]["forcing"],
-            **({} if _k is None else {
-                "staging_root": f"{basin_dir}_staging_{_k}",
-                "path_forcing": HistoricalLayout(_k).forcing,
-                "dir_output": HistoricalLayout(_k).run_dir,
-            }),
+            # Every recipe, the single one included, keeps its forcing and run
+            # under historical/<recipe>/ (R16); its TOML stays at the model root.
+            path_forcing = HistoricalLayout(_k).forcing,
+            dir_output = HistoricalLayout(_k).run_dir,
+            **({} if _k is None else {"staging_root": f"{basin_dir}_staging_{_k}"}),
         log:
             ADD_CLIMATE_FORCING.log(_k),
         benchmark:

@@ -307,14 +307,14 @@ def test_combined_q90_execution_prepares_only_after_wf1(
     def produce_historical(cmd, **kwargs):
         result = child(cmd, **kwargs)
         if Path(cmd[cmd.index("-s") + 1]).name == "build_model.smk":
-            (model / "run_default").mkdir(parents=True, exist_ok=True)
+            (model / "historical/default/run").mkdir(parents=True, exist_ok=True)
             pd.DataFrame(
                 {"Q_9": np.arange(365)}, index=pd.date_range("1999-01-01", "1999-12-31")
-            ).to_csv(model / "run_default/output.csv", index_label="time")
+            ).to_csv(model / "historical/default/run/output.csv", index_label="time")
             (model / "wflow_sbm.toml").write_text(
                 '[time]\ncalendar="standard"\ntimestepsecs=86400\n'
                 'starttime="1998-12-31T00:00:00"\nendtime="1999-12-31T00:00:00"\n'
-                '[input]\npath_forcing="forcing/inmaps_historical.nc"\n'
+                '[input]\npath_forcing="historical/default/forcing/inmaps_historical.nc"\n'
                 '[[output.csv.column]]\nheader="Q"\nparameter="river_water__volume_flow_rate"\n',
                 encoding="utf-8",
             )
@@ -325,9 +325,10 @@ def test_combined_q90_execution_prepares_only_after_wf1(
 
             publish_response_tables(
                 NativeRunArtifacts(
-                    model / "run_default/output.csv", model / "wflow_sbm.toml"
+                    model / "historical/default/run/output.csv",
+                    model / "wflow_sbm.toml",
                 ),
-                model / "run_default",
+                model / "historical/default/run",
             )
         return result
 
