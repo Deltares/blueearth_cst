@@ -349,7 +349,7 @@ def test_unknown_occupants_preserve_interruption_evidence(
     elif occupant == "intent":
         target = pending.intent_path
     else:
-        target = pending.root / "hydrology/wflow/output/run_unknown.csv"
+        target = pending.root / "_engine/wflow_runs/run_unknown.csv"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(b"unowned bytes\n")
     before = inventory(pending.project)

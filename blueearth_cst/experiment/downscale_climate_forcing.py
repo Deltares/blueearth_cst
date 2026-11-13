@@ -463,7 +463,8 @@ def prepare_model_forcing(run_forcing, model_reference, settings):
         mod.config.data,
         settings.netcdf_grid,
         os.path.relpath(
-            grid_path(settings.native_output_path), config_out_root
+            settings.native_grid_path or grid_path(settings.native_output_path),
+            config_out_root,
         ).replace("\\", "/"),
     )
 
@@ -560,6 +561,7 @@ def prepare_collection_run(
     sim_start,
     sim_end,
     temporal_out,
+    native_grid=None,
     validated_collection=None,
     preparation=None,
     netcdf_grid=None,
@@ -619,6 +621,7 @@ def prepare_collection_run(
             Path(temporal_out),
             netcdf_grid,
             initialization,
+            None if native_grid is None else Path(native_grid),
         ),
     )
 
@@ -656,6 +659,7 @@ if __name__ == "__main__":
                 forcing_out=sm.output.nc,
                 native_output=sm.params.native_output_path,
                 native_log=sm.params.native_log_path,
+                native_grid=getattr(sm.params, "native_grid_path", None),
                 temporal_out=sm.output.temporal,
                 validated_collection=sm.params.validated_collection,
                 preparation=record["documents"]["preparation"],

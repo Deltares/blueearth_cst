@@ -371,10 +371,20 @@ def test_refresh_refuses_unknown_files_but_restores_owned_bytes(ready):
     root, default, _ = ready
     record = _publish(root, _default(), default)
     folder = root / "results/indicator_sets/default"
+    original = (folder / "gwr_run_indicators.csv").read_bytes()
     (folder / "gwr_run_indicators.csv").write_bytes(b"user edit")
     with pytest.raises(NamedExportError, match="differs from its committed"):
         named_export.read_current_publication(root, "default")
-    assert _publish(root, _default(), default) == record
+    # The edited file was the only copy (D20): the set is recomputed, never
+    # restored from a second copy.
+    from blueearth_cst.experiment.indicator_artifacts import (
+        IndicatorTablesUnavailable,
+        read_indicator_set,
+    )
+
+    with pytest.raises(IndicatorTablesUnavailable):
+        read_indicator_set(root, default)
+    (folder / "gwr_run_indicators.csv").write_bytes(original)
     assert named_export.read_current_publication(root, "default") == record
     (folder / "extra.csv").write_bytes(b"x")
     with pytest.raises(NamedExportError, match="does not own"):

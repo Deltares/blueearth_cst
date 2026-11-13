@@ -18,7 +18,10 @@ from blueearth_cst.experiment.content_identity import (
     content_sha256,
     read_canonical_json,
 )
-from blueearth_cst.experiment.indicator_artifacts import read_indicator_set
+from blueearth_cst.experiment.indicator_artifacts import (
+    read_indicator_set,
+    stored_table,
+)
 from blueearth_cst.experiment.legacy_indicator_names import indicator_names
 
 
@@ -205,7 +208,7 @@ def _recheck(root, marker, manifest, context):
     ):
         raise ValueError("fresh numerical diagnostics differ from saved publication")
     for table in manifest["tables"]:
-        with (root / table["file"]["path"]).open(
+        with stored_table(root, manifest, table["file"]["path"]).open(
             newline="", encoding="utf-8"
         ) as handle:
             saved = list(csv.DictReader(handle))

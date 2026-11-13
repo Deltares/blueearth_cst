@@ -12,7 +12,7 @@ LEAF_WF1_SNAPSHOT = "config/build_model/run_record.yml"
 
 # WF4's model reference writer consumes these WF1 artifacts.
 LEAF_MODEL_TOML = "models/hydrology/wflow/wflow_sbm.toml"
-LEAF_MODEL_READY = "models/hydrology/wflow/.outputs_configured"
+LEAF_MODEL_READY = "models/hydrology/wflow/_engine/markers/.outputs_configured"
 
 #: The full set. Order is stable so failure messages read the same way twice —
 #: and it is DAG order, so the first entry is the one Snakemake would have

@@ -520,7 +520,7 @@ class RuleRegistry:
 
     Usage in a Snakefile::
 
-        RULES = RuleRegistry(LOG_PARTS_DIR, f"{project_dir}/benchmarks/_parts")
+        RULES = RuleRegistry(LOG_PARTS_DIR, f"{project_dir}/logs/benchmarks/_parts")
         LOG_RULES = RULES.log_rules          # the SAME list, not a copy
         DELINEATE_REGION = RULES.logged("0.02", "delineate_region")
         SNAPSHOT_CONFIG = RULES.banner_only("0.01", "snapshot_config")

@@ -25,11 +25,27 @@ from blueearth_cst.shared.tidy_wflow_table import _format_value
 SCHEMA = "response-tables/1"
 
 
+#: Where a record finds its tables, relative to the record's folder, when the
+#: record does not say: the folder above ``<tables>/_engine/``.
+DEFAULT_TABLE_ROOT = ".."
+
+
+def table_root(record_path: str | Path, record: dict) -> Path:
+    """The folder holding a record's tables.
+
+    A record beside its tables (``<tables>/_engine/``) omits ``table_root``. One
+    kept apart, e.g. a WF4 run's record in ``<E>/_engine/simulations/<run>/``
+    for tables in ``<E>/simulations/<run>/`` (t017 R10, R17), names it.
+    """
+    relative = record.get("table_root", DEFAULT_TABLE_ROOT)
+    return (Path(record_path).parent / relative).resolve()
+
+
 def read_table_record(record_path: str | Path) -> dict:
     """Verify every declared table, including variables not selected by a consumer."""
     record_path = Path(record_path)
-    root = record_path.parent.parent.resolve()
     record = json.loads(record_path.read_text(encoding="utf-8"))
+    root = table_root(record_path, record)
     if record.get("schema_version") != SCHEMA:
         raise ValueError(
             "Unsupported response tables; regenerate using the current format"
@@ -71,7 +87,7 @@ def open_table_responses(
     result = []
     for variable in request.variables:
         item = record["variables"][variable]
-        path = record_path.parent.parent / item["path"]
+        path = table_root(record_path, record) / item["path"]
         with path.open(encoding="utf-8", newline="") as stream:
             header = next(csv.reader(stream))
         if len(set(header)) != len(header) or set(header) != {
@@ -135,9 +151,11 @@ def publish_response_tables(
         if record_path is not None
         else directory / "_engine/response_tables.json"
     )
-    root = record_path.parent.parent.resolve()
-    if directory.resolve() != root or Path(prefix).name != prefix or not prefix:
-        raise ValueError("Response tables and record must share one output root")
+    if Path(prefix).name != prefix or not prefix:
+        raise ValueError("Response table prefix must be a plain name")
+    relative_root = Path(
+        os.path.relpath(directory.resolve(), record_path.parent.resolve())
+    ).as_posix()
     before = {
         "csv_sha256": file_sha256(native.csv_path),
         "toml_sha256": file_sha256(native.toml_path),
@@ -212,6 +230,8 @@ def publish_response_tables(
             "variables": metadata,
             "native_input": before,
         }
+        if relative_root != DEFAULT_TABLE_ROOT:
+            record["table_root"] = relative_root
         descriptor, path = tempfile.mkstemp(
             prefix=".response-", suffix=".json", dir=record_path.parent
         )

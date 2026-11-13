@@ -119,6 +119,8 @@ class PreparationSettings:
     netcdf_grid: dict | None = None
     #: Frozen resolved initialization; None keeps the model TOML state, no warm-up.
     initialization: dict | None = None
+    #: Where the run's gridded output goes; None keeps it beside the native CSV.
+    native_grid_path: Path | None = None
 
 
 @dataclass(frozen=True)

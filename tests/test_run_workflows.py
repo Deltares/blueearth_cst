@@ -422,7 +422,8 @@ def test_all_true_invokes_five_in_fixed_order(tmp_path, capture_runs):
         "build_model.smk",
         "analyze_projections.smk",
         "generate_scenarios.smk",
-        "simulate_system.smk",
+        "simulate_system.smk",  # simulations_only
+        "simulate_system.smk",  # all (indicators)
     ]
 
 
@@ -663,7 +664,7 @@ def test_cores_and_extra_forwarded_to_every_invocation(tmp_path, capture_runs, e
     cfg = tmp_path / "c.yml"
     _write_cfg(cfg, {n: "true" for n in rw.WORKFLOW_ORDER})
     rw.run(str(cfg), cores=8, extra=extra)
-    assert len(calls) == 5
+    assert len(calls) == 5  # --unlock: WF4 is not split into phases
     for cmd in calls:
         assert cmd[cmd.index("-c") + 1] == "8"
         for flag in extra:
@@ -691,7 +692,7 @@ def test_unlock_skips_execution_setup_and_publication(
     cfg = tmp_path / "c.yml"
     _write_cfg(cfg, {name: "true" for name in rw.WORKFLOW_ORDER})
     assert rw.run(str(cfg), cores=1, extra=["--unlock"]) == 0
-    assert len(calls) == 5
+    assert len(calls) == 5  # --unlock: WF4 is not split into phases
 
 
 def test_cli_strips_double_dash_sentinel(tmp_path, capture_runs):
@@ -758,7 +759,8 @@ def test_enabled_false_skips_at_subprocess_boundary(tmp_path, capture_runs):
         "analyze_climate.smk",
         "build_model.smk",
         "generate_scenarios.smk",
-        "simulate_system.smk",
+        "simulate_system.smk",  # simulations_only
+        "simulate_system.smk",  # all (indicators)
     ]
 
 
@@ -768,7 +770,7 @@ def test_all_enabled_inverse_all_invoked(tmp_path, capture_runs):
     cfg = tmp_path / "c.yml"
     _write_cfg(cfg, {n: "true" for n in rw.WORKFLOW_ORDER})
     rw.run(str(cfg), cores=3, extra=[])
-    assert len(_snakefiles_invoked(calls)) == 5
+    assert len(_snakefiles_invoked(calls)) == 6  # WF4 in two phases
 
 
 def test_success_manifest_is_initialized_before_first_workflow_and_finalized(
@@ -1705,11 +1707,12 @@ def test_the_announcement_rides_on_the_simulation_runners_own_environment(
     assert output.index(publication_row) < output.index(
         f"wf4 simulate_system {verdict}"
     )
-    assert "2 warnings" in output
+    # One per WF4 phase (simulations, then indicators) plus the publication.
+    assert "3 warnings" in output
     assert output.count(f"wf4 simulate_system {verdict}") == 1
     assert ("- DONE all" in output) == published
 
-    assert len(envs) == 1
+    assert len(envs) == 2  # simulations_only, then all (R11, W2)
     assert envs[0][rw.console_style.ANNOUNCED_ENV] == "1"
     assert envs[0]["CST_SIMULATION_FINALIZE"] == "1"
     # The runner's own keys survived the merge.

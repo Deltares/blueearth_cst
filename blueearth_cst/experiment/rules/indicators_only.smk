@@ -20,7 +20,7 @@ LOG_PARTS_DIR = f"{project_dir}/logs/_parts/simulate_system/{experiment}"
 WORKFLOW_LOG_NAME = None
 BENCHMARKS_NAME = None
 from blueearth_cst.shared.execution_outputs import workflow_paths
-_paths = workflow_paths(project_dir, "wf4", None, None, LOG_PARTS_DIR, f"{project_dir}/benchmarks/_parts/simulate_system/{experiment}")
+_paths = workflow_paths(project_dir, "wf4", None, None, LOG_PARTS_DIR, f"{project_dir}/logs/benchmarks/_parts/simulate_system/{experiment}")
 LOG_PARTS_DIR, BENCH_PARTS_DIR = _paths.log_parts, _paths.benchmark_parts
 # Registry for the banner-only 4.07 and 4.08 rules in simulate_system.smk.
 RULES = RuleRegistry(LOG_PARTS_DIR, BENCH_PARTS_DIR)

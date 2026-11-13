@@ -58,7 +58,7 @@ if V2_MODE:
 # name would fail every WF3 invocation over a cosmetic key.
 _plan_key = Path(_scenario_request_path).parent.name
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts/generate_scenarios/{_plan_key}"
-BENCH_PARTS_DIR = f"{project_dir}/benchmarks/_parts/generate_scenarios/{_plan_key}"
+BENCH_PARTS_DIR = f"{project_dir}/logs/benchmarks/_parts/generate_scenarios/{_plan_key}"
 WORKFLOW_LOG_NAME = f"wf3_generate_scenarios_{_plan_key}.log"
 from blueearth_cst.shared.execution_outputs import workflow_paths, declare_warning_tally
 

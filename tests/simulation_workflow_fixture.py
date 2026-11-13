@@ -99,7 +99,7 @@ def parse_simulation_workflow(
             # Only external leaves are substituted. Snakemake builds the real
             # simulation DAG and defers its uncompleted snapshot checkpoint.
             Path(selection["manifest_path"]).touch()
-            for leaf in (".outputs_configured", "wflow_sbm.toml"):
+            for leaf in ("_engine/markers/.outputs_configured", "wflow_sbm.toml"):
                 path = project / "models/hydrology/wflow" / leaf
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.touch()

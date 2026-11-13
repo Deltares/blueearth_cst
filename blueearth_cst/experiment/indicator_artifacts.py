@@ -27,6 +27,54 @@ class ImmutableIndicatorSetError(ValueError):
     """A result set is incomplete or inconsistent with its saved contract."""
 
 
+class IndicatorTablesUnavailable(ImmutableIndicatorSetError):
+    """The only copy of a set's tables is gone or was edited; recompute it (D20)."""
+
+
+def retire_indicator_set(marker) -> None:
+    """Remove an identity's engine records so the set is recomputed (D20)."""
+    import shutil
+
+    engine = Path(marker).resolve().parent
+    if (
+        engine.parent.name == "indicator_sets"
+        and engine.parent.parent.name == "_engine"
+    ):
+        shutil.rmtree(engine)
+
+
+def published_root(experiment_root, indicator_set_id: str) -> Path:
+    """The readable folder holding an identity's tables once published (R1, D20).
+
+    A set's tables are stored once: computed into ``_engine/.../data/``, then
+    moved to ``results/indicator_sets/<set>/`` by its named publication. The
+    committed per-name pointers say which identity each set currently shows.
+    """
+    root = Path(experiment_root).resolve()
+    for pointer in sorted(
+        (root / "_engine/indicator_sets/names").glob("*/current.json")
+    ):
+        current = read_canonical_json(pointer)
+        record = read_canonical_json(root / current["publication"]["path"])
+        if record.get("indicator_set_id") == indicator_set_id:
+            return root / "results/indicator_sets" / pointer.parent.name
+    raise IndicatorTablesUnavailable(
+        f"indicator set {indicator_set_id[:12]}: no copy of its tables remains; "
+        "it is recomputed when selected again"
+    )
+
+
+def stored_table(experiment_root, manifest: dict, relative: str) -> Path:
+    """Where a manifest's table is now: its engine copy, else its publication."""
+    path = Path(experiment_root).resolve() / relative
+    if path.exists():
+        return path
+    return (
+        published_root(experiment_root, manifest["indicator_set_id"])
+        / Path(relative).name
+    )
+
+
 #: indicator-set/6+ result status: a value, a native-reduction NaN, or an input
 #: the request declared absent or (/7) the calculation refused, with its reason.
 RESULT_STATUSES = ("available", "undefined", "unavailable")
@@ -150,9 +198,27 @@ def read_indicator_set(experiment_root, manifest_path, *, integrity_only=False):
                     f"indicator set {manifest_path}: the engine marker is named "
                     "indicators.json; another file in the set is not a marker"
                 )
-            return _read_indicator_set_v2(
-                experiment_root, marker, integrity_only=integrity_only
+            published = (
+                marker.parent.parent.name == "indicator_sets"
+                and not (marker.parent / "data").exists()
+                and read_canonical_json(marker).get("schema_version")
+                != "indicator-set/3"
             )
+            try:
+                return _read_indicator_set_v2(
+                    experiment_root, marker, integrity_only=integrity_only
+                )
+            except IndicatorTablesUnavailable:
+                raise
+            except (ImmutableIndicatorSetError, OSError) as exc:
+                if not published:
+                    raise
+                # Its only copy is the published results/ folder (R1, D20):
+                # missing or edited bytes there mean recompute, not refuse.
+                raise IndicatorTablesUnavailable(
+                    f"indicator set {manifest_path}: its published tables changed "
+                    f"({exc}); it is recomputed"
+                ) from exc
         raise ImmutableIndicatorSetError(
             f"indicator set {manifest_path}: not an engine marker under "
             "_engine/indicator_sets/; the pre-release v1 indicator-set layout is not read"
@@ -261,6 +327,9 @@ def _read_indicator_set_v2(experiment_root, marker, *, integrity_only=False):
             )
     engine = root / manifest["engine_root"]
     result = root / manifest["result_root"]
+    if not result.exists() and version != "indicator-set/3":
+        # Published sets keep their only copy in results/ (R1, D20).
+        result = published_root(root, manifest["indicator_set_id"])
     if (
         marker.absolute() != engine / f"{prefix}s.json"
         or marker.resolve() != marker.absolute()

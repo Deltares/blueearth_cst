@@ -1216,7 +1216,16 @@ def _publish_indicator_set_v2(experiment_root, plan):
     ):
         raise ImmutableIndicatorSetError("indicator-set directory is aliased")
     if marker.exists():
-        return read_indicator_set(root, marker)
+        from blueearth_cst.experiment.indicator_artifacts import (
+            IndicatorTablesUnavailable,
+            retire_indicator_set,
+        )
+
+        try:
+            return read_indicator_set(root, marker)
+        except IndicatorTablesUnavailable:
+            # The published copy is gone or edited (D20): recompute below.
+            retire_indicator_set(marker)
     check_live_indicator_environment(plan)
     # Snakemake pre-creates declared output parents. Accept only the empty
     # expected data directory, never a partly written or foreign payload.

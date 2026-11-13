@@ -77,19 +77,23 @@ command outcome and each set's availability determine whether all requested calc
 Results are saved under `experiments/<experiment-name>/`, relative to `project_dir`.
 The main outputs are:
 
-- **Daily responses (`hydrology/wflow/output/<run_id>/output_<code>.csv`).** Rounded per-variable time
-  series, with `_engine/response_tables.json` inside the run directory. Warm-up days are discarded before
-  retention. Native scalar CSVs and forcing NetCDFs are temporary; indicators read the retained tables.
-- **Model settings (`hydrology/wflow/run_settings/<run_id>.toml`).** Settings associated with each run.
-- **Optional native grids (`hydrology/wflow/output/<run_id>.nc`).** One retained file per run,
+- **Daily responses (`simulations/<run_id>/output_<code>.csv`).** Rounded per-variable time series;
+  their record is `_engine/simulations/<run_id>/response_tables.json`. Warm-up days are discarded before
+  retention. Native scalar CSVs (`_engine/wflow_runs/`) and forcing NetCDFs (`_engine/forcing/`) are
+  temporary; indicators read the retained tables.
+- **Model settings (`_engine/run_settings/<run_id>.toml`).** Settings associated with each run; Wflow's
+  own logs are in `_engine/wflow_logs/`.
+- **Optional native grids (`simulations/<run_id>/output_grid.nc`).** One retained file per run,
   containing all requested variables and native layers over the full native clock, warm-up included.
   See [grid settings](configuration.md#netcdf-grid).
 - **Simulation records (`_engine/simulation.json` and `_engine/response_inventory.json`).** The model
   and scenario experiment used, completed simulations and available response data.
 - **Indicator results (`results/indicator_sets/<set-id>/`).** Run and group indicator tables,
   `group_members.csv`, `group_metadata.csv` and the `indicators.csv` dictionary of units and methods.
-- **Calculation records (`_engine/indicator_sets/<id>/`).** Saved indicator definitions, tables,
-  included simulations and evidence of how calculations were completed.
+- **Calculation records (`_engine/indicator_sets/<id>/`).** Saved indicator definitions, table
+  hashes, included simulations and evidence of how calculations were completed. The tables themselves
+  are stored once, in `results/indicator_sets/<set-id>/`; a set whose tables are missing or edited
+  there, or that is selected again after another definition replaced it, is recomputed.
 
 Indicator tables use `<token>_run_indicators.csv` and/or `<token>_group_indicators.csv`. Each value
 identifies its indicator, location and run or group, with a status and reason where needed.

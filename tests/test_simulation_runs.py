@@ -196,3 +196,23 @@ def test_named_recipe_binds_its_own_end_state(tmp_path):
             tmp_path,
             HistoricalLayout("era5").end_state,
         )
+
+
+def test_a_full_simulation_runs_in_two_phases():
+    """Simulations first, then indicators, so temp() intermediates go (R11, W2)."""
+    from blueearth_cst.experiment.simulation_runner import simulation_phases
+
+    command = ["python", "-m", "snakemake", "all", "-s", "x.smk", "-c", "2"]
+    environment = {
+        "CST_SIMULATION_OPERATION": "simulate-and-indicators",
+        "CST_SIMULATION_TARGET": "all",
+    }
+    phases = simulation_phases(command, environment)
+    assert [cmd[3] for cmd, _ in phases] == ["simulations_only", "all"]
+    assert phases[0][1]["CST_SIMULATION_TARGET"] == "simulations_only"
+    assert phases[1] == (command, environment)
+    assert simulation_phases([*command, "--dry-run"], environment) == [
+        ([*command, "--dry-run"], environment)
+    ]
+    indicators = {**environment, "CST_SIMULATION_OPERATION": "indicators-only"}
+    assert simulation_phases(command, indicators) == [(command, indicators)]

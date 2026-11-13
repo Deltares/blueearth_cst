@@ -224,10 +224,17 @@ def test_named_sets_publish_independent_immutable_sets(tmp_path, include):
     assert alias["definition"] == "gwr_annual_total"
 
     def rows(manifest, scope):
-        path = root / next(
-            item["file"]["path"]
-            for item in manifest["tables"]
-            if item["scope"] == scope
+        from blueearth_cst.experiment.indicator_artifacts import stored_table
+
+        # The tables' one copy is the published results/ folder (D20).
+        path = stored_table(
+            root,
+            manifest,
+            next(
+                item["file"]["path"]
+                for item in manifest["tables"]
+                if item["scope"] == scope
+            ),
         )
         with path.open(newline="", encoding="utf-8") as handle:
             return list(csv.DictReader(handle))

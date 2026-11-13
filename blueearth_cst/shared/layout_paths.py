@@ -42,7 +42,7 @@ UNITS = ("project", "spatial", "wf0", "wf1", "wf2", "wf3", "wf4")
 
 #: Layout version this toolbox writes (rule R18). A project folder without a
 #: stamp is layout 1. Bumped once per landed t017 migration step.
-LAYOUT_VERSION = 4
+LAYOUT_VERSION = 5
 
 #: Mirrors ``blueearth_cst.shared.provenance.SHORT_DIGEST_CHARS``.
 SHORT_DIGEST_CHARS = 12
@@ -182,9 +182,8 @@ def declarations() -> tuple[Declaration, ...]:
         "logs/dag/",
         "logs/benchmarks/{wf0|wf1|wf2}_benchmarks.md",
         "logs/benchmarks/_parts/",
-        "benchmarks/wf3_benchmarks_{hex12}.md",
-        "benchmarks/wf4_benchmarks_{experiment_name}.md",
-        "benchmarks/_parts/",
+        "logs/benchmarks/wf3_benchmarks_{hex12}.md",
+        "logs/benchmarks/wf4_benchmarks_{experiment_name}.md",
     )
     archived = "{analyze_climate|build_model|analyze_projections}"
     d += _declare(
@@ -289,7 +288,7 @@ def declarations() -> tuple[Declaration, ...]:
         "wf1",
         "marker",
         f"{m}/_engine/markers/.model_built",
-        f"{m}/.outputs_configured",
+        f"{m}/_engine/markers/.outputs_configured",
         f"{m}/_engine/markers/.model_final",
     )
     d += _declare(
@@ -396,7 +395,7 @@ def declarations() -> tuple[Declaration, ...]:
         f"{e}/config/sources/",
         f"{e}/config/{{?catalogs/}}{{segment}}",
     )
-    d += _declare("wf4", "marker", f"{e}/.model_reference_ok")
+    d += _declare("wf4", "marker", f"{e}/_engine/markers/.model_reference_ok")
     d += _declare(
         "wf4",
         "record",
@@ -424,23 +423,24 @@ def declarations() -> tuple[Declaration, ...]:
         f"{e}/results/indicator_sets/{{set_id}}/{indicator_tables}",
         f"{e}/results/indicator_sets/{{set_id}}/indicators.csv",
     )
-    native = f"{e}/hydrology/wflow"
-    d += _declare(
-        "wf4",
-        "record",
-        f"{native}/run_settings/{{run}}.{{toml|toml.grid.toml|yml|temporal.json}}",
-        f"{native}/run_settings/forcing_elevation_catalog.yml",
-        f"{native}/output/{{run}}/_engine/response_tables.json",
-    )
+    # R17 (layout 5): results per run in simulations/<run>/; everything else of
+    # a run in the experiment's _engine/ (forcing and native CSVs temporary).
     d += _declare(
         "wf4",
         "product",
-        f"{native}/forcing/inmaps_{{run}}.nc",
-        f"{native}/output/{{run}}.{{csv|nc}}",
-        f"{native}/output/{{run}}/output_{{output_variable}}.csv",
-        f"{native}/output/outstates_{{run}}.nc",
+        f"{e}/simulations/{{run}}/output_{{output_variable}}.csv",
+        f"{e}/simulations/{{run}}/output_grid.nc",
     )
-    d += _declare("wf4", "log", f"{native}/output/_log/{{run}}.log")
+    d += _declare(
+        "wf4",
+        "record",
+        f"{e}/_engine/run_settings/{{run}}.{{toml|toml.grid.toml|yml|temporal.json}}",
+        f"{e}/_engine/run_settings/forcing_elevation_catalog.yml",
+        f"{e}/_engine/simulations/{{run}}/response_tables.json",
+        f"{e}/_engine/forcing/inmaps_{{run}}.nc",
+        f"{e}/_engine/wflow_runs/{{run}}.csv",
+    )
+    d += _declare("wf4", "log", f"{e}/_engine/wflow_logs/{{run}}.log")
     return tuple(d)
 
 

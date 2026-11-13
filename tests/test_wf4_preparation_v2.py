@@ -64,7 +64,7 @@ def test_wf4_elevation_binding_is_shared_and_relocatable(tmp_path, monkeypatch):
         preparation["catalog"], {"project_root": project}
     )
     uri = yaml.safe_load(catalog_path.read_text())["elevation"]["uri"]
-    assert uri.startswith("../../../../../data/climate/ancillary/era5/")
+    assert uri.startswith("../../../../data/climate/ancillary/era5/")
     assert (
         resolve_wf4_preparation(
             project,

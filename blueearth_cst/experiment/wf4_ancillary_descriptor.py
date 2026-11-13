@@ -422,9 +422,7 @@ def resolve_wf4_preparation(
     )
     if observed_descriptor != predecessor["ancillary"][0]["descriptor"]:
         raise ValueError("shared elevation physical descriptor differs")
-    catalog_path = (
-        experiment / "hydrology/wflow/run_settings/forcing_elevation_catalog.yml"
-    )
+    catalog_path = experiment / "_engine/run_settings/forcing_elevation_catalog.yml"
     catalog_path.parent.mkdir(parents=True, exist_ok=True)
     if (
         catalog_path.parent.resolve() != catalog_path.parent

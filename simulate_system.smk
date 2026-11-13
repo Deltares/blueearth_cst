@@ -110,8 +110,18 @@ def _selected_indicator_outputs(wc):
                 exp_dir, request, _observed_code=request["code_inventory"])
         plan = _VERIFIED_INDICATOR_PLANS[key]
         if Path(plan["targets"]["manifest"]).exists():
-            read_indicator_set(exp_dir, Path(plan["targets"]["manifest"]))
-        outputs.extend(plan["targets"].values())
+            from blueearth_cst.experiment.indicator_artifacts import (
+                IndicatorTablesUnavailable, retire_indicator_set)
+            try:
+                read_indicator_set(exp_dir, Path(plan["targets"]["manifest"]))
+            except IndicatorTablesUnavailable:
+                # Its only copy in results/ is gone or edited (R1, D20): retire
+                # the records so Snakemake schedules the set's recomputation.
+                retire_indicator_set(plan["targets"]["manifest"])
+        # The data/ tables move to results/ on publication (R1, D20): request
+        # only the engine records that persist.
+        outputs.extend(path for key, path in plan["targets"].items()
+                       if key not in {"unit_index", "group_metadata"})
     return outputs
 
 
@@ -133,8 +143,8 @@ rule derive_system_indicators:
         plan=_indicator_set_plan,
     output:
         manifest=update(f"{engine_dir}/indicator_sets/{{indicator_set_id}}/indicators.json"),
-        units=update(f"{engine_dir}/indicator_sets/{{indicator_set_id}}/data/group_members.csv"),
-        group_metadata=update(f"{engine_dir}/indicator_sets/{{indicator_set_id}}/data/group_metadata.csv"),
+        # The tables (group_members.csv and the rest) are not declared: their one
+        # copy moves to results/indicator_sets/<set>/ on publication (R1, D20).
         environment=update(f"{engine_dir}/indicator_sets/{{indicator_set_id}}/indicator_environment.json"),
         # derive_system_indicators copies the checked benchmark report into the set so
         # a reader never needs the installed asset. Declared here because an

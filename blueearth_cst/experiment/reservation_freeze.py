@@ -228,7 +228,9 @@ def finish_freeze_owned(root: Path, *, recover: bool = False) -> dict:
     if not path.exists() or not archive_path.exists():
         if not recover:
             raise ValueError("interrupted simulation freeze; use --recover-reservation")
-        if any((root / "hydrology/wflow/output").glob("run_*")):
+        if any((root / "_engine/wflow_runs").glob("run_*")) or any(
+            (root / "simulations").glob("run_*")
+        ):
             raise ValueError(
                 "native responses exist before complete simulation freeze; preserve for diagnosis"
             )

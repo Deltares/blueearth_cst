@@ -159,12 +159,7 @@ def test_template_syntax(path, rel, matches):
 #: beside each group. The ratchet fails on a new violation and on a fixed one
 #: still listed, so this set only shrinks.
 KNOWN_MISPLACED = {
-    # WF3/WF4 benchmarks move under logs/ with their workflow steps
-    "benchmarks/wf3_benchmarks_{hex12}.md",
-    "benchmarks/wf4_benchmarks_{experiment_name}.md",
-    "benchmarks/_parts/",
     # WF1
-    "models/hydrology/{model}/.outputs_configured",
     "models/hydrology/{model}/wflow_sbm.toml.grid.toml",
     "models/hydrology/{model}/wflow_sbm_{recipe}.toml.grid.toml",
     # WF3 (R7)
@@ -177,11 +172,7 @@ KNOWN_MISPLACED = {
     "scenarios/_engine/data/{hex12}/weathergenr/output/{run}.nc",
     "scenarios/_engine/data/{hex12}/weathergenr/evaluation/plots/{segment}.{png|pdf}",
     # WF4 (R9, R11, R17)
-    "experiments/{experiment}/.model_reference_ok",
     "experiments/{experiment}/_engine/indicator_sets/{hex12}/data/{indicator_table}.csv",
-    "experiments/{experiment}/hydrology/wflow/run_settings/{run}.{toml|toml.grid.toml|yml|temporal.json}",
-    "experiments/{experiment}/hydrology/wflow/run_settings/forcing_elevation_catalog.yml",
-    "experiments/{experiment}/hydrology/wflow/output/_log/{run}.log",
 }
 
 

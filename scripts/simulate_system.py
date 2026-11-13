@@ -157,12 +157,21 @@ def main(argv=None):
             invocation_history.update(record_path, record)
             print("WF4 targets: " + " ".join(args.target), flush=True)
             resource_tracking.phase(record_path, "snakemake")
-            result = run_project_child(
-                command,
-                env=environment,
-                cwd=Path(__file__).resolve().parents[1],
-                writing=not preview,
-            )
+            from blueearth_cst.experiment.simulation_runner import simulation_phases
+
+            # Simulations first, then indicators, so temporary intermediates are
+            # removed as soon as their consumers finish (R11, W2).
+            for phase_command, phase_environment in simulation_phases(
+                command, environment
+            ):
+                result = run_project_child(
+                    phase_command,
+                    env=phase_environment,
+                    cwd=Path(__file__).resolve().parents[1],
+                    writing=not preview,
+                )
+                if result != 0:
+                    break
             resource_tracking.phase(record_path, "finalization")
             if (
                 not preview
