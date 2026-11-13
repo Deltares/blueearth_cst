@@ -175,7 +175,7 @@ COVERED: dict[str, list[str]] = {
         "models/hydrology/wflow/hydromt.log",
         "models/hydrology/wflow/hydromt_data.yml",
         "models/hydrology/wflow/_engine/markers/.model_built",
-        "models/hydrology/wflow/.outputs_configured",
+        "models/hydrology/wflow/_engine/markers/.outputs_configured",
         # ADR 0004's terminal build sentinel.
         "models/hydrology/wflow/_engine/markers/.model_final",
         "models/hydrology/wflow/historical/default/_engine/build_historical_forcing.yml",
@@ -219,7 +219,7 @@ COVERED: dict[str, list[str]] = {
         f"experiments/{E}/_engine/batch_staging/run_01.csv",
         f"experiments/{E}/_engine/batch_staging/run_01.expect",
         f"experiments/{E}/_engine/batch_staging/run_01.ok",
-        f"experiments/{E}/.model_reference_ok",
+        f"experiments/{E}/_engine/markers/.model_reference_ok",
         f"experiments/{E}/_engine/simulation.json",
         f"experiments/{E}/_engine/simulation_intent.json",
         f"experiments/{E}/_engine/model_reference.yml",

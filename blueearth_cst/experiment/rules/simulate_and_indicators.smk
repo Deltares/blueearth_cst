@@ -37,7 +37,7 @@ basin_dir = f"{project_dir}/models/hydrology/wflow"
 from blueearth_cst.shared.named_forcings import HistoricalLayout
 HISTORICAL_FORCING = project["climate"].get("forcing_id")
 HISTORICAL = HistoricalLayout(HISTORICAL_FORCING)
-if (HISTORICAL_FORCING is not None and Path(basin_dir, ".outputs_configured").exists()
+if (HISTORICAL_FORCING is not None and Path(basin_dir, "_engine/markers/.outputs_configured").exists()
         and not Path(basin_dir, HISTORICAL.toml).exists()):
     raise ValueError(
         f"simulate_system selects historical forcing {HISTORICAL_FORCING!r}, but WF1 has "
@@ -93,7 +93,7 @@ if (_retained_settings is not None and "initialization" not in _retained_setting
         and "initialization" not in my_cfg):
     INITIALIZATION = None
 LOG_PARTS_DIR = f"{project_dir}/logs/_parts/simulate_system/{experiment}"
-BENCH_PARTS_DIR = f"{project_dir}/benchmarks/_parts/simulate_system/{experiment}"
+BENCH_PARTS_DIR = f"{project_dir}/logs/benchmarks/_parts/simulate_system/{experiment}"
 WORKFLOW_LOG_NAME = f"wf4_simulate_system_{experiment}.log"
 BENCHMARKS_NAME = f"wf4_benchmarks_{experiment}.md"
 from blueearth_cst.shared.execution_outputs import workflow_paths
@@ -206,7 +206,7 @@ if not _simulation_complete:
     rule write_model_fingerprint:
         message: WRITE_MODEL_FINGERPRINT.banner()
         input:
-            model_ready=ancient(f"{basin_dir}/.outputs_configured"),
+            model_ready=ancient(f"{basin_dir}/_engine/markers/.outputs_configured"),
             model_toml=ancient(f"{basin_dir}/{HISTORICAL.toml}"),
         params:
             model_dir=basin_dir,
@@ -223,7 +223,7 @@ if not _simulation_complete:
         message: SNAPSHOT_SIMULATION_INPUTS.banner()
         input:
             collection=_selected_collection,
-            model_reference=f"{exp_dir}/.model_reference_ok",
+            model_reference=f"{exp_dir}/_engine/markers/.model_reference_ok",
         output:
             simulation=update(f"{exp_dir}/_engine/simulation_intent.json"),
             archive=update(f"{exp_dir}/config/run_record.yml"),
@@ -246,7 +246,7 @@ if not _simulation_complete:
             model_dir=basin_dir,
             experiment=experiment,
         output:
-            ok=temp(touch(f"{exp_dir}/.model_reference_ok")),
+            ok=temp(touch(f"{exp_dir}/_engine/markers/.model_reference_ok")),
         log:
             CHECK_MODEL_UNCHANGED.log(),
         script: "../check_model_reference.py"
@@ -260,7 +260,7 @@ if not _simulation_complete:
             nc=lambda wc: (Path(project_dir) / SERIES[wc.run_id]).as_posix(),
             collection=_selected_collection,
             simulation=_frozen_simulation,
-            model_reference_ok=f"{exp_dir}/.model_reference_ok",
+            model_reference_ok=f"{exp_dir}/_engine/markers/.model_reference_ok",
         output:
             nc=temp(f"{runs_dir}/forcing/inmaps_{{run_id}}.nc"),
             toml=update(f"{runs_dir}/run_settings/{{run_id}}.toml"),

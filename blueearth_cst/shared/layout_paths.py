@@ -42,7 +42,7 @@ UNITS = ("project", "spatial", "wf0", "wf1", "wf2", "wf3", "wf4")
 
 #: Layout version this toolbox writes (rule R18). A project folder without a
 #: stamp is layout 1. Bumped once per landed t017 migration step.
-LAYOUT_VERSION = 4
+LAYOUT_VERSION = 5
 
 #: Mirrors ``blueearth_cst.shared.provenance.SHORT_DIGEST_CHARS``.
 SHORT_DIGEST_CHARS = 12
@@ -182,9 +182,8 @@ def declarations() -> tuple[Declaration, ...]:
         "logs/dag/",
         "logs/benchmarks/{wf0|wf1|wf2}_benchmarks.md",
         "logs/benchmarks/_parts/",
-        "benchmarks/wf3_benchmarks_{hex12}.md",
-        "benchmarks/wf4_benchmarks_{experiment_name}.md",
-        "benchmarks/_parts/",
+        "logs/benchmarks/wf3_benchmarks_{hex12}.md",
+        "logs/benchmarks/wf4_benchmarks_{experiment_name}.md",
     )
     archived = "{analyze_climate|build_model|analyze_projections}"
     d += _declare(
@@ -289,7 +288,7 @@ def declarations() -> tuple[Declaration, ...]:
         "wf1",
         "marker",
         f"{m}/_engine/markers/.model_built",
-        f"{m}/.outputs_configured",
+        f"{m}/_engine/markers/.outputs_configured",
         f"{m}/_engine/markers/.model_final",
     )
     d += _declare(
@@ -396,7 +395,7 @@ def declarations() -> tuple[Declaration, ...]:
         f"{e}/config/sources/",
         f"{e}/config/{{?catalogs/}}{{segment}}",
     )
-    d += _declare("wf4", "marker", f"{e}/.model_reference_ok")
+    d += _declare("wf4", "marker", f"{e}/_engine/markers/.model_reference_ok")
     d += _declare(
         "wf4",
         "record",

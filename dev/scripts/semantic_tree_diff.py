@@ -370,8 +370,27 @@ def build_project_tree_rules(
         "archive-transactions",
     ):
         rules.append((re.compile(rf"config/_engine/{name}/.+"), r"\g<0>"))
-    # Layout 1 home of the bare-snakemake WF0-WF2 benchmark reports (R13).
-    rules.append((re.compile(r"benchmarks/wf[012]_benchmarks\.md"), r"\g<0>"))
+    # Pre-layout-5 homes of bare-snakemake benchmark reports and parts (R13).
+    for pattern in (
+        r"benchmarks/wf[012]_benchmarks\.md",
+        r"benchmarks/wf3_benchmarks_[0-9a-f]{12}\.md",
+        r"benchmarks/wf4_benchmarks_[a-z0-9_]+\.md",
+        r"benchmarks/_parts/.+",
+    ):
+        rules.append((re.compile(pattern), r"\g<0>"))
+    # Layout 4 homes of the WF1 and WF4 markers (moved in layout 5, R10).
+    rules.append(
+        (
+            re.compile(
+                rf"models/hydrology/{re.escape(model_name)}/\.outputs_configured"
+            ),
+            r"\g<0>",
+        )
+    )
+    for e in sorted(experiments):
+        rules.append(
+            (re.compile(rf"experiments/{re.escape(e)}/\.model_reference_ok"), r"\g<0>")
+        )
     # Layout 2 homes of the spatial unit's machine files (moved in layout 3, R10).
     rules.append((re.compile(r"data/spatial/spatial_(catalog|report)\.yml"), r"\g<0>"))
     # Layout 3 WF4 freeze record and its permanent payload copies (R9, R12).

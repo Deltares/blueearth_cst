@@ -845,7 +845,7 @@ rule declare_gauges_and_outputs:
             "blueearth_cst/shared/grid_output.py",
         ],
     output:
-        configured = touch(f"{basin_dir}/.outputs_configured"),
+        configured = touch(f"{basin_dir}/_engine/markers/.outputs_configured"),
     params:
         outputs = wflow_outvars,
         netcdf_grid = grid_output,
@@ -898,7 +898,7 @@ for _k in FORCING_KEYS:
         name: _rule_name("add_climate_forcing", _k)
         message: ADD_CLIMATE_FORCING.banner(part=_k)
         input:
-            outputs_configured = f"{basin_dir}/.outputs_configured",
+            outputs_configured = f"{basin_dir}/_engine/markers/.outputs_configured",
             # Named recipes read the finalized shared model and never rewrite it.
             model_root_final = [] if _k is None else [f"{basin_dir}/_engine/markers/.model_final"],
             # The climate store, as the forcing SOURCE (2026-08-10). This rule used
@@ -1154,7 +1154,7 @@ for _store_dir, (_key, _spec) in EXTRA_RECIPE_STORES.items():
 if FORCING_IDS is not None:
     rule finalize_model_root:
         message: FINALIZE_MODEL_ROOT.banner()
-        input: f"{basin_dir}/.outputs_configured",
+        input: f"{basin_dir}/_engine/markers/.outputs_configured",
         output: touch(f"{basin_dir}/_engine/markers/.model_final"),
 
 # 1.15  plot_model_evaluation — analyse + plot the wflow RUN (parallel leaf
