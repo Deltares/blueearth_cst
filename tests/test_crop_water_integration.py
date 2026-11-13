@@ -211,12 +211,6 @@ def crop_water_experiment(tmp_path, monkeypatch):
 
 def _run_indicators(experiment, *extra):
     """Invoke WF4 against the configured synthetic retained responses."""
-    from blueearth_cst.shared import layout_stamp
-
-    # A child runner checks the layout itself; this hand-built tree is current.
-    project = experiment.root.parents[1]
-    if layout_stamp.read(project) is None:
-        layout_stamp.write(project)
     environment = os.environ.copy()
     environment.pop("SNAKEMAKE_WORKFLOW_PROFILE", None)
     return subprocess.run(
