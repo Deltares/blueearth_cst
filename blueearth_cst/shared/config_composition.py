@@ -193,6 +193,7 @@ GENERATION_KEYS = frozenset(
         "weathergen_config",
         "seed",
         "unit_id_capacity",
+        "name",
     }
 )
 SIMULATION_KEYS = frozenset(

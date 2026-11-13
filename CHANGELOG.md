@@ -9,6 +9,52 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- Store each new stochastic scenario set in its own folder, `scenarios/<name>/`, with its record in
+  `<name>/_engine/`, and list every set in `scenarios/collections.csv`. Optional WF3 `name` (default
+  `stochastic-<start>-<end>`) never changes identity; reuse is by identity. The top-level copy of the selected
+  set is retired: delete old top-level `series/`, lookups, `config/`, `weathergenr/` and
+  `scenarios/_engine/current.json` by hand. Retained sets stay readable in place.
+- WF3 no longer copies the historical climate extract and basin cells into
+  `scenarios/_engine/generation_inputs/`; they are referenced in place by path and hash. Published sets stay
+  readable after the climate store is rebuilt.
+- WF2-sourced delta collections (`delta-change/3`) publish to `scenarios/<name>/` (default
+  `delta-<ensemble>-<window>`) like stochastic sets and appear in `scenarios/collections.csv`. WF2 grids and
+  the climate store are referenced in place; monthly factors are kept per run in `delta/factors/<run_id>.nc`
+  with `factor_lookup.csv`. `delta-change/1` and `/2` keep their earlier layout. WF4 now resolves the
+  project root of named sets correctly.
+- `delta-change/3` settings shrink to `projections: {ensemble, future_windows}` plus optional `name`,
+  `unit_id_capacity` (default: runs + 2) and `historical_override: {period, path, source, units, units_note}`.
+  The historical record is the case's climate-store extract over WF2's effective reference dates; units come
+  from the toolbox for supported sources (ERA5). One run per member and window, with a `window_id` column;
+  windows are never pooled. `historical_path`, `source_like`, `reader`, `simulation_window` and
+  `projections.window_id` are removed from v3 (unreleased). Delta plots refuse v3 sets until the showcase
+  commit.
+- `delta-change/3` adds `dry_reference: {policy: refuse | cap, max_change}`. Months whose WF2 reference
+  precipitation is below WF2's `min_denominator` stop generation by default (naming member, window and
+  months); `cap` uses future / reference limited to ±`max_change` and records the capped members and months
+  in the collection. A zero reference or missing future mean is always refused. Multiplicative scaling still
+  never adds rain days.
+- WF4 selects a scenario collection with `scenario_collection: {name: <set or alias>}` or
+  `{id: <at least 12 hex characters>}`, for both methods; an unknown value stops and lists the sets.
+  `scenario_collection.manifest_path` is deprecated and will be removed in the next release.
+- WF4 finds a `delta-change/3` collection from the current generation settings when no
+  `scenario_collection` is given, as it does for stochastic sets; a set generated earlier in the same run
+  (WF2 → WF3 → WF4) is bound after generation. A missing set stops with "run scenario generation".
+  `delta-change/1` and `/2` still need an explicit selection. Delta sets keep their authored settings in
+  `<name>/config/` and record the historical recipe, so WF4 also accepts named historical forcings for them.
+- `delta-change/3` accepts `pet: {mode: projection_ratio}`: daily PET is computed on the historical source
+  grid with the case's PET formula (De Bruin or Makkink, mean-sea-level pressure, no elevation correction),
+  scaled by WF2's monthly PET ratio, and passed to WF4 as provided PET. WF2 must use the same formula;
+  members without a PET ratio are excluded and reported per window. Without `pet`, WF4 keeps recomputing PET
+  from perturbed temperature.
+- Delta plots (`scripts/plot_delta_scenarios.py`) render `delta-change/3` sets per WF2 window into
+  `<output>/<window_id>/`, with factors read from the set's factor files; captions name the window, list
+  capped dry-reference months and count unavailable members.
+- **Migration:** `delta-change/1` and `/2` are read-only. Their retained collections stay readable and
+  selectable, but new generation refuses them and `scripts/generate_delta_scenarios.py` is retired; the
+  standalone `project_config_delta.yml` starter is replaced by a commented `delta_change` block in the
+  generation template. Regenerate with `delta-change/3` as described in the delta-change guide's migration
+  section.
 - Keep figure title/caption JSON in each output unit's `_engine/plots/` across WF0–WF2, mirroring family
   subfolders (for example `evaluation/_engine/plots/stations/`). Existing projects re-render affected
   figure families once on their next run; JSON at the old locations is left in place and can be deleted.

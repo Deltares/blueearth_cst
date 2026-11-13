@@ -344,7 +344,8 @@ def build_project_tree_rules(
     # Hand-written on purpose (t017 step 1): `layout_paths` declares what the
     # toolbox writes today; these keep older trees readable as evidence.
     hex12 = f"[0-9a-f]{{{SHORT_DIGEST_CHARS}}}"
-    legacy = rf"scenarios/{hex12}"
+    # Retained `scenarios/<id>/` sets and the top-level export mirror (retired by t016).
+    legacy = rf"scenarios(?:/{hex12})?"
     for leaf in (
         "config/run_record.yml",
         "scenario_run_lookup.csv",

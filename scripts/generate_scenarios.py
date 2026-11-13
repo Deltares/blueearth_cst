@@ -12,6 +12,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from blueearth_cst.experiment.collection_index import rebuild_collection_index
 from blueearth_cst.experiment.generation_plan import (
     build_candidate_intent,
     generation_configuration,
@@ -19,7 +20,6 @@ from blueearth_cst.experiment.generation_plan import (
     select_generation_plan,
 )
 from blueearth_cst.experiment.generation_publication import initialize_generation
-from blueearth_cst.experiment.scenario_export import export_scenario_collection
 from blueearth_cst.shared import execution_outputs, invocation_history, layout_stamp
 from blueearth_cst.shared.config_composition import compose_config
 from blueearth_cst.shared.console_style import up_to_date_verdict
@@ -104,12 +104,14 @@ def run_owned(
             raise ValueError("generate_scenarios is disabled")
         if Path(selected["project"]["project_dir"]).resolve() != project_root:
             raise ValueError("project directory differs from generation configuration")
-        operation = capture_delta(config_path, extra)
+        operation = capture_delta(config_path, extra, project_dir=project_root)
         preview = any(flag in extra for flag in ("--dry-run", "--dryrun", "-n"))
         if history_pair is not None:
             history_pair[1]["generation"] = operation.provenance()
             invocation_history.update(*history_pair)
         manifest = operation.run(project_root, preview=preview)
+        if not preview:
+            operation.index(project_root, manifest)
         if history_pair is not None:
             history_pair[1]["generation"].update(
                 manifest_path=str(manifest), published=not preview
@@ -177,9 +179,9 @@ def run_owned(
         from blueearth_cst.shared.run_log_core import log_row, plural
 
         if ready:
-            export_scenario_collection(
+            rebuild_collection_index(
                 project_root,
-                project_root / plan["outputs"]["record_root"] / "collection.json",
+                alias=(plan["collection_id"], settings["collection_name"]),
             )
             if history_pair is not None:
                 history_path, history = history_pair
@@ -241,9 +243,9 @@ def run_owned(
         reservation_context.recheck()
     result = run_project_child(command, cwd=REPO_ROOT, env=generation_env)
     if result == 0:
-        export_scenario_collection(
+        rebuild_collection_index(
             project_root,
-            project_root / plan["outputs"]["record_root"] / "collection.json",
+            alias=(plan["collection_id"], settings["collection_name"]),
         )
     return result
 

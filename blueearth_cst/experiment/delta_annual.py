@@ -60,6 +60,32 @@ def annual_member_maps(data: Path, settings: dict, historical: xr.Dataset) -> di
         variables["pet"] = "pet_change_percent"
     output = {key: defaultdict(list) for key in variables.values()}
     for member in settings["members"]:
+        if "changes_path" in member:
+            if historical.raster.crs is None:
+                raise ValueError("annual map target requires an explicit CRS")
+            target.raster.set_crs(historical.raster.crs)
+            # WF2 members already hold annual changes from WF2's own kernel
+            # (day-weighted temperature; precipitation/PET as % of the reference).
+            with xr.open_dataset(data / member["changes_path"]) as changes:
+                for variable, key in variables.items():
+                    change = changes[f"{variable}_annual"]
+                    change = change.transpose(
+                        changes.raster.y_dim, changes.raster.x_dim
+                    )
+                    change.raster.set_crs(changes.raster.crs)
+                    mapped = (
+                        change.raster.reproject_like(target, method="nearest")
+                        .raster.mask_nodata()
+                        .transpose("latitude", "longitude")
+                    )
+                    if bool((~np.isfinite(mapped) & active).any()):
+                        raise ValueError(
+                            "annual projection changes do not cover the active historical grid"
+                        )
+                    output[key][(member["model"], member["scenario"])].append(
+                        mapped.where(active).values
+                    )
+            continue
         with (
             xr.open_dataset(data / member["reference_path"]) as reference,
             xr.open_dataset(data / member["future_path"]) as future,

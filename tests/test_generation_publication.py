@@ -443,3 +443,31 @@ def test_relocation_admits_only_the_collection_out_dir(tmp_path, monkeypatch, ed
     copy = _copied_install(tmp_path, monkeypatch, plan, edit)
     with pytest.raises(ValueError, match="differ from pinned plan"):
         publication.validate_installed_generator(plan, copy, relocatable=True)
+
+
+def test_in_place_input_changed_mid_run_refuses_publication_paths(tmp_path):
+    # Publication and provider binding resolve inputs through _source_paths;
+    # an in-place store file rewritten after planning must stop them.
+    live = tmp_path / "data/climate/historical/key/extract_historical.nc"
+    live.parent.mkdir(parents=True)
+    live.write_bytes(b"planned")
+    plan = {
+        "candidate_intent": {
+            "documents": {
+                "source_inventory": {
+                    "sources": [
+                        {
+                            "role": "historical_climate",
+                            "file": file_reference(live, "project_root", tmp_path),
+                        }
+                    ]
+                }
+            }
+        }
+    }
+    assert publication._source_paths(plan, tmp_path) == {
+        "historical_climate": live.resolve()
+    }
+    live.write_bytes(b"rebuilt")
+    with pytest.raises(ValueError):
+        publication._source_paths(plan, tmp_path)

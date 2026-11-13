@@ -77,6 +77,9 @@ GRAMMARS: dict[str, str] = {
     "set_id": "[a-z][a-z0-9_-]{0,63}",
     "slug": "[a-z][a-z0-9_]*",
     "store": "(?!_engine/)[^/]+",
+    # `delta_scenarios` set folder: never `_engine` and never 8+ hex characters,
+    # so it cannot match the engine directory or a retained identity segment.
+    "set_name": "(?![0-9a-f]{8,}/)[A-Za-z0-9][A-Za-z0-9._-]*",
     "netcdf_name": "[a-zA-Z0-9][a-zA-Z0-9_.-]*",
     "output_variable": _OUTPUT_VARIABLES,
     "indicator_table": (
@@ -357,10 +360,9 @@ def declarations() -> tuple[Declaration, ...]:
     )
 
     # -- WF3: scenario collections --------------------------------------------
-    # Durable collection data under `_engine/data/` (moves to
-    # `scenarios/<method>_<id12>/` under R7), and the un-keyed mirror of the
-    # current collection at the top of `scenarios/` (`scenario_export`).
-    for root in ("scenarios/_engine/data/{hex12}", "scenarios"):
+    # Retained collection data under `_engine/data/` and named sets in
+    # `scenarios/<name>/` (t016), indexed by `scenarios/collections.csv`.
+    for root in ("scenarios/_engine/data/{hex12}", "scenarios/{set_name}"):
         d += _declare(
             "wf3",
             "settings",
@@ -377,6 +379,19 @@ def declarations() -> tuple[Declaration, ...]:
             f"{root}/weathergenr/output/{{run}}.nc",
             f"{root}/weathergenr/evaluation/plots/{{segment}}.{{png|pdf}}",
         )
+    d += _declare(
+        "wf3",
+        "product",
+        "scenarios/collections.csv",
+        "scenarios/{set_name}/factor_lookup.csv",
+        "scenarios/{set_name}/delta/factors/{run}.nc",
+    )
+    d += _declare(
+        "wf3",
+        "record",
+        "scenarios/{set_name}/_engine/{collection.json|collection_intent.json}",
+    )
+    d += _declare("wf3", "pin", "scenarios/{set_name}/_engine/producer.py")
     d += _declare(
         "wf3",
         "pin",

@@ -91,3 +91,34 @@ stochastic:
   # Advanced namespace capacity; choose at least the run-plus-bundle count.
   # Reserve enough identifiers for scenario units. Input: positive integer covering all generated units.
   #unit_id_capacity: 10000
+
+# -----------------------------------------------------------------------------
+#  ALTERNATIVE: GCM delta change (projection-conditioned, top-down)
+# -----------------------------------------------------------------------------
+# Replace `method: stochastic` and the `stochastic:` block with the block below.
+# Members, periods and monthly changes come from analyze_projections (WF2); the
+# historical record is this case's climate extract over WF2's reference period.
+# Guide: docs/technical-manual/delta-change-scenarios.md
+#method: delta_change
+# Configure GCM delta-change scenarios. Input: mapping.
+#delta_change:
+  # Select the delta settings schema. Options: delta-change/3.
+#  schema_version: delta-change/3
+  # Name the scenario set folder. Input: letters, digits, '.', '_' or '-'; default from ensemble and windows.
+#  name: delta-cmip6
+  # Select the WF2 projections. Input: mapping.
+#  projections:
+    # WF2 ensemble name. Input: the enabled analyze_projections ensemble.
+#    ensemble: cmip6
+    # WF2 future windows by horizon name. Input: list of names; default all WF2 windows.
+#    future_windows: [mid-century]
+  # Handle months whose reference precipitation is below WF2's threshold. Input: mapping.
+#  dry_reference:
+    # Refuse such months or cap their ratio. Options: refuse | cap.
+#    policy: refuse
+    # Cap only: largest relative change. Input: fraction in (0, 1].
+#    max_change: 0.5
+  # Scale PET by WF2's PET ratio. Input: mapping; WF2 must use the case's PET formula.
+#  pet:
+    # PET change source. Options: projection_ratio.
+#    mode: projection_ratio

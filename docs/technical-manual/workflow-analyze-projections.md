@@ -182,6 +182,9 @@ The main outputs are:
 - **Native-grid diagnostics (`analysis/gridded_changes/`).** Annual and monthly changes for each
   paired model–scenario–member and analysis window. NetCDFs preserve source-grid coordinates;
   `inventory.json` identifies members, sources, windows, methods and unavailable comparisons.
+  Relative variables also carry `<name>_monthly_ratio` and the monthly reference and future means
+  (`<name>_monthly_reference`, `<name>_monthly_future`). The ratio is missing where the reference mean
+  is below the variable's `min_denominator`; the means remain, so dry cells can be reported.
 - **Figures (`plots/full_period/` and `plots/period_<start>_<end>/`).** Available figures for the full
   record and analysis windows. `plots/figure_captions.md` and `_engine/plots/figure_captions.json` explain
   produced and unavailable figures; title inventories accompany them.
