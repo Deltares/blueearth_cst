@@ -32,6 +32,37 @@ from blueearth_cst.plotting.preset import use_preset
 from blueearth_cst.shared.plot_preset import CST_PRESET
 
 
+def location_table(root, name: str, location_id: str, variable: str | None = None):
+    """One location's rows of a long table, or its per-location file before layout 3."""
+    root = Path(root)
+    current = root / "tables/locations" / f"{name}.csv"
+    if current.is_file():
+        frame = pd.read_csv(current, dtype={"location_id": str})
+        rows = frame.location_id == location_id
+        if variable is not None and "variable" in frame:
+            rows &= frame.variable == variable
+        return frame.loc[rows].drop(
+            columns=["location_id", "variable"], errors="ignore"
+        )
+    prefix = "temp_" if variable == "temp" else ""
+    legacy = pd.read_csv(
+        root / "tables/locations" / location_id / f"{prefix}{name}.csv"
+    )
+    return legacy.rename(columns={"month": "period", "reporting_year": "period"})
+
+
+def _monthly_metrics(root, location_id: str, variable: str) -> pd.DataFrame:
+    """Monthly agreement metrics of one location and variable, either layout."""
+    root = Path(root)
+    if (root / "tables/locations/agreement.csv").is_file():
+        frame = location_table(root, "agreement", location_id, variable)
+        return frame.loc[frame.scope == "monthly"].drop(columns="scope")
+    prefix = "temp_" if variable == "temp" else ""
+    return pd.read_csv(
+        root / "tables/locations" / location_id / f"{prefix}monthly_agreement.csv"
+    )
+
+
 def agreement_figure(
     table: pd.DataFrame,
     value: str,
@@ -193,7 +224,6 @@ def render(
             )
             target = destination / "plots/locations" / location.id
             target.mkdir(parents=True, exist_ok=True)
-            tables = root / "tables/locations" / location.id
             local = {}
             for variable in ("precip", "temp"):
                 sources = (
@@ -228,8 +258,7 @@ def render(
                         )
                         styles[source] = native_styles[carrier]
                 styles["observed"] = ("#333333", "o")
-                prefix = "" if variable == "precip" else "temp_"
-                monthly = pd.read_csv(tables / f"{prefix}monthly.csv")
+                monthly = location_table(root, "monthly", location.id, variable)
                 value = "total_mm" if variable == "precip" else "mean_degC"
                 # Overlays retain each source's full complete-year record.
                 # Agreement tables and monthly climatologies keep paired support.
@@ -250,14 +279,13 @@ def render(
                     ignore_index=True,
                 )
                 if variable == "precip":
-                    monthly = monthly.rename(columns={"month": "period"})
                     annual = annual.rename(columns={"reporting_year": "period"})
                 forms = ["monthly_clim_line", "annual_ts"]
                 if has_observed:
                     forms.append("monthly_agreement")
                 for form in forms:
                     if form == "monthly_agreement":
-                        metrics = pd.read_csv(tables / f"{prefix}monthly_agreement.csv")
+                        metrics = _monthly_metrics(root, location.id, variable)
                         fig = agreement_figure(
                             monthly,
                             value,

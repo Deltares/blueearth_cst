@@ -97,7 +97,7 @@ def wf2_project(tmp_path, monkeypatch, *, dry_cell=False, dry_value=0.05):
         min_reference={"precip": 0.1},
     )
     record = ensemble / "_engine/analysis_record.json"
-    record.parent.mkdir(parents=True)
+    record.parent.mkdir(parents=True, exist_ok=True)
     record.write_text(
         json.dumps(
             {
@@ -399,7 +399,8 @@ def _add_wf2_pet(project, method="debruin", ratio=1.1):
 
     ensemble = project / "data/climate/projections/cmip6"
     grids = ensemble / "analysis/gridded_changes"
-    inventory = json.loads((grids / "inventory.json").read_text())
+    inventory_path = ensemble / "_engine/gridded_changes_inventory.json"
+    inventory = json.loads(inventory_path.read_text())
     for member in inventory["members"]:
         path = grids / member["path"]
         with xr.open_dataset(path) as ds:
@@ -407,7 +408,7 @@ def _add_wf2_pet(project, method="debruin", ratio=1.1):
         ds["pet_monthly_ratio"] = xr.full_like(ds["precip_monthly_ratio"], ratio)
         ds.to_netcdf(path)
         member["sha256"] = file_sha256(path)
-    (grids / "inventory.json").write_text(json.dumps(inventory))
+    inventory_path.write_text(json.dumps(inventory))
     record_path = ensemble / "_engine/analysis_record.json"
     record = json.loads(record_path.read_text())
     record["variable_spec"]["pet"] = list(

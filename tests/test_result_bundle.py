@@ -60,7 +60,7 @@ def product_files(project_root, *, digest_from_archive=True, plot=b"png-1"):
         return {
             "report.md": "# WF2\n",
             "summary/composition.csv": "models\n1\n",
-            "summary/provenance.json": json.dumps(provenance),
+            "_engine/provenance.json": json.dumps(provenance),
             "_engine/analysis_record.json": json.dumps(
                 {"schema_version": 1, "windows": [], "water_year_start": "Jan"}
             ),

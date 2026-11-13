@@ -41,7 +41,7 @@ def test_build_wflow_model_declares_a_completion_sentinel():
     assert "touch(" in out, "the sentinel should use Snakemake's touch() output"
     # nothing else writes it
     text = SNAKEFILE.read_text(encoding="utf-8")
-    assert text.count('touch(f"{basin_dir}/.model_built")') == 1
+    assert text.count('touch(f"{basin_dir}/_engine/markers/.model_built")') == 1
 
 
 def test_the_rebuild_edge_is_not_ancient():

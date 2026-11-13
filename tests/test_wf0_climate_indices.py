@@ -100,7 +100,7 @@ def test_new_inventory_is_opt_in_and_keeps_legacy_schema():
     enabled = diagnostic_source_outputs("source", "era5", settings)
     assert "climate_indices" in enabled["compute"]
     assert "index_products" in enabled["render"]
-    assert SCHEMA_VERSION == 2
+    assert SCHEMA_VERSION == 3
 
 
 def test_retained_rerender_routes_enabled_bundle_to_separate_output(

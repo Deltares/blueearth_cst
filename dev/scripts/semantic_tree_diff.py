@@ -372,6 +372,28 @@ def build_project_tree_rules(
         rules.append((re.compile(rf"config/_engine/{name}/.+"), r"\g<0>"))
     # Layout 1 home of the bare-snakemake WF0-WF2 benchmark reports (R13).
     rules.append((re.compile(r"benchmarks/wf[012]_benchmarks\.md"), r"\g<0>"))
+    # Layout 2 homes of the spatial unit's machine files (moved in layout 3, R10).
+    rules.append((re.compile(r"data/spatial/spatial_(catalog|report)\.yml"), r"\g<0>"))
+    # Layout 2 homes of WF1 markers and build records (moved in layout 3, R10).
+    model = re.escape(f"models/hydrology/{model_name}")
+    rules.append(
+        (
+            re.compile(
+                rf"{model}/(\.model_built|\.model_final|hydromt_build_config\.yml"
+                r"|hydromt_update_waterbodies\.yml|run_metadata\.json)"
+            ),
+            r"\g<0>",
+        )
+    )
+    # Layout 2 WF2 records: provenance, the gridded-changes inventory and the
+    # copies of contributing logs (moved or dropped in layout 3, R10, R13).
+    projections = rf"data/climate/projections/{re.escape(clim_project)}"
+    for pattern in (
+        rf"{projections}/summary/provenance\.json",
+        rf"{projections}/analysis/gridded_changes/inventory\.json",
+        rf"{projections}/_engine/execution/[0-9a-f]{{32}}/wf2(\.log|-benchmarks\.(md|tsv))",
+    ):
+        rules.append((re.compile(pattern), r"\g<0>"))
     # The retired flat indicator export.
     for e in sorted(experiments):
         exp = re.escape(e)

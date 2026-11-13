@@ -37,7 +37,7 @@ SNAKEFILE = Path(__file__).resolve().parents[1] / "build_model.smk"
 #: The sentinel, and the rule that must own it: the LAST writer of the model
 #: root. Both are asserted, because the sentinel is only meaningful while it is
 #: attached to the last writer.
-SENTINEL = ".model_final"
+SENTINEL = "_engine/markers/.model_final"
 SENTINEL_OWNER = "add_climate_forcing"
 # Named forcing recipes (t014) stage their forcing outside the model root, so
 # the shared model is final after rule 1.08 and a finalizer owns the sentinel.

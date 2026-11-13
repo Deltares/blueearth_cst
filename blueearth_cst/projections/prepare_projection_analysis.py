@@ -489,7 +489,7 @@ def run(sm):
     _log_timing("spatial preparation and publication", started)
     started = perf_counter(), process_time()
     record["spatial_diagnostics"] = {
-        "inventory": "analysis/gridded_changes/inventory.json",
+        "inventory": "_engine/gridded_changes_inventory.json",
         "members": len(spatial["members"]),
         "unavailable": spatial["unavailable"],
         "methods": spatial["methods"],

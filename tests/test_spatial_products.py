@@ -477,8 +477,8 @@ def test_both_halves_round_trip_every_catalog_entry(tmp_path, monkeypatch):
 
     expected = {
         output_dir / "spatial_maps.nc",
-        output_dir / "spatial_catalog.yml",
-        output_dir / "spatial_report.yml",
+        output_dir / "_engine/spatial_catalog.yml",
+        output_dir / "_engine/spatial_report.yml",
         output_dir / "location_registry.csv",
         output_dir / HYDROGRAPHY_SEAM_NAME,
         *(

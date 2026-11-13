@@ -124,8 +124,8 @@ COVERED: dict[str, list[str]] = {
     ],
     "data": [
         "data/spatial/spatial_maps.nc",
-        "data/spatial/spatial_catalog.yml",
-        "data/spatial/spatial_report.yml",
+        "data/spatial/_engine/spatial_catalog.yml",
+        "data/spatial/_engine/spatial_report.yml",
         "data/spatial/location_registry.csv",
         # ADR 0003 §8a — the seam intermediate this inventory has to cover.
         "data/spatial/hydrography.nc",
@@ -136,7 +136,7 @@ COVERED: dict[str, list[str]] = {
         "data/spatial/plots/elevation_basin.png",
         "data/spatial/_engine/plots/figure_captions.json",
         f"data/climate/historical/{KEY}/extract_historical.nc",
-        "data/climate/historical/comparison/_engine/plots/locations/figure_captions.json",
+        "data/climate/historical/source_comparison/_engine/plots/locations/figure_captions.json",
         # The basin-cell mask that ships with every extraction (2026-08-10).
         f"data/climate/historical/{KEY}/basin_cells.csv",
         f"data/climate/historical/{KEY}/.guard_ok",
@@ -149,7 +149,7 @@ COVERED: dict[str, list[str]] = {
         f"data/climate/projections/{CP}/raw/cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc",
         f"data/climate/projections/{CP}/scalar/cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc",
         f"data/climate/projections/{CP}/summary/cmip6_change_factors_annual.csv",
-        f"data/climate/projections/{CP}/summary/provenance.json",
+        f"data/climate/projections/{CP}/_engine/provenance.json",
         f"data/climate/projections/{CP}/analysis/changes.csv",
         f"data/climate/projections/{CP}/_engine/analysis_record.json",
         f"data/climate/projections/{CP}/plots/full_period/cmip6_ensemble_coverage_basin_avg.png",
@@ -174,10 +174,10 @@ COVERED: dict[str, list[str]] = {
         "models/hydrology/wflow/wflow_sbm.toml.grid.toml",
         "models/hydrology/wflow/hydromt.log",
         "models/hydrology/wflow/hydromt_data.yml",
-        "models/hydrology/wflow/.model_built",
+        "models/hydrology/wflow/_engine/markers/.model_built",
         "models/hydrology/wflow/.outputs_configured",
         # ADR 0004's terminal build sentinel.
-        "models/hydrology/wflow/.model_final",
+        "models/hydrology/wflow/_engine/markers/.model_final",
         "models/hydrology/wflow/config/build_historical_forcing.yml",
         # Rule 1.10's second declared config output, beside the build YAML
         # (2026-08-11).
@@ -205,9 +205,9 @@ COVERED: dict[str, list[str]] = {
         "models/hydrology/wflow/evaluation/plots/stations/performance_1010.png",
         # The staleness sidecar (rule 1.15b) and the two values-used records
         # (rules 1.07 and 1.08) -- see design §5.6 and §5.8.
-        "models/hydrology/wflow/run_metadata.json",
-        "models/hydrology/wflow/hydromt_build_config.yml",
-        "models/hydrology/wflow/hydromt_update_waterbodies.yml",
+        "models/hydrology/wflow/_engine/run_metadata.json",
+        "models/hydrology/wflow/_engine/hydromt_build_config.yml",
+        "models/hydrology/wflow/_engine/hydromt_update_waterbodies.yml",
     ],
     "experiments": [
         f"experiments/{E}/experiment.yml",

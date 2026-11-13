@@ -51,12 +51,15 @@ def test_member_grids_publish_monthly_reference_and_future(tmp_path, monkeypatch
     windows = list(
         analysis_windows({"near": (2040, 2059)}, reference_window=(1985, 2004)).values()
     )
-    out = tmp_path / "grids"
+    out = tmp_path / "cmip6/analysis/gridded_changes"
     inventory = spatial_diagnostics.prepare_spatial_changes(
         [point], windows, out, variable_spec=SPEC, min_reference={"precip": 0.1}
     )
     assert inventory["schema_version"] == 2
-    assert json.loads((out / "inventory.json").read_text())["schema_version"] == 2
+    record = tmp_path / "cmip6/_engine/gridded_changes_inventory.json"
+    assert spatial_diagnostics.inventory_path(out) == record
+    assert json.loads(record.read_text())["schema_version"] == 2
+    assert (out / "members.csv").is_file()
     with xr.open_dataset(out / inventory["members"][0]["path"]) as ds:
         reference = ds["precip_monthly_reference"]
         future = ds["precip_monthly_future"]

@@ -117,8 +117,10 @@ def run(sm):
         .reset_index()
     )
     agreement["n_common_valid_years"] = len(common)
+    # Formerly agreement.md (dropped in layout 3, R15): the years themselves.
+    agreement["common_valid_years"] = " ".join(map(str, common))
     agreement_reference = (
-        Path(paths["compute"]["agreement_md"]).relative_to(paths["root"]).as_posix()
+        Path(paths["compute"]["agreement"]).relative_to(paths["root"]).as_posix()
     )
     log_row(
         (
@@ -136,18 +138,6 @@ def run(sm):
     )
     Path(paths["compute"]["agreement"]).parent.mkdir(parents=True, exist_ok=True)
     agreement.to_csv(paths["compute"]["agreement"], index=False)
-    lines = [
-        "# Source agreement",
-        "",
-        f"Common valid reporting years: {', '.join(map(str, common)) or 'none; numerical agreement unavailable'}",
-        "",
-        "Source agreement is not accuracy. Ntoum real-data exercised; not scientifically qualified.",
-        "",
-        agreement.to_string(),
-    ]
-    agreement_path = Path(paths["compute"]["agreement_md"])
-    agreement_path.parent.mkdir(parents=True, exist_ok=True)
-    agreement_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     write_tables(paths, tables, settings, m0, period, lineage)
     render(
         paths,

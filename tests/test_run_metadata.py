@@ -59,7 +59,8 @@ def test_metadata_repeat_ignores_git_state_but_tracks_configuration_inputs(
     (model / "evaluation/tables").mkdir(parents=True)
     product = model / "evaluation/tables/performance_indicators.csv"
     product.write_text("indicator,value\nfixture,1\n", encoding="utf-8")
-    (model / ".model_final").touch()
+    (model / "_engine/markers").mkdir(parents=True)
+    (model / "_engine/markers/.model_final").touch()
     rule = "rule write_run_metadata:\n" + _rule_block(
         REPO / "build_model.smk", "write_run_metadata"
     )
@@ -81,7 +82,7 @@ def test_metadata_repeat_ignores_git_state_but_tracks_configuration_inputs(
         "from blueearth_cst.shared.named_forcings import HistoricalLayout\n"
         "_hp = lambda key, attr: f'{basin_dir}/{getattr(HistoricalLayout(key), attr)}'\n"
         "WRITE_RUN_METADATA = SimpleNamespace(banner=lambda: 'metadata')\n"
-        "rule all:\n    input: basin_dir + '/run_metadata.json'\n" + rule,
+        "rule all:\n    input: basin_dir + '/_engine/run_metadata.json'\n" + rule,
         encoding="utf-8",
     )
 
@@ -115,7 +116,7 @@ def test_metadata_repeat_ignores_git_state_but_tracks_configuration_inputs(
         return result.stdout + result.stderr
 
     run()
-    metadata = model / "run_metadata.json"
+    metadata = model / "_engine/run_metadata.json"
     before = metadata.read_bytes(), metadata.stat().st_mtime_ns
     first = json.loads(before[0])
     toolbox.update(commit="b" * 40, dirty=True)

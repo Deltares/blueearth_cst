@@ -642,6 +642,10 @@ def build_v2_experiment(
     project = base / "project"
     root = project / "experiments" / EXPERIMENT
     root.mkdir(parents=True)
+    # Child runners check the layout themselves; this built tree is current.
+    from blueearth_cst.shared import layout_stamp
+
+    layout_stamp.write(project)
     config = _write_configs(base, project)
     marker = _publish_collection(
         project, config, capacity, legacy_storage=legacy_storage

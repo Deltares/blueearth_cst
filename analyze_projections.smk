@@ -1168,7 +1168,7 @@ rule derive_change_factors:
         # Step 6a-iii: everything needed to reconstruct the run (design 5.9).
         # S8-06: beside composition.csv -- both are run-level records rather than
         # results, and report.md stays at the root as the one human entry point.
-        provenance_json = (clim_project_dir + "/summary/provenance.json"),
+        provenance_json = (clim_project_dir + "/_engine/provenance.json"),
         # Step 7-ii: the run told in the order a reader needs it, with the
         # 5.9 disclaimer block. Reads provenance.json; derives nothing.
         report_md = (clim_project_dir + "/report.md"),
@@ -1180,7 +1180,7 @@ rule derive_change_factors:
         stats = stats,
         stage_b_hash = STAGE_B_HASH,
         effective_config_sha256 = EFFECTIVE_CONFIG_DIGEST,
-        # WF2 needs no new sidecar file: summary/provenance.json already
+        # WF2 needs no new sidecar file: _engine/provenance.json already
         # carries the narrow digest, so it gains the WIDE one beside it. That
         # is the field the staleness test uses -- the narrow one cannot see a
         # toolbox move or an in-place catalog edit. Verified not to be in

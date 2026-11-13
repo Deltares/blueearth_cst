@@ -42,7 +42,7 @@ UNITS = ("project", "spatial", "wf0", "wf1", "wf2", "wf3", "wf4")
 
 #: Layout version this toolbox writes (rule R18). A project folder without a
 #: stamp is layout 1. Bumped once per landed t017 migration step.
-LAYOUT_VERSION = 2
+LAYOUT_VERSION = 3
 
 #: Mirrors ``blueearth_cst.shared.provenance.SHORT_DIGEST_CHARS``.
 SHORT_DIGEST_CHARS = 12
@@ -230,14 +230,12 @@ def declarations() -> tuple[Declaration, ...]:
         "data/spatial/geoms/",
         "data/spatial/plots/",
     )
-    # t017 open point 1: a machine catalog and a report YAML in a readable folder.
     d += _declare(
         "spatial",
         "record",
-        "data/spatial/spatial_catalog.yml",
-        "data/spatial/spatial_report.yml",
+        "data/spatial/_engine/{spatial_catalog|spatial_report}.yml",
+        "data/spatial/_engine/plots/",
     )
-    d += _declare("spatial", "record", "data/spatial/_engine/plots/")
 
     # -- WF0: historical climate stores and their comparison ------------------
     d += _declare("wf0", "record", "data/climate/historical/{store}/_engine/{rest}")
@@ -246,8 +244,6 @@ def declarations() -> tuple[Declaration, ...]:
         "wf0",
         "record",
         "data/climate/historical/_engine/map_reference.json",
-        # Pooled across sources, so it sits above any store key.
-        "data/climate/historical/shared_plot_scales.json",
     )
     d += _declare(
         "wf0", "product", "data/climate/ancillary/{slug}/{hex12}/{netcdf_name}.nc"
@@ -267,15 +263,10 @@ def declarations() -> tuple[Declaration, ...]:
     d += _declare(
         "wf2",
         "record",
-        f"{cmip}/_engine/{{stage_b_settings.json|analysis_record.json}}",
+        f"{cmip}/_engine/{{stage_b_settings.json|analysis_record.json|provenance.json}}",
         f"{cmip}/_engine/plots/{{figure_captions.json|figure_titles.json}}",
         f"{cmip}/_engine/execution/production.json",
         f"{cmip}/_engine/imported/{{hex12}}/{{manifest|import_record}}.json",
-    )
-    d += _declare(
-        "wf2",
-        "log",
-        f"{cmip}/_engine/execution/{{hex32}}/{{wf2.log|wf2-benchmarks.md|wf2-benchmarks.tsv}}",
     )
     d += _declare(
         "wf2",
@@ -299,9 +290,9 @@ def declarations() -> tuple[Declaration, ...]:
     d += _declare(
         "wf1",
         "marker",
-        f"{m}/.model_built",
+        f"{m}/_engine/markers/.model_built",
         f"{m}/.outputs_configured",
-        f"{m}/.model_final",
+        f"{m}/_engine/markers/.model_final",
     )
     d += _declare(
         "wf1",
@@ -311,9 +302,9 @@ def declarations() -> tuple[Declaration, ...]:
         f"{m}/config/{{build_historical_forcing|climate_store_catalog}}.yml",
         f"{m}/config/{{recipe}}/{{build_historical_forcing|climate_store_catalog}}.yml",
         f"{m}/config/{{recipe}}/historical_forcing.json",
-        f"{m}/hydromt_build_config.yml",
-        f"{m}/hydromt_update_waterbodies.yml",
-        f"{m}/run_metadata.json",
+        f"{m}/_engine/hydromt_build_config.yml",
+        f"{m}/_engine/hydromt_update_waterbodies.yml",
+        f"{m}/_engine/run_metadata.json",
         f"{m}/forcing/_engine/plots/",
         f"{m}/forcing/{{recipe}}/_engine/plots/",
     )

@@ -230,20 +230,26 @@ def _generation(
 def _retain_diagnostics(
     observation: Observation, invocation: Mapping[str, Any]
 ) -> list[str]:
-    """Copy this invocation's merged workflow log and benchmark report."""
+    """Project-relative paths of this invocation's workflow log and benchmarks.
+
+    The logs stay where the runner wrote them (rule R13); the record names them
+    instead of copying them, and `dev/scripts/prune_logs.py` keeps the folders
+    a product's record refers to.
+    """
     relative = invocation.get("execution_directory")
     if not relative:
         return []
     source = observation.project_root / relative
     label = PRODUCTS[observation.workflow]
-    target = observation.product / RECORD_DIRECTORY / invocation["invocation_id"]
-    retained = []
-    for name in (f"{label}.log", f"{label}-benchmarks.md", f"{label}-benchmarks.tsv"):
-        if (source / name).is_file():
-            target.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(source / name, target / name)
-            retained.append(f"{RECORD_DIRECTORY}/{invocation['invocation_id']}/{name}")
-    return retained
+    return [
+        f"{Path(relative).as_posix()}/{name}"
+        for name in (
+            f"{label}.log",
+            f"{label}-benchmarks.md",
+            f"{label}-benchmarks.tsv",
+        )
+        if (source / name).is_file()
+    ]
 
 
 def record_production(
@@ -298,7 +304,7 @@ def record_production(
     _atomic_json(directory / RECORD_NAME, record)
     for child in directory.iterdir():
         if child.is_dir() and child.name not in generations:
-            # Retained copies only; the central execution logs stay intact.
+            # Log copies from layouts before 3; the central logs stay intact.
             shutil.rmtree(child)
     return record
 

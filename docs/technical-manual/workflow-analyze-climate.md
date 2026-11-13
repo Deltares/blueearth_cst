@@ -69,11 +69,20 @@ Machine-readable figure inventories live under the dataset's `_engine/plots/`, w
 subfolder for index metadata; readable title/caption Markdown stays beside the figures. Older retained
 metadata remains readable in place.
 
-Comparison `tables/basin-average/` exposes seven CSVs: `annual_indices`, `monthly_values`,
-`precip_climatology`, `temp_climatology`, `drought_events`, `trends` and `agreement`. Supporting coverage,
-fit checks, timing, SPI, spell, autocorrelation, homogeneity and sensitivity tables, plus `agreement.md`,
-live under `_engine/basin-average/`. Calculations and rerendering retain all these data. Existing files
-are preserved when switching layouts; new runs use the consolidated paths.
+Each dataset's `tables/` and the comparison's `tables/basin_average/` hold the same tables, one per
+kind of result:
+
+| File | Holds |
+|---|---|
+| `annual.csv` | per reporting year: indices (`total`, `wet_days`, `sdii`, `Rx1day`, `Rx5day`), completeness (`full_year`, `valid_precip`, `valid_temp`, `missing_days`, `reason`) and rainfall timing (`day_25`, `day_50`, `day_75`) |
+| `monthly.csv` | per month: totals, reference mean, anomaly, temperature mean and coverage (`fraction`, `missing_days`, `class`) |
+| `climatology.csv` | monthly climatology, with a `variable` column (`precip`, `temp`) |
+| `spi.csv`, `drought_events.csv`, `trends.csv` | SPI series, drought events and trend tests |
+| `supporting/` | `homogeneity.csv`, `spi_fit_checks.csv`, `dry_spells.csv` |
+
+The comparison adds `agreement.csv`, which lists the common valid years. Data kept only to draw a figure
+(dry-spell exceedance, anomaly autocorrelation, P–T anomalies, trend sensitivity) is in
+`_engine/figure_data/`. Rerendering reads projects written before layout 3 from their per-table files.
 
 ### Map annual departures {#annual-spatial-anomalies}
 
@@ -186,12 +195,12 @@ of precipitation and use means rather than totals.
 Run the usual historical analysis entry point. The comparison area has two views:
 
 ```text
-data/climate/historical/comparison/
+data/climate/historical/source_comparison/
   locations.csv
-  plots/basin-average/
+  plots/basin_average/
   plots/locations/<id>/
-  tables/basin-average/
-  tables/locations/<id>/
+  tables/basin_average/
+  tables/locations/        annual, monthly, coverage, agreement, native_cells (.csv)
   _engine/
 ```
 
@@ -200,7 +209,11 @@ The basin-average view compares gridded basin means. The location view replaces 
 and rainfall-gauge site. These are native-cell values, not subbasin averages. The `plotting.location` switch
 continues to control optional area-average diagnostics inside individual source stores.
 
-`locations.csv` maps each directory ID to its name, coordinates, location role, spatial location code,
+The location tables are long tables keyed by `location_id`; `annual` and `monthly` add a `variable`
+column (`precip` with `total_mm`, `temp` with `mean_degC`), and `agreement` a `scope` column (`daily`,
+`monthly`). Exclusions are listed once, in `_engine/locations/exclusions.csv`.
+
+`locations.csv` maps each location ID to its name, coordinates, location role, spatial location code,
 Wflow ID, associated subbasin and available observation columns. Declared locations use
 `location_<wflow_id>`; gauge-only sites use `station_<safe-token>`, preserving literal gauge IDs in
 `gauge_id`. A gauge joins an existing location only when its original coordinates coincide uniquely
@@ -226,12 +239,12 @@ coordinates/CRS, exclusions and optional temperature means. Monthly agreement me
 counts, Pearson r, mean bias and RMSE; precipitation errors are in mm/month and temperature errors in °C.
 Figures show unavailable comparisons explicitly. Each location's plot directory contains readable
 `figure_titles.md` and `figure_captions.md`; sampled daily data live under `_engine/locations/` and
-machine figure inventories under `_engine/plots/locations/`. Basin figure inventories live under `_engine/basin-average/`.
+machine figure inventories under `_engine/plots/locations/`. Basin figure inventories live under `_engine/basin_average/`.
 
 Rerender both views with
 `scripts/render_figures.py wf0-comparison --project <run> --out <review>`.
 The `rain-gauges` family renders the location view for new runs and continues reading legacy
-`comparison/stations/` or `historical/rain_gauges/` products. Older flat basin tables are readable by the
+`source_comparison/stations/` (`comparison/stations/` before layout 3) or `historical/rain_gauges/` products. Older flat basin tables are readable by the
 comparison rerender command. Rerunning historical analysis writes the new layout; obsolete generated
 directories from earlier runs should be retired separately after verifying the replacement products.
 
@@ -252,13 +265,15 @@ available period; subbasin results follow the same processing steps when enabled
 Results are saved under `data/climate/historical/`, relative to `project_dir`, with a separate folder
 for each source. The main outputs are:
 
-- **Diagnostic tables (`tables/`).** Coverage, climate indices, drought events and trend diagnostics,
-  including daily basin series in `daily_basin.csv` and annual climatology in `annual_climatology.nc`.
+- **Diagnostic tables (`tables/`).** Annual, monthly and climatology tables, SPI, drought events and
+  trends, with checks under `tables/supporting/`; also daily basin series in `daily_basin.csv` and annual
+  climatology in `annual_climatology.nc`.
 - **Maps and time-series figures (`plots/`).** Precipitation, temperature and potential
   evapotranspiration where available, with titles and captions.
-- **Source comparisons (`comparison/`).** Basin-average tables and figures under
-  `tables/basin-average/` and `plots/basin-average/`, including `agreement.csv` and `agreement.md`.
-  Per-location tables and figures under `tables/locations/<id>/` and `plots/locations/<id>/` include
+- **Source comparisons (`source_comparison/`).** Basin-average tables and figures under
+  `tables/basin_average/` and `plots/basin_average/`, including `agreement.csv`.
+  Location tables under `tables/locations/` (one row set per `location_id`) and figures under
+  `plots/locations/<id>/` include
   observations when available; `locations.csv` indexes every site.
 - **Subbasin results (`tables/subbasins/` and `plots/subbasins/`).** Additional tables and figures when
   `plotting.location: true`. Basin maps show subbasin outlines regardless of this setting.
@@ -411,7 +426,7 @@ and out-of-domain locations. Original daily extraction and source-level `basin_c
 calculation inputs. Existing diagnostic tables keep their previous formulas and precipitation totals.
 
 Only `_engine/climate_indices.json` (settings, input/code fingerprints and product hashes) and
-`_engine/wet_spell_exceedance.csv` (basin plotting data) support this CSV. New calculations retain no
+`_engine/figure_data/wet_spell_exceedance.csv` (basin plotting data) support this CSV. New calculations retain no
 gridded index arrays, threshold arrays, event catalogues or daily contributing-cell counts, and create
 no hashed directories. Changed inputs/settings recalculate from the daily source in memory. Products
 are staged before replacement; the record is published last. Readers verify code and product hashes.

@@ -75,7 +75,7 @@ def _producers(record):
 def test_runs_keep_truthful_attribution(project, monkeypatch):
     config, output = project
     product = output / "data/climate/projections/cmip6"
-    first = {"summary/provenance.json": "p1", "analysis/coverage.csv": "c1"}
+    first = {"_engine/provenance.json": "p1", "analysis/coverage.csv": "c1"}
     first |= {"plots/a/fig.png": "f1"}
     assert _run(monkeypatch, config, _writer(product, first)) == 0
     record = _record(product)
@@ -90,8 +90,11 @@ def test_runs_keep_truthful_attribution(project, monkeypatch):
         "rewritten_identical": 0,
         "removed": 0,
     }
-    retained = product / RECORD_DIRECTORY / success / "wf2.log"
-    assert retained.read_text() == f"log {sorted(first)}\n"
+    # The log is referenced where the runner wrote it, not copied (R13).
+    assert not (product / RECORD_DIRECTORY / success).exists()
+    (log,) = [path for path in generation["diagnostics"] if path.endswith("wf2.log")]
+    assert log.startswith("logs/")
+    assert (output / log).read_text() == f"log {sorted(first)}\n"
     reference = generation["configuration"]["run_record"]
     assert reference["path"].startswith("config/_engine/snapshots/analyze_projections/")
     assert record["shared_steps"][0]["outputs"] == "data/spatial/geoms"
@@ -114,7 +117,7 @@ def test_runs_keep_truthful_attribution(project, monkeypatch):
     failed = record["latest_invocation_id"]
     assert record["state"] == "incomplete"
     assert _producers(record) == {
-        "summary/provenance.json": success,
+        "_engine/provenance.json": success,
         "analysis/coverage.csv": failed,
     }
     assert record["generations"][failed]["status"] == "failed"
@@ -127,7 +130,7 @@ def test_runs_keep_truthful_attribution(project, monkeypatch):
     rerun = record["latest_invocation_id"]
     assert record["state"] == "complete"
     assert _producers(record) == {
-        "summary/provenance.json": success,
+        "_engine/provenance.json": success,
         "analysis/coverage.csv": failed,
         "plots/a/fig.png": rerun,
     }
@@ -136,7 +139,7 @@ def test_runs_keep_truthful_attribution(project, monkeypatch):
     # Generations that own no current file lose only their retained copies.
     tables = _writer(
         product,
-        {"summary/provenance.json": "p3", "analysis/coverage.csv": "c3"},
+        {"_engine/provenance.json": "p3", "analysis/coverage.csv": "c3"},
     )
     assert _run(monkeypatch, config, tables) == 0
     record = _record(product)
@@ -152,7 +155,7 @@ def test_identical_rewrite_is_credited_but_untouched_files_are_not(
     """A deterministic plot rerun rewrites equal bytes; that is production."""
     config, output = project
     product = output / "data/climate/projections/cmip6"
-    first = {"summary/provenance.json": "p", "plots/a/fig.png": "f"}
+    first = {"_engine/provenance.json": "p", "plots/a/fig.png": "f"}
     assert _run(monkeypatch, config, _writer(product, first)) == 0
     tables = _record(product)["latest_invocation_id"]
     before = (product / RECORD_DIRECTORY / RECORD_NAME).read_bytes()
@@ -165,7 +168,7 @@ def test_identical_rewrite_is_credited_but_untouched_files_are_not(
     plots = record["latest_invocation_id"]
     assert plots != tables
     assert _producers(record) == {
-        "summary/provenance.json": tables,
+        "_engine/provenance.json": tables,
         "plots/a/fig.png": plots,
     }
     assert record["generations"][plots]["changes"]["rewritten_identical"] == 1
@@ -175,12 +178,12 @@ def test_unobserved_bytes_are_not_credited(project, monkeypatch):
     config, output = project
     product = output / "data/climate/projections/cmip6"
     # A product written before records existed, or by bare Snakemake.
-    (product / "summary").mkdir(parents=True)
-    (product / "summary/provenance.json").write_text("legacy", encoding="utf-8")
+    (product / "_engine").mkdir(parents=True)
+    (product / "_engine/provenance.json").write_text("legacy", encoding="utf-8")
     assert _run(monkeypatch, config, _writer(product, {"plots/x.png": "x"})) == 0
     record = _record(product)
     assert _producers(record) == {
-        "summary/provenance.json": None,
+        "_engine/provenance.json": None,
         "plots/x.png": record["latest_invocation_id"],
     }
     assert record["unattributed_files"] == 1

@@ -22,6 +22,9 @@ from blueearth_cst.shared.forcing_data import validate_canonical_units
 from blueearth_cst.shared.forcing_recipe import normalize_forcing_recipe
 from blueearth_cst.shared.provenance import file_sha256, toolbox_identity
 
+#: Long tables under ``source_comparison/tables/locations/`` (layout 3, R15).
+LOCATION_TABLES = ("annual", "monthly", "coverage", "agreement", "native_cells")
+
 
 def location_index(
     locations_path: str, subbasins_path: str, gauges: dict | None
@@ -373,9 +376,10 @@ def evaluate(
     ds.precip.attrs.update(units="mm/day", time_label="interval_end")
     ds.temp.attrs.update(units="degC", time_label="interval_end")
     ds.to_netcdf(engine / "daily.nc")
+    # One long table per kind of result, keyed by `location_id` (rule R15).
+    long: dict[str, list[pd.DataFrame]] = {name: [] for name in LOCATION_TABLES}
     for position, row in registry.iterrows():
-        target = root / "tables/locations" / row.id
-        target.mkdir(parents=True, exist_ok=True)
+        tag = {"location_id": row.id}
         precip_labels = [*(["observed"] if row.observed_precip else []), *sources]
         frame = ds.precip.sel(location=row.id, source=precip_labels).to_pandas()
         precip_tables = matched_tables(frame, m0, observed=bool(row.observed_precip))
@@ -385,12 +389,24 @@ def evaluate(
         registry.loc[position, "observed_precip_days"] = (
             int(frame.observed.notna().sum()) if row.observed_precip else 0
         )
-        for name, table in precip_tables.items():
-            table.to_csv(target / f"{name}.csv", index=False)
+        precip_tables["monthly"] = precip_tables["monthly"].rename(
+            columns={"month": "period"}
+        )
+        precip_tables["annual"] = precip_tables["annual"].rename(
+            columns={"reporting_year": "period"}
+        )
+        for name in ("annual", "monthly"):
+            long[name].append(precip_tables[name].assign(**tag, variable="precip"))
+        long["coverage"].append(precip_tables["coverage"].assign(**tag))
+        long["agreement"].append(
+            precip_tables["agreement"].assign(**tag, variable="precip", scope="daily")
+        )
         if row.observed_precip:
-            monthly_agreement(
-                precip_tables["monthly"].rename(columns={"month": "period"}), "total_mm"
-            ).to_csv(target / "monthly_agreement.csv", index=False)
+            long["agreement"].append(
+                monthly_agreement(precip_tables["monthly"], "total_mm").assign(
+                    **tag, variable="precip", scope="monthly"
+                )
+            )
         temp_labels = [
             *(["observed"] if row.observed_temp else []),
             *temperature_sources,
@@ -398,29 +414,37 @@ def evaluate(
         if temp_labels:
             frame = ds.temp.sel(location=row.id, source=temp_labels).to_pandas()
             temp_tables = temperature_tables(frame, m0)
-            for name, table in temp_tables.items():
-                table.to_csv(target / f"temp_{name}.csv", index=False)
+            for name in ("annual", "monthly"):
+                long[name].append(temp_tables[name].assign(**tag, variable="temp"))
             if row.observed_temp:
-                monthly_agreement(temp_tables["monthly"], "mean_degC").to_csv(
-                    target / "temp_monthly_agreement.csv", index=False
+                long["agreement"].append(
+                    monthly_agreement(temp_tables["monthly"], "mean_degC").assign(
+                        **tag, variable="temp", scope="monthly"
+                    )
                 )
-        pd.DataFrame(
-            [cell for cell in cells if cell["id"] == row.id],
-            columns=[
-                "id",
-                "source",
-                "variable",
-                "cell_x",
-                "cell_y",
-                "cell_crs",
-                "data_source",
-                "units_note",
-            ],
-        ).to_csv(target / "native_cells.csv", index=False)
-        pd.DataFrame(
-            [item for item in exclusions if item["id"] == row.id],
-            columns=["id", "source", "variable", "reason"],
-        ).to_csv(target / "exclusions.csv", index=False)
+        long["native_cells"].append(
+            pd.DataFrame(
+                [cell for cell in cells if cell["id"] == row.id],
+                columns=[
+                    "id",
+                    "source",
+                    "variable",
+                    "cell_x",
+                    "cell_y",
+                    "cell_crs",
+                    "data_source",
+                    "units_note",
+                ],
+            ).rename(columns={"id": "location_id"})
+        )
+    tables = root / "tables/locations"
+    tables.mkdir(parents=True, exist_ok=True)
+    for name, frames in long.items():
+        frames = [frame for frame in frames if len(frame.columns)]
+        out = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+        if "location_id" in out:
+            out = out[["location_id", *(c for c in out if c != "location_id")]]
+        out.to_csv(tables / f"{name}.csv", index=False)
     registry.to_csv(root / "locations.csv", index=False)
     pd.DataFrame(exclusions, columns=["id", "source", "variable", "reason"]).to_csv(
         engine / "exclusions.csv", index=False

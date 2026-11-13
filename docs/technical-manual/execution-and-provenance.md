@@ -195,9 +195,9 @@ Runs launched through `scripts/run_workflows.py` or `scripts/run_workflow.py` ke
 `_engine/execution/production.json` at the ensemble root. It names, for every current product file,
 the invocation whose bytes are present, with that invocation's outcome, configuration snapshot under
 `config/_engine/snapshots/analyze_projections/`, and `region.geojson` checksum.
-Copies of each contributing invocation's `wf2.log` and `wf2-benchmarks.md`/`.tsv` sit beside it in
-`_engine/execution/<invocation id>/`. They remain while a file is still attributed to that run. Central
-`logs/` folders and invocation records are never pruned by this.
+Each contributing invocation's record lists the paths of its `wf2.log` and `wf2-benchmarks.md`/`.tsv` in
+its `logs/` folder; they are referenced, not copied. `dev/scripts/prune_logs.py` never lists a log folder
+a product record refers to.
 
 - `state: complete` means the latest run that changed the product succeeded. `incomplete` means it
   failed after replacing some files: tables, figures or caches then come from different runs.

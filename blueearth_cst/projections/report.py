@@ -132,7 +132,7 @@ def disclaimer_block(provenance, thresholds=None, max_flagged_months=None) -> li
         lines.append(
             f"- **Unavailable windows** — {len(unavailable)} model/scenario/member/horizon "
             "combinations excluded from aligned change factors. Reasons and actual "
-            "coverage are listed below and retained in `summary/provenance.json`."
+            "coverage are listed below and retained in `_engine/provenance.json`."
         )
     lines.append("")
     return lines
@@ -214,7 +214,7 @@ def build(provenance, *, thresholds=None, max_flagged_months=None) -> str:
         "month.",
         "- `summary/composition.csv` — every **requested** combination and how it "
         "resolved.",
-        "- `summary/provenance.json` — sources, digests, windows and settings for "
+        "- `_engine/provenance.json` — sources, digests, windows and settings for "
         "this run.",
         "",
         "Aligned precipitation levels use **mm/day**; relative changes use **%**. "

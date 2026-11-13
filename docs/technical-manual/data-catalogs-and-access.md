@@ -33,6 +33,6 @@ may differ from the prepared daily archives expected by the toolbox. Historical 
 
 ## Catalogs created during preparation
 
-The toolbox writes `data/spatial/spatial_catalog.yml` alongside `spatial_maps.nc` and
-`location_registry.csv`. HydroMT-Wflow uses it to read the prepared basin data. To change those inputs,
+The toolbox writes `data/spatial/_engine/spatial_catalog.yml` for `spatial_maps.nc`,
+`location_registry.csv` and `geoms/`; its paths are relative to `_engine/`. HydroMT-Wflow uses it to read the prepared basin data. To change those inputs,
 update the project sources and repeat preparation; do not edit this generated catalog directly.

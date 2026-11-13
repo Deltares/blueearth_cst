@@ -91,9 +91,10 @@ def _spatial_maps(grids, geometries, record, publish, scenarios):
         draw_raster_matrix,
         draw_raster_panels,
     )
+    from blueearth_cst.projections.spatial_diagnostics import inventory_path
     from blueearth_cst.shared.map_frames import basin_frame, features, overlay_features
 
-    inventory = json.loads((grids / "inventory.json").read_text(encoding="utf-8"))
+    inventory = json.loads(inventory_path(grids).read_text(encoding="utf-8"))
     layers = {}
     for path in geometries:
         path = Path(path)
