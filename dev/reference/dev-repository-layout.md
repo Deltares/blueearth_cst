@@ -149,6 +149,12 @@ reader code and cannot substitute for this check.
 Outputs land under configured `project_dir`, outside the repository for production cases. Untracked
 `test_case/test_local` is the development exception.
 
+Every output path is declared in `blueearth_cst/shared/layout_paths.py`, including whether it is a
+user-facing product or an `_engine/` record. Add a declaration with each new output; `tests/test_layout_paths.py`
+and the recorded tree in `tests/data/layout5-project-tree.txt` fail on undeclared paths. A changed
+placement bumps `LAYOUT_VERSION` (stamped in `config/_engine/layout.json`; runners refuse other layouts).
+The reader-facing tree lives in `docs/guide/outputs.md`.
+
 Execution diagnostics share `logs/<YYYY-MM-DD_HH-MM-SSZ>__<scope>[__dry-run]/`: summary, console transcript,
 workflow logs and Markdown/TSV benchmarks. Child invocations share their parent's folder; each retry
 has fresh part namespaces. Only the latest dry-run folder per scope is kept. A bare `snakemake` WF0–WF2 run
