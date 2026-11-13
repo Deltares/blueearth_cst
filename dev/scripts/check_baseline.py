@@ -14,7 +14,7 @@ ran, and until 2026-09-17 those two cases reported `OK - 0 target(s)` and a
 traceback respectively.
 
 One target is special: the workflow-1 Wflow **discharge** series
-(`models/hydrology/wflow/historical/default/run/output.csv`).
+(`models/hydrology/wflow/historical/default/run/output_q.csv`).
 
 **Produce the run with `--notemp`.** Since 2026-08-10 rule 1.13 declares that
 file as `temp()`, so an ordinary run deletes it once rules 1.14 and 1.15 have
@@ -84,7 +84,9 @@ import yaml
 
 PROJECT_DIR_DEFAULT = "test_case/test_local"
 CLIM_PROJECT = "cmip6"
-EXPERIMENT_NAME = "experiment"
+#: The baseline config names its experiment `experiment`; the project allocates
+#: `experiment_01` on first creation.
+EXPERIMENT_NAME = "experiment_01"
 
 MANIFEST_PATH_DEFAULT = Path("dev/baseline/manifest.json")
 
@@ -253,7 +255,7 @@ TARGETS: list[tuple[str, str, str]] = [
     (
         "build_model",
         "png",
-        "{project_dir}/models/hydrology/wflow/forcing/plots/forcing_precip_map.png",
+        "{project_dir}/models/hydrology/wflow/historical/default/forcing/plots/forcing_precip_map.png",
     ),
     (
         "build_model",
@@ -265,7 +267,7 @@ TARGETS: list[tuple[str, str, str]] = [
     (
         "build_model",
         "discharge",
-        "{project_dir}/models/hydrology/wflow/historical/default/run/output.csv",
+        "{project_dir}/models/hydrology/wflow/historical/default/run/output_q.csv",
     ),
     # analyze_projections.smk -- aligned numeric summary tables.
     # S8-05: a SWAP, not a subtraction. The three wide
@@ -406,6 +408,8 @@ def resolve(template: str, project_dir: str) -> str:
 #: is to recognise a row written under the OLD length, so a pattern that only
 #: matched today's length would be blind to exactly the case it exists for.
 _SEGMENT_RE = "[0-9a-f]+"
+#: Layout 5 publishes a set under its name (D20), not its digest.
+_SET_NAME_RE = "[0-9A-Za-z_.-]+"
 
 
 def _posix(path: str) -> str:
@@ -451,7 +455,10 @@ def target_pattern(template: str, project_dir: str) -> re.Pattern[str]:
     return re.compile(
         "(?:"
         + "|".join(
-            re.escape(path).replace(re.escape(sentinel), _SEGMENT_RE)
+            re.escape(path).replace(
+                re.escape(sentinel),
+                _SET_NAME_RE if "/results/indicator_sets/" in path else _SEGMENT_RE,
+            )
             for path in patterns
         )
         + r")\Z"
@@ -518,6 +525,10 @@ def rekey_by_template(rec_targets: dict, project_dir: str) -> dict:
     return out
 
 
+_INDICATOR_REQUEST_SCHEMAS = tuple(f"indicator-request/{n}" for n in range(3, 6))
+_INDICATOR_SET_SCHEMAS = tuple(f"indicator-set/{n}" for n in range(3, 8))
+
+
 def resolve_indicator_set_dir(project_dir: str) -> str:
     """Resolve the baseline's sole indicator plan; never select by mtime or glob rank.
 
@@ -539,9 +550,9 @@ def resolve_indicator_set_dir(project_dir: str) -> str:
             "select a dedicated baseline fixture (legacy tables are not a successor baseline)"
         )
     plan = read_canonical_json(plans[0])
-    if plan.get("schema_version") not in ("indicator-request/3", "indicator-request/4"):
+    if plan.get("schema_version") not in _INDICATOR_REQUEST_SCHEMAS:
         raise BaselineFixtureError(
-            "baseline requires indicator-request/3 or /4; regenerate the legacy fixture and re-record the baseline"
+            "baseline requires indicator-request/3 to /5; regenerate the legacy fixture and re-record the baseline"
         )
     # The split-table layout retains the engine/results separation. Legacy
     # numeric-ID plans and mixed-table sets must be regenerated before recording.
@@ -566,9 +577,9 @@ def resolve_indicator_set_dir(project_dir: str) -> str:
     marker = read_canonical_json(
         experiment / "_engine/indicator_sets" / segment / "indicators.json"
     )
-    if marker.get("schema_version") not in ("indicator-set/3", "indicator-set/4"):
+    if marker.get("schema_version") not in _INDICATOR_SET_SCHEMAS:
         raise BaselineFixtureError(
-            "baseline requires indicator-set/3 or /4; regenerate the legacy fixture and re-record the baseline"
+            "baseline requires indicator-set/3 to /7; regenerate the legacy fixture and re-record the baseline"
         )
     if (
         marker.get("status") != "ready"
@@ -592,6 +603,20 @@ def resolve_indicator_set_dir(project_dir: str) -> str:
     if result_root not in roots:
         raise ValueError("baseline indicator result root differs from selected set")
     destination = experiment / result_root
+    if not destination.exists():
+        # Layout 5 stores each table once: published sets live only under
+        # results/indicator_sets/<name>/ (D20).
+        from blueearth_cst.experiment.indicator_artifacts import (
+            IndicatorTablesUnavailable,
+            published_root,
+        )
+
+        try:
+            published = published_root(experiment, identity)
+        except IndicatorTablesUnavailable:
+            published = None
+        if published is not None:
+            destination = experiment / published.relative_to(experiment.resolve())
     return destination.as_posix()
 
 
@@ -758,6 +783,19 @@ def compute_manifest(
 # ---------------------------------------------------------------------------
 
 
+def _primary_outlet_wflow_id(path: str) -> str | None:
+    """The `wflow_id` of the primary outlet (`wflow_1`), from the model crosswalk."""
+    for parent in Path(path).parents:
+        index = parent / "_engine" / "outlet_index.csv"
+        if (parent / "staticmaps.nc").is_file() and index.is_file():
+            outlets = pd.read_csv(index)
+            if "wflow_id" not in outlets.columns:
+                return None
+            primary = outlets.loc[outlets["compat_station_name"].eq("wflow_1")]
+            return str(int(primary.iloc[0]["wflow_id"])) if len(primary) == 1 else None
+    return None
+
+
 def read_discharge_series(path: str) -> tuple[list[str], np.ndarray, str]:
     """Parse a Wflow `output.csv` (or a stored reduced reference series).
 
@@ -775,11 +813,15 @@ def read_discharge_series(path: str) -> tuple[list[str], np.ndarray, str]:
         col = value_cols[0]
     else:
         q_cols = [c for c in value_cols if c == "Q" or str(c).startswith("Q_")]
-        if not q_cols:
+        outlet_id = None if q_cols else _primary_outlet_wflow_id(path)
+        if outlet_id is not None and outlet_id in value_cols:
+            # Retained response tables (`output_q.csv`) name columns by gauge.
+            col = outlet_id
+        elif not q_cols:
             raise ValueError(
                 f"{path}: cannot identify the discharge column among {value_cols}"
             )
-        if len(q_cols) == 1:
+        elif len(q_cols) == 1:
             col = q_cols[0]
         else:
             # The model root holds staticmaps.nc: two levels above run_default/

@@ -19,7 +19,8 @@ project file. For the external case example, this is `C:/cst-cases/runs/my-basin
 ├── data/
 │   ├── spatial/                         basin geometry and reporting locations
 │   └── climate/
-│       ├── historical/                  extracted climate and diagnostics
+│       ├── historical/                  extracted climate per dataset and their diagnostics
+│       │   └── source_comparison/       comparison of the climate datasets
 │       └── projections/
 │           └── <ensemble>/              projection products
 ├── models/
@@ -37,8 +38,12 @@ project file. For the external case example, this is `C:/cst-cases/runs/my-basin
 │               └── <set-id>/            indicator tables and definitions
 ├── logs/
 │   └── <timestamp>__<scope>/             summary, transcript and diagnostics
-└── config/                              copies of settings used for each attempt
+└── config/                              the settings each workflow ran with
 ```
+
+Folders named `_engine/` hold the toolbox's own records: hashes, markers, run settings and logs it
+needs to check and reuse work. Everything you read (tables, figures, settings copies, reports) sits
+outside them, and each file is stored once.
 
 Historical simulations live with their model. Each forcing recipe has
 `models/hydrology/wflow/historical/<recipe>/` (`default` for a single recipe) with its forcing, run and
@@ -47,8 +52,9 @@ change only when it is rerun with the same model settings: different settings be
 Stress-test simulations belong to their experiment. See
 [one model per folder](../technical-manual/workflow-build-model.md#model-versions).
 
-A new output directory records the layout it was written with in `config/_engine/layout.json`; a
-directory without it uses layout 1. The runners refuse a directory written with a different layout:
+A new output directory records the layout it was written with in `config/_engine/layout.json` (layout 5
+for this toolbox version); a directory without it uses layout 1. The runners refuse a directory written
+with a different layout:
 set `project.project_dir` to a new folder and rerun. Existing directories are not converted.
 
 Keep the complete output directory when archiving an assessment. Indicator CSVs alone do not preserve

@@ -40,15 +40,17 @@ from blueearth_cst.shared.snake_utils import (  # noqa: E402
 TESTDIR = dirname(realpath(__file__))
 SNAKEDIR = join(TESTDIR, "..")
 _FIXTURE = join(SNAKEDIR, "test_case", "test_local")
-_EXP = join(_FIXTURE, "experiments", "experiment")
+# The baseline config names its experiment `experiment`; the project allocates
+# `experiment_01` on first creation (as `dev/scripts/check_baseline.py` does).
+_EXP = join(_FIXTURE, "experiments", "experiment_01")
 
 # Fixture sub-roots, named after the Snakefile path variables they mirror so a
 # future tree move has ONE place to change here instead of a dozen literals.
 #
 #   _MODEL_DIR  <- basin_dir  = {project_dir}/models/hydrology/wflow
 #   _STORE_ROOT <- store_dir  = {project_dir}/data/climate/historical/<key>
-#   _WG_DIR     <- wg_dir     = {exp_dir}/climate/weathergenr
-#   _RUNS_DIR   <- runs_dir   = {exp_dir}/hydrology/wflow
+#   _RUNS_DIR   <- {exp_dir}/_engine (run settings, temp() forcing; layout 5)
+#   _RESULTS    <- {exp_dir}/simulations/<run>/output_<var>.csv (R17, layout 5)
 #
 # R9 P2 moved every one of these and this file was NOT re-pointed. The staleness
 # survived because the whole Layer-2 block is `skipif(not _fixture_present())`
@@ -60,8 +62,10 @@ _EXP = join(_FIXTURE, "experiments", "experiment")
 # derived and commented, is what makes the next move a one-line edit.
 _MODEL_DIR = join(_FIXTURE, "models", "hydrology", "wflow")
 _STORE_ROOT = join(_FIXTURE, "data", "climate", "historical")
-_WG_DIR = join(_EXP, "climate", "weathergenr")
-_RUNS_DIR = join(_EXP, "hydrology", "wflow")
+_RUNS_DIR = join(_EXP, "_engine")
+_RESULTS = join(_EXP, "simulations")
+# One forcing recipe folder per model (R16, layout 4); `default` for one recipe.
+_HISTORICAL = join(_MODEL_DIR, "historical", "default")
 _RUN_SETTINGS = join(_RUNS_DIR, "run_settings")
 # The generated climate catalog is PER MEMBER since 2026-08-18 -- rule 3.14
 # writes its own one-entry file beside the member's TOML, and the single
@@ -1027,7 +1031,7 @@ def test_hm1_integration():
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
 def test_hm2_integration():
-    path = join(_MODEL_DIR, "forcing", "inmaps_historical.nc")
+    path = join(_HISTORICAL, "forcing", "inmaps_historical.nc")
     with _open_ds(path) as ds:
         assert ic.validate_hm2(ds) == []
 
@@ -1039,7 +1043,7 @@ def test_hm3_integration():
     geoms = join(_MODEL_DIR, "staticgeoms")
     region = gpd.read_file(join(geoms, "region.geojson"))
     outlets = gpd.read_file(join(geoms, "outlets.geojson"))
-    outlet_index = pd.read_csv(join(geoms, "outlet_index.csv"))
+    outlet_index = pd.read_csv(join(_MODEL_DIR, "_engine", "outlet_index.csv"))
     assert ic.validate_hm3(region, outlets, outlet_index) == []
 
 
@@ -1061,10 +1065,7 @@ def test_hm5_integration_wf4():
     from pathlib import Path
 
     for run in _evaluated_runs():
-        assert (
-            ic.validate_hm5(pd.read_csv(Path(_RUNS_DIR) / "output" / f"{run}.csv"))
-            == []
-        )
+        assert ic.validate_hm5(pd.read_csv(Path(_RESULTS) / run / "output_q.csv")) == []
 
 
 @pytest.mark.skipif(not _fixture_present(), reason=_FIXTURE_ABSENT)
@@ -1080,7 +1081,7 @@ def test_hm5_integration_wf1():
     fixture still holding a pre-change `output.csv`; on a correct run it would
     have raised FileNotFoundError.
     """
-    wf1_csv = join(_MODEL_DIR, "run_default", "output.csv")
+    wf1_csv = join(_HISTORICAL, "run", "output.csv")
     if not os.path.exists(wf1_csv):
         pytest.skip(_TEMP_ABSENT)
     assert ic.validate_hm5(pd.read_csv(wf1_csv)) == []
@@ -1095,6 +1096,8 @@ def test_hm7_integration():
     """
     import json
 
+    from blueearth_cst.experiment.indicator_artifacts import stored_table
+
     root, _, _, scenarios = _successor_artifacts()
     markers = sorted((root / "_engine" / "indicator_sets").glob("*/indicators.json"))
     assert markers, "no indicator-set/3 marker under _engine/indicator_sets"
@@ -1107,11 +1110,13 @@ def test_hm7_integration():
         manifest = json.loads(marker.read_text(encoding="utf-8"))
         tables = {
             f"{entry['token']}_{entry['scope']}": pd.read_csv(
-                root / entry["file"]["path"], **read
+                stored_table(root, manifest, entry["file"]["path"]), **read
             )
             for entry in manifest["tables"]
         }
-        lookup = pd.read_csv(root / manifest["group_members"]["path"], **read)
+        lookup = pd.read_csv(
+            stored_table(root, manifest, manifest["group_members"]["path"]), **read
+        )
         assert (
             ic.validate_hm7_v2(
                 manifest,
@@ -1129,22 +1134,31 @@ def test_gauge_identity_integration():
     import tomllib
     from pathlib import Path
 
+    from blueearth_cst.experiment.indicator_artifacts import stored_table
     from blueearth_cst.experiment.indicator_plan import read_indicator_set
     from blueearth_cst.shared.native_locations import native_location_labels
 
     root, *_ = _successor_artifacts()
     # Find the q table through each ready indicator-set/2 marker, not by globbing
     # the results tree: `file.path` is relative to the experiment root.
+    # A published set's tables are stored once, under results/ (D20).
     tables = [
-        root / item["file"]["path"]
+        stored_table(root, manifest, item["file"]["path"])
         for marker in (root / "_engine/indicator_sets").glob("*/indicators.json")
-        for item in read_indicator_set(root, marker)["tables"]
+        for manifest in [read_indicator_set(root, marker)]
+        for item in manifest["tables"]
         if item["token"] == "q"
     ]
     assert tables, "no ready indicator set carries a q table"
-    for run in _evaluated_runs():
+    # The check reads Wflow's native `[output.csv]` header, which only the
+    # temp() native CSV carries; the retained output_q.csv names gauges by id.
+    runs = _evaluated_runs()
+    natives = {run: Path(_RUNS_DIR) / "wflow_runs" / f"{run}.csv" for run in runs}
+    if not any(path.exists() for path in natives.values()):
+        pytest.skip(_TEMP_ABSENT)
+    for run in runs:
         toml = Path(_RUN_SETTINGS) / f"{run}.toml"
-        output = Path(_RUNS_DIR) / "output" / f"{run}.csv"
+        output = natives[run]
         config = tomllib.loads(toml.read_text())
         frame = pd.read_csv(output)
         static = (
