@@ -2003,7 +2003,7 @@ osm_landareas_v20200109:
     crs: 4326
 rgi:
   data_type: GeoDataFrame
-  uri: hydrography/rgi/rgi.gpkg
+  uri: hydrography/rgi/rgi.fgb
   driver:
     name: pyogrio
   data_adapter:
@@ -2023,7 +2023,7 @@ rgi:
     crs: 4326
 rgi_v0.6:
   data_type: GeoDataFrame
-  uri: hydrography/rgi/rgi.gpkg
+  uri: hydrography/rgi/rgi.fgb
   driver:
     name: pyogrio
   data_adapter:
