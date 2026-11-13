@@ -557,3 +557,25 @@ def test_every_path_of_a_real_showcase_tree_is_declared():
     ]
     assert len(paths) > 1000
     assert not unmapped
+
+
+def test_every_path_of_a_layout_5_tree_is_declared():
+    """A fresh WF0-WF4 tree on the current layout (5) has no unmapped path
+    (t017 step 5; rule R14). The showcase tree above predates layout 5 and
+    passes through the legacy rows."""
+    lines = (
+        (Path(__file__).parent / "data" / "layout5-project-tree.txt")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
+    paths = [line for line in lines if line and not line.startswith("#")]
+    rules = std.build_project_tree_rules(
+        "experiment_rapid_01", "era5_20000101_20161231", CP
+    )
+    unmapped = [
+        rel
+        for rel, _, kind in std.classify_path_map(paths, rules)
+        if kind != "IDENTITY"
+    ]
+    assert len(paths) > 400
+    assert not unmapped

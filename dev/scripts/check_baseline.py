@@ -253,7 +253,7 @@ TARGETS: list[tuple[str, str, str]] = [
     (
         "build_model",
         "png",
-        "{project_dir}/models/hydrology/wflow/forcing/plots/forcing_precip_map.png",
+        "{project_dir}/models/hydrology/wflow/historical/default/forcing/plots/forcing_precip_map.png",
     ),
     (
         "build_model",
