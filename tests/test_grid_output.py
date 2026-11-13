@@ -309,17 +309,25 @@ def test_grid_inventory_binds_compact_responses_and_reads_without_raw_csv(
         )
         with native.toml_path.open("a", encoding="utf-8") as handle:
             handle.write(
-                f'\n[output.netcdf_grid]\npath="../output/{run}.nc"\ncompressionlevel=1\n'
+                # R17: the grid lives in simulations/<run>/, two levels above run_settings/.
+                f'\n[output.netcdf_grid]\npath="../../simulations/{run}/output_grid.nc"'
+                "\ncompressionlevel=1\n"
                 f'[output.netcdf_grid.variables]\n{STANDARD}="q"\n'
             )
-        shutil.copyfile(sample, native.csv_path.with_suffix(".nc"))
+        grid = experiment.root / f"simulations/{run}/output_grid.nc"
+        grid.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(sample, grid)
         _contract(native.toml_path, sample_dir / "staticmaps.nc")
-    first_grid = next(iter(runs.values())).csv_path.with_suffix(".nc")
+    first_grid = experiment.root / f"simulations/{next(iter(runs))}/output_grid.nc"
     with netCDF4.Dataset(first_grid, "r+") as ds:
         ds["q"][0, 0, 0] = float("nan")
     records = {
         run: publish_response_tables(
-            native, native.csv_path.with_suffix(""), variables=("gwr",)
+            native,
+            experiment.root / "simulations" / run,
+            variables=("gwr",),
+            record_path=experiment.root
+            / f"_engine/simulations/{run}/response_tables.json",
         )
         for run, native in runs.items()
     }
@@ -342,6 +350,6 @@ def test_grid_inventory_binds_compact_responses_and_reads_without_raw_csv(
         Path(str(native.toml_path) + ".grid.toml").unlink()
     (sample_dir / "staticmaps.nc").unlink()
     read_simulation_v2(experiment.root)
-    next(iter(runs.values())).csv_path.with_suffix(".nc").unlink()
+    first_grid.unlink()
     with pytest.raises(ValueError):
         read_simulation_v2(experiment.root)
