@@ -160,6 +160,9 @@ For new output projects, `config/<workflow>/` holds `run_record.yml`, captured f
 configuration archives. `SOURCES.md` lists the original source paths within each workflow folder.
 Immutable generations live in `config/_engine/snapshots/<workflow>/<record-sha256>/`;
 attempt history references those exact records, while unchanged captures reuse their creator generation.
+Each byte is stored once (R9): the current generation's snapshot holds `run_record.yml` and its
+sources stay in `config/<workflow>/`; a superseded generation's snapshot takes its sources.
+`configuration_archive.snapshot_source` resolves either.
 Shared execution inputs, archive locks and invocation history live in `config/_engine/`.
 Completed replacement backups and child launch contexts are transient. Existing cases can be inspected
 or migrated with `scripts/maintain_config_archives.py` (`--apply` opts into changes).

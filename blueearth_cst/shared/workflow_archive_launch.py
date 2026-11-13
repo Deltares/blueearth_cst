@@ -33,7 +33,6 @@ from blueearth_cst.shared.config_composition import (
 )
 from blueearth_cst.shared.config_paths import TOOLBOX_ROOT
 from blueearth_cst.shared.configuration_archive import (
-    archive_payloads,
     finish_archive_transaction,
     matching_archive,
     remove_launch_context,
@@ -519,8 +518,9 @@ def prepare_workflow(
         if prior is not None:
             from blueearth_cst.shared.workflow_config_snapshot import validate_archive
 
-            record = validate_archive(prior)
-            payloads = archive_payloads(prior, record)
+            # Same settings, so this capture's bytes are the generation's;
+            # publishing checks every one against the reused record.
+            record = validate_archive(prior, check_bytes=False)
         publish_archive(project_root, workflow, relative, record, payloads)
         finish_archive_transaction(project_root, workflow)
     write_config_readme(project_root)

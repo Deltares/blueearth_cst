@@ -27,9 +27,10 @@ records are not environment-variable dumps.
 `configuration` records source/effective/input digests, `run_record` and archive availability.
 Historical climate analysis, model building and projection analysis latest captures live in
 `config/<workflow>/run_record.yml` and `sources/`; retained configuration
-snapshots live in `config/_engine/snapshots/<workflow>/`. Scenario generation and hydrological
-simulation captures belong to their
-collection/experiment. Edit source YAML, never generated archives. Archives preserve exact source bytes,
+snapshots live in `config/_engine/snapshots/<workflow>/`. A snapshot of the current generation
+holds only its `run_record.yml`, because the readable copy holds its sources; a superseded
+generation's snapshot holds its sources, which are then their only copy. Scenario generation and
+hydrological simulation captures belong to their collection/experiment. Edit source YAML, never generated archives. Archives preserve exact source bytes,
 resolved locators and relevant input references; provenance does not mean all external datasets are copied.
 
 Generated execution YAML uses the current public climate keys, including

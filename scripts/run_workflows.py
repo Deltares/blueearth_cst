@@ -30,7 +30,6 @@ the child starts; sensitive argument values are redacted in records and output.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import importlib.metadata
 import json
 import math
@@ -66,9 +65,6 @@ from blueearth_cst.shared import (  # noqa: E402
     product_record,
 )
 from blueearth_cst.shared.command_display import sanitize_argv  # noqa: E402
-from blueearth_cst.shared.config_composition import (  # noqa: E402
-    capture_configuration_sources,
-)
 from blueearth_cst.shared.cross_workflow_leaves import (  # noqa: E402
     LEAF_PRODUCER,
     LEAVES,
@@ -2232,28 +2228,6 @@ def _bind_workflow_archive(
         archive_state="retained",
     )
     invocation_history.update(child_path, child)
-
-
-def _capture_legacy_wf3_attempt(
-    config_path: Path, project_dir: Path, invocation_id: str
-) -> str:
-    """Retain exact WF3 config source bytes before legacy Snakemake parsing."""
-    sources = capture_configuration_sources(
-        config_path,
-        "generate_scenarios",
-        ("project", "basin", "climate", "workflows.generate_scenarios"),
-    )
-    directory = (
-        project_dir / "config/_engine/invocations" / invocation_id / "config/sources"
-    )
-    for source in sources:
-        destination = directory / source.id / source.original_path.name
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        with destination.open("xb") as handle:
-            handle.write(source.data)
-            handle.flush()
-            os.fsync(handle.fileno())
-    return hashlib.sha256(sources[0].data).hexdigest()
 
 
 def _config_overrides(extra: list[str]) -> list[str]:

@@ -60,13 +60,23 @@ def _inside(project: Path, path: Path) -> Path:
     return resolved
 
 
-def retain_archive(project: Path, directory: Path) -> Path:
-    """Preserve the exact record and captured sources at an immutable address.
+def _record_only(directory: Path) -> bool:
+    return [path.name for path in directory.iterdir()] == ["run_record.yml"]
 
-    The caller owns the project execution lock. Existing run-record/2 bytes and
-    identities remain unchanged, including creator provenance in older projects.
+
+def retain_archive(project: Path, directory: Path, *, superseded: bool = False) -> Path:
+    """Retain a generation's record at an immutable address (rule R9).
+
+    The readable ``config/<workflow>/`` copy is the one copy of the current
+    generation, so its snapshot holds ``run_record.yml`` only. A ``superseded``
+    generation is leaving the readable copy: its snapshot takes the captured
+    sources, which are then their only copy. The caller owns the project
+    execution lock.
     """
     record = validate_archive(directory)
+    readable = (project / "config" / record["workflow"]).resolve()
+    if not superseded and directory.resolve() != readable:
+        raise ValueError("only the readable configuration copy is current")
     checksum = file_sha256(directory / "run_record.yml")
     destination = _inside(
         project, snapshot_root(project, record["workflow"]) / checksum
@@ -76,24 +86,45 @@ def retain_archive(project: Path, directory: Path) -> Path:
             directory / "run_record.yml"
         ).read_bytes():
             raise ValueError("immutable configuration snapshot differs")
-        validate_archive(destination)
-        return destination / "run_record.yml"
+        if _record_only(destination) != superseded:
+            validate_archive(destination, check_bytes=False)
+            return destination / "run_record.yml"
+    names = _archive_files(directory, record) if superseded else ["run_record.yml"]
     destination.parent.mkdir(parents=True, exist_ok=True)
     staging = destination.with_name(f".{checksum}.{uuid.uuid4().hex}.staged")
     try:
         # Copy only declared configuration bytes, not operational leftovers.
         staging.mkdir()
-        for name in _archive_files(directory, record):
+        for name in names:
             source = _inside(project, directory / name)
             target = _inside(project, staging / name)
             target.parent.mkdir(parents=True, exist_ok=True)
             _write_durable(target, source.read_bytes())
-        validate_archive(staging)
+        validate_archive(staging, check_bytes=superseded)
+        if destination.exists():
+            _remove_directory(project, destination)
         _replace(staging, destination)
     finally:
         if staging.exists():
             _remove_directory(project, staging)
     return destination / "run_record.yml"
+
+
+def snapshot_source(project: Path, directory: Path) -> Path:
+    """The directory holding a snapshot's captured bytes.
+
+    A record-only snapshot names the current generation, whose bytes are the
+    readable ``config/<workflow>/`` copy.
+    """
+    if not _record_only(directory):
+        return directory
+    readable = project / "config" / directory.parent.name
+    record = readable / "run_record.yml"
+    if not record.is_file() or file_sha256(record) != directory.name:
+        raise ValueError(
+            f"configuration bytes unavailable for snapshot {directory.name[:12]}"
+        )
+    return readable
 
 
 def matching_archive(project: Path, record: Mapping[str, Any]) -> Path | None:
@@ -103,18 +134,10 @@ def matching_archive(project: Path, record: Mapping[str, Any]) -> Path | None:
         for directory in sorted(root.iterdir()):
             if directory.name.startswith(".") or not directory.is_dir():
                 continue
-            previous = validate_archive(directory)
+            previous = validate_archive(directory, check_bytes=False)
             if same_configuration(previous, record):
                 return directory
     return None
-
-
-def archive_payloads(directory: Path, record: Mapping[str, Any]) -> dict[str, bytes]:
-    return {
-        name: (directory / name).read_bytes()
-        for name in _archive_files(directory, record)
-        if name != "run_record.yml"
-    }
 
 
 def _archive_files(directory: Path, record: Mapping[str, Any]) -> list[str]:
@@ -162,7 +185,7 @@ def finish_archive_transaction(project: Path, workflow: str) -> None:
     if previous.exists():
         if file_sha256(previous / "run_record.yml") != transaction["old_record_sha256"]:
             raise ValueError("previous configuration differs from transaction")
-        retain_archive(project, previous)
+        retain_archive(project, previous, superseded=True)
         _remove_directory(project, previous)
     journal.unlink()
 
@@ -280,7 +303,7 @@ def maintain_archives(project: Path) -> dict[str, Any]:
                     raise ValueError(
                         "previous configuration differs from completed transaction"
                     )
-                retain_archive(project, previous)
+                retain_archive(project, previous, superseded=True)
                 _remove_directory(project, previous)
             _inside(project, journal).unlink()
         write_config_readme(project)

@@ -13,6 +13,7 @@ from blueearth_cst.shared.config_paths import resolve_project_paths
 from blueearth_cst.shared.configuration_archive import (
     maintain_archives,
     maintenance_report,
+    snapshot_source,
 )
 from blueearth_cst.shared.workflow_config_snapshot import (
     CapturedSource,
@@ -119,7 +120,11 @@ def test_changed_capture_keeps_previous_attempt_reference_valid(case, monkeypatc
     assert first_record.is_relative_to(
         output / "config/_engine/snapshots/analyze_climate"
     )
-    original = _files(first_record.parent)
+    # The current generation's bytes live once, in the readable copy (R9).
+    assert [path.name for path in first_record.parent.iterdir()] == ["run_record.yml"]
+    assert snapshot_source(output, first_record.parent) == (
+        output / "config/analyze_climate"
+    )
     original_catalog = catalog.read_bytes()
 
     catalog.write_bytes(catalog.read_bytes() + b"\n# revised dependency\n")
@@ -133,14 +138,17 @@ def test_changed_capture_keeps_previous_attempt_reference_valid(case, monkeypatc
         second["configuration"]["run_record"], {"project_root": output}
     )
     assert second_record != first_record
-    assert _files(first_record.parent) == original
+    # Superseded: its snapshot now holds the only copy of its sources.
+    assert snapshot_source(output, first_record.parent) == first_record.parent
+    validate_archive(first_record.parent)
+    assert [path.name for path in second_record.parent.iterdir()] == ["run_record.yml"]
     assert (
         resolve_file_reference(first_reference, {"project_root": output})
         == first_record
     )
     assert (
-        validate_archive(first_record.parent)["archive_id"]
-        != validate_archive(second_record.parent)["archive_id"]
+        validate_archive(first_record.parent, check_bytes=False)["archive_id"]
+        != validate_archive(second_record.parent, check_bytes=False)["archive_id"]
     )
     assert not any(context.exists() for context in contexts)
 
@@ -154,7 +162,8 @@ def test_changed_capture_keeps_previous_attempt_reference_valid(case, monkeypatc
     assert len(paths) == 1
     restored = json.loads(paths[0].read_text(encoding="utf-8"))
     assert restored["configuration"]["run_record"] == first_reference
-    assert _files(first_record.parent) == original
+    assert [path.name for path in first_record.parent.iterdir()] == ["run_record.yml"]
+    validate_archive(second_record.parent)
     assert len(list(first_record.parent.parent.glob("*/run_record.yml"))) == 2
 
 
@@ -335,7 +344,7 @@ def test_maintenance_reports_without_writes_and_migrates_legacy_history(
         records
     )
     for path in snapshots.iterdir():
-        validate_archive(path)
+        validate_archive(snapshot_source(output, path))
     assert _files(execution) == inputs
     assert _files(output / "config/_engine/invocations") == history
     assert {path: path.read_bytes() for path in original_sources} == original_sources
@@ -451,12 +460,12 @@ def test_maintenance_retains_rerun_predecessor_closure(legacy_case):
             "*/run_record.yml"
         )
     ).parent
-    assert validate_archive(snapshot) == record
-    assert {name: (snapshot / name).read_bytes() for name in retained} == retained
+    # The current generation's closure lives once, in the readable copy (R9).
     current = rerun_root / "config/analyze_climate"
-    assert current.resolve().is_relative_to(rerun_root.resolve())
-    shutil.rmtree(current)
-    assert validate_archive(snapshot) == record
+    assert validate_archive(snapshot, check_bytes=False) == record
+    assert snapshot_source(rerun_root, snapshot) == current
+    assert validate_archive(current) == record
+    assert {name: (current / name).read_bytes() for name in retained} == retained
 
 
 @pytest.mark.parametrize("exit_code", [0, 7])
@@ -483,3 +492,11 @@ def test_cleanup_permission_failure_preserves_child_exit_code(
     assert contexts[0].exists()
     assert (contexts[0].parent / "project.yml").is_file()
     assert "cleanup deferred" in capsys.readouterr().err
+
+
+def test_a_record_only_snapshot_needs_its_readable_copy(tmp_path):
+    snapshot = tmp_path / "config/_engine/snapshots/analyze_climate" / ("a" * 64)
+    snapshot.mkdir(parents=True)
+    (snapshot / "run_record.yml").write_text("x\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="bytes unavailable"):
+        snapshot_source(tmp_path, snapshot)
