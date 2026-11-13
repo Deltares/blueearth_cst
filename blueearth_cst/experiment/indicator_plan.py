@@ -354,10 +354,17 @@ def current_indicator_requests(experiment_root, calculation_sets, anchor):
 
 def _provider_request(request, collection):
     """Freeze grouping meaning before naming the request or verifying its plan."""
-    if collection["schema_version"] == "delta-scenario-collection/1":
+    from blueearth_cst.experiment.collection_method import is_delta
+
+    if is_delta(collection):
+        windows = collection["schema_version"] == "delta-scenario-collection/2"
         return {
             **request,
-            "grouping": "delta-change/model/scenario; collection-fixed periods and method; separate controls",
+            "grouping": (
+                "delta-change/model/scenario/window; WF2 windows never pooled; separate controls"
+                if windows
+                else "delta-change/model/scenario; collection-fixed periods and method; separate controls"
+            ),
             "reference": "historical control; first native q location; monthly sum; first month on ties",
         }
     return request
@@ -552,20 +559,24 @@ def _v2_scenario_rows(records):
     expected = {"run_id", "evaluate", "type", "rlz", "st_id"}
     values = list(records)
     if values and values[0].get("type") == "delta-change":
-        from blueearth_cst.experiment.delta_scenarios import ROW_FIELDS
+        from blueearth_cst.experiment.delta_scenarios import (
+            ROW_FIELDS,
+            WINDOW_ROW_FIELDS,
+        )
 
-        if any(set(record) != set(ROW_FIELDS) for record in values):
+        fields = set(values[0])
+        if fields not in (set(ROW_FIELDS), set(WINDOW_ROW_FIELDS)) or any(
+            set(record) != fields for record in values
+        ):
             raise IndicatorPlanStale("delta scenario lookup has unknown fields")
+        keys = [k for k in WINDOW_ROW_FIELDS[3:] if k in fields]
         return tuple(
             ScenarioRow(
                 record["run_id"],
                 "",
                 record["evaluate"] == "true",
                 "delta-change",
-                tuple(
-                    (key, record[key])
-                    for key in ("role", "model", "scenario", "member")
-                ),
+                tuple((key, record[key]) for key in keys),
             )
             for record in values
         )
@@ -669,7 +680,9 @@ def build_indicator_plan(experiment_root, request, *, _observed_code=None):
         raise IndicatorPlanStale(
             "response source calendar differs from retained collection"
         )
-    delta = collection["schema_version"] == "delta-scenario-collection/1"
+    from blueearth_cst.experiment.collection_method import is_delta
+
+    delta = is_delta(collection)
     if delta:
         from blueearth_cst.experiment.delta_scenarios import delta_groups
 
@@ -702,7 +715,18 @@ def build_indicator_plan(experiment_root, request, *, _observed_code=None):
             "with include_unperturbed: true."
         )
     bundles = tuple(
-        DeclaredBundle("model/scenario" if delta else "st_id", key, members)
+        DeclaredBundle(
+            (
+                "model/scenario/window"
+                if delta
+                and collection["schema_version"] == "delta-scenario-collection/2"
+                else "model/scenario"
+            )
+            if delta
+            else "st_id",
+            key,
+            members,
+        )
         for key, members in groups.items()
     )
     unit_rows = indicator_unit_index(

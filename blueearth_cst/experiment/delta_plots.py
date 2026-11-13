@@ -12,6 +12,11 @@ from blueearth_cst.experiment.delta_scenarios import read_delta_collection
 from blueearth_cst.shared.workflow_config_snapshot import resolve_file_reference
 
 
+def _years(period: dict) -> str:
+    """Inclusive year span for captions, e.g. 2040–2069."""
+    return f"{period['start']}–{period['end']}"
+
+
 def _scenario_title(scenario: str) -> str:
     """Format standard ScenarioMIP IDs; preserve unrecognized identifiers."""
     match = re.fullmatch(r"ssp([1-5])([0-9]{2})", scenario)
@@ -25,8 +30,13 @@ def plot_delta_collection(
     model_root: Path | None = None,
     annual_matrix: bool = False,
     member_summary: str = "median",
+    _window: dict | None = None,
 ) -> list[Path]:
-    """Render every member without pooling across models or implying probabilities."""
+    """Render every member without pooling across models or implying probabilities.
+
+    WF2-sourced sets (delta-change/3) render each WF2 window separately into
+    ``output/<window_id>/``; windows are never pooled.
+    """
     import matplotlib
 
     matplotlib.use("Agg")
@@ -56,18 +66,40 @@ def plot_delta_collection(
 
     manifest = manifest.resolve(strict=True)
     marker = read_delta_collection(manifest)
-    project = manifest.parents[4]
+    from blueearth_cst.experiment.collection_index import marker_project_root
+    from blueearth_cst.experiment.delta_scenarios import collection_input_root
+
+    project = marker_project_root(manifest)
+    inputs = collection_input_root(project, marker)
     intent = read_canonical_json(
         resolve_file_reference(marker["intent"], {"project_root": project})
     )
-    data = project / marker["data_root"]
     output = output.resolve()
     if output.is_relative_to(project / "scenarios/_engine"):
         raise ValueError("plots must be outside immutable collection storage")
     settings = intent["settings"]
+    factors = intent["factors"]
+    run_ids = None
+    notes = ""
+    if settings["schema_version"] == "delta-change/3" and _window is None:
+        paths = []
+        for entry in settings["windows"]:
+            paths += plot_delta_collection(
+                manifest,
+                output / entry["window_id"],
+                model_root=model_root,
+                annual_matrix=annual_matrix,
+                member_summary=member_summary,
+                _window=entry,
+            )
+        return paths
+    if _window is not None:
+        settings, factors, run_ids, notes = _window_view(
+            project, marker, settings, _window
+        )
     if member_summary not in {"median", "mean"}:
         raise ValueError("member_summary must be median or mean")
-    with xr.open_dataset(data / settings["historical_path"]) as historical:
+    with xr.open_dataset(inputs / settings["historical_path"]) as historical:
         if annual_matrix:
             historical.load()
         active = historical.precip.notnull().any("time")
@@ -114,7 +146,7 @@ def plot_delta_collection(
         ("temp_offset_degC", "Temp.", "°C", 0),
         ("precip_ratio", "Precip.", "%", 1),
     ]
-    if intent["factors"] and "pet_ratio" in intent["factors"][0]:
+    if factors and "pet_ratio" in factors[0]:
         variables.append(("pet_ratio", "PET", "%", 1))
     output.mkdir(parents=True, exist_ok=True)
     with use_preset(CST_PRESET):
@@ -125,7 +157,7 @@ def plot_delta_collection(
                 ax = axes[0, column]
                 for number, index in enumerate(indices):
                     member = settings["members"][index]
-                    values = np.asarray(intent["factors"][index][key])
+                    values = np.asarray(factors[index][key])
                     if neutral:
                         values = 100 * (values - 1)
                     if values.ndim == 3:
@@ -162,14 +194,15 @@ def plot_delta_collection(
             plt.close(fig)
             paths.append(path)
             captions.append(
-                f"{path.name}: {', '.join(labels)}. Future {settings['future_period']}. "
+                f"{path.name}: {', '.join(labels)}. Future {_years(settings['future_period'])}. "
                 "Grid lines are unweighted active-cell means; shaded ranges are spatial minima/maxima, "
                 "not confidence intervals. Scalar lines show basin factors. Members are not pooled."
+                + notes
             )
         if settings.get("factor_layout") == "grid":
             for index, member in enumerate(settings["members"]):
                 for key, label, unit, neutral in variables:
-                    values = np.asarray(intent["factors"][index][key])
+                    values = np.asarray(factors[index][key])
                     if neutral:
                         values = 100 * (values - 1)
                     values = np.where(active[None, :, :], values, np.nan)
@@ -184,7 +217,7 @@ def plot_delta_collection(
                                     )
                                 )
                             )
-                            for item in intent["factors"]
+                            for item in factors
                         ),
                         1e-6,
                     )
@@ -223,9 +256,13 @@ def plot_delta_collection(
                     maximum = CST_PRESET.map_panels["max_panels_per_figure"]
                     for page, fig in enumerate(figures, 1):
                         suffix = f"_page_{page:02d}" if len(figures) > 1 else ""
+                        run = (
+                            run_ids[index]
+                            if run_ids
+                            else f"run_{index + 3:0{intent['run_group_id_width']}d}"
+                        )
                         path = output / (
-                            f"run_{index + 3:0{intent['run_group_id_width']}d}_{key.lower()}"
-                            f"_monthly_map_basin_ext{suffix}.png"
+                            f"{run}_{key.lower()}_monthly_map_basin_ext{suffix}.png"
                         )
                         export_figure(fig, path, dpi=200)
                         plt.close(fig)
@@ -234,13 +271,14 @@ def plot_delta_collection(
                         captions.append(
                             f"{path.name}: {member['model']} / {member['scenario']} / {member['member']}; "
                             f"{', '.join(page_months)}, left to right by row; page {page}/{len(figures)}; "
-                            f"future {settings['future_period']}. "
+                            f"future {_years(settings['future_period'])}. "
                             "Factors on the historical forcing grid; common scale across members and months. "
                             f"Compact {CST_PRESET.map_panels['columns']}-column panels retain basin outline, subbasin divides, rivers "
                             "and location markers; coordinate and location labels are omitted. "
                             "Basin zoom does not add subgrid climate information. "
                             f"Unavailable optional layers: {', '.join(missing_layers) or 'none'}. "
                             f"Empty geometry records omitted: {', '.join(empty_features) or 'none'}."
+                            + notes
                         )
         if annual_matrix:
             import csv
@@ -250,7 +288,7 @@ def plot_delta_collection(
                 summarize_members,
             )
 
-            fields = annual_member_maps(data, settings, historical)
+            fields = annual_member_maps(inputs, settings, historical)
             models = list(
                 dict.fromkeys(member["model"] for member in settings["members"])
             )
@@ -340,7 +378,7 @@ def plot_delta_collection(
                     plt.close(fig)
                     paths.append(path)
                     captions.append(
-                        f"{path.name}: Annual projection change, {settings['future_period']} versus {settings['reference_period']}; "
+                        f"{path.name}: Annual projection change, {_years(settings['future_period'])} versus {_years(settings['reference_period'])}; "
                         f"cell-wise {member_summary} of member changes; model rows and scenario columns; page {page}/{len(figures)}. "
                         "Temperature uses day-weighted annual means; precipitation/PET use mean annual totals, not averaged monthly percentages. "
                         "Each input uses its own calendar; annual changes are mapped before member aggregation. "
@@ -354,6 +392,7 @@ def plot_delta_collection(
                         + ". Members are equally weighted; no cross-model pooling or independence claim. "
                         "Grey panels labelled No members identify absent combinations. These are projection climatology changes, "
                         "not annual changes of the transformed historical simulation forcing."
+                        + notes
                     )
             with (output / "annual_change_summary.csv").open(
                 "w", encoding="utf-8", newline=""
@@ -377,3 +416,61 @@ def plot_delta_collection(
         "\n\n".join(captions) + "\n", encoding="utf-8"
     )
     return paths
+
+
+def _window_view(project: Path, marker: dict, settings: dict, window: dict):
+    """One WF2 window of a delta-change/3 set in the shape the plots draw.
+
+    Factors come from the set's per-run factor files; periods are the window's
+    WF2 year labels. The returned note names the window and any capped months.
+    """
+    import csv
+
+    folder = project / marker["data_root"]
+    window_id = window["window_id"]
+    with (folder / "factor_lookup.csv").open(encoding="utf-8", newline="") as handle:
+        rows = [row for row in csv.DictReader(handle) if row["window_id"] == window_id]
+    members = [m for m in settings["members"] if m["window_id"] == window_id]
+    factors = []
+    for row in rows:
+        with xr.open_dataset(folder / row["factor_file"]) as data:
+            factors.append(
+                {
+                    "temp_offset_degC": data["temp_offset"].values,
+                    "precip_ratio": data["precip_ratio"].values,
+                    **(
+                        {"pet_ratio": data["pet_ratio"].values}
+                        if "pet_ratio" in data
+                        else {}
+                    ),
+                }
+            )
+    reference, future = window["reference"]["labels"], window["future"]["labels"]
+    view = dict(
+        settings,
+        members=members,
+        factor_layout="grid",
+        reference_period={"start": reference[0], "end": reference[1]},
+        future_period={"start": future[0], "end": future[1]},
+    )
+    names = ", ".join(window["names"]) or window_id
+    note = f" WF2 window {window_id} ({names})."
+    capped = [
+        c for c in settings["wf2"].get("capped", []) if c["window_id"] == window_id
+    ]
+    if capped:
+        change = settings["dry_reference"]["max_change"]
+        note += (
+            f" Dry reference months capped at ±{change:.0%}: "
+            + "; ".join(
+                f"{c['model']}/{c['scenario']}/{c['member']} months "
+                + ", ".join(f"{m:02d}" for m in c["months"])
+                for c in capped
+            )
+            + "."
+        )
+    if window["unavailable"]:
+        note += (
+            f" {len(window['unavailable'])} WF2 member(s) unavailable for this window."
+        )
+    return view, factors, [row["run_id"] for row in rows], note

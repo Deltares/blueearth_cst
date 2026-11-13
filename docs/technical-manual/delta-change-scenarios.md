@@ -3,248 +3,159 @@ title: "Projection-conditioned delta-change scenarios"
 format: html
 ---
 
-Use the delta-change producer to apply monthly projection changes to an existing historical
-weather sequence, then simulate that collection with WF4. This optional projection-conditioned assessment
-is separate from the scenario-neutral stochastic stress test. It does not change WF3's stress grid,
-weather generator or projection-independent sampling.
+The GCM delta method applies monthly projection changes from WF2 to the case's historical weather, then
+simulates the result with WF4. It is the projection-conditioned ("top-down") alternative to the
+scenario-neutral stochastic stress test and is configured in the same WF3 file. Stochastic generation never
+depends on WF2; only this method reads WF2's gridded changes.
 
-## Inputs and configuration
+## Configure
 
-Start with the optional
-[delta configuration](../../config/templates/example-basin/project_config_delta.yml) in the basin starter.
-The standalone producer takes its own closed configuration. Schema-3 projects can instead put those
-same settings under `delta_change:` in `project_config_generate_scenarios.yml`, alongside
-`method: delta_change`. Keep `workflows.generate_scenarios.enabled: true` and its normal `config_path`
-in the project file, then use `scripts/run_workflows.py --config <case>/project_config.yml`.
-Stochastic and delta sections cannot appear together. Projection inputs must already be prepared;
-this selection does not acquire data or make projections a prerequisite of stochastic generation.
+In `project_config_generate_scenarios.yml`, replace `method: stochastic` and its `stochastic:` block with:
 
-Generate first with simulation disabled, then copy the reported manifest into the simulation configuration.
-When both generation and simulation are enabled, an explicit existing collection is required before any
-producer runs. The runner reports that selection separately; generation never replaces it. A generation
-failure stops the invocation before simulation. The simulation reservation retains the selected collection;
-the independent delta operation records its own configuration and input hashes in invocation history.
+```yaml
+method: delta_change
+delta_change:
+  schema_version: delta-change/3
+  projections:
+    ensemble: cmip6               # the analyze_projections ensemble
+    future_windows: [mid-century] # WF2 horizon names; default: every WF2 window
+```
 
-Delta generation accepts the runner's `--dry-run` (`-n` or `--dryrun`) preview. It reads inputs and calculates
-factors to report the exact collection path, but publishes no collection. Other forwarded engine options,
-including `--unlock`, and `--rebuild` are refused. Complete identical collections are verified and reused.
-Incomplete output directories are reported for inspection; they are never automatically deleted or resumed.
+The basin starter carries this block, commented, at the end of its generation file. Everything else is
+derived from the case:
 
-Standalone and integrated calls share the publisher and project execution lock. Equivalent settings and
-inputs produce the same identity at the same code/environment revision. Identities include producer code,
-so software changes can require a new collection; retained collections remain readable.
-All listed settings are required; unknown settings are refused. Relative input paths resolve beside this YAML.
-The initial profile supports `source_like: era5` only and requires the same selected source in WF4.
+| Derived | From |
+|---|---|
+| Members, windows, monthly changes | WF2 `analysis/gridded_changes/` (inventory schema ≥ 2) and `_engine/analysis_record.json` |
+| Historical record | the case's climate-store extract (`climate` source, window and recipe), as for stochastic generation |
+| Historical period | WF2's effective reference dates, including non-January water years |
+| Units | supplied by the toolbox for supported sources (ERA5); extraction labels are not trusted |
+| Run IDs | one run per member and window after the historical and neutral controls; capacity = runs + 2 |
 
-Supply a georeferenced historical NetCDF with daily time coordinates and `temp`, `temp_min`, `temp_max`
-and `precip`. Retain pressure and radiation required by the selected WF4 preparation. Supply one pair of
-monthly basin-scalar projection NetCDFs per explicitly listed model/scenario/member. Projection variables
-are `temp` and `precip`, with one ordered sample per requested year and month. Singleton model/member
-dimensions are allowed; unresolved spatial grids or multiple members in one variable are refused.
+Optional settings:
 
-`reference_period` and `future_period` are inclusive projection years, common to all members in a collection.
-They do not replace the historical timestamps. The template's 30-year windows are examples; the selected
-files must cover every month of those periods. Missing months, duplicates, nonfinite samples, negative
-precipitation and nonpositive reference monthly precipitation are errors. Temperature units must match
-between projection files and be K or degrees Celsius; precipitation units must be explicit and match.
-New collections accept projection precipitation in `mm/day` or `mm/month`. Reference monthly means below
-the shared WF2 precipitation threshold (currently 0.1 mm/day) are refused, with affected months reported.
-For this check, monthly totals are divided by each sample's calendar-specific number of days before
-averaging. Equality with the threshold is accepted. Factors are never clipped or silently substituted.
-`simulation_window` selects inclusive historical years for WF4, using its existing January 1 through
-December 31 midnight convention. Historical forcing must cover that interval. This selection does not
-perform or exclude a separate spin-up simulation.
+| Key | Meaning |
+|---|---|
+| `name` | Set folder name. Default `delta-<ensemble>-<window names>`. Never part of identity. |
+| `dry_reference` | `{policy: refuse}` (default) or `{policy: cap, max_change: <fraction>}`; see below. |
+| `pet` | `{mode: projection_ratio}`: scale PET by WF2's PET ratio; see below. |
+| `unit_id_capacity` | Advanced. At least runs + 2; changes run-ID width and identity. |
+| `historical_override` | Advanced. `period: {start, end}` replaces the WF2 reference years (reported as a mismatch). `path` with `source`, `units` and `units_note` replaces the historical file with a supported source; `units` must list every variable with that source's effective units. |
 
-For a shared historical warm start, prepare one historical state before the evaluation interval. Set
-`model.cold_start__flag = false` and `state.path_input` in the source model's `wflow_sbm.toml`, retaining
-its `state.variables` mapping. WF4 preserves that chosen path when writing each run configuration and
-refuses a missing warm-state file or mapping. The model fingerprint covers the selected state bytes.
-Use a path inside the model root; if `dir_input` is set, use an absolute state path inside that root so
-the current fingerprint and runtime resolve the same file. Cold-start defaults remain unchanged.
-
-Without a configured warm state, WF4's default `initialization` starts runs from WF1's historical end
-state instead; see [initial conditions](hydrological-simulation.md#initial-conditions-and-warm-up).
-Either way, each run also simulates `warmup_years` (default 1) of its own forcing before the evaluation
-interval, discarded from responses; set `warmup_years: 0` to reproduce runs prepared before this default.
-
-Set `simulation_window` to the evaluation years only, with the shared state's warm-up performed
-separately. All members and independent horizons then start from the same state; no future run supplies
-another future run's initialization. Match the state epoch to the configured simulation start, remembering
-Wflow uses the first forcing timestamp as the initial state time and begins output one timestep later.
-The presence of a state file does not establish sufficient spin-up: compare storage and responses under
-alternative warm-up lengths before treating initialization as qualified.
-
-`reader.metadata.cst_unit_interpretation` declares the historical values' **effective physical units**.
-Copy the evidenced binding from the historical extraction/preparation provenance, or establish an equivalent
-binding for supplied data. Its variables must cover every data variable except `spatial_ref` exactly once.
-The template shows the toolbox's extracted ERA5-style variable set; it is not permission to reinterpret
-arbitrary raw files. Some historical files retain original unit labels after extraction converted values.
-Do not apply those conversions a second time. This producer makes no unit conversion.
-Historical effective units must be `degC` for all three temperature variables, `mm/day` for precipitation,
-`hPa` for pressure and `W/m2` for radiation. Other declarations for those variables are refused because
-WF4's extracted-ERA5 reader expects this binding. Projection temperature inputs may still use K or
-degrees Celsius.
-
-`unit_id_capacity` fixes run/group ID width and must accommodate all projection members plus two controls.
-For example, 1000 gives `run_0001`. Changing capacity changes collection identity. Member ordering is
-explicit and retained; duplicate model/scenario/member identities are refused.
+Unknown keys are refused. `analyze_projections` must use the same `ensemble`. In the owned runner WF2
+runs before WF3; with WF2 disabled its products must already exist. A missing historical extract is
+admitted when WF0 or WF1 runs earlier in the same invocation, and refused otherwise with the expected path.
 
 ## Generate and simulate
 
-From the toolbox environment:
+```powershell
+python scripts/run_workflows.py --config <case>/project_config.yml -- --dry-run
+python scripts/run_workflows.py --config <case>/project_config.yml
+```
+
+A dry run computes the factors and reports the set it would publish, or reports it as pending when WF2 or
+the historical extract are produced by the same invocation. Delta generation accepts only the dry-run
+flags after `--`; other forwarded options and `--rebuild` are refused. Run an upstream workflow alone when
+it needs one, for example `-- --forcerun prepare_projection_analysis` to republish older WF2 gridded
+changes (inventory schema 1).
+
+WF4 finds the set from the current generation settings, as it does for stochastic sets; a set produced in
+the same invocation is bound after WF3 publishes it. A missing or stale set stops with "run scenario
+generation". To pin a set explicitly, use `scenario_collection: {name: <set or alias>}` or
+`{id: <first 12 hex characters>}` in the simulation file (quote all-digit ids). `manifest_path` is
+deprecated. WF4 checks that its climate source and named historical forcing match the set's.
+
+WF4 owns PET preparation, initialization, simulation and indicators. Without `pet`, WF4 recomputes PET from
+the adjusted temperature with unchanged radiation and pressure. Each run simulates the set's historical
+period, preceded by WF4's usual warm-up; see
+[initial conditions](hydrological-simulation.md#initial-conditions-and-warm-up). A cold-start run is not
+evidence of adequate spin-up. Both controls are included by default; `include_unperturbed: false`
+simulates projection runs only.
+
+## Transformations
+
+For calendar month *m* and each historical grid cell, WF2's monthly kernel supplies the temperature offset
+(future minus reference mean) and the precipitation ratio (future divided by reference mean); both are
+mapped to the historical forcing grid by HydroMT nearest neighbour. The offset is added to mean, minimum
+and maximum temperature; the ratio multiplies precipitation. Outside the active historical domain the
+factors are neutral. Dates, leap days, event order and missing-value masks are preserved; the method adds
+no subgrid climate information, never changes rain-day frequency and never creates rain on dry days.
+
+**Dry reference months.** WF2 withholds the ratio where the reference monthly mean is below its
+`min_denominator`. With `policy: refuse` (default) generation stops, naming member, window and months.
+With `policy: cap`, the ratio becomes future / reference limited to `1 ± max_change`; a zero reference or a
+missing future mean is still refused. Capped members and months are recorded in the set and in plot
+captions; the policy and threshold are part of identity.
+
+**PET.** With `pet: {mode: projection_ratio}`, daily PET is computed on the historical source grid with the
+case's PET formula (De Bruin or Makkink, HydroMT) from mean-sea-level pressure without elevation correction,
+then multiplied by WF2's monthly PET ratio. WF2's `variables.pet.method` must equal the case's formula.
+Members without a WF2 PET ratio are excluded and reported per window. Every run in the set, controls
+included, uses this PET, which WF4 takes as provided PET instead of recomputing it. Because it skips the
+orographic temperature correction of WF4's model-grid PET, the set's historical control can differ slightly
+from WF1's historical PET; differences between runs carry the WF2 PET signal only. Offline PET formulas
+differ in how strongly they respond to warming; treat the formula choice as part of the scenario.
+
+## Results and interpretation
+
+Each run keeps its model, scenario, member and `window_id` in `scenario_run_lookup.csv`. Members are grouped
+only within one model, scenario and window; windows and scenarios are never pooled, and both controls form
+their own groups. `group_metadata.csv` uses `scenario_key` (role, model, scenario, window) instead of the
+stochastic `st_id`; stochastic response-surface plots do not accept it.
+
+Return levels fitted to pooled member-local annual blocks remain conditional pooled calculations:
+transformed members share the historical sequence and add no independent years. Model spread, member spread
+and stochastic weather variability are distinct; the method supplies no probabilities or cross-model
+reduction. Unchanged radiation and pressure (without `pet`) and the historical event sequence limit
+interpretation even when software and neutral-control checks pass.
+
+## Set layout and retention
+
+Each set lives in `scenarios/<name>/` and is listed in `scenarios/collections.csv`:
+
+| Path | Content |
+|---|---|
+| `series/run_*.nc` | Scenario forcing, self-contained |
+| `delta/factors/<run_id>.nc` | Monthly offsets and ratios (and PET ratios) on the historical grid |
+| `factor_lookup.csv`, `scenario_run_lookup.csv` | Run ↔ factor file, member and window |
+| `config/` | Copies of the authored project and generation YAML (display only) |
+| `_engine/` | Marker `delta-scenario-collection/2`, intent and producer snapshot |
+
+The climate-store extract and WF2 grids are referenced in place by path and hash; a historical override
+file outside the project is copied once into `scenarios/_engine/generation_inputs/`. Identity covers the
+resolved settings (without `name`), input hashes, factor values, producer code and numerical package
+versions. An identical rerun reuses the set; a renamed rerun adds an alias; new content under a used name
+gets `-2`, `-3`. Reading a set checks its factor files and series, never the referenced inputs, so a rebuilt
+climate store leaves it readable. Folders without a ready marker are listed as incomplete and never adopted
+or removed automatically.
+
+## Plots
 
 ```powershell
-python scripts/generate_delta_scenarios.py --config <case>/project_config_delta.yml --project-dir <run-root>
+python scripts/plot_delta_scenarios.py --manifest <set>/_engine/collection.json --output-dir <case>/plots/delta
 ```
 
-The command prints the ready collection manifest. Put that path in the existing WF4 configuration:
+Each WF2 window renders into `<output>/<window_id>/`: monthly member comparisons per model and scenario
+(grid lines are unweighted active-cell means; shaded ranges are spatial minima/maxima, not confidence
+intervals) and monthly basin-map panels per run and variable on one colour scale, using the
+[shared spatial-panel preset](../../blueearth_cst/plotting/docs/cst-style.md#spatial-map-panels).
+`figure_captions.md` names the window, capped months and unavailable members. Basin geometry comes from
+`<project>/models/hydrology/wflow/staticgeoms` (or `--model-root`). `--annual-matrix` adds WF2's annual
+changes as a model × scenario map matrix (`--member-summary median|mean`); cells with withheld dry-month
+ratios cannot be mapped there.
 
-```yaml
-scenario_collection:
-  manifest_path: <run-root>/scenarios/_engine/collections/<identity>/collection.json
-```
+## Migrating from delta-change/1 and /2
 
-Keep the project's model, selected historical source and WF4 preparation consistent with the supplied
-forcing interpretation. Then use the existing runner:
+Versions 1 and 2 (explicit historical and projection files, `reader`, `simulation_window`) are read-only:
+their retained collections under `scenarios/_engine/collections/` stay readable and selectable by
+`scenario_collection: {name: retained-<id>}`, `{id: ...}` or `manifest_path`, but new generation refuses
+them, and `scripts/generate_delta_scenarios.py` is retired. To regenerate:
 
-```powershell
-python scripts/simulate_system.py --config <case>/project_config.yml --dry-run
-python scripts/simulate_system.py --config <case>/project_config.yml --cores 2
-```
+1. Run `analyze_projections` for the ensemble and horizons you used as projection files.
+2. Replace the settings with the `delta-change/3` block above. `historical_path`, `source_like`, `reader`,
+   `reference_period`, `future_period`, `members` and `factor_layout` are removed; `simulation_window`
+   becomes WF2's reference period (or `historical_override.period`).
+3. Generate through the runner. Periods and members now follow WF2, so the new set differs from the old one.
 
-WF4 owns PET preparation, initialization, simulation and indicator selection. The exercised path uses
-De Bruin PET recomputed from adjusted temperature and historical radiation/pressure. No new PET algorithm,
-spin-up exclusion or state chaining is supplied by the delta producer. Choose and qualify initialization
-and evaluation periods for the intended assessment; a cold-start execution is not evidence of adequacy.
-
-The producer always includes historical and neutral-factor controls. WF4's default includes both.
-`include_unperturbed: false` selects only projection runs and excludes both controls; indicators requiring
-a historical reference then require a new experiment including that control.
-
-## Transformations and results
-
-For calendar month *m*, the temperature offset is the future monthly mean minus the reference monthly mean.
-The precipitation ratio is the future monthly mean divided by the reference monthly mean. Monthly samples
-receive equal weight within each month. The offset is added to historical mean/minimum/maximum temperature;
-the ratio multiplies historical precipitation. The same monthly factors apply to every historical grid cell.
-All other variables, historical dates, leap days, event order and missing-value masks are preserved.
-
-Per-member runs retain their model, scenario and member identities in `scenario_run_lookup.csv`.
-Members are bundled only within the same model/scenario and collection-wide periods/method. Historical and
-neutral controls each have separate bundles, including when the projection bundle has only one member.
-Indicator exports retain per-run values and existing bundle reductions. Delta `group_metadata.csv` uses
-`scenario_key` (a JSON array of role, model and scenario) instead of stochastic `st_id`; `is_reference`
-identifies the historical control. Stochastic response-surface plotting does not accept this metadata.
-
-The existing indicator declarations distinguish equal-weight member reductions from return levels fitted
-to pooled member-local annual blocks. The latter remains a conditional pooled calculation: transformed
-members share the historical sequence and do not supply independent additional years. Do not use member
-count to claim a longer observed record or reduced uncertainty. Model spread, member spread and stochastic
-weather variability are distinct quantities; no probabilities or cross-model ensemble reduction are supplied.
-
-Monthly scaling does not independently prescribe future event sequencing or wet-day frequency. Threshold
-crossings can change under scaling and rounding. Unchanged radiation/pressure and the historical event
-sequence limit interpretation even when software and neutral-equivalence checks pass.
-
-## Retention and recovery
-
-Collections use the dedicated `delta-scenario-collection/1` profile. Existing stochastic collections retain
-their profile and validation; experimental pilot collections are not converted in place.
-The engine directory contains the frozen intent and ready marker. Its matching data directory contains
-input snapshots, the producer source snapshot, scenario lookup and generated NetCDFs. The intent retains
-full-precision monthly factors, resolved configuration, source hashes and numerical package versions.
-New intents also retain the precipitation admission threshold and units. Older version-1 intents remain
-readable under their original positive-denominator policy; reading them does not retroactively qualify
-their dry-month factors. Regeneration applies the current policy and creates a new collection identity.
-WF4 retains its own simulation and indicator provenance through the normal execution path.
-
-### Optional projection-derived PET
-
-With version 2, add the following optional mapping to use supplied PET change factors:
-
-```yaml
-pet:
-  mode: projection_ratio
-  method: makkink
-```
-
-Omitting `pet` keeps the existing De Bruin recomputation. The method string must match the `pet_method`
-attribute on the `pet` variable in historical, reference and future NetCDFs. It identifies the upstream
-calculation; the delta producer does not calculate PET from projection meteorology. Retain that calculation's
-input and method provenance. Historical PET must have evidenced effective units `mm/day` in `reader`;
-projection units must match and be `mm/day` or `mm/month`. Reference monthly PET must be strictly positive.
-Missing PET, inconsistent methods/units, negative values and nonfinite mapped factors are errors.
-
-Each monthly PET ratio multiplies historical PET once. The historical and neutral controls preserve that
-baseline. WF4 prepares temperature with `skip_pet=True` and uses HydroMT's `setup_pet_forcing` for supplied
-PET, so it does not additionally recompute PET from adjusted temperature. The preparation identity records
-the provided-PET binding and reader, and the collection identity retains PET factors and method provenance.
-
-For sensitivity comparisons, hold the model, shared initial state, evaluation interval, projection member
-and temperature/precipitation inputs fixed. Report baseline PET differences when the supplied method differs
-from the default De Bruin method: that comparison includes a method change, not only future meteorology.
-PET calculated from monthly mean meteorology is an approximation to monthly mean PET because the formula
-is nonlinear. Treat pressure/elevation choices and missing projection-member coverage explicitly.
-
-### Gridded factors and member diagnostics
-
-Use `schema_version: delta-change/2` with the required `factor_layout: grid` to retain spatial variation.
-Alternatively, `factor_layout: basin_scalar` uses the existing scalar calculation. Version-1 configurations
-remain scalar and do not accept this field. The other configuration fields have the same meanings.
-
-Gridded reference and future files must have matching grids and explicit matching CRS, with temperature
-and precipitation on monthly rasters. Historical forcing must have explicit CRS and `latitude` and
-`longitude` coordinates. Monthly offsets and ratios are calculated on the projection grid, then mapped
-to the historical forcing grid using HydroMT nearest-neighbour reprojection. Missing coverage and dry
-reference cells in the active historical domain are errors. Outside that domain the factors are neutral
-and historical missing values remain missing. This method does not add subgrid climate information.
-The intent retains the applied arrays in month/latitude/longitude order, alongside their source inputs.
-
-Plot a completed scalar or gridded collection with:
-
-```powershell
-python scripts/plot_delta_scenarios.py --manifest <collection.json> --output-dir <case>/plots/delta
-```
-
-The command validates the collection and writes monthly member comparisons, compact monthly basin-map panels
-for each gridded member and variable, and `figure_captions.md`. Members are grouped by model and scenario
-without pooling. Grid comparison lines are unweighted active-cell means; shaded spatial ranges are not
-confidence intervals. Maps share each variable's colour scale across members and months, and use the
-standard climate-map renderer with basin boundaries, subbasin divides, rivers and location markers.
-Each member/variable figure places January–December using the
-[shared spatial-panel preset](../../blueearth_cst/plotting/docs/cst-style.md#spatial-map-panels), by default
-four columns and three rows, compact overlays and one bottom-aligned colourbar. Layout and mark proportions
-come from `config/plotting/style.yml` → `maps.panels`, not delta-specific settings.
-`max_panels_per_figure` defaults to 12. Lower limits split monthly sets into numbered `_page_01`,
-`_page_02`, … PNGs; every page appears in the caption inventory with its included months.
-Geometry comes from `<project>/models/hydrology/wflow/staticgeoms`; use
-`--model-root <wflow-model>` for a different model location. Basin geometry with an explicit CRS is required
-for gridded plots. Missing optional subbasin, river or location layers are reported in captions. The basin
-viewport does not interpolate or refine the climate factors. Existing old grid-panel files are not deleted;
-`figure_captions.md` lists the current exports.
-Colour classes and ticks use evenly spaced whole numbers, with symmetric limits rounded outward to cover
-all members and months for each variable. Display rounding does not alter the retained factors.
-
-Add `--annual-matrix` for an annual-change comparison with models on rows and scenarios on columns.
-`--member-summary median` (default) takes the cell-wise median of the individual member changes;
-`--member-summary mean` uses an equal-member arithmetic mean. Paired member counts appear in captions and
-the CSV, leaving maps free of count annotations. Scenario column headings use labels such as `SSP2-4.5`
-and sit directly above the maps, without reserving empty per-panel heading space.
-Missing model/scenario combinations remain labelled unavailable tiles, not interpolated values. Matrix
-pages retain row/column meanings and obey the shared panel cap; `annual_change_summary.csv` retains the
-displayed values, units, member counts and summary method.
-
-These diagnostics use the retained reference/future projection inputs: day-weighted annual mean temperature
-and mean annual precipitation/PET totals. Compute each year's value using its own calendar, average years,
-then calculate the paired temperature difference or percentage change. Do not average monthly percentage
-changes. Map each member's annual change to the historical grid before summarizing members. Missing months
-or active-cell coverage are errors. Different calendars can contribute to annual-total differences.
-These are projection-climatology changes, not annual changes of the transformed historical forcing.
-Basin-scalar inputs produce spatially uniform tiles and are labelled accordingly; PET appears only when
-the retained collection contains projection PET. Median aggregation reduces sensitivity to extreme members
-but does not imply member independence, model skill or equal representation across models.
-
-Identity includes resolved settings, input bytes, producer revision and environment. A repeated identical
-completed request verifies retained artifacts before reuse. Changed inputs produce a new identity. A partial
-directory without a ready marker is refused; inspect and preserve it before explicitly removing task-owned
-incomplete products or choosing a fresh project root. Corrupt retained bytes are errors, never overwritten.
+Unreleased `delta-change/3` sets written with `projections.window_id` before this layout must be
+regenerated.

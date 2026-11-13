@@ -68,7 +68,8 @@ def prepare_spatial_changes(
         for k, v in variable_spec.items()
     }
     inventory = {
-        "schema_version": 1,
+        # 2: relative variables add <name>_monthly_reference/_future means.
+        "schema_version": 2,
         "members": [],
         "unavailable": [],
         "methods": {
@@ -186,6 +187,24 @@ def prepare_spatial_changes(
                 if spec[name].change == "relative":
                     result[f"{name}_monthly_ratio"] = (
                         1 + result[f"{name}_monthly"] / 100
+                    )
+                    # Monthly reference/future means let consumers (the delta
+                    # producer) report and treat dry reference cells; the ratio
+                    # above stays NaN where the reference is below threshold.
+                    for suffix, label in (
+                        ("reference", "reference"),
+                        ("level", "future"),
+                    ):
+                        level = monthly[f"{name}{COMPANION_SEP}{suffix}"].isel(
+                            stats=0, scenario=0, drop=True
+                        )
+                        result[f"{name}_monthly_{label}"] = level.where(valid)
+                        result[f"{name}_monthly_{label}"].attrs["units"] = spec[
+                            name
+                        ].units
+                    threshold = (min_reference or {}).get(name)
+                    result[f"{name}_monthly_ratio"].attrs["min_reference"] = (
+                        "none" if threshold is None else float(threshold)
                     )
             result.attrs.update(
                 **identity,

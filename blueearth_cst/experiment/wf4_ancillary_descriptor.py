@@ -486,7 +486,9 @@ def resolve_wf4_preparation(
         from blueearth_cst.experiment.scenario_collection_v2 import read_collection_v2
 
         collection = read_collection_v2(collection_path)
-        if collection["schema_version"] == "delta-scenario-collection/1":
+        from blueearth_cst.experiment.collection_method import is_delta
+
+        if is_delta(collection):
             intent = read_canonical_json(
                 resolve_file_reference(collection["intent"], {"project_root": project})
             )

@@ -104,8 +104,9 @@ from blueearth_cst.shared.workflow_config_snapshot import (  # noqa: E402
 # Fixed order: climate -> model -> projections -> generation -> simulation.
 # WF0 is optional and supplies shared region and climate inputs. Generation and
 # model construction are independent prerequisites of simulation; projections
-# remain a plausibility overlay and do not drive generation. Consumer preflights
-# run after the preceding enabled producers.
+# remain a plausibility overlay for stochastic generation. Only the GCM delta
+# method (delta-change/3) reads WF2's gridded changes, so WF2 precedes it.
+# Consumer preflights run after the preceding enabled producers.
 # Each workflow maps to its Snakefile and preserved execution flags below;
 # only analyze_projections uses --keep-going.
 WORKFLOW_ORDER = (
@@ -1485,7 +1486,21 @@ def _run_owned(
     ):
         from blueearth_cst.experiment.delta_generation import capture_delta
 
-        delta_operation = capture_delta(Path(config_path), extra)
+        # The GCM delta method may read WF2 products; WF2 runs first when enabled.
+        wf2_ensemble = (
+            load_composed_config(config_path, entry="analyze_projections")["workflows"][
+                "analyze_projections"
+            ].get("ensemble")
+            if flags["analyze_projections"]
+            else None
+        )
+        delta_operation = capture_delta(
+            Path(config_path),
+            extra,
+            project_dir=project_dir,
+            wf2_ensemble=wf2_ensemble,
+            historical_producer=flags["analyze_climate"] or flags["build_model"],
+        )
         if flags["simulate_system"]:
             from blueearth_cst.experiment.collection_resolution import (
                 resolve_explicit_collection_v2,
@@ -1493,16 +1508,24 @@ def _run_owned(
             from blueearth_cst.experiment.simulation_runner import simulation_settings
 
             _, simulation = simulation_settings(config_path)
-            if "scenario_collection" not in simulation:
+            if (
+                "scenario_collection" not in simulation
+                and delta_operation.settings["schema_version"] != "delta-change/3"
+            ):
                 raise ValueError(
-                    "delta generation with WF4 requires an explicit existing scenario_collection.manifest_path"
+                    "delta-change/1 and /2 collections cannot be found from the "
+                    "settings; WF4 requires an explicit existing scenario_collection "
+                    "(name, id or manifest_path)"
                 )
-            resolve_explicit_collection_v2(simulation["scenario_collection"])
-            print(
-                f"WF4 explicitly selected collection: {simulation['scenario_collection']['manifest_path']}; "
-                "delta generation will not replace this selection.",
-                flush=True,
-            )
+            if "scenario_collection" in simulation:
+                selected, _ = resolve_explicit_collection_v2(
+                    simulation["scenario_collection"], project_dir
+                )
+                print(
+                    f"WF4 explicitly selected collection: {selected['manifest_path']}; "
+                    "delta generation will not replace this selection.",
+                    flush=True,
+                )
     manifest_path, manifest = _initialize_manifest(
         cfg=cfg,
         config_path=config_path,
@@ -1652,8 +1675,7 @@ def _run_owned(
                         REPO_ROOT,
                         project_dir,
                         history["invocation_id"],
-                        execute_generation=flags["generate_scenarios"]
-                        and delta_operation is None,
+                        execute_generation=flags["generate_scenarios"],
                         execute_model=flags["build_model"],
                         new_experiment=new_experiment,
                         note=note,
@@ -1966,11 +1988,17 @@ def _run_owned(
                             published = delta_operation.run(
                                 project_dir, preview=preview
                             )
-                            child_record["generation"]["manifest_path"] = str(published)
+                            if not preview:
+                                delta_operation.index(project_dir, published)
+                            child_record["generation"]["manifest_path"] = (
+                                None if published is None else str(published)
+                            )
                             child_record["generation"]["published"] = not preview
                             invocation_history.update(child_path, child_record)
                             print(
-                                f"Delta collection {'preview' if preview else 'published'}: {published}",
+                                "Delta collection preview: pending upstream products (WF2 gridded changes or historical record) from this invocation"
+                                if published is None
+                                else f"Delta collection {'preview' if preview else 'published'}: {published}",
                                 flush=True,
                             )
                             result = subprocess.CompletedProcess(cmd, 0)

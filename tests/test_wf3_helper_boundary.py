@@ -16,9 +16,15 @@ from blueearth_cst.shared import run_log_core, snake_utils
 GENERATION_INVENTORY = {
     "blueearth_cst/__init__.py",
     "blueearth_cst/experiment/__init__.py",
+    # Set names and identity lookup used by plan selection.
+    "blueearth_cst/experiment/collection_index.py",
+    # The single method discriminator every collection reader dispatches on.
+    "blueearth_cst/experiment/collection_method.py",
     "blueearth_cst/experiment/content_identity.py",
     # The collection reader validates the delta backend and its variable bindings.
     "blueearth_cst/experiment/delta_scenarios.py",
+    # delta-change/3 reads WF2 gridded changes through this adapter.
+    "blueearth_cst/experiment/delta_wf2.py",
     "blueearth_cst/experiment/forcing_descriptor.py",
     "blueearth_cst/experiment/generation_plan.py",
     "blueearth_cst/experiment/generation_sources.py",

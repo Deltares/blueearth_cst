@@ -344,12 +344,13 @@ import pandas as pd
 run_root = Path("C:/path/to/case-output")
 experiment = "stress_test_01"
 set_id = "default"
+collection = run_root / "scenarios/stochastic-2040-2060"  # name listed in scenarios/collections.csv
 results = run_root / "experiments" / experiment / "results/indicator_sets" / set_id
 scenarios = pd.read_csv(
-    run_root / "scenarios/scenario_run_lookup.csv", dtype=str, keep_default_na=False
+    collection / "scenario_run_lookup.csv", dtype=str, keep_default_na=False
 )
 perturbations = pd.read_csv(
-    run_root / "scenarios/perturbation_lookup.csv", dtype={"st_id": str}, keep_default_na=False
+    collection / "perturbation_lookup.csv", dtype={"st_id": str}, keep_default_na=False
 )
 ```
 

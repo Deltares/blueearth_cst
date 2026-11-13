@@ -417,8 +417,9 @@ def initialize_generation(
         if paths["record_root"].exists() or paths["data_root"].exists():
             raise ValueError("collection namespace appeared after create planning")
         generator = _installed_generator(plan, project_root)
-        paths["record_root"].mkdir(parents=True, exist_ok=False)
+        # Data root first: a named set's records live inside it.
         paths["data_root"].mkdir(parents=True, exist_ok=False)
+        paths["record_root"].mkdir(parents=True, exist_ok=False)
         sources = _source_paths(plan, project_root)
         generator_path = paths["generator_input"]
         generator_path.parent.mkdir(parents=True)

@@ -8,6 +8,12 @@ from pathlib import Path
 
 import xarray as xr
 
+from blueearth_cst.experiment.collection_index import (
+    allocate_collection_name,
+    default_stochastic_name,
+    find_ready_marker,
+    validate_collection_name,
+)
 from blueearth_cst.experiment.content_identity import (
     NETCDF_CONTENT_SCHEME,
     SOURCE_IDENTITY_V3,
@@ -54,6 +60,7 @@ SEED_FIELDS = {
     "seed": "exclude: resolved after this projection",
     "unit_id_capacity": "exclude: identifier spelling only",
     "enabled": "exclude: orchestration only",
+    "name": "exclude: display name only",
 }
 
 # Closed nested classification: new upstream arguments require an explicit ruling.
@@ -265,6 +272,9 @@ def generation_configuration(config, repository, *, stage=True):
         code=code,
         request=request,
         request_path=request_path.as_posix(),
+        collection_name=validate_collection_name(
+            cfg.get("name", default_stochastic_name(start, end))
+        ),
         source=climate["selected"],
         recipe=recipe,
     )
@@ -348,6 +358,24 @@ def _historical_calendar(path: Path) -> str:
         return str(dataset.time.dt.calendar)
 
 
+# Large store files already inside the project are referenced in place by path
+# and hash; generation byte-checks them at initialization, provider binding and
+# publication, so a change mid-run refuses publication. Small external inputs
+# (generator template, catalogs) keep a content-addressed project copy.
+_IN_PLACE_ROLES = {"historical_climate", "basin_cells"}
+
+
+def _generation_input(project_root: Path, role: str, original: Path) -> Path:
+    if role in _IN_PLACE_ROLES:
+        live = Path(original)
+        if live.is_symlink():
+            raise ValueError("generation source cannot be a symbolic link")
+        live = live.resolve(strict=True)
+        if live.is_file() and live.is_relative_to(project_root):
+            return live
+    return snapshot_generation_input(project_root, original)[0]
+
+
 def build_candidate_intent(settings: dict) -> dict:
     """Freeze a v2 WF3 scientific intent from project-owned source snapshots."""
     project_root = Path(settings["project_dir"]).resolve()
@@ -361,7 +389,7 @@ def build_candidate_intent(settings: dict) -> dict:
     sources = []
     pinned_paths = {}
     for role, original in sorted(source_paths.items()):
-        pinned, _, _ = snapshot_generation_input(project_root, original)
+        pinned = _generation_input(project_root, role, original)
         pinned_paths[role] = pinned
         metadata = {}
         if role == "historical_climate":
@@ -554,16 +582,34 @@ def build_candidate_intent(settings: dict) -> dict:
     return intent
 
 
+def _configured_name(settings: dict) -> str:
+    """The configured or default name; partial settings fall back to the method."""
+    if settings.get("collection_name"):
+        return settings["collection_name"]
+    window = settings["request"].get("settings", {}).get("simulation_window")
+    if window is None:
+        return "stochastic"
+    return default_stochastic_name(window["start"], window["end"])
+
+
 def build_create_plan(
-    settings: dict, intent: dict, *, data_root: str | None = None
+    settings: dict,
+    intent: dict,
+    *,
+    data_root: str | None = None,
+    record_root: str | None = None,
 ) -> dict:
-    """Build the immutable create decision before a generation DAG is parsed."""
+    """Build the immutable create decision before a generation DAG is parsed.
+
+    A new set's folder is ``scenarios/<name>``; its records sit in the folder's
+    ``_engine/``. Reuse passes the found marker's own roots, so retained sets
+    keep their original paths.
+    """
     request = settings["request"]
     request_id = content_sha256(request)
     collection_id = intent["collection_id"]
-    segment = identity_segment(collection_id, "collection_id")
-    data = data_root or f"scenarios/_engine/data/{segment}"
-    record = f"scenarios/_engine/collections/{segment}"
+    data = data_root or f"scenarios/{_configured_name(settings)}"
+    record = record_root or f"{data}/_engine"
     rows = stochastic_rows(
         settings["n_realizations"],
         settings["n_design_points"],
@@ -655,7 +701,16 @@ def build_reuse_plan(settings: dict, candidate: dict, marker_path: Path) -> dict
     ):
         if candidate[field] != creator[field]:
             raise ValueError(f"ready creator {field} differs from candidate")
-    plan = build_create_plan(settings, candidate, data_root=marker["data_root"])
+    # The reader validated the layout: named sets keep records in <set>/_engine,
+    # retained sets in scenarios/_engine/collections/<id>.
+    record_dir = Path(marker_path).resolve().parent
+    depth = 3 if record_dir.name == "_engine" else 4
+    plan = build_create_plan(
+        settings,
+        candidate,
+        data_root=marker["data_root"],
+        record_root="/".join(record_dir.parts[-depth:]),
+    )
     plan.update(
         decision="reuse_ready",
         intent=creator,
@@ -673,20 +728,29 @@ def build_reuse_plan(settings: dict, candidate: dict, marker_path: Path) -> dict
 
 
 def select_generation_plan(settings: dict, candidate: dict) -> dict:
-    """Choose create or ready reuse without adopting a partial namespace."""
+    """Choose ready reuse by identity, or create under a free name.
+
+    Reuse never depends on the name: the same content under another configured
+    name reuses the existing set. A new set never adopts an existing folder.
+    """
     project_root = Path(settings["project_dir"]).resolve()
-    segment = identity_segment(candidate["collection_id"], "collection_id")
-    data_root = project_root / "scenarios" / "_engine" / "data" / segment
-    legacy_data_root = project_root / "scenarios" / segment
-    record_root = project_root / "scenarios" / "_engine" / "collections" / segment
-    marker = record_root / "collection.json"
-    if marker.is_file():
+    marker = find_ready_marker(project_root, candidate["collection_id"])
+    if marker is not None:
         return build_reuse_plan(settings, candidate, marker)
-    if data_root.exists() or legacy_data_root.exists() or record_root.exists():
+    segment = identity_segment(candidate["collection_id"], "collection_id")
+    if any(
+        path.exists()
+        for path in (
+            project_root / "scenarios" / "_engine" / "data" / segment,
+            project_root / "scenarios" / "_engine" / "collections" / segment,
+            project_root / "scenarios" / segment,
+        )
+    ):
         raise ValueError(
             "partial collection namespace exists; a fresh project or explicit repair is required"
         )
-    return build_create_plan(settings, candidate)
+    name = allocate_collection_name(project_root, _configured_name(settings))
+    return build_create_plan(settings, candidate, data_root=f"scenarios/{name}")
 
 
 def publish_plan_pointer(settings: dict, plan: dict) -> tuple[Path, str]:

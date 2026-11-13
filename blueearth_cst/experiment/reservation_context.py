@@ -88,10 +88,9 @@ class ReservationContext:
                     self.config_path, self.repository
                 )
             except GeneratedCollectionUnavailable:
-                if (
-                    not self.execute_generation
-                    or requested["selection"]["mode"] != "project-generation"
-                ):
+                if not self.execute_generation or requested["selection"][
+                    "mode"
+                ] not in {"project-generation", "delta-generation"}:
                     raise
                 from blueearth_cst.shared.workflow_config_snapshot import (
                     resolve_file_reference,
