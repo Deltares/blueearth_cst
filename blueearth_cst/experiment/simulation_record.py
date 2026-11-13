@@ -567,9 +567,8 @@ def freeze_simulation_v2(experiment_root, intent, *, invocation_id, command):
         return retained
     elif (root / "config/run_record.yml").exists():
         raise SimulationFrozenError("unpaired experiment creator archive exists")
-    if (root / "hydrology/wflow/output").exists() and any(
-        (root / "hydrology/wflow/output").glob("run_*.csv")
-    ):
+    native = root / "_engine/wflow_runs"
+    if native.exists() and any(native.glob("run_*.csv")):
         raise SimulationFrozenError("unrecorded native WF4 output exists")
     sources = read_simulation_sources_v2(project, invocation_id)
     projection = ("project", "basin", "climate", "model", "workflows.simulate_system")

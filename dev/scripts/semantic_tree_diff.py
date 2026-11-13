@@ -378,6 +378,19 @@ def build_project_tree_rules(
         r"benchmarks/_parts/.+",
     ):
         rules.append((re.compile(pattern), r"\g<0>"))
+    # Layout 4 experiment runs under hydrology/wflow/ (R17 in layout 5).
+    for e in sorted(experiments):
+        native = rf"experiments/{re.escape(e)}/hydrology/wflow"
+        for pattern in (
+            rf"{native}/run_settings/[^/]+",
+            rf"{native}/forcing/inmaps_[^/]+\.nc",
+            rf"{native}/output/run_[^/]+\.(csv|nc)",
+            rf"{native}/output/run_[^/]+/output_[a-z]+\.csv",
+            rf"{native}/output/run_[^/]+/_engine/response_tables\.json",
+            rf"{native}/output/outstates_[^/]+\.nc",
+            rf"{native}/output/_log/[^/]+\.log",
+        ):
+            rules.append((re.compile(pattern), r"\g<0>"))
     # Layout 4 homes of the WF1 and WF4 markers (moved in layout 5, R10).
     rules.append(
         (

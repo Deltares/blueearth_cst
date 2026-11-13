@@ -26,7 +26,10 @@ project_dir = Path(project["project"]["project_dir"]).resolve().as_posix()
 experiment = resolve_experiment_name(Path(project_dir), my_cfg.get("experiment_name"))
 experiment = validate_experiment_name(experiment, project_dir)
 exp_dir = f"{project_dir}/experiments/{experiment}"
-runs_dir = f"{exp_dir}/hydrology/wflow"
+# R17 (layout 5): results in simulations/<run>/, everything else of a run in
+# the experiment's _engine/ (forcing and native CSVs are temporary).
+sims_dir = f"{exp_dir}/simulations"
+work_dir = f"{exp_dir}/_engine"
 results_dir = f"{exp_dir}/results"
 # Engine bookkeeping, collected per scope so a reader learns to ignore one
 # directory rather than meeting machinery at three depths (t2609152104).
@@ -262,18 +265,19 @@ if not _simulation_complete:
             simulation=_frozen_simulation,
             model_reference_ok=f"{exp_dir}/_engine/markers/.model_reference_ok",
         output:
-            nc=temp(f"{runs_dir}/forcing/inmaps_{{run_id}}.nc"),
-            toml=update(f"{runs_dir}/run_settings/{{run_id}}.toml"),
-            catalog=temp(f"{runs_dir}/run_settings/{{run_id}}.yml"),
-            temporal=temp(f"{runs_dir}/run_settings/{{run_id}}.temporal.json"),
+            nc=temp(f"{work_dir}/forcing/inmaps_{{run_id}}.nc"),
+            toml=update(f"{work_dir}/run_settings/{{run_id}}.toml"),
+            catalog=temp(f"{work_dir}/run_settings/{{run_id}}.yml"),
+            temporal=temp(f"{work_dir}/run_settings/{{run_id}}.temporal.json"),
         params:
             model_dir=basin_dir,
             model_toml=HISTORICAL.toml,
             end_state=HISTORICAL.end_state,
             run_id=lambda wc: wc.run_id,
             validated_collection=COLLECTION,
-            native_output_path=f"{runs_dir}/output/{{run_id}}.csv",
-            native_log_path=f"{runs_dir}/output/_log/{{run_id}}.log",
+            native_output_path=f"{work_dir}/wflow_runs/{{run_id}}.csv",
+            native_grid_path=f"{sims_dir}/{{run_id}}/output_grid.nc",
+            native_log_path=f"{work_dir}/wflow_logs/{{run_id}}.log",
             sim_window_start=SIM_WINDOW_START,
             sim_window_end=SIM_WINDOW_END,
         threads: 1
@@ -335,7 +339,7 @@ if not _simulation_complete:
         # because this is parse time -- `defer_warning` says why.
         defer_warning(sizing.warning, module='batching')
     _batch_native_inputs = {
-        run: [f"{runs_dir}/output/{member}.csv" for member in members]
+        run: [f"{work_dir}/wflow_runs/{member}.csv" for member in members]
         for members in split_evenly(RUN_IDS, sizing.batch_size) for run in members}
     for batch, members in enumerate(split_evenly(RUN_IDS, sizing.batch_size)):
         # 4.05  run_wflow_simulations_batch_<b> — one bounded batch of retained runs
@@ -348,17 +352,17 @@ if not _simulation_complete:
             message: RUN_WFLOW_SIMULATIONS.banner(part=f"batch_{batch}", context=plural(len(members), "scenario run"))
             input:
                 simulation=_frozen_simulation,
-                forcing=[f"{runs_dir}/forcing/inmaps_{run}.nc" for run in members],
-                tomls=[f"{runs_dir}/run_settings/{run}.toml" for run in members],
+                forcing=[f"{work_dir}/forcing/inmaps_{run}.nc" for run in members],
+                tomls=[f"{work_dir}/run_settings/{run}.toml" for run in members],
             output:
-                csvs=[temp(update(f"{runs_dir}/output/{run}.csv")) for run in members],
-                grids=[update(f"{runs_dir}/output/{run}.nc") for run in members] if grid_output else [],
+                csvs=[temp(update(f"{work_dir}/wflow_runs/{run}.csv")) for run in members],
+                grids=[update(f"{sims_dir}/{run}/output_grid.nc") for run in members] if grid_output else [],
             threads: _threads
             resources:
                 mem_mb=2048,
             params:
                 records=[str(batch), *[value for run in members for value in
-                    (run, f"{runs_dir}/run_settings/{run}.toml", f"{runs_dir}/output/{run}.csv")]],
+                    (run, f"{work_dir}/run_settings/{run}.toml", f"{work_dir}/wflow_runs/{run}.csv")]],
                 julia=lambda wc, threads: julia_prefix(threads),
             log:
                 RUN_WFLOW_SIMULATIONS.log(f"batch_{batch}"),
@@ -380,21 +384,22 @@ if not _simulation_complete:
         message: CONVERT_WFLOW_RESPONSES.banner(context="run {wildcards.run_id}")
         input:
             simulation=_frozen_simulation,
-            csv=f"{runs_dir}/output/{{run_id}}.csv",
+            csv=f"{work_dir}/wflow_runs/{{run_id}}.csv",
             # Keep the complete batch until every member converts. A failed
             # sibling must not make a partially retired batch look incomplete.
             batch_csvs=lambda wc: _batch_native_inputs[wc.run_id],
-            toml=f"{runs_dir}/run_settings/{{run_id}}.toml",
-            temporal=f"{runs_dir}/run_settings/{{run_id}}.temporal.json",
+            toml=f"{work_dir}/run_settings/{{run_id}}.toml",
+            temporal=f"{work_dir}/run_settings/{{run_id}}.temporal.json",
         output:
-            record=f"{runs_dir}/output/{{run_id}}/_engine/response_tables.json",
+            # The record describes simulations/<run>/ and mirrors its path in _engine/ (R10).
+            record=f"{work_dir}/simulations/{{run_id}}/response_tables.json",
         run:
             from blueearth_cst.shared.response_tables import publish_response_tables
             from blueearth_cst.experiment.wflow_response_reader import NativeRunArtifacts
             request = read_simulation_intent_v2(exp_dir)["documents"]["response_request"]
             publish_response_tables(
                 NativeRunArtifacts(Path(input.csv), Path(input.toml), Path(input.temporal)),
-                Path(output.record).parent.parent,
+                Path(sims_dir) / wildcards.run_id,
                 variables=tuple(item["variable"] for item in request["variables"]),
                 decimal_places=request["decimal_places"], record_path=Path(output.record))
 
@@ -403,10 +408,10 @@ if not _simulation_complete:
         message: PUBLISH_WFLOW_OUTPUTS.banner()
         input:
             simulation=_frozen_simulation,
-            records=[f"{runs_dir}/output/{run}/_engine/response_tables.json" for run in RUN_IDS],
-            grids=[f"{runs_dir}/output/{run}.nc" for run in RUN_IDS] if grid_output else [],
-            tomls=[f"{runs_dir}/run_settings/{run}.toml" for run in RUN_IDS],
-            temporal=[f"{runs_dir}/run_settings/{run}.temporal.json" for run in RUN_IDS],
+            records=[f"{work_dir}/simulations/{run}/response_tables.json" for run in RUN_IDS],
+            grids=[f"{sims_dir}/{run}/output_grid.nc" for run in RUN_IDS] if grid_output else [],
+            tomls=[f"{work_dir}/run_settings/{run}.toml" for run in RUN_IDS],
+            temporal=[f"{work_dir}/run_settings/{run}.temporal.json" for run in RUN_IDS],
         output:
             inventory=update(f"{engine_dir}/response_inventory.json"),
             simulation=update(f"{engine_dir}/simulation.json"),

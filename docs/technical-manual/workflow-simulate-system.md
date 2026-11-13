@@ -77,11 +77,13 @@ command outcome and each set's availability determine whether all requested calc
 Results are saved under `experiments/<experiment-name>/`, relative to `project_dir`.
 The main outputs are:
 
-- **Daily responses (`hydrology/wflow/output/<run_id>/output_<code>.csv`).** Rounded per-variable time
-  series, with `_engine/response_tables.json` inside the run directory. Warm-up days are discarded before
-  retention. Native scalar CSVs and forcing NetCDFs are temporary; indicators read the retained tables.
-- **Model settings (`hydrology/wflow/run_settings/<run_id>.toml`).** Settings associated with each run.
-- **Optional native grids (`hydrology/wflow/output/<run_id>.nc`).** One retained file per run,
+- **Daily responses (`simulations/<run_id>/output_<code>.csv`).** Rounded per-variable time series;
+  their record is `_engine/simulations/<run_id>/response_tables.json`. Warm-up days are discarded before
+  retention. Native scalar CSVs (`_engine/wflow_runs/`) and forcing NetCDFs (`_engine/forcing/`) are
+  temporary; indicators read the retained tables.
+- **Model settings (`_engine/run_settings/<run_id>.toml`).** Settings associated with each run; Wflow's
+  own logs are in `_engine/wflow_logs/`.
+- **Optional native grids (`simulations/<run_id>/output_grid.nc`).** One retained file per run,
   containing all requested variables and native layers over the full native clock, warm-up included.
   See [grid settings](configuration.md#netcdf-grid).
 - **Simulation records (`_engine/simulation.json` and `_engine/response_inventory.json`).** The model

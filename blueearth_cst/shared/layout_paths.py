@@ -423,23 +423,24 @@ def declarations() -> tuple[Declaration, ...]:
         f"{e}/results/indicator_sets/{{set_id}}/{indicator_tables}",
         f"{e}/results/indicator_sets/{{set_id}}/indicators.csv",
     )
-    native = f"{e}/hydrology/wflow"
-    d += _declare(
-        "wf4",
-        "record",
-        f"{native}/run_settings/{{run}}.{{toml|toml.grid.toml|yml|temporal.json}}",
-        f"{native}/run_settings/forcing_elevation_catalog.yml",
-        f"{native}/output/{{run}}/_engine/response_tables.json",
-    )
+    # R17 (layout 5): results per run in simulations/<run>/; everything else of
+    # a run in the experiment's _engine/ (forcing and native CSVs temporary).
     d += _declare(
         "wf4",
         "product",
-        f"{native}/forcing/inmaps_{{run}}.nc",
-        f"{native}/output/{{run}}.{{csv|nc}}",
-        f"{native}/output/{{run}}/output_{{output_variable}}.csv",
-        f"{native}/output/outstates_{{run}}.nc",
+        f"{e}/simulations/{{run}}/output_{{output_variable}}.csv",
+        f"{e}/simulations/{{run}}/output_grid.nc",
     )
-    d += _declare("wf4", "log", f"{native}/output/_log/{{run}}.log")
+    d += _declare(
+        "wf4",
+        "record",
+        f"{e}/_engine/run_settings/{{run}}.{{toml|toml.grid.toml|yml|temporal.json}}",
+        f"{e}/_engine/run_settings/forcing_elevation_catalog.yml",
+        f"{e}/_engine/simulations/{{run}}/response_tables.json",
+        f"{e}/_engine/forcing/inmaps_{{run}}.nc",
+        f"{e}/_engine/wflow_runs/{{run}}.csv",
+    )
+    d += _declare("wf4", "log", f"{e}/_engine/wflow_logs/{{run}}.log")
     return tuple(d)
 
 

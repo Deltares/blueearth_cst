@@ -173,9 +173,6 @@ KNOWN_MISPLACED = {
     "scenarios/_engine/data/{hex12}/weathergenr/evaluation/plots/{segment}.{png|pdf}",
     # WF4 (R9, R11, R17)
     "experiments/{experiment}/_engine/indicator_sets/{hex12}/data/{indicator_table}.csv",
-    "experiments/{experiment}/hydrology/wflow/run_settings/{run}.{toml|toml.grid.toml|yml|temporal.json}",
-    "experiments/{experiment}/hydrology/wflow/run_settings/forcing_elevation_catalog.yml",
-    "experiments/{experiment}/hydrology/wflow/output/_log/{run}.log",
 }
 
 

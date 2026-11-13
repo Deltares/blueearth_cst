@@ -31,9 +31,7 @@ project file. For the external case example, this is `C:/cst-cases/runs/my-basin
 │   └── <name>/                          one scenario set: series, lookups, settings
 ├── experiments/
 │   └── <name>/
-│       ├── hydrology/
-│       │   └── wflow/
-│       │       └── output/              saved simulation results
+│       ├── simulations/<run_id>/       saved simulation results, one folder per run
 │       └── results/
 │           └── indicator_sets/
 │               └── <set-id>/            indicator tables and definitions
@@ -62,7 +60,7 @@ case files when changing settings; the configuration copies in the output direct
 Opt into [native grid output](../technical-manual/configuration.md#netcdf-grid) separately in
 the model-building and simulation workflow files. Historical grids are saved at
 `models/hydrology/wflow/historical/default/run/output_grid.nc`; selected scenario runs each produce
-`experiments/<name>/hydrology/wflow/output/<run_id>.nc`. Open them with xarray or GIS software.
+`experiments/<name>/simulations/<run_id>/output_grid.nc`. Open them with xarray or GIS software.
 One file holds all requested variables, including native soil layers where present.
 
 Grid storage scales with rectangular cells × timesteps × variable layers × runs. The launcher
