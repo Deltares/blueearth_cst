@@ -102,7 +102,10 @@ def resolve_windows(project_root: Path, projections: dict) -> dict:
     """
     root = ensemble_dir(project_root, projections)
     grids = root / "analysis/gridded_changes"
-    inventory_path = grids / "inventory.json"
+    # `spatial_diagnostics.inventory_path`, kept local to stay out of WF2 code.
+    inventory_path = root / "_engine/gridded_changes_inventory.json"
+    if not inventory_path.is_file() and (grids / "inventory.json").is_file():
+        inventory_path = grids / "inventory.json"
     record_path = root / "_engine/analysis_record.json"
     for path in (inventory_path, record_path):
         if not path.is_file():

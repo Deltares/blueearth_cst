@@ -385,6 +385,15 @@ def build_project_tree_rules(
             r"\g<0>",
         )
     )
+    # Layout 2 WF2 records: provenance, the gridded-changes inventory and the
+    # copies of contributing logs (moved or dropped in layout 3, R10, R13).
+    projections = rf"data/climate/projections/{re.escape(clim_project)}"
+    for pattern in (
+        rf"{projections}/summary/provenance\.json",
+        rf"{projections}/analysis/gridded_changes/inventory\.json",
+        rf"{projections}/_engine/execution/[0-9a-f]{{32}}/wf2(\.log|-benchmarks\.(md|tsv))",
+    ):
+        rules.append((re.compile(pattern), r"\g<0>"))
     # The retired flat indicator export.
     for e in sorted(experiments):
         exp = re.escape(e)

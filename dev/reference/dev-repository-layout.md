@@ -155,8 +155,9 @@ has fresh part namespaces. Only the latest dry-run folder per scope is kept. A b
 writes `logs/<name>.log` and `logs/benchmarks/`. Historical shared logs and benchmark files remain
 untouched. The maintained
 layout and interpretation live in `docs/guide/running.md` § Execution logs and benchmarks.
-The WF2 product additionally owns `_engine/execution/` (production attribution and retained copies of
-contributing logs) and, after an import, `_engine/imported/`; `docs/guide/outputs.md` owns both.
+The WF2 product additionally owns `_engine/execution/production.json` (production attribution, naming
+contributing logs by path rather than copying them) and, after an import, `_engine/imported/`;
+`docs/guide/outputs.md` owns both.
 
 For new output projects, `config/<workflow>/` holds `run_record.yml`, captured files,
 `SOURCES.md`, and `catalogs/` for the latest WF0–WF2

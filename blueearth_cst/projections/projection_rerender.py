@@ -99,11 +99,12 @@ def rerender_projections(
             )
         plot_dir = Path(out_dir) / "projections" / ensemble_dir.name / "plots"
         from blueearth_cst.projections.spatial_diagnostics import (
+            inventory_path,
             prepare_retained_spatial_changes,
         )
 
         grids = ensemble_dir / "analysis" / "gridded_changes"
-        if not (grids / "inventory.json").is_file():
+        if not inventory_path(grids).is_file():
             # Older runs did not retain spatial changes. Reconstruct those in
             # the review destination; current runs can render after raw pruning.
             grids = plot_dir.parent / "analysis" / "gridded_changes"

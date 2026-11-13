@@ -263,15 +263,10 @@ def declarations() -> tuple[Declaration, ...]:
     d += _declare(
         "wf2",
         "record",
-        f"{cmip}/_engine/{{stage_b_settings.json|analysis_record.json}}",
+        f"{cmip}/_engine/{{stage_b_settings.json|analysis_record.json|provenance.json}}",
         f"{cmip}/_engine/plots/{{figure_captions.json|figure_titles.json}}",
         f"{cmip}/_engine/execution/production.json",
         f"{cmip}/_engine/imported/{{hex12}}/{{manifest|import_record}}.json",
-    )
-    d += _declare(
-        "wf2",
-        "log",
-        f"{cmip}/_engine/execution/{{hex32}}/{{wf2.log|wf2-benchmarks.md|wf2-benchmarks.tsv}}",
     )
     d += _declare(
         "wf2",

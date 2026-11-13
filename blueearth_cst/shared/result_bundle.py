@@ -34,7 +34,7 @@ REGION_MEMBER = "dependencies/region.geojson"
 # Files without which a WF2 product cannot be read or attributed.
 REQUIRED = (
     "report.md",
-    "summary/provenance.json",
+    "_engine/provenance.json",
     "summary/composition.csv",
     "_engine/analysis_record.json",
 )
@@ -93,7 +93,7 @@ def _region(project: Path, product: Path, expected: str) -> Path:
         if path.is_file() and region_fingerprint(path) == expected:
             return path
     raise BundleError(
-        "no region.geojson matches summary/provenance.json's region fingerprint; "
+        "no region.geojson matches _engine/provenance.json's region fingerprint; "
         "the product no longer describes the project's current basin polygon"
     )
 
@@ -140,7 +140,7 @@ def _snapshot_by_digest(
         ) == wanted:
             return directory
     raise BundleError(
-        "no retained configuration snapshot matches summary/provenance.json's "
+        "no retained configuration snapshot matches _engine/provenance.json's "
         "configuration digests; the producing configuration cannot be bundled"
     )
 
@@ -273,7 +273,7 @@ def export_bundle(
         record = product_record.read_record(product)
         producers, attribution = _verified_attribution(product, record, names)
         provenance = json.loads(
-            (product / "summary/provenance.json").read_text(encoding="utf-8")
+            (product / "_engine/provenance.json").read_text(encoding="utf-8")
         )
         region = _region(project, product, provenance["region_fingerprint"])
         primary = _snapshot_by_digest(project, product, provenance)

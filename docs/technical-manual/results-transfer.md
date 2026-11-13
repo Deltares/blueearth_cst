@@ -22,13 +22,13 @@ Source paths inside copied configuration are history, listed under `historical_p
 Use `--ensemble <name>` when the project has no captured projection analysis configuration naming the product.
 
 Export refuses an `incomplete` product, missing required files, a `region.geojson` whose polygon differs
-from the one recorded in `summary/provenance.json`, and provenance that matches no retained
+from the one recorded in `_engine/provenance.json`, and provenance that matches no retained
 configuration snapshot. Files whose bytes no longer match the production record are exported with
 `producer: null`. Products without production records export as `legacy-unattributed`; their
-configuration snapshot is the one whose digests match `summary/provenance.json`.
+configuration snapshot is the one whose digests match `_engine/provenance.json`.
 
 The manifest schema is `cst-result-bundle/1`. Required product files include `report.md`,
-`summary/provenance.json`, `summary/composition.csv` and `_engine/analysis_record.json`.
+`_engine/provenance.json`, `summary/composition.csv` and `_engine/analysis_record.json`.
 Linked export paths are rejected. Export writes a new ZIP rather than replacing an existing destination.
 
 ## Destination checks and import

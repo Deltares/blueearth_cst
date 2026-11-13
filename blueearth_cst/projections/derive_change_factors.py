@@ -353,7 +353,7 @@ def derive_available_point(*, point, unavailable_windows, **kwargs):
             f"Skipped {point['model']} · {point['scenario']} · {point['member']} · "
             f"{kwargs['name_horizon']}: {record['window_kind']} "
             f"{record['requested_window']}; {' '.join(str(record.get('reason', 'requested window is not usable')).splitlines())}; "
-            f"data {record['available_start']}–{record['available_end']}; details → summary/provenance.json",
+            f"data {record['available_start']}–{record['available_end']}; details → _engine/provenance.json",
             module="change",
             level="WARNING",
         )

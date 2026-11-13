@@ -183,7 +183,7 @@ def test_figures_and_tables_are_listed():
     assert "products not produced with their reasons" in text
     # S8-04/05: the tables live under summary/ and are named for the archive.
     assert "summary/cmip6_change_factors_monthly.csv" in text
-    assert "summary/provenance.json" in text
+    assert "_engine/provenance.json" in text
     # S8-07 owner ruling: the unit statement must be in the report, because the
     # figures used to report mm/year while the tables reported mm/day.
     assert "mm/day" in text

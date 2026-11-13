@@ -176,12 +176,13 @@ The main outputs are:
 - **Change factors (`summary/`).** Annual and monthly changes in
   `<ensemble>_change_factors_annual.csv` and `<ensemble>_change_factors_monthly.csv`.
 - **Coverage report (`report.md` and `summary/composition.csv`).** Available, partial and unavailable
-  model–scenario–member comparisons; `summary/provenance.json` records their sources.
+  model–scenario–member comparisons; `_engine/provenance.json` records their sources.
 - **Diagnostic tables (`analysis/`).** Coverage, changes, seasonal cycles, model agreement and
   variability, with effective periods and availability in `_engine/analysis_record.json`.
 - **Native-grid diagnostics (`analysis/gridded_changes/`).** Annual and monthly changes for each
   paired model–scenario–member and analysis window. NetCDFs preserve source-grid coordinates;
-  `inventory.json` identifies members, sources, windows, methods and unavailable comparisons.
+  `members.csv` lists each grid file with its model, scenario, member and window; the full record of
+  members, sources, windows, methods and unavailable comparisons is `_engine/gridded_changes_inventory.json`.
   Relative variables also carry `<name>_monthly_ratio` and the monthly reference and future means
   (`<name>_monthly_reference`, `<name>_monthly_future`). The ratio is missing where the reference mean
   is below the variable's `min_denominator`; the means remain, so dry cells can be reported.

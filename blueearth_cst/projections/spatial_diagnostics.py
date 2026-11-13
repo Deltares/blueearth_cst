@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from blueearth_cst.projections import series_identity
@@ -42,6 +43,22 @@ def _fields(raw: xr.Dataset, spec: dict[str, VariableSpec], source: str) -> xr.D
             field = raw[value.source].rename(name)
         fields[name] = field
     return xr.Dataset(fields, attrs=raw.attrs)
+
+
+#: Relative to the ensemble folder.
+INVENTORY = "_engine/gridded_changes_inventory.json"
+
+
+def inventory_path(grids) -> Path:
+    """The gridded-changes record of ``<ensemble>/analysis/gridded_changes``.
+
+    It lives in the ensemble's ``_engine/`` (layout 3, R10); earlier layouts kept
+    ``inventory.json`` inside the grid folder, which readers still accept.
+    """
+    grids = Path(grids)
+    current = grids.parents[1] / INVENTORY
+    legacy = grids / "inventory.json"
+    return legacy if not current.is_file() and legacy.is_file() else current
 
 
 def prepare_spatial_changes(
@@ -223,9 +240,11 @@ def prepare_spatial_changes(
                     "raw_future": point["raw_path_fut"],
                 }
             )
-    (output / "inventory.json").write_text(
-        json.dumps(inventory, indent=2) + "\n", encoding="utf-8"
-    )
+    record = Path(output).parents[1] / INVENTORY
+    record.parent.mkdir(parents=True, exist_ok=True)
+    record.write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
+    # The readable view of the same members (rule R2): one row per grid file.
+    pd.DataFrame(inventory["members"]).to_csv(output / "members.csv", index=False)
     return inventory
 
 

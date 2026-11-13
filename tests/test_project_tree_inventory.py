@@ -149,7 +149,7 @@ COVERED: dict[str, list[str]] = {
         f"data/climate/projections/{CP}/raw/cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc",
         f"data/climate/projections/{CP}/scalar/cmip6_INM_INM-CM4-8_ssp245_r1i1p1f1.nc",
         f"data/climate/projections/{CP}/summary/cmip6_change_factors_annual.csv",
-        f"data/climate/projections/{CP}/summary/provenance.json",
+        f"data/climate/projections/{CP}/_engine/provenance.json",
         f"data/climate/projections/{CP}/analysis/changes.csv",
         f"data/climate/projections/{CP}/_engine/analysis_record.json",
         f"data/climate/projections/{CP}/plots/full_period/cmip6_ensemble_coverage_basin_avg.png",

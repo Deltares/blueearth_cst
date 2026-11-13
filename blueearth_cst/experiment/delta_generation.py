@@ -46,7 +46,13 @@ class DeltaGeneration:
             from blueearth_cst.experiment.delta_wf2 import ensemble_dir
 
             grids = ensemble_dir(root, self.settings["projections"])
-            ready = (grids / "analysis/gridded_changes/inventory.json").is_file()
+            ready = any(
+                (grids / name).is_file()
+                for name in (
+                    "_engine/gridded_changes_inventory.json",
+                    "analysis/gridded_changes/inventory.json",
+                )
+            )
             if self.historical_pending:
                 path = Path(self.historical["path"])
                 if not path.is_file():
