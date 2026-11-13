@@ -63,6 +63,12 @@ CONFIG_PROJECTION = ("project", "basin", "climate", "model", "workflows.analyze_
 config, WORKFLOW_CONFIG_PATHS = compose_config(
     config, config_path, entry="analyze_projections", declared_sections=CONFIG_PROJECTION,
 )
+if CAPTURE_RECORD is None:
+    # Dry run: take the execution configuration's sorted key order (t022).
+    from blueearth_cst.shared.config_order import sorted_mappings
+    _ordered = sorted_mappings(config)
+    config.clear()
+    config.update(_ordered)
 from blueearth_cst.shared.plot_config import resolve_annotation
 from blueearth_cst.shared.plot_setup import setup_digest
 plot_annotation = resolve_annotation(config)
