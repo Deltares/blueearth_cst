@@ -46,9 +46,11 @@ needs to check and reuse work. Everything you read (tables, figures, settings co
 outside them, and each file is stored once.
 
 Historical simulations live with their model. Each forcing recipe has
-`models/hydrology/wflow/historical/<recipe>/` (`default` for a single recipe) with its forcing, run and
-evaluation; with two or more recipes, `historical_comparison/` beside them compares the runs. A model's runs
-change only when it is rerun with the same model settings: different settings belong in a new model folder.
+`models/hydrology/<model>/historical/<recipe>/` (`default` for a single recipe) with its forcing, run and
+evaluation; with two or more recipes, `historical_comparison/` beside them compares the runs. The default
+model is `wflow`; further models, such as a registered calibration, are sibling folders, and
+`models/hydrology/comparisons/<name>/` compares runs of different models. A model's runs change only when
+it is rerun with the same model settings: different settings belong in a new model folder.
 Stress-test simulations belong to their experiment. See
 [one model per folder](../technical-manual/workflow-build-model.md#model-versions).
 

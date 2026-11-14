@@ -18,6 +18,7 @@ repository inspection and maintenance tools live in `dev/scripts/` and are never
 |---|---|
 | [`create_case.py`](create_case.py) | Create an external case from this checkout's `config/templates/example-basin/`. |
 | [`suggest_experiment_name.py`](suggest_experiment_name.py) | Preview numbered selection without changing configs or reserving a name. |
+| [`register_model.py`](register_model.py) | List, register, compare and prune the project's hydrology models. |
 | [`calibrate_batching.py`](calibrate_batching.py) | Time WF4 batch settings on your basin and machine. |
 | [`plot_workflow_dag.py`](plot_workflow_dag.py) | Render a workflow's DAG under the project's own `logs/dag/`. |
 | [`render_figures.py`](render_figures.py) | Re-render a finished run's figures from its retained products into a separate folder; `--list` shows families. |
