@@ -77,6 +77,14 @@ and docstrings do not count) and folds in `pixi.lock`. The raw digest excludes t
 change re-reads local slices without downloading. Consumers recompute expected digests and refuse a
 mismatch ([`test_series_identity.py`](../../tests/test_series_identity.py)).
 
+**Reuse across projects** — [`data_reuse.py`](../../blueearth_cst/shared/data_reuse.py) lets a project take
+both caches from sibling projects named by `project.reuse_data_from` or `CST_REUSE_DATA_FROM`; the
+[configuration reference](../../docs/technical-manual/configuration.md#data-reuse) states the user contract.
+Every new historical store writes `_engine/extraction_record.json`, whose `MATCH_FIELDS` must equal the
+request's; `write_reused_store` in the extraction script slices a covering store with a fresh extraction's
+encoding, and [`test_data_reuse.py`](../../tests/test_data_reuse.py) pins equal `netcdf_content_sha256`. Keep
+the sources out of rule `params` and the record out of the netCDF: either would change rerun decisions or
+the WF3 seed.
 Both pruners report until `--delete` is given:
 [`prune_climate_store.py`](../../dev/scripts/prune_climate_store.py) lists stores the current configuration
 no longer selects, and [`prune_series_cache.py`](../../dev/scripts/prune_series_cache.py) lists WF2 series

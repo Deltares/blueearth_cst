@@ -66,7 +66,7 @@ def _resolve_fields(
         is_catalog = parts[-1] == "catalog"
         owner[parts[-1]] = (
             [resolve_path(item, source, catalog=is_catalog) for item in value]
-            if isinstance(value, list) and is_catalog
+            if isinstance(value, list)
             else resolve_path(value, source, catalog=is_catalog)
         )
 
@@ -78,7 +78,12 @@ def resolve_project_paths(document: Mapping[str, Any], source: str | Path) -> di
         return result
     _resolve_fields(
         result,
-        ("project.project_dir", "project.catalog", "basin.output_locations"),
+        (
+            "project.project_dir",
+            "project.catalog",
+            "project.reuse_data_from",
+            "basin.output_locations",
+        ),
         source,
     )
     region = result.get("basin", {}).get("region")

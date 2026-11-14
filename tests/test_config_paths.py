@@ -140,6 +140,21 @@ def test_urls_catalog_names_and_absolute_paths(tmp_path):
             resolve_path("C:/data/file.csv", source)
 
 
+def test_reuse_sources_resolve_beside_the_project_file(tmp_path):
+    source = tmp_path / "trial" / "project_config.yml"
+    for value, expected in (
+        ("../v2/outputs", [tmp_path / "v2/outputs"]),
+        (
+            ["../v2/outputs", "../showcase/outputs"],
+            [tmp_path / "v2/outputs", tmp_path / "showcase/outputs"],
+        ),
+    ):
+        project = {"schema_version": 3, "project": {"reuse_data_from": value}}
+        resolved = resolve_project_paths(project, source)["project"]["reuse_data_from"]
+        expected = [path.resolve().as_posix() for path in expected]
+        assert resolved == (expected if isinstance(value, list) else expected[0])
+
+
 def test_each_workflow_path_and_geometry(tmp_path):
     source = tmp_path / "nested" / "workflow.yml"
     for workflow, document, expected in [

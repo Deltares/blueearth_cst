@@ -23,7 +23,8 @@ all experiments and allocations are erased, including disabled workflows' output
 
 Each invocation records resolved configuration provenance, checked commands,
 selected simulation operation/targets, stage timing and final status in a
-unique config/_engine/invocations JSON record. Console handoffs are flushed before
+unique config/_engine/invocations JSON record. --reuse-data-from adds project directories to read
+matching climate data from (see blueearth_cst/shared/data_reuse.py). Console handoffs are flushed before
 the child starts; sensitive argument values are redacted in records and output.
 """
 
@@ -59,6 +60,7 @@ if str(_REPO_ROOT_PATH) not in sys.path:
 
 from blueearth_cst.shared import (  # noqa: E402
     console_style,
+    data_reuse,
     execution_outputs,
     invocation_history,
     layout_stamp,
@@ -819,6 +821,13 @@ def _settings_rows(cfg: Mapping[str, Any], project_dir: Path) -> list[tuple[str,
             rows.append(("resolution", f"{resolution} deg  (approx {_km(cell_km)} km)"))
         except (TypeError, ValueError):
             rows.append(("resolution", str(resolution)))
+
+    # Config first, then --reuse-data-from; the workflows log each reuse.
+    sources = data_reuse.reuse_sources(cfg)
+    if sources:
+        rows.append(
+            ("reuse data from", ", ".join(f"{p.parent.name}/{p.name}" for p in sources))
+        )
     return rows
 
 
@@ -2490,7 +2499,22 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="confirm --rebuild without an interactive prompt",
     )
+    ap.add_argument(
+        "--reuse-data-from",
+        action="append",
+        default=[],
+        metavar="PROJECT_DIR",
+        help="another project's project_dir to copy matching historical climate stores "
+        "and CMIP6 slices from, added to project.reuse_data_from; repeatable",
+    )
     args = ap.parse_args(argv)
+
+    if args.reuse_data_from:
+        # Children inherit the environment; scripts read it beside the config.
+        os.environ[data_reuse.REUSE_ENV] = os.pathsep.join(
+            [str(Path(p).resolve()) for p in args.reuse_data_from]
+            + [p for p in [os.environ.get(data_reuse.REUSE_ENV)] if p]
+        )
 
     # argparse.REMAINDER captures the leading `--` sentinel; strip it.
     extra = args.extra
