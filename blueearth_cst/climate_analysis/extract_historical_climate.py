@@ -1138,12 +1138,11 @@ def extraction_code_identity() -> str:
     A store written by other extraction code is not reused, because Snakemake's
     own code check covers only the project that wrote it.
     """
+    import blueearth_cst
     from blueearth_cst.experiment.content_identity import (
         content_sha256,
         repository_code_inventory,
     )
-
-    import blueearth_cst
 
     # From the package, not ``__file__``: Snakemake runs a ``script:`` from a
     # temporary copy under ``.snakemake/scripts/``.
