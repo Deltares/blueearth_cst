@@ -222,7 +222,8 @@ pixi run python scripts/run_workflows.py --config $config --rebuild -- --dry-run
 
 To proceed, remove `-- --dry-run` and answer the confirmation prompt. Source configurations,
 external source datasets, logs and attempt history are retained, but custom files inside generated
-output folders are treated as outputs and deleted.
+output folders are treated as outputs and deleted. Models the toolbox built and cross-model comparisons
+are deleted; a registered model (`scripts/register_model.py register`) is kept.
 
 Only enabled workflows run afterwards. To rebuild hydrological simulations, also enable model building
 and scenario generation and include `simulations` in the operations: their required products were deleted.

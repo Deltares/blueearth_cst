@@ -548,3 +548,22 @@ def test_rebuild_executes_a_real_producer_at_the_existing_output_path(
     )
     assert record["rebuild"]["status"] == "completed"
     assert record["status"] == "succeeded"
+
+
+def test_rebuild_erases_built_models_and_keeps_registered_ones(project):
+    """Registered models are the user's; built ones and comparisons are outputs."""
+    import json as _json
+
+    hydrology = project.root / "models/hydrology"
+    _write(hydrology / "wflow_v2/wflow_sbm.toml")
+    _write(hydrology / "comparisons/effect/tables/daily.csv")
+    registered = hydrology / "wflow_calibrated"
+    _write(registered / "wflow_sbm.toml")
+    _write(
+        registered / "_engine/model.json",
+        _json.dumps({"schema_version": 1, "origin": "user_managed"}),
+    )
+    erase_outputs(plan_rebuild(project.root, project.config), project.config)
+    assert not (hydrology / "wflow_v2").exists()
+    assert not (hydrology / "comparisons").exists()
+    assert (registered / "wflow_sbm.toml").is_file()
