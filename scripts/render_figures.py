@@ -82,7 +82,7 @@ def _budyko(args):
 
     if args.source:
         raise ValueError("--source does not apply to budyko")
-    model = args.project / "models/hydrology/wflow"
+    model = args.project / "models/hydrology" / args.model_name
     root = model / "historical/default/evaluation/budyko"
     if not root.is_dir():
         root = model / "evaluation/budyko"  # before layout 4
@@ -167,6 +167,9 @@ def main(argv=None):
     )
     parser.add_argument(
         "--annotation", choices=("none", "caption", "title"), default="none"
+    )
+    parser.add_argument(
+        "--model-name", default="wflow", help="model folder under models/hydrology/"
     )
     parser.add_argument("--traceback", action="store_true")
     args = parser.parse_args(argv)

@@ -217,6 +217,27 @@ def _sources(
     return tuple(sorted((str(path), digest) for path, digest in observed.items()))
 
 
+def _registered_model(path: Path) -> bool:
+    """A model registered by the user, which a rebuild never erases."""
+    from blueearth_cst.shared.model_registry import origin
+
+    return path.parent.as_posix().endswith("models/hydrology") and (
+        path.is_dir() and origin(path) == "user_managed"
+    )
+
+
+def _further_model_outputs(root: Path) -> list[Path]:
+    """Built models other than `wflow` and cross-model comparisons (t2609281102)."""
+    from blueearth_cst.shared.model_registry import list_models, models_root
+
+    further = [
+        entry.root
+        for entry in list_models(root)
+        if entry.origin == "built" and entry.name != "wflow"
+    ]
+    return [*further, models_root(root) / "comparisons"]
+
+
 def plan_rebuild(project_root: Path, config_path: Path) -> RebuildPlan:
     """Inventory generated outputs and refuse unsafe boundaries without writing."""
     root = project_root.absolute()
@@ -243,7 +264,9 @@ def plan_rebuild(project_root: Path, config_path: Path) -> RebuildPlan:
     for parent in (declared, *declared.parents):
         if parent.is_symlink() or parent.is_junction():
             raise ValueError(f"rebuild refuses a linked project root: {parent}")
-    candidates = [root / name for name in OUTPUT_ROOTS]
+    candidates = [
+        root / name for name in OUTPUT_ROOTS if not _registered_model(root / name)
+    ] + _further_model_outputs(root)
     for path in [
         *candidates,
         root / "config/_engine/archive_transactions",

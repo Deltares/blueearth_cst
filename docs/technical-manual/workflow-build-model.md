@@ -73,7 +73,8 @@ Paths below are relative to `project_dir`. The main outputs are:
   the spatial catalog.
 - **Historical climate (`data/climate/historical/`).** The selected climate dataset and shared map
   reference, with additional map candidates where needed.
-- **Basin model (`models/hydrology/wflow/`).** Model maps in `staticmaps.nc`, settings in
+- **Basin model (`models/hydrology/wflow/`; the folder is `model.name`, see
+  [one model per folder](#model-versions)).** Model maps in `staticmaps.nc`, settings in
   `wflow_sbm.toml`, geometries and the HydroMT recipes used to build the model.
   `_engine/outlet_index.csv` links outlets to reporting locations.
 - **Historical forcing (`models/hydrology/wflow/forcing/`).** Model-grid forcing in
@@ -166,9 +167,33 @@ ranking is supplied. Tables retain counts, actual years and exclusion reasons fo
 
 Each folder under `models/hydrology/` is one self-contained model: its static maps, TOMLs, every forcing
 recipe's run and their comparison. A model's runs change only when it is rerun with the same model
-settings. To try different model settings (another soil dataset, a calibration), build them into a new
-model folder; until model folders can be named (task t2609281102), use a new `project_dir`. WF1 refuses to
-rebuild an existing model whose model-building settings changed and names the setting that differs.
+settings. `model.name` in the project file names the folder WF1 builds or runs and WF4 uses; the default
+is `wflow`. To try different model-building settings (another soil dataset), set a new `model.name`:
+WF1 refuses to rebuild an existing model whose model-building settings changed and names the setting
+that differs.
+
+Every model records itself in `_engine/model.json`: its origin, parent, notes and the identity of its
+static inputs (the `wflow_sbm.toml` pointer graph plus `staticgeoms/`, excluding everything the toolbox
+writes per forcing recipe). WF1 writes this record for a model it builds (`origin: built`) after every
+build.
+
+A model prepared outside the toolbox is registered with `scripts/register_model.py register`
+(`origin: user_managed`); see [running](../guide/running.md#use-a-model-prepared-outside-the-toolbox).
+WF1 never rebuilds or rewrites a registered model: rules 1.06 to 1.08 are not defined for it and rule
+1.08r marks it final as registered. Every recipe, including a single one, uses the staged forcing update
+and writes its own TOML, so a single recipe writes `wflow_sbm_default.toml` beside the model's own
+`wflow_sbm.toml`. Before planning, WF1 refuses a registered model whose files changed since registration
+and one whose TOML lacks an output that `model.outvars` or `build_model.output` asks for, naming each.
+
+WF4 uses `model.name`; with several models and no name it stops and lists them. It refuses a registered
+model that changed since registration, and a retained experiment refuses a different model
+(`--new-experiment`). Each experiment's `_engine/model_reference.yml` records the model folder and the
+digest of its recipe inputs.
+
+Comparisons across models (`scripts/register_model.py compare`) are written to
+`models/hydrology/comparisons/<name>/` with the same tables and figures as a model's own
+`historical_comparison/`. The runs must cover the same simulation period and initialization; the
+evaluation window is every complete reporting year they share.
 
 The former `historical_run` setting, which published named copies under `simulations/historical/`, is no
 longer used. It is accepted with a deprecation warning and ignored; remove it from the configuration.

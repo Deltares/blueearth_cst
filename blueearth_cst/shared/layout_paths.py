@@ -300,6 +300,7 @@ def declarations() -> tuple[Declaration, ...]:
         f"{m}/_engine/hydromt_build_config.yml",
         f"{m}/_engine/hydromt_update_waterbodies.yml",
         f"{m}/_engine/run_metadata.json",
+        f"{m}/_engine/model.json",
         f"{m}/_engine/{{reservoirs_lakes_glaciers.txt|outlet_index.csv}}",
     )
     # One folder per forcing recipe, `default` for a single recipe (R16,
@@ -333,6 +334,19 @@ def declarations() -> tuple[Declaration, ...]:
         "wf1", "record", f"{c}/_engine/comparison.json", f"{c}/_engine/plots/"
     )
     d += _declare("wf1", ENGINE_OWNED, f"{c}/.snakemake_timestamp")
+    # Comparisons across models (D12), written by scripts/register_model.py
+    # compare (t2609281102).
+    x = "models/hydrology/comparisons/{slug}"
+    d += _declare(
+        "wf1",
+        "product",
+        f"{x}/tables/{{segment}}.csv",
+        f"{x}/tables/supporting/support.csv",
+        f"{x}/plots/",
+    )
+    d += _declare(
+        "wf1", "record", f"{x}/_engine/comparison.json", f"{x}/_engine/plots/"
+    )
 
     # -- WF3: scenario collections --------------------------------------------
     # Retained collection data under `_engine/data/` and named sets in
@@ -450,19 +464,27 @@ def bind(
     *,
     clim_project: str,
     experiments: Iterable[str],
-    model_name: str = "wflow",
+    model_name: str | Iterable[str] = "wflow",
 ) -> list[tuple[Declaration, re.Pattern[str]]]:
-    """Compile each declaration, once per experiment for experiment-scoped ones."""
-    base = {"clim_project": clim_project, "model": model_name}
+    """Compile each declaration, once per experiment and per model where scoped.
+
+    ``model_name`` is one model folder or several (t2609281102): every model
+    under ``models/hydrology/`` shares the same declarations.
+    """
+    models = [model_name] if isinstance(model_name, str) else sorted(set(model_name))
+    if not models:
+        raise ValueError("bind needs at least one model name")
     names = sorted(set(experiments))
     out: list[tuple[Declaration, re.Pattern[str]]] = []
     for item in declared:
-        if "{experiment}" in item.path:
-            for name in names:
-                values = {**base, "experiment": name}
+        scoped_models = models if "{model}" in item.path else models[:1]
+        scoped_names = names if "{experiment}" in item.path else [None]
+        for model in scoped_models:
+            for name in scoped_names:
+                values = {"clim_project": clim_project, "model": model}
+                if name is not None:
+                    values["experiment"] = name
                 out.append((item, re.compile(item.pattern(values))))
-        else:
-            out.append((item, re.compile(item.pattern(base))))
     return out
 
 

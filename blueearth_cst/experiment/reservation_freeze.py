@@ -16,6 +16,7 @@ from blueearth_cst.experiment.reservation import (
     bind_reservation_owned,
     read_reservation,
 )
+from blueearth_cst.shared.model_registry import reference_model_path
 from blueearth_cst.shared.workflow_config_snapshot import (
     file_reference,
     publish_archive,
@@ -136,7 +137,7 @@ def _validate_recipe(root: Path, recipe: dict) -> tuple[dict, dict]:
         raise ValueError("simulation freeze preparation closure differs")
     differences = compare_reference(
         supplied["documents"]["model_reference"],
-        project / "models/hydrology/wflow",
+        project / reference_model_path(supplied["documents"]["model_reference"]),
     )
     if differences:
         raise ValueError("simulation freeze model differs: " + "; ".join(differences))

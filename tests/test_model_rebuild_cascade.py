@@ -28,10 +28,11 @@ CFG = SNAKEDIR / "test_case" / "project_config_baseline.yml"
 
 
 def _rule_block(name: str) -> str:
+    # The build rules sit under `if MODEL_ORIGIN == "built":` (t2609281102).
     text = SNAKEFILE.read_text(encoding="utf-8")
-    m = re.search(rf"^rule {name}:\n(.*?)(?=^rule |\Z)", text, re.S | re.M)
+    m = re.search(rf"^( *)rule {name}:\n(.*?)(?=^\1rule |^\S|\Z)", text, re.S | re.M)
     assert m, f"rule {name} not found"
-    return m.group(1)
+    return m.group(2)
 
 
 def test_build_wflow_model_declares_a_completion_sentinel():

@@ -16,6 +16,7 @@ from pathlib import Path
 import yaml
 
 from blueearth_cst.experiment import indicator_registry as registry
+from blueearth_cst.shared.model_registry import recipe_key, selected_model_root
 
 OPERATIONS = ("simulations", "indicators")
 DEFAULT_SET = "default"
@@ -848,6 +849,12 @@ def selected_sets(
 
     resolved = []
     unavailable = []
+    project_dir = (project.get("project") or {}).get("project_dir")
+    historical_forcing = (project.get("climate") or {}).get("forcing_id")
+    model_root = None
+    if project_dir:
+        model_root = selected_model_root(Path(project_dir).resolve(), project)
+        historical_forcing = recipe_key(model_root, historical_forcing)
     for source in selection.sets:
         tokens = None
         try:
@@ -889,13 +896,8 @@ def selected_sets(
                 tokens,
                 legacy=selection.legacy,
                 prepare_baseline=prepare_baseline,
-                model_root=(
-                    Path(project["project"]["project_dir"]).resolve()
-                    / "models/hydrology/wflow"
-                )
-                if (project.get("project") or {}).get("project_dir")
-                else None,
-                historical_forcing=(project.get("climate") or {}).get("forcing_id"),
+                model_root=model_root,
+                historical_forcing=historical_forcing,
             )
         except HistoricalQcritUnavailable as exc:
             # Inspect the remaining sets: a pending producer must not hide

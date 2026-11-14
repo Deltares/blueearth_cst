@@ -151,7 +151,7 @@ T1_SHARED_SECTIONS: dict[str, tuple[str, ...]] = {
         "forcings",
         "default_forcing",
     ),
-    "model": ("outvars",),
+    "model": ("outvars", "name"),
     "plotting": ("annotation",),
 }
 
@@ -246,6 +246,11 @@ def normalize_indicator_settings(settings: dict) -> dict:
 SHARED_SEAM_KEYS: frozenset[str] = frozenset(T1_SHARED_SECTIONS) | frozenset(
     leaf for leaves in T1_SHARED_SECTIONS.values() for leaf in leaves
 )
+
+#: Shared leaves that are also a workflow's own top-level key: `model.name`
+#: (t2609281102) and generate_scenarios' set `name`. The seam check skips them;
+#: a stray one in another workflow file is refused by workflow ownership.
+WORKFLOW_OWNED_LEAVES: frozenset[str] = frozenset({"name"})
 
 #: There is no hoist registry: T2 sections compose only into their workflow.
 #: The D-9.6 scan permits no cross-workflow value reads. Shared values belong
@@ -762,8 +767,11 @@ def _rejected_in_t2(t1: Mapping[str, Any]) -> frozenset[str]:
     never did vary except through the hoist term, and a signature implying
     otherwise invites a caller to believe there is a per-workflow exemption.
     """
-    return frozenset(
-        set(T1_TOP_LEVEL) | {"enabled"} | _t1_declared_leaves(t1) | SHARED_SEAM_KEYS
+    return (
+        frozenset(
+            set(T1_TOP_LEVEL) | {"enabled"} | _t1_declared_leaves(t1) | SHARED_SEAM_KEYS
+        )
+        - WORKFLOW_OWNED_LEAVES
     )
 
 

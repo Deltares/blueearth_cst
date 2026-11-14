@@ -63,6 +63,7 @@ from blueearth_cst.experiment.reservation import preview_experiment  # noqa: E40
 from blueearth_cst.shared.config_composition import (  # noqa: E402
     load_composed_config,
 )
+from blueearth_cst.shared.model_registry import list_models  # noqa: E402
 from blueearth_cst.shared.snake_utils import (  # noqa: E402
     historical_window_bounds,
     slugify_window,
@@ -297,6 +298,7 @@ def main(argv: list[str] | None = None) -> int:
         params["dataset_key"],
         params["clim_project"],
         retained_experiment_names=retained_experiment_names(project_dir),
+        model_name=[entry.name for entry in list_models(project_dir)] or "wflow",
     )
     # No DELETED class: the one that existed (`indicators/RT_*.csv`, deleted
     # rather than migrated) belonged to the retired R9 map. The inventory is

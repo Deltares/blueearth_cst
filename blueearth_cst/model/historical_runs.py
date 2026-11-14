@@ -151,10 +151,14 @@ def read_recipe_run(
     toml_path = model_root / layout.toml
     files, identity = execution_inputs(toml_path, registry_path)
     forcing_record_path = model_root / layout.config_dir / "historical_forcing.json"
-    files[str(forcing_record_path.resolve())] = file_sha256(forcing_record_path)
-    forcing_record = json.loads(forcing_record_path.read_text(encoding="utf-8"))
-    if forcing_record["forcing_sha256"] != identity["forcing_sha256"]:
-        raise ValueError(f"recipe {forcing_id}: forcing differs from its record")
+    if forcing_id is None and not forcing_record_path.is_file():
+        # A built model's single recipe writes no forcing record (rule 1.09).
+        forcing_record = {"recipe": None}
+    else:
+        files[str(forcing_record_path.resolve())] = file_sha256(forcing_record_path)
+        forcing_record = json.loads(forcing_record_path.read_text(encoding="utf-8"))
+        if forcing_record["forcing_sha256"] != identity["forcing_sha256"]:
+            raise ValueError(f"recipe {forcing_id}: forcing differs from its record")
     table_record = model_root / layout.response_record
     files[str(table_record.resolve())] = file_sha256(table_record)
     frame = response_frame(

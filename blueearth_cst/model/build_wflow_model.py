@@ -496,9 +496,9 @@ def refuse_changed_rebuild(root: Path, record_path: Path, document: dict) -> Non
         raise ValueError(
             f"{root} was built with different model settings (changed: "
             f"{', '.join(dict.fromkeys(changed))}). Build the new settings into a new "
-            "model folder: set project.project_dir to a new folder until model "
-            "folders can be named. To rebuild this model in place deliberately, "
-            "delete the model folder first."
+            "model folder: set model.name in the project configuration to a new "
+            "name (for example wflow_v2). To rebuild this model in place "
+            "deliberately, delete the model folder first."
         )
 
 

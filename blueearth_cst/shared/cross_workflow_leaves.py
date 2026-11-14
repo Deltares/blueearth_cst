@@ -11,8 +11,11 @@ from __future__ import annotations
 LEAF_WF1_SNAPSHOT = "config/build_model/run_record.yml"
 
 # WF4's model reference writer consumes these WF1 artifacts.
-LEAF_MODEL_TOML = "models/hydrology/wflow/wflow_sbm.toml"
-LEAF_MODEL_READY = "models/hydrology/wflow/_engine/markers/.outputs_configured"
+# Relative to the selected model folder (t2609281102); the constants below are
+# the default model's.
+MODEL_LEAF_SUFFIXES = ("wflow_sbm.toml", "_engine/markers/.outputs_configured")
+LEAF_MODEL_TOML = f"models/hydrology/wflow/{MODEL_LEAF_SUFFIXES[0]}"
+LEAF_MODEL_READY = f"models/hydrology/wflow/{MODEL_LEAF_SUFFIXES[1]}"
 
 #: The full set. Order is stable so failure messages read the same way twice —
 #: and it is DAG order, so the first entry is the one Snakemake would have
@@ -22,6 +25,11 @@ LEAVES: tuple[str, ...] = (LEAF_MODEL_TOML, LEAF_MODEL_READY)
 #: The workflow that produces every leaf above. Named rather than spelled at
 #: each call site, so a message can say what to RUN and not only what is absent.
 LEAF_PRODUCER = "build_model"
+
+
+def model_leaves(model_path: str = "models/hydrology/wflow") -> tuple[str, ...]:
+    """The WF1 leaves of the model at project-relative ``model_path``."""
+    return tuple(f"{model_path}/{suffix}" for suffix in MODEL_LEAF_SUFFIXES)
 
 
 def consumer_leaves(

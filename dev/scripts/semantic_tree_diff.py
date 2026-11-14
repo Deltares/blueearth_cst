@@ -278,7 +278,7 @@ def build_project_tree_rules(
     clim_project: str = "cmip6",
     *,
     retained_experiment_names: Iterable[str] = (),
-    model_name: str = "wflow",
+    model_name: str | Iterable[str] = "wflow",
 ) -> list[tuple[str | re.Pattern, str]]:
     """Identity rules for the CURRENT project tree, including v2 handoffs.
 
@@ -326,9 +326,12 @@ def build_project_tree_rules(
         Additional verified owners in the inspected root. Each receives the
         same enumerated artifact rules; unknown names and leaves stay unmapped.
     model_name
-        The hydrological model folder under `models/hydrology/` (rule R16).
+        The hydrological model folder under `models/hydrology/` (rule R16), or
+        several when the project holds further registered models.
     """
     del dataset_key  # store keys match the `{store}` grammar, whatever the source
+    models = [model_name] if isinstance(model_name, str) else sorted(set(model_name))
+    model_alt = "(?:" + "|".join(re.escape(name) for name in models) + ")"
     experiments = {experiment_name, *retained_experiment_names}
     rules: list[tuple[str | re.Pattern, str]] = [
         (pattern, r"\g<0>")
@@ -394,9 +397,7 @@ def build_project_tree_rules(
     # Layout 4 homes of the WF1 and WF4 markers (moved in layout 5, R10).
     rules.append(
         (
-            re.compile(
-                rf"models/hydrology/{re.escape(model_name)}/\.outputs_configured"
-            ),
+            re.compile(rf"models/hydrology/{model_alt}/\.outputs_configured"),
             r"\g<0>",
         )
     )
@@ -423,7 +424,7 @@ def build_project_tree_rules(
     ):
         rules.append((re.compile(pattern), r"\g<0>"))
     # Layout 3 recipe shapes and toolbox files in staticgeoms/ (layout 4, R16).
-    old = re.escape(f"models/hydrology/{model_name}")
+    old = f"models/hydrology/{model_alt}"
     recipe = "[a-z][a-z0-9_]{0,31}"
     for pattern in (
         rf"{old}/forcing/(?:{recipe}/)?inmaps_historical\.nc",
@@ -436,7 +437,7 @@ def build_project_tree_rules(
     ):
         rules.append((re.compile(pattern), r"\g<0>"))
     # Layout 2 homes of WF1 markers and build records (moved in layout 3, R10).
-    model = re.escape(f"models/hydrology/{model_name}")
+    model = f"models/hydrology/{model_alt}"
     rules.append(
         (
             re.compile(

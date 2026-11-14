@@ -165,7 +165,7 @@ def render(
                     caption = (
                         f"{title}. {metadata['requested_start']} to {metadata['requested_end']}, inclusive interval-end timestamps. "
                         f"{support_text} {method} {warmup} "
-                        "Different styles identify forcing recipes; their identities are recorded in inventory.csv."
+                        f"Different styles identify {metadata.get('compared', 'forcing recipes')}; their identities are recorded in inventory.csv."
                     )
                     try:
                         export_figure(
