@@ -16,11 +16,13 @@ HydroMT through `project.catalog` (`-d`); Snakefiles and modules do not hardcode
 each file states its origin. Later catalogs override same-named entries, so list order matters.
 
 - **`deltares_data_pdrive.yml`:** HydroMT's `deltares_data` v1.2.0 catalog, vendored verbatim with the
-  P-drive root; the seeds use it. Change it only by re-vendoring.
-- **`deltares_data.yml`, `deltares_data_linux.yml`:** local-root and Linux-root variants, edited by hand.
+  P-drive root; every tracked seed uses it, including the Linux seed. Change it only by re-vendoring.
+- **`deltares_data.yml`:** the same datasets under a local archive root, for users with a local copy.
+- **`deltares_data_linux.yml`:** an older-schema catalog with a Linux root; no tracked seed uses it.
 - **`deltares_data_staged.yml`:** generated overlay of the staged entries; see [Staging](#staging).
 - **`deltares_era5_daily_zarr.yml`:** ERA5 daily Zarr override loaded after the base catalog; a development
-  aid outside the user-facing catalog inventory.
+  aid outside the user-facing catalog inventory. The rapid seed lists the P-drive catalog, the staged
+  overlay and this override, in that order.
 - **`cmip6_data.yml`, `cmip6_store_index.json`:** generated together by
   [`generate_cmip6_catalog.py`](../../dev/scripts/generate_cmip6_catalog.py) from one live `gs://cmip6`
   crawl. The catalog has one entry per model and scenario with that model's existing members; the index
@@ -69,9 +71,11 @@ shared region: editing either reruns extraction, while data changed behind an un
 [`fetch_gcm_raw.py`](../../blueearth_cst/projections/fetch_gcm_raw.py), the only WF2 module that opens the
 remote store. The series files are reduced from those slices and carry a digest from
 [`series_identity.py`](../../blueearth_cst/projections/series_identity.py) that covers the region polygon by
-content and the reducer by module hash. The raw digest excludes the reducer, so a reduction change re-reads
-local slices without downloading. Consumers recompute expected digests and refuse a mismatch
-([`test_series_identity.py`](../../tests/test_series_identity.py)).
+content and the reducer by `kernel_hash`. `analyze_projections.smk` lists the reducer root functions;
+`kernel_hash` follows their calls into `blueearth_cst`, hashes behaviour rather than file bytes (comments
+and docstrings do not count) and folds in `pixi.lock`. The raw digest excludes the reducer, so a reduction
+change re-reads local slices without downloading. Consumers recompute expected digests and refuse a
+mismatch ([`test_series_identity.py`](../../tests/test_series_identity.py)).
 
 Both pruners report until `--delete` is given:
 [`prune_climate_store.py`](../../dev/scripts/prune_climate_store.py) lists stores the current configuration

@@ -68,7 +68,7 @@ Each logged rule writes its own log part; the launcher merges the parts after su
 - [`run_logged.py`](../../blueearth_cst/shared/run_logged.py) is the tee wrapper for `shell:` rules:
   `python -u {run_logged} {log} -- <command> [args...]`. It streams combined output to the console and the
   log and returns the command's own exit code, which `<cmd> | tee {log}` masks under `cmd.exe`.
-  Python rules call `run_and_tee` from `snake_utils.py` instead.
+  Python scripts that run a subprocess use `run_and_tee` from `snake_utils.py` instead.
 - [`run_log_core.py`](../../blueearth_cst/shared/run_log_core.py) holds the neutral log and console
   helpers shared with WF3; WF4's Wflow frame relay is injected by `snake_utils`, so this module does not
   import that adapter.

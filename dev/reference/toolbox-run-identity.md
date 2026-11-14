@@ -63,7 +63,7 @@ modules sit in more than one.
 
 ### Check before editing a shared module
 
-Compute the closures in the session runtime and look for the file you intend to edit:
+Compute the closures in the activated Pixi environment and look for the file you intend to edit:
 
 ```python
 from pathlib import Path
@@ -88,7 +88,9 @@ for name, inventory in closures.items():
 `_indicator_code_inventory` is private, and passing every available set gives the widest indicator closure.
 To measure a change, run the snippet on the base and on the branch and compare. A file in a closure needs
 an explicit decision: accept the new identities, move the logic out of the closure, or add a justified
-exclusion. Do not infer membership from a module's docstring; compute it.
+exclusion. Do not infer membership from a module's docstring; compute it. WF2 series caches carry a
+separate reducer hash that ignores comments; see the
+[caches reference](toolbox-data-catalogs-and-caches.md#project-caches).
 
 ## What a changed identity does
 

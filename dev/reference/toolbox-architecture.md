@@ -100,8 +100,8 @@ hand-edit `pixi.lock` or `Manifest.toml`. Julia is installed with juliaup and st
 conda-forge has no win-64 build. `runtime.julia_version` in `config/advanced_settings.yml` is the pin the
 workflows read; it must agree with the `install-julia` task and `Manifest.toml`
 ([`test_julia_runtime.py`](../../tests/test_julia_runtime.py)). weathergenr is installed outside the lock by
-`pixi run install-rdeps`. Installed package versions enter the stage environments that WF3, WF4 and
-indicator identities hash, so an upgrade changes those identities; see the
+`pixi run install-rdeps`. WF3, WF4 and indicator identities hash the installed versions of the packages
+each stage depends on, so upgrading one of those packages changes those identities; see the
 [run identity reference](toolbox-run-identity.md#code-inventories). The
 [installation guide](../../docs/site/setup/install.md) covers user setup.
 

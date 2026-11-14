@@ -50,11 +50,11 @@ key that is not listed in `config_paths.py` is not resolved.
 Classify each new key as scientific or not. A scientific value must reach the identity of the product it
 changes; a non-scientific key, such as a display or compute setting, must stay out of it. In both cases
 **omitting the new key must leave existing identities unchanged**: write a default into the resolved
-value only where the identity already records it, and add an optional request field only when it differs
-from the default, as `capture_request` does for `include_unperturbed`, `initialization` and
-`historical_forcing`. Composition never adds or drops keys (invariant 2 in `config_composition.py`).
-The [run identity reference](toolbox-run-identity.md) lists what each identity hashes and how to check
-whether a module edit changes it.
+value only where the identity already records it, and add an optional request field only when the key is
+set, as `capture_request` does for `initialization` and `historical_forcing`, or only when it differs from
+the default, as it does for `include_unperturbed`. Composition never adds or drops keys (invariant 2 in
+`config_composition.py`). The [run identity reference](toolbox-run-identity.md) lists what each identity
+hashes and how to check whether a module edit changes it.
 
 ## Keep the starter and seeds current
 
