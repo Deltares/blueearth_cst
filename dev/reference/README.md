@@ -27,7 +27,7 @@ owning reference when behavior changes; executable sources retain exact schemas,
 | Regions, spatial IDs, map ownership | [toolbox-spatial-foundation.md][spatial] |
 | Wflow build and model-root ordering | [wf1-model-construction.md][model] |
 | Forcing catalog admission and unit interpretation | [toolbox-forcing-units.md](toolbox-forcing-units.md) |
-| Generation inputs, outputs or replacement engines | [toolbox-weather-generator-interface.md][generator] |
+| Generation inputs, outputs, delta-change path or replacement engines | [toolbox-weather-generator-interface.md][generator] |
 | Simulator preparation and responses | [toolbox-hydrological-model-interface.md][simulator] |
 | Run identity, reuse, reservations and batching | [toolbox-run-identity.md][identity] |
 | Rule definitions, dependencies and consumers | [toolbox-workflow-map.md](toolbox-workflow-map.md) |
