@@ -297,6 +297,14 @@ def resolve_model_name(project_dir: str | Path, requested: str | None) -> str:
     return entries[0].name if entries else DEFAULT_MODEL_NAME
 
 
+def reference_model_path(reference: Mapping[str, Any]) -> str:
+    """The project-relative model folder an experiment's model reference records.
+
+    References without ``model_path`` used the only model there was, ``wflow``.
+    """
+    return reference.get("model_path", f"{MODELS_DIR}/{DEFAULT_MODEL_NAME}")
+
+
 def recipe_key(root: str | Path, forcing_id: str | None) -> str | None:
     """The historical recipe key of ``forcing_id`` within the model at ``root``.
 

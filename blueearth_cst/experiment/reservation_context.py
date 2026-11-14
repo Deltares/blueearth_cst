@@ -143,10 +143,11 @@ class ReservationContext:
             from blueearth_cst.experiment.check_model_reference import (
                 check_model_reference,
             )
+            from blueearth_cst.shared.model_registry import reference_model_path
 
             recorded = yaml.safe_load(reference.read_text(encoding="utf-8"))
             check_model_reference(
-                reference, self.root / recorded["model_path"], self.name
+                reference, self.root / reference_model_path(recorded), self.name
             )
 
     def bind_selection(self) -> None:

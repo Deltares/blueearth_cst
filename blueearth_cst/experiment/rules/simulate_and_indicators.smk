@@ -37,7 +37,7 @@ engine_dir = f"{exp_dir}/_engine"
 # t2609281102: `model.name` selects the model; with several models and no name
 # the selection stops and lists them. A registered model changed since its
 # registration is refused before any work.
-from blueearth_cst.shared.model_registry import recipe_key, require_unchanged, selected_model_root
+from blueearth_cst.shared.model_registry import recipe_key, reference_model_path, require_unchanged, selected_model_root
 basin_dir = selected_model_root(project_dir, project).as_posix()
 require_unchanged(basin_dir)
 # t014: the selected historical recipe's TOML, end state and forcing. Legacy
@@ -91,10 +91,10 @@ elif Path(f"{engine_dir}/model_reference.yml").exists():
     _retained_reference = yaml.safe_load(Path(f"{engine_dir}/model_reference.yml").read_text(encoding="utf-8"))
 _retained_toml = None if _retained_reference is None else _retained_reference["model_toml"]
 _selected_model_path = Path(basin_dir).relative_to(project_dir).as_posix()
-if _retained_reference is not None and _retained_reference["model_path"] != _selected_model_path:
+if _retained_reference is not None and reference_model_path(_retained_reference) != _selected_model_path:
     raise SimulationFrozenError(
         f"model {Path(_selected_model_path).name!r} differs from the retained experiment's "
-        f"({Path(_retained_reference['model_path']).name!r}); use --new-experiment")
+        f"({Path(reference_model_path(_retained_reference)).name!r}); use --new-experiment")
 if _retained_toml is not None and _retained_toml != HISTORICAL.toml:
     raise SimulationFrozenError(
         f"historical forcing {HISTORICAL_FORCING or 'default'!r} differs from the retained "

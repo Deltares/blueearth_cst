@@ -173,7 +173,7 @@ def indicators_only_configuration(config_path, *, prepare_baseline=True):
                 raise IndicatorsOnlyIdentityMismatch(
                     f"{field}: retained={retained[field]!r}; asserted={asserted[field]!r}"
                 )
-    from blueearth_cst.shared.model_registry import recipe_key
+    from blueearth_cst.shared.model_registry import recipe_key, reference_model_path
     from blueearth_cst.shared.named_forcings import HistoricalLayout, simulation_climate
 
     # Historical thresholds come from the model and recipe the experiment
@@ -181,12 +181,13 @@ def indicators_only_configuration(config_path, *, prepare_baseline=True):
     # is listed below as not used (t2609281102).
     reference = intent_v2["documents"]["model_reference"]
     configured_model = project.get("model") or {}
-    model = {**configured_model, "name": Path(reference["model_path"]).name}
+    model_path = reference_model_path(reference)
+    model = {**configured_model, "name": Path(model_path).name}
     project = {**project, "model": model}
     climate, selected = simulation_climate(
         project.get("climate") or {}, workflow.get("historical_forcing")
     )
-    selected = recipe_key(project_root / reference["model_path"], selected)
+    selected = recipe_key(project_root / model_path, selected)
     frozen = HistoricalLayout.from_toml(reference["model_toml"]).forcing_id
     if selected != frozen:
         raise IndicatorsOnlyIdentityMismatch(
