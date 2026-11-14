@@ -55,9 +55,8 @@ data. See [asset provenance and licence](../../config/basemap/README.md).
 `defaults:` (project-overridable values such as `julia_threads`) and `runtime:` (toolchain pins such
 as `julia_version`). The Julia pin must agree with `pixi.toml` and `Manifest.toml`; see
 `tests/test_julia_runtime.py`. `snake_utils` reads this file for every project; it is not a
-`--configfile` target. Its schema is closed: add each key to `_ADVANCED_SETTINGS_SCHEMA` in
-`blueearth_cst/shared/advanced_settings.py` together with the YAML. Keep the schema separate from
-`wf3_science.py` so an edit does not re-key WF3 collections.
+`--configfile` target. The [configuration change procedure](dev-configuration-changes.md) covers its
+closed schema.
 
 **Tracked `test_case/` inputs** are `project_config_*.yml` and two basin CSVs in `test_data/`.
 Keep `project_config_` on new seeds; the Git allowlist excludes other names. To add another tracked

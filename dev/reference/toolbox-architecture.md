@@ -34,19 +34,12 @@ requirements.
 
 ## Configuration ownership
 
-The project YAML owns shared `project`, `basin`, `climate` and `model` settings. Each workflow stanza
-has the closed shape `{enabled, config_path}`; its optional `config_path` points to that workflow's
-settings file. Shared values stay in the project file, while workflow-specific values stay in their
-own files. [`config_composition.py`](../../blueearth_cst/shared/config_composition.py) owns the exact
-schema and merge rules.
-
-Schema 3 resolves declared file paths beside the YAML that declares them and accepts `toolbox:` for
-bundled resources. Schema 2 retains invocation-relative path behavior except for `config_path`, which
-resolves beside the project YAML. [`config_paths.py`](../../blueearth_cst/shared/config_paths.py)
-owns the path rules. `config/advanced_settings.yml` is loaded for every project through a closed
-schema. [`config/defaults/`](../../config/defaults) changes runs;
-[`config/templates/`](../../config/templates) supplies scaffolds. The
-[repository layout](dev-repository-layout.md) owns placement conventions.
+The project YAML owns settings shared across workflows; each workflow's own settings file owns the
+rest. A cross-workflow value is never read from another workflow's file.
+[`config_composition.py`](../../blueearth_cst/shared/config_composition.py) and
+[`config_paths.py`](../../blueearth_cst/shared/config_paths.py) own the exact schema, merge and path
+rules. The [configuration change procedure](dev-configuration-changes.md) owns where a key belongs and
+how to add, rename or retire one.
 
 ## Retained products and execution records
 

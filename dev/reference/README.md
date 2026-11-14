@@ -12,6 +12,7 @@ owning reference when behavior changes; executable sources retain exact schemas,
 | Placement, config directories, scratch | [dev-repository-layout.md][layout] |
 | Document authority and retention | [dev-record-lifecycle.md][lifecycle] |
 | File, identifier or output naming | [dev-naming-conventions.md](dev-naming-conventions.md) |
+| Adding, renaming or retiring a configuration key | [dev-configuration-changes.md][config] |
 | Verification, evidence reuse, landing or CI | [dev-validation.md](dev-validation.md) |
 | Workflow console orientation, commands and work plans | [dev-console-style.md](dev-console-style.md) |
 | Gate receipts, Windows tests, E2E bundles | [dev-validation-procedures.md][procedures] |
@@ -64,6 +65,7 @@ Use this lookup to reach the relevant topic owners; a workflow does not need its
 
 [spatial]: toolbox-spatial-foundation.md
 [layout]: dev-repository-layout.md
+[config]: dev-configuration-changes.md
 [lifecycle]: dev-record-lifecycle.md
 [procedures]: dev-validation-procedures.md
 [architecture]: toolbox-architecture.md
