@@ -19,9 +19,13 @@ superseded `shared.*` section.
 
 ## Spatial and model construction
 
-WF1 consumes the shared region and vector products, adds thematic land and soil rasters, and builds
-Wflow under `models/hydrology/wflow`. Region and climate-extraction producers must remain independent
-of the model root. Use HydroMT, hydromt_wflow and Wflow names, catalogs and `setup_*` methods directly.
+WF1 consumes the shared region and vector products, adds thematic land and soil rasters, and builds Wflow
+under `models/hydrology/<model.name>` (default `wflow`). A model registered with `scripts/register_model.py`
+(`origin: user_managed` in `_engine/model.json`) is never built or written: the build rules are not defined
+for it, every recipe uses the staged forcing update and its own keyed TOML, and
+`blueearth_cst/model/registered_model.py` refuses a changed model or missing output declarations. Region and
+climate-extraction producers must remain independent of the model root. Use HydroMT, hydromt_wflow and Wflow
+names, catalogs and `setup_*` methods directly.
 
 The [build template](../../config/defaults/wflow_build_model.yml) owns constant-parameter values and
 CSDMS spellings. `setup_constant_pars` writes these as `input.static.<name>.value` scalars in the
@@ -35,7 +39,8 @@ configured setup calls, but a new build still needs checks suited to the changed
 
 HydroMT build and update steps write into one model directory. A file produced by the initial build
 does not prove later mutations finished. Readers that need the completed model must depend on the
-terminal `_engine/markers/.model_final` sentinel from the last model-writing step. Intermediate build and update
+terminal `_engine/markers/.model_final` sentinel from the last model-writing step (for a registered
+model, rule 1.08c, which writes nothing else). Intermediate build and update
 steps depend on their preceding stage; making them depend on the terminal sentinel would create a
 cycle.
 
