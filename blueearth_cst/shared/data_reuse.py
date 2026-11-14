@@ -9,9 +9,10 @@ the ``CST_REUSE_DATA_FROM`` environment variable that ``run_workflows.py
 
 Matching is strict and fails closed. A historical store is reused only when its
 extraction record (:data:`RECORD_RELPATH`, written beside every new extraction)
-names the same source, forcing recipe, hydrography entry, region geometry and
-root-free catalog entries, and its stored time axis covers the requested
-window. Stores extracted before records existed are never reused. A CMIP6 raw
+names the same extraction code, source, forcing recipe, hydrography entry,
+region geometry and catalog entries (compared without their root), and its
+stored time axis covers the requested window. Stores extracted before records
+existed, or by other extraction code, are never reused. A CMIP6 raw
 slice is reused only when its ``cst_raw_digest`` equals the expected one.
 
 Reuse never enters a Snakemake rule's ``params`` or declared outputs, so
@@ -38,12 +39,13 @@ REUSE_ENV = "CST_REUSE_DATA_FROM"
 #: Extraction record beside ``extract_historical.nc``, relative to the store.
 RECORD_RELPATH = "_engine/extraction_record.json"
 
-RECORD_SCHEMA = "climate-store-record/1"
+RECORD_SCHEMA = "climate-store-record/2"
 
 #: Record fields that must be equal for a store to be reused. The window is
 #: matched against the stored time axis instead.
 MATCH_FIELDS = (
     "schema",
+    "code",
     "clim_source",
     "forcing_required",
     "extraction_fingerprint",
@@ -145,12 +147,14 @@ def store_record(
     region,
     starttime: str,
     endtime: str,
+    code: str,
 ) -> dict[str, Any] | None:
     """The extraction record of one historical store, or None if unrecordable.
 
     ``recipe`` is the normalized forcing recipe; every catalog entry the
     extraction may read is identified, so a changed companion, orography or
-    PET entry also prevents reuse.
+    PET entry also prevents reuse. ``code`` identifies the extraction code, so
+    a store written before a code change is not handed to a later trial.
     """
     names = {clim_source, "era5", "era5_orography", hydrography}
     names.update(
@@ -168,6 +172,7 @@ def store_record(
         return None
     return {
         "schema": RECORD_SCHEMA,
+        "code": code,
         "clim_source": clim_source,
         "forcing_required": bool(forcing_required),
         "extraction_fingerprint": recipe.extraction_fingerprint,
@@ -206,15 +211,10 @@ def _stored_time_bounds(climate_nc: Path):
         return pd.Timestamp(ds["time"].values[0]), pd.Timestamp(ds["time"].values[-1])
 
 
-def _requested_bounds(starttime: str, endtime: str):
-    """First and last day the request needs, compared at day resolution.
-
-    Day resolution because era5 labels a daily value at the interval end, so a
-    store for ``1995-01-01..`` starts at ``1995-01-02``; a candidate is held to
-    the same labels a fresh extraction of the request would carry, which the
-    caller checks again through ``_check_window_coverage``.
-    """
-    return pd.Timestamp(starttime).normalize(), pd.Timestamp(endtime).normalize()
+#: Days between a store's requested start and its first label: 0 for a source
+#: labelled at the interval start, 1 for era5's yearly files, which label a day
+#: at its end and put 1 January in the previous year's file.
+_START_OFFSETS = (pd.Timedelta(0), pd.Timedelta(days=1))
 
 
 def find_covering_store(
@@ -224,14 +224,19 @@ def find_covering_store(
     starttime: str,
     endtime: str,
     exclude: str | os.PathLike | None = None,
-) -> tuple[Path | None, list[str]]:
+) -> tuple[Path | None, pd.Timestamp | None, list[str]]:
     """First source store whose record matches and whose data covers the window.
 
-    Returns the store directory (or None) and one short reason per source
-    store considered and rejected, for the caller to report.
+    Returns the store directory, the first label to slice from, and one short
+    reason per source store considered and rejected. The slice starts where a
+    fresh extraction of the request would: the requested start plus the
+    store's own offset from its requested start, which is how the source labels
+    a window starting on 1 January. A store with any other offset was clipped
+    by its source and is not used.
     """
     excluded = Path(exclude).resolve() if exclude is not None else None
-    want_start, want_end = _requested_bounds(starttime, endtime)
+    want_start = pd.Timestamp(starttime).normalize()
+    want_end = pd.Timestamp(endtime).normalize()
     reasons: list[str] = []
     for source in sources:
         root = source / HISTORICAL_STORE_DIR
@@ -261,14 +266,16 @@ def find_covering_store(
                 reasons.append(f"{label}: no time axis")
                 continue
             have_start, have_end = (bound.normalize() for bound in bounds)
-            # A fresh extraction of the request starts within a day of the
-            # requested start (interval-end labels) and ends on the requested
-            # end; a candidate must hold both days.
-            if have_start > want_start + pd.Timedelta(days=1) or have_end < want_end:
+            offset = have_start - pd.Timestamp(candidate["window"]["start"]).normalize()
+            if offset not in _START_OFFSETS:
+                reasons.append(f"{label}: source starts {have_start.date()}")
+                continue
+            slice_start = want_start + offset
+            if have_start > slice_start or have_end < want_end:
                 reasons.append(f"{label}: holds {have_start.date()}..{have_end.date()}")
                 continue
-            return store, reasons
-    return None, reasons
+            return store, slice_start, reasons
+    return None, None, reasons
 
 
 def project_label(path: str | os.PathLike) -> str:

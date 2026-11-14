@@ -81,10 +81,11 @@ mismatch ([`test_series_identity.py`](../../tests/test_series_identity.py)).
 both caches from sibling projects named by `project.reuse_data_from` or `CST_REUSE_DATA_FROM`; the
 [configuration reference](../../docs/technical-manual/configuration.md#data-reuse) states the user contract.
 Every new historical store writes `_engine/extraction_record.json`, whose `MATCH_FIELDS` must equal the
-request's; `write_reused_store` in the extraction script slices a covering store with a fresh extraction's
-encoding, and [`test_data_reuse.py`](../../tests/test_data_reuse.py) pins equal `netcdf_content_sha256`. Keep
-the sources out of rule `params` and the record out of the netCDF: either would change rerun decisions or
-the WF3 seed.
+request's, including the digest of the extraction script's import closure. `write_reused_store` slices a
+covering store from the first label a fresh extraction would carry (era5's yearly files start a day after
+the requested start) with a fresh extraction's encoding, and
+[`test_data_reuse.py`](../../tests/test_data_reuse.py) pins equal `netcdf_content_sha256`. Keep the sources
+out of rule `params` and the record out of the netCDF: either would change rerun decisions or the WF3 seed.
 Both pruners report until `--delete` is given:
 [`prune_climate_store.py`](../../dev/scripts/prune_climate_store.py) lists stores the current configuration
 no longer selects, and [`prune_series_cache.py`](../../dev/scripts/prune_series_cache.py) lists WF2 series
