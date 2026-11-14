@@ -107,8 +107,8 @@ Four helpers report by default: `prune_series_cache.py` finds orphaned WF2 serie
 lists log folders older than `--older-than` days, skipping those a WF2 product refers to;
 `prune_climate_store.py` finds stale `<source>_<window>` stores (both caches are described in the
 [data catalogs and caches reference](toolbox-data-catalogs-and-caches.md#project-caches));
-`snapshot_project_tree.py` lists paths
-against the project-tree inventory (`pixi run tree-check`). Deletion requires `--delete`. Prune before
+`snapshot_project_tree.py` lists paths against the project-tree inventory (`pixi run tree-check`).
+Deletion requires `--delete`. Prune before
 a reference snapshot so it excludes orphans. Directories routed wholesale by the path map also need
 an mtime sweep; the pruners do not see every file.
 

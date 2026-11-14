@@ -30,12 +30,13 @@ owning reference when behavior changes; executable sources retain exact schemas,
 | Wflow build and model-root ordering | [wf1-model-construction.md][model] |
 | Forcing catalog admission and unit interpretation | [toolbox-forcing-units.md](toolbox-forcing-units.md) |
 | Data catalogs, staging and project caches | [toolbox-data-catalogs-and-caches.md][catalogs] |
-| Generation inputs, outputs, delta change or replacement engines | [generator interface][generator] |
+| Generation, delta change or replacement engines | [toolbox-weather-generator-interface.md][generator] |
 | Simulator preparation and responses | [toolbox-hydrological-model-interface.md][simulator] |
 | Run identity, reuse, reservations and batching | [toolbox-run-identity.md][identity] |
-| Rule definitions, dependencies and consumers | [toolbox-workflow-map.md](toolbox-workflow-map.md) |
+| Rule definitions, names, numbers and consumers | [toolbox-workflow-map.md](toolbox-workflow-map.md) |
 | CMIP6 grids and source versions | [wf2-cmip6-source-readability.md][cmip6] |
 | Indicator terminology | [toolbox-indicator-glossary.md][indicators] |
+| Adding an indicator set or calculation | [indicators/README.md][indicator-module] |
 
 ## Plotting and presentation
 
@@ -84,6 +85,7 @@ Use this lookup to reach the relevant topic owners; a workflow does not need its
 [identity]: toolbox-run-identity.md
 [handoffs]: ../../docs/site/toolbox-reference/retained-handoffs.qmd
 [indicators]: toolbox-indicator-glossary.md
+[indicator-module]: ../../blueearth_cst/indicators/README.md
 [guide0]: ../../docs/site/toolbox-reference/workflow-analyze-climate.qmd
 [guide1]: ../../docs/site/toolbox-reference/workflow-build-model.qmd
 [guide2]: ../../docs/site/toolbox-reference/workflow-analyze-projections.qmd
