@@ -1,8 +1,8 @@
 # Workflow console style
 
-Last updated: 2026-11-10
+Last updated: 2026-11-14
 
-Use this reference when changing workflow orientation, planning or launcher output. The shared
+Use this reference when changing workflow orientation, planning, launcher output or rule logs. The shared
 [`console_style.py`](../../blueearth_cst/shared/console_style.py) owns the layout for all five workflows;
 [`snakemake_console.py`](../../blueearth_cst/shared/snakemake_console.py) owns the early terminal adapter.
 Rule implementations retain their compact `log_row` output. Vendored `dev/scripts/console.py` is unrelated.
@@ -60,6 +60,30 @@ Verbose mode retains native startup diagnostics.
 Embedded API callers without finalized CLI metadata show the command as unavailable. The native fallback
 recognizes Snakemake executable or module entry points; it never presents the host program's arguments as
 a Snakemake command or invents an API execution mode.
+
+## Rule logs
+
+Each logged rule writes its own log part; the launcher merges the parts after success or failure.
+
+- [`run_logged.py`](../../blueearth_cst/shared/run_logged.py) is the tee wrapper for `shell:` rules:
+  `python -u {run_logged} {log} -- <command> [args...]`. It streams combined output to the console and the
+  log and returns the command's own exit code, which `<cmd> | tee {log}` masks under `cmd.exe`.
+  Python rules call `run_and_tee` from `snake_utils.py` instead.
+- [`run_log_core.py`](../../blueearth_cst/shared/run_log_core.py) holds the neutral log and console
+  helpers shared with WF3; WF4's Wflow frame relay is injected by `snake_utils`, so this module does not
+  import that adapter.
+- [`merge_logs.py`](../../blueearth_cst/shared/merge_logs.py), called by `execution_outputs.py`, merges
+  parts into one workflow log in `LOG_RULES` order, with one provenance header, one section per rule
+  and one sub-header per fan-out member. It discovers parts only for listed rule labels, so an orphan
+  part from a renamed rule is never read or deleted, and it reports a rule without a part instead of
+  skipping it. Raw parts are retained after a failure.
+
+The [workflow map](toolbox-workflow-map.md#trace-a-rule-and-its-consumers) owns rule labels and
+`LOG_RULES` registration. Some of these helpers sit near the code inventories that WF3 and WF4
+identities hash; check with the [run identity reference](toolbox-run-identity.md#code-inventories) before
+moving code between them. Tests: [`test_run_logged.py`](../../tests/test_run_logged.py),
+[`test_merge_logs.py`](../../tests/test_merge_logs.py) and
+[`test_log_rules_contract.py`](../../tests/test_log_rules_contract.py).
 
 ## Verification
 

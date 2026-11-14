@@ -14,7 +14,7 @@ owning reference when behavior changes; executable sources retain exact schemas,
 | File, identifier or output naming | [dev-naming-conventions.md](dev-naming-conventions.md) |
 | Adding, renaming or retiring a configuration key | [dev-configuration-changes.md][config] |
 | Verification, evidence reuse, landing or CI | [dev-validation.md](dev-validation.md) |
-| Workflow console orientation, commands and work plans | [dev-console-style.md](dev-console-style.md) |
+| Console orientation, commands, work plans and rule logs | [dev-console-style.md](dev-console-style.md) |
 | Gate receipts, Windows tests, E2E bundles | [dev-validation-procedures.md][procedures] |
 | Git branch, tag or commit conventions | [dev-git-conventions.md](dev-git-conventions.md) |
 | Release/version decisions | [dev-versioning.md](dev-versioning.md) |
@@ -25,6 +25,7 @@ owning reference when behavior changes; executable sources retain exact schemas,
 | When the change concerns | Update or consult |
 |---|---|
 | Workflow boundaries and retained handoffs | [toolbox-architecture.md][architecture] |
+| Dependency policy and launcher child processes | [toolbox-architecture.md][architecture] |
 | Regions, spatial IDs, map ownership | [toolbox-spatial-foundation.md][spatial] |
 | Wflow build and model-root ordering | [wf1-model-construction.md][model] |
 | Forcing catalog admission and unit interpretation | [toolbox-forcing-units.md](toolbox-forcing-units.md) |
