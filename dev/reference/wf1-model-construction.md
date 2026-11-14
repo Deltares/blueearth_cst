@@ -9,17 +9,13 @@ products; the [workflow map](toolbox-workflow-map.md) locates WF1 rules. The
 
 ## Configuration ownership
 
-The project YAML owns the output root and catalogs (`project`), region and controls (`basin`),
-historical record and forcing choice (`climate`), and shared output variables (`model.outvars`).
-WF1-specific build and waterbody configs, observations and simulation window come from its
-`config_path` file into `workflows.build_model`. `climate.window` bounds the historical record;
-`climate.selected` selects forcing. The simulation window must fit that record.
-
-[`config_composition.py`](../../blueearth_cst/shared/config_composition.py) and
-[`spatial/config.py`](../../blueearth_cst/spatial/config.py) own exact admitted fields and
-composition. [`resolve_simulation_window`](../../blueearth_cst/shared/snake_utils.py) validates the
-period. Use the tracked [configuration starter](../../config/templates/example-basin) when changing
-the supported shape; do not restore a superseded `shared.*` section.
+WF1 reads the shared `project`, `basin`, `climate` and `model.outvars` settings from the project YAML,
+and its build and waterbody configs, observations and simulation window from `workflows.build_model`.
+`climate.window` bounds the historical record; `climate.selected` selects forcing. The simulation window
+must fit that record; [`resolve_simulation_window`](../../blueearth_cst/shared/snake_utils.py) validates
+it. [`spatial/config.py`](../../blueearth_cst/spatial/config.py) parses the basin fields. Follow the
+[configuration change procedure](dev-configuration-changes.md) to add or move a key; do not restore a
+superseded `shared.*` section.
 
 ## Spatial and model construction
 

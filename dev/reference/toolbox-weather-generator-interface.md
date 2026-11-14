@@ -1,12 +1,13 @@
 # Weather-generator interface
 
-Last updated: 2026-11-05
+Last updated: 2026-11-14
 
 Use this reference when changing scenario generation, replacing the generator, or handing generated forcing
 to a simulator. **WG** stands for **weather generator**. WG-1 through WG-6 are stable interface identifiers.
-WG-1 through WG-4 describe generation;
+WG-1 through WG-4 describe stochastic generation;
 WG-5 and WG-6 describe the current HydroMT/Wflow preparation binding. An alternative simulator need not
-implement that binding.
+implement that binding. The GCM delta method is a second generation path; see
+[delta-change collections](#delta-change-collections) for which contracts it shares.
 
 ## Boundary and ownership
 
@@ -90,6 +91,56 @@ The Wflow adapter prepares temporary model-grid forcing for execution. Its conte
 [HM-2](toolbox-hydrological-model-interface.md#hm-2--prepared-forcing), where **HM** stands for
 **hydrological model**; `validate_wg6` delegates to
 `validate_hm2`. Temporal compatibility and preparation provenance remain adapter responsibilities.
+
+## Delta-change collections
+
+The GCM delta method applies monthly WF2 projection changes to the case's historical record. It is the
+projection-conditioned alternative to stochastic generation and is selected in the WF3 file with
+`method: delta_change` and a `delta-change/3` block. Stochastic generation never reads WF2; only this path
+does. The [delta-change guide](../../docs/technical-manual/delta-change-scenarios.md) explains settings,
+transformations, set layout and plots to users.
+
+Boundary and ownership:
+
+- [`delta_wf2.py`](../../blueearth_cst/experiment/delta_wf2.py) is the WF2 boundary. `resolve_windows` reads
+  the ensemble's `analysis/gridded_changes/` with its `_engine/gridded_changes_inventory.json` (schema 2 or
+  later) and `_engine/analysis_record.json`, selects windows and their members, and refuses missing or older
+  products. WF2's kernels own the change arithmetic; this module selects, checks and regrids factors.
+- [`delta_scenarios.py`](../../blueearth_cst/experiment/delta_scenarios.py) validates settings, derives
+  factors, applies them and publishes the collection (`delta-scenario-collection/2`). `delta-change/1` and
+  `/2` collections remain readable; new generation refuses those settings.
+- [`delta_generation.py`](../../blueearth_cst/experiment/delta_generation.py) captures the authored
+  configuration and input hashes for the owned runner and rechecks them before publication. The all-workflow
+  runner orders WF2 before WF3 and refuses `--rebuild` with delta generation.
+- [`collection_method.py`](../../blueearth_cst/experiment/collection_method.py) is the single method
+  discriminator. WF4 consumers call `collection_method` or `is_delta` instead of comparing schema strings,
+  so a new collection format changes only that module.
+- [`delta_plots.py`](../../blueearth_cst/experiment/delta_plots.py) and
+  [`plot_delta_scenarios.py`](../../scripts/plot_delta_scenarios.py) render retained factors;
+  [`delta_annual.py`](../../blueearth_cst/experiment/delta_annual.py) supplies annual diagnostics.
+  [`generate_delta_scenarios.py`](../../scripts/generate_delta_scenarios.py) is a retired stub that exits
+  with a pointer to the runner.
+
+Contracts shared with the stochastic path:
+
+- **WG-1:** the historical record is the same climate-store extract, with units supplied for supported
+  sources rather than read from extraction labels.
+- **WG-2 and WG-3:** not applicable. There is no perturbation grid or weathergenr configuration;
+  `factor_lookup.csv` and `scenario_run_lookup.csv` bind runs to factor files, members and WF2 windows.
+- **WG-4:** one self-contained forcing series per run, including the historical and neutral controls.
+  Windows are never pooled.
+- **WG-5 and WG-6:** WF4 prepares delta series through the same simulator adapter. A collection with PET
+  ratios supplies PET, so the preparation identity records `pet_method: provided`
+  (`wf4_ancillary_descriptor.py`).
+
+WF4 reserves a pending delta selection in `delta-generation` mode with the authored settings and historical
+location only, then binds the published set. It checks that the set's climate source and historical
+forcing recipe match the WF4 configuration (`simulation_runner.py`). Collection identity and reuse follow
+the [run identity reference](toolbox-run-identity.md#three-identities); the delta producer hashes its own
+file rather than an import closure. Tests: [`test_delta_scenarios.py`](../../tests/test_delta_scenarios.py),
+[`test_delta_wf2.py`](../../tests/test_delta_wf2.py),
+[`test_delta_annual.py`](../../tests/test_delta_annual.py) and
+[`test_collection_method.py`](../../tests/test_collection_method.py).
 
 ## Verification
 

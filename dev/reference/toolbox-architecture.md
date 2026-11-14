@@ -1,6 +1,6 @@
 # Toolbox architecture
 
-Last updated: 2026-11-12
+Last updated: 2026-11-14
 
 Use this reference when changing workflow responsibilities, shared configuration or retained outputs.
 The [workflow implementation map](toolbox-workflow-map.md) locates rules and their consumers; the
@@ -34,19 +34,12 @@ requirements.
 
 ## Configuration ownership
 
-The project YAML owns shared `project`, `basin`, `climate` and `model` settings. Each workflow stanza
-has the closed shape `{enabled, config_path}`; its optional `config_path` points to that workflow's
-settings file. Shared values stay in the project file, while workflow-specific values stay in their
-own files. [`config_composition.py`](../../blueearth_cst/shared/config_composition.py) owns the exact
-schema and merge rules.
-
-Schema 3 resolves declared file paths beside the YAML that declares them and accepts `toolbox:` for
-bundled resources. Schema 2 retains invocation-relative path behavior except for `config_path`, which
-resolves beside the project YAML. [`config_paths.py`](../../blueearth_cst/shared/config_paths.py)
-owns the path rules. `config/advanced_settings.yml` is loaded for every project through a closed
-schema. [`config/defaults/`](../../config/defaults) changes runs;
-[`config/templates/`](../../config/templates) supplies scaffolds. The
-[repository layout](dev-repository-layout.md) owns placement conventions.
+The project YAML owns settings shared across workflows; each workflow's own settings file owns the
+rest. A cross-workflow value is never read from another workflow's file.
+[`config_composition.py`](../../blueearth_cst/shared/config_composition.py) and
+[`config_paths.py`](../../blueearth_cst/shared/config_paths.py) own the exact schema, merge and path
+rules. The [configuration change procedure](dev-configuration-changes.md) owns where a key belongs and
+how to add, rename or retire one.
 
 ## Retained products and execution records
 
@@ -83,12 +76,34 @@ supported launcher attempts; they do not establish resume or fencing guarantees 
 Snakemake launches. WF3 and WF4 retain configuration snapshots within their identified collection
 or experiment rather than in one project-wide slot.
 
+Supported launchers start Snakemake and other project children through `run_project_child` in
+[`windows_job.py`](../../blueearth_cst/shared/windows_job.py). The parent holds the project lock. On
+Windows the child is created suspended and assigned to a job object before it can start descendants, so
+the whole process tree ends with the parent. On other platforms a writing child is refused because no
+equivalent lifetime guarantee is verified; only non-writing launches, such as previews, run there.
+Snakemake children run through `snakemake_console.py`, which applies `bounded_windows_socketpair` from
+[`windows_socketpair.py`](../../blueearth_cst/shared/windows_socketpair.py) to bound Python 3.12's
+fallback socket-pair setup without patching installed packages. Tests:
+[`test_windows_job.py`](../../tests/test_windows_job.py) and
+[`test_windows_socketpair.py`](../../tests/test_windows_socketpair.py).
+
 ## Implementation and verification
 
 This repository is a Python/R/Julia Snakemake workflow, with no API or frontend. `blueearth_cst/`
 contains importable and rule-invoked modules; `scripts/` contains user entry points. `pixi.toml`
 defines the environment, while `pyproject.toml` configures tools and does not declare a package build.
 Ordinary tooling changes must not add packaging tables or a build backend as a side effect.
+
+Keep the toolbox lightweight: a change that adds a Python, R or Julia package needs the owner's approval,
+recorded in its design or task, before it lands. Add Pixi dependencies through `pixi.toml`; never
+hand-edit `pixi.lock` or `Manifest.toml`. Julia is installed with juliaup and stays outside Pixi because
+conda-forge has no win-64 build. `runtime.julia_version` in `config/advanced_settings.yml` is the pin the
+workflows read; it must agree with the `install-julia` task and `Manifest.toml`
+([`test_julia_runtime.py`](../../tests/test_julia_runtime.py)). weathergenr is installed outside the lock by
+`pixi run install-rdeps`. WF3, WF4 and indicator identities hash the installed versions of the packages
+each stage depends on, so upgrading one of those packages changes those identities; see the
+[run identity reference](toolbox-run-identity.md#code-inventories). The
+[installation guide](../../docs/site/setup/install.md) covers user setup.
 
 The [spatial foundation](toolbox-spatial-foundation.md) owns model-neutral region and vector products.
 The [WF1 reference](wf1-model-construction.md) owns Wflow construction and mutable model-root ordering.

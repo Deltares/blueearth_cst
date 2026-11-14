@@ -83,9 +83,9 @@ warm-state usability, and numerical validity require separate evidence when rele
 
 ## HM-6b — retired WF4 final state
 
-WF4 does not emit an unused final state or chain states across scenarios. `validate_hm6b` remains for
-older captured states and synthetic checks. Retaining temporary outputs cannot create a state the adapter
-does not write. The identifier remains for existing callers.
+Retired: WF4 writes no per-run final state; `validate_hm6b` remains for older captured states and synthetic
+checks. History: the HM-6b row of the interchange-contracts design (private-checkout-only citation:
+`dev/records/milestones/p32b/interchange-contracts-design.md`).
 
 ## HM-7 — retained indicator sets
 

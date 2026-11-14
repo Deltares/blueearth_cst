@@ -12,8 +12,9 @@ owning reference when behavior changes; executable sources retain exact schemas,
 | Placement, config directories, scratch | [dev-repository-layout.md][layout] |
 | Document authority and retention | [dev-record-lifecycle.md][lifecycle] |
 | File, identifier or output naming | [dev-naming-conventions.md](dev-naming-conventions.md) |
+| Adding, renaming or retiring a configuration key | [dev-configuration-changes.md][config] |
 | Verification, evidence reuse, landing or CI | [dev-validation.md](dev-validation.md) |
-| Workflow console orientation, commands and work plans | [dev-console-style.md](dev-console-style.md) |
+| Console orientation, commands, work plans and rule logs | [dev-console-style.md](dev-console-style.md) |
 | Gate receipts, Windows tests, E2E bundles | [dev-validation-procedures.md][procedures] |
 | Git branch, tag or commit conventions | [dev-git-conventions.md](dev-git-conventions.md) |
 | Release/version decisions | [dev-versioning.md](dev-versioning.md) |
@@ -24,14 +25,18 @@ owning reference when behavior changes; executable sources retain exact schemas,
 | When the change concerns | Update or consult |
 |---|---|
 | Workflow boundaries and retained handoffs | [toolbox-architecture.md][architecture] |
+| Dependency policy and launcher child processes | [toolbox-architecture.md][architecture] |
 | Regions, spatial IDs, map ownership | [toolbox-spatial-foundation.md][spatial] |
 | Wflow build and model-root ordering | [wf1-model-construction.md][model] |
 | Forcing catalog admission and unit interpretation | [toolbox-forcing-units.md](toolbox-forcing-units.md) |
-| Generation inputs, outputs or replacement engines | [toolbox-weather-generator-interface.md][generator] |
+| Data catalogs, staging and project caches | [toolbox-data-catalogs-and-caches.md][catalogs] |
+| Generation, delta change or replacement engines | [toolbox-weather-generator-interface.md][generator] |
 | Simulator preparation and responses | [toolbox-hydrological-model-interface.md][simulator] |
-| Rule definitions, dependencies and consumers | [toolbox-workflow-map.md](toolbox-workflow-map.md) |
+| Run identity, reuse, reservations and batching | [toolbox-run-identity.md][identity] |
+| Rule definitions, names, numbers and consumers | [toolbox-workflow-map.md](toolbox-workflow-map.md) |
 | CMIP6 grids and source versions | [wf2-cmip6-source-readability.md][cmip6] |
 | Indicator terminology | [toolbox-indicator-glossary.md][indicators] |
+| Adding an indicator set or calculation | [indicators/README.md][indicator-module] |
 
 ## Plotting and presentation
 
@@ -56,13 +61,14 @@ Use this lookup to reach the relevant topic owners; a workflow does not need its
   [user guide][guide1]; [rules][rules1].
 - **WF2 projections:** [CMIP6 source readability][cmip6], [spatial foundation][spatial];
   [user guide][guide2]; [rules][rules2].
-- **WF3 scenarios:** [weather-generator interface][generator], [retained handoffs][handoffs];
-  [user guide][guide3]; [rules][rules3].
-- **WF4 simulation:** [hydrological-model interface][simulator], [indicator glossary][indicators];
-  [user guide][guide4]; [entry point][rules4].
+- **WF3 scenarios:** [weather-generator interface][generator], [run identity][identity],
+  [retained handoffs][handoffs]; [user guide][guide3]; [rules][rules3].
+- **WF4 simulation:** [hydrological-model interface][simulator], [run identity][identity],
+  [indicator glossary][indicators]; [user guide][guide4]; [entry point][rules4].
 
 [spatial]: toolbox-spatial-foundation.md
 [layout]: dev-repository-layout.md
+[config]: dev-configuration-changes.md
 [lifecycle]: dev-record-lifecycle.md
 [procedures]: dev-validation-procedures.md
 [architecture]: toolbox-architecture.md
@@ -72,11 +78,14 @@ Use this lookup to reach the relevant topic owners; a workflow does not need its
 [wf0-figures]: ../../blueearth_cst/plotting/docs/figure-naming.md#historical-climate-diagnostics-wf0
 [model]: wf1-model-construction.md
 [forcing]: toolbox-forcing-units.md
+[catalogs]: toolbox-data-catalogs-and-caches.md
 [cmip6]: wf2-cmip6-source-readability.md
 [generator]: toolbox-weather-generator-interface.md
 [simulator]: toolbox-hydrological-model-interface.md
+[identity]: toolbox-run-identity.md
 [handoffs]: ../../docs/site/toolbox-reference/retained-handoffs.qmd
 [indicators]: toolbox-indicator-glossary.md
+[indicator-module]: ../../blueearth_cst/indicators/README.md
 [guide0]: ../../docs/site/toolbox-reference/workflow-analyze-climate.qmd
 [guide1]: ../../docs/site/toolbox-reference/workflow-build-model.qmd
 [guide2]: ../../docs/site/toolbox-reference/workflow-analyze-projections.qmd

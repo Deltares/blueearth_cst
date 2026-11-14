@@ -25,7 +25,7 @@ Upstream and established BlueEarth contracts keep their prescribed spelling (§6
 **R:** snake_case, not `dot.case`; verb-noun functions such as `read_climate_data`.
 
 **Snakemake:** snake_case rule names (MUST); action rules use `verb_noun` (SHOULD). Non-action targets
-such as `rule all` may use a noun. See §8b.
+such as `rule all` may use a noun. See [rule names](toolbox-workflow-map.md#rule-names).
 
 **YAML:** follow the consuming contract, including for generated files:
 
@@ -195,91 +195,11 @@ kebab-case, Python modules snake_case, and standard root files keep their establ
 
 ## 8b. Rule naming — `<verb>_<noun>`, verb first, always
 
-Action rules use `<verb>_<noun>`; aggregate targets such as `all` may use a noun (§2).
-Choose the verb by action class from this table.
-
-| Verb | Action class |
-| --- | --- |
-| `fetch_` | acquire from an external source |
-| `extract_` | subset or derive from a larger source already present |
-| `delineate_` | derive a catchment boundary from hydrography and an outlet |
-| `prepare_` | **compute or assemble** something a later rule needs |
-| `build_` | construct a model from inputs |
-| `add_` | mutate an existing model in place by adding **data** (a hydromt `update`) |
-| `declare_` | change what an engine will **emit**, adding no model data |
-| `write_` | **emit a record or index** — the emission *is* the work |
-| `generate_` | stochastic or synthetic production |
-| `downscale_` | resolution transform |
-| `perturb_` | apply a climate perturbation to an existing series |
-| `run_` | invoke an external engine |
-| `reduce_` | **intermediate** aggregation that feeds a later rule |
-| `produce_` | shared preparation and publication consumed by more than one workflow |
-| `derive_` | compute a workflow's **terminal product** from reduced inputs |
-| `plot_` | render a figure |
-| `check_` | validate, fail loud |
-| `publish_` | **validate a finished product and mark it ready** — the ready marker is written last |
-| `claim_` | reserve a durable identity before anything is written under it |
-| `snapshot_` | freeze or copy inputs for provenance, so a later step cannot drift from them |
-| `gather_` | merge parts |
-
-Use these distinctions when choosing a verb:
-
-- **`reduce_` vs `derive_`:** both aggregate inputs, but `reduce_` feeds another rule while
-  `derive_` produces the terminal product (`derive_change_factors`, `derive_system_indicators`).
-- **`prepare_` vs `write_`:** use `prepare_` when computation or assembly remains beyond file writing;
-  use `write_` when producing the record or index is the work. Downstream use does not decide the verb:
-  `write_climate_data_catalog` remains `write_` because emitting the catalog is the work.
-
-Use full nouns except established `gcm`, `cmip6`, `wflow`, `rlz` and `st`. Do not introduce ad hoc
-contractions such as `weagen` or `proj`; existing `proj` names await their own migration. Put
-qualifiers after the noun and spell them out.
-
-Add a verb only for a distinct action class with a rule that uses it.
-
-Check the verb against the rule's script or shell body when work moves; grammatical naming alone can
-misdescribe the action.
+Rule naming moved to the [workflow map](toolbox-workflow-map.md#rule-names).
 
 ## 9. Rule numbering (`W.NN` reference scheme)
 
-Each rule in the five workflow definitions has a `W.NN` reference number. `W` is the workflow ID:
-`0` analyze_climate, `1` build_model, `2` analyze_projections, `3` generate_scenarios or
-`4` simulate_system. `NN` is its zero-padded position in logical order: data, build, run, records.
-
-It exists in exactly two places:
-
-- A comment header above each rule, such as `# 1.06  build_wflow_model`.
-- **The `log:` / `benchmark:` filename prefix** — `1.06_build_wflow_model.log` or `.tsv`.
-  Managed launches place parts under `logs/<execution>/_parts/wfN-<child-id>/{logs,benchmarks}/`;
-  a bare `snakemake` WF0–WF2 run uses `logs/_parts/` and `logs/benchmarks/_parts/`.
-  For wildcard rules the prefix goes on the subdirectory (`4.05_run_wflow_simulations/batch_{b}.log`).
-  The `W` digit keeps rule labels disambiguated and sorts them by workflow then step within each namespace.
-
-Numbering conventions:
-
-- **Logical order**, with gaps after removals and letter suffixes for insertions; do not close gaps by
-  renumbering surviving rules. Target rules (`all`, `simulations_only`, `simulations_and_indicators`)
-  carry no number: they aggregate work rather than execute a pipeline step.
-- Every dependency points from a lower to a higher number, including `ancient()` inputs.
-  `ancient()` suppresses a timestamp rerun trigger, not the DAG edge.
-
-Rule numbers have been reused. Interpret an older `W.NN` citation against the Snakefile revision it
-describes (`git show <commit>:<snakefile>`); do not read it as a current rule ID or rewrite retained evidence.
-
-Rules:
-
-- Rule *identifiers* are not numbered (MUST). Snakemake identifiers cannot contain a leading digit or
-  dot, and they are CLI targets. Put `W.NN` only in comments and log or benchmark paths.
-- `W.NN` is a reference and reading aid, not execution order. Snakemake uses the DAG; independent
-  branches can run concurrently. Low-to-high means a lower-numbered rule cannot depend on a higher one.
-- Source definition order may differ from numbering because module-level code depends on placement.
-  `LOG_RULES` must remain in number order (`tests/test_log_rules_contract.py`): it controls workflow
-  log merge order.
-- In prose and commits use “Rule 1.3”; use padded `1.03` in sortable filenames.
-- **Do not renumber to insert a rule.** Use a letter suffix (`1.09b`) until a deliberate workflow-wide
-  migration. Numbers appear in `LOG_RULES`, log and benchmark paths, `rule_banner`, comments and prose.
-  An omitted `LOG_RULES` label silently drops its log section. A suffix retains sorting order:
-  `"1.09" < "1.09b" < "1.10"`.
-- "Rule 1.5" decimals are review shorthand for *talking about* an insert, never a permanent identifier.
+Rule numbering moved to the [workflow map](toolbox-workflow-map.md#rule-numbers).
 
 ## 10. Examples
 
