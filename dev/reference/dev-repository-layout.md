@@ -43,9 +43,8 @@ and can start from `templates/indicator_set.template.yml`.
 **`plotting/`** holds shared figure configuration. The
 [plotting component map](../../blueearth_cst/plotting/README.md) explains its scope and callers.
 
-**`catalogs/`** holds HydroMT `-d` targets. `generate_cmip6_catalog.py` generates
-`cmip6_data.yml` and `cmip6_store_index.json` from a live `gs://cmip6` listing; never hand-edit
-them. Both carry the same crawl's `crawled_on`, which a consumer checks for equality.
+**`catalogs/`** holds HydroMT `-d` targets, some of them generated or vendored. The
+[data catalogs reference](toolbox-data-catalogs-and-caches.md) says which and how to change each.
 
 **`basemap/`** holds `natural_earth_50m.gpkg`, the committed locator-inset asset. Vendoring avoids
 Cartopy's first-use download and per-user cache differences; it does not set a precedent for basin
@@ -106,7 +105,9 @@ and preserve evidence still needed by a reader or gate. Completion alone grants 
 
 Four helpers report by default: `prune_series_cache.py` finds orphaned WF2 series; `prune_logs.py`
 lists log folders older than `--older-than` days, skipping those a WF2 product refers to;
-`prune_climate_store.py` finds stale `<source>_<window>` stores; `snapshot_project_tree.py` lists paths
+`prune_climate_store.py` finds stale `<source>_<window>` stores (both caches are described in the
+[data catalogs and caches reference](toolbox-data-catalogs-and-caches.md#project-caches));
+`snapshot_project_tree.py` lists paths
 against the project-tree inventory (`pixi run tree-check`). Deletion requires `--delete`. Prune before
 a reference snapshot so it excludes orphans. Directories routed wholesale by the path map also need
 an mtime sweep; the pruners do not see every file.

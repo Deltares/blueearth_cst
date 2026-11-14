@@ -28,6 +28,7 @@ owning reference when behavior changes; executable sources retain exact schemas,
 | Regions, spatial IDs, map ownership | [toolbox-spatial-foundation.md][spatial] |
 | Wflow build and model-root ordering | [wf1-model-construction.md][model] |
 | Forcing catalog admission and unit interpretation | [toolbox-forcing-units.md](toolbox-forcing-units.md) |
+| Data catalogs, staging and project caches | [toolbox-data-catalogs-and-caches.md][catalogs] |
 | Generation inputs, outputs, delta change or replacement engines | [generator interface][generator] |
 | Simulator preparation and responses | [toolbox-hydrological-model-interface.md][simulator] |
 | Run identity, reuse, reservations and batching | [toolbox-run-identity.md][identity] |
@@ -75,6 +76,7 @@ Use this lookup to reach the relevant topic owners; a workflow does not need its
 [wf0-figures]: ../../blueearth_cst/plotting/docs/figure-naming.md#historical-climate-diagnostics-wf0
 [model]: wf1-model-construction.md
 [forcing]: toolbox-forcing-units.md
+[catalogs]: toolbox-data-catalogs-and-caches.md
 [cmip6]: wf2-cmip6-source-readability.md
 [generator]: toolbox-weather-generator-interface.md
 [simulator]: toolbox-hydrological-model-interface.md
