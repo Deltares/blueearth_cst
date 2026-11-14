@@ -73,7 +73,8 @@ Paths below are relative to `project_dir`. The main outputs are:
   the spatial catalog.
 - **Historical climate (`data/climate/historical/`).** The selected climate dataset and shared map
   reference, with additional map candidates where needed.
-- **Basin model (`models/hydrology/wflow/`).** Model maps in `staticmaps.nc`, settings in
+- **Basin model (`models/hydrology/wflow/`; the folder is `model.name`, see
+  [one model per folder](#model-versions)).** Model maps in `staticmaps.nc`, settings in
   `wflow_sbm.toml`, geometries and the HydroMT recipes used to build the model.
   `_engine/outlet_index.csv` links outlets to reporting locations.
 - **Historical forcing (`models/hydrology/wflow/forcing/`).** Model-grid forcing in
