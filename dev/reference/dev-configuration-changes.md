@@ -31,7 +31,8 @@ Unknown keys are refused rather than ignored, so a new key fails until each appl
 - **Advanced settings:** `_ADVANCED_SETTINGS_SCHEMA` in [`advanced_settings.py`][advanced], kept equal to
   the shipped YAML by [`test_advanced_settings.py`](../../tests/test_advanced_settings.py).
 - **WF4 and WF1 fields captured for a reservation:** the unclassified-field checks for `simulate_system`,
-  `compute`, `build_model` and `engine` in `capture_request` ([`reservation_request.py`][reservation-request]).
+  `compute`, `build_model` and `engine` in `capture_request`
+  ([`reservation_request.py`][reservation-request]).
 - **weathergenr configuration fields:** `GENERATOR_SEED_FIELDS` in [`generation_plan.py`][generation],
   which also declares whether each field enters the seed.
 - **The `delta_change` block:** the authored `delta-change/3` keys in [`delta_scenarios.py`][delta].

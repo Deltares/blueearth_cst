@@ -21,8 +21,9 @@ boundaries. The modules named below own exact schemas and fields.
   Hashes the collection ID, revision and selected run IDs, model digest, Wflow revision, simulation code
   inventory, settings, response request, stage environment and forcing preparation.
 - **Indicator set** — `indicator_set_id`, built by `build_indicator_plan` in
-  [`indicator_plan.py`][indicator-plan]. Hashes the simulation ID, response identity, indicator definition (which contains the calculation code
-  inventory), indicator environment, run groups, references, water-year anchor and return-level validation.
+  [`indicator_plan.py`][indicator-plan]. Hashes the simulation ID, response identity, indicator definition
+  (which contains the calculation code inventory), indicator environment, run groups, references,
+  water-year anchor and return-level validation.
 
 All digests are SHA-256 of canonical JSON (`collection-canon/1`) from
 [`content_identity.py`](../../blueearth_cst/experiment/content_identity.py). The experiment name and the
