@@ -35,7 +35,7 @@ def _catalog(path: Path, root: str, *, version: str = "v1") -> Path:
     return path
 
 
-def _record(catalog: Path, **overrides):
+def _record(catalog: Path, start="1995", end="2014", **overrides):
     record = data_reuse.store_record(
         catalogs=str(catalog),
         clim_source="era5",
@@ -43,8 +43,9 @@ def _record(catalog: Path, **overrides):
         recipe=normalize_forcing_recipe("era5"),
         hydrography="merit_hydro_ihu",
         region=REGION,
-        starttime="1995-01-01T00:00:00",
-        endtime="2014-12-31T00:00:00",
+        starttime=f"{start}-01-01T00:00:00",
+        endtime=f"{end}-12-31T00:00:00",
+        code="code-v1",
     )
     record.update(overrides)
     return record
@@ -141,46 +142,50 @@ def test_alias_target_change_changes_identity(tmp_path):
 
 def test_covering_store_is_found_and_others_are_reported(tmp_path, region_file):
     catalog = _catalog(tmp_path / "catalog.yml", "x")
-    record = _record(catalog)
     source = tmp_path / "v2" / "outputs"
-    _store(
-        source,
-        "era5_20000101_20101231",
-        _dataset("2000-01-02", "2010-12-31"),
-        record,
-        region_file,
+    stores = (
+        ("era5_20000101_20101231", "2000", "2010", "2000-01-02", {}),
+        ("era5_19910101_20201231_old", None, None, "1991-01-02", {}),
+        (
+            "era5_19910101_20201231_dem",
+            "1991",
+            "2020",
+            "1991-01-02",
+            {"hydrography": "x"},
+        ),
+        (
+            "era5_19910101_20201231_code",
+            "1991",
+            "2020",
+            "1991-01-02",
+            {"code": "code-v0"},
+        ),
+        ("era5_19850101_20201231", "1985", "2020", "1991-01-02", {}),
+        ("era5_wide", "1991", "2020", "1991-01-02", {}),
     )
-    _store(
-        source,
-        "era5_19910101_20201231_old",
-        _dataset("1991-01-02", "2020-12-31"),
-        None,
-        region_file,
-    )
-    other = dict(record, hydrography="merit_hydro")
-    _store(
-        source,
-        "era5_19900101_20201231_dem",
-        _dataset("1990-01-02", "2020-12-31"),
-        other,
-        region_file,
-    )
-    wanted = _store(
-        source,
-        "era5_wide",
-        _dataset("1991-01-02", "2020-12-31"),
-        record,
-        region_file,
+    for name, start, end, first, overrides in stores:
+        record = None if start is None else _record(catalog, start, end, **overrides)
+        _store(
+            source, name, _dataset(first, f"{end or 2020}-12-31"), record, region_file
+        )
+
+    found, slice_start, reasons = data_reuse.find_covering_store(
+        [source],
+        _record(catalog),
+        starttime="1995-01-01T00:00:00",
+        endtime="2014-12-31T00:00:00",
     )
 
-    found, reasons = data_reuse.find_covering_store(
-        [source], record, starttime="1995-01-01T00:00:00", endtime="2014-12-31T00:00:00"
-    )
-
-    assert found == wanted
-    assert any("differs in hydrography" in reason for reason in reasons)
-    assert any("no extraction record" in reason for reason in reasons)
-    assert any("holds 2000-01-02..2010-12-31" in reason for reason in reasons)
+    assert found == source / "data/climate/historical/era5_wide"
+    # The store's own one-day offset (interval-end labels) carries over.
+    assert slice_start == pd.Timestamp("1995-01-02")
+    assert reasons == [
+        "v2/era5_19850101_20201231: source starts 1991-01-02",
+        "v2/era5_19910101_20201231_code: differs in code",
+        "v2/era5_19910101_20201231_dem: differs in hydrography",
+        "v2/era5_19910101_20201231_old: no extraction record",
+        "v2/era5_20000101_20101231: holds 2000-01-02..2010-12-31",
+    ]
 
 
 def test_no_store_matches_another_region_or_its_own_folder(tmp_path, region_file):
@@ -189,7 +194,8 @@ def test_no_store_matches_another_region_or_its_own_folder(tmp_path, region_file
     source = tmp_path / "v2" / "outputs"
     shifted = gpd.GeoDataFrame(geometry=[box(9.6, 0.35, 9.86, 0.48)], crs=4326)
     moved = dict(
-        record, region_geometry_sha256=data_reuse.region_geometry_sha256(shifted)
+        _record(catalog, "1991", "2020"),
+        region_geometry_sha256=data_reuse.region_geometry_sha256(shifted),
     )
     _store(
         source,
@@ -206,7 +212,7 @@ def test_no_store_matches_another_region_or_its_own_folder(tmp_path, region_file
         region_file,
     )
 
-    found, reasons = data_reuse.find_covering_store(
+    found, slice_start, reasons = data_reuse.find_covering_store(
         [source],
         record,
         starttime="1995-01-01T00:00:00",
@@ -214,7 +220,7 @@ def test_no_store_matches_another_region_or_its_own_folder(tmp_path, region_file
         exclude=own,
     )
 
-    assert found is None
+    assert found is None and slice_start is None
     assert reasons == ["v2/era5_19910101_20201231: differs in region_geometry_sha256"]
 
 
@@ -263,6 +269,64 @@ def test_sliced_store_has_the_content_of_a_fresh_extraction(
     assert netcdf_content_sha256(sliced) == netcdf_content_sha256(fresh)
 
 
+def test_interval_end_store_slices_like_a_fresh_yearly_file_read(tmp_path, region_file):
+    """era5 yearly netCDFs label a day at its end: a 1991 window starts on
+    1991-01-02 and holds an interior 1 January label in every later year,
+    which a fresh read starting in 1995 never sees."""
+    from blueearth_cst.climate_analysis.extract_historical_climate import (
+        write_reused_store,
+    )
+    from blueearth_cst.shared.provenance import file_sha256
+
+    catalog = _catalog(tmp_path / "catalog.yml", "x")
+    source = tmp_path / "default" / "outputs"
+    store = source / "data/climate/historical/era5_19910101_20201231"
+    _write_fresh(
+        _dataset("1991-01-02", "2020-12-31"),
+        store / "extract_historical.nc",
+        region_file,
+        time_units="days since 1991-01-02",
+    )
+    data_reuse.write_store_record(store, _record(catalog, "1991", "2020"))
+    target = tmp_path / "trial" / "store"
+    fresh = _write_fresh(
+        _dataset("1995-01-02", "2014-12-31"),
+        target / "fresh.nc",
+        region_file,
+        time_units="days since 1995-01-02",
+    )
+
+    found, slice_start, _ = data_reuse.find_covering_store(
+        [source],
+        _record(catalog),
+        starttime="1995-01-01T00:00:00",
+        endtime="2014-12-31T00:00:00",
+    )
+    sliced = target / "extract_historical.nc"
+    write_reused_store(
+        found,
+        sliced,
+        starttime="1995-01-01T00:00:00",
+        endtime="2014-12-31T00:00:00",
+        clim_source="era5",
+        bbox=tuple(REGION.total_bounds),
+        region_sha256=file_sha256(region_file),
+        region_source=region_file,
+        slice_start=slice_start,
+        enforce_min_years=False,
+    )
+
+    assert netcdf_content_sha256(sliced) == netcdf_content_sha256(fresh)
+
+
+def test_extraction_code_identity_is_stable_and_covers_this_module():
+    from blueearth_cst.climate_analysis import extract_historical_climate as module
+
+    first = module.extraction_code_identity()
+    assert first == module.extraction_code_identity()
+    assert len(first) == 64
+
+
 def test_raw_slice_is_adopted_only_when_it_matches(tmp_path):
     own = tmp_path / "trial" / "outputs"
     raw = Path(
@@ -294,5 +358,7 @@ def test_record_round_trips(tmp_path):
 
 
 def test_project_label_names_trial_and_project_dir(tmp_path):
-    path = tmp_path / "gabon" / "v2" / "outputs" / "data" / "climate" / "historical" / "x"
+    path = (
+        tmp_path / "gabon" / "v2" / "outputs" / "data" / "climate" / "historical" / "x"
+    )
     assert data_reuse.project_label(path) == "v2/outputs"

@@ -218,13 +218,14 @@ python scripts/run_workflows.py --config showcase/project_config.yml --reuse-dat
 ```
 
 Sources are only read. A historical climate store is reused when its extraction record names the same
-source, forcing recipe, hydrography entry, region geometry and catalog entries, and its data cover the
-requested window; the requested window is then sliced from it. Catalog entries are compared without
-their root, so a P-drive and a local-mirror catalog of the same datasets match. Stores extracted before
-records existed are never reused. A CMIP6 raw slice is reused when its recorded digest matches.
-Each decision is logged by the extraction or fetch rule. Reuse changes no rerun decision and no run
-identity. A slice has the content of a fresh extraction from the same source files; across a P-drive and
-a local mirror, values match but the time encoding, and so the WF3 automatic seed, can differ.
+extraction code, source, forcing recipe, hydrography entry, region geometry and catalog entries, and its
+data cover the requested window; the requested window is then sliced from it and has the content of a
+fresh extraction. Catalog entries are compared without the catalog root, but the shipped P-drive and
+local-mirror catalogs describe ERA5 and CHIRPS differently, so reuse works between trials that use the
+same catalog. Stores extracted before records existed, or by other extraction code, are never reused.
+A CMIP6 raw slice is reused when its recorded digest matches, including slices fetched before this
+feature. Each decision is logged by the extraction or fetch rule; reuse changes no rerun decision and no
+run identity.
 ## Workflow settings
 
 Use the complete annotated starter files for supported optional fields and example values.

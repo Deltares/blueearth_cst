@@ -49,6 +49,10 @@ def resolve_path(value: str, source: str | Path, *, catalog: bool = False) -> st
     return path.resolve().as_posix()
 
 
+#: Path fields that accept a list; any other field refuses one.
+_LIST_FIELDS = frozenset({"catalog", "reuse_data_from"})
+
+
 def _resolve_fields(
     document: dict, fields: tuple[str, ...], source: str | Path
 ) -> None:
@@ -66,7 +70,7 @@ def _resolve_fields(
         is_catalog = parts[-1] == "catalog"
         owner[parts[-1]] = (
             [resolve_path(item, source, catalog=is_catalog) for item in value]
-            if isinstance(value, list)
+            if isinstance(value, list) and parts[-1] in _LIST_FIELDS
             else resolve_path(value, source, catalog=is_catalog)
         )
 

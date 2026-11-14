@@ -1072,11 +1072,14 @@ def write_reused_store(
     bbox,
     region_sha256,
     region_source,
+    slice_start=None,
     oro_out=None,
     enforce_min_years=True,
 ):
     """Write the requested window of a matching store as this project's store.
 
+    ``slice_start`` is the first label a fresh extraction of the request would
+    carry (``data_reuse.find_covering_store``); it defaults to ``starttime``.
     The slice keeps the stored values, variable attributes and catalog
     attributes, takes this project's region attributes, and is written with a
     fresh extraction's encoding, so its content digest equals a fresh
@@ -1084,13 +1087,12 @@ def write_reused_store(
     """
     store_dir = Path(store_dir)
     with xr.open_dataset(store_dir / "extract_historical.nc") as stored:
-        ds = stored.sel(time=slice(starttime, endtime))
+        first = starttime if slice_start is None else slice_start
+        ds = stored.sel(time=slice(first, endtime))
         _check_window_coverage(
             ds, starttime, endtime, clim_source, enforce_min_years=enforce_min_years
         )
         time_encoding = _sliced_time_encoding(stored["time"], ds["time"])
-        # On the dataset's own variables: `ds[name]` is a new DataArray for an
-        # index coordinate, so encoding set there would not reach the write.
         # Set on the dataset's own variables: ``ds[name]`` is a new DataArray for
         # an index coordinate, so encoding set there would not reach the write.
         for name in ds.coords:
@@ -1116,6 +1118,42 @@ def write_reused_store(
         shutil.copyfile(store_dir / "orography.nc", oro_out)
 
 
+#: Imported modules that cannot change a stored byte, the same judgement as
+#: ``GENERATION_INVENTORY_EXCLUDED`` in ``experiment/generation_plan.py``.
+_CODE_IDENTITY_EXCLUDED = (
+    "blueearth_cst/shared/advanced_settings.py",
+    "blueearth_cst/shared/config_composition.py",
+    "blueearth_cst/shared/invocation_history.py",
+    "blueearth_cst/shared/provenance.py",
+    "blueearth_cst/shared/run_log_core.py",
+    "blueearth_cst/shared/windows_job.py",
+    "blueearth_cst/shared/workflow_archive_launch.py",
+    "blueearth_cst/shared/workflow_config_snapshot.py",
+)
+
+
+def extraction_code_identity() -> str:
+    """sha256 of this script's repository import closure, for the store record.
+
+    A store written by other extraction code is not reused, because Snakemake's
+    own code check covers only the project that wrote it.
+    """
+    from blueearth_cst.experiment.content_identity import (
+        content_sha256,
+        repository_code_inventory,
+    )
+
+    import blueearth_cst
+
+    # From the package, not ``__file__``: Snakemake runs a ``script:`` from a
+    # temporary copy under ``.snakemake/scripts/``.
+    repo = Path(blueearth_cst.__file__).resolve().parents[1]
+    entry = "blueearth_cst/climate_analysis/extract_historical_climate.py"
+    return content_sha256(
+        repository_code_inventory(repo, [entry], _CODE_IDENTITY_EXCLUDED)
+    )
+
+
 def _reuse_historical_store(sm, gdf, recipe_record) -> bool:
     """Slice a covering store from a reuse source; report the decision."""
     from blueearth_cst.shared import data_reuse
@@ -1132,7 +1170,7 @@ def _reuse_historical_store(sm, gdf, recipe_record) -> bool:
             level="WARNING",
         )
         return False
-    found, reasons = data_reuse.find_covering_store(
+    found, slice_start, reasons = data_reuse.find_covering_store(
         sources,
         recipe_record,
         starttime=sm.params.starttime,
@@ -1168,6 +1206,7 @@ def _reuse_historical_store(sm, gdf, recipe_record) -> bool:
         bbox=tuple(gdf.total_bounds),
         region_sha256=file_sha256(sm.input.region_geojson),
         region_source=sm.input.region_geojson,
+        slice_start=slice_start,
         oro_out=getattr(sm.output, "oro_nc", None),
         enforce_min_years=getattr(sm.params, "enforce_min_years", True),
     )
@@ -1204,6 +1243,7 @@ if __name__ == "__main__":
                 region=gdf,
                 starttime=sm.params.starttime,
                 endtime=sm.params.endtime,
+                code=extraction_code_identity(),
             )
             if not _reuse_historical_store(sm, gdf, record):
                 prep_historical_climate(
