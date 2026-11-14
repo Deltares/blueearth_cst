@@ -1996,3 +1996,27 @@ def test_only_historical_climate_inputs_receive_list_styling(tmp_path):
         f"\033[1;{rw._ANSI_DIM}mhistorical forcing settings\033[0m\n"
     )
     assert f"\033[{rw._ANSI_DIM}m> Rainfall dataset:" in climate
+
+
+def test_reuse_data_from_reaches_child_environment(tmp_path, monkeypatch):
+    from blueearth_cst.shared import data_reuse
+
+    seen = {}
+
+    def fake_run(config_path, cores, extra, **kwargs):
+        seen["env"] = os.environ.get(data_reuse.REUSE_ENV)
+        return 0
+
+    monkeypatch.setattr(rw, "run", fake_run)
+    monkeypatch.setenv(data_reuse.REUSE_ENV, "inherited")
+    first, second = tmp_path / "v2" / "outputs", tmp_path / "showcase" / "outputs"
+    argv = ["--config", "c.yml", "--reuse-data-from", str(first)]
+    assert rw.main([*argv, "--reuse-data-from", str(second)]) == 0
+    assert seen["env"].split(os.pathsep) == [
+        str(first.resolve()),
+        str(second.resolve()),
+        "inherited",
+    ]
+    key, value = rw._settings_rows({"project": {}}, tmp_path / "trial")[-1]
+    assert key == "reuse data from"
+    assert value.startswith("v2/outputs, showcase/outputs, ")

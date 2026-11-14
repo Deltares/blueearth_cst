@@ -45,7 +45,7 @@ the project file, including schema 2. Supported schema numbers are integers 2 an
 
 | Declaring file | File fields resolved by schema 3 |
 |---|---|
-| Project | `project.project_dir`, `project.catalog`, `basin.output_locations`, file-valued region entries |
+| Project | `project.project_dir`, `project.catalog`, `project.reuse_data_from`, `basin.output_locations`, file-valued region entries |
 | model building | `engine.build_config`, `engine.waterbodies_config`, each `observations` value |
 | projection analysis | `catalog` |
 | scenario generation | `weathergen_config` |
@@ -76,6 +76,7 @@ execution are unchanged; see [case creation and migration](../guide/new-case.md)
 |---|---|
 | `project.project_dir` | Writable product root; keep production cases outside the toolbox |
 | `project.catalog` | One or more HydroMT catalogs, in the supplied order |
+| `project.reuse_data_from` | Development aid: other projects' `project_dir` paths to reuse data from; see [data reuse](#data-reuse) |
 | `basin.region` | HydroMT region mapping or its literal string representation |
 | `basin.resolution` | Model grid spacing in degrees |
 | `basin.sources` | Hydrography and matching basin-index catalog entry names |
@@ -201,6 +202,29 @@ scenario identity. Numerical backward comparisons therefore use equivalent fixed
 CHIRPS diagnostics remain precipitation-only contributors even when their forcing stores borrow
 temperature/PET fields. Captions identify the companion or supplied-PET source when those fields are shown.
 
+## Reuse data from other trials {#data-reuse}
+
+For quick development runs, a trial can copy data a sibling trial already extracted instead of reading the
+catalog sources again. Name the siblings' product roots in the project file, or add them for one run:
+
+```yaml
+project:
+  project_dir: outputs
+  reuse_data_from: [../v2/outputs]
+```
+
+```powershell
+python scripts/run_workflows.py --config showcase/project_config.yml --reuse-data-from v2/outputs
+```
+
+Sources are only read. A historical climate store is reused when its extraction record names the same
+source, forcing recipe, hydrography entry, region geometry and catalog entries, and its data cover the
+requested window; the requested window is then sliced from it. Catalog entries are compared without
+their root, so a P-drive and a local-mirror catalog of the same datasets match. Stores extracted before
+records existed are never reused. A CMIP6 raw slice is reused when its recorded digest matches.
+Each decision is logged by the extraction or fetch rule. Reuse changes no rerun decision and no run
+identity. A slice has the content of a fresh extraction from the same source files; across a P-drive and
+a local mirror, values match but the time encoding, and so the WF3 automatic seed, can differ.
 ## Workflow settings
 
 Use the complete annotated starter files for supported optional fields and example values.

@@ -20,6 +20,8 @@ project:
   # This template's default catalog requires the Deltares P-drive.
   # Locate source datasets by catalog name. Input: HydroMT catalog YAML path.
   catalog: toolbox:config/catalogs/deltares_data_pdrive.yml
+  # Development: copy matching historical climate stores and CMIP6 slices from other trials. Input: project_dir paths.
+  # reuse_data_from: [../other-trial/outputs]
 
 
 # -----------------------------------------------------------------------------

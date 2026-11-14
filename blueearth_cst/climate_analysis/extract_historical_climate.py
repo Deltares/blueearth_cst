@@ -18,6 +18,7 @@ which cannot be separated from the data they describe.
 """
 
 import os
+import shutil
 from collections.abc import Mapping
 from functools import wraps
 from os.path import join
@@ -50,7 +51,9 @@ from blueearth_cst.shared.progress import DaskProgress
 from blueearth_cst.shared.provenance import file_sha256
 from blueearth_cst.shared.snake_utils import (
     DEFAULT_HYDROGRAPHY,
+    listed,
     log_row,
+    plural,
 )
 from blueearth_cst.spatial.delineate_region import delineate_region, read_region
 
@@ -1030,6 +1033,147 @@ def prep_historical_climate(
     ds.close()
 
 
+def _sliced_time_encoding(stored_time, sliced_time) -> dict:
+    """Time encoding a fresh extraction of the sliced window would write.
+
+    Stores encode time either against a fixed source epoch (era5 zarr:
+    ``days since 1950-01-02``) or against their own first day (chirps and the
+    yearly era5 netCDFs: ``days since 1995-01-01 00:00:00``). The second kind
+    moves to the slice's first day, in the same spelling, so the slice holds
+    the raw values and attributes a fresh extraction would.
+    """
+    encoding = {
+        key: stored_time.encoding[key]
+        for key in ("units", "calendar", "dtype")
+        if key in stored_time.encoding
+    }
+    step, sep, reference = encoding.get("units", "").partition(" since ")
+    if sep and pd.Timestamp(reference) == pd.Timestamp(stored_time.values[0]):
+        if ":" in reference:
+            # xarray inferred these units when no source encoding existed, and
+            # spells them with a time part; dropping them lets it infer the
+            # slice's units the same way.
+            del encoding["units"]
+        else:
+            # Units carried from a yearly source file; xarray writes an explicit
+            # midnight reference as a bare date.
+            first = pd.Timestamp(sliced_time.values[0])
+            encoding["units"] = f"{step} since {first.strftime('%Y-%m-%d')}"
+    return encoding
+
+
+def write_reused_store(
+    store_dir,
+    fn_out,
+    *,
+    starttime,
+    endtime,
+    clim_source,
+    bbox,
+    region_sha256,
+    region_source,
+    oro_out=None,
+    enforce_min_years=True,
+):
+    """Write the requested window of a matching store as this project's store.
+
+    The slice keeps the stored values, variable attributes and catalog
+    attributes, takes this project's region attributes, and is written with a
+    fresh extraction's encoding, so its content digest equals a fresh
+    extraction's whenever the two read the same source files.
+    """
+    store_dir = Path(store_dir)
+    with xr.open_dataset(store_dir / "extract_historical.nc") as stored:
+        ds = stored.sel(time=slice(starttime, endtime))
+        _check_window_coverage(
+            ds, starttime, endtime, clim_source, enforce_min_years=enforce_min_years
+        )
+        time_encoding = _sliced_time_encoding(stored["time"], ds["time"])
+        # On the dataset's own variables: `ds[name]` is a new DataArray for an
+        # index coordinate, so encoding set there would not reach the write.
+        # Set on the dataset's own variables: ``ds[name]`` is a new DataArray for
+        # an index coordinate, so encoding set there would not reach the write.
+        for name in ds.coords:
+            variable = ds.variables[name]
+            variable.encoding = (
+                time_encoding
+                if name == "time"
+                else {
+                    key: variable.encoding[key]
+                    for key in ("dtype", "_FillValue")
+                    if key in variable.encoding
+                }
+            )
+        ds.attrs["region_bbox"] = [float(value) for value in bbox]
+        ds.attrs["region_geojson_sha256"] = region_sha256
+        ds.attrs["region_source"] = Path(
+            os.path.relpath(region_source, Path(fn_out).parent)
+        ).as_posix()
+        encoding = {name: {"zlib": True} for name in ds.raster.vars}
+        with dask.config.set(scheduler="synchronous"):
+            ds.to_netcdf(fn_out, encoding=encoding, mode="w")
+    if oro_out is not None:
+        shutil.copyfile(store_dir / "orography.nc", oro_out)
+
+
+def _reuse_historical_store(sm, gdf, recipe_record) -> bool:
+    """Slice a covering store from a reuse source; report the decision."""
+    from blueearth_cst.shared import data_reuse
+
+    sources = data_reuse.reuse_sources(sm.config)
+    if not sources:
+        return False
+    store_dir = Path(sm.output.climate_nc).parent
+    if recipe_record is None:
+        log_row(
+            "Data reuse skipped: the catalog is not a YAML file, so the store "
+            "cannot be matched",
+            module="extract",
+            level="WARNING",
+        )
+        return False
+    found, reasons = data_reuse.find_covering_store(
+        sources,
+        recipe_record,
+        starttime=sm.params.starttime,
+        endtime=sm.params.endtime,
+        exclude=store_dir,
+    )
+    if found is None:
+        log_row(
+            f"No reusable {sm.params.clim_source} store in "
+            f"{plural(len(sources), 'source')}; extracting. Rejected: "
+            f"{listed(reasons, limit=3) if reasons else 'none found'}",
+            module="extract",
+        )
+        return False
+    if getattr(sm.output, "oro_nc", None) and not (found / "orography.nc").is_file():
+        log_row(
+            f"{found.name} lacks orography.nc; extracting instead",
+            module="extract",
+            level="WARNING",
+        )
+        return False
+    log_row(
+        f"Reusing {data_reuse.project_label(found)}/{found.name} "
+        f"for {sm.params.starttime[:10]}..{sm.params.endtime[:10]}",
+        module="extract",
+    )
+    write_reused_store(
+        found,
+        sm.output.climate_nc,
+        starttime=sm.params.starttime,
+        endtime=sm.params.endtime,
+        clim_source=sm.params.clim_source,
+        bbox=tuple(gdf.total_bounds),
+        region_sha256=file_sha256(sm.input.region_geojson),
+        region_source=sm.input.region_geojson,
+        oro_out=getattr(sm.output, "oro_nc", None),
+        enforce_min_years=getattr(sm.params, "enforce_min_years", True),
+    )
+    return True
+
+
 if __name__ == "__main__":
     if "snakemake" in globals():
         sm = globals()["snakemake"]
@@ -1044,31 +1188,49 @@ if __name__ == "__main__":
             catalog = sm.input.catalog
             region_fn = sm.input.region_geojson
             gdf = read_region(region_fn)
-            prep_historical_climate(
-                region_fn=None,
-                fn_out=sm.output.climate_nc,
-                data_libs=catalog,
+            # Reuse sources are read from the config, never from params, so they
+            # change no rerun decision; the record lets later trials reuse this
+            # store. See blueearth_cst/shared/data_reuse.py.
+            from blueearth_cst.shared import data_reuse
+
+            record = data_reuse.store_record(
+                catalogs=catalog,
                 clim_source=sm.params.clim_source,
+                forcing_required=getattr(sm.params, "forcing_required", True),
+                recipe=normalize_forcing_recipe(
+                    sm.params.clim_source, getattr(sm.params, "forcing", None)
+                ),
+                hydrography=sm.params.hydrography,
+                region=gdf,
                 starttime=sm.params.starttime,
                 endtime=sm.params.endtime,
-                bbox=tuple(gdf.total_bounds),
-                # Absent outside the chirps/chirps_global branch, where the spec
-                # declares no oro_nc output.
-                oro_out=getattr(sm.output, "oro_nc", None),
-                # Already in the store spec's params for the delineation edge;
-                # the chirps branch reads its DEM from the same entry.
-                hydrography=sm.params.hydrography,
-                region_sha256=file_sha256(region_fn),
-                region_source=region_fn,
-                # Absent everywhere except wf0's extra `candidate_sources`.
-                # `climate_store_rule` omits the param entirely when the floor
-                # is enforced, so every pre-existing declaration -- and every
-                # store already on disk -- keeps its params byte-identical.
-                enforce_min_years=getattr(sm.params, "enforce_min_years", True),
-                forcing_required=getattr(sm.params, "forcing_required", True),
-                forcing=getattr(sm.params, "forcing", None),
-                required_domain=gdf,
             )
+            if not _reuse_historical_store(sm, gdf, record):
+                prep_historical_climate(
+                    region_fn=None,
+                    fn_out=sm.output.climate_nc,
+                    data_libs=catalog,
+                    clim_source=sm.params.clim_source,
+                    starttime=sm.params.starttime,
+                    endtime=sm.params.endtime,
+                    bbox=tuple(gdf.total_bounds),
+                    # Absent outside the chirps/chirps_global branch, where the spec
+                    # declares no oro_nc output.
+                    oro_out=getattr(sm.output, "oro_nc", None),
+                    # Already in the store spec's params for the delineation edge;
+                    # the chirps branch reads its DEM from the same entry.
+                    hydrography=sm.params.hydrography,
+                    region_sha256=file_sha256(region_fn),
+                    region_source=region_fn,
+                    # Absent everywhere except wf0's extra `candidate_sources`.
+                    # `climate_store_rule` omits the param entirely when the floor
+                    # is enforced, so every pre-existing declaration -- and every
+                    # store already on disk -- keeps its params byte-identical.
+                    enforce_min_years=getattr(sm.params, "enforce_min_years", True),
+                    forcing_required=getattr(sm.params, "forcing_required", True),
+                    forcing=getattr(sm.params, "forcing", None),
+                    required_domain=gdf,
+                )
             # Which of the extracted cells the basin actually touches. Written
             # HERE rather than derived by the consumer because this is the only
             # place holding both the grid and the region polygon, and because R
@@ -1076,6 +1238,8 @@ if __name__ == "__main__":
             # consumer-side mask would need a new dependency to do what one CSV
             # answers.
             write_basin_cell_mask(sm.output.climate_nc, gdf, sm.output.basin_cells)
+            if record is not None:
+                data_reuse.write_store_record(Path(sm.output.climate_nc).parent, record)
     else:
         # Standalone demo (no Snakemake). Point the paths and the region at your
         # own project before running; the shape mirrors the rule above.
