@@ -43,6 +43,7 @@ import logging
 import os
 import re
 import shlex
+import shutil
 import sys
 import threading
 import time
@@ -354,7 +355,8 @@ _UP_TO_DATE_LINE = "Up to date"
 _ANSI_DIM = "38;5;243"  # dim grey -- the plan block's up-to-date rows
 
 
-_ANSI_TITLE = "1"  # bold -- the workflow title, opening and closing
+_ANSI_OPEN_BAND = "1;36"  # bold cyan -- the band that opens a workflow
+_ANSI_CLOSE_BAND = "1;92"  # bold green -- the band that closes a successful one
 
 
 # Rule name -> its ``W.NN`` number, filled by every ``rule_banner`` call at
@@ -385,7 +387,7 @@ _PRE_DAG_STEPS = {}
 
 # The plan head's tally label for pre-DAG steps. Their table cell is empty,
 # like an up-to-date rule's: the head states the count once.
-_PRE_DAG_LABEL = "completed before DAG execution"
+_PRE_DAG_LABEL = "completed"
 
 # Rules whose jobs Snakemake adds only after a checkpoint resolves, so they are
 # absent from the opening job table without being up to date. name -> the job
@@ -771,7 +773,7 @@ def pre_dag_step(number, name):
     """Register a step completed before Snakemake built the DAG.
 
     The plan table lists it at its number, dimmed with an empty count cell,
-    and the head tallies it as ``completed before DAG execution``, so a workflow whose
+    and the head tallies it as ``completed``, so a workflow whose
     planning runs outside Snakemake (WF3) still reads as one numbered
     pipeline. Call it only once the step has actually run.
     """
@@ -820,22 +822,21 @@ def run_summary(
         experiment (``logs/_parts/<experiment>``), so a derived ``logs/_parts``
         would send the reader to the parent of the directory they want.
 
-    A FAILURE is shaped like :func:`run_header` -- a ruled title, a blank, then
-        one aligned column -- so a run closes in the shape it opened in. The
-        ``wrote`` label and the second indent level went with the header's ``run``
-        and ``path tokens`` groups on 2026-09-06.
+    The verdict is the workflow's CLOSING BAND (:func:`workflow_band`, light
+        rule): the opening band marks where a workflow starts, this one where it
+        ends, so the boundary between two workflows in a batch cannot be missed.
 
-        A SUCCESS is one line, and the asymmetry is the point: on success rule
+        A SUCCESS is that one line, and the asymmetry is the point: on success rule
         ``all`` has just listed every target it produced, the log and the benchmark
         table among them, so a block repeating two of those paths said nothing new.
         On FAILURE rule ``all`` never ran, the merged log does not exist yet, and
-        the log-parts directory is the only record there is -- so the block that
-        names it is the only place that fact appears.
+        the log-parts directory is the only record there is -- so the band is
+        followed by a blank and the row that names it.
 
-        A FAILED verdict is painted red (``_ANSI_FAIL``), gated on stderr being a
-        colour console. The success verdict is not painted at all: what matters is
-        that a failed run looks different from every other run WITHOUT being read,
-        and colouring both would turn the pair into a field to be read instead.
+        Painted only on a colour console: green (``_ANSI_CLOSE_BAND``) on success,
+        wholly red (``_ANSI_FAIL``) on failure. Both are coloured because the band
+        is a boundary to find while scrolling; the words ``completed`` and
+        ``FAILED`` still carry the outcome without colour.
     """
     project_dir = os.fspath(project_dir)
     lines = []
@@ -856,24 +857,16 @@ def run_summary(
     # Snakefile that declared the tally is the one that reads it back.
     if warnings:
         head = f"{head}  |  {plural(warnings, 'warning')}"
-    plain_head = head
-    if failed:
-        # Coloured HERE, unlike `rule_banner`, and the difference is where the
-        # string goes: a banner reaches a log file and an error block, where an
-        # escape code is corruption. This block reaches the console and nothing
-        # else -- every Snakefile writes it to stderr and no log receives it --
-        # so painting it here cannot leak. Asked of stderr for the same reason.
-        head = _paint_body(head, _console_colour(sys.stderr), _ANSI_FAIL)
-    else:
-        # Success: the NAME is bold and the verdict is not, which matches the
-        # opening title. A failure stays wholly red instead -- one loud signal
-        # beats two competing ones, and red already says everything bold would.
-        head = (
-            _paint_body(workflow, _console_colour(sys.stderr), _ANSI_TITLE)
-            + head[len(workflow) :]
-        )
-    # Sized on the plain text built above, before any painting: `head` may
-    # already carry escape codes, which are not columns.
+    # Coloured HERE, unlike `rule_banner`, and the difference is where the
+    # string goes: a banner reaches a log file and an error block, where an
+    # escape code is corruption. This block reaches the console and nothing
+    # else -- every Snakefile writes it to stderr and no log receives it --
+    # so painting it here cannot leak. Asked of stderr for the same reason.
+    head = _paint_body(
+        workflow_band(head, _CLOSE_BAND),
+        _console_colour(sys.stderr),
+        _ANSI_FAIL if failed else _ANSI_CLOSE_BAND,
+    )
     if not failed:
         # ONE LINE on success. The `log` and `benchmarks` rows this used to
         # carry are already among rule `all`'s targets, printed by
@@ -887,7 +880,7 @@ def run_summary(
         # its own on success precisely because this line exists (its module
         # docstring says so, and `tests/test_run_workflows.py` pins it).
         return head
-    lines.extend([head, title_rule(plain_head), ""])
+    lines.extend([head, ""])
     parts = os.fspath(log_parts_dir or f"{project_dir}/logs/_parts")
     lines.extend(meta_row_lines([("log parts", f"{parts}/")]))
     if failed:
@@ -1138,20 +1131,46 @@ def _engine_command_line():
     return shell_command(argv, multiline=True)
 
 
+# Arguments either shell passes through verbatim when unquoted. A whitelist:
+# PowerShell gives meaning to a leading `@` or `#`, to `,`, `{}`, `$`, `--%`
+# and more, so anything outside this set is quoted. POSIX shells also read a
+# backslash as an escape, so only PowerShell may leave one bare.
+_BARE_ARGUMENT = re.compile(r"[A-Za-z0-9_./:=+-]+", re.ASCII)
+_BARE_POWERSHELL_ARGUMENT = re.compile(r"[A-Za-z0-9_./:=+\\-]+", re.ASCII)
+
+# Options whose value is a long path: the multiline form starts a continuation
+# line here, so the readable part of the command stays on its first line.
+_COMMAND_BREAK_OPTIONS = frozenset({"--configfile", "--configfiles"})
+
+
 def shell_command(argv, *, powershell=None, multiline=False):
-    """Quote literal arguments for the invoking platform's shell."""
+    """Quote literal arguments for the invoking platform's shell.
+
+    Arguments stay in argv order and are quoted only when the shell would
+    otherwise reinterpret them, so ``snakemake all -c 3`` reads as typed. A
+    PowerShell command takes the ``&`` call operator only when its program
+    itself needs quotes. ``multiline`` moves ``--configfile`` and everything
+    after it onto one continuation line.
+    """
     powershell = os.name == "nt" if powershell is None else powershell
-    separator = " `\n  " if powershell else " \\\n  "
-    parts = []
-    for index, arg in enumerate(argv):
-        arg = str(arg)
-        quoted = "'" + arg.replace("'", "''") + "'" if powershell else shlex.quote(arg)
-        new_option = re.match(r"--?[A-Za-z-]", arg) is not None
-        parts.append(
-            separator if multiline and index and new_option else " " if index else ""
-        )
-        parts.append(quoted)
-    return ("& " if powershell else "") + "".join(parts)
+    bare = _BARE_POWERSHELL_ARGUMENT if powershell else _BARE_ARGUMENT
+
+    def quote(arg):
+        if arg != "--" and bare.fullmatch(arg):
+            return arg
+        return "'" + arg.replace("'", "''") + "'" if powershell else shlex.quote(arg)
+
+    args = [str(arg) for arg in argv]
+    words = [quote(arg) for arg in args]
+    prefix = "& " if powershell and words and words[0] != args[0] else ""
+    split = next(
+        (i for i, arg in enumerate(args) if i and arg in _COMMAND_BREAK_OPTIONS),
+        None,
+    )
+    if not multiline or split is None:
+        return prefix + " ".join(words)
+    continuation = " `\n  " if powershell else " \\\n  "
+    return prefix + " ".join(words[:split]) + continuation + " ".join(words[split:])
 
 
 def _dry_run():
@@ -1166,10 +1185,8 @@ def _compact_header():
     """Identify a no-op without printing settings, paths or scheduled-input checks."""
     if _RUN_HEADER is None:
         return []
-    workflow, _, _, details = _RUN_HEADER
-    lines = ["", workflow]
-    if details.get("cores") is not None:
-        lines.append(f"cores  {details['cores']}")
+    workflow = _RUN_HEADER[0]
+    lines = ["", workflow_band(workflow)]
     lines.extend(["", "Snakemake command", _engine_command_line()])
     if _dry_run():
         lines.extend(["", "DRY RUN — no jobs will execute"])
@@ -1204,20 +1221,19 @@ def opening_block(
 ):
     """Build the canonical workflow opening from declared metadata and actual jobs.
 
-    Order: identity/cores, literal engine command, applicable input checks, work
+    Order: identity band, literal engine command, applicable input checks, work
     plan, settings, paths, and execution or planning boundary. Each workflow owns
-    its identity even inside a batch. Checkpoint/pre-DAG states remain explicit.
+    its identity even inside a batch; the command's ``-c`` states its cores.
+    Checkpoint/pre-DAG states remain explicit.
     See dev/reference/dev-console-style.md for the maintained presentation contract.
     """
     details = dict(details or {})
-    cores = details.pop("cores", None)
+    details.pop("cores", None)
     meta = meta_row_lines(
         run_meta_rows(project_dir, config_path, details), grouped=True
     )
     head, rows = ("", []) if plan is None else (plan[0], list(plan[1]))
-    out = [("", "body"), (workflow, "title")]
-    if cores is not None:
-        out.append((f"cores  {cores}", "body"))
+    out = [("", "body"), (workflow_band(workflow), "title")]
     out.extend(
         [
             ("", "body"),
@@ -1526,22 +1542,24 @@ def _plan_lines(counts):
         states.append(
             True if status == "run" else None if status == "pending" else False
         )
+    # No step column: each rule's RUN and DONE lines already carry its number
+    # (`Rule 0.01: delineate_region`), so the table names rules only.
     widths = [
-        max(len(row[i]) for row in [*display, ("status", "step", "rule", "jobs")])
+        max(len(row[i]) for row in [*display, ("status", "", "rule", "jobs")])
         for i in range(4)
     ]
     lines = [
         (
-            f"{'status':<{widths[0]}}  {'step':<{widths[1]}}  {'rule':<{widths[2]}}  {'jobs':>{widths[3]}}",
+            f"{'status':<{widths[0]}}  {'rule':<{widths[2]}}  {'jobs':>{widths[3]}}",
             None,
         )
     ]
     lines.extend(
         (
-            f"{status:<{widths[0]}}  {number:<{widths[1]}}  {name:<{widths[2]}}  {cell:>{widths[3]}}",
+            f"{status:<{widths[0]}}  {name:<{widths[2]}}  {cell:>{widths[3]}}",
             state,
         )
-        for (status, number, name, cell), state in zip(display, states)
+        for (status, _number, name, cell), state in zip(display, states)
     )
     unlisted = sum(
         1
@@ -1553,11 +1571,13 @@ def _plan_lines(counts):
     )
     scheduled = sum(state is True for state in states)
     reused = sum(row[0] == "reuse" for row in display)
-    head = f"{plural(jobs, 'job')}  |  {plural(scheduled, 'rule')} scheduled  |  {plural(reused, 'rule')} up to date"
+    # Rule counts, each named by the status word its plan rows carry: the
+    # table above already says these are rules.
+    head = f"{plural(jobs, 'job')}  |  {scheduled} scheduled  |  {reused} up to date"
     pending = sum(row[0] == "pending" for row in display)
     done = sum(row[0] == "done" for row in display)
     if pending:
-        head += f"  |  {plural(pending, 'rule')} pending checkpoints"
+        head += f"  |  {pending} pending"
     if done:
         head += f"  |  {done} {_PRE_DAG_LABEL}"
     if unlisted:
@@ -1667,6 +1687,7 @@ class _ConsoleHandler(logging.StreamHandler):
         self._summarized = set()
         # The opening block is printed once, by whichever record is first.
         self._opened = False
+        self._opening_tail = "\n"
         self._emit_lock = threading.Lock()
         isatty = getattr(self.stream, "isatty", None)
         self._color = bool(isatty and isatty()) and not os.environ.get("NO_COLOR")
@@ -1714,6 +1735,12 @@ class _ConsoleHandler(logging.StreamHandler):
         plain = re.sub(r"\x1b\[[0-9;]*m", "", str(record.msg or "")).strip()
         if plain.startswith(("Nothing to be done", _UP_TO_DATE_LINE)):
             lines = [] if self._opened else _compact_header()
+            lines = [
+                self._paint(line, _ANSI_OPEN_BAND)
+                if line.startswith(_OPEN_BAND)
+                else line
+                for line in lines
+            ]
             self._opened = True
             _HEADER_PRINTED = True
             lines.extend(
@@ -1757,7 +1784,7 @@ class _ConsoleHandler(logging.StreamHandler):
                 # normally does and carries the plan with it.
                 opening = self._opening()
                 if opening:
-                    lines.append("\n".join(opening) + "\n")
+                    lines.append("\n".join(opening) + self._opening_tail)
             if event == "job_info":
                 lines.append(self._start_line(fields, record))
             elif event == "job_started":
@@ -1847,7 +1874,7 @@ class _ConsoleHandler(logging.StreamHandler):
         # not also lose its layout. The tiers come back with the text; mapping
         # them onto colour is this class's business and nobody else's.
         tiers = {
-            "title": _ANSI_TITLE,
+            "title": _ANSI_OPEN_BAND,
             "run": _ANSI_DONE,
             "dim": _ANSI_DIM,
             "body": _ANSI_BODY,
@@ -1856,6 +1883,9 @@ class _ConsoleHandler(logging.StreamHandler):
             "warning": "33",
         }
         block = opening_block(workflow, project_dir, config_path, details, plan, counts)
+        # Ending at the Execution log heading, the first job row follows it
+        # directly; any other opening keeps a blank before what comes next.
+        self._opening_tail = "" if block[-1][0] == "Execution log" else "\n"
         lines = [self._paint(text, tiers[tier]) for text, tier in block]
         # Generic deferred diagnostics retain their severity after the opening.
         # Acquisition-specific notices are placed by opening_block before the plan.
@@ -1863,9 +1893,8 @@ class _ConsoleHandler(logging.StreamHandler):
         if held:
             lines.append("")
             lines.extend(held)
-        # The opening labels Execution log for real execution; keep a blank
-        # line before the timestamped job rows that follow that boundary.
-        lines.append("")
+        # The first timestamped job row follows the Execution log heading
+        # directly, like the rows under every other section heading.
         return lines
 
     def _plan_block(self, record):
@@ -1911,7 +1940,7 @@ class _ConsoleHandler(logging.StreamHandler):
         plan = _plan_lines(counts) if counts else None
         opening = self._opening(plan, counts)
         if opening:
-            painted = opening
+            return ["\n".join(opening) + self._opening_tail]
         elif plan is None:
             return [self._paint(self._run_info_line(record), _ANSI_BODY)]
         else:
@@ -2375,7 +2404,7 @@ def meta_row_lines(rows, *, grouped=False):
 
 
 def title_rule(text):
-    """The ``-`` rule under a workflow title (treatment T2).
+    """The ``-`` rule under a failed job's ``FAILED`` head.
 
     Plain ASCII, so it reaches a redirect, a log file and CI, where the bold
     does not -- the same reason the plan block marks its running rules with a
@@ -2383,6 +2412,36 @@ def title_rule(text):
     wrap a narrow console.
     """
     return "-" * len(text)
+
+
+#: Rule characters of the bands that open (heavy) and close (light) a workflow.
+_OPEN_BAND = "━"
+_CLOSE_BAND = "─"
+
+#: Widest band: wide enough to separate workflows at a glance, narrow enough to
+#: sit inside a split pane. A narrower terminal gets a band of its own width.
+_BAND_WIDTH = 100
+
+
+def workflow_band(text, rule=_OPEN_BAND):
+    """A full-width rule carrying ``text``: where one workflow starts or ends.
+
+    A bare title or verdict line looked like any other row in a long scroll, so
+    the switch between workflows was easy to miss. The opening band is heavy
+    and the closing band light, so the two ends read differently even without
+    colour. Sized on the terminal (``COLUMNS`` when redirected or relayed by a
+    launcher), never below the text plus a short rule on each side.
+    """
+    columns = shutil.get_terminal_size(fallback=(_BAND_WIDTH, 24)).columns
+    width = min(_BAND_WIDTH, columns - 1)
+    # A stderr that cannot encode the rule (a cp1252 pipe) gets ASCII instead
+    # of a logging error -- the same probe `progress._stream_glyphs` makes.
+    try:
+        rule.encode(getattr(sys.stderr, "encoding", None) or "ascii")
+    except (LookupError, UnicodeEncodeError):
+        rule = "=" if rule == _OPEN_BAND else "-"
+    head = f"{rule * 2} {text} "
+    return head + rule * max(3, width - len(head))
 
 
 def up_to_date_verdict(stream):

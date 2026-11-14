@@ -180,6 +180,8 @@ def _run_and_assert_all_five(
             stdout=handle,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=3 * 3600,
             env=environment,
         )

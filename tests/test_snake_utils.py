@@ -3324,10 +3324,10 @@ def test_console_run_info_renders_the_plan_block(monkeypatch):
         ),
     )
     assert out == (
-        "status  step  rule             jobs\n"
-        "run     1.01  snapshot_config     1\n"
-        "reuse   1.14  run_wflow           -\n"
-        "1 job  |  1 rule scheduled  |  1 rule up to date\n"
+        "status  rule             jobs\n"
+        "run     snapshot_config     1\n"
+        "reuse   run_wflow           -\n"
+        "1 job  |  1 scheduled  |  1 up to date\n"
         "\n"
     ), out
 
@@ -3356,7 +3356,7 @@ def test_console_opening_puts_the_rules_under_the_title(monkeypatch):
         < out.index("Paths")
         < out.index("Execution log")
     )
-    assert "run     1.01  a" in out and "reuse   1.02  b" in out
+    assert "run     a" in out and "reuse   b" in out
 
 
 def test_the_opening_block_draws_no_rules_at_all(monkeypatch):
@@ -3379,8 +3379,9 @@ def test_the_opening_block_draws_no_rules_at_all(monkeypatch):
     lines = out.split("\n")
     assert not [line for line in lines if set(line) in ({"="}, {"-"})], lines
     assert not [line for line in lines if line.startswith("-- ")], lines
-    assert lines[1] == "wf1 build_model"
-    assert "2 jobs" in out and "2 rules scheduled" in out
+    # The one rule is the band that carries the title (O18).
+    assert lines[1] == cs.workflow_band("wf1 build_model")
+    assert "2 jobs" in out and "2 scheduled" in out
 
 
 def test_console_opening_prints_once(monkeypatch):
@@ -3409,7 +3410,7 @@ def test_console_opening_survives_a_run_without_run_info(monkeypatch):
     lines = out.split("\n")
     # No plan means no table to caption, so the summary would go back onto the
     # title -- and none was reported here.
-    assert lines[1] == "wf1 build_model"
+    assert lines[1] == cs.workflow_band("wf1 build_model")
     assert "<project>  <repo>/test_case/test_rapid" in lines
 
 
@@ -3435,7 +3436,7 @@ def test_the_title_stays_for_a_standalone_snakemake_run(monkeypatch):
             "Job stats:\njob  count\n----  ---\na  1\ntotal  1\n", event="run_info"
         ),
     )
-    assert out.split("\n")[1] == "wf1 build_model"
+    assert out.split("\n")[1] == cs.workflow_band("wf1 build_model")
 
 
 def test_an_announced_run_keeps_the_title_when_it_carries_the_plan_summary(
@@ -3451,7 +3452,7 @@ def test_an_announced_run_keeps_the_title_when_it_carries_the_plan_summary(
     block = cs.opening_block(
         "wf1 build_model", "test_case/test_rapid", plan=("7 of 9 rules to run", [])
     )
-    assert ("wf1 build_model", "title") in block
+    assert (cs.workflow_band("wf1 build_model"), "title") in block
     assert ("7 of 9 rules to run", "body") in block
 
 
@@ -3465,8 +3466,8 @@ def test_console_plan_stands_alone_when_no_header_was_declared(monkeypatch):
             "Job stats:\njob  count\n----  ---\na  1\ntotal  1\n", event="run_info"
         ),
     )
-    assert out.startswith("status  step  rule  jobs")
-    assert "1 job  |  1 rule scheduled  |  1 rule up to date" in out
+    assert out.startswith("status  rule  jobs")
+    assert "1 job  |  1 scheduled  |  1 up to date" in out
 
 
 def test_open_run_header_writes_immediately_without_a_console(monkeypatch):
@@ -4113,7 +4114,7 @@ def test_run_header_shape_matches_run_summary():
     )
     lines = out.splitlines()
     assert lines[0] == ""
-    assert lines[1] == "wf3 run_stress_test"
+    assert lines[1] == cs.workflow_band("wf3 run_stress_test")
     assert lines[2] == ""
     assert "Snakemake command" in lines
     assert lines[lines.index("Run settings") :] == [
@@ -4148,7 +4149,7 @@ def test_run_header_states_the_declared_folders(declare_folders):
     assert rows[1].endswith("data/wflow_global/hydromt")
     assert rows[2].endswith("models/hydrology/wflow")
     # One column now, no group labels: the `<name>` rows announce themselves.
-    assert lines[1] == "wf1 build_model"
+    assert lines[1] == cs.workflow_band("wf1 build_model")
     assert "" in lines  # blank-line separation, not a wall
 
 
@@ -4230,7 +4231,7 @@ def test_a_rule_log_header_defines_every_token_its_rows_use(declare_folders, tmp
 
 
 def test_run_summary_closes_a_success_in_one_line():
-    """The duration, and nothing else.
+    """The closing band with the duration, and nothing else.
 
     The `log` and `benchmarks` rows this used to carry are already among rule
     `all`'s targets, printed just above. What survives is the one fact stated
@@ -4245,7 +4246,9 @@ def test_run_summary_closes_a_success_in_one_line():
         "wf3_benchmarks.md",
         elapsed_seconds=176,
     )
-    assert out.splitlines() == ["wf3 run_stress_test completed in 0:02:56"]
+    assert out.splitlines() == [
+        cs.workflow_band("wf3 run_stress_test completed in 0:02:56", cs._CLOSE_BAND)
+    ]
 
 
 def test_warning_tally_counts_across_processes(tmp_path, monkeypatch):
@@ -4336,12 +4339,16 @@ def test_run_summary_verdict_carries_the_warning_count(tmp_path, monkeypatch):
     out = cs.run_summary(
         "wf1", "p", "l.log", "b.md", elapsed_seconds=436, warnings=su.warning_count()
     )
-    assert out.splitlines()[0] == "wf1 completed in 0:07:16  |  1 warning"
+    assert out.splitlines()[0] == cs.workflow_band(
+        "wf1 completed in 0:07:16  |  1 warning", cs._CLOSE_BAND
+    )
     su.note_warning("plot")
     out = cs.run_summary(
         "wf1", "p", "l.log", "b.md", elapsed_seconds=436, warnings=su.warning_count()
     )
-    assert out.splitlines()[0].endswith("|  2 warnings"), out
+    assert out.splitlines()[0].startswith(
+        "── wf1 completed in 0:07:16  |  2 warnings "
+    ), out
 
 
 def test_run_summary_says_nothing_when_a_run_printed_no_warning(tmp_path, monkeypatch):
@@ -4353,7 +4360,9 @@ def test_run_summary_says_nothing_when_a_run_printed_no_warning(tmp_path, monkey
     out = cs.run_summary(
         "wf1", "p", "l.log", "b.md", elapsed_seconds=436, warnings=su.warning_count()
     )
-    assert out.splitlines() == ["wf1 completed in 0:07:16"]
+    assert out.splitlines() == [
+        cs.workflow_band("wf1 completed in 0:07:16", cs._CLOSE_BAND)
+    ]
 
 
 def test_run_summary_ignores_a_tally_it_was_not_handed(tmp_path, monkeypatch):
@@ -4367,7 +4376,9 @@ def test_run_summary_ignores_a_tally_it_was_not_handed(tmp_path, monkeypatch):
     monkeypatch.setenv(su._WARNING_TALLY_ENV, str(tmp_path / "t"))
     su.note_warning("someone else's run")
     out = cs.run_summary("wf1", "p", "l.log", "b.md", elapsed_seconds=436)
-    assert out.splitlines() == ["wf1 completed in 0:07:16"]
+    assert out.splitlines() == [
+        cs.workflow_band("wf1 completed in 0:07:16", cs._CLOSE_BAND)
+    ]
 
 
 def test_run_summary_failure_verdict_carries_it_too(tmp_path, monkeypatch):
@@ -4383,26 +4394,27 @@ def test_run_summary_failure_verdict_carries_it_too(tmp_path, monkeypatch):
         elapsed_seconds=249,
         warnings=su.warning_count(),
     )
-    head, rule = out.splitlines()[0], out.splitlines()[1]
-    assert head == "wf1 FAILED in 0:04:09  |  1 warning"
-    # The band under the title is sized on the head it underlines, field and all.
-    assert len(rule) == len(head)
+    assert out.splitlines()[0] == cs.workflow_band(
+        "wf1 FAILED in 0:04:09  |  1 warning", cs._CLOSE_BAND
+    )
 
 
-def test_run_summary_paints_only_the_failed_verdict(monkeypatch):
-    """Red marks the exceptional run; a success verdict stays unpainted.
+def test_run_summary_paints_the_closing_band_by_outcome(monkeypatch):
+    """The band is a boundary to find while scrolling: red on failure, green on success.
 
-    Written against the CONSTANT, like the three-tier test: the hue is a knob,
-    what must hold is that one verdict is marked and the other is not.
+    Written against the CONSTANTS: the hues are knobs; what must hold is that
+    the two outcomes are painted differently and wholly.
     """
     monkeypatch.setattr(sys, "stderr", _FakeTTY())
     failed = cs.run_summary("wf3", "p", "l.log", "b.md", failed=True)
     ok = cs.run_summary("wf3", "p", "l.log", "b.md")
-    # A failure is WHOLLY red: one loud signal, not red competing with bold.
-    assert failed.splitlines()[0] == su._ansi("wf3 FAILED", su._ANSI_FAIL)
+    assert failed.splitlines()[0] == su._ansi(
+        cs.workflow_band("wf3 FAILED", cs._CLOSE_BAND), su._ANSI_FAIL
+    )
     assert su._ANSI_FAIL not in ok
-    # A success bolds the NAME only, matching the opening title.
-    assert ok.splitlines()[0] == su._ansi("wf3", cs._ANSI_TITLE) + " completed"
+    assert ok.splitlines()[0] == su._ansi(
+        cs.workflow_band("wf3 completed", cs._CLOSE_BAND), cs._ANSI_CLOSE_BAND
+    )
 
 
 def test_run_summary_verdict_is_plain_when_stderr_is_not_a_console(monkeypatch):
@@ -4451,8 +4463,7 @@ def test_run_summary_failure_keeps_the_block_a_success_no_longer_needs():
         log_parts_dir="test_case/test_rapid/logs/_parts/experiment_rapid",
     )
     assert out.splitlines() == [
-        "wf3 run_stress_test FAILED",
-        "--------------------------",
+        cs.workflow_band("wf3 run_stress_test FAILED", cs._CLOSE_BAND),
         "",
         "log parts  test_case/test_rapid/logs/_parts/experiment_rapid/",
         "",
@@ -4499,7 +4510,7 @@ def test_run_header_omits_rows_a_workflow_does_not_have():
     """WF1 and WF2 pass no experiment; the block shrinks rather than showing a blank."""
     out = cs.run_header("wf1 build_model", "test_case/test_rapid")
     lines = out.splitlines()
-    assert lines[1] == "wf1 build_model"
+    assert lines[1] == cs.workflow_band("wf1 build_model")
     assert lines[-1] == "<project>  <repo>/test_case/test_rapid"
     assert not any("experiment" in line for line in lines)
 

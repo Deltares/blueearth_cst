@@ -4,6 +4,7 @@ import io
 import json
 import logging
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -60,7 +61,26 @@ def test_commands_quote_literal_arguments_for_both_shells():
     assert shlex.split(cs.shell_command(arguments, powershell=False)) == arguments
     assert (
         cs.shell_command(arguments, powershell=True)
-        == "& 'snakemake' 'a b' 'a''b' '$literal' '`literal' 'c:\\case\\x.yml'"
+        == "snakemake 'a b' 'a''b' '$literal' '`literal' c:\\case\\x.yml"
+    )
+
+
+@pytest.mark.parametrize(
+    "argument", ["@splat", "#comment", "a,b", "{x}", "--%", "--", "~"]
+)
+def test_powershell_quotes_every_argument_outside_the_bare_whitelist(argument):
+    assert cs.shell_command(["snakemake", argument], powershell=True) == (
+        "snakemake '" + argument + "'"
+    )
+
+
+def test_a_quoted_program_takes_the_powershell_call_operator():
+    assert (
+        cs.shell_command(["C:\\Program Files\\x.exe", "-c", "3"], powershell=True)
+        == "& 'C:\\Program Files\\x.exe' -c 3"
+    )
+    assert cs.shell_command(["snakemake", "-c", "3"], powershell=True) == (
+        "snakemake -c 3"
     )
 
 
@@ -94,7 +114,19 @@ def test_powershell_command_round_trips_literal_arguments(multiline):
     pwsh = shutil.which("pwsh")
     if pwsh is None:
         pytest.skip("PowerShell unavailable")
-    arguments = ["space here", "apostrophe's", "$literal", "`literal", 'quote"here']
+    arguments = [
+        "space here",
+        "apostrophe's",
+        "$literal",
+        "`literal",
+        'quote"here',
+        "@splat",
+        "a,b",
+        "{x}",
+        "bare-value.yml",
+        "--configfile",
+        "after config",
+    ]
     command = cs.shell_command(
         [
             sys.executable,
@@ -117,22 +149,30 @@ def test_powershell_command_round_trips_literal_arguments(multiline):
 
 
 @pytest.mark.parametrize("powershell", [False, True])
-def test_multiline_command_keeps_option_values_together(powershell):
-    arguments = ["snakemake", "all", "-c", "3", "--configfile", "case config.yml"]
+def test_multiline_command_puts_only_the_configfile_on_its_own_line(powershell):
+    """Argv order is kept: what follows the config value stays on its line."""
+    arguments = [
+        "snakemake",
+        "all",
+        "-c",
+        "3",
+        "--configfile",
+        "case config.yml",
+        "--keep-going",
+    ]
     output = cs.shell_command(arguments, powershell=powershell, multiline=True)
-    if powershell:
-        assert output.splitlines() == [
-            "& 'snakemake' 'all' `",
-            "  '-c' '3' `",
-            "  '--configfile' 'case config.yml'",
-        ]
-    else:
-        assert output.splitlines() == [
-            "snakemake all \\",
-            "  -c 3 \\",
-            "  --configfile 'case config.yml'",
-        ]
+    mark = "`" if powershell else "\\"
+    assert output.splitlines() == [
+        f"snakemake all -c 3 {mark}",
+        "  --configfile 'case config.yml' --keep-going",
+    ]
+    if not powershell:
         assert shlex.split(output.replace("\\\n", "")) == arguments
+
+
+def test_a_command_without_a_configfile_stays_on_one_line():
+    output = cs.shell_command(["snakemake", "all", "-c", "3"], multiline=True)
+    assert output == "snakemake all -c 3"
 
 
 def test_child_command_display_preserves_credential_redaction(presentation):
@@ -174,13 +214,12 @@ def test_opening_groups_checks_before_explicit_plan(presentation, monkeypatch):
     assert [output.index(section) for section in sections] == sorted(
         output.index(section) for section in sections
     )
-    assert (
-        "status" in output
-        and "step" in output
-        and "rule" in output
-        and "jobs" in output
-    )
-    assert "3 jobs" in output and "2 rules scheduled" in output
+    assert re.search(r"^status +rule +jobs$", output, re.MULTILINE)
+    assert "3 jobs  |  2 scheduled" in output
+    # The first job row follows the Execution log heading directly.
+    assert "Execution log\n" in output and "Execution log\n\n" not in output
+    # Cores are stated once, by the command's own `--cores`.
+    assert output.count("cores") == 1 and "snakemake all --cores 3 `" in output
     assert "WARN  Availability partially verified" in output
     assert warnings == ["resolution"]
     cs.opening_block("wf2 analyze_projections", "/project", counts={"fetch": 2})
@@ -251,7 +290,7 @@ def test_pending_checkpoint_and_completed_planning_are_not_reuse(
     head, rows = cs._plan_lines({"fetch": 1, "all": 1})
     text = "\n".join(row for row, _ in rows)
     assert "done" in text and "pending" in text and "4 planned" in text
-    assert "0 rules up to date" in head and "1 job" in head
+    assert "0 up to date" in head and "1 job" in head
 
 
 def test_deferred_factory_is_idempotent_and_retains_signature_and_file_handler(

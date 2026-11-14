@@ -48,6 +48,8 @@ def _simulate(experiment, *extra, target="indicators"):
         env=environment,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=600,
     )
     return result.returncode, result.stdout + result.stderr
@@ -112,12 +114,10 @@ def test_a_dry_run_writes_nothing_and_a_stale_response_is_refused(tmp_path):
     assert "Work plan" in output and "Planning complete" in output
     assert "Execution log" not in output and " - RUN " not in output
     assert "None" not in output.splitlines()
-    assert re.search(
-        r"run\s+4\.07\s+Check simulation outputs for indicators\s+2\b", output
-    ), output
-    assert re.search(r"pending\s+4\.08\s+Calculate indicators\s+2 planned", output), (
+    assert re.search(r"run\s+Check simulation outputs for indicators\s+2\b", output), (
         output
     )
+    assert re.search(r"pending\s+Calculate indicators\s+2 planned", output), output
     assert not (root / "_engine/indicator_requests").exists()
     assert not (root / "_engine/indicator_sets").exists()
     assert not (root / "results/indicator_sets").exists()
