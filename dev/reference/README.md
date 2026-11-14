@@ -29,6 +29,7 @@ owning reference when behavior changes; executable sources retain exact schemas,
 | Forcing catalog admission and unit interpretation | [toolbox-forcing-units.md](toolbox-forcing-units.md) |
 | Generation inputs, outputs or replacement engines | [toolbox-weather-generator-interface.md][generator] |
 | Simulator preparation and responses | [toolbox-hydrological-model-interface.md][simulator] |
+| Run identity, reuse, reservations and batching | [toolbox-run-identity.md][identity] |
 | Rule definitions, dependencies and consumers | [toolbox-workflow-map.md](toolbox-workflow-map.md) |
 | CMIP6 grids and source versions | [wf2-cmip6-source-readability.md][cmip6] |
 | Indicator terminology | [toolbox-indicator-glossary.md][indicators] |
@@ -56,10 +57,10 @@ Use this lookup to reach the relevant topic owners; a workflow does not need its
   [user guide][guide1]; [rules][rules1].
 - **WF2 projections:** [CMIP6 source readability][cmip6], [spatial foundation][spatial];
   [user guide][guide2]; [rules][rules2].
-- **WF3 scenarios:** [weather-generator interface][generator], [retained handoffs][handoffs];
-  [user guide][guide3]; [rules][rules3].
-- **WF4 simulation:** [hydrological-model interface][simulator], [indicator glossary][indicators];
-  [user guide][guide4]; [entry point][rules4].
+- **WF3 scenarios:** [weather-generator interface][generator], [run identity][identity],
+  [retained handoffs][handoffs]; [user guide][guide3]; [rules][rules3].
+- **WF4 simulation:** [hydrological-model interface][simulator], [run identity][identity],
+  [indicator glossary][indicators]; [user guide][guide4]; [entry point][rules4].
 
 [spatial]: toolbox-spatial-foundation.md
 [layout]: dev-repository-layout.md
@@ -75,6 +76,7 @@ Use this lookup to reach the relevant topic owners; a workflow does not need its
 [cmip6]: wf2-cmip6-source-readability.md
 [generator]: toolbox-weather-generator-interface.md
 [simulator]: toolbox-hydrological-model-interface.md
+[identity]: toolbox-run-identity.md
 [handoffs]: ../../docs/site/toolbox-reference/retained-handoffs.qmd
 [indicators]: toolbox-indicator-glossary.md
 [guide0]: ../../docs/site/toolbox-reference/workflow-analyze-climate.qmd
