@@ -87,7 +87,7 @@ execution are unchanged; see [case creation and migration](../guide/new-case.md)
 | `climate.window` | Inclusive calendar-year `start`/`end`; historical record, not hydrological run period |
 | `climate.water_year_start` | Reporting-year month, default January |
 | `climate.map_reference` | Historical-map completeness; default 3 missing days/month, 15/year |
-| `model.name` | Model folder under `models/hydrology/` that WF1 builds or runs and WF4 uses; default `wflow` |
+| `model.name` | Folder under `models/hydrology/` that WF1 builds or runs and WF4 uses; default `wflow` |
 | `model.outvars` | Retained model variables; declarations must use supported Wflow display names |
 | `plotting.annotation` | `none` (default), `caption` or `title` on ordinary PNG paths |
 

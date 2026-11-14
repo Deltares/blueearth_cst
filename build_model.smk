@@ -605,10 +605,11 @@ if MODEL_ORIGIN == "built":
     DECLARE_GAUGES_AND_OUTPUTS = RULES.logged("1.08", "declare_gauges_and_outputs", summary="configure discharge locations and output variables")
     if FORCING_IDS is not None:
         FINALIZE_MODEL_ROOT = RULES.banner_only("1.08b", "finalize_model_root", summary="mark the shared model ready for named forcing recipes")
-    RECORD_BUILT_MODEL = RULES.banner_only("1.08c", "record_built_model", summary="record the built model's identity")
 else:
-    ACCEPT_REGISTERED_MODEL = RULES.banner_only("1.08r", "accept_registered_model", summary="use the registered model unchanged")
+    PUBLISH_REGISTERED_MODEL = RULES.banner_only("1.08c", "publish_registered_model", summary="check the registered model and mark it ready")
 ADD_CLIMATE_FORCING = RULES.logged("1.09", "add_climate_forcing", summary="prepare historical forcing")
+if MODEL_ORIGIN == "built":
+    WRITE_MODEL_RECORD = RULES.banner_only("1.09b", "write_model_record", summary="record the built model's identity")
 WRITE_GAUGE_INDEX = RULES.logged("1.10", "write_gauge_index", summary="write the outlet-to-location identity crosswalk")
 PLOT_BASIN_MAP = RULES.logged("1.11", "plot_basin_map", summary="render basin and spatial-input maps")
 PLOT_MODEL_FORCING = RULES.logged("1.12", "plot_model_forcing", summary="render model-forcing maps and time series")
@@ -1181,11 +1182,12 @@ if FORCING_IDS is not None and MODEL_ORIGIN == "built":
         input: f"{basin_dir}/_engine/markers/.outputs_configured",
         output: touch(f"{basin_dir}/_engine/markers/.model_final"),
 
-# 1.08c  record_built_model — the built model's `_engine/model.json` (R16): its
+# 1.09b  write_model_record — the built model's `_engine/model.json` (R16): its
 # origin and the identity of its static inputs, refreshed after every build.
+# Numbered after 1.09: for a single recipe that rule writes `.model_final`.
 if MODEL_ORIGIN == "built":
-    rule record_built_model:
-        message: RECORD_BUILT_MODEL.banner()
+    rule write_model_record:
+        message: WRITE_MODEL_RECORD.banner()
         input: f"{basin_dir}/_engine/markers/.model_final",
         output: f"{basin_dir}/_engine/model.json",
         params: name = MODEL_NAME,
@@ -1193,14 +1195,17 @@ if MODEL_ORIGIN == "built":
             from blueearth_cst.shared.model_registry import build_record, write_record
             write_record(basin_dir, build_record(basin_dir, name=params.name, origin="built"))
 else:
-    # 1.08r  accept_registered_model — a registered model is final as it is.
-    # Parse time has already refused a changed model or missing outputs.
-    rule accept_registered_model:
-        message: ACCEPT_REGISTERED_MODEL.banner()
+    # 1.08c  publish_registered_model — a registered model is final as
+    # registered: recheck it is unchanged, then write the ready markers.
+    rule publish_registered_model:
+        message: PUBLISH_REGISTERED_MODEL.banner()
         input: ancient(f"{basin_dir}/_engine/model.json"),
         output:
             outputs_configured = touch(f"{basin_dir}/_engine/markers/.outputs_configured"),
             model_final = touch(f"{basin_dir}/_engine/markers/.model_final"),
+        run:
+            from blueearth_cst.shared.model_registry import require_unchanged
+            require_unchanged(basin_dir)
 
 # 1.15  plot_model_evaluation — analyse + plot the wflow RUN (parallel leaf
 # with 1.11/1.12). Discharge only since the climate-plot consolidation; the climate figures it used

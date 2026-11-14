@@ -174,16 +174,17 @@ that differs.
 
 Every model records itself in `_engine/model.json`: its origin, parent, notes and the identity of its
 static inputs (the `wflow_sbm.toml` pointer graph plus `staticgeoms/`, excluding everything the toolbox
-writes per forcing recipe). WF1 writes this record for a model it builds (`origin: built`) after every
-build.
+writes per forcing recipe). Rule 1.09b `write_model_record` writes this record for a model WF1 builds
+(`origin: built`) after every build.
 
-A model prepared outside the toolbox is registered with `scripts/register_model.py register`
-(`origin: user_managed`); see [running](../guide/running.md#use-a-model-prepared-outside-the-toolbox).
-WF1 never rebuilds or rewrites a registered model: rules 1.06 to 1.08 are not defined for it and rule
-1.08r marks it final as registered. Every recipe, including a single one, uses the staged forcing update
-and writes its own TOML, so a single recipe writes `wflow_sbm_default.toml` beside the model's own
-`wflow_sbm.toml`. Before planning, WF1 refuses a registered model whose files changed since registration
-and one whose TOML lacks an output that `model.outvars` or `build_model.output` asks for, naming each.
+A model prepared outside the toolbox is registered with `scripts/register_model.py register` (`origin:
+user_managed`); see [running](../guide/running.md#use-a-model-prepared-outside-the-toolbox). WF1 never
+rebuilds or rewrites a registered model: rules 1.06 to 1.08 are not defined for it and rule 1.08c
+`publish_registered_model` checks it again and marks it final as registered. Every recipe, including a single
+one, uses the staged forcing update and writes its own TOML, so a single recipe writes
+`wflow_sbm_default.toml` beside the model's own `wflow_sbm.toml`. Before planning, WF1 refuses a registered
+model whose files changed since registration and one whose TOML lacks an output that `model.outvars` or
+`build_model.output` asks for, naming each.
 
 WF4 uses `model.name`; with several models and no name it stops and lists them. It refuses a registered
 model that changed since registration, and a retained experiment refuses a different model
