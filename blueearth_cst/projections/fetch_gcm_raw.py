@@ -976,6 +976,7 @@ def fetch_raw_slice(
     buffer,
     acquisition_window,
     components,
+    reuse_candidates=(),
 ):
     """Fetch ONE raw slice of the remote store, or return early on a cache hit.
 
@@ -1006,6 +1007,8 @@ def fetch_raw_slice(
         components: raw digest components -- `series_identity.raw_components`,
             carrying NO reducer hash. A caller that adds one makes a formula
             edit re-download, which is what the stage-A split exists to avoid.
+        reuse_candidates: the same slice path in other projects; one carrying
+            the expected digest is copied instead of fetched.
     """
     # Report the switch above rather than enforce it. `setdefault` is correct:
     # it fixes the UNSET case, which is what the 57.7 s vs >836 s benchmark
@@ -1028,6 +1031,22 @@ def fetch_raw_slice(
     cache_started = perf_counter(), process_time()
     region_fp = series_identity.region_fingerprint(region_path)
     expected_raw_digest = series_identity.raw_digest(components, region_fp)
+
+    def matches(path):
+        return series_identity.cache_hit(
+            [path], expected_raw_digest, digest_attr="cst_raw_digest"
+        )
+
+    # A sibling project's slice with the same digest is the same slice; copied,
+    # it takes the cache-hit path below. See blueearth_cst/shared/data_reuse.py.
+    if reuse_candidates and not matches(raw_nc_out):
+        from blueearth_cst.shared.data_reuse import adopt_matching_file, project_label
+
+        adopted = adopt_matching_file(reuse_candidates, raw_nc_out, matches)
+        if adopted is not None:
+            log_row(
+                f"Copied matching slice from {project_label(adopted)}", module="fetch"
+            )
 
     # --- revalidation before touching the network (D9's argument, one layer up)
     if series_identity.cache_hit(
@@ -1437,6 +1456,8 @@ if "snakemake" in globals():
     sm = globals()["snakemake"]
 
     with tee_to_log(sm.log[0]):
+        from blueearth_cst.shared import data_reuse
+
         fetch_raw_slice(
             region_path=sm.input.region_path,
             raw_nc_out=str(sm.output.raw_nc),
@@ -1453,4 +1474,11 @@ if "snakemake" in globals():
             # the Snakefile must keep it that way, or a formula edit re-downloads
             # and the split buys nothing.
             components=sm.params.raw_digest_components,
+            # Read from the config, never params: reuse sources change no rerun
+            # decision.
+            reuse_candidates=data_reuse.raw_slice_candidates(
+                data_reuse.reuse_sources(sm.config),
+                sm.config["project"]["project_dir"],
+                sm.output.raw_nc,
+            ),
         )
