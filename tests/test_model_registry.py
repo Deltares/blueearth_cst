@@ -147,8 +147,10 @@ def test_resolution(tmp_path):
     with pytest.raises(ModelSelectionError, match=r"wflow \(built\), wflow_calibrated"):
         resolve_model_name(tmp_path, None)
     assert resolve_model_name(tmp_path, "wflow_calibrated") == "wflow_calibrated"
-    with pytest.raises(ModelSelectionError, match="available"):
-        resolve_model_name(tmp_path, "wflow_v2")
+    # A new name is WF1's to build; consumers report a missing model themselves.
+    assert resolve_model_name(tmp_path, "wflow_v2") == "wflow_v2"
+    with pytest.raises(ModelSelectionError, match="snake_case"):
+        resolve_model_name(tmp_path, "Wflow-V2")
 
 
 def test_copy_model_inputs_fills_missing_files_only(tmp_path):

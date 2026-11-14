@@ -321,7 +321,12 @@ CONFIGURATION_INPUTS_DIGEST = CAPTURE_DIGESTS[1] if CAPTURE_DIGESTS else configu
 # `project`, `shared.basin`, `workflows.build_model` and
 # `workflows.analyze_projections` only — so this move does not flip the digest
 # and cannot make an existing project's drift guard refuse to run.
-basin_dir = f"{project_dir}/models/hydrology/wflow"
+# t2609281102: the model folder is named by `model.name` (default `wflow`).
+# A registered `user_managed` model is never rebuilt or rewritten by WF1.
+from blueearth_cst.shared.model_registry import DEFAULT_MODEL_NAME, model_root, origin as model_origin
+MODEL_NAME = get_config(config.get("model") or {}, "name", DEFAULT_MODEL_NAME)
+basin_dir = model_root(project_dir, MODEL_NAME).as_posix()
+MODEL_ORIGIN = model_origin(basin_dir)
 
 # R9 P2 commit 2: engine-neutral geometry -- the region, the vector layers, the
 # location registry and the generated catalog that DESCRIBES them -- lives under
@@ -394,6 +399,17 @@ EXTRA_RECIPE_STORES = {}
 for _key, _spec in RECIPE_STORES.items():
     if _spec.store_dir != CLIMATE_STORE.store_dir:
         EXTRA_RECIPE_STORES.setdefault(_spec.store_dir, (_key, _spec))
+
+# A registered model runs every recipe through the staged update, so its own
+# files are never written; its single recipe is keyed `default` and writes
+# `wflow_sbm_default.toml` beside the model's own TOML (t2609281102 ruling).
+if MODEL_ORIGIN == "user_managed":
+    from blueearth_cst.model.registered_model import check_registered_model
+    check_registered_model(basin_dir, wflow_outvars, grid_output)
+    if FORCING_IDS is None:
+        FORCING_KEYS = ("default",)
+        RECIPES = {"default": RECIPES[None]}
+        RECIPE_STORES = {"default": RECIPE_STORES[None]}
 
 # --- The one project region artifact -------------------------------
 # Same pattern, same reason: ONE producer contract, built here and identically
@@ -583,11 +599,15 @@ if MAP_CANDIDATE_STORES:
 PRODUCE_MAP_REFERENCE = RULES.logged("1.03c", "produce_historical_map_reference", summary="prepare shared historical map display classes")
 PREPARE_SOURCE_MAPS = RULES.logged("1.03d", "prepare_historical_map_fields", summary="prepare shared native-grid map fields")
 PREPARE_LAND_AND_SOIL_MAPS = RULES.logged("1.05", "prepare_land_and_soil_maps", summary="prepare shared terrain, land-cover, and soil layers")
-BUILD_WFLOW_MODEL = RULES.logged("1.06", "build_wflow_model", summary="parameterize from spatial foundation and global datasets")
-ADD_RESERVOIRS_LAKES_GLACIERS = RULES.logged("1.07", "add_reservoirs_lakes_glaciers", summary="apply configured reservoir, lake, and glacier setup")
-DECLARE_GAUGES_AND_OUTPUTS = RULES.logged("1.08", "declare_gauges_and_outputs", summary="configure discharge locations and output variables")
-if FORCING_IDS is not None:
-    FINALIZE_MODEL_ROOT = RULES.banner_only("1.08b", "finalize_model_root", summary="mark the shared model ready for named forcing recipes")
+if MODEL_ORIGIN == "built":
+    BUILD_WFLOW_MODEL = RULES.logged("1.06", "build_wflow_model", summary="parameterize from spatial foundation and global datasets")
+    ADD_RESERVOIRS_LAKES_GLACIERS = RULES.logged("1.07", "add_reservoirs_lakes_glaciers", summary="apply configured reservoir, lake, and glacier setup")
+    DECLARE_GAUGES_AND_OUTPUTS = RULES.logged("1.08", "declare_gauges_and_outputs", summary="configure discharge locations and output variables")
+    if FORCING_IDS is not None:
+        FINALIZE_MODEL_ROOT = RULES.banner_only("1.08b", "finalize_model_root", summary="mark the shared model ready for named forcing recipes")
+    RECORD_BUILT_MODEL = RULES.banner_only("1.08c", "record_built_model", summary="record the built model's identity")
+else:
+    ACCEPT_REGISTERED_MODEL = RULES.banner_only("1.08r", "accept_registered_model", summary="use the registered model unchanged")
 ADD_CLIMATE_FORCING = RULES.logged("1.09", "add_climate_forcing", summary="prepare historical forcing")
 WRITE_GAUGE_INDEX = RULES.logged("1.10", "write_gauge_index", summary="write the outlet-to-location identity crosswalk")
 PLOT_BASIN_MAP = RULES.logged("1.11", "plot_basin_map", summary="render basin and spatial-input maps")
@@ -642,6 +662,7 @@ WF1_TERMINALS = [
     # schedules it at all -- no rule reads a sidecar, so without this it would
     # never build.
     f"{basin_dir}/_engine/run_metadata.json",
+    *([f"{basin_dir}/_engine/model.json"] if MODEL_ORIGIN == "built" else []),
 ]
 
 # all — target aggregator: full historical build + performance plots
@@ -758,104 +779,107 @@ rule prepare_land_and_soil_maps:
         PREPARE_LAND_AND_SOIL_MAPS.benchmark(),
     script: "blueearth_cst/spatial/prepare_spatial_maps.py"
 
-# 1.06  build_wflow_model — parameterize Wflow-SBM on the P1 spatial foundation
-rule build_wflow_model:
-    message: BUILD_WFLOW_MODEL.banner()
-    input:
-        parameter_template = model_build_config,
-        spatial_maps = f"{spatial_dir}/spatial_maps.nc",
-        basins = f"{spatial_dir}/geoms/basins.geojson",
-        subbasins = f"{spatial_dir}/geoms/subbasins.geojson",
-        catchments = f"{spatial_dir}/geoms/catchments.geojson",
-        rivers = f"{spatial_dir}/geoms/rivers.geojson",
-        locations = f"{spatial_dir}/geoms/locations.geojson",
-        location_registry = f"{spatial_dir}/location_registry.csv",
-        spatial_catalog = f"{spatial_dir}/_engine/spatial_catalog.yml",
-        spatial_report = f"{spatial_dir}/_engine/spatial_report.yml",
-        data_catalogs = DATA_SOURCES,
-    output:
-        staticmaps = f"{basin_dir}/staticmaps.nc",
-        wflow_toml = f"{basin_dir}/wflow_sbm.toml",
-        region = f"{basin_dir}/staticgeoms/region.geojson",
-        outlets = f"{basin_dir}/staticgeoms/outlets.geojson",
-        # The post-normalization values hydromt was actually handed (R3). NOT
-        # a copy of the parameter template: arguments are popped, P1 objects
-        # replace them, and `lulc_mapping_fn` is derived at call time from the
-        # grid's own source attribute, so it exists in no file on disk.
-        values_used = f"{basin_dir}/_engine/hydromt_build_config.yml",
-        # Completion sentinel (R7-1). `wflow_sbm.toml` is CREATED here and then
-        # updated IN PLACE by rules 1.07-1.09, but only this rule declares it,
-        # so a re-fire of the build rule alone used to leave the toml stripped of
-        # every section the later rules add -- and the next wflow run died on
-        # the missing key. The obvious fix (drop the ancient() on staticmaps in
-        # those rules) is WRONG: they mutate staticmaps themselves via
-        # mod.write()/mod.close(), so a plain input would make each one
-        # re-trigger on its own execution forever. This sentinel is written by
-        # nothing else, so it re-fires rule 1.07 without any self-trigger, and
-        # the chain cascades from there (1.07 -> .txt -> 1.08 ->
-        # .outputs_configured -> 1.09). The forcing-yml hop that used to sit in
-        # the middle of that chain is gone: R10-1 merged 1.06 into 1.09, which
-        # now writes the yml it used to consume.
-        built = touch(f"{basin_dir}/_engine/markers/.model_built"),
-    log:
-        BUILD_WFLOW_MODEL.log(),
-    benchmark:
-        BUILD_WFLOW_MODEL.benchmark(),
-    script: "blueearth_cst/model/build_wflow_model.py"
+# 1.06-1.08 build and finish the model. Defined only for a model WF1 builds:
+# a registered `user_managed` model is never rebuilt or rewritten (t2609281102).
+if MODEL_ORIGIN == "built":
+    # 1.06  build_wflow_model — parameterize Wflow-SBM on the P1 spatial foundation
+    rule build_wflow_model:
+        message: BUILD_WFLOW_MODEL.banner()
+        input:
+            parameter_template = model_build_config,
+            spatial_maps = f"{spatial_dir}/spatial_maps.nc",
+            basins = f"{spatial_dir}/geoms/basins.geojson",
+            subbasins = f"{spatial_dir}/geoms/subbasins.geojson",
+            catchments = f"{spatial_dir}/geoms/catchments.geojson",
+            rivers = f"{spatial_dir}/geoms/rivers.geojson",
+            locations = f"{spatial_dir}/geoms/locations.geojson",
+            location_registry = f"{spatial_dir}/location_registry.csv",
+            spatial_catalog = f"{spatial_dir}/_engine/spatial_catalog.yml",
+            spatial_report = f"{spatial_dir}/_engine/spatial_report.yml",
+            data_catalogs = DATA_SOURCES,
+        output:
+            staticmaps = f"{basin_dir}/staticmaps.nc",
+            wflow_toml = f"{basin_dir}/wflow_sbm.toml",
+            region = f"{basin_dir}/staticgeoms/region.geojson",
+            outlets = f"{basin_dir}/staticgeoms/outlets.geojson",
+            # The post-normalization values hydromt was actually handed (R3). NOT
+            # a copy of the parameter template: arguments are popped, P1 objects
+            # replace them, and `lulc_mapping_fn` is derived at call time from the
+            # grid's own source attribute, so it exists in no file on disk.
+            values_used = f"{basin_dir}/_engine/hydromt_build_config.yml",
+            # Completion sentinel (R7-1). `wflow_sbm.toml` is CREATED here and then
+            # updated IN PLACE by rules 1.07-1.09, but only this rule declares it,
+            # so a re-fire of the build rule alone used to leave the toml stripped of
+            # every section the later rules add -- and the next wflow run died on
+            # the missing key. The obvious fix (drop the ancient() on staticmaps in
+            # those rules) is WRONG: they mutate staticmaps themselves via
+            # mod.write()/mod.close(), so a plain input would make each one
+            # re-trigger on its own execution forever. This sentinel is written by
+            # nothing else, so it re-fires rule 1.07 without any self-trigger, and
+            # the chain cascades from there (1.07 -> .txt -> 1.08 ->
+            # .outputs_configured -> 1.09). The forcing-yml hop that used to sit in
+            # the middle of that chain is gone: R10-1 merged 1.06 into 1.09, which
+            # now writes the yml it used to consume.
+            built = touch(f"{basin_dir}/_engine/markers/.model_built"),
+        log:
+            BUILD_WFLOW_MODEL.log(),
+        benchmark:
+            BUILD_WFLOW_MODEL.benchmark(),
+        script: "blueearth_cst/model/build_wflow_model.py"
 
-# 1.07  add_reservoirs_lakes_glaciers — add waterbodies to the built model
-# (temporary hydromt fix; can fold back into build_wflow_model when supported)
-rule add_reservoirs_lakes_glaciers:
-    message: ADD_RESERVOIRS_LAKES_GLACIERS.banner()
-    input:
-        # ancient(): this rule COMMITS writes back into staticmaps.nc, so a
-        # plain input would re-trigger it on its own output. Ordering and
-        # rebuild-detection come from the sentinel below instead (R7-1).
-        basin_nc = ancient(f"{basin_dir}/staticmaps.nc"),
-        model_built = f"{basin_dir}/_engine/markers/.model_built",
-        scientific_code = ["blueearth_cst/shared/wflow_write.py"],
-    output:
-        text_out = f"{basin_dir}/_engine/reservoirs_lakes_glaciers.txt",
-        # The values each method was handed, plus whether it ran (R3). The
-        # status is half the provenance: a skipped method leaves no trace in
-        # the model, so values alone would describe water bodies never added.
-        values_used = f"{basin_dir}/_engine/hydromt_update_waterbodies.yml",
-    params:
-        data_catalog = DATA_SOURCES,
-        config = waterbodies_config,
-    log:
-        ADD_RESERVOIRS_LAKES_GLACIERS.log(),
-    benchmark:
-        ADD_RESERVOIRS_LAKES_GLACIERS.benchmark(),
-    script:
-        "blueearth_cst/model/setup_reservoirs_lakes_glaciers.py"
+    # 1.07  add_reservoirs_lakes_glaciers — add waterbodies to the built model
+    # (temporary hydromt fix; can fold back into build_wflow_model when supported)
+    rule add_reservoirs_lakes_glaciers:
+        message: ADD_RESERVOIRS_LAKES_GLACIERS.banner()
+        input:
+            # ancient(): this rule COMMITS writes back into staticmaps.nc, so a
+            # plain input would re-trigger it on its own output. Ordering and
+            # rebuild-detection come from the sentinel below instead (R7-1).
+            basin_nc = ancient(f"{basin_dir}/staticmaps.nc"),
+            model_built = f"{basin_dir}/_engine/markers/.model_built",
+            scientific_code = ["blueearth_cst/shared/wflow_write.py"],
+        output:
+            text_out = f"{basin_dir}/_engine/reservoirs_lakes_glaciers.txt",
+            # The values each method was handed, plus whether it ran (R3). The
+            # status is half the provenance: a skipped method leaves no trace in
+            # the model, so values alone would describe water bodies never added.
+            values_used = f"{basin_dir}/_engine/hydromt_update_waterbodies.yml",
+        params:
+            data_catalog = DATA_SOURCES,
+            config = waterbodies_config,
+        log:
+            ADD_RESERVOIRS_LAKES_GLACIERS.log(),
+        benchmark:
+            ADD_RESERVOIRS_LAKES_GLACIERS.benchmark(),
+        script:
+            "blueearth_cst/model/setup_reservoirs_lakes_glaciers.py"
 
-# 1.08  declare_gauges_and_outputs — add gauges + output variables to the model
-rule declare_gauges_and_outputs:
-    message: DECLARE_GAUGES_AND_OUTPUTS.banner()
-    input:
-        basin_nc = ancient(f"{basin_dir}/staticmaps.nc"),
-        text = f"{basin_dir}/_engine/reservoirs_lakes_glaciers.txt",
-        # P2 already created gauge/outlet maps from this registry. This rule
-        # only adds output declarations and verifies those identities.
-        location_registry = f"{spatial_dir}/location_registry.csv",
-        scientific_code = [
-            "blueearth_cst/shared/wflow_write.py",
-            "blueearth_cst/shared/wflow_outputs.py",
-            "blueearth_cst/shared/grid_output.py",
-        ],
-    output:
-        configured = touch(f"{basin_dir}/_engine/markers/.outputs_configured"),
-    params:
-        outputs = wflow_outvars,
-        netcdf_grid = grid_output,
-        data_catalog = DATA_SOURCES
-    log:
-        DECLARE_GAUGES_AND_OUTPUTS.log(),
-    benchmark:
-        DECLARE_GAUGES_AND_OUTPUTS.benchmark(),
-    script:
-        "blueearth_cst/model/setup_gauges_and_outputs.py"
+    # 1.08  declare_gauges_and_outputs — add gauges + output variables to the model
+    rule declare_gauges_and_outputs:
+        message: DECLARE_GAUGES_AND_OUTPUTS.banner()
+        input:
+            basin_nc = ancient(f"{basin_dir}/staticmaps.nc"),
+            text = f"{basin_dir}/_engine/reservoirs_lakes_glaciers.txt",
+            # P2 already created gauge/outlet maps from this registry. This rule
+            # only adds output declarations and verifies those identities.
+            location_registry = f"{spatial_dir}/location_registry.csv",
+            scientific_code = [
+                "blueearth_cst/shared/wflow_write.py",
+                "blueearth_cst/shared/wflow_outputs.py",
+                "blueearth_cst/shared/grid_output.py",
+            ],
+        output:
+            configured = touch(f"{basin_dir}/_engine/markers/.outputs_configured"),
+        params:
+            outputs = wflow_outvars,
+            netcdf_grid = grid_output,
+            data_catalog = DATA_SOURCES
+        log:
+            DECLARE_GAUGES_AND_OUTPUTS.log(),
+        benchmark:
+            DECLARE_GAUGES_AND_OUTPUTS.benchmark(),
+        script:
+            "blueearth_cst/model/setup_gauges_and_outputs.py"
 
 # 1.10  write_gauge_index — write the outlet position -> subcatchment-ID mapping
 rule write_gauge_index:
@@ -1151,11 +1175,32 @@ for _store_dir, (_key, _spec) in EXTRA_RECIPE_STORES.items():
 
 # 1.08b  finalize_model_root — named recipes stage their forcing elsewhere, so
 # the shared model is final once its outputs are declared.
-if FORCING_IDS is not None:
+if FORCING_IDS is not None and MODEL_ORIGIN == "built":
     rule finalize_model_root:
         message: FINALIZE_MODEL_ROOT.banner()
         input: f"{basin_dir}/_engine/markers/.outputs_configured",
         output: touch(f"{basin_dir}/_engine/markers/.model_final"),
+
+# 1.08c  record_built_model — the built model's `_engine/model.json` (R16): its
+# origin and the identity of its static inputs, refreshed after every build.
+if MODEL_ORIGIN == "built":
+    rule record_built_model:
+        message: RECORD_BUILT_MODEL.banner()
+        input: f"{basin_dir}/_engine/markers/.model_final",
+        output: f"{basin_dir}/_engine/model.json",
+        params: name = MODEL_NAME,
+        run:
+            from blueearth_cst.shared.model_registry import build_record, write_record
+            write_record(basin_dir, build_record(basin_dir, name=params.name, origin="built"))
+else:
+    # 1.08r  accept_registered_model — a registered model is final as it is.
+    # Parse time has already refused a changed model or missing outputs.
+    rule accept_registered_model:
+        message: ACCEPT_REGISTERED_MODEL.banner()
+        input: ancient(f"{basin_dir}/_engine/model.json"),
+        output:
+            outputs_configured = touch(f"{basin_dir}/_engine/markers/.outputs_configured"),
+            model_final = touch(f"{basin_dir}/_engine/markers/.model_final"),
 
 # 1.15  plot_model_evaluation — analyse + plot the wflow RUN (parallel leaf
 # with 1.11/1.12). Discharge only since the climate-plot consolidation; the climate figures it used

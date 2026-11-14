@@ -34,11 +34,17 @@ results_dir = f"{exp_dir}/results"
 # Engine bookkeeping, collected per scope so a reader learns to ignore one
 # directory rather than meeting machinery at three depths (t2609152104).
 engine_dir = f"{exp_dir}/_engine"
-basin_dir = f"{project_dir}/models/hydrology/wflow"
+# t2609281102: `model.name` selects the model; with several models and no name
+# the selection stops and lists them. A registered model changed since its
+# registration is refused before any work.
+from blueearth_cst.shared.model_registry import recipe_key, require_unchanged, selected_model_root
+basin_dir = selected_model_root(project_dir, project).as_posix()
+require_unchanged(basin_dir)
 # t014: the selected historical recipe's TOML, end state and forcing. Legacy
-# projects keep wflow_sbm.toml and run_default/.
+# projects keep wflow_sbm.toml and run_default/. A registered model's single
+# recipe is keyed `default` (wflow_sbm_default.toml).
 from blueearth_cst.shared.named_forcings import HistoricalLayout
-HISTORICAL_FORCING = project["climate"].get("forcing_id")
+HISTORICAL_FORCING = recipe_key(basin_dir, project["climate"].get("forcing_id"))
 HISTORICAL = HistoricalLayout(HISTORICAL_FORCING)
 if (HISTORICAL_FORCING is not None and Path(basin_dir, "_engine/markers/.outputs_configured").exists()
         and not Path(basin_dir, HISTORICAL.toml).exists()):
@@ -76,13 +82,19 @@ if _retained_selection is not None:
         or _retained_selection["run_ids"] != RUN_IDS):
         raise SimulationFrozenError("selected collection differs from retained experiment; use --new-experiment")
     SELECTION["resolution_mode"] = _retained_selection["resolution_mode"]
-# A retained experiment keeps the historical recipe its model reference records.
-_retained_toml = None
+# A retained experiment keeps the model and historical recipe its model reference records.
+_retained_reference = None
 if _retained_settings is not None:
-    _retained_toml = _retained_intent["documents"]["model_reference"]["model_toml"]
+    _retained_reference = _retained_intent["documents"]["model_reference"]
 elif Path(f"{engine_dir}/model_reference.yml").exists():
     import yaml
-    _retained_toml = yaml.safe_load(Path(f"{engine_dir}/model_reference.yml").read_text(encoding="utf-8"))["model_toml"]
+    _retained_reference = yaml.safe_load(Path(f"{engine_dir}/model_reference.yml").read_text(encoding="utf-8"))
+_retained_toml = None if _retained_reference is None else _retained_reference["model_toml"]
+_selected_model_path = Path(basin_dir).relative_to(project_dir).as_posix()
+if _retained_reference is not None and _retained_reference["model_path"] != _selected_model_path:
+    raise SimulationFrozenError(
+        f"model {Path(_selected_model_path).name!r} differs from the retained experiment's "
+        f"({Path(_retained_reference['model_path']).name!r}); use --new-experiment")
 if _retained_toml is not None and _retained_toml != HISTORICAL.toml:
     raise SimulationFrozenError(
         f"historical forcing {HISTORICAL_FORCING or 'default'!r} differs from the retained "

@@ -21,7 +21,9 @@ CONFIG = REPO / "tests" / "project_config_fixture.yml"
 
 def _rule_block(name: str) -> str:
     text = SNAKEFILE.read_text(encoding="utf-8")
-    match = re.search(rf"^rule {name}:\n(.*?)(?=^rule |\Z)", text, re.S | re.M)
+    # A body ends at the next column-0 line: the build rules that follow sit
+    # under `if MODEL_ORIGIN == "built":` (t2609281102).
+    match = re.search(rf"^rule {name}:\n(.*?)(?=^\S|\Z)", text, re.S | re.M)
     assert match, f"rule {name} not found"
     return match.group(1)
 

@@ -135,8 +135,14 @@ climate:
 #  MODEL
 # -----------------------------------------------------------------------------
 
-# Select shared hydrological model outputs. Input: mapping.
+# Select the hydrological model and its shared outputs. Input: mapping.
 model:
+  # The model folder models/hydrology/<name>/ that build_model builds or runs and
+  # simulate_system uses. Register a model prepared outside the toolbox with
+  # scripts/register_model.py; simulate_system needs this name when the
+  # project holds several models.
+  # Select the hydrological model. Input: lowercase snake_case name.
+  #name: wflow
   # Any of: river discharge, precipitation, potential evapotranspiration,
   # overland flow, actual evapotranspiration, groundwater recharge, snow, temperature.
   # Select retained model outputs; non-discharge ones are subcatchment means. Input: list.

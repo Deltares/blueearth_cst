@@ -11,6 +11,7 @@ from blueearth_cst.shared.config_composition import (
     capture_configuration_sources,
     compose_captured_config,
 )
+from blueearth_cst.shared.model_registry import selected_model_root
 from blueearth_cst.shared.provenance import file_sha256
 from blueearth_cst.shared.yaml_documents import parse_yaml_document
 
@@ -345,7 +346,9 @@ def capture_request(
         "input_catalogs": semantic_catalogs,
         "simulation": {
             "climate_source": config["climate"]["selected"],
-            "model_root": confined_path(root, "models/hydrology/wflow")
+            "model_root": confined_path(
+                root, selected_model_root(root, config).relative_to(root).as_posix()
+            )
             .relative_to(root)
             .as_posix(),
             "outvars": list(

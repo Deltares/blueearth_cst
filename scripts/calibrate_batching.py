@@ -145,6 +145,9 @@ def _run(configs, model_toml, root, years, julia):
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--project-dir", required=True, type=Path)
+    parser.add_argument(
+        "--model-name", default="wflow", help="model folder under models/hydrology/"
+    )
     parser.add_argument("--members", type=int, default=4)
     parser.add_argument(
         "--runs", type=int, default=14, help="WF4 member count to predict for"
@@ -159,7 +162,7 @@ def main(argv=None) -> int:
     from blueearth_cst.experiment.batch_sizing import count_active_cells
     from blueearth_cst.shared.snake_utils import JULIA_VERSION
 
-    model_dir = args.project_dir.resolve() / "models/hydrology/wflow"
+    model_dir = args.project_dir.resolve() / "models/hydrology" / args.model_name
     model_toml = model_dir / "wflow_sbm.toml"
     if not model_toml.is_file():
         parser.error(f"no WF1 model at {model_dir}; run build_model first")

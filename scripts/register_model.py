@@ -1,4 +1,4 @@
-"""List, register and prune the hydrology models of a CST project.
+"""List, register, compare and prune the hydrology models of a CST project.
 
 A project keeps each Wflow model in its own folder ``models/hydrology/<name>/``.
 WF1 builds the default ``wflow``. A model prepared outside the toolbox, for
@@ -11,19 +11,25 @@ Usage::
     python scripts/register_model.py list --project-dir <project_dir>
     python scripts/register_model.py register --project-dir <project_dir> \\
         --name wflow_calibrated --parent wflow --copy-from-parent --notes "Manual calibration"
+    python scripts/register_model.py compare --project-dir <project_dir> \
+        --run wflow/default --run wflow_calibrated/default --name calibration_effect
     python scripts/register_model.py prune --project-dir <project_dir> --name wflow_old [--delete]
 
 ``register`` records the model's files in ``<model>/_engine/model.json``. With
 ``--copy-from-parent`` it first copies the parent's model inputs that the new
 folder lacks (never its runs), so only the edited files need to be brought back.
 A registered model cannot be registered again; register an edited model under a
-new name. ``prune`` reports by default and deletes only with ``--delete``; it
+new name. ``compare`` compares historical runs of two or more models (each
+``<model>/<recipe>``, ``default`` for a single recipe) into
+``models/hydrology/comparisons/<name>/``, with the same tables and figures as
+a model's own recipe comparison. ``prune`` reports by default and deletes only with ``--delete``; it
 refuses a model that an experiment uses.
 """
 
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -108,7 +114,7 @@ def cmd_register(args: argparse.Namespace) -> int:
                 f"error: parent model folder {parent} does not exist", file=sys.stderr
             )
             return 2
-        for rel in copy_model_inputs(parent, root, args.toml):
+        for rel in copy_model_inputs(parent, root):
             print(f"copied from {args.parent}: {rel}")
     elif (
         args.parent is not None
@@ -139,7 +145,6 @@ def cmd_register(args: argparse.Namespace) -> int:
             origin="user_managed",
             parent=args.parent,
             notes=args.notes,
-            toml_name=args.toml,
         )
     except FileNotFoundError as error:
         print(f"error: {error}", file=sys.stderr)
@@ -150,6 +155,35 @@ def cmd_register(args: argparse.Namespace) -> int:
         f"Select it with `model: {{name: {args.name}}}` in the project configuration, "
         "then run build_model for its historical runs."
     )
+    return 0
+
+
+def cmd_compare(args: argparse.Namespace) -> int:
+    from blueearth_cst.model.historical_comparison import compare_models
+    from blueearth_cst.model.plot_historical_comparison import render
+
+    if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", args.name):
+        print(
+            f"error: comparison name {args.name!r} must be lowercase snake_case",
+            file=sys.stderr,
+        )
+        return 2
+    settings = {
+        "project_dir": str(args.project_dir),
+        "runs": list(args.run),
+        "registry_path": str(args.project_dir / "data/spatial/location_registry.csv"),
+        "output_dir": str(args.project_dir / MODELS_DIR / "comparisons" / args.name),
+        "water_year_start": args.water_year_start,
+    }
+    if args.observations is not None:
+        settings["observations_path"] = str(args.observations.resolve())
+    try:
+        output = compare_models(settings)
+    except (ValueError, FileExistsError, FileNotFoundError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    render(output, annotation="none")
+    print(f"compared {', '.join(args.run)} -> {output}")
     return 0
 
 
@@ -196,8 +230,19 @@ def main(argv: list[str] | None = None) -> int:
         help="first copy the parent's model inputs the folder lacks",
     )
     register.add_argument("--notes", default="", help="free text stored with the model")
-    register.add_argument(
-        "--toml", default="wflow_sbm.toml", help="the model's Wflow TOML"
+    compare = command("compare", "compare historical runs of two or more models")
+    compare.add_argument(
+        "--run",
+        action="append",
+        required=True,
+        help="<model>/<recipe>, e.g. wflow_calibrated/default; repeat for each run",
+    )
+    compare.add_argument("--name", required=True, help="comparison folder name")
+    compare.add_argument(
+        "--observations", type=Path, help="observed discharge timeseries CSV"
+    )
+    compare.add_argument(
+        "--water-year-start", default="Jan", help="first month of the reporting year"
     )
     prune = command("prune", "report, and with --delete remove, one model")
     prune.add_argument("--name", required=True)
@@ -205,9 +250,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     args.project_dir = args.project_dir.resolve()
     try:
-        return {"list": cmd_list, "register": cmd_register, "prune": cmd_prune}[
-            args.command
-        ](args)
+        return {
+            "list": cmd_list,
+            "register": cmd_register,
+            "compare": cmd_compare,
+            "prune": cmd_prune,
+        }[args.command](args)
     except ModelSelectionError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

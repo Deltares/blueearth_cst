@@ -68,6 +68,7 @@ from blueearth_cst.shared.command_display import sanitize_argv  # noqa: E402
 from blueearth_cst.shared.cross_workflow_leaves import (  # noqa: E402
     LEAF_PRODUCER,
     LEAVES,
+    model_leaves,
 )
 from blueearth_cst.shared.provenance import (  # noqa: E402
     effective_config_digest,
@@ -281,18 +282,24 @@ def _project_dir(cfg: Mapping[str, Any], config_path: str) -> Path:
     return path.resolve()
 
 
-def missing_wf1_leaves(flags: Mapping[str, bool], project_dir: Path) -> list[str]:
+def missing_wf1_leaves(
+    flags: Mapping[str, bool], project_dir: Path, model_path: str | None = None
+) -> list[str]:
     """Check WF4 model leaves after any enabled WF1 producer has completed."""
     if not flags["simulate_system"]:
         return []
-    return [leaf for leaf in LEAVES if not (project_dir / leaf).exists()]
+    leaves = LEAVES if model_path is None else model_leaves(model_path)
+    return [leaf for leaf in leaves if not (project_dir / leaf).exists()]
 
 
 def _check_wf1_leaves(
-    flags: Mapping[str, bool], project_dir: Path, config_path: str
+    flags: Mapping[str, bool],
+    project_dir: Path,
+    config_path: str,
+    model_path: str | None = None,
 ) -> None:
     """Raise `PrerequisiteError` if wf3 is enabled with no wf1 behind it."""
-    missing = missing_wf1_leaves(flags, project_dir)
+    missing = missing_wf1_leaves(flags, project_dir, model_path)
     if not missing:
         return
     listed = "\n".join(f"    {leaf}" for leaf in missing)
@@ -1786,13 +1793,22 @@ def _run_owned(
                         simulation_settings,
                     )
 
-                    _, settings = simulation_settings(config_path)
+                    simulation_project, settings = simulation_settings(config_path)
                     workflow["operation"] = settings["operation"]
                     if (
                         "--unlock" not in extra
                         and settings["operation"] == "simulate-and-indicators"
                     ):
-                        _check_wf1_leaves(flags, project_dir, config_path)
+                        from blueearth_cst.shared.model_registry import (
+                            selected_model_root,
+                        )
+
+                        model_path = (
+                            selected_model_root(project_dir, simulation_project)
+                            .relative_to(project_dir)
+                            .as_posix()
+                        )
+                        _check_wf1_leaves(flags, project_dir, config_path, model_path)
                     cmd, environment = simulation_command(
                         config_path,
                         list(simulation_targets),

@@ -123,8 +123,13 @@ def prepare_comparison(
     *,
     water_year_start: str = "Jan",
     observations: pd.DataFrame | None = None,
+    same_model: bool = True,
 ) -> tuple[dict, dict[str, pd.DataFrame]]:
-    """Align IDs and calculate both supports; no mutation, infilling or ranking."""
+    """Align IDs and calculate both supports; no mutation, infilling or ranking.
+
+    ``same_model=False`` compares runs of different models (t2609281102): their
+    model identities may differ, but the period and initialization may not.
+    """
     if len(runs) < 2:
         raise ValueError("select at least two distinct retained runs")
     dates = _daily_index(dates, "evaluation_window")
@@ -141,7 +146,11 @@ def prepare_comparison(
     for name, (record, frame, stations) in runs.items():
         if any(
             record.get(key) != first_record.get(key)
-            for key in ("model_sha256", "time", "units", "time_label")
+            for key in (
+                ("model_sha256", "time", "units", "time_label")
+                if same_model
+                else ("time", "units", "time_label")
+            )
         ):
             raise ValueError(
                 f"incompatible model, simulation period or initialization: {name}"
@@ -347,6 +356,7 @@ def prepare_comparison(
         units="m3 s-1",
         time_label="interval_end",
         observations_supplied=observations is not None,
+        compared="forcing recipes" if same_model else "models",
     )
     return metadata, tables
 
@@ -367,7 +377,7 @@ def compare(settings: dict) -> Path:
     ``water_year_start`` and ``observations_path``. Every input is hashed before
     and after the comparison, so a run that changes meanwhile is refused.
     """
-    from blueearth_cst.model.historical_runs import _check_inputs, read_recipe_run
+    from blueearth_cst.model.historical_runs import read_recipe_run
 
     required = {
         "model_root",
@@ -399,13 +409,7 @@ def compare(settings: dict) -> Path:
         )
         runs[recipe] = (record, frame, stations)
         inputs.update(files)
-    observation_path = settings.get("observations_path")
-    observations = None
-    if observation_path is not None:
-        observation_path = Path(observation_path).resolve()
-        inputs[str(observation_path)] = file_sha256(observation_path)
-        ids = set(next(iter(runs.values()))[1].columns)
-        observations = read_observations(observation_path, ids)
+    observations = _observations(settings, runs, inputs)
     metadata, tables = prepare_comparison(
         runs,
         evaluation_dates(
@@ -414,6 +418,85 @@ def compare(settings: dict) -> Path:
         water_year_start=settings.get("water_year_start", "Jan"),
         observations=observations,
     )
+    return _publish(output, metadata, tables, settings, inputs)
+
+
+def _observations(settings: dict, runs: dict, inputs: dict) -> pd.DataFrame | None:
+    observation_path = settings.get("observations_path")
+    if observation_path is None:
+        return None
+    observation_path = Path(observation_path).resolve()
+    inputs[str(observation_path)] = file_sha256(observation_path)
+    ids = set(next(iter(runs.values()))[1].columns)
+    return read_observations(observation_path, ids)
+
+
+def compare_models(settings: dict) -> Path:
+    """Compare historical runs of different models (t2609281102, t017 D12).
+
+    ``settings``: ``project_dir``, ``runs`` (two or more ``<model>/<recipe>``
+    names, ``default`` for a model's single recipe), ``registry_path``,
+    ``output_dir`` and optional ``water_year_start`` and ``observations_path``.
+    The evaluation window is every complete reporting year of the runs, which
+    must share their period.
+    """
+    from blueearth_cst.model.historical_runs import read_recipe_run
+    from blueearth_cst.shared.model_registry import model_root, recipe_key
+
+    required = {"project_dir", "runs", "registry_path", "output_dir"}
+    allowed = required | {"water_year_start", "observations_path"}
+    if not required <= settings.keys() or settings.keys() - allowed:
+        raise ValueError(
+            f"model comparison requires {sorted(required)}; "
+            "optional water_year_start, observations_path"
+        )
+    names = settings["runs"]
+    if (
+        not isinstance(names, list)
+        or len(names) < 2
+        or len(set(names)) != len(names)
+        or not all(isinstance(name, str) and name.count("/") == 1 for name in names)
+    ):
+        raise ValueError("runs must list at least two distinct <model>/<recipe> names")
+    if len({name.split("/")[0] for name in names}) < 2:
+        raise ValueError(
+            "a model comparison needs runs of at least two models; a model's own "
+            "recipes are compared in its historical_comparison/"
+        )
+    output = Path(settings["output_dir"]).resolve()
+    if output.exists() and any(output.iterdir()):
+        raise FileExistsError(f"comparison output already exists: {output}")
+    project = Path(settings["project_dir"]).resolve()
+    runs, inputs = {}, {}
+    for name in names:
+        model, recipe = name.split("/")
+        root = model_root(project, model)
+        key = recipe_key(root, None) if recipe == "default" else recipe
+        record, frame, stations, files = read_recipe_run(
+            root, key, Path(settings["registry_path"])
+        )
+        runs[name] = (record, frame, stations)
+        inputs.update(files)
+    observations = _observations(settings, runs, inputs)
+    water_year_start = settings.get("water_year_start", "Jan")
+    index = next(iter(runs.values()))[1].index
+    window = complete_reporting_years(index[0], index[-1], water_year_start)
+    metadata, tables = prepare_comparison(
+        runs,
+        evaluation_dates(window, water_year_start),
+        water_year_start=water_year_start,
+        observations=observations,
+        same_model=False,
+    )
+    return _publish(output, metadata, tables, settings, inputs)
+
+
+def _publish(
+    output: Path, metadata: dict, tables: dict, settings: dict, inputs: dict
+) -> Path:
+    """Write the tables and the hashed record, refusing inputs that changed."""
+    from blueearth_cst.model.historical_runs import _check_inputs
+
     repo = Path(__file__).resolve().parents[2]
     metadata.update(
         config={

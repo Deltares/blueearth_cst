@@ -138,12 +138,15 @@ class ReservationContext:
             self.root / "experiments" / self.name / "_engine/model_reference.yml"
         )
         if reference.exists():
+            import yaml
+
             from blueearth_cst.experiment.check_model_reference import (
                 check_model_reference,
             )
 
+            recorded = yaml.safe_load(reference.read_text(encoding="utf-8"))
             check_model_reference(
-                reference, self.root / "models/hydrology/wflow", self.name
+                reference, self.root / recorded["model_path"], self.name
             )
 
     def bind_selection(self) -> None:

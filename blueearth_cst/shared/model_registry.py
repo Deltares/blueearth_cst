@@ -279,26 +279,39 @@ def _describe(entries: list[ModelEntry]) -> str:
 
 
 def resolve_model_name(project_dir: str | Path, requested: str | None) -> str:
-    """The model an experiment uses.
+    """The model a configuration selects.
 
-    An explicit name must exist. Without one, the only model is used; with
-    several the choice is the user's, so this stops and lists them.
+    An explicit name is used as given, existing or not: WF1 builds a new name,
+    and a consumer that needs the model reports a missing one. Without a name
+    the only model is used; with several the choice is the user's, so this
+    stops and lists them.
     """
-    entries = list_models(project_dir)
     if requested is not None:
-        name = validate_model_name(requested)
-        if entries and name not in {entry.name for entry in entries}:
-            raise ModelSelectionError(
-                f"model.name {name!r} is not a model in {models_root(project_dir)}; "
-                f"available: {_describe(entries)}"
-            )
-        return name
+        return validate_model_name(requested)
+    entries = list_models(project_dir)
     if len(entries) > 1:
         raise ModelSelectionError(
             f"{models_root(project_dir)} holds several models: {_describe(entries)}. "
             "Set model.name in the project configuration to choose one."
         )
     return entries[0].name if entries else DEFAULT_MODEL_NAME
+
+
+def recipe_key(root: str | Path, forcing_id: str | None) -> str | None:
+    """The historical recipe key of ``forcing_id`` within the model at ``root``.
+
+    A registered model's single recipe is keyed ``default`` (its TOML is
+    ``wflow_sbm_default.toml``); a built model's single recipe is ``None``.
+    """
+    if forcing_id is None and origin(root) == "user_managed":
+        return "default"
+    return forcing_id
+
+
+def selected_model_root(project_dir: str | Path, config: Mapping[str, Any]) -> Path:
+    """The model folder a project configuration selects for an experiment."""
+    requested = (config.get("model") or {}).get("name")
+    return model_root(project_dir, resolve_model_name(project_dir, requested))
 
 
 def copy_model_inputs(

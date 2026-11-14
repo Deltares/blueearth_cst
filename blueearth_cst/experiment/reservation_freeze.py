@@ -136,7 +136,7 @@ def _validate_recipe(root: Path, recipe: dict) -> tuple[dict, dict]:
         raise ValueError("simulation freeze preparation closure differs")
     differences = compare_reference(
         supplied["documents"]["model_reference"],
-        project / "models/hydrology/wflow",
+        project / supplied["documents"]["model_reference"]["model_path"],
     )
     if differences:
         raise ValueError("simulation freeze model differs: " + "; ".join(differences))

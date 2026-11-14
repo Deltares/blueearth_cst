@@ -161,9 +161,12 @@ def test_the_sentinel_is_owned_by_exactly_one_rule():
         for name, body in BODIES.items()
         if re.search(rf"touch\(f?\"\{{basin_dir\}}/{re.escape(SENTINEL)}\"\)", body)
     ]
-    assert sorted(owners) == sorted([SENTINEL_OWNER, NAMED_SENTINEL_OWNER]), (
-        f"{SENTINEL} should be touched by {SENTINEL_OWNER} (single recipe) or "
-        f"{NAMED_SENTINEL_OWNER} (named recipes), found {owners}"
+    # A registered model is final as registered (t2609281102).
+    expected = [SENTINEL_OWNER, NAMED_SENTINEL_OWNER, "accept_registered_model"]
+    assert sorted(owners) == sorted(expected), (
+        f"{SENTINEL} should be touched by {SENTINEL_OWNER} (single recipe), "
+        f"{NAMED_SENTINEL_OWNER} (named recipes) or accept_registered_model "
+        f"(registered model), found {owners}"
     )
     finalizer = BODIES[NAMED_SENTINEL_OWNER]
     assert ".outputs_configured" in finalizer, "the finalizer must follow rule 1.08"
