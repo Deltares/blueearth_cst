@@ -311,6 +311,9 @@ def declarations() -> tuple[Declaration, ...]:
         "record",
         f"{h}/_engine/{{build_historical_forcing|climate_store_catalog}}.yml",
         f"{h}/_engine/historical_forcing.json",
+        f"{h}/_engine/budyko_daily.csv",
+        f"{h}/_engine/budyko_methods.json",
+        f"{h}/_engine/plots/",
         f"{h}/forcing/_engine/plots/",
     )
     d += _declare(
@@ -319,7 +322,8 @@ def declarations() -> tuple[Declaration, ...]:
         f"{h}/forcing/inmaps_historical.nc",
         f"{h}/forcing/plots/",
         f"{h}/run/",
-        f"{h}/evaluation/",
+        f"{h}/plots/",
+        f"{h}/tables/",
     )
     # Recipe runs compared within their model (R5, R16, D18).
     c = f"{m}/historical_comparison"

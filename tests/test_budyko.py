@@ -192,18 +192,22 @@ def test_real_upstream_masks_and_unequal_area_weighting(tmp_path, headers):
         str(tmp_path / "forcing.nc"),
         str(tmp_path / "recipe.yml"),
         str(tmp_path / "q.csv"),
-        str(root),
+        str(root / "tables/budyko_stations.csv"),
+        str(root / "tables/budyko_annual.csv"),
+        str(root / "tables/budyko_summary.csv"),
+        str(root / "_engine/budyko_daily.csv"),
+        str(root / "_engine/budyko_methods.json"),
         {"discharge_statistic": "daily_mean", "time_label": "interval_end"},
         "2000-01-01",
         "2001-01-01",
         1,
     )
-    stations = pd.read_csv(root / "tables/stations.csv")
+    stations = pd.read_csv(root / "tables/budyko_stations.csv")
     assert stations.wflow_id.tolist() == [1010, 1011]
     assert original_csv == (tmp_path / "q.csv").read_bytes()
     assert stations.cell_count.tolist() == [4, 1]
     assert stations.area_m2.tolist() == [10e6, 1e6]
-    summary = pd.read_csv(root / "tables/summary.csv")
+    summary = pd.read_csv(root / "tables/budyko_summary.csv")
     assert summary.aridity_index.tolist() == pytest.approx([2, 2])
     assert summary.precip_mm.tolist() == pytest.approx([30 * 366, 10 * 366])
     assert summary.runoff_coefficient.tolist() == pytest.approx([8.64 / 30, 86.4 / 10])

@@ -211,7 +211,8 @@ class HistoricalLayout:
 
     @property
     def evaluation_dir(self) -> str:
-        return f"{self.root}/evaluation"
+        """Evaluation products share the recipe folder's plots/ and tables/."""
+        return self.root
 
     @property
     def forcing_plots_dir(self) -> str:

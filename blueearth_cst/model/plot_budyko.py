@@ -1,6 +1,7 @@
 """Render the observed water-balance diagram from retained tables."""
 
 import json
+import os
 from pathlib import Path
 
 import matplotlib
@@ -11,29 +12,32 @@ import numpy as np
 import pandas as pd
 
 from blueearth_cst.plotting.export import export_figure
-from blueearth_cst.plotting.figure_titles import write_figure_titles
+from blueearth_cst.plotting.figure_titles import figure_engine_dir, write_figure_titles
 from blueearth_cst.plotting.fundamentals import add_caption, new_fig
 from blueearth_cst.plotting.preset import use_preset
 from blueearth_cst.shared.plot_preset import CST_PRESET
 
 
 def render(
-    root: str | Path, destination: str | Path | None = None, annotation: str = "none"
+    summary_path: str | Path, plots_dir: str | Path, annotation: str = "none"
 ) -> None:
-    """Draw retained ratios with water/energy bounds and explicit exclusions."""
-    root = Path(root)
-    destination = Path(destination) if destination else root
-    plots, engine = destination / "plots", destination / "_engine" / "plots"
+    """Draw retained ratios with water/energy bounds and explicit exclusions.
+
+    ``plots_dir`` is a ``plots/`` folder or family subfolder; its inventories
+    follow ``figure_engine_dir``.
+    """
+    plots = Path(plots_dir)
+    engine = figure_engine_dir(plots)
     plots.mkdir(parents=True, exist_ok=True)
     engine.mkdir(parents=True, exist_ok=True)
-    summary = pd.read_csv(root / "tables/summary.csv", keep_default_na=False)
+    summary = pd.read_csv(summary_path, keep_default_na=False)
     available = summary.loc[summary.available.eq(True)]
     filename = "observed_runoff_coefficient_budyko_stations.png"
     title = "Observed catchment water balance against selected historical forcing"
     caption = (
         "Runoff coefficient Q/P versus aridity PET/P over complete matched water years. "
         "Labels give station and retained year count. Ratios use totals over the same years; "
-        "annual.csv retains exclusions and coverage. Q support is user-declared daily mean over UTC days. "
+        "budyko_annual.csv retains exclusions and coverage. Q support is user-declared daily mean over UTC days. "
         "Dashed lines show water and energy limits under long-term equilibrium assumptions. "
         "Short or discontinuous records, storage change, transfers, regulation, area and input errors "
         "can explain departures; this diagram supplies no pass/fail or forcing ranking. "
@@ -108,7 +112,7 @@ def render(
     )
     (engine / "figure_captions.json").write_text(
         json.dumps(
-            {"schema_version": 1, "path_base": "../../plots", "figures": figures},
+            {"schema_version": 1, "path_base": Path(os.path.relpath(plots, engine)).as_posix(), "figures": figures},
             indent=2,
         )
         + "\n",
