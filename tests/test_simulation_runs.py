@@ -217,6 +217,13 @@ def test_a_full_simulation_runs_in_two_phases():
         "indicators",
     ]
     assert {env["CST_SIMULATION_PROGRESS"] for _, env in phases} == {"progress"}
+    # Spelled out in the runner to keep the console tier out of fingerprinted
+    # closures; the console must read the same names.
+    from blueearth_cst.experiment import simulation_runner
+    from blueearth_cst.shared import console_style
+
+    assert simulation_runner.SPLIT_PHASE_ENV == console_style.SPLIT_PHASE_ENV
+    assert simulation_runner.SPLIT_PROGRESS_ENV == console_style.SPLIT_PROGRESS_ENV
     assert phases[1][0] == command
     assert phases[1][1]["CST_SIMULATION_TARGET"] == "all"
     assert simulation_phases([*command, "--dry-run"], environment) == [

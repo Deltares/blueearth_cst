@@ -443,6 +443,14 @@ def simulation_command(
     return command, environment
 
 
+#: The same names as `console_style.SPLIT_PHASE_ENV`/`SPLIT_PROGRESS_ENV`,
+#: spelled out rather than imported: this module is in a code-fingerprint
+#: import closure that must never contain the console tier
+#: (tests/test_module_import_direction.py). A test pins the two in step.
+SPLIT_PHASE_ENV = "CST_SIMULATION_PHASE"
+SPLIT_PROGRESS_ENV = "CST_SIMULATION_PROGRESS"
+
+
 def simulation_phases(command, environment, progress_path=None):
     """The Snakemake invocations one WF4 run makes (t017 R11, W2).
 
@@ -453,12 +461,11 @@ def simulation_phases(command, environment, progress_path=None):
     ``--touch``, listings) and explicit targets stay single.
 
     The split is internal; the console presents ONE WF4 run. Each pass carries
-    ``console_style.SPLIT_PHASE_ENV``: the first plans the indicator rules as
+    ``SPLIT_PHASE_ENV``: the first plans the indicator rules as
     work of this run, the second skips its opening block. ``progress_path``
     (a file the caller owns and removes) hands the job counter from the first
     pass to the second, so ``[n/N]`` runs on across both.
     """
-    from blueearth_cst.shared.console_style import SPLIT_PHASE_ENV, SPLIT_PROGRESS_ENV
     from blueearth_cst.shared.workflow_archive_launch import _NON_PRODUCING_OPTIONS
 
     if (
