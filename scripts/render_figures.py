@@ -87,8 +87,8 @@ def _budyko(args):
     for legacy in ("historical/default/evaluation/budyko", "evaluation/budyko"):
         if not summary.is_file():
             summary = model / legacy / "tables/summary.csv"  # before flat dataset layout
-    render(summary, args.out / "plots/budyko", args.annotation)
-    return {"budyko": args.out / "plots/budyko"}
+    render(summary, args.out / "plots", args.annotation)
+    return {"budyko": args.out / "plots"}
 
 
 def _spatial(args):

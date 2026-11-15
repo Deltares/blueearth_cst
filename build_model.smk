@@ -1244,8 +1244,20 @@ _basavg_captions = lambda key: (
         f"{_hp(key, 'evaluation_dir')}/plots/figure_captions.md",
         f"{_hp(key, 'evaluation_dir')}/_engine/plots/figure_captions.json",
     ]
-    if _basavg_pngs(key)
+    if _basavg_pngs(key) or _budyko_settings is not None
     else []
+)
+# The observed water-balance diagram, drawn by rule 1.15 from 1.12b's table.
+BUDYKO_FIGURE = "budyko_observed_runoff_coefficient_stations.png"
+_budyko_pngs = lambda key: (
+    [f"{_hp(key, 'evaluation_dir')}/plots/{BUDYKO_FIGURE}"]
+    if _budyko_settings is not None
+    else []
+)
+_budyko_input = lambda key: (
+    {"budyko_summary": f"{_hp(key, 'evaluation_dir')}/tables/budyko_summary.csv"}
+    if _budyko_settings is not None
+    else {}
 )
 
 # The COMPLETE set of tables rule 1.14 writes, derived from the same config
@@ -1341,7 +1353,8 @@ for _k in FORCING_KEYS:
             **_locations_input,
             **_observations_input,
             location_registry = f"{spatial_dir}/location_registry.csv",
-            script = "blueearth_cst/model/plot_results.py"
+            script = "blueearth_cst/model/plot_results.py",
+            **_budyko_input(_k),
         # R07 B10 + O-24. The artifacts move into the engine subtree, split by KIND
         # (P1): figures and captions under the recipe's plots/, the indicators table
         # under its tables/.
@@ -1392,6 +1405,7 @@ for _k in FORCING_KEYS:
             indicators_csv = f"{_hp(_k, 'evaluation_dir')}/tables/performance_indicators.csv",
             basavg_pngs = _basavg_pngs(_k),
             basavg_captions = _basavg_captions(_k),
+            budyko_figure = _budyko_pngs(_k),
             subbasin_figures = (
                 [directory(f"{_hp(_k, 'evaluation_dir')}/plots/{SUBBASIN_PLOT_DIRNAME}")]
                 if _subbasin_plots and _basavg_pngs(_k) else []
@@ -1582,25 +1596,18 @@ if _budyko_settings is not None:
                 recipe_path = f"{_hp(_k, 'config_dir')}/build_historical_forcing.yml",
                 model_final = ancient(f"{basin_dir}/_engine/markers/.model_final"),
             output:
-                # Flat tables share the recipe's tables/; the figure is a plots/budyko/
-                # family so its inventories never collide with rule 1.15's.
+                # Tables only: rule 1.15 draws the diagram into the recipe's plots/,
+                # which has one owner for its caption inventory.
                 stations = f"{_hp(_k, 'evaluation_dir')}/tables/budyko_stations.csv",
                 annual = f"{_hp(_k, 'evaluation_dir')}/tables/budyko_annual.csv",
                 summary = f"{_hp(_k, 'evaluation_dir')}/tables/budyko_summary.csv",
                 daily = f"{_hp(_k, 'evaluation_dir')}/_engine/budyko_daily.csv",
                 methods = f"{_hp(_k, 'evaluation_dir')}/_engine/budyko_methods.json",
-                figure = f"{_hp(_k, 'evaluation_dir')}/plots/budyko/observed_runoff_coefficient_budyko_stations.png",
-                titles = f"{_hp(_k, 'evaluation_dir')}/plots/budyko/figure_titles.md",
-                captions = f"{_hp(_k, 'evaluation_dir')}/plots/budyko/figure_captions.md",
-                titles_json = f"{_hp(_k, 'evaluation_dir')}/_engine/plots/budyko/figure_titles.json",
-                captions_json = f"{_hp(_k, 'evaluation_dir')}/_engine/plots/budyko/figure_captions.json",
             params:
                 settings = _budyko_settings,
                 start = f"{simulation_window['start']}-01-01",
                 end = f"{int(simulation_window['end']) + 1}-01-01",
                 water_year_start = water_year_start_number(WATER_YEAR_START),
-                annotation = plot_annotation,
-                plot_setup_digest = plot_setup_digest,
             log: EVALUATE_BUDYKO.log(_k),
             benchmark: EVALUATE_BUDYKO.benchmark(_k),
             script: "blueearth_cst/model/evaluate_budyko.py"

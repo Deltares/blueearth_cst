@@ -60,12 +60,14 @@ def test_title_inventory_shares_keys_and_preserves_images_and_other_families(tmp
 
 
 def test_basin_summary_titles_keep_variable_and_subbasin_identity(tmp_path):
+    from blueearth_cst.shared.wflow_outputs import PLOT_META
+
     plots = tmp_path / "plots"
     plots.mkdir()
     _basavg_caption(
         plots,
         "wflow_aet_annual_ts_subbasin_101.png",
-        {"legend": "Actual evapotranspiration (mm)", "kind": "amount"},
+        PLOT_META["aet"],
         "annual_ts",
         "Subbasin 101",
         {

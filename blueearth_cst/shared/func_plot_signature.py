@@ -257,8 +257,11 @@ def plot_basavg(
     subbasin_plots=False,
     warmup_excluded=False,
     annotation="none",
+    forcing_label=None,
 ):
     """Draw weighted basin annual/seasonal summaries and optional individual plots.
+
+    ``forcing_label`` names the historical forcing in titles and captions.
 
     The caller supplies disjoint zonal means, native cell counts and an already
     warm-up-filtered record. This function never removes another warm-up year.
@@ -268,11 +271,13 @@ def plot_basavg(
     from pathlib import Path
 
     from blueearth_cst.climate_analysis import diagnostics as dg
+    from blueearth_cst.climate_analysis.diagnostic_figures import (
+        SINGLE_DATASET_COLOR as SINGLE_SERIES_COLOR,
+    )
     from blueearth_cst.plotting import fundamentals
     from blueearth_cst.plotting import prepared_charts as pc
     from blueearth_cst.plotting.preset import use_preset
     from blueearth_cst.shared import plot_preset as cst
-    from blueearth_cst.shared.plot_evaluation import COLOR_SIMULATED
     from blueearth_cst.shared.wflow_outputs import (
         BASAVG_FIGURE_STEMS,
         SUBBASIN_PLOT_DIRNAME,
@@ -321,7 +326,7 @@ def plot_basavg(
                 slope_label = f"{trend['slope']:+.1f}".replace("-", "−")
                 segments.append(
                     pc.TrendSegment(
-                        COLOR_SIMULATED,
+                        SINGLE_SERIES_COLOR,
                         tuple(span),
                         tuple(fitted),
                         f"{slope_label} {meta['trend_units']}",
@@ -330,40 +335,28 @@ def plot_basavg(
             for kind in ("annual_ts", "monthly_clim_band"):
                 with use_preset(cst.CST_PRESET):
                     if kind == "annual_ts":
-                        fig, axes = fundamentals.new_fig(cst.H_SINGLE)
-                        ax = axes[0, 0]
-                        (line,) = pc.draw_annual_lines(
-                            ax,
+                        # The canonical annual template: span-based year labels,
+                        # no key for a single series, standard guides.
+                        fig = pc.annual_series(
                             years,
                             [
                                 pc.AnnualLine(
-                                    "Mean", COLOR_SIMULATED, "o", annual.to_numpy()
+                                    "Simulated", SINGLE_SERIES_COLOR, "o", annual.to_numpy()
                                 )
                             ],
+                            ylabel=meta["annual_units"],
+                            trends=segments,
                         )
-                        pc.draw_annual_trends(ax, segments, label_x=years[-1] - 0.4)
-                        step = 10 if years.size > 35 else 5
-                        first = int(years[0] // step * step)
-                        ax.set_xlim(first - 0.5, years[-1] + 0.5)
-                        ax.set_xticks(np.arange(first, years[-1] + 1, step))
-                        ax.set_xticks(np.arange(first, years[-1] + 1), minor=True)
+                        ax = fig.axes[0]
                         ax.set_xlabel("Year")
-                        ax.set_ylabel(meta["annual_units"])
                         ax.yaxis.get_major_formatter().set_useOffset(False)
-                        fundamentals.ygrid(ax)
-                        line.set_label(
-                            "Annual total"
-                            if meta["kind"] == "amount"
-                            else "Annual mean"
-                        )
-                        fundamentals.inside_legend(fig, ax, [line], lines=[line])
                         available = annual.notna().any()
                     else:
                         fig = pc.monthly_cycle(
                             [
                                 pc.MonthlyBand(
-                                    "Mean",
-                                    COLOR_SIMULATED,
+                                    "Simulated",
+                                    SINGLE_SERIES_COLOR,
                                     "o",
                                     climatology["mean"].to_numpy(),
                                     climatology["p10"].to_numpy(),
@@ -403,6 +396,7 @@ def plot_basavg(
                         },
                         warmup_excluded,
                         trend,
+                        forcing_label,
                     )
                     save_figure(
                         str(folder / name),
@@ -416,7 +410,8 @@ def plot_basavg(
 
 
 def _basavg_caption(
-    folder, name, meta, kind, label, info, weights, warmup_excluded, trend
+    folder, name, meta, kind, label, info, weights, warmup_excluded, trend,
+    forcing_label=None,
 ):
     """Update the owning directory's durable caption inventory."""
     import json
@@ -440,24 +435,28 @@ def _basavg_caption(
         omitted = set(info["partial_years"] + info["incomplete_years"])
         years = [year for year in years if year not in omitted]
     period = f"{years[0]}–{years[-1]}" if years else "no eligible years"
+    driver = f"Wflow simulation forced by {forcing_label}" if forcing_label else "Wflow simulation"
+    statistic = "totals" if meta["kind"] == "amount" else "means"
     if kind == "annual_ts":
-        statistic = "totals" if meta["kind"] == "amount" else "means"
         caption = (
-            f"Annual {statistic} of simulated {quantity}, {label.lower()} ({period})."
+            f"Annual {statistic} of simulated {quantity} ({meta['annual_units']}), "
+            f"{label.lower()}, {period}; {driver}."
         )
         if np.isfinite(trend["slope"]):
-            caption += " The dashed line shows the Sen trend; its slope is expressed per decade."
+            caption += (
+                " The dashed line and slope annotation show the Theil–Sen trend per decade."
+            )
     else:
-        statistic = "totals" if meta["kind"] == "amount" else "means"
         caption = (
-            f"Seasonal cycle of simulated {quantity}, {label.lower()} ({period}). "
-            f"The line shows mean monthly {statistic} across years; shading shows the "
-            "10th–90th percentile range of interannual variability."
+            f"Mean monthly {statistic} of simulated {quantity} ({meta['monthly_units']}), "
+            f"{label.lower()}, {period}; {driver}. The band spans the 10th–90th "
+            "percentiles across years and describes interannual spread, not a confidence interval."
         )
     if warmup_excluded:
-        caption += " The first simulation year is excluded."
+        caption += " The first simulation year is excluded as model warm-up."
+    source = f"{forcing_label}; " if forcing_label else ""
     inventory["figures"][name] = {
-        "title": f"Simulated {quantity}: {'annual series' if kind == 'annual_ts' else 'seasonal cycle'} — {label}; {period}",
+        "title": f"Simulated {quantity}: {'annual series' if kind == 'annual_ts' else 'seasonal cycle'} — {label}; {source}{period}",
         "caption": caption,
         "sources": ["simulated"],
         "period": info["period"],

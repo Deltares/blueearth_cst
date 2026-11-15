@@ -186,7 +186,7 @@ COVERED: dict[str, list[str]] = {
         "models/hydrology/wflow/historical/default/forcing/plots/forcing_precip_map.png",
         "models/hydrology/wflow/historical/default/forcing/_engine/plots/figure_titles.json",
         "models/hydrology/wflow/historical/default/_engine/plots/stations/figure_captions.json",
-        "models/hydrology/wflow/historical/default/_engine/plots/budyko/figure_titles.json",
+        "models/hydrology/wflow/historical/default/plots/budyko_observed_runoff_coefficient_stations.png",
         "models/hydrology/wflow/_engine/outlet_index.csv",
         "models/hydrology/wflow/staticgeoms/gauges_locations.geojson",
         "models/hydrology/wflow/historical/default/run/_engine/response_tables.json",

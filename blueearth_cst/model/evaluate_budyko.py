@@ -166,7 +166,6 @@ def evaluate(
 
 if __name__ == "__main__":
     sm = globals()["snakemake"]
-    from blueearth_cst.model.plot_budyko import render
     from blueearth_cst.shared.snake_utils import tee_to_log
 
     with tee_to_log(sm.log[0]):
@@ -185,9 +184,4 @@ if __name__ == "__main__":
             start=sm.params.start,
             end=sm.params.end,
             water_year_start=sm.params.water_year_start,
-        )
-        render(
-            sm.output.summary,
-            Path(sm.output.figure).parent,
-            annotation=sm.params.annotation,
         )

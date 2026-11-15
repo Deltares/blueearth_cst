@@ -15,6 +15,12 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
   `_engine/` (`budyko_daily.csv`, `budyko_methods.json`). The next WF1 run regenerates them without
   rerunning Wflow; delete the old `historical/<recipe>/evaluation/` folders by hand. WF4 indicator sets
   republish once because the layout module is part of their identity.
+- WF1 recipe figures follow the canonical chart style: basin-average annual series and seasonal cycles
+  draw one black series without a key, label every year of short records, use `mm/year` and
+  `mm decade⁻¹`, and name the forcing in titles and captions. The Budyko diagram is renamed
+  `budyko_observed_runoff_coefficient_stations.png`, sits directly in the recipe's `plots/` (the
+  `plots/budyko/` subfolder is retired) and is drawn by the evaluation rule; `evaluate_budyko` now
+  writes tables only.
 - WF1's recipe comparison moves from `models/hydrology/<model>/historical_comparison/` to
   `historical/forcing_comparison/`, mirroring WF0's `data/climate/historical/source_comparison/`.
   `forcing_comparison` is now a reserved recipe ID. The next WF1 run recreates the comparison without
