@@ -326,7 +326,7 @@ def declarations() -> tuple[Declaration, ...]:
         f"{h}/tables/",
     )
     # Recipe runs compared within their model (R5, R16, D18).
-    c = f"{m}/historical_comparison"
+    c = f"{m}/historical/forcing_comparison"
     d += _declare(
         "wf1",
         "product",

@@ -18,7 +18,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 FORCING_ID = re.compile(r"[a-z][a-z0-9_]{0,31}")
-RESERVED_IDS = frozenset({"default"})
+RESERVED_IDS = frozenset({"default", "forcing_comparison"})
 #: Public keys of the named form; composition removes them before legacy resolution.
 NAMED_KEYS = ("forcings", "default_forcing")
 
@@ -32,7 +32,7 @@ def _forcing_id(value: object, field: str) -> str:
     if not isinstance(value, str) or not FORCING_ID.fullmatch(value):
         raise ValueError(f"{field} must match [a-z][a-z0-9_]{{0,31}}, got {value!r}")
     if value in RESERVED_IDS:
-        raise ValueError(f"{field}: {value!r} is reserved for the single-recipe layout")
+        raise ValueError(f"{field}: {value!r} is reserved by the historical/ layout")
     return value
 
 

@@ -634,7 +634,7 @@ WRITE_RUN_METADATA = RULES.banner_only("1.16", "write_run_metadata", summary="re
 # independently of the build and needs no gather waiting on it) and the two
 # gather outputs themselves.
 WF1_TERMINALS = [
-    *([f"{basin_dir}/historical_comparison"] if COMPARE_FORCINGS else []),
+    *([f"{basin_dir}/historical/forcing_comparison"] if COMPARE_FORCINGS else []),
     *([f"{_hp(key, 'evaluation_dir')}/tables/budyko_summary.csv" for key in FORCING_KEYS] if _budyko_settings is not None else []),
     # The evaluation rule's terminal is its INDICATORS TABLE, not one of its
     # figures: since 2026-08-10 the figures are keyed by wflow_id and none of
@@ -1111,7 +1111,7 @@ if COMPARE_FORCINGS:
                 "blueearth_cst/model/plot_historical_comparison.py",
             ],
         output:
-            comparison = directory(f"{basin_dir}/historical_comparison"),
+            comparison = directory(f"{basin_dir}/historical/forcing_comparison"),
         params:
             settings = {
                 "model_root": str(Path(basin_dir).resolve()),
@@ -1125,7 +1125,7 @@ if COMPARE_FORCINGS:
                 "water_year_start": WATER_YEAR_START,
                 **({"observations_path": str(Path(observations_timeseries).resolve())}
                    if observations_timeseries else {}),
-                "output_dir": str(Path(f"{basin_dir}/historical_comparison").resolve()),
+                "output_dir": str(Path(f"{basin_dir}/historical/forcing_comparison").resolve()),
             },
             annotation = plot_annotation,
         log:

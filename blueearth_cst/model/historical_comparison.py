@@ -461,7 +461,7 @@ def compare_models(settings: dict) -> Path:
     if len({name.split("/")[0] for name in names}) < 2:
         raise ValueError(
             "a model comparison needs runs of at least two models; a model's own "
-            "recipes are compared in its historical_comparison/"
+            "recipes are compared in its historical/forcing_comparison/"
         )
     output = Path(settings["output_dir"]).resolve()
     if output.exists() and any(output.iterdir()):

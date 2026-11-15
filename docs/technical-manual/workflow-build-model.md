@@ -193,7 +193,7 @@ digest of its recipe inputs.
 
 Comparisons across models (`scripts/register_model.py compare`) are written to
 `models/hydrology/comparisons/<name>/` with the same tables and figures as a model's own
-`historical_comparison/`. The runs must cover the same simulation period and initialization; the
+`historical/forcing_comparison/`. The runs must cover the same simulation period and initialization; the
 evaluation window is every complete reporting year they share.
 
 The former `historical_run` setting, which published named copies under `simulations/historical/`, is no
@@ -218,7 +218,7 @@ or more recipes are compared automatically.
 ## Compare forcing recipes {#compare-recipes}
 
 When `build_model.historical_forcings` runs two or more named recipes, WF1 compares their current runs
-(rule 1.13b) into `models/hydrology/<model>/historical_comparison/`: `tables/` (performance, coverage,
+(rule 1.13b) into `models/hydrology/<model>/historical/forcing_comparison/`: `tables/` (performance, coverage,
 daily, monthly, seasonal, flow duration, stations, inventory), `tables/supporting/support.csv` (per-day
 support flags), `plots/` and `_engine/comparison.json`. It evaluates every complete reporting year the runs
 share: responses are labelled at interval end, so the first simulated year is never complete. Every input

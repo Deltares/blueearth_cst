@@ -26,8 +26,9 @@ project file. For the external case example, this is `C:/cst-cases/runs/my-basin
 ├── models/
 │   └── hydrology/
 │       └── wflow/                       one model: static maps, TOMLs, _engine/
-│           ├── historical/<recipe>/     forcing, run and evaluation per forcing recipe
-│           └── historical_comparison/   comparison of two or more recipes
+│           └── historical/
+│               ├── <recipe>/            forcing, run, plots and tables per forcing recipe
+│               └── forcing_comparison/  comparison of two or more recipes
 ├── scenarios/
 │   └── <name>/                          one scenario set: series, lookups, settings
 ├── experiments/
@@ -47,7 +48,7 @@ outside them, and each file is stored once.
 
 Historical simulations live with their model. Each forcing recipe has
 `models/hydrology/<model>/historical/<recipe>/` (`default` for a single recipe) with its forcing, run and
-evaluation; with two or more recipes, `historical_comparison/` beside them compares the runs. The default
+evaluation; with two or more recipes, `historical/forcing_comparison/` beside them compares the runs. The default
 model is `wflow`; further models, such as a registered calibration, are sibling folders, and
 `models/hydrology/comparisons/<name>/` compares runs of different models. A model's runs change only when
 it is rerun with the same model settings: different settings belong in a new model folder.
