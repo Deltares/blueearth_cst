@@ -322,7 +322,7 @@ def scale_record(
     if variable not in VARIABLES:
         raise ValueError(f"Unknown map variable: {variable}")
     temperature = variable == "temp"
-    palette = HISTORICAL_MAP_COLORS["temp" if temperature else "precip_pet"]
+    palette = HISTORICAL_MAP_COLORS[variable]
     result = {
         "units": "degC" if temperature else "mm/year",
         "status": "unavailable" if low is None else "available",
@@ -818,19 +818,18 @@ def drawing_frame(record: Mapping[str, Any]) -> MapFrame:
 
 
 def drawing_scale(record: Mapping[str, Any], variable: str) -> MapScale:
+    """The record's classes, coloured from the current palette.
+
+    ``validate_reference`` already requires a live record's colours to match
+    ``scale_record``; a re-render of a retained record thereby also draws with
+    today's palette, as it does with today's plotting code.
+    """
     scale = record["variables"][variable]
+    colours = scale_record(variable, *scale["extrema"])
     return MapScale(
+        **{key: scale[key] for key in ("units", "boundaries", "ticks", "status")},
         **{
-            key: scale[key]
-            for key in (
-                "units",
-                "boundaries",
-                "ticks",
-                "colors",
-                "under_color",
-                "over_color",
-                "missing_color",
-                "status",
-            )
-        }
+            key: colours[key]
+            for key in ("colors", "under_color", "over_color", "missing_color")
+        },
     )

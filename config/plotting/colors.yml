@@ -36,7 +36,8 @@ climate_maps:
   temp: YlOrRd
   temp_crossing_freezing: RdBu_r
   pet: Oranges
-precip_anomaly: RdBu
+# Brown dry, teal wet: annual anomaly maps and monthly departure calendars.
+precip_anomaly: BrBG
 climate_index_maps:
   precip: Blues
   dry_spell: YlOrBr
@@ -49,16 +50,20 @@ projection_changes:
   temp: ["#0000ff", "#3874ff", "#29dbff", "#8affbe", "#daff61", "#ffe100", "#ff8400", "#ff0000"]
 
 # Current WF0/WF1 historical display-reference maps use these reviewed ramps.
-# Precipitation and PET share the water-quantity ramp; preserve their endpoints.
+# PET takes a tan-brown ramp so it never reads as precipitation.
 historical_maps:
   temp:
     colors: ["#ffffcc", "#ffe895", "#fec45f", "#fd953f", "#fa4a29"]
     under: "#fffbe6"
     over: "#a50f15"
-  precip_pet:
+  precip:
     colors: ["#deebf7", "#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c"]
     under: "#f7fbff"
     over: "#041f4a"
+  pet:
+    colors: ["#f6eedf", "#ead7b4", "#dabd89", "#c59c60", "#a97a3f", "#875a27", "#623d14"]
+    under: "#fbf8f1"
+    over: "#41270b"
 
 neutral:
   ink: "#17303c"
@@ -77,14 +82,14 @@ neutral:
 
 elevation: ["#f6f2ea", "#e3d5ba", "#c9aa7d", "#a07f52", "#6f5533", "#46351f"]
 # River colour per stream-order step, lowest order first; widths are style.yml maps.river_order_widths.
-river_order: ["#a6cee3", "#74add1", "#4f94cd", "#2c7bb6", "#1f5fa3", "#0f4c8a", "#08306b"]
+river_order: ["#3f86c4", "#2f75b6", "#2266a8", "#185898", "#104a86", "#0a3c72", "#062f5e"]
 waterbodies:
   lakes: ["#a8d0e6", "#3d5a6c"]
   reservoirs: ["#2c6fad", "#173d5e"]
   glaciers: ["#d9d9d9", "#8c8c8c"]
 
 map_features:
-  river: "#2c6fad"
+  river: "#185898"         # rivers without an order: the middle river_order step
   # Purple, so locations never read as part of the blue river network.
   gauge: "#6a3d9a"
   outlet: "#000000"

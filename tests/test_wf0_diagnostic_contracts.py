@@ -454,7 +454,7 @@ def test_climatology_caption_is_a_caption_not_a_title(cells, few):
     )
     text = map_caption(lead, "era5", notes)
     assert text.startswith(
-        "Mean annual precipitation (mm yr⁻¹) for 1991–2020 on the native 0.25° grid "
+        "Mean annual precipitation (mm/year) for 1991–2020 on the native 0.25° grid "
         "from ERA5 (Hersbach et al., 2019). 2 cells fall below"
     )
     assert text.endswith("Each colour block is one grid cell.") is few

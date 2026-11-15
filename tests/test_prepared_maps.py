@@ -460,6 +460,45 @@ def test_key_ticks_carry_no_padded_zeros(value, text):
 
 
 @pytest.mark.parametrize(
+    "ticks,expected",
+    [
+        ([0.35, 0.4, 0.45], ["0.35", "0.40", "0.45"]),
+        ([9.7, 9.8], ["9.7", "9.8"]),
+        ([-0.5, 0.0, 0.25], ["−0.50", "0.00", "0.25"]),
+        ([10.0, 11.0], ["10", "11"]),
+        ([0.1 + 0.2, 0.4], ["0.3", "0.4"]),
+    ],
+)
+def test_coordinate_ticks_share_one_precision_per_axis(ticks, expected):
+    from blueearth_cst.plotting.prepared_maps import _coordinate_formatter
+
+    formatter = _coordinate_formatter(ticks)
+    assert [formatter(value) for value in ticks] == expected
+
+
+@pytest.mark.parametrize("height,thinned", [(0.9, False), (0.12, True)])
+def test_crowded_key_keeps_every_second_tick_with_ends_and_zero(height, thinned):
+    import matplotlib.pyplot as plt
+    from matplotlib.cm import ScalarMappable
+    from matplotlib.colors import BoundaryNorm, ListedColormap
+
+    from blueearth_cst.plotting.prepared_maps import _thin_crowded_key_ticks
+
+    boundaries = [-600, -450, -300, -150, 0, 150, 300, 450, 600]
+    fig = plt.figure(figsize=(2, 3))
+    cax = fig.add_axes((0.4, 0.05, 0.08, height))
+    mappable = ScalarMappable(BoundaryNorm(boundaries, 8), ListedColormap(["0.5"] * 8))
+    colorbar = fig.colorbar(mappable, cax=cax, ticks=boundaries)
+    try:
+        _thin_crowded_key_ticks(fig, colorbar)
+        ticks = list(colorbar.get_ticks())
+        assert ticks == (boundaries[::2] if thinned else boundaries)
+        assert {-600, 0, 600} <= set(ticks)
+    finally:
+        plt.close(fig)
+
+
+@pytest.mark.parametrize(
     "name,expected",
     [
         ("north_tributary", "north tributary"),

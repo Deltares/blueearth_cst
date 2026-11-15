@@ -102,8 +102,8 @@ def load_palette(path: Path = PALETTE_PATH) -> dict[str, Any]:
     }.items():
         if not isinstance(cmap, str) or not cmap.strip():
             fail(f"{name} must be a nonempty Matplotlib colormap name")
-    if set(palette["historical_maps"]) != {"temp", "precip_pet"}:
-        fail("historical_maps requires temp and precip_pet")
+    if set(palette["historical_maps"]) != {"temp", "precip", "pet"}:
+        fail("historical_maps requires temp, precip and pet")
     if set(palette["projection_changes"]) != {"temp", "precip"}:
         fail("projection_changes requires temp and precip")
     for name, colors in palette["projection_changes"].items():

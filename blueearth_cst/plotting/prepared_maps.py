@@ -52,6 +52,9 @@ MAP_LOCATOR_WIDTH, MAP_LOCATOR_MAX_HEIGHT = 0.28, 0.4
 COLORBAR_HEIGHT, COLORBAR_MIN, COLORBAR_TITLE_ROOM = 0.7, 0.25, 0.12
 #: Smallest key text a class legend shrinks to before warning (pt).
 MIN_KEY_FONT = 4.0
+#: Clear space a key keeps between neighbouring tick labels before it shows
+#: every second tick only (mm).
+KEY_LABEL_GAP_MM = 0.6
 MISSING_LABEL = "No data"
 
 # Maximum physical map frame; keys and coordinate labels extend the canvas.
@@ -439,7 +442,13 @@ def _draw_overlays(
                 if dashes is not None:
                     artist.set_dashes(dashes)
                 artist.set_path_effects(
-                    [Stroke(linewidth=(width + 1.0) * scale, foreground=halo), Normal()]
+                    [
+                        Stroke(
+                            linewidth=(width + maps["outline_halo_width"]) * scale,
+                            foreground=halo,
+                        ),
+                        Normal(),
+                    ]
                 )
     labels = []
     for feature in overlays.get("locations", []):
@@ -497,7 +506,10 @@ def _draw_scale_bar(ax: Axes, frame: MapFrame) -> None:
                 zorder=6,
             )
         )
-    halo = [Stroke(linewidth=2.0, foreground=maps["halo"]), Normal()]
+    halo = [
+        Stroke(linewidth=maps["scale_bar_halo_width"], foreground=maps["halo"]),
+        Normal(),
+    ]
     for step in (0, segments // 2, segments):
         value = length_km * step / segments
         ax.text(
@@ -563,7 +575,13 @@ def _place_point_labels(
             fontweight="bold",
             color=active().colors["ink"],
             zorder=6,
-            path_effects=[Stroke(linewidth=2.2, foreground=maps["halo"]), Normal()],
+            path_effects=[
+                Stroke(
+                    linewidth=maps["location_label_halo_width"],
+                    foreground=maps["halo"],
+                ),
+                Normal(),
+            ],
             arrowprops={
                 "arrowstyle": "-",
                 "color": active().colors["muted"],
@@ -912,6 +930,49 @@ def _tick_text(value: float, _position: Any = None) -> str:
     return "0" if text == "-0" else text.replace("-", "−")
 
 
+def _thin_crowded_key_ticks(fig: Figure, colorbar: Any) -> None:
+    """Keep every second key tick when neighbouring labels come too close.
+
+    Ticks on every class boundary stay when their labels keep
+    ``KEY_LABEL_GAP_MM`` clear space; otherwise the first, third, ... ticks
+    remain, which keeps both ends and the zero of an even symmetric class set.
+    """
+    ticks = list(colorbar.get_ticks())
+    if len(ticks) < 3:
+        return
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    boxes = sorted(
+        (
+            label.get_window_extent(renderer)
+            for label in colorbar.ax.get_yticklabels()
+            if label.get_visible() and label.get_text()
+        ),
+        key=lambda box: box.y0,
+    )
+    gap = KEY_LABEL_GAP_MM * fig.dpi / 25.4
+    if any(upper.y0 - lower.y1 < gap for lower, upper in zip(boxes, boxes[1:])):
+        colorbar.set_ticks(ticks[::2])
+        colorbar.minorticks_off()
+
+
+def _coordinate_formatter(ticks: Sequence[float]) -> FuncFormatter:
+    """One axis's coordinate labels share the decimals its finest tick needs."""
+    texts = [f"{round(float(value), 10):g}" for value in ticks]
+    decimals = max(
+        (len(text.split(".")[1]) for text in texts if "." in text and "e" not in text),
+        default=0,
+    )
+
+    def text(value: float, _position: Any = None) -> str:
+        label = f"{value:.{decimals}f}"
+        if float(label) == 0:
+            label = label.lstrip("-")
+        return label.replace("-", "−")
+
+    return FuncFormatter(text)
+
+
 def missing_shown(raster: RasterMap, frame: MapFrame) -> bool:
     """Whether the map draws missing cells, which is when it keys "No data"."""
     inside = (
@@ -1049,6 +1110,9 @@ def draw_raster_map(
     ax.set_xlim(west, east)
     ax.set_ylim(south, north)
     ax.set_aspect(frame.aspect)
+    # The frame shares the key outline's colour.
+    for spine in ax.spines.values():
+        spine.set_edgecolor(active().colors["axis"])
     overlay_scale = 1.0
     if compact:
         width_mm = ax.get_position().width * fig.get_figwidth() * 25.4
@@ -1073,9 +1137,8 @@ def draw_raster_map(
     ax.set_yticks(frame.latitude_ticks)
     ax.set_xlabel("Longitude (°)")
     ax.set_ylabel("Latitude (°)")
-    formatter = FuncFormatter(lambda value, _: f"{value:g}".replace("-", "−"))
-    ax.xaxis.set_major_formatter(formatter)
-    ax.yaxis.set_major_formatter(formatter)
+    ax.xaxis.set_major_formatter(_coordinate_formatter(frame.longitude_ticks))
+    ax.yaxis.set_major_formatter(_coordinate_formatter(frame.latitude_ticks))
     ax.grid(color="#777777", alpha=0.15, linewidth=0.4)
     _draw_scale_bar(ax, frame)
 
@@ -1128,6 +1191,7 @@ def draw_raster_map(
         style_colourbar(
             colorbar, scale.units if colorbar_title is None else colorbar_title
         )
+        _thin_crowded_key_ticks(fig, colorbar)
     elif show_key and missing:
         _side_legend(
             ax, [_swatch(missing_color, MISSING_LABEL)], None, active().fonts["tick"]
@@ -1283,6 +1347,7 @@ def _draw_raster_panel_page(
         style_colourbar(
             colorbar, scale.units if colorbar_title is None else colorbar_title
         )
+        _thin_crowded_key_ticks(fig, colorbar)
     return fig
 
 

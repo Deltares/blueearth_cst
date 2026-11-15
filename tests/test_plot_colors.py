@@ -68,7 +68,7 @@ def test_scientific_presets_are_preserved():
         "ssp370-lowNTCF": "#e61d25",
         "ssp585": "#980002",
     }
-    assert colors.PRECIP_ANOMALY_COLORMAP == "RdBu"
+    assert colors.PRECIP_ANOMALY_COLORMAP == "BrBG"
     assert colors.CLIMATE_INDEX_COLORMAPS == {
         "precip": "Blues",
         "dry_spell": "YlOrBr",
@@ -81,7 +81,7 @@ def test_scientific_presets_are_preserved():
             "under": "#fffbe6",
             "over": "#a50f15",
         },
-        "precip_pet": {
+        "precip": {
             "colors": [
                 "#deebf7",
                 "#c6dbef",
@@ -93,6 +93,19 @@ def test_scientific_presets_are_preserved():
             ],
             "under": "#f7fbff",
             "over": "#041f4a",
+        },
+        "pet": {
+            "colors": [
+                "#f6eedf",
+                "#ead7b4",
+                "#dabd89",
+                "#c59c60",
+                "#a97a3f",
+                "#875a27",
+                "#623d14",
+            ],
+            "under": "#fbf8f1",
+            "over": "#41270b",
         },
     }
     for name in (*colors.CLIMATE_COLORMAPS.values(), colors.PRECIP_ANOMALY_COLORMAP):
@@ -189,6 +202,28 @@ def test_invalid_spatial_panel_preset_is_refused(tmp_path, key, value):
     path = tmp_path / "style.yml"
     path.write_text(yaml.safe_dump(style), encoding="utf-8")
     with pytest.raises(ValueError, match="maps.panels"):
+        plot_setup.load_style(path)
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("anomaly_classes", 7),
+        ("anomaly_classes", 8.0),
+        ("anomaly_colormap_range", [0.9, 0.1]),
+        ("anomaly_colormap_range", [0.0, 1.2]),
+        ("anomaly_colormap_range", [0.1]),
+        ("outline_halo_width", 0),
+        ("location_label_halo_width", None),
+        ("scale_bar_halo_width", -1.0),
+    ],
+)
+def test_invalid_map_token_is_refused(tmp_path, key, value):
+    style = plot_setup.load_style()
+    style["maps"][key] = value
+    path = tmp_path / "style.yml"
+    path.write_text(yaml.safe_dump(style), encoding="utf-8")
+    with pytest.raises(ValueError, match=f"maps.{key}"):
         plot_setup.load_style(path)
 
 

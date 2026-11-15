@@ -36,11 +36,56 @@ from blueearth_cst.shared.plot_colors import (
     MAP_FEATURE_COLORS,
     PRECIP_ANOMALY_COLORMAP,
 )
-from blueearth_cst.shared.plot_preset import CST_PRESET
+from blueearth_cst.shared.plot_preset import (
+    ANOMALY_MAP_CLASSES,
+    ANOMALY_MAP_COLORMAP_RANGE,
+    CST_PRESET,
+)
 from blueearth_cst.shared.snake_utils import save_figure
 
 #: Variable names on the anomaly key, matching the monthly-departure calendars.
 KEY_LABELS = {"precip": "Precip.", "temp": "Temp."}
+#: Display units: precipitation anomalies are annual totals.
+DISPLAY_UNITS = {"precip": "mm/year", "temp": "°C"}
+
+
+def class_boundaries(limit: float, classes: int = ANOMALY_MAP_CLASSES) -> list[float]:
+    """Equal classes over ``±limit``; an even count puts zero on a boundary."""
+    return [
+        round(float(value), 12) + 0.0
+        for value in np.linspace(-limit, limit, classes + 1)
+    ]
+
+
+def capped_colors(
+    cmap: mpl.colors.Colormap,
+    classes: int,
+    span: tuple[float, float] = ANOMALY_MAP_COLORMAP_RANGE,
+) -> np.ndarray:
+    """One colour per class, sampled evenly over the central ``span`` of ``cmap``."""
+    return cmap(np.linspace(*span, classes))
+
+
+def anomaly_scale(variable: str, info: dict) -> MapScale:
+    """The classed, zero-centred key of one variable's anomaly pages."""
+    cmap = mpl.colormaps[
+        PRECIP_ANOMALY_COLORMAP
+        if variable == "precip"
+        else CLIMATE_COLORMAPS["temp_crossing_freezing"]
+    ]
+    boundaries = info["class_boundaries"] or []
+    low, high = ANOMALY_MAP_COLORMAP_RANGE
+    return MapScale(
+        DISPLAY_UNITS[variable],
+        boundaries,
+        boundaries,
+        capped_colors(cmap, len(boundaries) - 1) if boundaries else [],
+        cmap(low),
+        cmap(high),
+        MAP_FEATURE_COLORS["missing"],
+        info["status"],
+        extend="neither",
+    )
 
 
 def native_frame(field: xr.DataArray, reference: dict, overlays: dict) -> MapFrame:
@@ -88,11 +133,14 @@ def prepare_display(
     scales = {}
     for variable in {v for _, record in loaded.values() for v in record["variables"]}:
         maximum = limits.get(variable)
-        # Rounded outward so the five key ticks are round; never clips a cell.
+        # Rounded outward so the class boundaries are round; never clips a cell.
         limit = round_up_to_ladder(maximum, SYMMETRIC_LIMIT_LADDER) if maximum else 1.0
         scales[variable] = {
             "maximum_absolute": maximum,
             "limits": [-limit, limit] if maximum is not None else None,
+            "class_boundaries": class_boundaries(limit)
+            if maximum is not None
+            else None,
             "all_zero": maximum == 0,
             "fallback": "display-only ±1; all finite anomalies are zero"
             if maximum == 0
@@ -130,23 +178,7 @@ def render_pages(
         support = frame_intersection(field, frame.extent)
         x, y = field_edges(field)
         info = scales[variable]
-        cmap = mpl.colormaps[
-            PRECIP_ANOMALY_COLORMAP
-            if variable == "precip"
-            else CLIMATE_COLORMAPS["temp_crossing_freezing"]
-        ]
-        boundaries = np.linspace(*info["limits"], 257) if info["limits"] else []
-        scale = MapScale(
-            "mm" if variable == "precip" else "degC",
-            boundaries,
-            np.linspace(*info["limits"], 5) if info["limits"] else [],
-            cmap(np.linspace(0, 1, 256)) if info["limits"] else [],
-            cmap(0.0),
-            cmap(1.0),
-            MAP_FEATURE_COLORS["missing"],
-            info["status"],
-            extend="neither",
-        )
+        scale = anomaly_scale(variable, info)
         notes, counts, rasters, details = [], [], [], []
         for year in years:
             values = field.sel(reporting_year=year).values
@@ -171,7 +203,7 @@ def render_pages(
                 + (f", {reason.lower()}" if not count else "")
             )
         label = "Precipitation" if variable == "precip" else "Temperature"
-        units = "mm" if variable == "precip" else "°C"
+        units = DISPLAY_UNITS[variable]
         eligible = record["reference_eligible"]
         ref_dates = [
             record["year_dates"][str(eligible[0])][0],
@@ -188,7 +220,7 @@ def render_pages(
                 else "",
                 f"Start-year labels, month {record['water_year_start']}; at most {settings['max_missing_days_month']} missing days per month and {settings['max_missing_days_year']} per year; tolerated gaps use that calendar month's observed mean",
                 "Native cells intersecting the frame include cells outside the basin; no polygon mask or regridding. Gray is missing; white is uncovered. Geographic aspect uses midpoint latitude",
-                "Symmetric zero-centred scale from the maximum absolute anomaly pooled over displayed cells of all candidate sources and comparison years, rounded outward to a round limit, without clipping"
+                f"Symmetric zero-centred scale of {len(info['class_boundaries']) - 1} equal classes from the maximum absolute anomaly pooled over displayed cells of all candidate sources and comparison years, rounded outward to a round limit, without clipping"
                 if info["limits"]
                 else "No finite anomaly scale is available",
                 info["fallback"] or "",
@@ -200,7 +232,7 @@ def render_pages(
             f"Annual {label.lower()} anomalies ({units}) from {source.upper()} "
             f"for {years[0]}–{years[-1]}, relative to the {eligible[0]}–{eligible[-1]} mean. "
             + (
-                "Red indicates drier and blue wetter conditions."
+                "Brown indicates drier and teal wetter conditions."
                 if variable == "precip"
                 else "Blue indicates cooler and red warmer conditions."
             )

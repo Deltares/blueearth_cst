@@ -15,6 +15,8 @@ from blueearth_cst.climate_analysis.annual_spatial_anomalies import (
     prepare,
 )
 from blueearth_cst.climate_analysis.annual_spatial_render import (
+    capped_colors,
+    class_boundaries,
     prepare_display,
     render_pages,
     retained_enabled,
@@ -189,6 +191,7 @@ def test_display_scales_native_singletons_and_out_of_frame_extremes(tmp_path):
     limit = scales["precip"]["limits"][1]
     assert scales["precip"]["limits"] == [-limit, limit]
     assert limit == round_up_to_ladder(expected, SYMMETRIC_LIMIT_LADDER) >= expected
+    assert scales["precip"]["class_boundaries"] == class_boundaries(limit)
     assert len(loaded) == 2
     # Stored footprint must survive singleton latitude AND longitude.
     from blueearth_cst.shared.map_reference import field_edges
@@ -280,7 +283,7 @@ def test_retained_rerender_all_pages_annotations_and_managed_cleanup(
     ],
 )
 def test_anomaly_limits_round_outward_to_round_half_steps(maximum, limit):
-    """Five ticks at ±limit, ±limit/2 and 0 must all be round numbers."""
+    """Limits on the ladder keep ±limit, ±limit/2 and 0 round numbers."""
     assert round_up_to_ladder(maximum, SYMMETRIC_LIMIT_LADDER) == limit
 
 
@@ -306,6 +309,8 @@ def test_anomaly_key_names_its_variable(tmp_path, monkeypatch):
         labels = [t.get_text() for t in key.get_yticklabels()]
         assert "0" in labels
         assert not any("." in text and text.endswith("0") for text in labels)
+        # Eight discrete classes, not a continuous ramp.
+        assert fig.axes[0].collections[0].cmap.N == 8
 
     monkeypatch.setattr(
         "blueearth_cst.climate_analysis.annual_spatial_render.save_figure", save
@@ -319,7 +324,7 @@ def test_anomaly_key_names_its_variable(tmp_path, monkeypatch):
         "none",
     )
     assert titles == {
-        "precip": "Precip.\nanomaly\n(mm)",
+        "precip": "Precip.\nanomaly\n(mm/year)",
         "temp": "Temp.\nanomaly\n(°C)",
     }
 
@@ -500,3 +505,29 @@ def test_out_of_span_and_partial_years_have_accurate_availability(
             "excluded incomplete/out-of-span years: [1998, 1999]"
             in record["methods_detail"]
         )
+
+
+@pytest.mark.parametrize(
+    "limit,step", [(600.0, 150.0), (0.8, 0.2), (1.2, 0.3), (3.0, 0.75)]
+)
+def test_anomaly_classes_are_equal_and_put_zero_on_a_boundary(limit, step):
+    boundaries = class_boundaries(limit, 8)
+    assert len(boundaries) == 9
+    assert boundaries[0] == -limit and boundaries[-1] == limit
+    assert boundaries[4] == 0.0 and str(boundaries[4]) == "0.0"
+    np.testing.assert_allclose(np.diff(boundaries), step)
+    # Rounded so records carry 0.2, not 0.20000000000000007.
+    assert all(value == round(value, 12) for value in boundaries)
+
+
+def test_anomaly_colours_skip_the_colormap_ends():
+    import matplotlib as mpl
+
+    cmap = mpl.colormaps["BrBG"]
+    colors = capped_colors(cmap, 8, (0.08, 0.92))
+    assert len(colors) == 8
+    np.testing.assert_allclose(colors[0], cmap(0.08))
+    np.testing.assert_allclose(colors[-1], cmap(0.92))
+    # Symmetric sampling keeps the diverging midpoint between the two centre classes.
+    np.testing.assert_allclose(colors[3], cmap(0.5 - 0.06))
+    np.testing.assert_allclose(colors[4], cmap(0.5 + 0.06))

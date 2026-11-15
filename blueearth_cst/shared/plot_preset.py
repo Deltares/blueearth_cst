@@ -105,12 +105,15 @@ MAPS = {
     "basin_outline_width": _MAP_STYLE["basin_outline_width"],
     "divide": MAP_FEATURE_COLORS["subcatchment"],
     "divide_width": _MAP_STYLE["divide_width"],
+    "outline_halo_width": _MAP_STYLE["outline_halo_width"],
     "divide_dash": tuple(_MAP_STYLE["divide_dash"]),
     "location": MAP_FEATURE_COLORS["gauge"],
     "location_marker": _MAP_STYLE["location_marker"],
     "location_size": _MAP_STYLE["location_size"],
     "location_label_size": _MAP_STYLE["location_label_size"],
     "location_label_wrap": int(_MAP_STYLE["location_label_wrap"]),
+    "location_label_halo_width": _MAP_STYLE["location_label_halo_width"],
+    "scale_bar_halo_width": _MAP_STYLE["scale_bar_halo_width"],
     "marker_edge": MAP_FEATURE_COLORS["marker_edge"],
     "halo": MAP_FEATURE_COLORS["halo"],
     "scale_bar_segments": int(_MAP_STYLE["scale_bar_segments"]),
@@ -120,6 +123,12 @@ MAPS = {
     },
     "locator_mark": MAP_FEATURE_COLORS["locator_basin"],
 }
+
+#: Annual anomaly map classes and the diverging-colormap share they sample.
+ANOMALY_MAP_CLASSES: int = _MAP_STYLE["anomaly_classes"]
+ANOMALY_MAP_COLORMAP_RANGE: tuple[float, float] = tuple(
+    _MAP_STYLE["anomaly_colormap_range"]
+)
 
 
 CST_PRESET = Preset(

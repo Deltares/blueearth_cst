@@ -59,9 +59,9 @@ def load_map_overlays(overlays):
 
 #: Caption leads of the historical climate maps, with their display units.
 MAP_QUANTITIES = {
-    "precip": "Mean annual precipitation (mm yr⁻¹)",
+    "precip": "Mean annual precipitation (mm/year)",
     "temp": "Mean annual temperature (°C)",
-    "pet": "Mean annual potential evapotranspiration (PET, mm yr⁻¹)",
+    "pet": "Mean annual potential evapotranspiration (PET, mm/year)",
 }
 #: Native cells in the drawn frame at or below which a climatology caption
 #: says each colour block is one grid cell.
@@ -150,7 +150,7 @@ def prepared_map(
         frame,
         drawn_scale,
         overlays,
-        colorbar_title=f"{label}\n{'(°C)' if variable == 'temp' else '(mm yr⁻¹)'}",
+        colorbar_title=f"{label}\n{'(°C)' if variable == 'temp' else '(mm/year)'}",
     )
     info = {
         "reference_id": reference["reference_id"],
