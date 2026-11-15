@@ -411,6 +411,13 @@ _PLANNED_FROM = {}
 _DYNAMIC_PROGRESS_RULES = set()
 
 
+# Rules the Snakefile declares but this run's config switches off, so the run
+# never requests their outputs. Filled by `RuleRegistry`'s ``enabled=False``.
+# Without it the plan block cannot tell them from up-to-date rules: both are
+# absent from Snakemake's job table, and only one of them was reused.
+_OFF_RULES = set()
+
+
 @dataclass(frozen=True)
 class RuleIdentity:
     """One rule's identity, so its label is written once instead of four times.
@@ -537,12 +544,16 @@ class RuleRegistry:
         self.benchmark_parts_dir = str(benchmark_parts_dir)
         self.log_rules = []
 
-    def _make(self, number, name, logged, **banner):
+    def _make(self, number, name, logged, enabled=True, **banner):
         # Registered at DECLARATION, not only when a `message:` renders the
         # banner, so the plan table lists every rule the workflow declares --
         # including those this run's DAG does not define (WF3 reusing a
         # collection defines no generation rules) -- as rows with no jobs.
         _RULE_NUMBERS.setdefault(name, str(number))
+        if enabled:
+            _OFF_RULES.discard(name)
+        else:
+            _OFF_RULES.add(name)
         return RuleIdentity(
             number=number,
             name=name,
@@ -563,16 +574,24 @@ class RuleRegistry:
         after_checkpoint=False,
         planned_jobs=None,
         planned_from=None,
+        enabled=True,
     ) -> RuleIdentity:
         """Register a rule that writes a log part, and record its label.
 
         ``summary``, ``quiet_start`` and ``dynamic_progress`` are stored on the
         identity and forwarded to :func:`rule_banner` by :meth:`RuleIdentity.banner`.
+
+        ``enabled=False`` marks a rule that stays declared while the run's
+        config keeps its outputs out of the targets -- a figure switch, say.
+        The plan block lists it as ``off`` rather than ``reuse``. A rule that
+        is not applicable at all is better left unregistered, so it does not
+        list.
         """
         identity = self._make(
             number,
             name,
             True,
+            enabled=enabled,
             summary=summary,
             quiet_start=quiet_start,
             dynamic_progress=dynamic_progress,
@@ -594,8 +613,11 @@ class RuleRegistry:
         after_checkpoint=False,
         planned_jobs=None,
         planned_from=None,
+        enabled=True,
     ) -> RuleIdentity:
         """A rule with a banner and no log part -- bookkeeping and terminal rules.
+
+        ``enabled`` is as for :meth:`logged`.
 
         Not in ``LOG_RULES``, so ``merge_logs`` never looks for its section.
         Registering one of these by mistake shows up as an orphaned label in
@@ -608,6 +630,7 @@ class RuleRegistry:
             number,
             name,
             False,
+            enabled=enabled,
             summary=summary,
             quiet_start=quiet_start,
             dynamic_progress=dynamic_progress,
@@ -1380,6 +1403,11 @@ def open_run_header(workflow, project_dir, config_path=None, **details):
     this branch, which does print, flushes on the spot.
     """
     global _RUN_HEADER, _HEADER_PRINTED
+    # Every Snakefile declares the header twice, at parse and in `onstart:`.
+    # Snakemake's queued log listener can print the opening block between
+    # the two; resetting the flag then made the exit hook print it again.
+    if _HEADER_PRINTED and _CONSOLE_STYLE_ACTIVE:
+        return True
     _HEADER_PRINTED = False
     if _CONSOLE_STYLE_ACTIVE or _CONSOLE_STYLE_PENDING:
         _RUN_HEADER = (workflow, project_dir, config_path, dict(details))
@@ -1461,6 +1489,19 @@ def _plan_rule_name(names):
     return shared or ordered[0]
 
 
+def _switched_off(names):
+    """Whether every rule sharing one plan row is switched off by config."""
+    return all(name in _OFF_RULES for name in names)
+
+
+def _off_numbers():
+    """Plan-row numbers whose rules are all switched off by this run's config."""
+    by_number = {}
+    for name, number in _RULE_NUMBERS.items():
+        by_number.setdefault(number, []).append(name)
+    return {number for number, names in by_number.items() if _switched_off(names)}
+
+
 def _plan_rows(counts):
     """``[(number, name, jobs), ...]`` in rule-number order.
 
@@ -1488,6 +1529,7 @@ def _plan_rows(counts):
             not jobs
             and pending
             and all(name in _AFTER_CHECKPOINT_RULES for name in names)
+            and not _switched_off(names)
         ):
             # Absent only because the checkpoint has not resolved: its planned
             # count, or an empty cell when it declared none.
@@ -1505,21 +1547,24 @@ def _plan_rows(counts):
 
 
 def _plan_lines(counts):
-    """Render explicit run/reuse/done/pending rows and the scheduled work-job total."""
+    """Render explicit run/reuse/off/done/pending rows and the scheduled work-job total."""
     rows = _plan_rows(counts)
     if not rows:
         return None
+    off_numbers = _off_numbers()
     pending_numbers = {
         _RULE_NUMBERS[name]
         for name in _AFTER_CHECKPOINT_RULES
         if _after_checkpoint_pending(counts)
         and name in _RULE_NUMBERS
         and name not in counts
-    }
+    } - off_numbers
     display = []
     states = []
     for number, name, jobs in rows:
         pending = number in pending_numbers
+        # A switched-off rule that still has jobs -- another target needs its
+        # outputs -- reports what actually happens: `run`.
         status = (
             "done"
             if jobs is None
@@ -1527,6 +1572,8 @@ def _plan_lines(counts):
             if pending or isinstance(jobs, str)
             else "run"
             if jobs
+            else "off"
+            if number in off_numbers
             else "reuse"
         )
         cell = (
@@ -1575,7 +1622,10 @@ def _plan_lines(counts):
     # table above already says these are rules.
     head = f"{plural(jobs, 'job')}  |  {scheduled} scheduled  |  {reused} up to date"
     pending = sum(row[0] == "pending" for row in display)
+    off = sum(row[0] == "off" for row in display)
     done = sum(row[0] == "done" for row in display)
+    if off:
+        head += f"  |  {off} off"
     if pending:
         head += f"  |  {pending} pending"
     if done:
@@ -1934,7 +1984,10 @@ class _ConsoleHandler(logging.StreamHandler):
                     for name in _AFTER_CHECKPOINT_RULES
                     # Only this workflow's rules, as `_plan_rows` lists them;
                     # the registry outlives one parsed Snakefile.
-                    if pending and name in _RULE_NUMBERS and name not in counts
+                    if pending
+                    and name in _RULE_NUMBERS
+                    and name not in counts
+                    and name not in _OFF_RULES
                 )
             )
         plan = _plan_lines(counts) if counts else None

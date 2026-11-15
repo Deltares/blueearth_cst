@@ -611,8 +611,9 @@ ADD_CLIMATE_FORCING = RULES.logged("1.09", "add_climate_forcing", summary="prepa
 if MODEL_ORIGIN == "built":
     WRITE_MODEL_RECORD = RULES.banner_only("1.09b", "write_model_record", summary="record the built model's identity")
 WRITE_GAUGE_INDEX = RULES.logged("1.10", "write_gauge_index", summary="write the outlet-to-location identity crosswalk")
-PLOT_BASIN_MAP = RULES.logged("1.11", "plot_basin_map", summary="render basin and spatial-input maps")
-PLOT_MODEL_FORCING = RULES.logged("1.12", "plot_model_forcing", summary="render model-forcing maps and time series")
+# The plotting switches keep both rules declared; the plan lists a switched-off one as `off`.
+PLOT_BASIN_MAP = RULES.logged("1.11", "plot_basin_map", summary="render basin and spatial-input maps", enabled=bool(_spatial_plots))
+PLOT_MODEL_FORCING = RULES.logged("1.12", "plot_model_forcing", summary="render model-forcing maps and time series", enabled=bool(_forcing_plots))
 if _budyko_settings is not None:
     EVALUATE_BUDYKO = RULES.logged("1.12b", "evaluate_budyko", summary="screen observed catchment water balance")
 RUN_HISTORICAL_SIMULATION = RULES.logged("1.13", "run_historical_simulation", summary="run Wflow-SBM with historical forcing")

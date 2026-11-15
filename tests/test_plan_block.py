@@ -32,6 +32,7 @@ def rules(monkeypatch):
 
     def install(mapping):
         monkeypatch.setattr(cs, "_RULE_NUMBERS", dict(mapping))
+        monkeypatch.setattr(cs, "_OFF_RULES", set())
 
     return install
 
@@ -319,6 +320,57 @@ def test_a_declared_rule_lists_even_when_its_banner_never_renders(rules, tmp_pat
     assert [t[1] for t in texts] == ["snapshot", "generate", "publish"]
     assert texts[0] == ["reuse", "snapshot", "-"]
     assert texts[1] == ["reuse", "generate", "-"]
+
+
+# --- rules switched off by config -------------------------------------------
+
+
+def test_a_switched_off_rule_reads_off_not_reuse(rules, tmp_path):
+    """A disabled figure switch leaves the rule declared but unrequested.
+
+    Both it and an up-to-date rule are absent from Snakemake's job table; only
+    the registry knows which one was never asked for.
+    """
+    rules({"prepare": "0.05b", "current": "0.04"})
+    registry = cs.RuleRegistry(str(tmp_path / "logs"), str(tmp_path / "bench"))
+    registry.logged("0.05c", "plot", enabled=False)
+    head, rows = cs._plan_lines({"prepare": 1})
+    texts = [text.split() for text, _ in rows[1:]]
+    assert texts == [
+        ["reuse", "current", "-"],
+        ["run", "prepare", "1"],
+        ["off", "plot", "-"],
+    ]
+    assert head == "1 job  |  1 scheduled  |  1 up to date  |  1 off"
+    assert [state for _, state in rows[1:]] == [False, True, False]
+
+
+def test_re_registering_a_rule_enabled_clears_off(rules, tmp_path):
+    """The registry outlives one parsed Snakefile; the latest declaration wins."""
+    rules({})
+    registry = cs.RuleRegistry(str(tmp_path / "logs"), str(tmp_path / "bench"))
+    registry.banner_only("1.11", "plot", enabled=False)
+    registry.banner_only("1.11", "plot")
+    _, rows = cs._plan_lines({"all": 1})
+    assert rows[1][0].split() == ["reuse", "plot", "-"]
+
+
+def test_a_switched_off_rule_with_jobs_reports_run(rules, monkeypatch):
+    """If another target still needs its outputs, it runs, and says so."""
+    rules({"plot": "1.11"})
+    monkeypatch.setattr(cs, "_OFF_RULES", {"plot"})
+    _, rows = cs._plan_lines({"plot": 1})
+    assert rows[1][0].split() == ["run", "plot", "1"]
+
+
+def test_switched_off_checkpoint_rules_are_off_not_pending(rules, monkeypatch):
+    """A simulations-only WF4 selection has no indicator work to plan."""
+    rules({"publish": "4.06", "plan": "4.07", "derive": "4.08"})
+    monkeypatch.setattr(cs, "_AFTER_CHECKPOINT_RULES", {"plan": 1, "derive": 1})
+    monkeypatch.setattr(cs, "_OFF_RULES", {"plan", "derive"})
+    head, rows = cs._plan_lines({"publish": 1})
+    assert head == "1 job  |  1 scheduled  |  0 up to date  |  2 off"
+    assert [text.split()[0] for text, _ in rows[1:]] == ["run", "off", "off"]
 
 
 def test_defer_rows_queues_a_captured_warning_for_the_run_header(monkeypatch, capsys):

@@ -30,11 +30,14 @@ records. **Paths** separately names the user's source config. The command is dia
 temporary execution inputs may be removed after the invocation.
 
 The work plan labels status, rule and jobs; each rule's RUN and DONE rows carry its step number. `run`
-means scheduled work; `reuse` means a current rule, whose previous job count is unknown. `done` identifies
-completed work before the DAG. `pending` identifies checkpoint-dependent work, with explicitly provisional
-counts where known. The summary line counts jobs, then rules by status (`12 jobs  |  3 scheduled  |
-3 up to date  |  3 completed`). It excludes target collectors such as `all`; unknown or unlisted work is
-reported rather than silently counted as reused.
+means scheduled work; `reuse` means a current rule, whose previous job count is unknown. `off` means a
+declared rule whose outputs this run's config does not request, such as a disabled figure switch; register
+it with `enabled=False` on `RuleRegistry.logged`/`banner_only`, or it reads as `reuse`. A rule that does not
+apply at all stays unregistered and is not listed. `done` identifies completed work before the DAG.
+`pending` identifies checkpoint-dependent work, with explicitly provisional counts where known. The summary
+line counts jobs, then rules by status (`12 jobs  |  3 scheduled  |  3 up to date  |  1 off  |
+3 completed`). It excludes target collectors such as `all`; unknown or unlisted work is reported rather than
+silently counted as reused.
 
 ## Planning and no-op runs
 

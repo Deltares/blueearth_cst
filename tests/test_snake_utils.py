@@ -3483,12 +3483,37 @@ def test_open_run_header_writes_immediately_without_a_console(monkeypatch):
 
 def test_open_run_header_holds_it_for_the_console(monkeypatch):
     monkeypatch.setattr(cs, "_CONSOLE_STYLE_ACTIVE", True)
+    monkeypatch.setattr(cs, "_HEADER_PRINTED", False)
     monkeypatch.setattr(cs, "_RUN_HEADER", None)
     stream = io.StringIO()
     monkeypatch.setattr(sys, "stderr", stream)
     assert cs.open_run_header("wf1 build_model", "test_case/test_rapid") is True
     assert stream.getvalue() == ""  # held, not written
     assert cs._RUN_HEADER[0] == "wf1 build_model"
+
+
+def test_onstart_header_after_the_opening_is_not_reprinted_at_exit(monkeypatch):
+    """Snakefiles declare the header at parse AND in `onstart:`.
+
+    The queued log listener can print the opening block between the two calls.
+    The second call must not mark the header unprinted again, or the exit hook
+    repeats the whole block after the run summary (seen on a WF1 run,
+    2026-11-14).
+    """
+    monkeypatch.setattr(cs, "_CONSOLE_STYLE_ACTIVE", True)
+    monkeypatch.setattr(cs, "_HEADER_PRINTED", False)
+    monkeypatch.setattr(cs, "_RUN_HEADER", None)
+    monkeypatch.setattr(cs, "_DEFERRED_WARNINGS", [])
+    stream = io.StringIO()
+    monkeypatch.setattr(sys, "stderr", stream)
+    assert cs.open_run_header("wf1 build_model", "test_case/test_rapid") is True
+    handler = _console_handler()
+    handler._opening()  # the listener prints the opening block
+    assert cs._HEADER_PRINTED is True
+    assert cs.open_run_header("wf1 build_model", "test_case/test_rapid") is True
+    assert cs._HEADER_PRINTED is True
+    cs._flush_undrained_warnings()
+    assert stream.getvalue() == ""
 
 
 def test_deferred_warning_lands_under_the_run_block(monkeypatch):
