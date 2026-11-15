@@ -34,6 +34,25 @@ MONTH_ABBR = (
     "Dec",
 )
 
+#: Symmetric-limit mantissas whose half-steps are also round, so a five-tick
+#: key over ``±limit`` labels ``±limit``, ``±limit/2`` and zero cleanly.
+SYMMETRIC_LIMIT_LADDER = (1.0, 1.2, 1.6, 2.0, 2.4, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0)
+
+
+def round_up_to_ladder(value: float, ladder: Sequence[float]) -> float:
+    """Round a positive ``value`` UP to the next ``ladder`` rung × 10^n.
+
+    ``ladder`` holds ascending mantissas in [1, 10]. A value on a rung, give or
+    take float noise (relative 1e-12), stays on it. The result is rounded to 12
+    significant digits so records carry ``0.8`` rather than ``0.8000000000000002``.
+    """
+    if not np.isfinite(value) or value <= 0:
+        raise ValueError("round_up_to_ladder needs a positive finite value")
+    exponent = int(np.floor(np.log10(value)))
+    fraction = value / 10.0**exponent
+    step = next((rung for rung in ladder if fraction <= rung * (1 + 1e-12)), 10.0)
+    return float(f"{step * 10.0**exponent:.12g}")
+
 
 def new_fig(
     height_mm: float,

@@ -17,6 +17,7 @@ import numpy as np
 import xarray as xr
 from matplotlib import colors
 
+from blueearth_cst.plotting.fundamentals import round_up_to_ladder
 from blueearth_cst.shared.plot_colors import ELEVATION_COLORS
 
 #: Target number of colour CLASSES. The ramp is stepped rather than continuous:
@@ -472,11 +473,7 @@ def _nice_step_up(value, ladder=None):
     """
     if value <= 0:
         return 1.0
-    rungs = tuple(ladder) if ladder else _STEP_LADDER
-    exponent = np.floor(np.log10(value))
-    fraction = value / 10.0**exponent
-    step = next((rung for rung in rungs if fraction <= rung), 10.0)
-    return float(step * 10.0**exponent)
+    return round_up_to_ladder(value, tuple(ladder) if ladder else _STEP_LADDER)
 
 
 def _next_step_up(step, ladder=None):

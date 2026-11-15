@@ -22,12 +22,17 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Patch, PathPatch, Rectangle
 from matplotlib.path import Path
 from matplotlib.patheffects import Normal, Stroke
+from matplotlib.text import Text
 from matplotlib.ticker import FuncFormatter
 from matplotlib.transforms import Bbox
 from numpy.typing import NDArray
 
 from blueearth_cst.plotting.fundamentals import style_colourbar
-from blueearth_cst.plotting.location_labels import location_label, wrap_label
+from blueearth_cst.plotting.location_labels import (
+    location_label,
+    map_display_label,
+    wrap_label,
+)
 from blueearth_cst.plotting.preset import active
 
 #: Stream-order attribute names, in lookup order (hydromt spells it ``strord``).
@@ -52,6 +57,45 @@ MISSING_LABEL = "No data"
 # Maximum physical map frame; keys and coordinate labels extend the canvas.
 MAP_WIDTH_MM, MAP_HEIGHT_MM = 150.0, 95.0
 MAP_PADDING_MM = 3.0
+
+#: Point-label offsets (pt) in preference order: a near ring, then a wider one
+#: so a position clear of markers, labels and linework usually exists.
+LABEL_OFFSETS = (
+    (8, 8),
+    (-8, 8),
+    (8, -8),
+    (-8, -8),
+    (16, 0),
+    (-16, 0),
+    (0, 16),
+    (0, -16),
+    (24, 16),
+    (-24, 16),
+    (24, -16),
+    (-24, -16),
+    (36, 0),
+    (-36, 0),
+    (0, 30),
+    (0, -30),
+    (16, 32),
+    (-16, 32),
+    (16, -32),
+    (-16, -32),
+    (36, 28),
+    (-36, 28),
+    (36, -28),
+    (-36, -28),
+)
+#: Label placement penalties: leaving the frame dominates, then covering a
+#: marker, label or in-map inset, then covering a river (heavier) or the basin
+#: outline/divides (lighter); the offset order breaks ties.
+LABEL_OUTSIDE_PENALTY = 1000.0
+LABEL_OVERLAP_PENALTY = 10.0
+LABEL_RIVER_PENALTY = 4.0
+LABEL_OUTLINE_PENALTY = 2.0
+LABEL_ORDER_PENALTY = 0.01
+#: Legend-hidden artist labels that tag overlay linework for label placement.
+_RIVER_TAG, _OUTLINE_TAG = "_cst_river", "_cst_outline"
 
 
 def _map_figure(frame: "MapFrame") -> tuple[Figure, Axes]:
@@ -106,9 +150,12 @@ class MapFrame:
 class MapScale:
     """Resolved continuous classes; unavailable scales have no boundaries/ticks.
 
-    ``extend`` names the colourbar's rectangular extensions (``both``, ``min``,
-    ``max`` or ``neither``); with ``neither`` values beyond the outer
-    boundaries fall into the end classes.
+    ``extend`` names the sides permitted to show an extension (``both``,
+    ``min``, ``max`` or ``neither``); values beyond a permitted side take the
+    under/over colour. The colourbar draws a pointed extension only on a
+    permitted side that some drawn finite cell lies strictly beyond (see
+    ``key_extend``). With ``neither`` values beyond the outer boundaries fall
+    into the end classes.
     """
 
     units: str
@@ -354,6 +401,7 @@ def _draw_rivers(
                 solid_capstyle="round",
                 solid_joinstyle="round",
                 zorder=3,
+                label=_RIVER_TAG,
                 path_effects=[
                     Stroke(
                         linewidth=(width + maps["river_halo_width"]) * scale,
@@ -386,6 +434,7 @@ def _draw_overlays(
                     color=color,
                     lw=width * scale,
                     zorder=zorder,
+                    label=_OUTLINE_TAG,
                 )
                 if dashes is not None:
                     artist.set_dashes(dashes)
@@ -467,7 +516,12 @@ def _draw_scale_bar(ax: Axes, frame: MapFrame) -> None:
 def _place_point_labels(
     fig: Figure, ax: Axes, labels: Sequence[tuple[float, float, str]]
 ) -> None:
-    """Haloed, optionally two-line labels at the clearest in-frame offset."""
+    """Haloed, optionally two-line labels at the clearest in-frame offset.
+
+    Each label takes the ``LABEL_OFFSETS`` candidate with the lowest penalty
+    (see the ``LABEL_*_PENALTY`` constants). Names are drawn in their map
+    display form (``map_display_label``).
+    """
     maps = active().maps
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
@@ -483,27 +537,25 @@ def _place_point_labels(
         occupied.append(
             Bbox.from_extents(px - radius, py - radius, px + radius, py + radius)
         )
-    candidates = (
-        (8, 8),
-        (-8, 8),
-        (8, -8),
-        (-8, -8),
-        (16, 0),
-        (-16, 0),
-        (0, 16),
-        (0, -16),
-        (24, 16),
-        (-24, 16),
-        (24, -16),
-        (-24, -16),
-    )
+    linework = {
+        tag: [
+            line.get_transform().transform_path(line.get_path())
+            for line in ax.lines
+            if line.get_label() == tag
+        ]
+        for tag in (_RIVER_TAG, _OUTLINE_TAG)
+    }
+
+    def covers(box: Bbox, tag: str) -> bool:
+        return any(path.intersects_bbox(box, filled=False) for path in linework[tag])
+
     for x, y, label in labels:
         if not ax.get_xlim()[0] <= x <= ax.get_xlim()[1] or not (
             ax.get_ylim()[0] <= y <= ax.get_ylim()[1]
         ):
             continue
         text = ax.annotate(
-            wrap_label(label, maps["location_label_wrap"]),
+            wrap_label(map_display_label(label), maps["location_label_wrap"]),
             (x, y),
             xytext=(8, 8),
             textcoords="offset points",
@@ -526,26 +578,35 @@ def _place_point_labels(
         )
         text.set_in_layout(False)
         options = []
-        for dx, dy in candidates:
-            text.set_position((dx, dy))
-            align = "left" if dx > 0 else "right" if dx < 0 else "center"
-            text.set_ha(align)
-            text.set_multialignment(align)
-            text.set_va("bottom" if dy > 0 else "top" if dy < 0 else "center")
+        for order, (dx, dy) in enumerate(LABEL_OFFSETS):
+            _set_label_offset(text, dx, dy)
             text.update_positions(renderer)
-            box = text.get_window_extent(renderer).expanded(1.08, 1.15)
+            # The text alone: an annotation's extent includes its leader, which
+            # starts on the marker (and so on its river) at every offset.
+            box = Text.get_window_extent(text, renderer).expanded(1.08, 1.15)
             outside = not (
                 ax.bbox.contains(box.x0, box.y0) and ax.bbox.contains(box.x1, box.y1)
             )
-            score = 1000 * outside + sum(box.overlaps(other) for other in occupied)
+            score = (
+                LABEL_OUTSIDE_PENALTY * outside
+                + LABEL_OVERLAP_PENALTY * sum(box.overlaps(o) for o in occupied)
+                + LABEL_RIVER_PENALTY * covers(box, _RIVER_TAG)
+                + LABEL_OUTLINE_PENALTY * covers(box, _OUTLINE_TAG)
+                + LABEL_ORDER_PENALTY * order
+            )
             options.append((score, dx, dy, box))
         _, dx, dy, box = min(options, key=lambda option: option[0])
-        text.set_position((dx, dy))
-        align = "left" if dx > 0 else "right" if dx < 0 else "center"
-        text.set_ha(align)
-        text.set_multialignment(align)
-        text.set_va("bottom" if dy > 0 else "top" if dy < 0 else "center")
+        _set_label_offset(text, dx, dy)
         occupied.append(box)
+
+
+def _set_label_offset(text: Any, dx: float, dy: float) -> None:
+    """Offset a point label, aligning it away from its point."""
+    text.set_position((dx, dy))
+    align = "left" if dx > 0 else "right" if dx < 0 else "center"
+    text.set_ha(align)
+    text.set_multialignment(align)
+    text.set_va("bottom" if dy > 0 else "top" if dy < 0 else "center")
 
 
 def _polygon_paths(geometry: Mapping[str, Any]) -> list[Path]:
@@ -802,6 +863,55 @@ def _in_frame(raster: RasterMap, frame: MapFrame) -> NDArray[np.bool_]:
     return ys[:, None] & xs[None, :]
 
 
+def key_extend(rasters: Sequence[RasterMap], frame: MapFrame, scale: MapScale) -> str:
+    """The permitted extension sides that drawn cells actually reach.
+
+    A side counts when a finite cell in the frame (and inside ``inside`` when
+    given) lies strictly beyond that outer boundary; the closed upper boundary
+    itself stays in the last class. Pass every raster one key represents so
+    all pages of a panel set carry the same key.
+    """
+    if scale.status != "available" or scale.extend == "neither":
+        return "neither"
+    low, high = scale.boundaries[0], scale.boundaries[-1]
+    under = over = False
+    for raster in rasters:
+        values = np.ma.filled(np.ma.asarray(raster.values, dtype=float), np.nan)
+        drawn = _in_frame(raster, frame) & np.isfinite(values)
+        if raster.inside is not None:
+            drawn &= np.asarray(raster.inside)
+        under = under or bool((values[drawn] < low).any())
+        over = over or bool((values[drawn] > high).any())
+    under &= scale.extend in {"both", "min"}
+    over &= scale.extend in {"both", "max"}
+    return {
+        (True, True): "both",
+        (True, False): "min",
+        (False, True): "max",
+        (False, False): "neither",
+    }[under, over]
+
+
+def _scale_colourbar(
+    fig: Figure, mappable: Any, cax: Axes, scale: MapScale, extend: str
+):
+    """A map key: supplied ticks, pointed extensions only where drawn cells reach."""
+    return fig.colorbar(
+        mappable,
+        cax=cax,
+        ticks=scale.ticks,
+        extend=extend,
+        extendrect=False,
+        format=FuncFormatter(_tick_text),
+    )
+
+
+def _tick_text(value: float, _position: Any = None) -> str:
+    """Shortest tick text without padded zeros, with a typographic minus."""
+    text = f"{round(value, 10):g}"
+    return "0" if text == "-0" else text.replace("-", "−")
+
+
 def missing_shown(raster: RasterMap, frame: MapFrame) -> bool:
     """Whether the map draws missing cells, which is when it keys "No data"."""
     inside = (
@@ -826,6 +936,7 @@ def draw_raster_map(
     ax: Axes | None = None,
     compact: bool = False,
     key_missing: bool = False,
+    key_rasters: Sequence[RasterMap] | None = None,
 ) -> Figure:
     """Draw supplied classes or honest unscaled hatching; never change input arrays.
 
@@ -837,7 +948,9 @@ def draw_raster_map(
     ``locator_in_map`` instead places it inside the map's clearest corner (the
     overview maps' exception). Geographic grids use the supplied ticks/aspect.
     ``colorbar_title`` defaults to the scale's units; ``show_key=False`` omits
-    the key. The map frame fits within 150 × 95 mm at its geographic aspect;
+    the key. A scale's colourbar extensions follow ``key_extend`` over
+    ``key_rasters`` (default: this raster), so a key shared by several maps
+    reflects all of them. The map frame fits within 150 × 95 mm at its geographic aspect;
     labels, keys and external locators extend the canvas without shrinking it.
     With ``ax``, draw into the caller's figure without resizing its canvas.
     ``compact`` retains spatial layers and location markers but omits coordinate
@@ -1010,13 +1123,8 @@ def draw_raster_map(
         )
         axes_ratio = frame.aspect * (north - south) / (east - west)
         cax = ax.inset_axes((PANEL_LEFT, bottom, height / 20 * axes_ratio, height))
-        colorbar = fig.colorbar(
-            mesh,
-            cax=cax,
-            ticks=scale.ticks,
-            extend=scale.extend,
-            extendrect=True,
-        )
+        extend = key_extend(key_rasters or [raster], frame, scale)
+        colorbar = _scale_colourbar(fig, mesh, cax, scale, extend)
         style_colourbar(
             colorbar, scale.units if colorbar_title is None else colorbar_title
         )
@@ -1060,6 +1168,7 @@ def draw_raster_panels(
     if type(maximum) is not int or maximum <= 0:
         raise ValueError("max_panels_per_figure must be a positive integer")
     columns = min(int(settings["columns"]), maximum, len(rasters))
+    extend = key_extend(rasters, frame, scale)
     return [
         _draw_raster_panel_page(
             rasters[start : start + maximum],
@@ -1069,6 +1178,7 @@ def draw_raster_panels(
             overlays,
             columns=columns,
             colorbar_title=colorbar_title,
+            extend=extend,
         )
         for start in range(0, len(rasters), maximum)
     ]
@@ -1083,11 +1193,15 @@ def _draw_raster_panel_page(
     *,
     columns: int,
     colorbar_title: str | None,
+    extend: str,
     row_labels: Sequence[str] = (),
     column_labels: Sequence[str] = (),
     geometry_columns: int | None = None,
 ) -> Figure:
-    """Draw one page with column geometry fixed across the complete panel set."""
+    """Draw one page with column geometry and key fixed across the panel set.
+
+    ``extend`` is the panel set's ``key_extend``, decided over all pages.
+    """
     preset = active()
     settings = preset.map_panels
     rows = math.ceil(len(rasters) / columns)
@@ -1165,13 +1279,7 @@ def _draw_raster_panel_page(
                 settings["key_height_fraction"],
             )
         )
-        colorbar = fig.colorbar(
-            axes[0].collections[0],
-            cax=cax,
-            ticks=scale.ticks,
-            extend=scale.extend,
-            extendrect=True,
-        )
+        colorbar = _scale_colourbar(fig, axes[0].collections[0], cax, scale, extend)
         style_colourbar(
             colorbar, scale.units if colorbar_title is None else colorbar_title
         )
@@ -1216,6 +1324,7 @@ def draw_raster_matrix(
     if page_columns < 1:
         raise ValueError("map matrix requires a positive page capacity")
     page_rows = max(1, maximum // page_columns)
+    extend = key_extend([raster for row in rasters for raster in row], frame, scale)
     figures = []
     for start_row in range(0, rows, page_rows):
         selected_rows = range(start_row, min(start_row + page_rows, rows))
@@ -1239,6 +1348,7 @@ def draw_raster_matrix(
                     row_labels=[row_labels[r] for r in selected_rows],
                     column_labels=[column_labels[c] for c in selected_columns],
                     colorbar_title=colorbar_title,
+                    extend=extend,
                 )
             )
     return figures
@@ -1304,6 +1414,7 @@ def draw_raster_panels_detailed(
             ax=ax,
             show_key=i == len(rasters) - 1,
             key_missing=any(missing_shown(r, frame) for r in rasters),
+            key_rasters=rasters,
         )
         ax.set_title(heading, loc="left", fontsize=active().fonts["label"])
         if notes and notes[i]:

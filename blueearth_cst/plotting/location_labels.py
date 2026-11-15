@@ -51,6 +51,14 @@ def wrap_label(text: str, width: int) -> str:
     return f"{first}\n{text[cut + 1 :]}"
 
 
+def map_display_label(text: str) -> str:
+    """A label as drawn on a map: underscores read as spaces.
+
+    Display only; IDs in data, tables and captions keep their spelling.
+    """
+    return " ".join(text.replace("_", " ").split())
+
+
 def location_label(properties: Mapping[str, Any], column="station_name") -> str:
     """Prefer the selected label, falling back to the Wflow ID for station names."""
     columns = (
