@@ -1122,18 +1122,29 @@ def test_region_description_keeps_unhandled_configuration():
 
 
 def _group_raw_lines(output, label):
-    """The raw lines under one ``  <label>`` group, indentation intact."""
-    label = {"settings": "Run settings", "sequence": "Workflow sequence"}.get(
-        label, label
-    )
+    """The raw lines under one group, indentation intact.
+
+    Indented groups (``  <label>`` over ``    `` rows) end at the first line
+    off that indent; the opening block's flat sections (``<label>`` at column
+    0) end at the next blank line.
+    """
+    label = {
+        "settings": "Run settings",
+        "paths": "Paths",
+        "sequence": "Workflow sequence",
+    }.get(label, label)
     lines = output.splitlines()
-    start = lines.index(f"  {label}") + 1
-    kept = []
-    for line in lines[start:]:
-        if not line.startswith("    "):
-            break
-        kept.append(line)
-    return kept
+    if f"  {label}" in lines:
+        start = lines.index(f"  {label}") + 1
+        kept = []
+        for line in lines[start:]:
+            if not line.startswith("    "):
+                break
+            kept.append(line)
+        return kept
+    start = lines.index(label) + 1
+    end = lines.index("", start) if "" in lines[start:] else len(lines)
+    return lines[start:end]
 
 
 def _group_lines(output, label):
@@ -1142,10 +1153,7 @@ def _group_lines(output, label):
 
 
 def _group_rows(output, label):
-    """The ``key -> value`` rows under one ``  <label>`` group of a block."""
-    label = {"settings": "Run settings", "sequence": "Workflow sequence"}.get(
-        label, label
-    )
+    """The ``key -> value`` rows under one group of a block."""
     rows = {}
     for line in _group_lines(output, label):
         key, value = line.split(maxsplit=1)
@@ -1203,7 +1211,7 @@ def test_toolbox_label(identity, expected):
     assert rw._toolbox_label(identity) == expected
 
 
-def test_opening_block_states_the_project_and_the_config_in_one_group(
+def test_opening_block_states_the_project_settings_and_paths(
     tmp_path, capture_runs, capsys, monkeypatch
 ):
     """A console of four back-to-back Snakemake runs must say whose they are.
@@ -1212,10 +1220,8 @@ def test_opening_block_states_the_project_and_the_config_in_one_group(
     project, so before this block a scrolled-back or pasted console could not be
     attributed to a project or a config without asking.
 
-    ONE group: what came from the command line and what came from the config
-    were two, and that is a distinction the writer cares about rather than the
-    reader. `cores` went with the split -- it is not a property of the project,
-    and every hand-off band prints the `-c N` it forwarded.
+    The same flat Run settings / Paths sections as each workflow's opening,
+    with the same labels: `config`, `<project>`, then `repository`.
     """
     monkeypatch.setattr(
         rw,
@@ -1230,11 +1236,14 @@ def test_opening_block_states_the_project_and_the_config_in_one_group(
     assert "  run" not in out.splitlines()  # the old first group is gone
     rows = _group_rows(out, "settings")
     assert rows["project"] == "gabon_project"  # basename, no project_name key
-    assert rows["repository"] == str(rw._REPO_ROOT_PATH).replace(os.sep, "/")
     assert rows["toolbox"] == "v0.4.1 (d0802bf0)"
-    assert rows["folder"] == str(project_dir).replace(os.sep, "/")
-    assert "c.yml" in rows["config"]
     assert rows["cores"] == "7 per workflow"
+    paths = _group_raw_lines(out, "paths")
+    assert [line.split()[0] for line in paths] == ["config", "<project>", "repository"]
+    paths = _group_rows(out, "paths")
+    assert paths["repository"] == str(rw._REPO_ROOT_PATH).replace(os.sep, "/")
+    assert paths["<project>"] == str(project_dir).replace(os.sep, "/")
+    assert "c.yml" in paths["config"]
 
 
 def test_opening_block_lists_only_the_selected_sequence(tmp_path, capture_runs, capsys):
@@ -1352,19 +1361,12 @@ def test_the_basin_rows_are_omitted_when_the_config_declares_no_basin(
     tmp_path, capture_runs, capsys
 ):
     """The wrapper validates `workflows:` and nothing else, so both basin rows
-    are optional -- but project, repository, folder and config always answer."""
+    are optional -- but project, toolbox and the three paths always answer."""
     _, out, _ = _run_and_capture(
         tmp_path, capsys, {n: "true" for n in rw.WORKFLOW_ORDER}
     )
-    rows = _group_rows(out, "settings")
-    assert set(rows) == {
-        "project",
-        "toolbox",
-        "repository",
-        "folder",
-        "config",
-        "cores",
-    }
+    assert set(_group_rows(out, "settings")) == {"project", "toolbox", "cores"}
+    assert set(_group_rows(out, "paths")) == {"config", "<project>", "repository"}
     # No orphaned continuation either: with no region asked for, there is
     # nothing whose absence is worth a line.
     assert "not delineated yet" not in out
@@ -1445,7 +1447,7 @@ def test_the_console_is_not_muted_by_the_rule_log_level(
         tmp_path, capsys, {n: "true" for n in rw.WORKFLOW_ORDER}
     )
     assert "BlueEarth CST · workflow run" in out.splitlines()
-    assert "  Workflow sequence\n" in out
+    assert "\nWorkflow sequence\n" in out
     assert "wf0 analyze_climate" in out
     assert "run_workflows done in" in out
 
@@ -1987,7 +1989,19 @@ def test_only_historical_climate_inputs_receive_list_styling(tmp_path):
     )
     assert "historical forcing settings" not in block
     assert "\033" not in block
-    assert "\n  Run settings\n    project" in block
+    assert "\nRun settings\nproject" in block
+    painted = rw._opening_block(
+        cfg={},
+        project_name="Example",
+        project_dir=tmp_path,
+        config_path="project_config.yml",
+        dry_run=False,
+        flags={name: True for name in rw.WORKFLOW_ORDER},
+        toolbox={},
+        colour=True,
+    )
+    for heading in ("Run settings", "Paths", "Workflow sequence"):
+        assert f"\033[1;36m{heading}\033[0m" in painted
     assert not any(line.startswith("> ") for line in block.splitlines())
     climate = rw._climate_input_block(
         ("> Rainfall dataset: ERA5 (configured)",), colour=True

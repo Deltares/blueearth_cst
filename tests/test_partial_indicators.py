@@ -277,6 +277,8 @@ def test_cli_partial_run_succeeds_with_warning_and_strict_refuses(experiment, ex
             env=environment,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=1200,
         )
 

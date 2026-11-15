@@ -86,6 +86,8 @@ def _simulate(experiment, *extra):
         env=environment,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         # Several requests import and fingerprint their execution environment
         # in separate workers; allow cold Windows runs without a speed claim.
         timeout=1200,
@@ -109,12 +111,10 @@ def test_named_sets_dry_run_plans_each_distinct_request(tmp_path):
     code, output = _simulate(experiment, "--dry-run")
     assert code == 0, output
     # default (outvars absent -> retained gwr) and same_numbers are one request.
-    assert re.search(
-        r"run\s+4\.07\s+Check simulation outputs for indicators\s+2\b", output
-    ), output
-    assert re.search(r"pending\s+4\.08\s+Calculate indicators\s+2 planned", output), (
+    assert re.search(r"run\s+Check simulation outputs for indicators\s+2\b", output), (
         output
     )
+    assert re.search(r"pending\s+Calculate indicators\s+2 planned", output), output
     assert not (experiment.root / "_engine/indicator_requests").exists()
 
 
@@ -198,6 +198,8 @@ def test_erfa_set_executes_and_rechecks_retained_discharge(tmp_path):
         cwd=REPO,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=180,
     )
     assert checked.returncode == 0, checked.stdout + checked.stderr

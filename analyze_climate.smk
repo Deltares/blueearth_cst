@@ -331,14 +331,15 @@ from blueearth_cst.climate_analysis.rain_gauges import parse_rain_gauges
 from blueearth_cst.climate_analysis.diagnostic_outputs import location_comparison_outputs
 rain_gauge_settings = parse_rain_gauges(my_cfg.get("rain_gauges"))
 COMPARE_LOCATIONS = len(CANDIDATE_SOURCES) > 1 or rain_gauge_settings is not None
+FIGURE_SETTINGS = parse_figure_settings(my_cfg)
 if COMPARE_LOCATIONS:
     PREPARE_LOCATIONS = RULES.logged("0.05b", "prepare_location_comparisons", summary="sample native cells at locations and gauge sites")
-    PLOT_LOCATIONS = RULES.logged("0.05c", "plot_location_comparisons", summary="render per-location comparisons")
+    # Declared even with location figures off; the plan then lists it as `off`.
+    PLOT_LOCATIONS = RULES.logged("0.05c", "plot_location_comparisons", summary="render per-location comparisons", enabled=FIGURE_SETTINGS["location"])
 
 
 # The opt-in owns a separate product; it does not change existing numerical diagnostics.
 BASE_DIAGNOSTIC_SETTINGS = {k: v for k, v in DIAGNOSTIC_SETTINGS.items() if k != "annual_spatial_anomalies"}
-FIGURE_SETTINGS = parse_figure_settings(my_cfg)
 DIAGNOSTIC_SETTINGS["subbasin_figures"] = FIGURE_SETTINGS["location"]
 BASE_DIAGNOSTIC_SETTINGS["subbasin_figures"] = FIGURE_SETTINGS["location"]
 SOURCE_RENDER_SETTINGS = DIAGNOSTIC_SETTINGS | {"source_figures": FIGURE_SETTINGS["source"], "comparison_figures": FIGURE_SETTINGS["comparison"]}

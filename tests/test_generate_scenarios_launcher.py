@@ -227,6 +227,8 @@ def test_source_phase_replay_reaches_a_real_terminal_fd():
         cwd=str(Path(__file__).resolve().parents[1]),
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     assert result.returncode == 7
     assert "boom" in result.stderr

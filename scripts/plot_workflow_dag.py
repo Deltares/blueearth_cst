@@ -86,6 +86,9 @@ sys.path.insert(0, str(REPO_ROOT))
 from blueearth_cst.shared.config_composition import (  # noqa: E402
     load_composed_config,
 )
+from blueearth_cst.shared.project_label import (  # noqa: E402
+    project_name as display_project_name,
+)
 
 # Snakefile -> workflow number. The `wf<N>` labelling is the repo's existing
 # convention for per-workflow artifacts; keep this in step with the merged-log
@@ -165,8 +168,10 @@ def read_project(config_path: Path) -> tuple[Path, str, dict]:
     is resolved against the repo root -- the same directory Snakemake runs from,
     so the plot lands exactly where the workflow's own outputs do.
 
-    The name falls back to the ``project_dir`` basename, which is what the R01
-    schema offers; it is NOT routed through
+    The name follows :func:`blueearth_cst.shared.project_label.project_name`,
+    the rule the launcher header uses: an explicit ``project_name``, then the
+    case folder of a case trial, then the ``project_dir`` basename. It is NOT
+    routed through
     ``snake_utils.suggest_experiment_name`` (that adds a date stamp and enforces
     the experiment-name grammar -- neither wanted for a filename stem).
     """
@@ -209,8 +214,7 @@ def read_project(config_path: Path) -> tuple[Path, str, dict]:
     project_dir = Path(str(raw_dir))
     if not project_dir.is_absolute():
         project_dir = REPO_ROOT / project_dir
-    name = config.get("project_name") or project_dir.name
-    return project_dir, str(name), config
+    return project_dir, display_project_name(config, project_dir, config_path), config
 
 
 def build_graph(

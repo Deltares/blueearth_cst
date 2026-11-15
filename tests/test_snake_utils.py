@@ -7,6 +7,7 @@ is provably identity-preserving rather than merely green on a smoke test.
 
 import gc
 import io
+import json
 import os
 import re
 import subprocess
@@ -3324,10 +3325,10 @@ def test_console_run_info_renders_the_plan_block(monkeypatch):
         ),
     )
     assert out == (
-        "status  step  rule             jobs\n"
-        "run     1.01  snapshot_config     1\n"
-        "reuse   1.14  run_wflow           -\n"
-        "1 job  |  1 rule scheduled  |  1 rule up to date\n"
+        "status  rule             jobs\n"
+        "run     snapshot_config     1\n"
+        "reuse   run_wflow           -\n"
+        "1 job  |  1 scheduled  |  1 up to date\n"
         "\n"
     ), out
 
@@ -3356,7 +3357,7 @@ def test_console_opening_puts_the_rules_under_the_title(monkeypatch):
         < out.index("Paths")
         < out.index("Execution log")
     )
-    assert "run     1.01  a" in out and "reuse   1.02  b" in out
+    assert "run     a" in out and "reuse   b" in out
 
 
 def test_the_opening_block_draws_no_rules_at_all(monkeypatch):
@@ -3379,8 +3380,9 @@ def test_the_opening_block_draws_no_rules_at_all(monkeypatch):
     lines = out.split("\n")
     assert not [line for line in lines if set(line) in ({"="}, {"-"})], lines
     assert not [line for line in lines if line.startswith("-- ")], lines
-    assert lines[1] == "wf1 build_model"
-    assert "2 jobs" in out and "2 rules scheduled" in out
+    # The one rule is the band that carries the title (O18).
+    assert lines[1] == cs.workflow_band("wf1 build_model")
+    assert "2 jobs" in out and "2 scheduled" in out
 
 
 def test_console_opening_prints_once(monkeypatch):
@@ -3409,7 +3411,7 @@ def test_console_opening_survives_a_run_without_run_info(monkeypatch):
     lines = out.split("\n")
     # No plan means no table to caption, so the summary would go back onto the
     # title -- and none was reported here.
-    assert lines[1] == "wf1 build_model"
+    assert lines[1] == cs.workflow_band("wf1 build_model")
     assert "<project>  <repo>/test_case/test_rapid" in lines
 
 
@@ -3435,7 +3437,7 @@ def test_the_title_stays_for_a_standalone_snakemake_run(monkeypatch):
             "Job stats:\njob  count\n----  ---\na  1\ntotal  1\n", event="run_info"
         ),
     )
-    assert out.split("\n")[1] == "wf1 build_model"
+    assert out.split("\n")[1] == cs.workflow_band("wf1 build_model")
 
 
 def test_an_announced_run_keeps_the_title_when_it_carries_the_plan_summary(
@@ -3451,7 +3453,7 @@ def test_an_announced_run_keeps_the_title_when_it_carries_the_plan_summary(
     block = cs.opening_block(
         "wf1 build_model", "test_case/test_rapid", plan=("7 of 9 rules to run", [])
     )
-    assert ("wf1 build_model", "title") in block
+    assert (cs.workflow_band("wf1 build_model"), "title") in block
     assert ("7 of 9 rules to run", "body") in block
 
 
@@ -3465,8 +3467,8 @@ def test_console_plan_stands_alone_when_no_header_was_declared(monkeypatch):
             "Job stats:\njob  count\n----  ---\na  1\ntotal  1\n", event="run_info"
         ),
     )
-    assert out.startswith("status  step  rule  jobs")
-    assert "1 job  |  1 rule scheduled  |  1 rule up to date" in out
+    assert out.startswith("status  rule  jobs")
+    assert "1 job  |  1 scheduled  |  1 up to date" in out
 
 
 def test_open_run_header_writes_immediately_without_a_console(monkeypatch):
@@ -3482,12 +3484,168 @@ def test_open_run_header_writes_immediately_without_a_console(monkeypatch):
 
 def test_open_run_header_holds_it_for_the_console(monkeypatch):
     monkeypatch.setattr(cs, "_CONSOLE_STYLE_ACTIVE", True)
+    monkeypatch.setattr(cs, "_HEADER_PRINTED", False)
     monkeypatch.setattr(cs, "_RUN_HEADER", None)
     stream = io.StringIO()
     monkeypatch.setattr(sys, "stderr", stream)
     assert cs.open_run_header("wf1 build_model", "test_case/test_rapid") is True
     assert stream.getvalue() == ""  # held, not written
     assert cs._RUN_HEADER[0] == "wf1 build_model"
+
+
+def test_onstart_header_after_the_opening_is_not_reprinted_at_exit(monkeypatch):
+    """Snakefiles declare the header at parse AND in `onstart:`.
+
+    The queued log listener can print the opening block between the two calls.
+    The second call must not mark the header unprinted again, or the exit hook
+    repeats the whole block after the run summary (seen on a WF1 run,
+    2026-11-14).
+    """
+    monkeypatch.setattr(cs, "_CONSOLE_STYLE_ACTIVE", True)
+    monkeypatch.setattr(cs, "_HEADER_PRINTED", False)
+    monkeypatch.setattr(cs, "_RUN_HEADER", None)
+    monkeypatch.setattr(cs, "_DEFERRED_WARNINGS", [])
+    stream = io.StringIO()
+    monkeypatch.setattr(sys, "stderr", stream)
+    assert cs.open_run_header("wf1 build_model", "test_case/test_rapid") is True
+    handler = _console_handler()
+    handler._opening()  # the listener prints the opening block
+    assert cs._HEADER_PRINTED is True
+    assert cs.open_run_header("wf1 build_model", "test_case/test_rapid") is True
+    assert cs._HEADER_PRINTED is True
+    cs._flush_undrained_warnings()
+    assert stream.getvalue() == ""
+
+
+def _split_pass(monkeypatch, phase):
+    """Start one pass of a split WF4 run, its header declared as `onstart:` does."""
+    monkeypatch.setenv(cs.SPLIT_PHASE_ENV, phase)
+    monkeypatch.setattr(cs, "_HEADER_PRINTED", False)
+    monkeypatch.setattr(cs, "_RUN_HEADER", None)
+    return cs.open_run_header("wf4 simulate_system", "test_case/test_rapid")
+
+
+@pytest.fixture
+def split_run(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        cs, "_RULE_NUMBERS", {"sim": "4.05", "plan": "4.07", "derive": "4.08"}
+    )
+    monkeypatch.setattr(cs, "_AFTER_CHECKPOINT_RULES", {"plan": 2, "derive": 2})
+    monkeypatch.setattr(cs, "_PLANNED_FROM", {})
+    monkeypatch.setattr(cs, "_OFF_RULES", set())
+    monkeypatch.setattr(cs, "_DYNAMIC_PROGRESS_RULES", set())
+    monkeypatch.setattr(cs, "_DEFERRED_WARNINGS", [])
+    monkeypatch.setattr(cs, "_CONSOLE_STYLE_ACTIVE", True)
+    progress = tmp_path / "progress"
+    monkeypatch.setenv(cs.SPLIT_PROGRESS_ENV, str(progress))
+    return progress
+
+
+def _plan_rows_in(text):
+    return [
+        line.split()
+        for line in text.splitlines()
+        if line.split()[:1] in (["run"], ["reuse"], ["off"])
+    ]
+
+
+def test_a_split_wf4_run_reads_as_one_run(monkeypatch, split_run):
+    """WF4 runs simulations, then indicators, as two Snakemake passes (R11, W2).
+
+    The console presents one run: the first pass plans the indicator rules and
+    hides its internal `simulations_only` target and engine log line; the second
+    prints no opening block and continues the first pass's `[n/N]` counter.
+    """
+    progress = split_run
+    _split_pass(monkeypatch, "simulations")
+    first = _emit(
+        _console_handler(),
+        _console_record(
+            "Job stats:\njob  count\n----  ---\nsimulations_only  1\nsim  3\ntotal  4\n",
+            event="run_info",
+        ),
+        *[
+            record
+            for jobid in (1, 2, 3)
+            for record in (
+                _job_info(jobid, "sim", "Rule 4.05: sim"),
+                _console_record(event="job_finished", job_id=jobid),
+                _console_record(event="progress", done=jobid, total=4),
+            )
+        ],
+        _job_info(4, "simulations_only", "simulations_only"),
+        _console_record(event="job_finished", job_id=4),
+        _console_record(event="progress", done=4, total=4),
+        _console_record("Complete log(s): C:/repo/.snakemake/log/x.snakemake.log"),
+    )
+    assert first.count("wf4 simulate_system") == 1
+    assert _plan_rows_in(first)[:3] == [
+        ["run", "sim", "3"],
+        ["run", "plan", "2"],
+        ["run", "derive", "2"],
+    ]
+    assert "7 jobs" in first and "[3/7]" in first
+    assert "simulations_only" not in first and "Requested outputs" not in first
+    assert "Complete log" not in first
+    assert json.loads(progress.read_text(encoding="utf-8")) == {
+        "opened": True,
+        "done": 3,
+        "total": 7,
+    }
+
+    assert _split_pass(monkeypatch, "indicators") is True
+    second = _emit(
+        _console_handler(),
+        _console_record(
+            "Job stats:\njob  count\n----  ---\nall  1\nplan  2\ntotal  3\n",
+            event="run_info",
+        ),
+        _job_info(5, "plan", "Rule 4.07: plan"),
+        _console_record(event="job_finished", job_id=5),
+        _console_record(event="progress", done=1, total=3),
+    )
+    assert "status" not in second and "wf4 simulate_system" not in second
+    assert second.splitlines()[-1].endswith("[4/7]"), second
+    stream = io.StringIO()
+    monkeypatch.setattr(sys, "stderr", stream)
+    cs._flush_undrained_warnings()
+    assert stream.getvalue() == ""  # no header reprinted at exit
+
+
+def test_a_split_run_with_simulations_retained_opens_once(monkeypatch, split_run):
+    """Adding an indicator set to a retained experiment: the first pass has no
+    work, so it stays silent, and the indicator pass opens the run with its plan.
+    """
+    _split_pass(monkeypatch, "simulations")
+    first = _emit(
+        _console_handler(),
+        _console_record(
+            "Nothing to be done (all requested files are present and up to date)."
+        ),
+    )
+    assert first == ""
+    stream = io.StringIO()
+    monkeypatch.setattr(sys, "stderr", stream)
+    cs._flush_undrained_warnings()
+    assert stream.getvalue() == ""  # the silent pass prints no header at exit
+    monkeypatch.setattr(sys, "stderr", sys.__stderr__)
+
+    _split_pass(monkeypatch, "indicators")
+    second = _emit(
+        _console_handler(),
+        _console_record(
+            "Job stats:\njob  count\n----  ---\nall  1\nplan  2\ntotal  3\n",
+            event="run_info",
+        ),
+        _job_info(5, "plan", "Rule 4.07: plan"),
+        _console_record(event="job_finished", job_id=5),
+        _console_record(event="progress", done=1, total=3),
+    )
+    assert second.count("wf4 simulate_system") == 1
+    assert ["run", "plan", "2"] in _plan_rows_in(second)
+    assert ["run", "derive", "2"] in _plan_rows_in(second)
+    assert "no jobs scheduled" not in second
+    assert second.splitlines()[-1].endswith("[1/4]"), second
 
 
 def test_deferred_warning_lands_under_the_run_block(monkeypatch):
@@ -4113,7 +4271,7 @@ def test_run_header_shape_matches_run_summary():
     )
     lines = out.splitlines()
     assert lines[0] == ""
-    assert lines[1] == "wf3 run_stress_test"
+    assert lines[1] == cs.workflow_band("wf3 run_stress_test")
     assert lines[2] == ""
     assert "Snakemake command" in lines
     assert lines[lines.index("Run settings") :] == [
@@ -4148,7 +4306,7 @@ def test_run_header_states_the_declared_folders(declare_folders):
     assert rows[1].endswith("data/wflow_global/hydromt")
     assert rows[2].endswith("models/hydrology/wflow")
     # One column now, no group labels: the `<name>` rows announce themselves.
-    assert lines[1] == "wf1 build_model"
+    assert lines[1] == cs.workflow_band("wf1 build_model")
     assert "" in lines  # blank-line separation, not a wall
 
 
@@ -4230,7 +4388,7 @@ def test_a_rule_log_header_defines_every_token_its_rows_use(declare_folders, tmp
 
 
 def test_run_summary_closes_a_success_in_one_line():
-    """The duration, and nothing else.
+    """The closing band with the duration, and nothing else.
 
     The `log` and `benchmarks` rows this used to carry are already among rule
     `all`'s targets, printed just above. What survives is the one fact stated
@@ -4245,7 +4403,9 @@ def test_run_summary_closes_a_success_in_one_line():
         "wf3_benchmarks.md",
         elapsed_seconds=176,
     )
-    assert out.splitlines() == ["wf3 run_stress_test completed in 0:02:56"]
+    assert out.splitlines() == [
+        cs.workflow_band("wf3 run_stress_test completed in 0:02:56", cs._CLOSE_BAND)
+    ]
 
 
 def test_warning_tally_counts_across_processes(tmp_path, monkeypatch):
@@ -4336,12 +4496,16 @@ def test_run_summary_verdict_carries_the_warning_count(tmp_path, monkeypatch):
     out = cs.run_summary(
         "wf1", "p", "l.log", "b.md", elapsed_seconds=436, warnings=su.warning_count()
     )
-    assert out.splitlines()[0] == "wf1 completed in 0:07:16  |  1 warning"
+    assert out.splitlines()[0] == cs.workflow_band(
+        "wf1 completed in 0:07:16  |  1 warning", cs._CLOSE_BAND
+    )
     su.note_warning("plot")
     out = cs.run_summary(
         "wf1", "p", "l.log", "b.md", elapsed_seconds=436, warnings=su.warning_count()
     )
-    assert out.splitlines()[0].endswith("|  2 warnings"), out
+    assert out.splitlines()[0].startswith(
+        "── wf1 completed in 0:07:16  |  2 warnings "
+    ), out
 
 
 def test_run_summary_says_nothing_when_a_run_printed_no_warning(tmp_path, monkeypatch):
@@ -4353,7 +4517,9 @@ def test_run_summary_says_nothing_when_a_run_printed_no_warning(tmp_path, monkey
     out = cs.run_summary(
         "wf1", "p", "l.log", "b.md", elapsed_seconds=436, warnings=su.warning_count()
     )
-    assert out.splitlines() == ["wf1 completed in 0:07:16"]
+    assert out.splitlines() == [
+        cs.workflow_band("wf1 completed in 0:07:16", cs._CLOSE_BAND)
+    ]
 
 
 def test_run_summary_ignores_a_tally_it_was_not_handed(tmp_path, monkeypatch):
@@ -4367,7 +4533,9 @@ def test_run_summary_ignores_a_tally_it_was_not_handed(tmp_path, monkeypatch):
     monkeypatch.setenv(su._WARNING_TALLY_ENV, str(tmp_path / "t"))
     su.note_warning("someone else's run")
     out = cs.run_summary("wf1", "p", "l.log", "b.md", elapsed_seconds=436)
-    assert out.splitlines() == ["wf1 completed in 0:07:16"]
+    assert out.splitlines() == [
+        cs.workflow_band("wf1 completed in 0:07:16", cs._CLOSE_BAND)
+    ]
 
 
 def test_run_summary_failure_verdict_carries_it_too(tmp_path, monkeypatch):
@@ -4383,26 +4551,27 @@ def test_run_summary_failure_verdict_carries_it_too(tmp_path, monkeypatch):
         elapsed_seconds=249,
         warnings=su.warning_count(),
     )
-    head, rule = out.splitlines()[0], out.splitlines()[1]
-    assert head == "wf1 FAILED in 0:04:09  |  1 warning"
-    # The band under the title is sized on the head it underlines, field and all.
-    assert len(rule) == len(head)
+    assert out.splitlines()[0] == cs.workflow_band(
+        "wf1 FAILED in 0:04:09  |  1 warning", cs._CLOSE_BAND
+    )
 
 
-def test_run_summary_paints_only_the_failed_verdict(monkeypatch):
-    """Red marks the exceptional run; a success verdict stays unpainted.
+def test_run_summary_paints_the_closing_band_by_outcome(monkeypatch):
+    """The band is a boundary to find while scrolling: red on failure, green on success.
 
-    Written against the CONSTANT, like the three-tier test: the hue is a knob,
-    what must hold is that one verdict is marked and the other is not.
+    Written against the CONSTANTS: the hues are knobs; what must hold is that
+    the two outcomes are painted differently and wholly.
     """
     monkeypatch.setattr(sys, "stderr", _FakeTTY())
     failed = cs.run_summary("wf3", "p", "l.log", "b.md", failed=True)
     ok = cs.run_summary("wf3", "p", "l.log", "b.md")
-    # A failure is WHOLLY red: one loud signal, not red competing with bold.
-    assert failed.splitlines()[0] == su._ansi("wf3 FAILED", su._ANSI_FAIL)
+    assert failed.splitlines()[0] == su._ansi(
+        cs.workflow_band("wf3 FAILED", cs._CLOSE_BAND), su._ANSI_FAIL
+    )
     assert su._ANSI_FAIL not in ok
-    # A success bolds the NAME only, matching the opening title.
-    assert ok.splitlines()[0] == su._ansi("wf3", cs._ANSI_TITLE) + " completed"
+    assert ok.splitlines()[0] == su._ansi(
+        cs.workflow_band("wf3 completed", cs._CLOSE_BAND), cs._ANSI_CLOSE_BAND
+    )
 
 
 def test_run_summary_verdict_is_plain_when_stderr_is_not_a_console(monkeypatch):
@@ -4451,8 +4620,7 @@ def test_run_summary_failure_keeps_the_block_a_success_no_longer_needs():
         log_parts_dir="test_case/test_rapid/logs/_parts/experiment_rapid",
     )
     assert out.splitlines() == [
-        "wf3 run_stress_test FAILED",
-        "--------------------------",
+        cs.workflow_band("wf3 run_stress_test FAILED", cs._CLOSE_BAND),
         "",
         "log parts  test_case/test_rapid/logs/_parts/experiment_rapid/",
         "",
@@ -4499,7 +4667,7 @@ def test_run_header_omits_rows_a_workflow_does_not_have():
     """WF1 and WF2 pass no experiment; the block shrinks rather than showing a blank."""
     out = cs.run_header("wf1 build_model", "test_case/test_rapid")
     lines = out.splitlines()
-    assert lines[1] == "wf1 build_model"
+    assert lines[1] == cs.workflow_band("wf1 build_model")
     assert lines[-1] == "<project>  <repo>/test_case/test_rapid"
     assert not any("experiment" in line for line in lines)
 

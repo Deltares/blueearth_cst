@@ -72,6 +72,9 @@ from blueearth_cst.shared.cross_workflow_leaves import (  # noqa: E402
     LEAVES,
     model_leaves,
 )
+from blueearth_cst.shared.project_label import (  # noqa: E402
+    project_name as display_project_name,
+)
 from blueearth_cst.shared.provenance import (  # noqa: E402
     effective_config_digest,
     environment_file_hashes,
@@ -595,8 +598,14 @@ def _console_block(
     *,
     close: bool = False,
     include_banner: bool = True,
+    flat: bool = False,
+    colour: bool = False,
 ) -> str:
     """A banner, then labelled groups of rows.
+
+    ``flat`` drops the indentation: labels and rows start at column 0 and a
+    diagram follows its label directly, like a workflow's own opening sections.
+    The opening block is flat; the closing block keeps its indented groups.
 
     A group's rows are either ``(key, value)`` pairs -- aligned on ONE value
     column across the whole block, so the column does not restart at each label
@@ -614,15 +623,20 @@ def _console_block(
     pairs = [row for _, rows in groups for row in rows if isinstance(row, tuple)]
     width = max((len(key) for key, _ in pairs), default=0)
     lines = _banner(head) if include_banner else []
+    label_indent, row_indent = ("", "") if flat else ("  ", "    ")
     for label, rows in groups:
-        lines.extend(["", *_wrap_console(label, initial="  ", continuation="  ")])
-        if rows and not any(isinstance(row, tuple) for row in rows):
+        heading = _wrap_console(label, initial=label_indent, continuation=label_indent)
+        if colour:
+            # Bold cyan, the colour of a workflow's own section headings.
+            heading = [_ansi(line, "1;36") for line in heading]
+        lines.extend(["", *heading])
+        if rows and not flat and not any(isinstance(row, tuple) for row in rows):
             # A diagram, not key/value rows: a blank line parts it from its label.
             lines.append("")
         for row in rows:
             if isinstance(row, tuple):
                 key, value = row
-                prefix = f"    {key.ljust(width)}  "
+                prefix = f"{row_indent}{key.ljust(width)}  "
                 lines.extend(
                     _wrap_console(
                         str(value), initial=prefix, continuation=" " * len(prefix)
@@ -630,7 +644,11 @@ def _console_block(
                 )
             else:
                 lines.extend(
-                    _wrap_console(str(row), initial="    ", continuation=" " * 14)
+                    _wrap_console(
+                        str(row),
+                        initial=row_indent,
+                        continuation=row_indent + " " * 10,
+                    )
                 )
     if close:
         lines.extend(["", _RULE[: _console_width()]])
@@ -859,22 +877,27 @@ def _opening_block(
     experiment: tuple[str, str | None] | None = None,
     include_banner: bool = True,
     cores: int | None = None,
+    colour: bool = False,
 ) -> str:
     """Describe batch settings and selected workflow order; children disclose finalized engine commands."""
     rows: list[Any] = [("project", project_name)]
     if cores is not None:
         rows.append(("cores", f"{cores} per workflow"))
+    rows.extend(_settings_rows(cfg, project_dir))
     if experiment is not None:
         name, action = experiment
         rows.append(("experiment", f"{name} ({action})" if action else name))
-    rows.extend(_settings_rows(cfg, project_dir))
     rows.append(("toolbox", _toolbox_label(toolbox)))
-    rows.append(("repository", os.fspath(_REPO_ROOT_PATH).replace(os.sep, "/")))
-    rows.append(("folder", os.fspath(project_dir).replace(os.sep, "/")))
-    rows.append(("config", os.fspath(config_path).replace(os.sep, "/")))
+    # The same Run settings / Paths split, labels and order as every workflow's
+    # own opening, so the launcher and the workflows read as one grammar.
+    paths: list[Any] = [
+        ("config", os.fspath(config_path).replace(os.sep, "/")),
+        ("<project>", os.fspath(project_dir).replace(os.sep, "/")),
+        ("repository", os.fspath(_REPO_ROOT_PATH).replace(os.sep, "/")),
+    ]
     enabled = sum(1 for name in WORKFLOW_ORDER if flags[name])
     total = len(WORKFLOW_ORDER)
-    groups: list[tuple[str, list[Any]]] = [("Run settings", rows)]
+    groups: list[tuple[str, list[Any]]] = [("Run settings", rows), ("Paths", paths)]
     if enabled:
         groups.append(
             (
@@ -890,7 +913,11 @@ def _opening_block(
             (f"nothing to invoke -- 0 of {total} workflows are enabled here", [])
         )
     block = _console_block(
-        "BlueEarth CST · workflow run", groups, include_banner=include_banner
+        "BlueEarth CST · workflow run",
+        groups,
+        include_banner=include_banner,
+        flat=True,
+        colour=colour,
     )
     return ("DRY RUN — no jobs will execute\n\n" if dry_run else "") + block
 
@@ -1078,23 +1105,6 @@ def _under_project(path: Path, project_dir: Path) -> str:
     except ValueError:
         return os.fspath(path).replace(os.sep, "/")
     return "<project>/" + relative.as_posix()
-
-
-def _project_name(cfg: Mapping[str, Any], project_dir: Path) -> str:
-    """The project's display name: the explicit key, else the folder basename.
-
-    Same derivation as `scripts/plot_workflow_dag.py::read_project`, which names
-    its renders with it -- one console and one filename disagreeing about what
-    the project is called is exactly what a shared rule prevents.
-
-    Top level ONLY, matching that function exactly. A `project.project_name`
-    fallback looks like a kindness and is the defect this docstring claims to
-    prevent: no schema defines the key there, and a config carrying it would
-    make this console say one name while the DAG render filename said the
-    folder basename.
-    """
-    name = cfg.get("project_name")
-    return str(name) if name else project_dir.name
 
 
 def _validate_rebuild(
@@ -1623,7 +1633,9 @@ def _run_owned(
             "\n"
             + _opening_block(
                 cfg=cfg,
-                project_name=_project_name(cfg, project_dir),
+                # Shared with the DAG render filenames (`project_label`): an
+                # explicit top-level `project_name`, then the case folder.
+                project_name=display_project_name(cfg, project_dir, config_path),
                 project_dir=project_dir,
                 config_path=config_path,
                 dry_run=manifest["dry_run"],
@@ -1634,6 +1646,7 @@ def _run_owned(
                 else None,
                 include_banner=False,
                 cores=cores,
+                colour=_console_colour(sys.stdout),
             ),
             flush=True,
         )
@@ -1880,33 +1893,37 @@ def _run_owned(
                     )
 
                     # Simulations first, then indicators (R11, W2).
-                    for phase_cmd, phase_environment in simulation_phases(
-                        cmd, environment
-                    ):
-                        result = subprocess.CompletedProcess(
-                            phase_cmd,
-                            run_project_child(
+                    progress_path = history_path.with_name(f".{child_id}.progress")
+                    try:
+                        for phase_cmd, phase_environment in simulation_phases(
+                            cmd, environment, progress_path
+                        ):
+                            result = subprocess.CompletedProcess(
                                 phase_cmd,
-                                cwd=REPO_ROOT,
-                                writing=not preview,
-                                env={
-                                    **phase_environment,
-                                    **execution_outputs.environment(
-                                        child_path, child_record
-                                    ),
-                                    "CST_SIMULATION_INVOCATION_ID": child_id,
-                                    "CST_SIMULATION_FINALIZE": "1",
-                                    console_style.ANNOUNCED_ENV: "1",
-                                    invocation_history.PARENT_ENV: history[
-                                        "invocation_id"
-                                    ],
-                                    invocation_history.INVOCATION_ENV: child_id,
-                                    RUN_WARNING_TALLY_ENV: str(warning_path),
-                                },
-                            ),
-                        )
-                        if result.returncode != 0:
-                            break
+                                run_project_child(
+                                    phase_cmd,
+                                    cwd=REPO_ROOT,
+                                    writing=not preview,
+                                    env={
+                                        **phase_environment,
+                                        **execution_outputs.environment(
+                                            child_path, child_record
+                                        ),
+                                        "CST_SIMULATION_INVOCATION_ID": child_id,
+                                        "CST_SIMULATION_FINALIZE": "1",
+                                        console_style.ANNOUNCED_ENV: "1",
+                                        invocation_history.PARENT_ENV: history[
+                                            "invocation_id"
+                                        ],
+                                        invocation_history.INVOCATION_ENV: child_id,
+                                        RUN_WARNING_TALLY_ENV: str(warning_path),
+                                    },
+                                ),
+                            )
+                            if result.returncode != 0:
+                                break
+                    finally:
+                        progress_path.unlink(missing_ok=True)
                     resource_tracking.phase(child_path, "finalization")
                     snapshot = environment.get("CST_INDICATOR_SELECTION")
                     if (

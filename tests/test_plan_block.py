@@ -32,6 +32,7 @@ def rules(monkeypatch):
 
     def install(mapping):
         monkeypatch.setattr(cs, "_RULE_NUMBERS", dict(mapping))
+        monkeypatch.setattr(cs, "_OFF_RULES", set())
 
     return install
 
@@ -130,13 +131,13 @@ def test_numbers_sort_lexicographically(rules):
 def test_head_says_all_to_run_when_nothing_is_up_to_date(rules):
     rules({"a": "1.01", "b": "1.02"})
     head, _ = cs._plan_lines({"a": 1, "b": 1})
-    assert head == "2 jobs  |  2 rules scheduled  |  0 rules up to date"
+    assert head == "2 jobs  |  2 scheduled  |  0 up to date"
 
 
 def test_head_names_both_halves_on_a_partial_run(rules):
     rules({"a": "1.01", "b": "1.02", "c": "1.03"})
     head, _ = cs._plan_lines({"a": 1})
-    assert head == "1 job  |  1 rule scheduled  |  2 rules up to date"
+    assert head == "1 job  |  1 scheduled  |  2 up to date"
 
 
 def test_head_always_carries_the_job_count(rules):
@@ -152,7 +153,7 @@ def test_head_always_carries_the_job_count(rules):
 def test_a_single_rule_is_not_pluralized(rules):
     rules({"a": "1.01"})
     head, _ = cs._plan_lines({"a": 1})
-    assert head == "1 job  |  1 rule scheduled  |  0 rules up to date"
+    assert head == "1 job  |  1 scheduled  |  0 up to date"
 
 
 # --- the rows ---------------------------------------------------------------
@@ -163,9 +164,9 @@ def test_the_gutter_marks_what_will_run(rules):
     rules({"a": "1.01", "b": "1.02"})
     _, rows = cs._plan_lines({"b": 1})
     texts = [text for text, _ in rows]
-    assert texts[0].split() == ["status", "step", "rule", "jobs"]
-    assert texts[1].split() == ["reuse", "1.01", "a", "-"]
-    assert texts[2].split() == ["run", "1.02", "b", "1"]
+    assert texts[0].split() == ["status", "rule", "jobs"]
+    assert texts[1].split() == ["reuse", "a", "-"]
+    assert texts[2].split() == ["run", "b", "1"]
 
 
 def test_the_gutter_column_goes_when_no_rule_is_up_to_date(rules):
@@ -191,8 +192,8 @@ def test_an_up_to_date_rule_has_an_empty_count_cell(rules):
     """
     rules({"a": "1.01", "b": "1.02"})
     _, rows = cs._plan_lines({"b": 4})
-    assert rows[1][0].split() == ["reuse", "1.01", "a", "-"]
-    assert rows[2][0].split() == ["run", "1.02", "b", "4"]
+    assert rows[1][0].split() == ["reuse", "a", "-"]
+    assert rows[2][0].split() == ["run", "b", "4"]
 
 
 def test_rows_report_whether_they_run(rules):
@@ -209,15 +210,13 @@ def test_pre_dag_steps_are_listed_in_number_order(rules, monkeypatch):
 
     head, rows = cs._plan_lines({"generate": 1, "perturb": 12})
 
-    assert head == (
-        "13 jobs  |  2 rules scheduled  |  1 rule up to date  |  2 completed before DAG execution"
-    )
+    assert head == ("13 jobs  |  2 scheduled  |  1 up to date  |  2 completed")
     assert [(text.split(), state) for text, state in rows[1:]] == [
-        (["reuse", "3.03", "cached", "-"], False),
-        (["done", "3.04", "plan", "-"], False),
-        (["done", "3.05", "claim", "-"], False),
-        (["run", "3.07", "generate", "1"], True),
-        (["run", "3.08", "perturb", "12"], True),
+        (["reuse", "cached", "-"], False),
+        (["done", "plan", "-"], False),
+        (["done", "claim", "-"], False),
+        (["run", "generate", "1"], True),
+        (["run", "perturb", "12"], True),
     ]
 
 
@@ -252,7 +251,7 @@ def test_every_rule_up_to_date_still_renders(rules):
     """Reachable when only the excluded `all` job remains."""
     rules({"a": "1.01"})
     head, rows = cs._plan_lines({"all": 1})
-    assert head == "0 jobs  |  0 rules scheduled  |  1 rule up to date"
+    assert head == "0 jobs  |  0 scheduled  |  1 up to date"
     assert not any(">" in text for text, _ in rows)
 
 
@@ -281,26 +280,21 @@ def test_nothing_is_declared_when_the_ledger_is_complete(rules):
 def test_a_rule_behind_a_checkpoint_shows_its_planned_count(rules, monkeypatch):
     """WF4's 4.07/4.08 are absent from the opening table because a checkpoint
     has not run yet, not because they are satisfied: they show the jobs they
-    plan, as runnable rows, and the head counts them."""
+    plan, listed as `run`, and the head counts their jobs and rules."""
     rules({"publish": "4.06", "plan": "4.07", "derive": "4.08", "done": "4.05"})
     monkeypatch.setattr(cs, "_AFTER_CHECKPOINT_RULES", {"plan": 1, "derive": 1})
     head, rows = cs._plan_lines({"publish": 1})
-    assert (
-        head
-        == "1 job  |  1 rule scheduled  |  1 rule up to date  |  2 rules pending checkpoints"
-    )
-    texts = [text for text, _ in rows]
-    assert texts[3].startswith("pending") and texts[3].endswith("1 planned")
-    assert texts[4].startswith("pending") and texts[4].endswith("1 planned")
-    assert "pending checkpoints" in head
+    assert head == "3 jobs  |  3 scheduled  |  1 up to date"
+    texts = [(text.split(), state) for text, state in rows[3:]]
+    assert texts == [(["run", "plan", "1"], True), (["run", "derive", "1"], True)]
 
 
-def test_a_checkpoint_rule_without_a_planned_count_is_left_empty(rules, monkeypatch):
+def test_a_checkpoint_rule_without_a_planned_count_shows_unknown(rules, monkeypatch):
     rules({"publish": "4.06", "plan": "4.07"})
     monkeypatch.setattr(cs, "_AFTER_CHECKPOINT_RULES", {"plan": None})
     head, rows = cs._plan_lines({"publish": 1})
-    assert rows[2][0].split() == ["pending", "4.07", "plan", "?"]
-    assert "pending checkpoints" in head
+    assert rows[2][0].split() == ["run", "plan", "?"]
+    assert head == "1 job  |  2 scheduled  |  0 up to date"
 
 
 def test_a_checkpoint_rule_with_jobs_shows_its_count(rules, monkeypatch):
@@ -309,7 +303,7 @@ def test_a_checkpoint_rule_with_jobs_shows_its_count(rules, monkeypatch):
     monkeypatch.setattr(cs, "_AFTER_CHECKPOINT_RULES", {"plan": 1})
     head, rows = cs._plan_lines({"plan": 1})
     assert "after checkpoint" not in head
-    assert rows[1][0].split() == ["run", "4.07", "plan", "1"]
+    assert rows[1][0].split() == ["run", "plan", "1"]
 
 
 def test_a_declared_rule_lists_even_when_its_banner_never_renders(rules, tmp_path):
@@ -321,9 +315,61 @@ def test_a_declared_rule_lists_even_when_its_banner_never_renders(rules, tmp_pat
     cs.declared_step("3.04", "snapshot")
     _, rows = cs._plan_lines({"publish": 1})
     texts = [text.split() for text, _ in rows[1:]]
-    assert [t[1] for t in texts] == ["3.04", "3.07", "3.09"]
-    assert texts[0] == ["reuse", "3.04", "snapshot", "-"]
-    assert texts[1] == ["reuse", "3.07", "generate", "-"]
+    # In number order (3.04, 3.07, 3.09); the table no longer prints the numbers.
+    assert [t[1] for t in texts] == ["snapshot", "generate", "publish"]
+    assert texts[0] == ["reuse", "snapshot", "-"]
+    assert texts[1] == ["reuse", "generate", "-"]
+
+
+# --- rules switched off by config -------------------------------------------
+
+
+def test_a_switched_off_rule_reads_off_not_reuse(rules, tmp_path):
+    """A disabled figure switch leaves the rule declared but unrequested.
+
+    Both it and an up-to-date rule are absent from Snakemake's job table; only
+    the registry knows which one was never asked for.
+    """
+    rules({"prepare": "0.05b", "current": "0.04"})
+    registry = cs.RuleRegistry(str(tmp_path / "logs"), str(tmp_path / "bench"))
+    registry.logged("0.05c", "plot", enabled=False)
+    head, rows = cs._plan_lines({"prepare": 1})
+    texts = [text.split() for text, _ in rows[1:]]
+    assert texts == [
+        ["reuse", "current", "-"],
+        ["run", "prepare", "1"],
+        ["off", "plot", "-"],
+    ]
+    assert head == "1 job  |  1 scheduled  |  1 up to date  |  1 off"
+    assert [state for _, state in rows[1:]] == [False, True, False]
+
+
+def test_re_registering_a_rule_enabled_clears_off(rules, tmp_path):
+    """The registry outlives one parsed Snakefile; the latest declaration wins."""
+    rules({})
+    registry = cs.RuleRegistry(str(tmp_path / "logs"), str(tmp_path / "bench"))
+    registry.banner_only("1.11", "plot", enabled=False)
+    registry.banner_only("1.11", "plot")
+    _, rows = cs._plan_lines({"all": 1})
+    assert rows[1][0].split() == ["reuse", "plot", "-"]
+
+
+def test_a_switched_off_rule_with_jobs_reports_run(rules, monkeypatch):
+    """If another target still needs its outputs, it runs, and says so."""
+    rules({"plot": "1.11"})
+    monkeypatch.setattr(cs, "_OFF_RULES", {"plot"})
+    _, rows = cs._plan_lines({"plot": 1})
+    assert rows[1][0].split() == ["run", "plot", "1"]
+
+
+def test_switched_off_checkpoint_rules_are_off_not_run(rules, monkeypatch):
+    """A simulations-only WF4 selection has no indicator work to plan."""
+    rules({"publish": "4.06", "plan": "4.07", "derive": "4.08"})
+    monkeypatch.setattr(cs, "_AFTER_CHECKPOINT_RULES", {"plan": 1, "derive": 1})
+    monkeypatch.setattr(cs, "_OFF_RULES", {"plan", "derive"})
+    head, rows = cs._plan_lines({"publish": 1})
+    assert head == "1 job  |  1 scheduled  |  0 up to date  |  2 off"
+    assert [text.split()[0] for text, _ in rows[1:]] == ["run", "off", "off"]
 
 
 def test_defer_rows_queues_a_captured_warning_for_the_run_header(monkeypatch, capsys):
