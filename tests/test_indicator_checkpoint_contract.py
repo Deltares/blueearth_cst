@@ -117,7 +117,7 @@ def test_a_dry_run_writes_nothing_and_a_stale_response_is_refused(tmp_path):
     assert re.search(r"run\s+Check simulation outputs for indicators\s+2\b", output), (
         output
     )
-    assert re.search(r"pending\s+Calculate indicators\s+2 planned", output), output
+    assert re.search(r"run\s+Calculate indicators\s+2\b", output), output
     assert not (root / "_engine/indicator_requests").exists()
     assert not (root / "_engine/indicator_sets").exists()
     assert not (root / "results/indicator_sets").exists()

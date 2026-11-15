@@ -54,11 +54,21 @@ def render(
     )
     with use_preset(CST_PRESET):
         preset = active()
-        fig, axes = fundamentals.new_fig(preset.heights["single"], width_mm=preset.widths["panel"])
+        fig, axes = fundamentals.new_fig(
+            preset.heights["single"], width_mm=preset.widths["panel"]
+        )
         ax = axes[0, 0]
-        xmax = max(1.2, float(available.aridity_index.max()) * 1.25) if len(available) else 1.2
+        xmax = (
+            max(1.2, float(available.aridity_index.max()) * 1.25)
+            if len(available)
+            else 1.2
+        )
         # Headroom above the water limit keeps the key clear of the Q/P = 1 line.
-        ymax = max(1.3, float(available.runoff_coefficient.max()) * 1.3) if len(available) else 1.3
+        ymax = (
+            max(1.3, float(available.runoff_coefficient.max()) * 1.3)
+            if len(available)
+            else 1.3
+        )
         reference = {"color": preset.colors["muted"], "lw": preset.lines["ref"]}
         ax.plot([0, xmax], [1, 1], ls=TREND_DASH, label="Water limit", **reference)
         ax.plot([0, 1], [1, 0], ls=":", label="Energy limit", **reference)
@@ -85,7 +95,11 @@ def render(
                 xytext=(station.aridity_index + 0.04 * xmax, label_y),
                 textcoords="data",
                 va="center",
-                arrowprops={"arrowstyle": "-", "color": preset.colors["muted"], "lw": 0.4},
+                arrowprops={
+                    "arrowstyle": "-",
+                    "color": preset.colors["muted"],
+                    "lw": 0.4,
+                },
                 fontsize=preset.fonts["tick"],
                 bbox=dict(preset.label_box),
             )
@@ -137,7 +151,9 @@ def _merge_inventory(plots: Path, name: str, record: dict) -> None:
         else {"schema_version": 1, "figures": {}}
     )
     inventory["figures"][name] = record
-    inventory["produced_paths"] = list(inventory["figures"]) + figure_inventory_paths(plots)
+    inventory["produced_paths"] = list(inventory["figures"]) + figure_inventory_paths(
+        plots
+    )
     path.write_text(
         json.dumps(inventory, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
@@ -145,7 +161,8 @@ def _merge_inventory(plots: Path, name: str, record: dict) -> None:
     (plots / "figure_captions.md").write_text(
         "# Figure captions\n\n"
         + "\n\n".join(
-            f"## {key}\n\n{value['caption']}" for key, value in inventory["figures"].items()
+            f"## {key}\n\n{value['caption']}"
+            for key, value in inventory["figures"].items()
         )
         + "\n",
         encoding="utf-8",

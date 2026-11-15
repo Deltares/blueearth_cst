@@ -159,9 +159,7 @@ def evaluate(
         "spatial_method": "nearest model forcing cell at hydrography cell centres, weighted by hydrography cell_area",
         "temporal_method": "complete matched water years; ratios of totals; no infilling or spinup exclusion",
     }
-    Path(methods_path).write_text(
-        json.dumps(record, indent=2) + "\n", encoding="utf-8"
-    )
+    Path(methods_path).write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":
