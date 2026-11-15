@@ -37,6 +37,8 @@ defaults; CST loads them from `config/plotting/style.yml` → `maps.panels`. It 
 figures, capped by `max_panels_per_figure` (default 12); export every figure as a numbered file or PDF page.
 The final partial page keeps the same map sizes and scale. Keep class boundaries and
 scientific meaning in the caller. See the [spatial-panel style](docs/cst-style.md#spatial-map-panels).
+`MapScale.extend` lists the sides a key may extend; `prepared_maps.key_extend` keeps only those that drawn
+cells pass, deciding once for a whole panel set (see the [spatial map template](docs/cst-style.md#spatial-map-template)).
 Use `draw_raster_matrix` when rows and columns have distinct meanings. Supply rectangular fields, row and
 column labels, and per-tile headings (for example member counts); pagination preserves that matrix structure.
 

@@ -79,17 +79,28 @@ _MAP_NUMBERS = (
     "river_width",
     "river_halo_width",
     "location_label_wrap",
+    "key_title_wrap",
     "basin_outline_width",
     "divide_width",
+    "outline_halo_width",
     "location_size",
     "location_label_size",
+    "location_label_halo_width",
+    "scale_bar_halo_width",
     "scale_bar_segments",
+    "anomaly_classes",
 )
 _MAP_LISTS = ("river_order_widths", "divide_dash")
 
 
 def _check_maps(maps: dict[str, Any], path: Path) -> None:
-    expected = {*_MAP_NUMBERS, *_MAP_LISTS, "location_marker", "panels"}
+    expected = {
+        *_MAP_NUMBERS,
+        *_MAP_LISTS,
+        "location_marker",
+        "anomaly_colormap_range",
+        "panels",
+    }
     if set(maps) != expected:
         raise ValueError(f"{path}: maps requires exactly {sorted(expected)}")
 
@@ -105,6 +116,19 @@ def _check_maps(maps: dict[str, Any], path: Path) -> None:
             raise ValueError(f"{path}: maps.{name} must be a list of positive numbers")
     if not isinstance(maps["location_marker"], str) or not maps["location_marker"]:
         raise ValueError(f"{path}: maps.location_marker must be a marker string")
+    if type(maps["anomaly_classes"]) is not int or maps["anomaly_classes"] % 2:
+        raise ValueError(f"{path}: maps.anomaly_classes must be an even integer")
+    span = maps["anomaly_colormap_range"]
+    if (
+        not isinstance(span, list)
+        or len(span) != 2
+        or any(type(value) not in (int, float) for value in span)
+        or not 0 <= span[0] < span[1] <= 1
+    ):
+        raise ValueError(
+            f"{path}: maps.anomaly_colormap_range must be [low, high] with "
+            "0 <= low < high <= 1"
+        )
     panels = maps["panels"]
     panel_keys = {
         "columns",

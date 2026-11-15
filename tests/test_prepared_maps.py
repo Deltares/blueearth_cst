@@ -300,8 +300,11 @@ def test_keys_extend_canvas_without_resizing_map(extent):
             assert bounds.x1 <= fig.get_figwidth()
             assert bounds.y1 <= fig.get_figheight()
         np.testing.assert_allclose(sizes, np.tile(sizes[0], (3, 1)), atol=1e-10)
-        assert figures[1].get_figwidth() > figures[0].get_figwidth()
-        assert figures[2].get_figwidth() > figures[0].get_figwidth()
+        # Keyed maps reserve one side-panel width, so keys that fit inside it
+        # share a canvas; a keyless map carries no empty panel.
+        widths = [fig.get_figwidth() for fig in figures]
+        np.testing.assert_allclose(widths[1], widths[2], atol=1e-6)
+        assert widths[0] < widths[1]
     finally:
         for fig in figures:
             plt.close(fig)
@@ -358,5 +361,193 @@ def test_locations_prefer_names_with_id_fallback(name):
     try:
         labels = _draw_overlays(ax, {"locations": [location]})
         assert [label for _, _, label in labels] == [expected]
+    finally:
+        plt.close(fig)
+
+
+def _scale(extend="both"):
+    from blueearth_cst.plotting.prepared_maps import MapScale
+
+    return MapScale(
+        "mm",
+        (0, 10, 20),
+        (0, 10, 20),
+        ("blue", "red"),
+        "white",
+        "black",
+        "gray",
+        "available",
+        extend,
+    )
+
+
+@pytest.mark.parametrize(
+    "values,permitted,expected",
+    [
+        ([5, 10, 15, 20], "both", "neither"),  # the closed top boundary is in scale
+        ([-1, 10, 15, 20], "both", "min"),
+        ([5, 10, 15, 21], "both", "max"),
+        ([-1, 10, 15, 21], "both", "both"),
+        ([-1, 10, 15, 21], "max", "max"),
+        ([-1, 10, 15, 21], "neither", "neither"),
+        ([np.nan, 10, 15, 20], "both", "neither"),
+    ],
+)
+def test_key_extensions_follow_drawn_off_scale_cells(values, permitted, expected):
+    from blueearth_cst.plotting.prepared_maps import key_extend
+
+    assert key_extend([_raster(values)], _FRAME, _scale(permitted)) == expected
+
+
+def test_key_extensions_ignore_hidden_and_out_of_frame_cells():
+    from blueearth_cst.plotting.prepared_maps import key_extend
+
+    inside = np.array([[True, True, True, False]])
+    hidden = RasterMap(
+        np.array([[5.0, 10.0, 15.0, 99.0]]),
+        np.arange(5.0),
+        np.array([0.0, 1.0]),
+        inside,
+    )
+    beyond = RasterMap(
+        np.array([[5.0, 10.0, 15.0, 99.0]]), np.arange(5.0) + 4.5, np.array([0.0, 1.0])
+    )
+    masked = RasterMap(
+        np.ma.masked_greater(np.array([[5.0, 10.0, 15.0, 99.0]]), 50),
+        np.arange(5.0),
+        np.array([0.0, 1.0]),
+    )
+    for raster in (hidden, masked):
+        assert key_extend([raster], _FRAME, _scale()) == "neither"
+    # Only the first column of ``beyond`` intersects the 0-4 frame.
+    assert key_extend([beyond], _FRAME, _scale()) == "neither"
+
+
+def test_paginated_panels_share_one_pointed_key():
+    """A late page's off-scale cell extends every page's key, not only its own."""
+    from dataclasses import replace
+
+    import matplotlib.pyplot as plt
+
+    from blueearth_cst.plotting.prepared_maps import draw_raster_panels
+    from blueearth_cst.plotting.preset import NEUTRAL, use_preset
+
+    preset = replace(
+        NEUTRAL, map_panels={**NEUTRAL.map_panels, "max_panels_per_figure": 2}
+    )
+    rasters = [_raster([5, 10, 15, 20])] * 3 + [_raster([5, 10, 15, 25])]
+    with use_preset(preset):
+        figures = draw_raster_panels(
+            rasters, [str(i) for i in range(4)], _FRAME, _scale(), {}
+        )
+    try:
+        keys = [fig.axes[-1]._colorbar for fig in figures]
+        assert [key.extend for key in keys] == ["max", "max"]
+        assert not any(key.extendrect for key in keys)
+        # Off-scale colours are unchanged: the norm keeps the permitted sides.
+        cmap = figures[1].axes[1].collections[0].cmap
+        assert cmap.get_over() == pytest.approx((0, 0, 0, 1))
+    finally:
+        for fig in figures:
+            plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    "value,text",
+    [(0.0, "0"), (-0.0, "0"), (0.4, "0.4"), (-600.0, "−600"), (2.5e-1, "0.25")],
+)
+def test_key_ticks_carry_no_padded_zeros(value, text):
+    from blueearth_cst.plotting.prepared_maps import _tick_text
+
+    assert _tick_text(value) == text
+
+
+@pytest.mark.parametrize(
+    "ticks,expected",
+    [
+        ([0.35, 0.4, 0.45], ["0.35", "0.40", "0.45"]),
+        ([9.7, 9.8], ["9.7", "9.8"]),
+        ([-0.5, 0.0, 0.25], ["−0.50", "0.00", "0.25"]),
+        ([10.0, 11.0], ["10", "11"]),
+        ([0.1 + 0.2, 0.4], ["0.3", "0.4"]),
+    ],
+)
+def test_coordinate_ticks_share_one_precision_per_axis(ticks, expected):
+    from blueearth_cst.plotting.prepared_maps import _coordinate_formatter
+
+    formatter = _coordinate_formatter(ticks)
+    assert [formatter(value) for value in ticks] == expected
+
+
+@pytest.mark.parametrize("height,thinned", [(0.9, False), (0.12, True)])
+def test_crowded_key_keeps_every_second_tick_with_ends_and_zero(height, thinned):
+    import matplotlib.pyplot as plt
+    from matplotlib.cm import ScalarMappable
+    from matplotlib.colors import BoundaryNorm, ListedColormap
+
+    from blueearth_cst.plotting.prepared_maps import _thin_crowded_key_ticks
+
+    boundaries = [-600, -450, -300, -150, 0, 150, 300, 450, 600]
+    fig = plt.figure(figsize=(2, 3))
+    cax = fig.add_axes((0.4, 0.05, 0.08, height))
+    mappable = ScalarMappable(BoundaryNorm(boundaries, 8), ListedColormap(["0.5"] * 8))
+    colorbar = fig.colorbar(mappable, cax=cax, ticks=boundaries)
+    try:
+        _thin_crowded_key_ticks(fig, colorbar)
+        ticks = list(colorbar.get_ticks())
+        assert ticks == (boundaries[::2] if thinned else boundaries)
+        assert {-600, 0, 600} <= set(ticks)
+    finally:
+        plt.close(fig)
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("north_tributary", "north tributary"),
+        ("auto_01", "auto 01"),
+        ("A__B", "A B"),
+        ("Alexandria", "Alexandria"),
+    ],
+)
+def test_map_labels_read_underscores_as_spaces(name, expected):
+    from blueearth_cst.plotting.location_labels import map_display_label, wrap_label
+
+    assert map_display_label(name) == expected
+    assert not wrap_label(map_display_label(name), 6).endswith("_")
+
+
+def test_point_labels_avoid_rivers_when_a_clear_offset_exists():
+    """IDs stay raw in data; the drawn label is the display form and leaves the river."""
+    import matplotlib.pyplot as plt
+    from matplotlib.text import Text
+
+    from blueearth_cst.plotting.prepared_maps import draw_raster_map
+
+    frame = MapFrame((0.0, 4.0, 0.0, 4.0), (), (), 1.0)
+    raster = RasterMap(
+        np.full((1, 1), 15.0), np.array([0.0, 4.0]), np.array([0.0, 4.0])
+    )
+    # A river leaving the gauge up and to the right covers the default offset.
+    river = {
+        "geometry": {"type": "LineString", "coordinates": [[2, 2], [4, 4]]},
+        "properties": {},
+    }
+    gauge = {
+        "geometry": {"type": "Point", "coordinates": [2, 2]},
+        "properties": {"station_name": "north_tributary"},
+    }
+    fig = draw_raster_map(
+        raster, frame, _scale(), {"rivers": [river], "locations": [gauge]}
+    )
+    try:
+        ax = fig.axes[0]
+        (label,) = [t for t in ax.texts if "tributary" in t.get_text()]
+        assert label.get_text() == "north\ntributary"
+        renderer = fig.canvas.get_renderer()
+        box = Text.get_window_extent(label, renderer)
+        line = next(line for line in ax.lines if line.get_label() == "_cst_river")
+        path = line.get_transform().transform_path(line.get_path())
+        assert not path.intersects_bbox(box, filled=False)
     finally:
         plt.close(fig)

@@ -31,6 +31,7 @@ class PreparedLine:
     color: str
     linestyle: object = "-"
     marker: str = ""
+    linewidth: float | None = None
 
 
 def series_panel(
@@ -40,13 +41,14 @@ def series_panel(
     ylabel: str,
     ticks: tuple[Sequence, Sequence[str]] | None = None,
     xlim: tuple | None = None,
-    width_mm: float = 127,
-    height_mm: float = 65,
+    log_y: bool = False,
+    height_mm: float | None = None,
 ) -> Figure:
-    """Draw one prepared comparison panel with a measured, nontruncated legend.
+    """Draw one prepared comparison panel on the standard single-chart canvas.
 
-    Missing values retain gaps. Legend rows grow the canvas without shrinking
-    the data area or fonts. The caller owns units, support, ordering and export.
+    Missing values retain gaps. Two or more lines get the canonical inside
+    legend; a single line has none (the caption names it). ``log_y`` drops
+    non-positive values from view. The caller owns units, support and export.
     """
     if not lines:
         raise ValueError("supply at least one prepared line")
@@ -54,21 +56,31 @@ def series_panel(
         _vector(line.y, "line values")
         if np.asanyarray(line.x).ndim != 1 or len(line.x) != len(line.y):
             raise ValueError("line coordinates must have matching vector lengths")
-    # One entry per row also accommodates long retained-run labels without loss.
-    fig, axes = f.new_fig(height_mm=height_mm + 4 * len(lines), width_mm=width_mm)
+    fig, axes = f.new_fig(height_mm or active().heights["single"])
     ax = axes[0, 0]
     handles = []
     for line in lines:
+        style = f.time_series_style(line.label, line.color)
+        style["linestyle"] = line.linestyle
+        if line.linewidth is not None:
+            style["linewidth"] = line.linewidth
+        y = np.asanyarray(line.y, dtype=float)
+        if log_y:
+            y = np.where(y > 0, y, np.nan)
         (artist,) = ax.plot(
             line.x,
-            line.y,
+            y,
             label=line.label,
             marker=line.marker,
-            markevery=max(1, len(line.y) // 12),
-            **f.time_series_style(line.label, line.color),
+            markevery=max(1, len(y) // 12),
+            **style,
         )
         handles.append(artist)
-    ax.set(xlabel=xlabel, ylabel=ylabel, ylim=(0, None))
+    ax.set(xlabel=xlabel, ylabel=ylabel)
+    if log_y:
+        ax.set_yscale("log")
+    else:
+        ax.set_ylim(0, None)
     if xlim is not None:
         ax.set_xlim(*xlim)
     if np.issubdtype(np.asanyarray(lines[0].x).dtype, np.datetime64):
@@ -92,7 +104,8 @@ def series_panel(
             va="center",
         )
     f.time_series_grid(ax)
-    f.top_legend(fig, *[[handle] for handle in handles])
+    if len(handles) > 1:
+        f.inside_legend(fig, ax, handles, lines=handles)
     return fig
 
 
@@ -314,5 +327,7 @@ def monthly_cycle(
         edgecolor="none",
         label=band_label,
     )
-    f.inside_legend(fig, ax, [*_identity_handles(bands), spread], fills, lines)
+    # One series needs no key: the caption names the source and the band.
+    if len(bands) > 1:
+        f.inside_legend(fig, ax, [*_identity_handles(bands), spread], fills, lines)
     return fig

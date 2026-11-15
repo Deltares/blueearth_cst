@@ -997,7 +997,6 @@ def plot_elevation_basin(spatial_dir, plot_dir=None, annotation="none"):
             scale,
             context["overlay"],
             locator=context["locator"],
-            locator_in_map=True,
         )
     record = {
         "title": "Basin elevation and drainage network",
@@ -1109,7 +1108,7 @@ def plot_spatial_maps(
         )
         # The template (plotting/docs/cst-style.md, Spatial map template): no title,
         # the source credited in the caption, the key in the side panel. The
-        # subbasin overview carries no key and its locator sits inside the map.
+        # subbasin overview carries no key; only the elevation map has a locator.
         overview = figure.stem == "subbasins"
         raster = RasterMap(
             np.asarray(as_lat_lon(layer).values, dtype=float),
@@ -1124,9 +1123,7 @@ def plot_spatial_maps(
                 context["frame"],
                 key,
                 context["overlay"],
-                locator=context["locator"] if overview else None,
                 show_key=not overview,
-                locator_in_map=overview,
             )
         unkeyed = (
             unkeyed_classes(raster, context["frame"], key)

@@ -15,6 +15,8 @@ from blueearth_cst.climate_analysis.annual_spatial_anomalies import (
     prepare,
 )
 from blueearth_cst.climate_analysis.annual_spatial_render import (
+    capped_colors,
+    class_boundaries,
     prepare_display,
     render_pages,
     retained_enabled,
@@ -22,6 +24,10 @@ from blueearth_cst.climate_analysis.annual_spatial_render import (
 )
 from blueearth_cst.climate_analysis.diagnostic_outputs import diagnostic_source_outputs
 from blueearth_cst.climate_analysis.diagnostic_tables import write_json
+from blueearth_cst.plotting.fundamentals import (
+    SYMMETRIC_LIMIT_LADDER,
+    round_up_to_ladder,
+)
 
 
 def settings(**changes):
@@ -98,8 +104,18 @@ def retain(root, ds, cfg, source="era5", m0=1):
     return fields, record
 
 
+@pytest.fixture
+def six_year_pages(monkeypatch):
+    """Small pages so short fixtures still exercise multi-page records."""
+    from blueearth_cst.climate_analysis import annual_spatial_anomalies as module
+
+    monkeypatch.setattr(module, "YEARS_PER_PAGE", 6)
+
+
 @pytest.mark.parametrize("m0,days0,days1", [(1, 366, 365), (10, 365, 365)])
-def test_cellwise_mean_reference_leap_water_year_and_fixed_support(m0, days0, days1):
+def test_cellwise_mean_reference_leap_water_year_and_fixed_support(
+    m0, days0, days1, six_year_pages
+):
     ds = raw(m0)
     fields, record = prepare(ds, settings(), m0, "era5")
     factors = np.array([[1, 2], [3, 4]])
@@ -181,6 +197,11 @@ def test_display_scales_native_singletons_and_out_of_frame_extremes(tmp_path):
         np.abs(fields.precip_anomaly.sel(reporting_year=list(range(1999, 2007)))).max()
     )
     assert scales["precip"]["maximum_absolute"] == expected
+    # Displayed limits round outward; the record keeps the raw maximum.
+    limit = scales["precip"]["limits"][1]
+    assert scales["precip"]["limits"] == [-limit, limit]
+    assert limit == round_up_to_ladder(expected, SYMMETRIC_LIMIT_LADDER) >= expected
+    assert scales["precip"]["class_boundaries"] == class_boundaries(limit)
     assert len(loaded) == 2
     # Stored footprint must survive singleton latitude AND longitude.
     from blueearth_cst.shared.map_reference import field_edges
@@ -192,7 +213,7 @@ def test_display_scales_native_singletons_and_out_of_frame_extremes(tmp_path):
 
 
 def test_retained_rerender_all_pages_annotations_and_managed_cleanup(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, six_year_pages
 ):
     cfg = settings()
     root = tmp_path / "source"
@@ -257,6 +278,67 @@ def test_retained_rerender_all_pages_annotations_and_managed_cleanup(
         load_retained(root)
 
 
+@pytest.mark.parametrize(
+    "maximum,limit",
+    [
+        (557.09, 600.0),
+        (0.754, 0.8),
+        (0.8, 0.8),
+        (1.2, 1.2),
+        (2.4, 2.4),
+        (600.0, 600.0),
+        (1.21, 1.6),
+        (9.1, 10.0),
+        (0.031, 0.04),
+    ],
+)
+def test_anomaly_limits_round_outward_to_round_half_steps(maximum, limit):
+    """Limits on the ladder keep ±limit, ±limit/2 and 0 round numbers."""
+    assert round_up_to_ladder(maximum, SYMMETRIC_LIMIT_LADDER) == limit
+
+
+def test_anomaly_key_names_its_variable(tmp_path, monkeypatch):
+    cfg = settings()
+    retain(tmp_path, raw(), cfg)
+    reference = {
+        "frame": {
+            "extent": [9.5, 11.5, -0.5, 1.5],
+            "longitude_ticks": [10.0, 11.0],
+            "latitude_ticks": [0.0, 1.0],
+            "aspect": 1.0,
+        }
+    }
+    titles = {}
+
+    def save(path, *, fig, **kwargs):
+        fig.canvas.draw()
+        key = fig.axes[-1]
+        titles[Path(path).name.split("_")[1]] = key.get_title(loc="left")
+        # The three-line title fits the panel preset's canvas.
+        assert key.get_tightbbox().y1 <= fig.bbox.y1
+        labels = [t.get_text() for t in key.get_yticklabels()]
+        assert "0" in labels
+        assert not any("." in text and text.endswith("0") for text in labels)
+        # Eight discrete classes, not a continuous ramp.
+        assert fig.axes[0].collections[0].cmap.N == 8
+
+    monkeypatch.setattr(
+        "blueearth_cst.climate_analysis.annual_spatial_render.save_figure", save
+    )
+    render_pages(
+        diagnostic_source_outputs(tmp_path, "era5", cfg),
+        cfg,
+        [tmp_path],
+        reference,
+        {},
+        "none",
+    )
+    assert titles == {
+        "precip": "Precip.\nanomaly\n(mm/year)",
+        "temp": "Temp.\nanomaly\n(°C)",
+    }
+
+
 def test_all_zero_and_all_unavailable_scales(tmp_path):
     cfg = settings()
     ds = raw()
@@ -299,7 +381,7 @@ def test_cleanup_retires_current_and_legacy_managed_pages(tmp_path, relative):
     assert unrelated.read_bytes() == b"unrelated"
 
 
-@pytest.mark.parametrize("year_count", [5, 6, 7])
+@pytest.mark.parametrize("year_count", [5, 30, 31])
 def test_anomaly_figures_are_flat_and_suffix_only_when_split(tmp_path, year_count):
     cfg = settings(comparison_period={"start": 2000, "end": 1999 + year_count})
     paths = diagnostic_source_outputs(tmp_path, "chirps", cfg)
@@ -310,7 +392,7 @@ def test_anomaly_figures_are_flat_and_suffix_only_when_split(tmp_path, year_coun
     }
     expected = (
         {"chirps_precip_annual_anomaly_map_basin.png"}
-        if year_count <= 6
+        if year_count <= 30
         else {
             "chirps_precip_annual_anomaly_map_basin_page_01.png",
             "chirps_precip_annual_anomaly_map_basin_page_02.png",
@@ -332,6 +414,25 @@ def test_flat_layout_retires_nested_managed_png_and_preserves_current(tmp_path):
     retire_pages(tmp_path, {old: record, current: record}, {current: record}, "chirps")
     assert not (tmp_path / old).exists()
     assert (tmp_path / current).read_bytes() == current.encode()
+
+
+def test_retire_finds_stale_pages_without_a_previous_inventory(tmp_path):
+    """Snakemake deletes the caption inventory first; stale pages still go."""
+    plots = tmp_path / "plots"
+    plots.mkdir()
+    current = "plots/chirps_precip_annual_anomaly_map_basin.png"
+    stale = [
+        plots / f"chirps_precip_annual_anomaly_map_basin_page_0{i}.png" for i in (1, 2)
+    ]
+    keep = [
+        plots / "era5_precip_annual_anomaly_map_basin_page_01.png",
+        plots / "other.png",
+    ]
+    for path in [tmp_path / current, *stale, *keep]:
+        path.write_bytes(b"x")
+    retire_pages(tmp_path, {}, {current: {}}, "chirps")
+    assert not any(path.exists() for path in stale)
+    assert (tmp_path / current).exists() and all(path.exists() for path in keep)
 
 
 @pytest.mark.parametrize("last_year", [2004, 2006])
@@ -433,3 +534,29 @@ def test_out_of_span_and_partial_years_have_accurate_availability(
             "excluded incomplete/out-of-span years: [1998, 1999]"
             in record["methods_detail"]
         )
+
+
+@pytest.mark.parametrize(
+    "limit,step", [(600.0, 150.0), (0.8, 0.2), (1.2, 0.3), (3.0, 0.75)]
+)
+def test_anomaly_classes_are_equal_and_put_zero_on_a_boundary(limit, step):
+    boundaries = class_boundaries(limit, 8)
+    assert len(boundaries) == 9
+    assert boundaries[0] == -limit and boundaries[-1] == limit
+    assert boundaries[4] == 0.0 and str(boundaries[4]) == "0.0"
+    np.testing.assert_allclose(np.diff(boundaries), step)
+    # Rounded so records carry 0.2, not 0.20000000000000007.
+    assert all(value == round(value, 12) for value in boundaries)
+
+
+def test_anomaly_colours_skip_the_colormap_ends():
+    import matplotlib as mpl
+
+    cmap = mpl.colormaps["BrBG"]
+    colors = capped_colors(cmap, 8, (0.08, 0.92))
+    assert len(colors) == 8
+    np.testing.assert_allclose(colors[0], cmap(0.08))
+    np.testing.assert_allclose(colors[-1], cmap(0.92))
+    # Symmetric sampling keeps the diverging midpoint between the two centre classes.
+    np.testing.assert_allclose(colors[3], cmap(0.5 - 0.06))
+    np.testing.assert_allclose(colors[4], cmap(0.5 + 0.06))

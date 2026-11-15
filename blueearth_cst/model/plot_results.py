@@ -250,11 +250,10 @@ def analyse_wflow_historical(
 
     # Create output folders. R07 B10: the project-level
     # plots/wflow_model_performance/ tree is retired; rule 1.10's artifacts
-    # live inside the engine subtree, split by KIND (P1) — figures under
-    # evaluation/plots/, the indicators table one level up in evaluation/,
-    # because plots/ holds figures only.
+    # live in the recipe folder, split by KIND (P1) — figures under plots/,
+    # the indicators table under tables/, because plots/ holds figures only.
     model_dir = model_dir or f"{project_dir}/models/hydrology/wflow"
-    Folder_eval = str(evaluation_dir or f"{model_dir}/evaluation")
+    Folder_eval = str(evaluation_dir or f"{model_dir}/historical/default")
     Folder_plots = f"{Folder_eval}/plots"
     # The per-station bin. Its members are named for wflow_ids, which are a
     # product of the model build and so unknowable when the Snakefile is
@@ -264,7 +263,7 @@ def analyse_wflow_historical(
     # bin for its per-subbasin figures.
     Folder_stations = f"{Folder_plots}/{STATION_PLOT_DIRNAME}"
 
-    # makedirs, not mkdir: evaluation/plots/ is two levels deep, and only the
+    # makedirs, not mkdir: plots/ may sit several levels deep, and only the
     # DECLARED outputs get their parents pre-created by Snakemake. The stations
     # bin IS declared, but as a directory() -- Snakemake creates a declared
     # directory's PARENT, not the directory itself, so it is created here too.

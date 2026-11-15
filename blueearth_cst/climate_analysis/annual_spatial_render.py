@@ -11,8 +11,14 @@ import numpy as np
 import xarray as xr
 
 from blueearth_cst.climate_analysis.annual_spatial_anomalies import (
+    PAGE_COLUMNS,
+    YEARS_PER_PAGE,
     anomaly_paths,
     load_retained,
+)
+from blueearth_cst.plotting.fundamentals import (
+    SYMMETRIC_LIMIT_LADDER,
+    round_up_to_ladder,
 )
 from blueearth_cst.plotting.prepared_maps import (
     MapFrame,
@@ -32,8 +38,56 @@ from blueearth_cst.shared.plot_colors import (
     MAP_FEATURE_COLORS,
     PRECIP_ANOMALY_COLORMAP,
 )
-from blueearth_cst.shared.plot_preset import CST_PRESET
+from blueearth_cst.shared.plot_preset import (
+    ANOMALY_MAP_CLASSES,
+    ANOMALY_MAP_COLORMAP_RANGE,
+    CST_PRESET,
+)
 from blueearth_cst.shared.snake_utils import save_figure
+
+#: Variable names on the anomaly key, matching the monthly-departure calendars.
+KEY_LABELS = {"precip": "Precip.", "temp": "Temp."}
+#: Display units: precipitation anomalies are annual totals.
+DISPLAY_UNITS = {"precip": "mm/year", "temp": "°C"}
+
+
+def class_boundaries(limit: float, classes: int = ANOMALY_MAP_CLASSES) -> list[float]:
+    """Equal classes over ``±limit``; an even count puts zero on a boundary."""
+    return [
+        round(float(value), 12) + 0.0
+        for value in np.linspace(-limit, limit, classes + 1)
+    ]
+
+
+def capped_colors(
+    cmap: mpl.colors.Colormap,
+    classes: int,
+    span: tuple[float, float] = ANOMALY_MAP_COLORMAP_RANGE,
+) -> np.ndarray:
+    """One colour per class, sampled evenly over the central ``span`` of ``cmap``."""
+    return cmap(np.linspace(*span, classes))
+
+
+def anomaly_scale(variable: str, info: dict) -> MapScale:
+    """The classed, zero-centred key of one variable's anomaly pages."""
+    cmap = mpl.colormaps[
+        PRECIP_ANOMALY_COLORMAP
+        if variable == "precip"
+        else CLIMATE_COLORMAPS["temp_crossing_freezing"]
+    ]
+    boundaries = info["class_boundaries"] or []
+    low, high = ANOMALY_MAP_COLORMAP_RANGE
+    return MapScale(
+        DISPLAY_UNITS[variable],
+        boundaries,
+        boundaries,
+        capped_colors(cmap, len(boundaries) - 1) if boundaries else [],
+        cmap(low),
+        cmap(high),
+        MAP_FEATURE_COLORS["missing"],
+        info["status"],
+        extend="neither",
+    )
 
 
 def native_frame(field: xr.DataArray, reference: dict, overlays: dict) -> MapFrame:
@@ -81,16 +135,20 @@ def prepare_display(
     scales = {}
     for variable in {v for _, record in loaded.values() for v in record["variables"]}:
         maximum = limits.get(variable)
-        limit = maximum if maximum else 1.0
+        # Rounded outward so the class boundaries are round; never clips a cell.
+        limit = round_up_to_ladder(maximum, SYMMETRIC_LIMIT_LADDER) if maximum else 1.0
         scales[variable] = {
             "maximum_absolute": maximum,
             "limits": [-limit, limit] if maximum is not None else None,
+            "class_boundaries": class_boundaries(limit)
+            if maximum is not None
+            else None,
             "all_zero": maximum == 0,
             "fallback": "display-only ±1; all finite anomalies are zero"
             if maximum == 0
             else None,
             "status": "available" if maximum is not None else "unavailable",
-            "scope": "finite comparison-year cells intersecting each displayed native frame; all candidate sources",
+            "scope": "finite comparison-year cells intersecting each displayed native frame; all candidate sources; pooled maximum absolute anomaly rounded outward to a round limit",
         }
     return loaded, scales
 
@@ -122,23 +180,7 @@ def render_pages(
         support = frame_intersection(field, frame.extent)
         x, y = field_edges(field)
         info = scales[variable]
-        cmap = mpl.colormaps[
-            PRECIP_ANOMALY_COLORMAP
-            if variable == "precip"
-            else CLIMATE_COLORMAPS["temp_crossing_freezing"]
-        ]
-        boundaries = np.linspace(*info["limits"], 257) if info["limits"] else []
-        scale = MapScale(
-            "mm" if variable == "precip" else "degC",
-            boundaries,
-            np.linspace(*info["limits"], 5) if info["limits"] else [],
-            cmap(np.linspace(0, 1, 256)) if info["limits"] else [],
-            cmap(0.0),
-            cmap(1.0),
-            MAP_FEATURE_COLORS["missing"],
-            info["status"],
-            extend="neither",
-        )
+        scale = anomaly_scale(variable, info)
         notes, counts, rasters, details = [], [], [], []
         for year in years:
             values = field.sel(reporting_year=year).values
@@ -163,7 +205,7 @@ def render_pages(
                 + (f", {reason.lower()}" if not count else "")
             )
         label = "Precipitation" if variable == "precip" else "Temperature"
-        units = "mm" if variable == "precip" else "°C"
+        units = DISPLAY_UNITS[variable]
         eligible = record["reference_eligible"]
         ref_dates = [
             record["year_dates"][str(eligible[0])][0],
@@ -180,7 +222,7 @@ def render_pages(
                 else "",
                 f"Start-year labels, month {record['water_year_start']}; at most {settings['max_missing_days_month']} missing days per month and {settings['max_missing_days_year']} per year; tolerated gaps use that calendar month's observed mean",
                 "Native cells intersecting the frame include cells outside the basin; no polygon mask or regridding. Gray is missing; white is uncovered. Geographic aspect uses midpoint latitude",
-                "Symmetric zero-centred scale pooled over displayed cells of all candidate sources and comparison years, without clipping"
+                f"Symmetric zero-centred scale of {len(info['class_boundaries']) - 1} equal classes from the maximum absolute anomaly pooled over displayed cells of all candidate sources and comparison years, rounded outward to a round limit, without clipping"
                 if info["limits"]
                 else "No finite anomaly scale is available",
                 info["fallback"] or "",
@@ -192,7 +234,7 @@ def render_pages(
             f"Annual {label.lower()} anomalies ({units}) from {source.upper()} "
             f"for {years[0]}–{years[-1]}, relative to the {eligible[0]}–{eligible[-1]} mean. "
             + (
-                "Red indicates drier and blue wetter conditions."
+                "Brown indicates drier and teal wetter conditions."
                 if variable == "precip"
                 else "Blue indicates cooler and red warmer conditions."
             )
@@ -202,23 +244,23 @@ def render_pages(
         title = f"Annual {label.lower()} anomalies — {source.upper()} ({years[0]}–{years[-1]}), reference {eligible[0]}–{eligible[-1]}"
         if len(record["pages"]) > 1:
             title += f", page {int(page)}"
-        # Annual pages retain their existing three-column, six-year contract.
+        # Full-page grid: 5 columns × 6 rows; years label the panels.
         preset = replace(
             CST_PRESET,
             map_panels={
                 **CST_PRESET.map_panels,
-                "columns": 3,
-                "max_panels_per_figure": 6,
+                "columns": PAGE_COLUMNS,
+                "max_panels_per_figure": YEARS_PER_PAGE,
             },
         )
         with use_preset(preset):
             (fig,) = draw_raster_panels(
                 rasters,
-                [f"{chr(97 + i)}) {year}" for i, year in enumerate(years)],
+                [str(year) for year in years],
                 frame,
                 scale,
                 overlays,
-                colorbar_title=f"Anomaly\n({units})",
+                colorbar_title=f"{KEY_LABELS[variable]}\nanomaly\n({units})",
             )
             for ax, note in zip(fig.axes[: len(rasters)], notes):
                 if note:
@@ -274,19 +316,33 @@ def render_pages(
 def retire_pages(
     out_root: str | Path, previous: dict, current: dict, source: str
 ) -> None:
-    """Retire only exact, previously managed anomaly PNGs; never follow links."""
+    """Retire exact, toolbox-named anomaly PNGs not rendered now; never follow links.
+
+    Candidates are the previously recorded figures plus any on-disk file whose name
+    fully matches this source's anomaly-map pattern: Snakemake deletes the declared
+    caption inventory before the rule runs, so ``previous`` is empty in a workflow
+    run and a change in page count would otherwise leave stale pages behind.
+    """
     root = Path(out_root).resolve()
     pattern = re.compile(
         rf"plots/(?:annual_anomalies/page_[0-9]{{3,}}/)?"
         rf"{re.escape(source)}_(precip|temp)_annual_anomaly_map_basin(?:_ext)?"
         rf"(?:_page_[0-9]{{2,}})?\.png"
     )
-    for relative, record in previous.items():
-        if (
-            relative in current
-            or record.get("encoding") != "annual_spatial_anomalies"
-            or not pattern.fullmatch(relative)
-        ):
+    candidates = {
+        relative
+        for relative, record in previous.items()
+        if record.get("encoding") == "annual_spatial_anomalies"
+    }
+    plots = root / "plots"
+    if plots.is_dir() and not plots.is_symlink():
+        for path in [
+            *plots.glob("*.png"),
+            *plots.glob("annual_anomalies/page_*/*.png"),
+        ]:
+            candidates.add(path.relative_to(root).as_posix())
+    for relative in sorted(candidates):
+        if relative in current or not pattern.fullmatch(relative):
             continue
         path = root / relative
         if any(

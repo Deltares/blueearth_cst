@@ -24,9 +24,14 @@ for its figures; the owning producer implements it.
 ## Workflow profiles
 
 The observed water-balance profile uses `observed_runoff_coefficient_budyko_stations.png` under
-model `evaluation/budyko/plots/`. `model/plot_budyko.py` renders this retained-table station comparison;
+the recipe's `plots/budyko/`. `model/plot_budyko.py` renders this retained-table station comparison;
 source recipe, period and station identities live in its tables and methods record. Annotation modes
 use the same PNG path, with readable title/caption inventories in `plots/` and their JSON in `_engine/plots/`.
+
+The WF1 historical forcing comparison (`model/plot_historical_comparison.py`) follows the WF0 field
+order: `comparison_discharge_<diagnostic>_station<wflow_id>.png`, with diagnostics `daily`,
+`monthly_cycle` and `flow_duration`. Each station has one set; whether it is observation-paired or
+simulations-only is stated in the caption, not the filename.
 
 The [historical climate profile](#historical-climate-diagnostics-wf0) below documents WF0. Other workflows
 retain their current producer-defined filenames until their profiles are documented and checked here.

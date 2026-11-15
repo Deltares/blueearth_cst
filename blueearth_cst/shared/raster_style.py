@@ -29,7 +29,7 @@ class RasterStyle:
         self,
         label,
         palette,
-        classification="auto",
+        classification="equal_interval",
         clip_quantiles=(0.0, 0.98),
         zero_baseline=False,
         relief=False,

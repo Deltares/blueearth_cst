@@ -18,7 +18,7 @@ DESCRIPTIONS = {
     ),
     "anomaly": (
         "Monthly precipitation departures from the calendar-month mean in the reference period. "
-        "Red indicates drier and blue wetter months; gray marks unavailable monthly totals. "
+        "Brown indicates drier and teal wetter months; gray marks unavailable monthly totals. "
         "The continuous colour scale is symmetric about zero, spans all pooled finite departures, "
         "and is shared across sources and years. No temporal smoothing is applied."
     ),
@@ -104,7 +104,7 @@ def title(name: str, sources: list[str], period, support: str) -> str:
 def caption(name: str, view: View) -> str:
     """Describe the displayed result and essential encodings in journal style."""
     descriptions = {
-        "anomaly": "Monthly precipitation anomalies relative to the calendar-month mean. Red indicates drier and blue wetter conditions; gray denotes unavailable estimates.",
+        "anomaly": "Monthly precipitation anomalies relative to the calendar-month mean. Brown indicates drier and teal wetter conditions; gray denotes unavailable estimates. Colour classes cover the 95th percentile of displayed absolute anomalies; the darkest shades mark months beyond that range.",
         "extreme-intensity": "Annual maximum one-day precipitation (a, Rx1day), maximum five-day precipitation (b, Rx5day), and mean wet-day intensity (c, SDII). Dashed lines show Theil–Sen trends.",
         "acf": "Autocorrelation of monthly precipitation anomalies. Shading indicates approximate pointwise 95% limits under no serial correlation.",
         "spell": "Dry-spell duration exceedance probabilities. Spells touching data gaps or record boundaries are excluded; probabilities below 0.002 are outside the displayed range.",

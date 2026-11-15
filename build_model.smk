@@ -634,8 +634,8 @@ WRITE_RUN_METADATA = RULES.banner_only("1.16", "write_run_metadata", summary="re
 # independently of the build and needs no gather waiting on it) and the two
 # gather outputs themselves.
 WF1_TERMINALS = [
-    *([f"{basin_dir}/historical_comparison"] if COMPARE_FORCINGS else []),
-    *([f"{_hp(key, 'evaluation_dir')}/budyko/tables/summary.csv" for key in FORCING_KEYS] if _budyko_settings is not None else []),
+    *([f"{basin_dir}/historical/forcing_comparison"] if COMPARE_FORCINGS else []),
+    *([f"{_hp(key, 'evaluation_dir')}/tables/budyko_summary.csv" for key in FORCING_KEYS] if _budyko_settings is not None else []),
     # The evaluation rule's terminal is its INDICATORS TABLE, not one of its
     # figures: since 2026-08-10 the figures are keyed by wflow_id and none of
     # their names is knowable at parse time. The table is written by the same
@@ -1111,7 +1111,7 @@ if COMPARE_FORCINGS:
                 "blueearth_cst/model/plot_historical_comparison.py",
             ],
         output:
-            comparison = directory(f"{basin_dir}/historical_comparison"),
+            comparison = directory(f"{basin_dir}/historical/forcing_comparison"),
         params:
             settings = {
                 "model_root": str(Path(basin_dir).resolve()),
@@ -1125,7 +1125,7 @@ if COMPARE_FORCINGS:
                 "water_year_start": WATER_YEAR_START,
                 **({"observations_path": str(Path(observations_timeseries).resolve())}
                    if observations_timeseries else {}),
-                "output_dir": str(Path(f"{basin_dir}/historical_comparison").resolve()),
+                "output_dir": str(Path(f"{basin_dir}/historical/forcing_comparison").resolve()),
             },
             annotation = plot_annotation,
         log:
@@ -1343,8 +1343,8 @@ for _k in FORCING_KEYS:
             location_registry = f"{spatial_dir}/location_registry.csv",
             script = "blueearth_cst/model/plot_results.py"
         # R07 B10 + O-24. The artifacts move into the engine subtree, split by KIND
-        # (P1): figures and captions under evaluation/plots/, the indicators table one
-        # level up in evaluation/.
+        # (P1): figures and captions under the recipe's plots/, the indicators table
+        # under its tables/.
         #
         # O-24, restated 2026-08-01 after checking what is actually derivable.
         #
@@ -1582,18 +1582,19 @@ if _budyko_settings is not None:
                 recipe_path = f"{_hp(_k, 'config_dir')}/build_historical_forcing.yml",
                 model_final = ancient(f"{basin_dir}/_engine/markers/.model_final"),
             output:
-                stations = f"{_hp(_k, 'evaluation_dir')}/budyko/tables/stations.csv",
-                annual = f"{_hp(_k, 'evaluation_dir')}/budyko/tables/annual.csv",
-                summary = f"{_hp(_k, 'evaluation_dir')}/budyko/tables/summary.csv",
-                daily = f"{_hp(_k, 'evaluation_dir')}/budyko/_engine/daily.csv",
-                methods = f"{_hp(_k, 'evaluation_dir')}/budyko/_engine/methods.json",
-                figure = f"{_hp(_k, 'evaluation_dir')}/budyko/plots/observed_runoff_coefficient_budyko_stations.png",
-                titles = f"{_hp(_k, 'evaluation_dir')}/budyko/plots/figure_titles.md",
-                captions = f"{_hp(_k, 'evaluation_dir')}/budyko/plots/figure_captions.md",
-                titles_json = f"{_hp(_k, 'evaluation_dir')}/budyko/_engine/plots/figure_titles.json",
-                captions_json = f"{_hp(_k, 'evaluation_dir')}/budyko/_engine/plots/figure_captions.json",
+                # Flat tables share the recipe's tables/; the figure is a plots/budyko/
+                # family so its inventories never collide with rule 1.15's.
+                stations = f"{_hp(_k, 'evaluation_dir')}/tables/budyko_stations.csv",
+                annual = f"{_hp(_k, 'evaluation_dir')}/tables/budyko_annual.csv",
+                summary = f"{_hp(_k, 'evaluation_dir')}/tables/budyko_summary.csv",
+                daily = f"{_hp(_k, 'evaluation_dir')}/_engine/budyko_daily.csv",
+                methods = f"{_hp(_k, 'evaluation_dir')}/_engine/budyko_methods.json",
+                figure = f"{_hp(_k, 'evaluation_dir')}/plots/budyko/observed_runoff_coefficient_budyko_stations.png",
+                titles = f"{_hp(_k, 'evaluation_dir')}/plots/budyko/figure_titles.md",
+                captions = f"{_hp(_k, 'evaluation_dir')}/plots/budyko/figure_captions.md",
+                titles_json = f"{_hp(_k, 'evaluation_dir')}/_engine/plots/budyko/figure_titles.json",
+                captions_json = f"{_hp(_k, 'evaluation_dir')}/_engine/plots/budyko/figure_captions.json",
             params:
-                root = f"{_hp(_k, 'evaluation_dir')}/budyko",
                 settings = _budyko_settings,
                 start = f"{simulation_window['start']}-01-01",
                 end = f"{int(simulation_window['end']) + 1}-01-01",

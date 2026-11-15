@@ -241,13 +241,23 @@ def test_monthly_panels_keep_pair_counts_and_identical_axes():
             "precip",
             metrics,
         )
-        assert len(fig.axes) == 2
-        assert fig.axes[0].get_xlim() == fig.axes[1].get_xlim()
-        assert fig.axes[0].get_ylim() == fig.axes[1].get_ylim()
+        # A dataset with no complete paired month gets no panel (no empty panels).
+        assert len(fig.axes) == 1
+        assert fig.axes[0].get_ylabel().startswith("ERA5")
         assert any("n = 3 months" in text.get_text() for text in fig.axes[0].texts)
-        assert any(
-            "No complete paired months" in text.get_text() for text in fig.axes[1].texts
-        )
         import matplotlib.pyplot as plt
 
         plt.close(fig)
+        observed_only = table[table.source != "era5"]
+        assert (
+            agreement_figure(
+                observed_only,
+                "value",
+                {"era5": ("blue", "o"), "chirps": ("red", "s")},
+                {"era5": "ERA5", "chirps": "CHIRPS"},
+                "mm/month",
+                "precip",
+                metrics,
+            )
+            is None
+        )

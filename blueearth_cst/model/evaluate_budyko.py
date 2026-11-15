@@ -32,7 +32,11 @@ def evaluate(
     forcing_path: str,
     recipe_path: str,
     observations_path: str,
-    root: str,
+    stations_path: str,
+    annual_path: str,
+    summary_path: str,
+    daily_path: str,
+    methods_path: str,
     settings: dict,
     start: str,
     end: str,
@@ -123,17 +127,12 @@ def evaluate(
             daily_frames.append(daily.reset_index())
     if not stations:
         raise ValueError("Budyko requires at least one observed station")
-    destination = Path(root)
-    (destination / "tables").mkdir(parents=True, exist_ok=True)
-    (destination / "_engine").mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(stations).to_csv(destination / "tables/stations.csv", index=False)
-    pd.concat(annuals, ignore_index=True).to_csv(
-        destination / "tables/annual.csv", index=False
-    )
-    pd.DataFrame(summaries).to_csv(destination / "tables/summary.csv", index=False)
-    pd.concat(daily_frames, ignore_index=True).to_csv(
-        destination / "_engine/daily.csv", index=False
-    )
+    for path in (stations_path, annual_path, summary_path, daily_path, methods_path):
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(stations).to_csv(stations_path, index=False)
+    pd.concat(annuals, ignore_index=True).to_csv(annual_path, index=False)
+    pd.DataFrame(summaries).to_csv(summary_path, index=False)
+    pd.concat(daily_frames, ignore_index=True).to_csv(daily_path, index=False)
     paths = {
         "observations": observations_path,
         "registry": registry_path,
@@ -160,7 +159,7 @@ def evaluate(
         "spatial_method": "nearest model forcing cell at hydrography cell centres, weighted by hydrography cell_area",
         "temporal_method": "complete matched water years; ratios of totals; no infilling or spinup exclusion",
     }
-    (destination / "_engine/methods.json").write_text(
+    Path(methods_path).write_text(
         json.dumps(record, indent=2) + "\n", encoding="utf-8"
     )
 
@@ -177,10 +176,18 @@ if __name__ == "__main__":
                 for key, value in sm.input.items()
                 if key != "model_final"
             },
-            root=sm.params.root,
+            stations_path=sm.output.stations,
+            annual_path=sm.output.annual,
+            summary_path=sm.output.summary,
+            daily_path=sm.output.daily,
+            methods_path=sm.output.methods,
             settings=sm.params.settings,
             start=sm.params.start,
             end=sm.params.end,
             water_year_start=sm.params.water_year_start,
         )
-        render(sm.params.root, annotation=sm.params.annotation)
+        render(
+            sm.output.summary,
+            Path(sm.output.figure).parent,
+            annotation=sm.params.annotation,
+        )

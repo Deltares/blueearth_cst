@@ -13,12 +13,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from blueearth_cst.climate_analysis.diagnostic_figures import (
+    SOURCE_STYLE,
+    dataset_styles,
+)
 from blueearth_cst.model.historical_comparison import read_comparison
 from blueearth_cst.plotting.export import export_figure
 from blueearth_cst.plotting.figure_titles import write_figure_titles
 from blueearth_cst.plotting.prepared_charts import PreparedLine, series_panel
 from blueearth_cst.plotting.preset import use_preset
-from blueearth_cst.shared.plot_colors import DEFAULT_COLOR_CYCLE, EVALUATION_COLORS
+from blueearth_cst.shared.plot_evaluation import (
+    COLOR_OBSERVED,
+    DASH_OBSERVED,
+    LINE_WIDTH,
+)
 from blueearth_cst.shared.plot_preset import CST_PRESET
 from blueearth_cst.shared.plot_style import RASTER_DPI
 
@@ -33,36 +41,40 @@ def render(
     plots, engine = destination / "plots", destination / "_engine" / "plots"
     plots.mkdir(parents=True, exist_ok=True)
     engine.mkdir(parents=True, exist_ok=True)
-    colors = [
-        color for color in DEFAULT_COLOR_CYCLE if color != EVALUATION_COLORS["observed"]
-    ]
-    markers = ("", "o", "s", "^", "D", "v", "+", "x")
+    # Canonical dataset colours and markers (WF0's source registry); a lone run
+    # is black. Observations keep the WF1 evaluation style: blue, dashed.
     styles = {
-        name: (
-            colors[i % len(colors)],
-            ("-", "--", ":", "-.")[i % 4],
-            markers[i % len(markers)],
-        )
-        for i, name in enumerate(metadata["runs"])
+        name: (color, "-", marker)
+        for name, (color, marker) in dataset_styles(metadata["runs"]).items()
     }
-    styles["__observed__"] = (EVALUATION_COLORS["observed"], "-", "")
+    styles["__observed__"] = (COLOR_OBSERVED, DASH_OBSERVED, "")
+    labels = {
+        name: name.upper() if name.lower() in SOURCE_STYLE else name
+        for name in metadata["runs"]
+    }
+    labels["__observed__"] = "Observed"
     start_month = metadata["water_year_start_month"]
     months = list(range(start_month, 13)) + list(range(1, start_month))
     figures = {}
-    supports = ["simulated_common"] + (
-        ["observation_paired"] if metadata["observations_supplied"] else []
-    )
+    coverage_table = tables["coverage"].set_index("wflow_id")
     with use_preset(CST_PRESET):
         for station in tables["stations"].itertuples():
             station_label = str(getattr(station, "station_name", station.wflow_id))
-            for support in supports:
+            # One figure set per station: observation-paired where the station
+            # has observations, otherwise simulations on their common support.
+            observed_here = metadata["observations_supplied"] and bool(
+                coverage_table.loc[station.wflow_id].observations_available
+            )
+            for support in (
+                ["observation_paired"] if observed_here else ["simulated_common"]
+            ):
                 names = metadata["runs"] + (
                     ["__observed__"] if support == "observation_paired" else []
                 )
                 for table_name, form, xlabel in (
-                    ("daily", "hydrograph", "Response timestamp"),
-                    ("seasonal", "seasonal", "Month"),
-                    ("flow_duration", "fdc", "Exceedance probability (%)"),
+                    ("daily", "daily", "Year"),
+                    ("seasonal", "monthly_cycle", ""),
+                    ("flow_duration", "flow_duration", "Exceedance probability (%)"),
                 ):
                     data = tables[table_name]
                     data = data.loc[
@@ -86,16 +98,26 @@ def render(
                                 else selected.exceedance.to_numpy()
                             )
                         color, linestyle, marker = styles[name]
+                        observed = name == "__observed__"
                         lines.append(
                             PreparedLine(
-                                "Observed" if name == "__observed__" else name,
+                                labels[name],
                                 x,
                                 values,
                                 color,
                                 linestyle,
-                                marker,
+                                # Dense daily and duration curves are plain
+                                # lines, as on the station sheets; only the
+                                # 12-point seasonal curve carries markers.
+                                marker if table_name == "seasonal" else "",
+                                LINE_WIDTH if observed else None,
                             )
                         )
+                    zero_share = {
+                        line.label: float(np.mean(np.asarray(line.y, float) <= 0))
+                        for line in lines
+                        if len(line.y)
+                    }
                     ticks = (
                         (np.arange(12), [calendar.month_abbr[m] for m in months])
                         if table_name == "seasonal"
@@ -118,27 +140,23 @@ def render(
                     fig = series_panel(
                         lines,
                         xlabel=xlabel,
-                        ylabel="Discharge (m³/s)",
+                        ylabel="m³/s",
                         ticks=ticks,
                         xlim=limits,
+                        log_y=table_name == "flow_duration",
                     )
+                    # figure-naming.md: <dataset>_<subject>_<diagnostic>_<location>;
+                    # the support (paired or common) is stated in the caption.
                     filename = (
-                        f"comparison_discharge_{form}_{station.wflow_id}_{support}.png"
+                        f"comparison_discharge_{form}_station{station.wflow_id}.png"
                     )
                     description = {
-                        "daily": "hydrograph",
-                        "seasonal": "monthly seasonal curve",
+                        "daily": "daily hydrograph",
+                        "seasonal": "mean monthly discharge",
                         "flow_duration": "flow-duration curve",
                     }[table_name]
-                    title = f"{station_label} ({station.wflow_id}): historical discharge {description}"
-                    support_text = (
-                        "All simulations and observations share finite nonnegative daily support."
-                        if support == "observation_paired"
-                        else "All simulations share finite nonnegative daily support, independently of observations. No skill claim is made."
-                    )
-                    coverage = (
-                        tables["coverage"].set_index("wflow_id").loc[station.wflow_id]
-                    )
+                    title = f"{station_label} ({station.wflow_id}): {description}"
+                    coverage = coverage_table.loc[station.wflow_id]
                     count = int(
                         coverage[
                             "observation_paired_days"
@@ -146,27 +164,41 @@ def render(
                             else "simulated_common_days"
                         ]
                     )
-                    support_text += f" Usable daily samples: {count}."
-                    if (
-                        support == "observation_paired"
-                        and not coverage.observations_available
-                    ):
-                        support_text = "Observations are unavailable at this station; paired diagnostics are unavailable."
-                    method = {
-                        "daily": "Gaps are preserved; no values are filled.",
-                        "seasonal": "Seasonal values average available monthly means equally by calendar month; incomplete months are retained.",
-                        "flow_duration": "Daily values are sorted descending; exceedance is rank/(count+1). Zero flows are retained on a linear axis.",
+                    start, end = metadata["requested_start"], metadata["requested_end"]
+                    period = (
+                        f"{start[:4]}–{end[:4]}"
+                        if start[5:] == "01-01" and end[5:] == "12-31"
+                        else f"{start} to {end}"
+                    )
+                    runs = [labels[name] for name in metadata["runs"]]
+                    forcing = (
+                        runs[0]
+                        if len(runs) == 1
+                        else ", ".join(runs[:-1]) + " and " + runs[-1]
+                    )
+                    lead = {
+                        "daily": "Daily discharge",
+                        "seasonal": "Mean monthly discharge",
+                        "flow_duration": "Flow-duration curves of daily discharge",
                     }[table_name]
-                    warmup = (
-                        f"Warm-up excludes response dates before {metadata['warmup_exclusive_end']}."
-                        if metadata.get("warmup_applied")
-                        else "No warm-up exclusion applies to these runs of at most 365 samples."
-                    )
+                    paired = support == "observation_paired"
                     caption = (
-                        f"{title}. {metadata['requested_start']} to {metadata['requested_end']}, inclusive interval-end timestamps. "
-                        f"{support_text} {method} {warmup} "
-                        f"Different styles identify {metadata.get('compared', 'forcing recipes')}; their identities are recorded in inventory.csv."
+                        f"{lead} at {station_label} ({station.wflow_id}), {period}: "
+                        f"Wflow simulations forced by {forcing}"
+                        + (" against observations" if paired else "")
+                        + f", on days with all series available (n = {count})."
                     )
+                    if table_name == "flow_duration":
+                        zeros = [
+                            f"{label} {share:.0%}"
+                            for label, share in zero_share.items()
+                            if share > 0
+                        ]
+                        caption += " Log discharge axis; exceedance is rank/(n + 1)."
+                        if zeros:
+                            caption += (
+                                f" Zero flows not drawn ({', '.join(zeros)} of days)."
+                            )
                     try:
                         export_figure(
                             fig,

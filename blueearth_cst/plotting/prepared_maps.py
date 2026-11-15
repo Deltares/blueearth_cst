@@ -22,12 +22,17 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Patch, PathPatch, Rectangle
 from matplotlib.path import Path
 from matplotlib.patheffects import Normal, Stroke
+from matplotlib.text import Text
 from matplotlib.ticker import FuncFormatter
 from matplotlib.transforms import Bbox
 from numpy.typing import NDArray
 
 from blueearth_cst.plotting.fundamentals import style_colourbar
-from blueearth_cst.plotting.location_labels import location_label, wrap_label
+from blueearth_cst.plotting.location_labels import (
+    location_label,
+    map_display_label,
+    wrap_label,
+)
 from blueearth_cst.plotting.preset import active
 
 #: Stream-order attribute names, in lookup order (hydromt spells it ``strord``).
@@ -47,11 +52,56 @@ MAP_LOCATOR_WIDTH, MAP_LOCATOR_MAX_HEIGHT = 0.28, 0.4
 COLORBAR_HEIGHT, COLORBAR_MIN, COLORBAR_TITLE_ROOM = 0.7, 0.25, 0.12
 #: Smallest key text a class legend shrinks to before warning (pt).
 MIN_KEY_FONT = 4.0
+#: Clear space a key keeps between neighbouring tick labels before it shows
+#: every second tick only (mm).
+KEY_LABEL_GAP_MM = 0.6
 MISSING_LABEL = "No data"
 
 # Maximum physical map frame; keys and coordinate labels extend the canvas.
 MAP_WIDTH_MM, MAP_HEIGHT_MM = 150.0, 95.0
 MAP_PADDING_MM = 3.0
+# Minimum side-panel width beyond the frame (locator or widest usual key), so a
+# basin's single maps share one canvas width; wider content still extends it.
+SIDE_PANEL_MM = 34.0
+
+#: Point-label offsets (pt) in preference order: a near ring, then a wider one
+#: so a position clear of markers, labels and linework usually exists.
+LABEL_OFFSETS = (
+    (8, 8),
+    (-8, 8),
+    (8, -8),
+    (-8, -8),
+    (16, 0),
+    (-16, 0),
+    (0, 16),
+    (0, -16),
+    (24, 16),
+    (-24, 16),
+    (24, -16),
+    (-24, -16),
+    (36, 0),
+    (-36, 0),
+    (0, 30),
+    (0, -30),
+    (16, 32),
+    (-16, 32),
+    (16, -32),
+    (-16, -32),
+    (36, 28),
+    (-36, 28),
+    (36, -28),
+    (-36, -28),
+)
+#: Label placement penalties: leaving the frame dominates, then covering a
+#: marker, label or in-map inset, then covering a river (heavier) or the basin
+#: outline/divides (lighter); the offset order breaks ties.
+LABEL_OUTSIDE_PENALTY = 1000.0
+LABEL_OVERLAP_PENALTY = 10.0
+LABEL_RIVER_PENALTY = 4.0
+LABEL_OUTLINE_PENALTY = 2.0
+LABEL_ORDER_PENALTY = 0.01
+#: Legend-hidden artist labels that tag overlay linework for label placement.
+_RIVER_TAG, _OUTLINE_TAG = "_cst_river", "_cst_outline"
 
 
 def _map_figure(frame: "MapFrame") -> tuple[Figure, Axes]:
@@ -72,12 +122,34 @@ def _map_figure(frame: "MapFrame") -> tuple[Figure, Axes]:
     return fig, ax
 
 
-def _fit_map_canvas(fig: Figure, ax: Axes) -> None:
-    """Measure decorations and extend the canvas without resizing the map."""
+def _fit_map_canvas(fig: Figure, ax: Axes, side_panel: bool = False) -> None:
+    """Measure decorations and extend the canvas without resizing the map.
+
+    With ``side_panel`` the right edge sits at least ``SIDE_PANEL_MM`` beyond
+    the frame, so maps of one basin share a canvas width whatever their key or
+    locator; content wider than that still extends the canvas.
+    """
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
     frame = ax.get_window_extent(renderer).transformed(fig.dpi_scale_trans.inverted())
     bounds = ax.get_tightbbox(renderer).transformed(fig.dpi_scale_trans.inverted())
+    if side_panel and bounds.x1 < frame.x1 + SIDE_PANEL_MM / 25.4:
+        # A transparent strip to the panel's minimum edge: tight-cropped
+        # exports measure artists, so empty canvas alone would be trimmed.
+        reach = SIDE_PANEL_MM / 25.4 / frame.width
+        ax.add_patch(
+            Rectangle(
+                (1.0, 0.0),
+                reach,
+                1e-3,
+                transform=ax.transAxes,
+                fill=False,
+                edgecolor="none",
+                clip_on=False,
+            )
+        )
+        right = frame.x1 + SIDE_PANEL_MM / 25.4
+        bounds = Bbox.from_extents(bounds.x0, bounds.y0, right, bounds.y1)
     padding = MAP_PADDING_MM / 25.4
     width, height = bounds.width + 2 * padding, bounds.height + 2 * padding
     fig.set_size_inches(width, height)
@@ -106,9 +178,12 @@ class MapFrame:
 class MapScale:
     """Resolved continuous classes; unavailable scales have no boundaries/ticks.
 
-    ``extend`` names the colourbar's rectangular extensions (``both``, ``min``,
-    ``max`` or ``neither``); with ``neither`` values beyond the outer
-    boundaries fall into the end classes.
+    ``extend`` names the sides permitted to show an extension (``both``,
+    ``min``, ``max`` or ``neither``); values beyond a permitted side take the
+    under/over colour. The colourbar draws a pointed extension only on a
+    permitted side that some drawn finite cell lies strictly beyond (see
+    ``key_extend``). With ``neither`` values beyond the outer boundaries fall
+    into the end classes.
     """
 
     units: str
@@ -354,6 +429,7 @@ def _draw_rivers(
                 solid_capstyle="round",
                 solid_joinstyle="round",
                 zorder=3,
+                label=_RIVER_TAG,
                 path_effects=[
                     Stroke(
                         linewidth=(width + maps["river_halo_width"]) * scale,
@@ -386,11 +462,18 @@ def _draw_overlays(
                     color=color,
                     lw=width * scale,
                     zorder=zorder,
+                    label=_OUTLINE_TAG,
                 )
                 if dashes is not None:
                     artist.set_dashes(dashes)
                 artist.set_path_effects(
-                    [Stroke(linewidth=(width + 1.0) * scale, foreground=halo), Normal()]
+                    [
+                        Stroke(
+                            linewidth=(width + maps["outline_halo_width"]) * scale,
+                            foreground=halo,
+                        ),
+                        Normal(),
+                    ]
                 )
     labels = []
     for feature in overlays.get("locations", []):
@@ -448,7 +531,10 @@ def _draw_scale_bar(ax: Axes, frame: MapFrame) -> None:
                 zorder=6,
             )
         )
-    halo = [Stroke(linewidth=2.0, foreground=maps["halo"]), Normal()]
+    halo = [
+        Stroke(linewidth=maps["scale_bar_halo_width"], foreground=maps["halo"]),
+        Normal(),
+    ]
     for step in (0, segments // 2, segments):
         value = length_km * step / segments
         ax.text(
@@ -467,7 +553,12 @@ def _draw_scale_bar(ax: Axes, frame: MapFrame) -> None:
 def _place_point_labels(
     fig: Figure, ax: Axes, labels: Sequence[tuple[float, float, str]]
 ) -> None:
-    """Haloed, optionally two-line labels at the clearest in-frame offset."""
+    """Haloed, optionally two-line labels at the clearest in-frame offset.
+
+    Each label takes the ``LABEL_OFFSETS`` candidate with the lowest penalty
+    (see the ``LABEL_*_PENALTY`` constants). Names are drawn in their map
+    display form (``map_display_label``).
+    """
     maps = active().maps
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
@@ -483,27 +574,25 @@ def _place_point_labels(
         occupied.append(
             Bbox.from_extents(px - radius, py - radius, px + radius, py + radius)
         )
-    candidates = (
-        (8, 8),
-        (-8, 8),
-        (8, -8),
-        (-8, -8),
-        (16, 0),
-        (-16, 0),
-        (0, 16),
-        (0, -16),
-        (24, 16),
-        (-24, 16),
-        (24, -16),
-        (-24, -16),
-    )
+    linework = {
+        tag: [
+            line.get_transform().transform_path(line.get_path())
+            for line in ax.lines
+            if line.get_label() == tag
+        ]
+        for tag in (_RIVER_TAG, _OUTLINE_TAG)
+    }
+
+    def covers(box: Bbox, tag: str) -> bool:
+        return any(path.intersects_bbox(box, filled=False) for path in linework[tag])
+
     for x, y, label in labels:
         if not ax.get_xlim()[0] <= x <= ax.get_xlim()[1] or not (
             ax.get_ylim()[0] <= y <= ax.get_ylim()[1]
         ):
             continue
         text = ax.annotate(
-            wrap_label(label, maps["location_label_wrap"]),
+            wrap_label(map_display_label(label), maps["location_label_wrap"]),
             (x, y),
             xytext=(8, 8),
             textcoords="offset points",
@@ -511,7 +600,15 @@ def _place_point_labels(
             fontweight="bold",
             color=active().colors["ink"],
             zorder=6,
-            path_effects=[Stroke(linewidth=2.2, foreground=maps["halo"]), Normal()],
+            # Shared in-plot label box: a thin halo alone is lost on dark fills.
+            bbox={**active().label_box, "facecolor": maps["halo"]},
+            path_effects=[
+                Stroke(
+                    linewidth=maps["location_label_halo_width"],
+                    foreground=maps["halo"],
+                ),
+                Normal(),
+            ],
             arrowprops={
                 "arrowstyle": "-",
                 "color": active().colors["muted"],
@@ -526,26 +623,35 @@ def _place_point_labels(
         )
         text.set_in_layout(False)
         options = []
-        for dx, dy in candidates:
-            text.set_position((dx, dy))
-            align = "left" if dx > 0 else "right" if dx < 0 else "center"
-            text.set_ha(align)
-            text.set_multialignment(align)
-            text.set_va("bottom" if dy > 0 else "top" if dy < 0 else "center")
+        for order, (dx, dy) in enumerate(LABEL_OFFSETS):
+            _set_label_offset(text, dx, dy)
             text.update_positions(renderer)
-            box = text.get_window_extent(renderer).expanded(1.08, 1.15)
+            # The text alone: an annotation's extent includes its leader, which
+            # starts on the marker (and so on its river) at every offset.
+            box = Text.get_window_extent(text, renderer).expanded(1.08, 1.15)
             outside = not (
                 ax.bbox.contains(box.x0, box.y0) and ax.bbox.contains(box.x1, box.y1)
             )
-            score = 1000 * outside + sum(box.overlaps(other) for other in occupied)
+            score = (
+                LABEL_OUTSIDE_PENALTY * outside
+                + LABEL_OVERLAP_PENALTY * sum(box.overlaps(o) for o in occupied)
+                + LABEL_RIVER_PENALTY * covers(box, _RIVER_TAG)
+                + LABEL_OUTLINE_PENALTY * covers(box, _OUTLINE_TAG)
+                + LABEL_ORDER_PENALTY * order
+            )
             options.append((score, dx, dy, box))
         _, dx, dy, box = min(options, key=lambda option: option[0])
-        text.set_position((dx, dy))
-        align = "left" if dx > 0 else "right" if dx < 0 else "center"
-        text.set_ha(align)
-        text.set_multialignment(align)
-        text.set_va("bottom" if dy > 0 else "top" if dy < 0 else "center")
+        _set_label_offset(text, dx, dy)
         occupied.append(box)
+
+
+def _set_label_offset(text: Any, dx: float, dy: float) -> None:
+    """Offset a point label, aligning it away from its point."""
+    text.set_position((dx, dy))
+    align = "left" if dx > 0 else "right" if dx < 0 else "center"
+    text.set_ha(align)
+    text.set_multialignment(align)
+    text.set_va("bottom" if dy > 0 else "top" if dy < 0 else "center")
 
 
 def _polygon_paths(geometry: Mapping[str, Any]) -> list[Path]:
@@ -654,34 +760,17 @@ def _draw_locator(
             points = np.asarray(coordinates)
             inset.plot(points[:, 0], points[:, 1], color=maps["locator_border"], lw=0.3)
     halo = [Stroke(linewidth=1.6, foreground=maps["halo"]), Normal()]
-    # Places arrive largest first; one whose label would hit an earlier one is
-    # dropped rather than overprinted.
-    inset.set_xlim(w0, e0)
+    # The box is square on the page, so the longitude span that fills it is the
+    # latitude span times the midpoint-latitude aspect. Final limits come first
+    # so label collision boxes are measured in the drawn geometry.
+    aspect = 1 / math.cos(math.radians((s0 + n0) / 2))
+    half = (n0 - s0) * aspect / 2
+    centre = (w0 + e0) / 2
+    inset.set_xlim(centre - half, centre + half)
     inset.set_ylim(s0, n0)
-    renderer = ax.figure.canvas.get_renderer()
-    placed: list[Bbox] = []
-    for x, y, name in locator.places:
-        (marker,) = inset.plot(x, y, "o", ms=1.8, color=maps["locator_city"])
-        text = inset.annotate(
-            name,
-            (x, y),
-            xytext=(2, 0),
-            textcoords="offset points",
-            fontsize=4.5,
-            color=maps["locator_city"],
-            va="center",
-            path_effects=halo,
-            annotation_clip=True,
-        )
-        box = Bbox.union(
-            [text.get_window_extent(renderer), marker.get_window_extent(renderer)]
-        ).expanded(1.05, 1.2)
-        if any(box.overlaps(other) for other in placed):
-            text.remove()
-            marker.remove()
-            continue
-        placed.append(box)
-    inset.add_patch(
+    inset.set_aspect(aspect, adjustable="box")
+    inset.apply_aspect()
+    mark = inset.add_patch(
         Rectangle(
             (west, south),
             east - west,
@@ -692,20 +781,63 @@ def _draw_locator(
             zorder=5,
         )
     )
-    # The box is square on the page, so the longitude span that fills it is the
-    # latitude span times the midpoint-latitude aspect.
-    aspect = 1 / math.cos(math.radians((s0 + n0) / 2))
-    half = (n0 - s0) * aspect / 2
-    centre = (w0 + e0) / 2
-    inset.set_xlim(centre - half, centre + half)
-    inset.set_ylim(s0, n0)
-    inset.set_aspect(aspect, adjustable="box")
+    renderer = ax.figure.canvas.get_renderer()
+    # The basin mark is reserved; places arrive largest first. A label tries
+    # the right, then the left of its point, and is dropped (with its point)
+    # rather than overprinting the mark or an earlier label.
+    placed: list[Bbox] = [mark.get_window_extent(renderer).expanded(1.6, 1.6)]
+    for x, y, name in locator.places:
+        (marker,) = inset.plot(x, y, "o", ms=1.8, color=maps["locator_city"])
+        point = marker.get_window_extent(renderer)
+        if any(point.overlaps(other) for other in placed[:1]):
+            marker.remove()
+            continue
+        for dx, align in ((2, "left"), (-2, "right")):
+            text = inset.annotate(
+                name,
+                (x, y),
+                xytext=(dx, 0),
+                textcoords="offset points",
+                ha=align,
+                fontsize=4.5,
+                color=maps["locator_city"],
+                va="center",
+                path_effects=halo,
+                annotation_clip=True,
+            )
+            box = Bbox.union([text.get_window_extent(renderer), point]).expanded(
+                1.05, 1.2
+            )
+            inside = inset.bbox.contains(box.x0, box.y0) and inset.bbox.contains(
+                box.x1, box.y1
+            )
+            if inside and not any(box.overlaps(other) for other in placed):
+                placed.append(box)
+                break
+            text.remove()
+        else:
+            marker.remove()
     inset.set_xticks([])
     inset.set_yticks([])
     for spine in inset.spines.values():
         spine.set_linewidth(0.6)
         spine.set_edgecolor(active().colors["ink"])
     return taken
+
+
+def wrap_key_title(title: str | None) -> str | None:
+    """Wrap each line of a key title at ``maps.key_title_wrap`` characters.
+
+    Existing line breaks (e.g. a units line) are kept; words are never split.
+    A fixed title width keeps the side panel, and so the canvas, one width.
+    """
+    if not title:
+        return title
+    width = active().maps["key_title_wrap"]
+    return "\n".join(
+        textwrap.fill(line, width, break_long_words=False) or line
+        for line in title.split("\n")
+    )
 
 
 def _side_legend(ax: Axes, handles: list, title: str | None, fontsize: float) -> Any:
@@ -802,6 +934,98 @@ def _in_frame(raster: RasterMap, frame: MapFrame) -> NDArray[np.bool_]:
     return ys[:, None] & xs[None, :]
 
 
+def key_extend(rasters: Sequence[RasterMap], frame: MapFrame, scale: MapScale) -> str:
+    """The permitted extension sides that drawn cells actually reach.
+
+    A side counts when a finite cell in the frame (and inside ``inside`` when
+    given) lies strictly beyond that outer boundary; the closed upper boundary
+    itself stays in the last class. Pass every raster one key represents so
+    all pages of a panel set carry the same key.
+    """
+    if scale.status != "available" or scale.extend == "neither":
+        return "neither"
+    low, high = scale.boundaries[0], scale.boundaries[-1]
+    under = over = False
+    for raster in rasters:
+        values = np.ma.filled(np.ma.asarray(raster.values, dtype=float), np.nan)
+        drawn = _in_frame(raster, frame) & np.isfinite(values)
+        if raster.inside is not None:
+            drawn &= np.asarray(raster.inside)
+        under = under or bool((values[drawn] < low).any())
+        over = over or bool((values[drawn] > high).any())
+    under &= scale.extend in {"both", "min"}
+    over &= scale.extend in {"both", "max"}
+    return {
+        (True, True): "both",
+        (True, False): "min",
+        (False, True): "max",
+        (False, False): "neither",
+    }[under, over]
+
+
+def _scale_colourbar(
+    fig: Figure, mappable: Any, cax: Axes, scale: MapScale, extend: str
+):
+    """A map key: supplied ticks, pointed extensions only where drawn cells reach."""
+    return fig.colorbar(
+        mappable,
+        cax=cax,
+        ticks=scale.ticks,
+        extend=extend,
+        extendrect=False,
+        format=FuncFormatter(_tick_text),
+    )
+
+
+def _tick_text(value: float, _position: Any = None) -> str:
+    """Shortest tick text without padded zeros, with a typographic minus."""
+    text = f"{round(value, 10):g}"
+    return "0" if text == "-0" else text.replace("-", "−")
+
+
+def _thin_crowded_key_ticks(fig: Figure, colorbar: Any) -> None:
+    """Keep every second key tick when neighbouring labels come too close.
+
+    Ticks on every class boundary stay when their labels keep
+    ``KEY_LABEL_GAP_MM`` clear space; otherwise the first, third, ... ticks
+    remain, which keeps both ends and the zero of an even symmetric class set.
+    """
+    ticks = list(colorbar.get_ticks())
+    if len(ticks) < 3:
+        return
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    boxes = sorted(
+        (
+            label.get_window_extent(renderer)
+            for label in colorbar.ax.get_yticklabels()
+            if label.get_visible() and label.get_text()
+        ),
+        key=lambda box: box.y0,
+    )
+    gap = KEY_LABEL_GAP_MM * fig.dpi / 25.4
+    if any(upper.y0 - lower.y1 < gap for lower, upper in zip(boxes, boxes[1:])):
+        colorbar.set_ticks(ticks[::2])
+        colorbar.minorticks_off()
+
+
+def _coordinate_formatter(ticks: Sequence[float]) -> FuncFormatter:
+    """One axis's coordinate labels share the decimals its finest tick needs."""
+    texts = [f"{round(float(value), 10):g}" for value in ticks]
+    decimals = max(
+        (len(text.split(".")[1]) for text in texts if "." in text and "e" not in text),
+        default=0,
+    )
+
+    def text(value: float, _position: Any = None) -> str:
+        label = f"{value:.{decimals}f}"
+        if float(label) == 0:
+            label = label.lstrip("-")
+        return label.replace("-", "−")
+
+    return FuncFormatter(text)
+
+
 def missing_shown(raster: RasterMap, frame: MapFrame) -> bool:
     """Whether the map draws missing cells, which is when it keys "No data"."""
     inside = (
@@ -826,6 +1050,7 @@ def draw_raster_map(
     ax: Axes | None = None,
     compact: bool = False,
     key_missing: bool = False,
+    key_rasters: Sequence[RasterMap] | None = None,
 ) -> Figure:
     """Draw supplied classes or honest unscaled hatching; never change input arrays.
 
@@ -837,7 +1062,9 @@ def draw_raster_map(
     ``locator_in_map`` instead places it inside the map's clearest corner (the
     overview maps' exception). Geographic grids use the supplied ticks/aspect.
     ``colorbar_title`` defaults to the scale's units; ``show_key=False`` omits
-    the key. The map frame fits within 150 × 95 mm at its geographic aspect;
+    the key. A scale's colourbar extensions follow ``key_extend`` over
+    ``key_rasters`` (default: this raster), so a key shared by several maps
+    reflects all of them. The map frame fits within 150 × 95 mm at its geographic aspect;
     labels, keys and external locators extend the canvas without shrinking it.
     With ``ax``, draw into the caller's figure without resizing its canvas.
     ``compact`` retains spatial layers and location markers but omits coordinate
@@ -936,6 +1163,9 @@ def draw_raster_map(
     ax.set_xlim(west, east)
     ax.set_ylim(south, north)
     ax.set_aspect(frame.aspect)
+    # The frame shares the key outline's colour.
+    for spine in ax.spines.values():
+        spine.set_edgecolor(active().colors["axis"])
     overlay_scale = 1.0
     if compact:
         width_mm = ax.get_position().width * fig.get_figwidth() * 25.4
@@ -960,9 +1190,8 @@ def draw_raster_map(
     ax.set_yticks(frame.latitude_ticks)
     ax.set_xlabel("Longitude (°)")
     ax.set_ylabel("Latitude (°)")
-    formatter = FuncFormatter(lambda value, _: f"{value:g}".replace("-", "−"))
-    ax.xaxis.set_major_formatter(formatter)
-    ax.yaxis.set_major_formatter(formatter)
+    ax.xaxis.set_major_formatter(_coordinate_formatter(frame.longitude_ticks))
+    ax.yaxis.set_major_formatter(_coordinate_formatter(frame.latitude_ticks))
     ax.grid(color="#777777", alpha=0.15, linewidth=0.4)
     _draw_scale_bar(ax, frame)
 
@@ -988,7 +1217,7 @@ def draw_raster_map(
         ]
         if missing:
             handles.append(_swatch(missing_color, MISSING_LABEL))
-        _fit_legend(fig, ax, handles, classes.title, top)
+        _fit_legend(fig, ax, handles, wrap_key_title(classes.title), top)
     elif show_key and scale.status == "available":
         bottom = 0.0
         if missing:
@@ -1010,23 +1239,23 @@ def draw_raster_map(
         )
         axes_ratio = frame.aspect * (north - south) / (east - west)
         cax = ax.inset_axes((PANEL_LEFT, bottom, height / 20 * axes_ratio, height))
-        colorbar = fig.colorbar(
-            mesh,
-            cax=cax,
-            ticks=scale.ticks,
-            extend=scale.extend,
-            extendrect=True,
-        )
+        extend = key_extend(key_rasters or [raster], frame, scale)
+        colorbar = _scale_colourbar(fig, mesh, cax, scale, extend)
         style_colourbar(
-            colorbar, scale.units if colorbar_title is None else colorbar_title
+            colorbar,
+            wrap_key_title(scale.units if colorbar_title is None else colorbar_title),
         )
+        _thin_crowded_key_ticks(fig, colorbar)
     elif show_key and missing:
         _side_legend(
             ax, [_swatch(missing_color, MISSING_LABEL)], None, active().fonts["tick"]
         )
     _place_point_labels(fig, ax, labels)
     if owns_canvas:
-        _fit_map_canvas(fig, ax)
+        # Reserved wherever the panel holds something, so keyed maps share one
+        # canvas width; a map with no key or locator (subbasin overview) is
+        # cropped to its frame instead of carrying an empty panel.
+        _fit_map_canvas(fig, ax, side_panel=show_key or locator is not None)
     return fig
 
 
@@ -1060,6 +1289,7 @@ def draw_raster_panels(
     if type(maximum) is not int or maximum <= 0:
         raise ValueError("max_panels_per_figure must be a positive integer")
     columns = min(int(settings["columns"]), maximum, len(rasters))
+    extend = key_extend(rasters, frame, scale)
     return [
         _draw_raster_panel_page(
             rasters[start : start + maximum],
@@ -1069,6 +1299,7 @@ def draw_raster_panels(
             overlays,
             columns=columns,
             colorbar_title=colorbar_title,
+            extend=extend,
         )
         for start in range(0, len(rasters), maximum)
     ]
@@ -1083,11 +1314,15 @@ def _draw_raster_panel_page(
     *,
     columns: int,
     colorbar_title: str | None,
+    extend: str,
     row_labels: Sequence[str] = (),
     column_labels: Sequence[str] = (),
     geometry_columns: int | None = None,
 ) -> Figure:
-    """Draw one page with column geometry fixed across the complete panel set."""
+    """Draw one page with column geometry and key fixed across the panel set.
+
+    ``extend`` is the panel set's ``key_extend``, decided over all pages.
+    """
     preset = active()
     settings = preset.map_panels
     rows = math.ceil(len(rasters) / columns)
@@ -1165,16 +1400,12 @@ def _draw_raster_panel_page(
                 settings["key_height_fraction"],
             )
         )
-        colorbar = fig.colorbar(
-            axes[0].collections[0],
-            cax=cax,
-            ticks=scale.ticks,
-            extend=scale.extend,
-            extendrect=True,
-        )
+        colorbar = _scale_colourbar(fig, axes[0].collections[0], cax, scale, extend)
         style_colourbar(
-            colorbar, scale.units if colorbar_title is None else colorbar_title
+            colorbar,
+            wrap_key_title(scale.units if colorbar_title is None else colorbar_title),
         )
+        _thin_crowded_key_ticks(fig, colorbar)
     return fig
 
 
@@ -1216,6 +1447,7 @@ def draw_raster_matrix(
     if page_columns < 1:
         raise ValueError("map matrix requires a positive page capacity")
     page_rows = max(1, maximum // page_columns)
+    extend = key_extend([raster for row in rasters for raster in row], frame, scale)
     figures = []
     for start_row in range(0, rows, page_rows):
         selected_rows = range(start_row, min(start_row + page_rows, rows))
@@ -1239,6 +1471,7 @@ def draw_raster_matrix(
                     row_labels=[row_labels[r] for r in selected_rows],
                     column_labels=[column_labels[c] for c in selected_columns],
                     colorbar_title=colorbar_title,
+                    extend=extend,
                 )
             )
     return figures
@@ -1304,6 +1537,7 @@ def draw_raster_panels_detailed(
             ax=ax,
             show_key=i == len(rasters) - 1,
             key_missing=any(missing_shown(r, frame) for r in rasters),
+            key_rasters=rasters,
         )
         ax.set_title(heading, loc="left", fontsize=active().fonts["label"])
         if notes and notes[i]:

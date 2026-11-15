@@ -82,9 +82,9 @@ Paths below are relative to `project_dir`. The main outputs are:
 - **Simulated time series (`models/hydrology/wflow/historical/default/run/`).** Per-variable `output_<code>.csv`
   tables and `_engine/response_tables.json`, with registry IDs linking series to reporting locations.
   Native Wflow `output.csv` is removed after successful conversion. Evaluation reads the retained tables.
-- **Evaluation (`models/hydrology/wflow/evaluation/`).** Model-response figures and scores where
-  observations are available, including `tables/performance_indicators.csv` and station discharge
-  summaries under `plots/stations/` when `plotting.location: true`.
+- **Evaluation (`models/hydrology/wflow/historical/default/plots/` and `tables/`).** Model-response
+  figures and scores where observations are available, including `tables/performance_indicators.csv`
+  and station discharge summaries under `plots/stations/` when `plotting.location: true`.
 
 The completed model supplies subsequent hydrological simulations. Logs, benchmarks and configuration
 archives are described in [execution records](execution-and-provenance.md).
@@ -153,9 +153,9 @@ partial edge years are excluded, and no spin-up year is removed. Aridity is tota
 coefficient is total runoff depth / total P over the same retained years. Zero P or no eligible years
 produces an unavailable result. These are ratios of totals, rather than averages of annual ratios.
 
-Outputs live in `models/hydrology/wflow/evaluation/budyko/`: `tables/stations.csv`, `annual.csv` and
-`summary.csv`, the diagram in `plots/`, and daily evidence, input hashes and support declarations in
-`_engine/`. The target `evaluate_budyko` requires model/forcing preparation but no Wflow simulation.
+Outputs live in each recipe folder, `models/hydrology/wflow/historical/<id>/`: `tables/budyko_stations.csv`,
+`budyko_annual.csv` and `budyko_summary.csv`, the diagram in `plots/budyko/`, and daily evidence, input
+hashes and support declarations in `_engine/budyko_daily.csv` and `_engine/budyko_methods.json`. The target `evaluate_budyko` requires model/forcing preparation but no Wflow simulation.
 Retained tables support `scripts/render_figures.py budyko --project <project_dir> --out <new_dir>`.
 
 Water and energy limits describe long-term equilibrium assumptions. Short/discontinuous records,
@@ -193,7 +193,7 @@ digest of its recipe inputs.
 
 Comparisons across models (`scripts/register_model.py compare`) are written to
 `models/hydrology/comparisons/<name>/` with the same tables and figures as a model's own
-`historical_comparison/`. The runs must cover the same simulation period and initialization; the
+`historical/forcing_comparison/`. The runs must cover the same simulation period and initialization; the
 evaluation window is every complete reporting year they share.
 
 The former `historical_run` setting, which published named copies under `simulations/historical/`, is no
@@ -208,8 +208,8 @@ compression and container timestamps.
 
 With [named recipes](configuration.md#named-historical-forcing-recipes), WF1 builds the model once and simulates
 each recipe in `build_model.historical_forcings` separately. Each recipe owns one folder,
-`historical/<id>/`, holding `forcing/inmaps_historical.nc`, `run/`, `evaluation/` and `_engine/` (its build
-YAML, store catalog and forcing record), plus its TOML `wflow_sbm_<id>.toml` at the model root. A single
+`historical/<id>/`, holding `forcing/inmaps_historical.nc`, `run/`, the evaluation `plots/` and `tables/`,
+and `_engine/` (its build YAML, store catalog, forcing record and evaluation sidecars), plus its TOML `wflow_sbm_<id>.toml` at the model root. A single
 recipe uses `historical/default/` and the model's own `wflow_sbm.toml`. TOMLs stay at the model root
 because HydroMT-Wflow resolves model inputs from there. The shared `wflow_sbm.toml`, `staticmaps.nc` and
 geometries are never rewritten per recipe, and rerunning one recipe leaves the others' files untouched. Two
@@ -218,7 +218,7 @@ or more recipes are compared automatically.
 ## Compare forcing recipes {#compare-recipes}
 
 When `build_model.historical_forcings` runs two or more named recipes, WF1 compares their current runs
-(rule 1.13b) into `models/hydrology/<model>/historical_comparison/`: `tables/` (performance, coverage,
+(rule 1.13b) into `models/hydrology/<model>/historical/forcing_comparison/`: `tables/` (performance, coverage,
 daily, monthly, seasonal, flow duration, stations, inventory), `tables/supporting/support.csv` (per-day
 support flags), `plots/` and `_engine/comparison.json`. It evaluates every complete reporting year the runs
 share: responses are labelled at interval end, so the first simulated year is never complete. Every input

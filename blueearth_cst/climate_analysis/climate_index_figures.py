@@ -1,5 +1,6 @@
 """Render climate-index products exclusively from verified retained evidence."""
 
+import calendar
 import json
 import textwrap
 from pathlib import Path
@@ -42,7 +43,10 @@ def _series(data, metadata, *, seasonal=False, color=None, source="", columns=3)
     }
     if not metadata:
         raise ValueError("No available indices in the requested scope")
-    columns = min(columns, len(metadata))
+    # Canonical panel grid (plotting/docs/panel-layout.md): at the 180 mm
+    # figure width, two columns for any multi-panel sheet (3–4 → 2 × 2,
+    # 5–6 → 2 × 3), so no row holds a lone trailing panel beside a full row of three.
+    columns = 1 if len(metadata) == 1 else 2
     rows = int(np.ceil(len(metadata) / columns))
     fig, axes = new_fig(
         rows * 42 + 11, rows, columns, width_mm=180 if columns > 1 else 100, sharex=True
@@ -58,6 +62,10 @@ def _series(data, metadata, *, seasonal=False, color=None, source="", columns=3)
     display_years = np.unique(years[valid])
     season_names = np.array([str(label).split(":")[0] for label in data.period.values])
     seasons = list(dict.fromkeys(season_names))
+    # One season carries no category to distinguish: plot it as a plain series
+    # (the caption names the season instead of a legend).
+    if seasonal and len(seasons) == 1:
+        seasonal = False
     season_styles = source_styles(seasons) if seasonal else {}
     units_by_panel = [units for _, units in metadata.values()]
     handles = []
@@ -87,7 +95,7 @@ def _series(data, metadata, *, seasonal=False, color=None, source="", columns=3)
                 years,
                 data[metric].values,
                 marker="o",
-                **time_series_style(source, color),
+                **time_series_style("", color),
             )
         year_ticks(ax, display_years)
         step = (
@@ -208,7 +216,8 @@ def render_indices(
     metadata_dir = Path(paths.get("index_metadata", output_dir))
     metadata_dir.mkdir(parents=True, exist_ok=True)
     source = identity["source"]
-    hue = source_styles([source])[source][0]
+    # Single-dataset series carry no dataset identity, so they are drawn in black.
+    hue = "black"
     options = identity["settings"]["climate_indices"]
     threshold = options.get("mean_temperature_threshold_degc", 25.0)
     metadata = INDEX_METADATA | {
@@ -228,7 +237,28 @@ def render_indices(
         "Censored observed durations are lower bounds; short references are exploratory."
     )
 
-    def save(fig, key, title, explanation):
+    wet = identity["settings"].get("wet_day_threshold_mm", 1.0)
+    # Panels carry short index names; the caption spells them out.
+    definitions = {
+        "heavy_rainfall": (
+            "R10mm and R20mm: days with at least 10 and 20 mm of precipitation; "
+            "Rx1day and Rx5day: maximum 1-day and 5-day precipitation; "
+            "R95p amount: precipitation on days above the reference-period 95th "
+            f"percentile of wet-day (≥{wet:g} mm) precipitation; R95p fraction: that "
+            "amount as a percentage of total wet-day precipitation, computed per year "
+            "(and season) against that period's own total, so values do not sum across years."
+        ),
+    }
+
+    # A single configured season is named in the caption instead of a legend.
+    seasons_cfg = options["seasons"] or {}
+    single_season = ""
+    if len(seasons_cfg) == 1:
+        name, months = next(iter(seasons_cfg.items()))
+        span = "–".join(calendar.month_abbr[m] for m in (months[0], months[-1]))
+        single_season = f"Season: {name} ({span})."
+
+    def save(fig, key, title, explanation, definition=""):
         path = Path(paths[key]) if key in paths else output_dir / key
         path.parent.mkdir(parents=True, exist_ok=True)
         journal_caption = (
@@ -239,6 +269,7 @@ def render_indices(
                 if "Indices of daily" in explanation
                 else explanation.split(". ")[0].rstrip(".") + "."
             )
+            + (f" {definition}" if definition else "")
         )
         export_figure(
             fig,
@@ -266,7 +297,9 @@ def render_indices(
             for scope, (scope_title, columns, metrics) in INDEX_GROUPS.items():
                 subset = {
                     metric: (
-                        INDEX_SERIES_LABELS.get(metric, metadata[metric][0]),
+                        metadata[metric][0]
+                        if scope in definitions
+                        else INDEX_SERIES_LABELS.get(metric, metadata[metric][0]),
                         metadata[metric][1],
                     )
                     for metric in metrics
@@ -293,6 +326,14 @@ def render_indices(
                     "are shared within compatible rows. Years are labelled by start year, with empty "
                     "boundary periods omitted and internal gaps retained. Durations count overlapping "
                     f"days within each period. Configured seasons: {options['seasons']}.",
+                    " ".join(
+                        part
+                        for part in (
+                            single_season if period == "seasonal" else "",
+                            definitions.get(scope, ""),
+                        )
+                        if part
+                    ),
                 )
         if len(exceedance):
             fig, axes = new_fig(65, width_mm=100)
@@ -301,7 +342,7 @@ def render_indices(
                 exceedance.duration,
                 exceedance.exceedance_probability,
                 where="pre",
-                **time_series_style(source, hue),
+                **time_series_style("", hue),
             )
             ax.set(xlabel="days", ylabel="P(duration ≥ days)", ylim=(0, 1))
             time_series_grid(ax)

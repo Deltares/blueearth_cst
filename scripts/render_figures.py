@@ -83,11 +83,12 @@ def _budyko(args):
     if args.source:
         raise ValueError("--source does not apply to budyko")
     model = args.project / "models/hydrology" / args.model_name
-    root = model / "historical/default/evaluation/budyko"
-    if not root.is_dir():
-        root = model / "evaluation/budyko"  # before layout 4
-    render(root, args.out, args.annotation)
-    return {"budyko": args.out / "plots"}
+    summary = model / "historical/default/tables/budyko_summary.csv"
+    for legacy in ("historical/default/evaluation/budyko", "evaluation/budyko"):
+        if not summary.is_file():
+            summary = model / legacy / "tables/summary.csv"  # before flat dataset layout
+    render(summary, args.out / "plots/budyko", args.annotation)
+    return {"budyko": args.out / "plots/budyko"}
 
 
 def _spatial(args):

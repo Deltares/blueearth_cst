@@ -90,7 +90,7 @@ def render_retained_subbasins(
                 s: "CHIRPS" if s in {"chirps", "chirps_global"} else s.upper()
                 for s in sources
             },
-            artists.source_styles(sources),
+            artists.dataset_styles(sources),
             results,
             np.arange(period[0], period[1] + 1),
             m0,

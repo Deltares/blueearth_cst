@@ -56,7 +56,7 @@ simulation_window:
 
 # With named climate.forcings: recipes to simulate (default: [default_forcing]).
 # Each runs in models/hydrology/wflow/historical/<id>/; two or more are compared
-# in models/hydrology/wflow/historical_comparison/.
+# in models/hydrology/wflow/historical/forcing_comparison/.
 # Select named historical recipes. Input: list of climate.forcings names.
 #historical_forcings: [era5, chirps]
 

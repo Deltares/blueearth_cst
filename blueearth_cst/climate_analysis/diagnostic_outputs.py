@@ -9,6 +9,10 @@ from blueearth_cst.climate_analysis.figure_naming import (
 )
 from blueearth_cst.climate_analysis.table_files import FILES, relative_path
 
+#: Shortest record that yields a start-year trend fit; mirrors the ``min_years``
+#: default of ``diagnostics.start_year_sensitivity`` (not imported: parse-time module).
+SENSITIVITY_MIN_YEARS = 15
+
 
 def parse_figure_settings(block: dict) -> dict[str, bool]:
     """Resolve presentation switches independently of numerical diagnostics."""
@@ -95,6 +99,12 @@ FORMS = {
 }
 
 
+def _too_short_for_sensitivity(settings) -> bool:
+    """The comparison period cannot hold one start-year trend fit."""
+    period = settings.get("comparison_period")
+    return bool(period) and period["end"] - period["start"] + 1 < SENSITIVITY_MIN_YEARS
+
+
 def inventory(root, sources, settings, comparison=False, comparison_sources=()):
     """Named compute/render files; unknown subbasin IDs use optional directories."""
     root = Path(root)
@@ -110,13 +120,25 @@ def inventory(root, sources, settings, comparison=False, comparison_sources=()):
         forms.pop("pt")
     if comparison and not settings.get("comparison_figures", True):
         forms.clear()
+    # A figure that can hold nothing is not declared (cst-style: no empty figures).
+    # Comparison tables cover the comparison period; each start-year fit needs
+    # at least `min_years` valid years, so shorter periods yield no fits.
+    if comparison and _too_short_for_sensitivity(settings):
+        forms.pop("sensitivity", None)
     if (
         not comparison
         and len(comparison_sources) > 1
         and not settings.get("source_figures", False)
     ):
         compared = inventory(root, comparison_sources, settings, comparison=True)
+        # Forms the comparison set owns but leaves undeclared for want of data
+        # (sensitivity on a short comparison period) stay owned by it: sources
+        # with per-source figures off never pick them up as replacements.
         duplicated = set(compared["figures"])
+        if settings.get("comparison_figures", True) and _too_short_for_sensitivity(
+            settings
+        ):
+            duplicated.add("sensitivity")
         # A non-bound temperature carrier's own P/T relationship is not shown
         # by a comparison that pairs every precipitation source with the binding.
         if sources[0] != binding:

@@ -19,7 +19,7 @@ charts:
   markers: {line: 3.0, point: 4.5, scatter: 16}
   time_series:
     line_width: 0.65
-    marker_size: 1.3
+    marker_size: 0.9
     alpha: 0.95
     secondary_alpha: 0.8
     observed_width: 1.5
@@ -63,15 +63,23 @@ maps:
   # Stream-order steps, lowest order first; colours are colors.yml river_order.
   river_order_widths: [0.57, 0.85, 1.19, 1.70, 2.41, 3.26, 4.54]
   river_width: 0.6           # rivers without an order attribute
-  river_halo_width: 0.8      # white halo added to each river's width
+  river_halo_width: 0.6      # white halo added to each river's width; keeps rivers clear on dark fills
   basin_outline_width: 0.9
   divide_width: 0.7
+  outline_halo_width: 0.5    # white halo added to basin outline and divide widths
   divide_dash: [6, 2.5]
   location_marker: D
   location_size: 6.0         # marker size in pt
   location_label_size: 5.5
   location_label_wrap: 14    # labels longer than this many characters wrap to two lines
+  key_title_wrap: 14         # key/legend title lines wrap at this many characters; keeps map canvases one width
+  location_label_halo_width: 1.1  # white text halo stroke on location names
+  scale_bar_halo_width: 1.0  # white text halo stroke on scale-bar numbers
   scale_bar_segments: 4
+  # Annual anomaly maps: equal classes between the symmetric limits, coloured from
+  # this share of the diverging colormap so the darkest tones stay unused.
+  anomaly_classes: 8
+  anomaly_colormap_range: [0.08, 0.92]
 evaluation:
   observed_dash: [0, [3, 1.6]]
   line_width: 0.7

@@ -185,8 +185,8 @@ COVERED: dict[str, list[str]] = {
         "models/hydrology/wflow/historical/default/forcing/inmaps_historical.nc",
         "models/hydrology/wflow/historical/default/forcing/plots/forcing_precip_map.png",
         "models/hydrology/wflow/historical/default/forcing/_engine/plots/figure_titles.json",
-        "models/hydrology/wflow/historical/default/evaluation/_engine/plots/stations/figure_captions.json",
-        "models/hydrology/wflow/historical/default/evaluation/budyko/_engine/plots/figure_titles.json",
+        "models/hydrology/wflow/historical/default/_engine/plots/stations/figure_captions.json",
+        "models/hydrology/wflow/historical/default/_engine/plots/budyko/figure_titles.json",
         "models/hydrology/wflow/_engine/outlet_index.csv",
         "models/hydrology/wflow/staticgeoms/gauges_locations.geojson",
         "models/hydrology/wflow/historical/default/run/_engine/response_tables.json",
@@ -194,15 +194,15 @@ COVERED: dict[str, list[str]] = {
         "models/hydrology/wflow/historical/default/run/output_q.csv",
         # Wflow's log is retained but excluded as non-content-bearing evidence.
         "models/hydrology/wflow/historical/default/run/outstate/outstates.nc",
-        "models/hydrology/wflow/historical/default/evaluation/tables/performance_indicators.csv",
+        "models/hydrology/wflow/historical/default/tables/performance_indicators.csv",
         # Keyed by wflow_id since 2026-08-10; four sheets per station. They sit
         # in a `stations/` bin since 2026-08-18 (t2608071206) because rule 1.15
         # declares that bin as a directory() -- their count is a product of the
         # model build, so the files themselves cannot be declared.
-        "models/hydrology/wflow/historical/default/evaluation/plots/stations/hydrograph_1010.png",
-        "models/hydrology/wflow/historical/default/evaluation/plots/stations/signatures_peaks_1010.png",
-        "models/hydrology/wflow/historical/default/evaluation/plots/stations/signatures_lows_1010.png",
-        "models/hydrology/wflow/historical/default/evaluation/plots/stations/performance_1010.png",
+        "models/hydrology/wflow/historical/default/plots/stations/hydrograph_1010.png",
+        "models/hydrology/wflow/historical/default/plots/stations/signatures_peaks_1010.png",
+        "models/hydrology/wflow/historical/default/plots/stations/signatures_lows_1010.png",
+        "models/hydrology/wflow/historical/default/plots/stations/performance_1010.png",
         # The staleness sidecar (rule 1.15b) and the two values-used records
         # (rules 1.07 and 1.08) -- see design §5.6 and §5.8.
         "models/hydrology/wflow/_engine/run_metadata.json",

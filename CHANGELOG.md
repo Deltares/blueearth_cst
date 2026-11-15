@@ -9,6 +9,16 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- WF1 evaluation outputs move into each recipe folder `models/hydrology/<model>/historical/<recipe>/`:
+  figures under `plots/` (Budyko diagram under `plots/budyko/`), tables under `tables/`
+  (`performance_indicators.csv`, `budyko_{stations,annual,summary}.csv`), sidecars under the recipe's
+  `_engine/` (`budyko_daily.csv`, `budyko_methods.json`). The next WF1 run regenerates them without
+  rerunning Wflow; delete the old `historical/<recipe>/evaluation/` folders by hand. WF4 indicator sets
+  republish once because the layout module is part of their identity.
+- WF1's recipe comparison moves from `models/hydrology/<model>/historical_comparison/` to
+  `historical/forcing_comparison/`, mirroring WF0's `data/climate/historical/source_comparison/`.
+  `forcing_comparison` is now a reserved recipe ID. The next WF1 run recreates the comparison without
+  rerunning Wflow; delete the old `historical_comparison/` folder by hand.
 - WF1 `add_reservoirs_lakes_glaciers` now fails, naming the source, when a configured reservoir, lake or
   glacier catalog entry resolves to no file. Previously a missing file was skipped exactly like a basin
   without water bodies, so a real reservoir could be silently omitted. Check `*_fn` catalog paths if a
