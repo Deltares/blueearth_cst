@@ -761,7 +761,7 @@ def prep_historical_climate(
             (
                 f"{clim_source} provides precipitation only; "
                 + (
-                    "adding ERA5 companion climate fields for selected-source forcing"
+                    "adding ERA5 climate fields"
                     if forcing_required
                     else "retaining native precipitation for source comparison"
                 )

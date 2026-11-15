@@ -3612,6 +3612,20 @@ def test_a_split_wf4_run_reads_as_one_run(monkeypatch, split_run):
     assert stream.getvalue() == ""  # no header reprinted at exit
 
 
+def test_a_split_run_header_names_the_run_target(monkeypatch):
+    """The opening block introduces the whole WF4 run, not its first pass."""
+    monkeypatch.setattr(
+        cs,
+        "_ENGINE_ARGV",
+        ["snakemake", "simulations_only", "-s", "simulate_system.smk", "-c", "3"],
+    )
+    monkeypatch.setenv(cs.SPLIT_PHASE_ENV, "simulations")
+    line = cs._engine_command_line()
+    assert "simulations_only" not in line and line.split()[:2] == ["snakemake", "all"]
+    monkeypatch.delenv(cs.SPLIT_PHASE_ENV)
+    assert "simulations_only" in cs._engine_command_line()  # a direct run stays literal
+
+
 def test_a_split_run_with_simulations_retained_opens_once(monkeypatch, split_run):
     """Adding an indicator set to a retained experiment: the first pass has no
     work, so it stays silent, and the indicator pass opens the run with its plan.

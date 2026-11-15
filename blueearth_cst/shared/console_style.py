@@ -459,6 +459,9 @@ class RuleIdentity:
     after_checkpoint: bool = False
     planned_jobs: int | None = None
     planned_from: str | None = None
+    #: False when this run's config does not request the rule's outputs; see
+    #: :meth:`RuleRegistry.logged`.
+    enabled: bool = True
 
     @property
     def label(self) -> str:
@@ -471,6 +474,13 @@ class RuleIdentity:
 
     def banner(self, part=None, context=None) -> str:
         """The ``message:`` string, with this rule's summary applied."""
+        # A fan-out part (WF1's per-recipe `plot_model_forcing_<recipe>`) is its
+        # own rule name under this number, so it carries the switch too.
+        # Otherwise the row mixes off and on names and reads as `reuse`.
+        if self.enabled:
+            _OFF_RULES.discard(self.job_name(part))
+        else:
+            _OFF_RULES.add(self.job_name(part))
         return rule_banner(
             self.number,
             self.job_name(part),
@@ -561,6 +571,7 @@ class RuleRegistry:
             log_parts_dir=self.log_parts_dir,
             benchmark_parts_dir=self.benchmark_parts_dir,
             logged=logged,
+            enabled=enabled,
             **banner,
         )
 
@@ -1199,6 +1210,10 @@ def _engine_command_line():
     argv = engine_command()
     if not argv:
         return "Unavailable (embedded API invocation)"
+    if _split_phase() == "simulations":
+        # The header introduces the whole WF4 run, whose target is `all`; its
+        # first pass stopping at `simulations_only` is an internal split.
+        argv = ["all" if arg in _PRE_CHECKPOINT_TARGETS else arg for arg in argv]
     argv = sanitize_argv(argv)
     return shell_command(argv, multiline=True)
 
