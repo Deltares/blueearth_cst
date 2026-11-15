@@ -1210,6 +1210,10 @@ def _engine_command_line():
     argv = engine_command()
     if not argv:
         return "Unavailable (embedded API invocation)"
+    if _split_phase() == "simulations":
+        # The header introduces the whole WF4 run, whose target is `all`; its
+        # first pass stopping at `simulations_only` is an internal split.
+        argv = ["all" if arg in _PRE_CHECKPOINT_TARGETS else arg for arg in argv]
     argv = sanitize_argv(argv)
     return shell_command(argv, multiline=True)
 
