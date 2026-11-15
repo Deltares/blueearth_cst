@@ -344,6 +344,22 @@ def test_a_switched_off_rule_reads_off_not_reuse(rules, tmp_path):
     assert [state for _, state in rows[1:]] == [False, True, False]
 
 
+def test_a_switched_off_fan_out_rule_reads_off(rules, tmp_path):
+    """WF1 renders one forcing-plot rule per recipe under one number.
+
+    Each part's banner registers its own rule name; the switch must reach those
+    names, or the row mixes off and on rules and reads `reuse` (seen on the
+    showcase run, 2026-11-15, with `plotting.forcing: false`).
+    """
+    rules({"run": "1.13"})
+    registry = cs.RuleRegistry(str(tmp_path / "logs"), str(tmp_path / "bench"))
+    plots = registry.logged("1.12", "plot_model_forcing", enabled=False)
+    plots.banner(part="era5")
+    plots.banner(part="chirps")
+    _, rows = cs._plan_lines({"run": 2})
+    assert rows[1][0].split() == ["off", "plot_model_forcing", "-"]
+
+
 def test_re_registering_a_rule_enabled_clears_off(rules, tmp_path):
     """The registry outlives one parsed Snakefile; the latest declaration wins."""
     rules({})
