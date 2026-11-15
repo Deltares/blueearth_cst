@@ -92,7 +92,7 @@ class Preset:
     time_series: Mapping[str, float] = field(
         default_factory=lambda: {
             "line_width": 0.65,
-            "marker_size": 1.3,
+            "marker_size": 0.9,
             "alpha": 0.95,
             "secondary_alpha": 0.8,
             "observed_width": 1.5,

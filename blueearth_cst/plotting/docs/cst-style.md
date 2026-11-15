@@ -111,6 +111,35 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
   enlarged points use area 36 pt², alpha 0.7 and about 0.7 pt dark edges unless density requires
   adaptation. CHIRPS is Terracotta `#CC593D`; ERA5 is blue `#0D38E0`.
 
+## Canonical figure rules
+
+These rules apply to every figure family unless a figure-specific decision below states an exception.
+
+- **No empty figures.** Never draw a figure, or a panel, with nothing to show. When availability follows
+  from configuration (for example a period shorter than a method's minimum record), drop the figure
+  from the declared outputs at parse time; otherwise omit the panel and record the omission in the
+  caption or availability inventory. Do not write placeholder images or empty axes.
+- **Identity encodings only when they distinguish.** Colour, marker and legend entries identify a
+  category only when two or more are drawn. A single-dataset series is black (`#000000`), independent
+  of dataset colour and source opacity. A single category (one season, one scenario, one source) has
+  no legend; name it in the caption, e.g. `Season: JJA (Jun–Aug).`
+- **Short names on panels, long names in captions.** Panel titles use the index's short name
+  (`R10mm`, `Rx1day`, `R95p fraction`). The caption spells out each short name and defines any
+  non-standard index, including thresholds and the reference period it depends on.
+- **Panel grids.** Multi-panel sheets follow the [measured panel layout](panel-layout.md). At the
+  standard 180 mm width this gives two columns for two or more panels: 3–4 panels as 2 × 2,
+  5–6 as 2 × 3. Never fill a row of three above a single trailing panel. One panel uses one column.
+- **Year labels follow the span.** Label every year for spans of up to 10 years, every second year up
+  to 20, and five-year multiples beyond (`fundamentals.five_year_ticks`). A figure never shows a
+  single labelled year.
+- **Classed anomaly scales.** Signed-anomaly maps and heatmaps use the same classed, zero-centred
+  scale: `plot_preset.ANOMALY_MAP_CLASSES` equal classes over a round symmetric limit
+  (`round_up_to_ladder` on `SYMMETRIC_LIMIT_LADDER`), coloured over `ANOMALY_MAP_COLORMAP_RANGE`.
+  Maps take the limit from the pooled maximum; heatmaps from the 95th percentile of displayed
+  |anomaly|, with values beyond it drawn in the darkest end colours and the caption saying so.
+- **Heatmap orientation.** Calendar heatmaps put months across (single-letter labels in reporting-year
+  order) and years down, earliest at the top, so a row reads as one year's sequence.
+
 ## Color scales and colorbars
 
 - Check keys against the drawn map frame after layout, including titles and ticks. Shorten overflow
@@ -125,16 +154,16 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
   Dataset colours remain for comparison lines and points. Colourbar titles use 10 pt padding. Heatmap
   colourbars use rectangular extensions; map keys follow the spatial-map extension rule below.
 - Monthly precipitation departure calendars use the shared precipitation-anomaly colormap (`BrBG`,
-  brown dry, teal wet) over its full range with continuous normalization, centred at
-  zero with symmetric limits over all finite pooled anomalies. Use a three-line colourbar title:
-  `Precip.`, `anomaly`, `(mm)`. Comparison datasets sit side by side on a 180 × 80 mm canvas,
-  with month labels and ticks on the first panel only. Use the full layout width and zero extra
-  inter-panel spacing, retaining preset padding and text sizes.
+  brown dry, teal wet) on the classed heatmap scale of the canonical rules above. Use a three-line
+  colourbar title: `Precip.`, `anomaly`, `(mm)`. Comparison datasets sit side by side on a
+  180 × 80 mm canvas, months across and years down, with year labels on the first panel only.
+  Use the full layout width and zero extra inter-panel spacing, retaining preset padding and text sizes.
   Omit cell borders and a monthly-percentile companion. Missing cells stay gray. Remove unavailable
   legend rows and explain missing values in captions.
 - SPI heatmaps use boundaries `-3, -2, -1, 1, 2, 3`, no zero tick, and a colourbar 80% of the
-  plotting-area height. `diagnostic_figures.spi` sets canvas height to 0.56 times its standard stack
-  height; this is a code setting, not a comparison to an earlier export.
+  plotting-area height. `diagnostic_figures.spi` sets canvas height to 0.8 times its standard stack
+  height so the three-row strips are not flattened; this is a code setting, not a comparison to an
+  earlier export.
 
 ## Spatial map template
 
@@ -249,15 +278,14 @@ meaning belongs in the caption.
 ### Standard time-series template
 
 - The approved annual precipitation preview defines the standard for data time series and monthly cycles.
-  `style.yml` → `charts.time_series` owns 0.65 pt solid lines, 1.3 pt markers, opacity 0.95
+  `style.yml` → `charts.time_series` owns 0.65 pt solid lines, 0.9 pt markers, opacity 0.95
   (CHIRPS 0.8), and 1.5 pt fully opaque gray observations. `colors.yml` → `neutral` owns the
   time-series observation gray (`#777777`) and horizontal guide color (`#c7d1d8`).
   WF1 station evaluation is an approved exception: observed discharge retains blue dashed lines
   at the evaluation line width and blue markers.
 - Horizontal major guides use 0.5 pt and opacity 0.55, behind the data. Retain all plot borders,
-  axis labels and annual minor ticks. Label calendar-year axes `Year`; align major labels to
-  five- or ten-year multiples when the span permits. Short records use closer year labels;
-  long projection records may use twenty-year labels. Annual precipitation units are `mm/year`.
+  axis labels and annual minor ticks. Label calendar-year axes `Year`; label density follows
+  the canonical year-label rule; long projection records may use twenty-year labels. Annual precipitation units are `mm/year`.
 - Use color, opacity and markers to distinguish sources. Dashed lines remain available for fitted
   trends, thresholds, 1:1 guides and other reference annotations, rather than source identity.
   Preserve ensemble trace opacity and uncertainty envelopes; synthetic serial years, month cycles,

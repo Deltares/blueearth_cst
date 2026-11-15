@@ -150,8 +150,14 @@ def year_ticks(ax: plt.Axes, years: np.ndarray, continuous: bool = False) -> Non
 
 
 def five_year_ticks(ax: plt.Axes, years: np.ndarray, rotation: int = 0) -> None:
-    """Label five-year marks and show intervening years as short minor ticks."""
-    major = np.arange(years[0] + (-years[0]) % 5, years[-1] + 1, 5)
+    """Label five-year marks and show intervening years as short minor ticks.
+
+    Short spans label every year (≤10 years) or every second year (≤20), so a
+    few-year display never ends up with a single labelled tick.
+    """
+    span = int(years[-1] - years[0]) + 1
+    step = 1 if span <= 10 else 2 if span <= 20 else 5
+    major = np.arange(years[0] + (-years[0]) % step, years[-1] + 1, step)
     ax.set_xticks(major)
     ax.set_xticks(np.setdiff1d(years, major), minor=True)
     preset = active()

@@ -13,7 +13,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.colors import BoundaryNorm, ListedColormap, Normalize, to_hex, to_rgb
+from matplotlib.colors import BoundaryNorm, ListedColormap, to_hex, to_rgb
 from matplotlib.figure import Figure
 from matplotlib.legend_handler import HandlerTuple
 from matplotlib.lines import Line2D
@@ -24,6 +24,12 @@ from blueearth_cst.climate_analysis.diagnostics import SPI_SCALES, month_order
 from blueearth_cst.plotting import prepared_charts as pc
 from blueearth_cst.plotting.fundamentals import MM as MM
 from blueearth_cst.plotting.fundamentals import MONTH_ABBR as MONTH_ABBR
+from blueearth_cst.plotting.fundamentals import (
+    SYMMETRIC_LIMIT_LADDER,
+    round_up_to_ladder,
+    time_series_grid,
+    time_series_style,
+)
 from blueearth_cst.plotting.fundamentals import add_caption as add_caption
 from blueearth_cst.plotting.fundamentals import blank as blank
 from blueearth_cst.plotting.fundamentals import colourbar as colourbar
@@ -31,7 +37,6 @@ from blueearth_cst.plotting.fundamentals import five_year_ticks as five_year_tic
 from blueearth_cst.plotting.fundamentals import heatmap_frame as heatmap_frame
 from blueearth_cst.plotting.fundamentals import inside_legend as inside_legend
 from blueearth_cst.plotting.fundamentals import new_fig as new_fig
-from blueearth_cst.plotting.fundamentals import time_series_grid, time_series_style
 from blueearth_cst.plotting.fundamentals import top_legend as top_legend
 from blueearth_cst.plotting.fundamentals import year_ticks as year_ticks
 from blueearth_cst.plotting.fundamentals import ygrid as ygrid
@@ -41,6 +46,10 @@ from blueearth_cst.shared.plot_colors import (
     DEFAULT_COLOR_CYCLE,
     NEUTRAL_COLORS,
     PRECIP_ANOMALY_COLORMAP,
+)
+from blueearth_cst.shared.plot_preset import (
+    ANOMALY_MAP_CLASSES,
+    ANOMALY_MAP_COLORMAP_RANGE,
 )
 from blueearth_cst.shared.plot_preset import AXIS as AXIS
 from blueearth_cst.shared.plot_preset import BAND_ALPHA as BAND_ALPHA
@@ -182,11 +191,6 @@ def dodge(j: int, n: int) -> float:
 def month_axis(ax: plt.Axes, m0: int) -> None:
     ax.set_xticks(np.arange(12), [MONTH_ABBR[m - 1] for m in month_order(m0)])
     ax.set_xlim(-0.5, 11.5)
-
-
-def heatmap_months(ax: plt.Axes, m0: int) -> None:
-    ax.set_ylim(12.5, 0.5)
-    ax.set_yticks(range(1, 13), [MONTH_ABBR[m - 1] for m in month_order(m0)])
 
 
 def id_handles(
@@ -348,11 +352,29 @@ def _stack(v: View):
 
 
 def anomaly(v: View) -> Figure:
-    """Absolute monthly departures on a continuous, zero-centred shared scale."""
-    bounds = v.anom_bounds or [-1.0, 1.0]
-    limit = max(abs(bounds[0]), abs(bounds[-1]))
-    norm = Normalize(-limit, limit)
-    cmap = plt.get_cmap(PRECIP_ANOMALY_COLORMAP).with_extremes(bad=MISSING)
+    """Absolute monthly departures on a classed, zero-centred shared scale.
+
+    Matches the anomaly maps: equal classes over a round symmetric limit. The
+    limit covers the 95th percentile of displayed |anomaly| so a few extreme
+    months do not wash out the rest; beyond it the key extends.
+    """
+    values = np.concatenate(
+        [
+            v.results[s]["anomaly"].reindex(columns=v.years).to_numpy().ravel()
+            for s in v.sources
+        ]
+    )
+    values = np.abs(values[np.isfinite(values)])
+    typical = float(np.percentile(values, 95)) if values.size else 0.0
+    limit = round_up_to_ladder(typical, SYMMETRIC_LIMIT_LADDER) if typical else 1.0
+    boundaries = np.linspace(-limit, limit, ANOMALY_MAP_CLASSES + 1)
+    base = plt.get_cmap(PRECIP_ANOMALY_COLORMAP)
+    low, high = ANOMALY_MAP_COLORMAP_RANGE
+    cmap = ListedColormap(
+        base(np.linspace(low, high, ANOMALY_MAP_CLASSES))
+    ).with_extremes(bad=MISSING, under=base(0.0), over=base(1.0))
+    # Out-of-range cells take the cmap's under/over colours (darkest ends).
+    norm = BoundaryNorm(boundaries, ANOMALY_MAP_CLASSES)
     count = len(v.sources)
     height = H_SINGLE
     fig, axs = new_fig(
@@ -368,24 +390,27 @@ def anomaly(v: View) -> Figure:
         ax.set_facecolor(MISSING)
         heatmap_frame(ax)
         grid = v.results[s]["anomaly"].reindex(columns=v.years)
+        # Months across, years down (earliest at the top).
         mesh = ax.pcolormesh(
-            v.years,
             np.arange(1, 13),
-            grid,
+            v.years,
+            grid.T,
             cmap=cmap,
             norm=norm,
             edgecolors="none",
             rasterized=True,
         )
-        heatmap_months(ax, v.m0)
+        ax.set_xlim(0.5, 12.5)
+        ax.set_xticks(range(1, 13), [MONTH_ABBR[m - 1][0] for m in month_order(v.m0)])
+        ax.set_ylim(v.years[-1] + 0.5, v.years[0] - 0.5)
+        span = len(v.years)
+        step = 1 if span <= 10 else 2 if span <= 20 else 5
+        ax.set_yticks([y for y in v.years if y % step == 0])
         if i > 0:
             ax.tick_params(axis="y", left=False, labelleft=False)
         if len(v.sources) > 1:
             ax.set_title(f"{chr(97 + i)}) {v.labels[s]}")
-        ax.set_xlim(v.years[0] - 0.5, v.years[-1] + 0.5)
-        five_year_ticks(ax, v.years)
-    ticks = MaxNLocator(nbins=4).tick_values(-limit, limit)
-    ticks = [tick for tick in ticks if norm.vmin <= tick <= norm.vmax]
+    ticks = boundaries[::2]
     label = "Precip.\nanomaly\n(mm)"
     colourbar(fig, mesh, axs[0].tolist(), label, ticks, height)
     fig.get_layout_engine().set(wspace=0, rect=(0, 0, 1, 1))
@@ -396,7 +421,9 @@ def spi(v: View) -> Figure:
     cmap = plt.get_cmap("RdBu", len(SPI_BOUNDS) + 1)
     norm = BoundaryNorm(SPI_BOUNDS, cmap.N, extend="both")
     fig, axs, stack = _stack(v)
-    stack *= 0.56
+    # Same overall height as the anomaly heatmap per source panel, so the
+    # three-row strips are not stretched into thin bands at full width.
+    stack *= 0.8
     fig.set_size_inches(fig.get_figwidth(), stack * MM)
     mesh = None
     for i, (ax, s) in enumerate(zip(axs[:, 0], v.sources)):

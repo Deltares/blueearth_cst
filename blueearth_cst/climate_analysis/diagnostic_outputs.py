@@ -9,6 +9,10 @@ from blueearth_cst.climate_analysis.figure_naming import (
 )
 from blueearth_cst.climate_analysis.table_files import FILES, relative_path
 
+#: Shortest record that yields a start-year trend fit; mirrors the ``min_years``
+#: default of ``diagnostics.start_year_sensitivity`` (not imported: parse-time module).
+SENSITIVITY_MIN_YEARS = 15
+
 
 def parse_figure_settings(block: dict) -> dict[str, bool]:
     """Resolve presentation switches independently of numerical diagnostics."""
@@ -110,6 +114,12 @@ def inventory(root, sources, settings, comparison=False, comparison_sources=()):
         forms.pop("pt")
     if comparison and not settings.get("comparison_figures", True):
         forms.clear()
+    # A figure that can hold nothing is not declared (cst-style: no empty figures).
+    # Comparison tables cover the comparison period; each start-year fit needs
+    # at least `min_years` valid years, so shorter periods yield no fits.
+    period = settings.get("comparison_period") if comparison else None
+    if period and period["end"] - period["start"] + 1 < SENSITIVITY_MIN_YEARS:
+        forms.pop("sensitivity", None)
     if (
         not comparison
         and len(comparison_sources) > 1

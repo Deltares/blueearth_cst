@@ -19,7 +19,7 @@ charts:
   markers: {line: 3.0, point: 4.5, scatter: 16}
   time_series:
     line_width: 0.65
-    marker_size: 1.3
+    marker_size: 0.9
     alpha: 0.95
     secondary_alpha: 0.8
     observed_width: 1.5
