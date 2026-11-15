@@ -23,10 +23,11 @@ for its figures; the owning producer implements it.
 
 ## Workflow profiles
 
-The observed water-balance profile uses `observed_runoff_coefficient_budyko_stations.png` under
-the recipe's `plots/budyko/`. `model/plot_budyko.py` renders this retained-table station comparison;
-source recipe, period and station identities live in its tables and methods record. Annotation modes
-use the same PNG path, with readable title/caption inventories in `plots/` and their JSON in `_engine/plots/`.
+The observed water-balance profile uses `budyko_observed_runoff_coefficient_stations.png` directly in
+the recipe's `plots/` (formerly `plots/budyko/observed_runoff_coefficient_budyko_stations.png`).
+`model/plot_budyko.py` renders this retained-table station comparison inside the evaluation rule,
+joining that folder's title/caption inventories; source recipe, period and station identities live in
+its tables and methods record. Annotation modes use the same PNG path.
 
 The WF1 historical forcing comparison (`model/plot_historical_comparison.py`) follows the WF0 field
 order: `comparison_discharge_<diagnostic>_station<wflow_id>.png`, with diagnostics `daily`,

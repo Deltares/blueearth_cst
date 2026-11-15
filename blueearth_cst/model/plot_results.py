@@ -29,6 +29,7 @@ from blueearth_cst.shared.func_plot_signature import (
     compute_indicators,
     plot_basavg,
 )
+from blueearth_cst.shared.named_forcings import HistoricalLayout
 from blueearth_cst.shared.plot_evaluation import (
     STATION_PLOT_DIRNAME,
     Station,
@@ -189,6 +190,7 @@ def analyse_wflow_historical(
     toml_name: str = "wflow_sbm.toml",
     evaluation_dir: Union[Path, str, None] = None,
     station_plots: bool = False,
+    budyko_summary: Union[Path, str, None] = None,
 ):
     """
     Analyse and plot wflow model performance for historical run.
@@ -253,6 +255,11 @@ def analyse_wflow_historical(
     # live in the recipe folder, split by KIND (P1) — figures under plots/,
     # the indicators table under tables/, because plots/ holds figures only.
     model_dir = model_dir or f"{project_dir}/models/hydrology/wflow"
+    forcing_id = HistoricalLayout.from_toml(Path(toml_name).name).forcing_id
+    # Named recipes are dataset IDs (CHIRPS, ERA5); `default` names no dataset.
+    forcing_label = (
+        forcing_id.upper() if forcing_id and forcing_id != "default" else None
+    )
     Folder_eval = str(evaluation_dir or f"{model_dir}/historical/default")
     Folder_plots = f"{Folder_eval}/plots"
     # The per-station bin. Its members are named for wflow_ids, which are a
@@ -333,11 +340,25 @@ def analyse_wflow_historical(
             subbasin_plots=subbasin_plots,
             annotation=annotation,
             warmup_excluded=warmup_excluded,
+            forcing_label=forcing_label,
         )
         plt.close()
     else:
         _log(
             "Basin-average figures omitted: no basin-average output variables are configured"
+        )
+
+    # The observed water-balance diagram shares this plots/ inventory, so it is
+    # drawn here from evaluate_budyko's retained table rather than by that rule.
+    if budyko_summary:
+        from blueearth_cst.model.plot_budyko import render as render_budyko
+
+        _log("Rendering the observed water-balance (Budyko) diagram")
+        render_budyko(
+            budyko_summary,
+            Folder_plots,
+            annotation=annotation,
+            forcing_label=forcing_label,
         )
 
     ### 6. Plot hydrographs and compute performance indicators ###
@@ -452,6 +473,7 @@ if __name__ == "__main__":
                 annotation=getattr(sm.params, "annotation", "none"),
                 toml_name=getattr(sm.params, "toml_name", "wflow_sbm.toml"),
                 evaluation_dir=getattr(sm.params, "evaluation_dir", None),
+                budyko_summary=getattr(sm.input, "budyko_summary", None),
                 # declared only on the chirps/chirps_global branch (ext2-1)
             )
     else:

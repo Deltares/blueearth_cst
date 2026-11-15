@@ -154,7 +154,7 @@ coefficient is total runoff depth / total P over the same retained years. Zero P
 produces an unavailable result. These are ratios of totals, rather than averages of annual ratios.
 
 Outputs live in each recipe folder, `models/hydrology/wflow/historical/<id>/`: `tables/budyko_stations.csv`,
-`budyko_annual.csv` and `budyko_summary.csv`, the diagram in `plots/budyko/`, and daily evidence, input
+`budyko_annual.csv` and `budyko_summary.csv`, the diagram `plots/budyko_observed_runoff_coefficient_stations.png` (drawn by the evaluation rule), and daily evidence, input
 hashes and support declarations in `_engine/budyko_daily.csv` and `_engine/budyko_methods.json`. The target `evaluate_budyko` requires model/forcing preparation but no Wflow simulation.
 Retained tables support `scripts/render_figures.py budyko --project <project_dir> --out <new_dir>`.
 

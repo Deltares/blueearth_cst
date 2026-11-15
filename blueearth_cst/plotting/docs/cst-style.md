@@ -452,6 +452,13 @@ square plotting area and existing 0.002 display cutoff.
   Snow is native snowpack liquid-water depth in mm, a store rather than accumulated flux.
 - Captions name quantity, support, period and encodings. Machine methods metadata retains support
   counts, completeness thresholds and exclusions.
+- Both products use the standard templates (`prepared_charts.annual_series`, `monthly_cycle`): one
+  simulated series is black without a key, annual axes read `mm/year` with trends in `mm decade⁻¹`,
+  and captions and titles name the driving forcing recipe (e.g. `forced by ERA5`).
+- The observed water-balance (Budyko) diagram sits in the same `plots/` as
+  `budyko_observed_runoff_coefficient_stations.png`, drawn by the evaluation rule. Water and energy
+  limits are muted reference lines (dashed, dotted) at the reference width; the y-range leaves
+  headroom above Q/P = 1 for the key; station labels use display names on the shared label box.
 
 ### Cross-workflow and WF0 forms
 
