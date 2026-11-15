@@ -300,8 +300,11 @@ def test_keys_extend_canvas_without_resizing_map(extent):
             assert bounds.x1 <= fig.get_figwidth()
             assert bounds.y1 <= fig.get_figheight()
         np.testing.assert_allclose(sizes, np.tile(sizes[0], (3, 1)), atol=1e-10)
-        assert figures[1].get_figwidth() > figures[0].get_figwidth()
-        assert figures[2].get_figwidth() > figures[0].get_figwidth()
+        # Keyed maps reserve one side-panel width, so keys that fit inside it
+        # share a canvas; a keyless map carries no empty panel.
+        widths = [fig.get_figwidth() for fig in figures]
+        np.testing.assert_allclose(widths[1], widths[2], atol=1e-6)
+        assert widths[0] < widths[1]
     finally:
         for fig in figures:
             plt.close(fig)

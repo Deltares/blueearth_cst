@@ -72,6 +72,7 @@ maps:
   location_size: 6.0         # marker size in pt
   location_label_size: 5.5
   location_label_wrap: 14    # labels longer than this many characters wrap to two lines
+  key_title_wrap: 14         # key/legend title lines wrap at this many characters; keeps map canvases one width
   location_label_halo_width: 1.1  # white text halo stroke on location names
   scale_bar_halo_width: 1.0  # white text halo stroke on scale-bar numbers
   scale_bar_segments: 4

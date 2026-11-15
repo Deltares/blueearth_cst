@@ -30,6 +30,7 @@ NEUTRAL_MAPS: Mapping[str, Any] = {
     "location_size": 6.0,
     "location_label_size": 5.5,
     "location_label_wrap": 14,
+    "key_title_wrap": 14,
     "location_label_halo_width": 2.2,
     "scale_bar_halo_width": 2.0,
     "marker_edge": "#ffffff",

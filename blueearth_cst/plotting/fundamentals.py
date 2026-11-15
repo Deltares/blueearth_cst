@@ -88,9 +88,12 @@ def time_series_style(source: str, color: str) -> dict:
     preset = active()
     tokens = preset.time_series
     observed = source.lower().strip("_").startswith("observ")
+    # A black single-dataset series carries no dataset identity, so it takes
+    # the standard opacity rather than CHIRPS's lighter one.
     alpha = (
         tokens["secondary_alpha"]
         if source.lower().startswith("chirps")
+        and str(color).lower() not in {"black", "#000000", "k"}
         else tokens["alpha"]
     )
     return {

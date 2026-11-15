@@ -60,6 +60,9 @@ MISSING_LABEL = "No data"
 # Maximum physical map frame; keys and coordinate labels extend the canvas.
 MAP_WIDTH_MM, MAP_HEIGHT_MM = 150.0, 95.0
 MAP_PADDING_MM = 3.0
+# Minimum side-panel width beyond the frame (locator or widest usual key), so a
+# basin's single maps share one canvas width; wider content still extends it.
+SIDE_PANEL_MM = 34.0
 
 #: Point-label offsets (pt) in preference order: a near ring, then a wider one
 #: so a position clear of markers, labels and linework usually exists.
@@ -119,12 +122,34 @@ def _map_figure(frame: "MapFrame") -> tuple[Figure, Axes]:
     return fig, ax
 
 
-def _fit_map_canvas(fig: Figure, ax: Axes) -> None:
-    """Measure decorations and extend the canvas without resizing the map."""
+def _fit_map_canvas(fig: Figure, ax: Axes, side_panel: bool = False) -> None:
+    """Measure decorations and extend the canvas without resizing the map.
+
+    With ``side_panel`` the right edge sits at least ``SIDE_PANEL_MM`` beyond
+    the frame, so maps of one basin share a canvas width whatever their key or
+    locator; content wider than that still extends the canvas.
+    """
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
     frame = ax.get_window_extent(renderer).transformed(fig.dpi_scale_trans.inverted())
     bounds = ax.get_tightbbox(renderer).transformed(fig.dpi_scale_trans.inverted())
+    if side_panel and bounds.x1 < frame.x1 + SIDE_PANEL_MM / 25.4:
+        # A transparent strip to the panel's minimum edge: tight-cropped
+        # exports measure artists, so empty canvas alone would be trimmed.
+        reach = SIDE_PANEL_MM / 25.4 / frame.width
+        ax.add_patch(
+            Rectangle(
+                (1.0, 0.0),
+                reach,
+                1e-3,
+                transform=ax.transAxes,
+                fill=False,
+                edgecolor="none",
+                clip_on=False,
+            )
+        )
+        right = frame.x1 + SIDE_PANEL_MM / 25.4
+        bounds = Bbox.from_extents(bounds.x0, bounds.y0, right, bounds.y1)
     padding = MAP_PADDING_MM / 25.4
     width, height = bounds.width + 2 * padding, bounds.height + 2 * padding
     fig.set_size_inches(width, height)
@@ -575,6 +600,8 @@ def _place_point_labels(
             fontweight="bold",
             color=active().colors["ink"],
             zorder=6,
+            # Shared in-plot label box: a thin halo alone is lost on dark fills.
+            bbox={**active().label_box, "facecolor": maps["halo"]},
             path_effects=[
                 Stroke(
                     linewidth=maps["location_label_halo_width"],
@@ -733,34 +760,17 @@ def _draw_locator(
             points = np.asarray(coordinates)
             inset.plot(points[:, 0], points[:, 1], color=maps["locator_border"], lw=0.3)
     halo = [Stroke(linewidth=1.6, foreground=maps["halo"]), Normal()]
-    # Places arrive largest first; one whose label would hit an earlier one is
-    # dropped rather than overprinted.
-    inset.set_xlim(w0, e0)
+    # The box is square on the page, so the longitude span that fills it is the
+    # latitude span times the midpoint-latitude aspect. Final limits come first
+    # so label collision boxes are measured in the drawn geometry.
+    aspect = 1 / math.cos(math.radians((s0 + n0) / 2))
+    half = (n0 - s0) * aspect / 2
+    centre = (w0 + e0) / 2
+    inset.set_xlim(centre - half, centre + half)
     inset.set_ylim(s0, n0)
-    renderer = ax.figure.canvas.get_renderer()
-    placed: list[Bbox] = []
-    for x, y, name in locator.places:
-        (marker,) = inset.plot(x, y, "o", ms=1.8, color=maps["locator_city"])
-        text = inset.annotate(
-            name,
-            (x, y),
-            xytext=(2, 0),
-            textcoords="offset points",
-            fontsize=4.5,
-            color=maps["locator_city"],
-            va="center",
-            path_effects=halo,
-            annotation_clip=True,
-        )
-        box = Bbox.union(
-            [text.get_window_extent(renderer), marker.get_window_extent(renderer)]
-        ).expanded(1.05, 1.2)
-        if any(box.overlaps(other) for other in placed):
-            text.remove()
-            marker.remove()
-            continue
-        placed.append(box)
-    inset.add_patch(
+    inset.set_aspect(aspect, adjustable="box")
+    inset.apply_aspect()
+    mark = inset.add_patch(
         Rectangle(
             (west, south),
             east - west,
@@ -771,20 +781,63 @@ def _draw_locator(
             zorder=5,
         )
     )
-    # The box is square on the page, so the longitude span that fills it is the
-    # latitude span times the midpoint-latitude aspect.
-    aspect = 1 / math.cos(math.radians((s0 + n0) / 2))
-    half = (n0 - s0) * aspect / 2
-    centre = (w0 + e0) / 2
-    inset.set_xlim(centre - half, centre + half)
-    inset.set_ylim(s0, n0)
-    inset.set_aspect(aspect, adjustable="box")
+    renderer = ax.figure.canvas.get_renderer()
+    # The basin mark is reserved; places arrive largest first. A label tries
+    # the right, then the left of its point, and is dropped (with its point)
+    # rather than overprinting the mark or an earlier label.
+    placed: list[Bbox] = [mark.get_window_extent(renderer).expanded(1.6, 1.6)]
+    for x, y, name in locator.places:
+        (marker,) = inset.plot(x, y, "o", ms=1.8, color=maps["locator_city"])
+        point = marker.get_window_extent(renderer)
+        if any(point.overlaps(other) for other in placed[:1]):
+            marker.remove()
+            continue
+        for dx, align in ((2, "left"), (-2, "right")):
+            text = inset.annotate(
+                name,
+                (x, y),
+                xytext=(dx, 0),
+                textcoords="offset points",
+                ha=align,
+                fontsize=4.5,
+                color=maps["locator_city"],
+                va="center",
+                path_effects=halo,
+                annotation_clip=True,
+            )
+            box = Bbox.union([text.get_window_extent(renderer), point]).expanded(
+                1.05, 1.2
+            )
+            inside = inset.bbox.contains(box.x0, box.y0) and inset.bbox.contains(
+                box.x1, box.y1
+            )
+            if inside and not any(box.overlaps(other) for other in placed):
+                placed.append(box)
+                break
+            text.remove()
+        else:
+            marker.remove()
     inset.set_xticks([])
     inset.set_yticks([])
     for spine in inset.spines.values():
         spine.set_linewidth(0.6)
         spine.set_edgecolor(active().colors["ink"])
     return taken
+
+
+def wrap_key_title(title: str | None) -> str | None:
+    """Wrap each line of a key title at ``maps.key_title_wrap`` characters.
+
+    Existing line breaks (e.g. a units line) are kept; words are never split.
+    A fixed title width keeps the side panel, and so the canvas, one width.
+    """
+    if not title:
+        return title
+    width = active().maps["key_title_wrap"]
+    return "\n".join(
+        textwrap.fill(line, width, break_long_words=False) or line
+        for line in title.split("\n")
+    )
 
 
 def _side_legend(ax: Axes, handles: list, title: str | None, fontsize: float) -> Any:
@@ -1164,7 +1217,7 @@ def draw_raster_map(
         ]
         if missing:
             handles.append(_swatch(missing_color, MISSING_LABEL))
-        _fit_legend(fig, ax, handles, classes.title, top)
+        _fit_legend(fig, ax, handles, wrap_key_title(classes.title), top)
     elif show_key and scale.status == "available":
         bottom = 0.0
         if missing:
@@ -1189,7 +1242,8 @@ def draw_raster_map(
         extend = key_extend(key_rasters or [raster], frame, scale)
         colorbar = _scale_colourbar(fig, mesh, cax, scale, extend)
         style_colourbar(
-            colorbar, scale.units if colorbar_title is None else colorbar_title
+            colorbar,
+            wrap_key_title(scale.units if colorbar_title is None else colorbar_title),
         )
         _thin_crowded_key_ticks(fig, colorbar)
     elif show_key and missing:
@@ -1198,7 +1252,10 @@ def draw_raster_map(
         )
     _place_point_labels(fig, ax, labels)
     if owns_canvas:
-        _fit_map_canvas(fig, ax)
+        # Reserved wherever the panel holds something, so keyed maps share one
+        # canvas width; a map with no key or locator (subbasin overview) is
+        # cropped to its frame instead of carrying an empty panel.
+        _fit_map_canvas(fig, ax, side_panel=show_key or locator is not None)
     return fig
 
 
@@ -1345,7 +1402,8 @@ def _draw_raster_panel_page(
         )
         colorbar = _scale_colourbar(fig, axes[0].collections[0], cax, scale, extend)
         style_colourbar(
-            colorbar, scale.units if colorbar_title is None else colorbar_title
+            colorbar,
+            wrap_key_title(scale.units if colorbar_title is None else colorbar_title),
         )
         _thin_crowded_key_ticks(fig, colorbar)
     return fig

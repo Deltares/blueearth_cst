@@ -79,6 +79,7 @@ _MAP_NUMBERS = (
     "river_width",
     "river_halo_width",
     "location_label_wrap",
+    "key_title_wrap",
     "basin_outline_width",
     "divide_width",
     "outline_halo_width",

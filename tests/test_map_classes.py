@@ -167,15 +167,23 @@ def test_the_ramp_can_be_cut_into_discrete_classes():
     [
         (0.9, 1.0),
         (1.0, 1.0),
-        (1.2, 1.5),
+        (1.2, 1.0),
         (1.7, 2.0),
-        (2.4, 2.5),
+        (2.4, 2.0),
         (3.0, 5.0),
+        (0.12, 0.1),
+        (14.0, 15.0),
+        (24.0, 25.0),
         (16.9, 20.0),
     ],
 )
 def test_a_class_width_rounds_UP_to_a_ladder_rung(value, expected):
     """Down would give MORE classes than asked for -- the opposite of the point.
+
+    One exception: no decimals unless the range needs them. A rung finer than
+    its own decade (1.5, 2.5, 0.15) gives way to the nearest whole/tenth rung,
+    down when that is within 75% of the width, so 1.2 -> 1 and 2.4 -> 2 while
+    15 and 25 stay available.
 
     The rungs give each quantity the steps a reader expects -- 25/50/100/150/
     200 mm of rainfall, 0.25/0.5/1 degC -- at every decade, because the ladder

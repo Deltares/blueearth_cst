@@ -135,6 +135,24 @@ def source_styles(keys: Sequence[str]) -> dict[str, tuple[str, str]]:
     return out
 
 
+#: Single-dataset series colour (cst-style canonical rules): identity colour
+#: only distinguishes when two or more datasets are drawn.
+SINGLE_DATASET_COLOR = "#000000"
+
+
+def dataset_styles(keys: Sequence[str]) -> dict[str, tuple[str, str]]:
+    """``source_styles``, except a lone dataset is black with its own marker.
+
+    For views that draw one dataset (per-source and per-subbasin figures);
+    comparison views that pair a dataset with observations keep ``source_styles``.
+    """
+    styles = source_styles(keys)
+    if len(styles) == 1:
+        ((key, (_, marker)),) = styles.items()
+        styles[key] = (SINGLE_DATASET_COLOR, marker)
+    return styles
+
+
 def tint(color: str) -> str:
     """Partial / incomplete: the identity colour 55 % toward white."""
     return to_hex(0.45 * np.array(to_rgb(color)) + 0.55)

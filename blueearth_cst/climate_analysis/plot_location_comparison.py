@@ -74,7 +74,18 @@ def agreement_figure(
 ):
     """One measured square panel per grid product, with shared limits and a 1:1 line."""
     wide = table.pivot(index="period", columns="source", values=value)
-    sources = [source for source in styles if source != "observed" and source in wide]
+    # No empty panels or figures (cst-style canonical rules): a dataset with no
+    # complete paired month is omitted, and with none left there is no figure.
+    sources = [
+        source
+        for source in styles
+        if source != "observed"
+        and source in wide
+        and "observed" in wide
+        and not wide[["observed", source]].dropna().empty
+    ]
+    if not sources:
+        return None
     metrics = metrics.set_index("source")
     finite = wide.to_numpy()[np.isfinite(wide.to_numpy())]
     low = (
@@ -114,15 +125,6 @@ def agreement_figure(
             fontsize=7,
             bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.8},
         )
-        if paired.empty:
-            ax.text(
-                0.5,
-                0.45,
-                "No complete paired months",
-                ha="center",
-                transform=ax.transAxes,
-                fontsize=7,
-            )
         ax.set(
             xlim=limits,
             ylim=limits,
@@ -152,7 +154,12 @@ def series_figure(
     form: str,
     variable: str,
 ):
-    """Annual overlays or monthly climatologies, retaining unavailable gaps."""
+    """Annual overlays or monthly climatologies, retaining unavailable gaps.
+
+    Returns ``None`` when no series has a complete period: nothing to show.
+    """
+    if not table[value].notna().any():
+        return None
     fig, axes = new_fig(80, width_mm=150)
     ax = axes[0, 0]
     monthly = form == "monthly_clim_line"
@@ -184,8 +191,6 @@ def series_figure(
         ylabel=("mm/month" if monthly else "mm/year") if variable == "precip" else "°C",
         xlabel="Calendar month" if monthly else "Year",
     )
-    if not table[value].notna().any():
-        ax.text(0.5, 0.5, "No complete periods", ha="center", transform=ax.transAxes)
     ax.legend(fontsize=7)
     time_series_grid(ax)
     return fig
@@ -305,6 +310,8 @@ def render(
                             form,
                             variable,
                         )
+                    if fig is None:
+                        continue  # nothing to show; no placeholder figure
                     filename = figure_filename(
                         "comparison",
                         variable,

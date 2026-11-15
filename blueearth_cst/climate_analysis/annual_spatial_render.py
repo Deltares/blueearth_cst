@@ -11,6 +11,8 @@ import numpy as np
 import xarray as xr
 
 from blueearth_cst.climate_analysis.annual_spatial_anomalies import (
+    PAGE_COLUMNS,
+    YEARS_PER_PAGE,
     anomaly_paths,
     load_retained,
 )
@@ -242,19 +244,19 @@ def render_pages(
         title = f"Annual {label.lower()} anomalies — {source.upper()} ({years[0]}–{years[-1]}), reference {eligible[0]}–{eligible[-1]}"
         if len(record["pages"]) > 1:
             title += f", page {int(page)}"
-        # Annual pages retain their existing three-column, six-year contract.
+        # Full-page grid: 5 columns × 6 rows; years label the panels.
         preset = replace(
             CST_PRESET,
             map_panels={
                 **CST_PRESET.map_panels,
-                "columns": 3,
-                "max_panels_per_figure": 6,
+                "columns": PAGE_COLUMNS,
+                "max_panels_per_figure": YEARS_PER_PAGE,
             },
         )
         with use_preset(preset):
             (fig,) = draw_raster_panels(
                 rasters,
-                [f"{chr(97 + i)}) {year}" for i, year in enumerate(years)],
+                [str(year) for year in years],
                 frame,
                 scale,
                 overlays,
@@ -314,19 +316,33 @@ def render_pages(
 def retire_pages(
     out_root: str | Path, previous: dict, current: dict, source: str
 ) -> None:
-    """Retire only exact, previously managed anomaly PNGs; never follow links."""
+    """Retire exact, toolbox-named anomaly PNGs not rendered now; never follow links.
+
+    Candidates are the previously recorded figures plus any on-disk file whose name
+    fully matches this source's anomaly-map pattern: Snakemake deletes the declared
+    caption inventory before the rule runs, so ``previous`` is empty in a workflow
+    run and a change in page count would otherwise leave stale pages behind.
+    """
     root = Path(out_root).resolve()
     pattern = re.compile(
         rf"plots/(?:annual_anomalies/page_[0-9]{{3,}}/)?"
         rf"{re.escape(source)}_(precip|temp)_annual_anomaly_map_basin(?:_ext)?"
         rf"(?:_page_[0-9]{{2,}})?\.png"
     )
-    for relative, record in previous.items():
-        if (
-            relative in current
-            or record.get("encoding") != "annual_spatial_anomalies"
-            or not pattern.fullmatch(relative)
-        ):
+    candidates = {
+        relative
+        for relative, record in previous.items()
+        if record.get("encoding") == "annual_spatial_anomalies"
+    }
+    plots = root / "plots"
+    if plots.is_dir() and not plots.is_symlink():
+        for path in [
+            *plots.glob("*.png"),
+            *plots.glob("annual_anomalies/page_*/*.png"),
+        ]:
+            candidates.add(path.relative_to(root).as_posix())
+    for relative in sorted(candidates):
+        if relative in current or not pattern.fullmatch(relative):
             continue
         path = root / relative
         if any(

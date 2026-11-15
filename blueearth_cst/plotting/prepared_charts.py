@@ -314,5 +314,7 @@ def monthly_cycle(
         edgecolor="none",
         label=band_label,
     )
-    f.inside_legend(fig, ax, [*_identity_handles(bands), spread], fills, lines)
+    # One series needs no key: the caption names the source and the band.
+    if len(bands) > 1:
+        f.inside_legend(fig, ax, [*_identity_handles(bands), spread], fills, lines)
     return fig

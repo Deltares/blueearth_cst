@@ -39,11 +39,18 @@ def anomaly_paths(root: str | Path) -> dict[str, str]:
     }
 
 
+#: Full-page annual grid: five maps per row, six rows, so a 30-year
+#: climatology window fits one page (cst-style: annual spatial anomalies).
+PAGE_COLUMNS = 5
+YEARS_PER_PAGE = 30
+
+
 def page_years(settings: dict) -> list[list[int]]:
-    """Every requested comparison year, ordered in pages of at most six."""
+    """Every requested comparison year, ordered in full pages of at most 30."""
     period = settings["comparison_period"]
     years = list(range(period["start"], period["end"] + 1))
-    return [years[i : i + 6] for i in range(0, len(years), 6)]
+    n = YEARS_PER_PAGE
+    return [years[i : i + n] for i in range(0, len(years), n)]
 
 
 def prepare(

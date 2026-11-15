@@ -473,7 +473,35 @@ def _nice_step_up(value, ladder=None):
     """
     if value <= 0:
         return 1.0
-    return round_up_to_ladder(value, tuple(ladder) if ladder else _STEP_LADDER)
+    step = round_up_to_ladder(value, tuple(ladder) if ladder else _STEP_LADDER)
+    if ladder is not None:
+        # A quantity's own ladder (temperature's 0.25 degC) is taken as given.
+        return step
+    # No decimals unless the range needs them: a step carries no finer digit
+    # than its own decade (whole numbers from 1 up, tenths from 0.1), so 1.5,
+    # 2.5 and 0.15 are skipped while 15, 25 and 150 remain. A skipped rung
+    # gives way to the nearest admissible one: down when that keeps the class
+    # count close to the target (>= 75% of the width), otherwise up.
+    unit = 10.0 ** min(0, int(np.floor(np.log10(value))))
+
+    def admissible(candidate: float) -> bool:
+        ratio = candidate / unit
+        return bool(np.isclose(ratio, round(ratio)))
+
+    if admissible(step):
+        return step
+    rungs = np.array(_STEP_LADDER)
+    exponent = int(np.floor(np.log10(step)))
+    candidates = sorted(
+        float(r * 10.0**e)
+        for e in (exponent - 1, exponent, exponent + 1)
+        for r in rungs
+        if admissible(r * 10.0**e)
+    )
+    below = [c for c in candidates if c < step]
+    if below and below[-1] >= 0.75 * value:
+        return below[-1]
+    return next(c for c in candidates if c > step)
 
 
 def _next_step_up(step, ladder=None):

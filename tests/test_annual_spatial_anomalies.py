@@ -104,8 +104,18 @@ def retain(root, ds, cfg, source="era5", m0=1):
     return fields, record
 
 
+@pytest.fixture
+def six_year_pages(monkeypatch):
+    """Small pages so short fixtures still exercise multi-page records."""
+    from blueearth_cst.climate_analysis import annual_spatial_anomalies as module
+
+    monkeypatch.setattr(module, "YEARS_PER_PAGE", 6)
+
+
 @pytest.mark.parametrize("m0,days0,days1", [(1, 366, 365), (10, 365, 365)])
-def test_cellwise_mean_reference_leap_water_year_and_fixed_support(m0, days0, days1):
+def test_cellwise_mean_reference_leap_water_year_and_fixed_support(
+    m0, days0, days1, six_year_pages
+):
     ds = raw(m0)
     fields, record = prepare(ds, settings(), m0, "era5")
     factors = np.array([[1, 2], [3, 4]])
@@ -203,7 +213,7 @@ def test_display_scales_native_singletons_and_out_of_frame_extremes(tmp_path):
 
 
 def test_retained_rerender_all_pages_annotations_and_managed_cleanup(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, six_year_pages
 ):
     cfg = settings()
     root = tmp_path / "source"
@@ -371,7 +381,7 @@ def test_cleanup_retires_current_and_legacy_managed_pages(tmp_path, relative):
     assert unrelated.read_bytes() == b"unrelated"
 
 
-@pytest.mark.parametrize("year_count", [5, 6, 7])
+@pytest.mark.parametrize("year_count", [5, 30, 31])
 def test_anomaly_figures_are_flat_and_suffix_only_when_split(tmp_path, year_count):
     cfg = settings(comparison_period={"start": 2000, "end": 1999 + year_count})
     paths = diagnostic_source_outputs(tmp_path, "chirps", cfg)
@@ -382,7 +392,7 @@ def test_anomaly_figures_are_flat_and_suffix_only_when_split(tmp_path, year_coun
     }
     expected = (
         {"chirps_precip_annual_anomaly_map_basin.png"}
-        if year_count <= 6
+        if year_count <= 30
         else {
             "chirps_precip_annual_anomaly_map_basin_page_01.png",
             "chirps_precip_annual_anomaly_map_basin_page_02.png",
@@ -404,6 +414,25 @@ def test_flat_layout_retires_nested_managed_png_and_preserves_current(tmp_path):
     retire_pages(tmp_path, {old: record, current: record}, {current: record}, "chirps")
     assert not (tmp_path / old).exists()
     assert (tmp_path / current).read_bytes() == current.encode()
+
+
+def test_retire_finds_stale_pages_without_a_previous_inventory(tmp_path):
+    """Snakemake deletes the caption inventory first; stale pages still go."""
+    plots = tmp_path / "plots"
+    plots.mkdir()
+    current = "plots/chirps_precip_annual_anomaly_map_basin.png"
+    stale = [
+        plots / f"chirps_precip_annual_anomaly_map_basin_page_0{i}.png" for i in (1, 2)
+    ]
+    keep = [
+        plots / "era5_precip_annual_anomaly_map_basin_page_01.png",
+        plots / "other.png",
+    ]
+    for path in [tmp_path / current, *stale, *keep]:
+        path.write_bytes(b"x")
+    retire_pages(tmp_path, {}, {current: {}}, "chirps")
+    assert not any(path.exists() for path in stale)
+    assert (tmp_path / current).exists() and all(path.exists() for path in keep)
 
 
 @pytest.mark.parametrize("last_year", [2004, 2006])

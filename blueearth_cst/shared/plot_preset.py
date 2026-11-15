@@ -112,6 +112,7 @@ MAPS = {
     "location_size": _MAP_STYLE["location_size"],
     "location_label_size": _MAP_STYLE["location_label_size"],
     "location_label_wrap": int(_MAP_STYLE["location_label_wrap"]),
+    "key_title_wrap": int(_MAP_STYLE["key_title_wrap"]),
     "location_label_halo_width": _MAP_STYLE["location_label_halo_width"],
     "scale_bar_halo_width": _MAP_STYLE["scale_bar_halo_width"],
     "marker_edge": MAP_FEATURE_COLORS["marker_edge"],

@@ -122,7 +122,8 @@ These rules apply to every figure family unless a figure-specific decision below
 - **Identity encodings only when they distinguish.** Colour, marker and legend entries identify a
   category only when two or more are drawn. A single-dataset series is black (`#000000`), independent
   of dataset colour and source opacity. A single category (one season, one scenario, one source) has
-  no legend; name it in the caption, e.g. `Season: JJA (Jun–Aug).`
+  no legend; name it in the caption, e.g. `Season: JJA (Jun–Aug).` Bands and reference lines on a
+  single-series chart (for example the 10–90th percentile band) are explained by the caption, not a key.
 - **Short names on panels, long names in captions.** Panel titles use the index's short name
   (`R10mm`, `Rx1day`, `R95p fraction`). The caption spells out each short name and defines any
   non-standard index, including thresholds and the reference period it depends on.
@@ -137,6 +138,12 @@ These rules apply to every figure family unless a figure-specific decision below
   (`round_up_to_ladder` on `SYMMETRIC_LIMIT_LADDER`), coloured over `ANOMALY_MAP_COLORMAP_RANGE`.
   Maps take the limit from the pooled maximum; heatmaps from the 95th percentile of displayed
   |anomaly|, with values beyond it drawn in the darkest end colours and the caption saying so.
+- **Sequential map keys.** Colour-bar maps use equal classes on a round step (`map_classes`),
+  not equal-area quantile breaks; equal-area remains an explicit per-style option. Steps come from
+  1, 1.5, 2, 2.5, 5 × 10ⁿ but carry no decimals unless the range needs them: a step is never finer
+  than its own decade (whole numbers from 1 up, tenths from 0.1), so 1.5, 2.5 and 0.15 give way to
+  the nearest admissible rung while 15, 25 and 150 remain. A quantity's own `step_ladder`
+  (temperature's 0.25 °C) is taken as given.
 - **Heatmap orientation.** Calendar heatmaps put months across (single-letter labels in reporting-year
   order) and years down, earliest at the top, so a row reads as one year's sequence.
 
@@ -180,8 +187,9 @@ These rules apply to every figure family unless a figure-specific decision below
 | Basin/divides | Black basin outline over dashed divides, thin white halo; shared divide edges drawn once. |
 | Locations | Purple diamonds; bold names with thin white halo, placed clear of frame, marks and linework. |
 | Long names | Underscores shown as spaces; split near middle at `maps.location_label_wrap` characters. |
-| Furniture | Latitude-corrected km scale bar; no north arrow; locator only on overviews. |
-| Locator | Elevation/subbasin overviews; square, in clear corner, ≤40% of frame height. |
+| Furniture | Latitude-corrected km scale bar; no north arrow; locator only on the elevation map. |
+| Side panel | At least `SIDE_PANEL_MM` (34 mm) beyond the frame, reserved whenever it holds a key or locator, so those maps share one canvas width (a map with neither, such as the subbasin overview, is cropped to its frame); key and legend title lines wrap at `maps.key_title_wrap` (14) characters, keeping explicit line breaks. |
+| Locator | Elevation map only; square, in the side panel above any key, never inside the map frame. The basin mark is reserved: a city label tries right then left of its point, else is dropped. |
 | Keys | Side panel, bottom-aligned with frame; colourbar/class title above. |
 | Source credit | Caption, never a figure footnote. |
 
@@ -198,6 +206,9 @@ These rules apply to every figure family unless a figure-specific decision below
   `outline_halo_width`) or set as the text stroke (`location_label_halo_width`, `scale_bar_halo_width`).
   The river halo stays wide enough to keep rivers legible on the darkest precipitation classes and
   anomaly fills, where blue river cores carry little contrast.
+- Location names sit on the shared in-plot label box (`charts.label_box`, halo-coloured fill)
+  in addition to their text halo, so they stay legible over dark classes such as forest or high
+  clay content.
 - `MapScale.extend` names the sides permitted to show an extension. Draw a pointed extension only on a
   permitted side that a drawn finite cell (in frame, inside any mask) lies strictly beyond; the upper
   boundary belongs to the last class. Panel pages and matrices decide once over the whole panel set, so
@@ -253,11 +264,12 @@ meaning belongs in the caption.
 
 ### Annual spatial anomalies
 
-- Optional historical P/T anomaly maps show every comparison reporting year, six per page in at most
-  three columns and two rows. Retain trailing empty slots and labelled unavailable years. Shared
+- Optional historical P/T anomaly maps show every comparison reporting year on a full page: five
+  columns by six rows, 30 years per page, so a 30-year window fits one page. Panels are labelled
+  by year alone (letters run out past 26). Retain trailing empty slots and labelled unavailable years. Shared
   `prepared_maps.draw_raster_panels` applies the compact spatial-panel style above, preserving
-  native cells, geographic aspect, map overlays and unavailable-year notes. Annual pages retain
-  their three-column, six-year grouping through the panel preset.
+  native cells, geographic aspect, map overlays and unavailable-year notes. Annual pages set
+  their five-column, 30-year grouping through the panel preset.
 - Use absolute departures (mm, °C). Symmetric limits take the maximum absolute departure over finite
   cells intersecting each displayed native frame across all sources and comparison years, rounded
   outward to the symmetric-limit ladder (557 → ±600, 0.754 → ±0.8), so nothing clips. The key has

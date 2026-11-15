@@ -386,7 +386,7 @@ def render(
             else metadata.get("source_labels", {}).get(s, s.upper())
             for s in sources
         },
-        styles=artists.source_styles(sources),
+        styles=artists.dataset_styles(sources),
         results=results,
         years=np.arange(period[0], period[1] + 1),
         m0=m0,
