@@ -219,7 +219,9 @@ def test_opening_groups_checks_before_explicit_plan(presentation, monkeypatch):
     # The first job row follows the Execution log heading directly.
     assert "Execution log\n" in output and "Execution log\n\n" not in output
     # Cores are stated once, by the command's own `--cores`.
-    assert output.count("cores") == 1 and "snakemake all --cores 3 `" in output
+    continuation = "`" if os.name == "nt" else "\\"
+    assert output.count("cores") == 1
+    assert f"snakemake all --cores 3 {continuation}\n" in output
     assert "WARN  Availability partially verified" in output
     assert warnings == ["resolution"]
     cs.opening_block("wf2 analyze_projections", "/project", counts={"fetch": 2})
