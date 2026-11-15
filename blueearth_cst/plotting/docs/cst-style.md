@@ -401,6 +401,17 @@ square plotting area and existing 0.002 display cutoff.
   all positive values from both series, without percentile clipping. These rules do not replace
   performance-indicator methods.
 
+### WF1 historical comparison
+
+- One figure set per station, no duplicates: `_observation_paired` where the station has
+  observations, otherwise `_simulated_common`.
+- Forcing runs use the canonical dataset colours and markers (`dataset_styles`), labelled by
+  upper-case source name (ERA5, CHIRPS); a lone run is black. Observations use the time-series
+  observation gray, dashed at the evaluation line width: blue would collide with ERA5.
+- Single standard chart canvas, inside legend only for two or more series, vertical axes in units
+  alone (`m³/s`), no `Month` label, calendar-year hydrograph ticks. Flow-duration curves use a log
+  discharge axis; zero flows keep their positions, are not drawn, and their share is captioned.
+
 ### WF1 performance sheets
 
 - Pair finite, nonnegative observed and simulated daily values after date alignment for scatter,
