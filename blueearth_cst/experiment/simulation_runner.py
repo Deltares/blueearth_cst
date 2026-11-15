@@ -443,7 +443,7 @@ def simulation_command(
     return command, environment
 
 
-def simulation_phases(command, environment):
+def simulation_phases(command, environment, progress_path=None):
     """The Snakemake invocations one WF4 run makes (t017 R11, W2).
 
     A full simulate-and-indicators run is split into ``simulations_only`` and
@@ -451,7 +451,14 @@ def simulation_phases(command, environment):
     every ``temp()`` intermediate, so in one invocation the per-run forcing and
     native CSVs survived the run. Dry runs, maintenance options (``--unlock``,
     ``--touch``, listings) and explicit targets stay single.
+
+    The split is internal; the console presents ONE WF4 run. Each pass carries
+    ``console_style.SPLIT_PHASE_ENV``: the first plans the indicator rules as
+    work of this run, the second skips its opening block. ``progress_path``
+    (a file the caller owns and removes) hands the job counter from the first
+    pass to the second, so ``[n/N]`` runs on across both.
     """
+    from blueearth_cst.shared.console_style import SPLIT_PHASE_ENV, SPLIT_PROGRESS_ENV
     from blueearth_cst.shared.workflow_archive_launch import _NON_PRODUCING_OPTIONS
 
     if (
@@ -462,9 +469,18 @@ def simulation_phases(command, environment):
         return [(command, environment)]
     first = list(command)
     first[first.index("all")] = "simulations_only"
+    shared = {SPLIT_PROGRESS_ENV: str(progress_path)} if progress_path else {}
     return [
-        (first, {**environment, "CST_SIMULATION_TARGET": "simulations_only"}),
-        (command, environment),
+        (
+            first,
+            {
+                **environment,
+                **shared,
+                "CST_SIMULATION_TARGET": "simulations_only",
+                SPLIT_PHASE_ENV: "simulations",
+            },
+        ),
+        (command, {**environment, **shared, SPLIT_PHASE_ENV: "indicators"}),
     ]
 
 

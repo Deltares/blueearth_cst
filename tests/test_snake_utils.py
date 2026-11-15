@@ -7,6 +7,7 @@ is provably identity-preserving rather than merely green on a smoke test.
 
 import gc
 import io
+import json
 import os
 import re
 import subprocess
@@ -3514,6 +3515,77 @@ def test_onstart_header_after_the_opening_is_not_reprinted_at_exit(monkeypatch):
     assert cs._HEADER_PRINTED is True
     cs._flush_undrained_warnings()
     assert stream.getvalue() == ""
+
+
+def test_a_split_wf4_run_reads_as_one_run(monkeypatch, tmp_path):
+    """WF4 runs simulations, then indicators, as two Snakemake passes (R11, W2).
+
+    The console presents one run: the first pass plans the indicator rules and
+    hides its internal `simulations_only` target; the second prints no opening
+    block and continues the first pass's `[n/N]` counter.
+    """
+    monkeypatch.setattr(
+        cs, "_RULE_NUMBERS", {"sim": "4.05", "plan": "4.07", "derive": "4.08"}
+    )
+    monkeypatch.setattr(cs, "_AFTER_CHECKPOINT_RULES", {"plan": 2, "derive": 2})
+    monkeypatch.setattr(cs, "_PLANNED_FROM", {})
+    monkeypatch.setattr(cs, "_OFF_RULES", set())
+    monkeypatch.setattr(cs, "_DYNAMIC_PROGRESS_RULES", set())
+    monkeypatch.setattr(cs, "_RUN_HEADER", None)
+    monkeypatch.setattr(cs, "_DEFERRED_WARNINGS", [])
+    progress = tmp_path / "progress"
+    monkeypatch.setenv(cs.SPLIT_PROGRESS_ENV, str(progress))
+
+    monkeypatch.setenv(cs.SPLIT_PHASE_ENV, "simulations")
+    first = _emit(
+        _console_handler(),
+        _console_record(
+            "Job stats:\njob  count\n----  ---\nsimulations_only  1\nsim  3\ntotal  4\n",
+            event="run_info",
+        ),
+        *[
+            record
+            for jobid in (1, 2, 3)
+            for record in (
+                _job_info(jobid, "sim", "Rule 4.05: sim"),
+                _console_record(event="job_finished", job_id=jobid),
+                _console_record(event="progress", done=jobid, total=4),
+            )
+        ],
+        _job_info(4, "simulations_only", "simulations_only"),
+        _console_record(event="job_finished", job_id=4),
+        _console_record(event="progress", done=4, total=4),
+    )
+    rows = [line.split() for line in first.splitlines()[:5]]
+    assert rows[1:4] == [
+        ["run", "sim", "3"],
+        ["run", "plan", "2"],
+        ["run", "derive", "2"],
+    ]
+    assert rows[4][:2] == ["7", "jobs"]
+    assert "[3/7]" in first
+    assert "simulations_only" not in first and "Requested outputs" not in first
+    assert json.loads(progress.read_text(encoding="utf-8")) == {"done": 3, "total": 7}
+
+    monkeypatch.setenv(cs.SPLIT_PHASE_ENV, "indicators")
+    monkeypatch.setattr(cs, "_HEADER_PRINTED", False)
+    assert cs.open_run_header("wf4 simulate_system", "test_case/test_rapid") is True
+    second = _emit(
+        _console_handler(),
+        _console_record(
+            "Job stats:\njob  count\n----  ---\nall  1\nplan  2\ntotal  3\n",
+            event="run_info",
+        ),
+        _job_info(5, "plan", "Rule 4.07: plan"),
+        _console_record(event="job_finished", job_id=5),
+        _console_record(event="progress", done=1, total=3),
+    )
+    assert "status" not in second and "wf4 simulate_system" not in second
+    assert second.splitlines()[-1].endswith("[4/7]"), second
+    stream = io.StringIO()
+    monkeypatch.setattr(sys, "stderr", stream)
+    cs._flush_undrained_warnings()
+    assert stream.getvalue() == ""  # no header reprinted at exit
 
 
 def test_deferred_warning_lands_under_the_run_block(monkeypatch):

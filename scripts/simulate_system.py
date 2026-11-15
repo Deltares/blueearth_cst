@@ -161,8 +161,9 @@ def main(argv=None):
 
             # Simulations first, then indicators, so temporary intermediates are
             # removed as soon as their consumers finish (R11, W2).
+            progress_path = record_path.with_suffix(".progress")
             for phase_command, phase_environment in simulation_phases(
-                command, environment
+                command, environment, progress_path
             ):
                 result = run_project_child(
                     phase_command,
@@ -172,6 +173,7 @@ def main(argv=None):
                 )
                 if result != 0:
                     break
+            progress_path.unlink(missing_ok=True)
             resource_tracking.phase(record_path, "finalization")
             if (
                 not preview

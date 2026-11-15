@@ -207,10 +207,18 @@ def test_a_full_simulation_runs_in_two_phases():
         "CST_SIMULATION_OPERATION": "simulate-and-indicators",
         "CST_SIMULATION_TARGET": "all",
     }
-    phases = simulation_phases(command, environment)
+    phases = simulation_phases(command, environment, "progress")
     assert [cmd[3] for cmd, _ in phases] == ["simulations_only", "all"]
     assert phases[0][1]["CST_SIMULATION_TARGET"] == "simulations_only"
-    assert phases[1] == (command, environment)
+    # Both passes are one console run: each knows its place, and they share
+    # the counter handoff.
+    assert [env["CST_SIMULATION_PHASE"] for _, env in phases] == [
+        "simulations",
+        "indicators",
+    ]
+    assert {env["CST_SIMULATION_PROGRESS"] for _, env in phases} == {"progress"}
+    assert phases[1][0] == command
+    assert phases[1][1]["CST_SIMULATION_TARGET"] == "all"
     assert simulation_phases([*command, "--dry-run"], environment) == [
         ([*command, "--dry-run"], environment)
     ]

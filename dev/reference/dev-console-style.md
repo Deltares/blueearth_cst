@@ -36,8 +36,13 @@ it with `enabled=False` on `RuleRegistry.logged`/`banner_only`, or it reads as `
 apply at all stays unregistered and is not listed. `done` identifies completed work before the DAG.
 A rule behind a checkpoint (WF4's 4.07/4.08) is absent from Snakemake's opening job table but still runs in
 the invocation, so it lists as `run` with its planned job count (`?` when none is declared), and the summary
-counts those jobs. The summary line counts jobs, then rules by status (`12 jobs  |  3 scheduled  |
-3 up to date  |  1 off  |  3 completed`). It excludes target collectors such as `all`; unknown or unlisted work is reported rather than
+counts those jobs. A full WF4 run is two Snakemake passes, simulations then indicators, so temp() files go
+early; `simulation_phases` tags each pass (`CST_SIMULATION_PHASE`) and the console presents one run. The
+first pass plans 4.07/4.08 and hides its `simulations_only` target lines. The second prints no opening block
+and continues the `[n/N]` counter through the `CST_SIMULATION_PROGRESS` handoff file.
+
+The summary line counts jobs, then rules by status (`12 jobs  |  3 scheduled  |  3 up to date  |  1 off  |
+3 completed`). It excludes target collectors such as `all`; unknown or unlisted work is reported rather than
 silently counted as reused.
 
 ## Planning and no-op runs

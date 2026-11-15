@@ -39,6 +39,7 @@ Several names imported below are private compatibility exports of
 """
 
 import atexit
+import json
 import logging
 import os
 import re
@@ -1107,7 +1108,46 @@ def register_indicator_context(key, identity, names):
 #: the child's environment (`simulation_command` builds its own from
 #: `os.environ`, so one assignment covers both spawn paths).
 ANNOUNCED_ENV = "CST_RUN_ANNOUNCED"
+
+#: PUBLIC: set by `simulation_runner.simulation_phases` on each pass of a
+#: split WF4 run -- ``simulations``, then ``indicators``. The split frees
+#: temp() intermediates early (t017 R11, W2) and is not the user's business:
+#: the console presents one WF4 run. The first pass plans the indicator rules
+#: as work of this run; the second prints no opening block of its own.
+SPLIT_PHASE_ENV = "CST_SIMULATION_PHASE"
+#: PUBLIC: a file the first pass writes its job counter to, so the second pass
+#: continues ``[n/N]`` instead of restarting at 1. Owned by the launcher.
+SPLIT_PROGRESS_ENV = "CST_SIMULATION_PROGRESS"
 _ENGINE_ARGV = None
+
+
+def _split_phase():
+    """The pass of a split WF4 run this process is, or None."""
+    return os.environ.get(SPLIT_PHASE_ENV)
+
+
+def _read_split_progress():
+    """``(done, total)`` the first pass handed over, or ``(0, None)``."""
+    path = os.environ.get(SPLIT_PROGRESS_ENV)
+    try:
+        state = json.loads(Path(path).read_text(encoding="utf-8"))
+        return int(state["done"]), int(state["total"])
+    except Exception:  # noqa: BLE001 -- a missing handoff only restarts the counter
+        return 0, None
+
+
+def _write_split_progress(done, total):
+    path = os.environ.get(SPLIT_PROGRESS_ENV)
+    if not path or done is None or total is None:
+        return
+    try:
+        Path(path).write_text(
+            json.dumps({"done": done, "total": total}), encoding="utf-8"
+        )
+    except OSError:
+        pass
+
+
 _INPUT_CHECKS = []
 _COUNTED_INPUT_CHECKS = set()
 
@@ -1408,6 +1448,10 @@ def open_run_header(workflow, project_dir, config_path=None, **details):
     # the two; resetting the flag then made the exit hook print it again.
     if _HEADER_PRINTED and _CONSOLE_STYLE_ACTIVE:
         return True
+    if _split_phase() == "indicators":
+        # A split WF4 run's second pass: the first pass already opened it.
+        _HEADER_PRINTED = True
+        return True
     _HEADER_PRINTED = False
     if _CONSOLE_STYLE_ACTIVE or _CONSOLE_STYLE_PENDING:
         _RUN_HEADER = (workflow, project_dir, config_path, dict(details))
@@ -1440,6 +1484,9 @@ def _after_checkpoint_pending(counts):
     Under ``--target simulations_only`` the indicator rules are absent from the
     job table because they will not run, not because a checkpoint is pending.
     """
+    if _split_phase() == "simulations":
+        # The indicator pass follows in the same WF4 run: plan its rules here.
+        return True
     targets = [name for name in _PLAN_EXCLUDED_RULES if counts.get(name)]
     return not targets or any(name not in _PRE_CHECKPOINT_TARGETS for name in targets)
 
@@ -1724,6 +1771,10 @@ class _ConsoleHandler(logging.StreamHandler):
         # checkpoint resolves; None until the job table is seen. See
         # `_progress_label`.
         self._planned_jobs = None
+        # A split WF4 run's indicator pass continues the first pass's counter:
+        # jobs that pass completed, and the last counter this one showed.
+        self._progress_offset = 0
+        self._last_counter = None
         # Rule names whose summary clause has already been printed once. Held on
         # the INSTANCE, unlike `_RULE_NUMBERS`/`_RULE_SUMMARIES`, which are
         # module-level and outlive one workflow: `run_workflows.py` drives five
@@ -1779,6 +1830,11 @@ class _ConsoleHandler(logging.StreamHandler):
         event = None if event is None else str(event)
         plain = re.sub(r"\x1b\[[0-9;]*m", "", str(record.msg or "")).strip()
         if plain.startswith(("Nothing to be done", _UP_TO_DATE_LINE)):
+            if _split_phase() == "indicators":
+                # Mid-run for the reader: the first pass already opened it.
+                self._opened = True
+                _HEADER_PRINTED = True
+                return "\n".join(_drain_deferred_warnings(self._color))
             lines = [] if self._opened else _compact_header()
             lines = [
                 self._paint(line, _ANSI_OPEN_BAND)
@@ -1962,6 +2018,7 @@ class _ConsoleHandler(logging.StreamHandler):
         :func:`rule_banner` -- the same fail-open direction every other
         cosmetic rule in this module takes.
         """
+        global _HEADER_PRINTED
         text = self.format(record)
         counts = _run_info_counts(text)
         if _dry_run() and self._opened:
@@ -1985,6 +2042,17 @@ class _ConsoleHandler(logging.StreamHandler):
                     and name not in _OFF_RULES
                 )
             )
+        if _split_phase() == "indicators":
+            # The first pass printed this run's opening block, with these rules
+            # in its plan; this pass only continues its execution log.
+            self._opened = True
+            _HEADER_PRINTED = True
+            done, total = _read_split_progress()
+            self._progress_offset = done
+            if total is not None:
+                self._planned_jobs = max(total, done + (self._planned_jobs or 0))
+            held = _drain_deferred_warnings(self._color)
+            return ["\n".join(held)] if held else []
         plan = _plan_lines(counts) if counts else None
         opening = self._opening(plan, counts)
         if opening:
@@ -2096,6 +2164,9 @@ class _ConsoleHandler(logging.StreamHandler):
         # normal run never reaches it.
         while len(self._started) > _CONSOLE_MAX_TRACKED_JOBS:
             self._started.pop(next(iter(self._started)))
+        if rule_name in _PRE_CHECKPOINT_TARGETS and _split_phase() == "simulations":
+            # The split's internal stopping point, not a target the user asked for.
+            return None
         message = fields.get("rule_msg")
         if not message:
             # A rule with no `message:`. Snakemake's default block names its
@@ -2196,6 +2267,10 @@ class _ConsoleHandler(logging.StreamHandler):
         if rule_name == "all" and os.environ.get("CST_SIMULATION_FINALIZE"):
             # The owned launcher still has result exports to publish.
             return ""
+        if rule_name in _PRE_CHECKPOINT_TARGETS and _split_phase() == "simulations":
+            # End of the first pass: hand the counter to the indicator pass.
+            _write_split_progress(self._last_counter, self._planned_jobs)
+            return ""
         if rule_name is None and fallback:
             # No start line was seen for this job, so there is nothing to render
             # in our grammar -- under `--quiet rules` the filter dropped it, and
@@ -2251,8 +2326,11 @@ class _ConsoleHandler(logging.StreamHandler):
         if counter is None:
             return ""
         counter -= self._targets_done
+        counter += self._progress_offset
+        self._last_counter = counter
         if total:
             total -= self._target_jobs
+            total += self._progress_offset
             if self._planned_jobs:
                 total = max(total, self._planned_jobs)
         if self._dynamic_progress:

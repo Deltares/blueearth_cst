@@ -1893,8 +1893,9 @@ def _run_owned(
                     )
 
                     # Simulations first, then indicators (R11, W2).
+                    progress_path = history_path.with_name(f".{child_id}.progress")
                     for phase_cmd, phase_environment in simulation_phases(
-                        cmd, environment
+                        cmd, environment, progress_path
                     ):
                         result = subprocess.CompletedProcess(
                             phase_cmd,
@@ -1920,6 +1921,7 @@ def _run_owned(
                         )
                         if result.returncode != 0:
                             break
+                    progress_path.unlink(missing_ok=True)
                     resource_tracking.phase(child_path, "finalization")
                     snapshot = environment.get("CST_INDICATOR_SELECTION")
                     if (
