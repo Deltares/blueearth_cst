@@ -341,6 +341,60 @@ def _inventory(previous: bytes | None, slug: str, trial: str, purpose: str) -> b
     return text.encode("utf-8")
 
 
+def _instructions(slug: str, trial: str, destination: Path) -> bytes:
+    """Render the trial's quick reference: commands and generic file roles."""
+    config = (destination / "project_config.yml").as_posix()
+    run = "pixi run python scripts"
+    files = "\n".join(
+        f"| `project_config_{name}.yml` | {code} {label.lower()} settings |"
+        for name, (code, label) in _WORKFLOW_LABELS.items()
+    )
+    sections = [
+        ("Set the config path", f'$config = "{config}"'),
+        (
+            "Preview the enabled workflows",
+            f"{run}/run_workflows.py --config $config --cores 3 -- --dry-run",
+        ),
+        (
+            "Run the enabled workflows",
+            f"{run}/run_workflows.py --config $config --cores 3",
+        ),
+        (
+            "Start a new simulation experiment",
+            f"{run}/run_workflows.py --config $config --cores 3 "
+            '--new-experiment --note "<reason>"',
+        ),
+        (
+            "Preview system simulation (WF4) alone",
+            f"{run}/simulate_system.py --config $config --cores 3 --dry-run",
+        ),
+        ("List runner options", f"{run}/run_workflows.py --help"),
+        ("List simulation options", f"{run}/simulate_system.py --help"),
+        (
+            "Create a new trial from this one",
+            f"pixi run create-case {slug} --cases-root <cases-root> --trial <name> "
+            f'--from-trial {trial} --purpose "<purpose>"',
+        ),
+    ]
+    blocks = "".join(
+        f"## {title}\n\n```powershell\n{command}\n```\n\n"
+        for title, command in sections
+    )
+    return (
+        f"# {slug} / {trial}: quick reference\n\n"
+        f"Run from the toolbox root (`{TOOLBOX_ROOT.as_posix()}` at creation).\n\n"
+        f"{blocks}"
+        "## Files\n\n"
+        "| File | Role |\n|---|---|\n"
+        "| `project_config.yml` | Project settings: data, basin, climate, enabled workflows |\n"
+        f"{files}\n"
+        "| `notes.md` | Trial purpose and run notes |\n"
+        "| `outputs/` | Results; each run reports a `summary.md` |\n\n"
+        "Docs (toolbox): `docs/guide/running.md`, `outputs.md`, `new-case.md`, "
+        "`troubleshooting.md`.\n"
+    ).encode("utf-8")
+
+
 def _prepare(
     args: argparse.Namespace,
 ) -> tuple[Path, Path, dict[Path, bytes], dict[Path, bytes | None], list[str]]:
@@ -620,26 +674,9 @@ def _prepare(
         "## Run notes\n\n- Configuration revision:\n- Command:\n- Checks and outcome:\n"
         "- Limitations:\n- Evidence (relative paths):\n"
     ).encode("utf-8")
-    files[Path(args.trial) / "INSTRUCTIONS.md"] = (
-        f"# {args.case_slug} / {args.trial}\n\n"
-        "Review the copied settings and external data access before running.\n"
-        "The maintained starter enables historical climate analysis alone; copied trials preserve enablement.\n\n"
-        "From the toolbox root, replace <cases-root> with your case location:\n\n"
-        "```powershell\n"
-        f'pixi run python scripts/run_workflows.py --config "<cases-root>/{args.case_slug}/{args.trial}/project_config.yml" --cores 3 -- --dry-run\n'
-        "```\n\nRemove the final `-- --dry-run` to run enabled workflows.\n"
-        "See `docs/guide/running.md` and `docs/guide/new-case.md` in the matching toolbox checkout.\n\n"
-        "Paths resolve beside their declaring YAML; `toolbox:` selects bundled resources.\n"
-        "This trial writes to `outputs/`. Input datasets remain external unless explicitly copied.\n\n"
-        "Keep working, retained or complete status in the case README. Complete means the declared scope\n"
-        "was reviewed, not that every workflow ran. Keep retained evidence unchanged for new experiments.\n\n"
-        "Git ignores are not backups. An evidence archive preserves reviewed outputs and provenance;\n"
-        "a rerunnable archive also needs input datasets, catalogs and the software environment.\n"
-        "Moving YAML does not relocate runtime locators in historical outputs.\n\n"
-        "## Input dependencies\n\n"
-        + "\n".join(f"- {item}" for item in sorted(set(dependencies)))
-        + "\n"
-    ).encode("utf-8")
+    files[Path(args.trial) / "INSTRUCTIONS.md"] = _instructions(
+        args.case_slug, args.trial, destination
+    )
     for name in ("README.md", ".gitignore"):
         path = _no_links(case / name, root)
         previous[Path(name)] = path.read_bytes() if path.exists() else None

@@ -47,7 +47,7 @@ C:/cst-cases/
         ├── project_config.yml             # Basin, data and enabled workflows
         ├── project_config_<workflow>.yml  # Five workflow settings files
         ├── outputs/                       # Created by execution
-        ├── INSTRUCTIONS.md                # Trial commands and dependencies
+        ├── INSTRUCTIONS.md                # Quick reference: commands and files
         └── notes.md                       # Purpose, revisions and evidence
 ```
 
