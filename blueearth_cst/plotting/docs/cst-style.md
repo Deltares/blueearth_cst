@@ -62,9 +62,10 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
   skipping named colours already present; change marker shapes on repeat. The palette has no certified
   colour-vision-deficiency claim, so retain markers and labels; data time series use solid lines.
 - Both shared Matplotlib contexts apply the cycle. Semantic presets take precedence: IPCC scenario
-  colours, climate-map and anomaly colormaps keep their values. `historical_maps` retains WF0/WF1
-  reference ramps; `climate_maps` retains the legacy adapter's colormaps. Colours do not alter
-  classification, normalization, data or scientific configuration identity.
+  colours, climate-map and anomaly colormaps keep their values. `historical_maps` holds the WF0/WF1
+  reference ramps (blue precipitation, tan–brown PET, yellow–red temperature); `climate_maps` retains
+  the legacy adapter's colormaps. Colours do not alter classification, normalization, data or
+  scientific configuration identity.
 - WF0–WF2 rules digest both YAML files in renderer params so edits schedule plots; WF1's combined
   evaluation/plotting job also refreshes its indicators. The historical map-reference producer tracks
   them as display dependencies without changing climate extraction or simulation identity. WF3's R
@@ -117,13 +118,14 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
   warn if it still cannot fit. Comparable plots share limits; independent scales use the full
   light-to-dark range and visible intermediate values.
 - Spatial maps and heatmaps use palettes tied to the plotted variable, independently of dataset identity.
-  Use diverging red–white–blue for signed anomalies with a meaningful zero; use sequential palettes for
+  Use a diverging palette for signed anomalies with a meaningful zero: brown–teal (`BrBG`, brown dry)
+  for precipitation, blue–red for temperature and red–blue for SPI; use sequential palettes for
   non-negative quantities. Climate-index maps use `colors.yml` → `climate_index_maps`: blue for rain
   amount, wet-day counts and wet spells; yellow–brown for dry spells; yellow–red for heat; blue for cold.
   Dataset colours remain for comparison lines and points. Colourbar titles use 10 pt padding. Heatmap
   colourbars use rectangular extensions; map keys follow the spatial-map extension rule below.
-- Monthly precipitation departure calendars use continuous `RdBu` (red dry, blue wet), matching the
-  SPI heatmap palette while retaining continuous normalization, centred at
+- Monthly precipitation departure calendars use the shared precipitation-anomaly colormap (`BrBG`,
+  brown dry, teal wet) over its full range with continuous normalization, centred at
   zero with symmetric limits over all finite pooled anomalies. Use a three-line colourbar title:
   `Precip.`, `anomaly`, `(mm)`. Comparison datasets sit side by side on a 180 × 80 mm canvas,
   with month labels and ticks on the first panel only. Use the full layout width and zero extra
@@ -144,9 +146,10 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
 | Element | Treatment |
 |---|---|
 | Coordinates | Aspect `1/cos(mid-latitude)`; signed ticks; `Longitude (°)` / `Latitude (°)`. |
-| Rivers | Blue, width and shade by stream order, thin reaches first, thin white halo. |
-| Basin/divides | Black basin outline over dashed divides; shared divide edges drawn once. |
-| Locations | Purple diamonds; bold names with white halo, placed clear of frame, marks and linework. |
+| Frame | Same colour token as the key outline (`colors.axis`). |
+| Rivers | Darker blue by stream order, width and shade stepped, thin reaches first, white halo. |
+| Basin/divides | Black basin outline over dashed divides, thin white halo; shared divide edges drawn once. |
+| Locations | Purple diamonds; bold names with thin white halo, placed clear of frame, marks and linework. |
 | Long names | Underscores shown as spaces; split near middle at `maps.location_label_wrap` characters. |
 | Furniture | Latitude-corrected km scale bar; no north arrow; locator only on overviews. |
 | Locator | Elevation/subbasin overviews; square, in clear corner, ≤40% of frame height. |
@@ -160,7 +163,12 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
 - List only classes present in the drawn area and covering at least 0.1% of the basin. Draw smaller
   classes and name them in the caption. Reduce text if a legend exceeds frame height; warn if still
   too tall. Put colourbar units on a separate title line. Use `fundamentals.style_colourbar`, shared
-  with heatmaps. Tick labels carry no padded zeros (`0`, `0.4`, `−600`).
+  with heatmaps. Key tick labels carry no padded zeros (`0`, `0.4`, `−600`). Coordinate tick labels on
+  one axis share the decimals its finest tick needs (`0.35`, `0.40`, `0.45`).
+- Halo widths are `style.yml` `maps` tokens added to the line width (`river_halo_width`,
+  `outline_halo_width`) or set as the text stroke (`location_label_halo_width`, `scale_bar_halo_width`).
+  The river halo stays wide enough to keep rivers legible on the darkest precipitation classes and
+  anomaly fills, where blue river cores carry little contrast.
 - `MapScale.extend` names the sides permitted to show an extension. Draw a pointed extension only on a
   permitted side that a drawn finite cell (in frame, inside any mask) lies strictly beyond; the upper
   boundary belongs to the last class. Panel pages and matrices decide once over the whole panel set, so
@@ -170,7 +178,7 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
   constants hold the offsets and weights. Map labels show underscores as spaces; data, tables and
   captions keep the identifier.
 - Map captions use `map_frames.map_caption`: quantity and units, period, native grid spacing when the
-  field records it, then the product credit, e.g. "Mean annual precipitation (mm yr⁻¹) for 1991–2020
+  field records it, then the product credit, e.g. "Mean annual precipitation (mm/year) for 1991–2020
   on the native 0.25° grid from ERA5 (Hersbach et al., 2019)." Add only material map-specific notes
   (nonzero off-scale counts, PET method when recorded). When at most 12 native cells intersect the
   frame, add "Each colour block is one grid cell."
@@ -204,10 +212,13 @@ Use one vertical colourbar at the right, aligned with the bottom map frame, with
 The shared preset reserves 16 mm for the key and labels; the bar is 2.3 mm wide and 64% of canvas height.
 Use `style_colourbar` for its typography and outline. Keep identical classes across comparable panels and
 figures. Show supplied major ticks only; disable automatic minor ticks so dense continuous ramps do not
-acquire a gray fringe. Prefer outward-rounded whole-number limits/steps when the quantity supports them
-(as for t003 delta maps); retain scientifically necessary fractional scales. Round fractional symmetric
-limits outward with `fundamentals.round_up_to_ladder` and `SYMMETRIC_LIMIT_LADDER`, so half-limit ticks
-are also round. The renderer consumes an explicit scale and never reclassifies supplied scientific values. Missing-data meaning belongs in the caption.
+acquire a gray fringe. A key whose neighbouring tick labels would come closer than 0.6 mm shows every
+second tick, keeping both ends and zero of an even symmetric class set. Prefer outward-rounded
+whole-number limits/steps when the quantity supports them (as for t003 delta maps); retain scientifically
+necessary fractional scales. Round fractional symmetric limits outward with
+`fundamentals.round_up_to_ladder` and `SYMMETRIC_LIMIT_LADDER`, so half-limit ticks are also round. The
+renderer consumes an explicit scale and never reclassifies supplied scientific values. Missing-data
+meaning belongs in the caption.
 
 ## Figure-specific decisions
 
@@ -220,11 +231,15 @@ are also round. The renderer consumes an explicit scale and never reclassifies s
   their three-column, six-year grouping through the panel preset.
 - Use absolute departures (mm, °C). Symmetric limits take the maximum absolute departure over finite
   cells intersecting each displayed native frame across all sources and comparison years, rounded
-  outward to the symmetric-limit ladder (557 → ±600, 0.754 → ±0.8), so nothing clips. Five ticks mark
-  ±limit, ±limit/2 and zero. Metadata keeps the raw maximum beside the displayed limits. Use a
-  three-line key title naming the variable: `Precip.`/`Temp.`, `anomaly`, `(mm)`/`(°C)`.
-  Precipitation uses the shared precipitation-anomaly palette; temperature uses `climate_maps.temp_crossing_freezing` as
-  the shared cool-negative/warm-positive ramp. Missing cells use the shared map missing colour.
+  outward to the symmetric-limit ladder (557 → ±600, 0.754 → ±0.8), so nothing clips. The key has
+  `maps.anomaly_classes` (8) equal discrete classes between the limits (±600 mm/year → 150 mm/year
+  classes; ±0.8 °C → 0.2 °C), zero on a class boundary and a tick on every boundary, thinned per the
+  panel key rule. Metadata keeps the raw maximum beside the displayed limits and class boundaries. Use a
+  three-line key title naming the variable: `Precip.`/`Temp.`, `anomaly`, `(mm/year)`/`(°C)`.
+  Precipitation uses the shared precipitation-anomaly palette (brown dry, teal wet); temperature uses
+  `climate_maps.temp_crossing_freezing` as the shared cool-negative/warm-positive ramp. Class colours
+  sample only `maps.anomaly_colormap_range` (0.08–0.92) of either colormap, so the darkest tones stay
+  unused; calendars and SPI keep the full range. Missing cells use the shared map missing colour.
   With all finite departures zero, display ±1 in the relevant units and disclose the display fallback;
   with none finite, omit the numerical key. Use concise journal-style captions naming the variable,
   units, dataset, displayed years, reference period and colour interpretation; mention missing estimates
