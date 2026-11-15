@@ -141,7 +141,10 @@ def year_ticks(ax: plt.Axes, years: np.ndarray, continuous: bool = False) -> Non
         ax.set_xlim(years[0], years[-1] + 1)
     else:
         ax.set_xlim(years[0] - 0.5, years[-1] + 0.5)
-    step = 10 if years.size > 35 else 5 if years.size > 12 else 2
+    # Canonical year-label rule: every year up to 10, every second up to 20,
+    # five-year multiples beyond; very long records keep decade labels.
+    span = int(years[-1] - years[0]) + 1
+    step = 1 if span <= 10 else 2 if span <= 20 else 10 if span > 35 else 5
     major = np.arange(years[0] + (-years[0]) % step, years[-1] + 1, step)
     ax.set_xticks(major)
     ticks = np.arange(years[0], years[-1] + 1)
