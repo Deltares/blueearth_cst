@@ -341,7 +341,10 @@ def plot_basavg(
                             years,
                             [
                                 pc.AnnualLine(
-                                    "Simulated", SINGLE_SERIES_COLOR, "o", annual.to_numpy()
+                                    "Simulated",
+                                    SINGLE_SERIES_COLOR,
+                                    "o",
+                                    annual.to_numpy(),
                                 )
                             ],
                             ylabel=meta["annual_units"],
@@ -410,7 +413,15 @@ def plot_basavg(
 
 
 def _basavg_caption(
-    folder, name, meta, kind, label, info, weights, warmup_excluded, trend,
+    folder,
+    name,
+    meta,
+    kind,
+    label,
+    info,
+    weights,
+    warmup_excluded,
+    trend,
     forcing_label=None,
 ):
     """Update the owning directory's durable caption inventory."""
@@ -435,7 +446,11 @@ def _basavg_caption(
         omitted = set(info["partial_years"] + info["incomplete_years"])
         years = [year for year in years if year not in omitted]
     period = f"{years[0]}–{years[-1]}" if years else "no eligible years"
-    driver = f"Wflow simulation forced by {forcing_label}" if forcing_label else "Wflow simulation"
+    driver = (
+        f"Wflow simulation forced by {forcing_label}"
+        if forcing_label
+        else "Wflow simulation"
+    )
     statistic = "totals" if meta["kind"] == "amount" else "means"
     if kind == "annual_ts":
         caption = (
@@ -443,9 +458,7 @@ def _basavg_caption(
             f"{label.lower()}, {period}; {driver}."
         )
         if np.isfinite(trend["slope"]):
-            caption += (
-                " The dashed line and slope annotation show the Theil–Sen trend per decade."
-            )
+            caption += " The dashed line and slope annotation show the Theil–Sen trend per decade."
     else:
         caption = (
             f"Mean monthly {statistic} of simulated {quantity} ({meta['monthly_units']}), "

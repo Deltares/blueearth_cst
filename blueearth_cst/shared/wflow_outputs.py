@@ -63,9 +63,7 @@ for _code, _meta in PLOT_META.items():
         "m³ s⁻¹" if _code == "qof" else "mm" if _code == "swe" else "mm/year"
     )
     # Matches the WF0/WF1-forcing annual template (UNITS["mm_year"], ["mm_decade"]).
-    _meta["trend_units"] = (
-        "m³ s⁻¹ decade⁻¹" if _code == "qof" else "mm decade⁻¹"
-    )
+    _meta["trend_units"] = "m³ s⁻¹ decade⁻¹" if _code == "qof" else "mm decade⁻¹"
 del _code, _meta
 
 # Temperature is a state in degrees Celsius; depth/flux units never apply.
