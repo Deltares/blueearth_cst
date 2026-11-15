@@ -415,3 +415,48 @@ def test_exact_basin_mask_and_unresolved_temperature_units(tmp_path):
     )
     with pytest.raises(ValueError, match="every declared cell"):
         daily_series(nc, cells, "era5")
+
+
+@pytest.mark.parametrize(
+    "attrs,spacing",
+    [
+        ({"latitude_resolution": 0.25, "longitude_resolution": 0.25}, "0.25°"),
+        (
+            {"latitude_resolution": 0.25, "longitude_resolution": 0.5},
+            "0.5° longitude × 0.25° latitude",
+        ),
+        ({"latitude_resolution": 0.25}, None),
+        ({"latitude_resolution": 0.0, "longitude_resolution": 0.25}, None),
+        ({"latitude_resolution": True, "longitude_resolution": 0.25}, None),
+    ],
+)
+def test_climatology_caption_spacing_comes_from_the_field_or_is_omitted(attrs, spacing):
+    import xarray as xr
+
+    from blueearth_cst.climate_analysis.diagnostic_render import native_spacing
+
+    assert native_spacing(xr.DataArray([1.0], attrs=attrs)) == spacing
+
+
+@pytest.mark.parametrize("cells,few", [(0, False), (6, True), (12, True), (13, False)])
+def test_climatology_caption_is_a_caption_not_a_title(cells, few):
+    from blueearth_cst.climate_analysis.diagnostic_render import (
+        climatology_map_caption_parts,
+    )
+    from blueearth_cst.shared.map_frames import map_caption
+
+    lead, notes = climatology_map_caption_parts(
+        "precip",
+        [1991, 2020],
+        "0.25°",
+        cells,
+        ["2 cells fall below and 0 above the colour scale"],
+    )
+    text = map_caption(lead, "era5", notes)
+    assert text.startswith(
+        "Mean annual precipitation (mm yr⁻¹) for 1991–2020 on the native 0.25° grid "
+        "from ERA5 (Hersbach et al., 2019). 2 cells fall below"
+    )
+    assert text.endswith("Each colour block is one grid cell.") is few
+    lead, _ = climatology_map_caption_parts("temp", [1991, 2020], None, cells, [])
+    assert lead.endswith("on the native source grid")

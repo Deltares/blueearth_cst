@@ -22,6 +22,10 @@ from blueearth_cst.climate_analysis.annual_spatial_render import (
 )
 from blueearth_cst.climate_analysis.diagnostic_outputs import diagnostic_source_outputs
 from blueearth_cst.climate_analysis.diagnostic_tables import write_json
+from blueearth_cst.plotting.fundamentals import (
+    SYMMETRIC_LIMIT_LADDER,
+    round_up_to_ladder,
+)
 
 
 def settings(**changes):
@@ -181,6 +185,10 @@ def test_display_scales_native_singletons_and_out_of_frame_extremes(tmp_path):
         np.abs(fields.precip_anomaly.sel(reporting_year=list(range(1999, 2007)))).max()
     )
     assert scales["precip"]["maximum_absolute"] == expected
+    # Displayed limits round outward; the record keeps the raw maximum.
+    limit = scales["precip"]["limits"][1]
+    assert scales["precip"]["limits"] == [-limit, limit]
+    assert limit == round_up_to_ladder(expected, SYMMETRIC_LIMIT_LADDER) >= expected
     assert len(loaded) == 2
     # Stored footprint must survive singleton latitude AND longitude.
     from blueearth_cst.shared.map_reference import field_edges
@@ -255,6 +263,65 @@ def test_retained_rerender_all_pages_annotations_and_managed_cleanup(
         stream.write(b"corruption")
     with pytest.raises(ValueError, match="integrity"):
         load_retained(root)
+
+
+@pytest.mark.parametrize(
+    "maximum,limit",
+    [
+        (557.09, 600.0),
+        (0.754, 0.8),
+        (0.8, 0.8),
+        (1.2, 1.2),
+        (2.4, 2.4),
+        (600.0, 600.0),
+        (1.21, 1.6),
+        (9.1, 10.0),
+        (0.031, 0.04),
+    ],
+)
+def test_anomaly_limits_round_outward_to_round_half_steps(maximum, limit):
+    """Five ticks at ±limit, ±limit/2 and 0 must all be round numbers."""
+    assert round_up_to_ladder(maximum, SYMMETRIC_LIMIT_LADDER) == limit
+
+
+def test_anomaly_key_names_its_variable(tmp_path, monkeypatch):
+    cfg = settings()
+    retain(tmp_path, raw(), cfg)
+    reference = {
+        "frame": {
+            "extent": [9.5, 11.5, -0.5, 1.5],
+            "longitude_ticks": [10.0, 11.0],
+            "latitude_ticks": [0.0, 1.0],
+            "aspect": 1.0,
+        }
+    }
+    titles = {}
+
+    def save(path, *, fig, **kwargs):
+        fig.canvas.draw()
+        key = fig.axes[-1]
+        titles[Path(path).name.split("_")[1]] = key.get_title(loc="left")
+        # The three-line title fits the panel preset's canvas.
+        assert key.get_tightbbox().y1 <= fig.bbox.y1
+        labels = [t.get_text() for t in key.get_yticklabels()]
+        assert "0" in labels
+        assert not any("." in text and text.endswith("0") for text in labels)
+
+    monkeypatch.setattr(
+        "blueearth_cst.climate_analysis.annual_spatial_render.save_figure", save
+    )
+    render_pages(
+        diagnostic_source_outputs(tmp_path, "era5", cfg),
+        cfg,
+        [tmp_path],
+        reference,
+        {},
+        "none",
+    )
+    assert titles == {
+        "precip": "Precip.\nanomaly\n(mm)",
+        "temp": "Temp.\nanomaly\n(°C)",
+    }
 
 
 def test_all_zero_and_all_unavailable_scales(tmp_path):

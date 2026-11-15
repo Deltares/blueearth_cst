@@ -14,6 +14,10 @@ from blueearth_cst.climate_analysis.annual_spatial_anomalies import (
     anomaly_paths,
     load_retained,
 )
+from blueearth_cst.plotting.fundamentals import (
+    SYMMETRIC_LIMIT_LADDER,
+    round_up_to_ladder,
+)
 from blueearth_cst.plotting.prepared_maps import (
     MapFrame,
     MapScale,
@@ -34,6 +38,9 @@ from blueearth_cst.shared.plot_colors import (
 )
 from blueearth_cst.shared.plot_preset import CST_PRESET
 from blueearth_cst.shared.snake_utils import save_figure
+
+#: Variable names on the anomaly key, matching the monthly-departure calendars.
+KEY_LABELS = {"precip": "Precip.", "temp": "Temp."}
 
 
 def native_frame(field: xr.DataArray, reference: dict, overlays: dict) -> MapFrame:
@@ -81,7 +88,8 @@ def prepare_display(
     scales = {}
     for variable in {v for _, record in loaded.values() for v in record["variables"]}:
         maximum = limits.get(variable)
-        limit = maximum if maximum else 1.0
+        # Rounded outward so the five key ticks are round; never clips a cell.
+        limit = round_up_to_ladder(maximum, SYMMETRIC_LIMIT_LADDER) if maximum else 1.0
         scales[variable] = {
             "maximum_absolute": maximum,
             "limits": [-limit, limit] if maximum is not None else None,
@@ -90,7 +98,7 @@ def prepare_display(
             if maximum == 0
             else None,
             "status": "available" if maximum is not None else "unavailable",
-            "scope": "finite comparison-year cells intersecting each displayed native frame; all candidate sources",
+            "scope": "finite comparison-year cells intersecting each displayed native frame; all candidate sources; pooled maximum absolute anomaly rounded outward to a round limit",
         }
     return loaded, scales
 
@@ -180,7 +188,7 @@ def render_pages(
                 else "",
                 f"Start-year labels, month {record['water_year_start']}; at most {settings['max_missing_days_month']} missing days per month and {settings['max_missing_days_year']} per year; tolerated gaps use that calendar month's observed mean",
                 "Native cells intersecting the frame include cells outside the basin; no polygon mask or regridding. Gray is missing; white is uncovered. Geographic aspect uses midpoint latitude",
-                "Symmetric zero-centred scale pooled over displayed cells of all candidate sources and comparison years, without clipping"
+                "Symmetric zero-centred scale from the maximum absolute anomaly pooled over displayed cells of all candidate sources and comparison years, rounded outward to a round limit, without clipping"
                 if info["limits"]
                 else "No finite anomaly scale is available",
                 info["fallback"] or "",
@@ -218,7 +226,7 @@ def render_pages(
                 frame,
                 scale,
                 overlays,
-                colorbar_title=f"Anomaly\n({units})",
+                colorbar_title=f"{KEY_LABELS[variable]}\nanomaly\n({units})",
             )
             for ax, note in zip(fig.axes[: len(rasters)], notes):
                 if note:

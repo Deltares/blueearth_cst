@@ -63,6 +63,45 @@ MAP_QUANTITIES = {
     "temp": "Mean annual temperature (°C)",
     "pet": "Mean annual potential evapotranspiration (PET, mm yr⁻¹)",
 }
+#: Native cells in the drawn frame at or below which a climatology caption
+#: says each colour block is one grid cell.
+FEW_CELLS_NOTE_MAX = 12
+
+
+def native_spacing(field) -> str | None:
+    """The field's native grid spacing as caption text, or None when unstated."""
+    steps = []
+    for name in ("latitude_resolution", "longitude_resolution"):
+        value = field.attrs.get(name)
+        if isinstance(value, bool) or not isinstance(value, (int, float, np.number)):
+            return None
+        if not np.isfinite(value) or value <= 0:
+            return None
+        steps.append(float(value))
+    latitude, longitude = steps
+    if np.isclose(latitude, longitude):
+        return f"{latitude:g}°"
+    return f"{longitude:g}° longitude × {latitude:g}° latitude"
+
+
+def climatology_map_caption_parts(
+    variable: str,
+    period: tuple[int, int] | list[int],
+    spacing: str | None,
+    displayed_cells: int,
+    notes: list[str],
+) -> tuple[str, list[str]]:
+    """Lead and notes of a WF0 climatology map caption, for ``map_caption``.
+
+    The lead names quantity, units, period and native grid spacing (omitted
+    when unknown); a frame showing few native cells adds that each colour
+    block is one cell.
+    """
+    grid = f"the native {spacing} grid" if spacing else "the native source grid"
+    lead = f"{MAP_QUANTITIES[variable]} for {period[0]}–{period[1]} on {grid}"
+    if 0 < displayed_cells <= FEW_CELLS_NOTE_MAX:
+        notes = [*notes, "Each colour block is one grid cell"]
+    return lead, notes
 
 
 def prepared_map(
@@ -99,7 +138,7 @@ def prepared_map(
     label = {"precip": "Precip.", "temp": "Temp.", "pet": "PET"}[variable]
     drawn_scale = drawing_scale(reference, variable)
     # Climate display rules (plotting/docs/cst-style.md): reference units, a tick on
-    # every class boundary and both rectangular extensions.
+    # every class boundary and both extension sides permitted.
     if (
         drawn_scale.units not in {"degC", "mm/year"}
         or drawn_scale.extend != "both"
@@ -411,19 +450,35 @@ def render(
                     variable == "pet"
                     and map_info["source_role"] == "temperature-carrier"
                 ):
+                    # Name the PET method only when a retained record states it:
+                    # the map preparation, else this store's diagnostics lineage.
+                    recorded = provenance.get("forcing_recipe") or metadata.get(
+                        "lineage", {}
+                    ).get(sources[0], {}).get("forcing_recipe")
+                    method = (
+                        f" ({read_forcing_recipe(recorded).pet_method})"
+                        if recorded
+                        else ""
+                    )
                     notes.append(
                         "Supplied reference PET is shown without recomputation"
                         if recipe.pet_mode == "direct"
-                        else f"PET is derived on the source grid ({recipe.pet_method}) and can differ from model PET"
+                        else f"PET is derived on the source grid{method} and can differ from model PET"
                     )
                 elif (
                     variable in {"temp", "pet"}
                     and map_info["source_role"] == "precipitation-only"
                 ):
                     notes.append("This auxiliary field does not set the colour classes")
+                lead, notes = climatology_map_caption_parts(
+                    variable,
+                    period,
+                    native_spacing(field),
+                    map_info["displayed_cells"],
+                    notes,
+                )
                 text = map_caption(
-                    f"{MAP_QUANTITIES[variable]} on the {view.labels[sources[0]]} native grid, "
-                    f"{period[0]}–{period[1]},",
+                    lead,
                     sources[0],
                     notes,
                     recipe=recipe
@@ -537,11 +592,7 @@ def render(
                 form, [view.labels[s] for s in contributing], period, support
             )
             methods_text = text
-            if form.startswith("map-"):
-                text = (
-                    f"{figure_title}. Annual means are shown on the native source grid."
-                )
-            elif form == "spi-checks":
+            if form == "spi-checks":
                 text = "Shapiro–Wilk normality checks of reference-period SPI for gamma and Pearson III fits. Cells show p-values; gray denotes unavailable estimates. Tests are exploratory and unadjusted for multiple comparisons."
             elif form == "sensitivity":
                 text = "Sensitivity of Theil–Sen trends to the fitting period. Error bars show 95% intervals adjusted for serial dependence; filled points indicate Mann–Kendall p < 0.05."
