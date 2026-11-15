@@ -282,15 +282,16 @@ def test_startup_none_and_native_planning_footer_are_not_terminal_rows(
     assert "Reasons:" in sink.getvalue()
 
 
-def test_pending_checkpoint_and_completed_planning_are_not_reuse(
+def test_checkpoint_rules_and_completed_planning_are_not_reuse(
     presentation, monkeypatch
 ):
     monkeypatch.setattr(cs, "_PRE_DAG_STEPS", {"prepare": "2.01"})
     monkeypatch.setattr(cs, "_AFTER_CHECKPOINT_RULES", {"analysis": 4})
     head, rows = cs._plan_lines({"fetch": 1, "all": 1})
-    text = "\n".join(row for row, _ in rows)
-    assert "done" in text and "pending" in text and "4 planned" in text
-    assert "0 up to date" in head and "1 job" in head
+    texts = [row.split() for row, _ in rows]
+    assert ["done", "prepare", "-"] in texts
+    assert ["run", "analysis", "4"] in texts
+    assert "0 up to date" in head and head.startswith("5 jobs")
 
 
 def test_deferred_factory_is_idempotent_and_retains_signature_and_file_handler(

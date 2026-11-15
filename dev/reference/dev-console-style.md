@@ -34,9 +34,10 @@ means scheduled work; `reuse` means a current rule, whose previous job count is 
 declared rule whose outputs this run's config does not request, such as a disabled figure switch; register
 it with `enabled=False` on `RuleRegistry.logged`/`banner_only`, or it reads as `reuse`. A rule that does not
 apply at all stays unregistered and is not listed. `done` identifies completed work before the DAG.
-`pending` identifies checkpoint-dependent work, with explicitly provisional counts where known. The summary
-line counts jobs, then rules by status (`12 jobs  |  3 scheduled  |  3 up to date  |  1 off  |
-3 completed`). It excludes target collectors such as `all`; unknown or unlisted work is reported rather than
+A rule behind a checkpoint (WF4's 4.07/4.08) is absent from Snakemake's opening job table but still runs in
+the invocation, so it lists as `run` with its planned job count (`?` when none is declared), and the summary
+counts those jobs. The summary line counts jobs, then rules by status (`12 jobs  |  3 scheduled  |
+3 up to date  |  1 off  |  3 completed`). It excludes target collectors such as `all`; unknown or unlisted work is reported rather than
 silently counted as reused.
 
 ## Planning and no-op runs

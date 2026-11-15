@@ -1247,7 +1247,7 @@ def opening_block(
     Order: identity band, literal engine command, applicable input checks, work
     plan, settings, paths, and execution or planning boundary. Each workflow owns
     its identity even inside a batch; the command's ``-c`` states its cores.
-    Checkpoint/pre-DAG states remain explicit.
+    Pre-DAG steps remain explicit; checkpoint-gated rules list as ``run``.
     See dev/reference/dev-console-style.md for the maintained presentation contract.
     """
     details = dict(details or {})
@@ -1547,7 +1547,14 @@ def _plan_rows(counts):
 
 
 def _plan_lines(counts):
-    """Render explicit run/reuse/off/done/pending rows and the scheduled work-job total."""
+    """Render explicit run/reuse/off/done rows and the scheduled work-job total.
+
+    A rule behind a checkpoint (WF4's 4.07/4.08 before the indicator plan
+    exists) is absent from Snakemake's opening table, yet it will run in this
+    invocation. It lists as ``run`` with its planned count -- ``?`` when none
+    was declared -- and the head counts those jobs, so the head agrees with the
+    ``[n/N]`` progress denominator.
+    """
     rows = _plan_rows(counts)
     if not rows:
         return None
@@ -1561,34 +1568,25 @@ def _plan_lines(counts):
     } - off_numbers
     display = []
     states = []
+    planned_jobs = 0
     for number, name, jobs in rows:
         pending = number in pending_numbers
+        if pending and isinstance(jobs, int):
+            planned_jobs += jobs
         # A switched-off rule that still has jobs -- another target needs its
         # outputs -- reports what actually happens: `run`.
         status = (
             "done"
             if jobs is None
-            else "pending"
-            if pending or isinstance(jobs, str)
             else "run"
-            if jobs
+            if pending or jobs
             else "off"
             if number in off_numbers
             else "reuse"
         )
-        cell = (
-            "-"
-            if jobs is None or jobs == 0
-            else "?"
-            if jobs == ""
-            else f"{jobs} planned"
-            if pending
-            else str(jobs)
-        )
+        cell = "?" if jobs == "" else "-" if jobs is None or jobs == 0 else str(jobs)
         display.append((status, number, _INDICATOR_RULE_LABELS.get(name, name), cell))
-        states.append(
-            True if status == "run" else None if status == "pending" else False
-        )
+        states.append(status == "run")
     # No step column: each rule's RUN and DONE lines already carry its number
     # (`Rule 0.01: delineate_region`), so the table names rules only.
     widths = [
@@ -1613,7 +1611,7 @@ def _plan_lines(counts):
         for name in counts
         if name not in _RULE_NUMBERS and name not in _PLAN_EXCLUDED_RULES
     )
-    jobs = sum(
+    jobs = planned_jobs + sum(
         count for name, count in counts.items() if name not in _PLAN_EXCLUDED_RULES
     )
     scheduled = sum(state is True for state in states)
@@ -1621,13 +1619,10 @@ def _plan_lines(counts):
     # Rule counts, each named by the status word its plan rows carry: the
     # table above already says these are rules.
     head = f"{plural(jobs, 'job')}  |  {scheduled} scheduled  |  {reused} up to date"
-    pending = sum(row[0] == "pending" for row in display)
     off = sum(row[0] == "off" for row in display)
     done = sum(row[0] == "done" for row in display)
     if off:
         head += f"  |  {off} off"
-    if pending:
-        head += f"  |  {pending} pending"
     if done:
         head += f"  |  {done} {_PRE_DAG_LABEL}"
     if unlisted:

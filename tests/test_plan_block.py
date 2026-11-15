@@ -280,22 +280,21 @@ def test_nothing_is_declared_when_the_ledger_is_complete(rules):
 def test_a_rule_behind_a_checkpoint_shows_its_planned_count(rules, monkeypatch):
     """WF4's 4.07/4.08 are absent from the opening table because a checkpoint
     has not run yet, not because they are satisfied: they show the jobs they
-    plan, as runnable rows, and the head counts them."""
+    plan, listed as `run`, and the head counts their jobs and rules."""
     rules({"publish": "4.06", "plan": "4.07", "derive": "4.08", "done": "4.05"})
     monkeypatch.setattr(cs, "_AFTER_CHECKPOINT_RULES", {"plan": 1, "derive": 1})
     head, rows = cs._plan_lines({"publish": 1})
-    assert head == "1 job  |  1 scheduled  |  1 up to date  |  2 pending"
-    texts = [text for text, _ in rows]
-    assert texts[3].startswith("pending") and texts[3].endswith("1 planned")
-    assert texts[4].startswith("pending") and texts[4].endswith("1 planned")
+    assert head == "3 jobs  |  3 scheduled  |  1 up to date"
+    texts = [(text.split(), state) for text, state in rows[3:]]
+    assert texts == [(["run", "plan", "1"], True), (["run", "derive", "1"], True)]
 
 
-def test_a_checkpoint_rule_without_a_planned_count_is_left_empty(rules, monkeypatch):
+def test_a_checkpoint_rule_without_a_planned_count_shows_unknown(rules, monkeypatch):
     rules({"publish": "4.06", "plan": "4.07"})
     monkeypatch.setattr(cs, "_AFTER_CHECKPOINT_RULES", {"plan": None})
     head, rows = cs._plan_lines({"publish": 1})
-    assert rows[2][0].split() == ["pending", "plan", "?"]
-    assert head.endswith("|  1 pending")
+    assert rows[2][0].split() == ["run", "plan", "?"]
+    assert head == "1 job  |  2 scheduled  |  0 up to date"
 
 
 def test_a_checkpoint_rule_with_jobs_shows_its_count(rules, monkeypatch):
@@ -363,7 +362,7 @@ def test_a_switched_off_rule_with_jobs_reports_run(rules, monkeypatch):
     assert rows[1][0].split() == ["run", "plot", "1"]
 
 
-def test_switched_off_checkpoint_rules_are_off_not_pending(rules, monkeypatch):
+def test_switched_off_checkpoint_rules_are_off_not_run(rules, monkeypatch):
     """A simulations-only WF4 selection has no indicator work to plan."""
     rules({"publish": "4.06", "plan": "4.07", "derive": "4.08"})
     monkeypatch.setattr(cs, "_AFTER_CHECKPOINT_RULES", {"plan": 1, "derive": 1})
