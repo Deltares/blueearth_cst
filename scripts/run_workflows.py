@@ -1894,34 +1894,36 @@ def _run_owned(
 
                     # Simulations first, then indicators (R11, W2).
                     progress_path = history_path.with_name(f".{child_id}.progress")
-                    for phase_cmd, phase_environment in simulation_phases(
-                        cmd, environment, progress_path
-                    ):
-                        result = subprocess.CompletedProcess(
-                            phase_cmd,
-                            run_project_child(
+                    try:
+                        for phase_cmd, phase_environment in simulation_phases(
+                            cmd, environment, progress_path
+                        ):
+                            result = subprocess.CompletedProcess(
                                 phase_cmd,
-                                cwd=REPO_ROOT,
-                                writing=not preview,
-                                env={
-                                    **phase_environment,
-                                    **execution_outputs.environment(
-                                        child_path, child_record
-                                    ),
-                                    "CST_SIMULATION_INVOCATION_ID": child_id,
-                                    "CST_SIMULATION_FINALIZE": "1",
-                                    console_style.ANNOUNCED_ENV: "1",
-                                    invocation_history.PARENT_ENV: history[
-                                        "invocation_id"
-                                    ],
-                                    invocation_history.INVOCATION_ENV: child_id,
-                                    RUN_WARNING_TALLY_ENV: str(warning_path),
-                                },
-                            ),
-                        )
-                        if result.returncode != 0:
-                            break
-                    progress_path.unlink(missing_ok=True)
+                                run_project_child(
+                                    phase_cmd,
+                                    cwd=REPO_ROOT,
+                                    writing=not preview,
+                                    env={
+                                        **phase_environment,
+                                        **execution_outputs.environment(
+                                            child_path, child_record
+                                        ),
+                                        "CST_SIMULATION_INVOCATION_ID": child_id,
+                                        "CST_SIMULATION_FINALIZE": "1",
+                                        console_style.ANNOUNCED_ENV: "1",
+                                        invocation_history.PARENT_ENV: history[
+                                            "invocation_id"
+                                        ],
+                                        invocation_history.INVOCATION_ENV: child_id,
+                                        RUN_WARNING_TALLY_ENV: str(warning_path),
+                                    },
+                                ),
+                            )
+                            if result.returncode != 0:
+                                break
+                    finally:
+                        progress_path.unlink(missing_ok=True)
                     resource_tracking.phase(child_path, "finalization")
                     snapshot = environment.get("CST_INDICATOR_SELECTION")
                     if (

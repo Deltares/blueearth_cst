@@ -3517,13 +3517,16 @@ def test_onstart_header_after_the_opening_is_not_reprinted_at_exit(monkeypatch):
     assert stream.getvalue() == ""
 
 
-def test_a_split_wf4_run_reads_as_one_run(monkeypatch, tmp_path):
-    """WF4 runs simulations, then indicators, as two Snakemake passes (R11, W2).
+def _split_pass(monkeypatch, phase):
+    """Start one pass of a split WF4 run, its header declared as `onstart:` does."""
+    monkeypatch.setenv(cs.SPLIT_PHASE_ENV, phase)
+    monkeypatch.setattr(cs, "_HEADER_PRINTED", False)
+    monkeypatch.setattr(cs, "_RUN_HEADER", None)
+    return cs.open_run_header("wf4 simulate_system", "test_case/test_rapid")
 
-    The console presents one run: the first pass plans the indicator rules and
-    hides its internal `simulations_only` target; the second prints no opening
-    block and continues the first pass's `[n/N]` counter.
-    """
+
+@pytest.fixture
+def split_run(monkeypatch, tmp_path):
     monkeypatch.setattr(
         cs, "_RULE_NUMBERS", {"sim": "4.05", "plan": "4.07", "derive": "4.08"}
     )
@@ -3531,12 +3534,30 @@ def test_a_split_wf4_run_reads_as_one_run(monkeypatch, tmp_path):
     monkeypatch.setattr(cs, "_PLANNED_FROM", {})
     monkeypatch.setattr(cs, "_OFF_RULES", set())
     monkeypatch.setattr(cs, "_DYNAMIC_PROGRESS_RULES", set())
-    monkeypatch.setattr(cs, "_RUN_HEADER", None)
     monkeypatch.setattr(cs, "_DEFERRED_WARNINGS", [])
+    monkeypatch.setattr(cs, "_CONSOLE_STYLE_ACTIVE", True)
     progress = tmp_path / "progress"
     monkeypatch.setenv(cs.SPLIT_PROGRESS_ENV, str(progress))
+    return progress
 
-    monkeypatch.setenv(cs.SPLIT_PHASE_ENV, "simulations")
+
+def _plan_rows_in(text):
+    return [
+        line.split()
+        for line in text.splitlines()
+        if line.split()[:1] in (["run"], ["reuse"], ["off"])
+    ]
+
+
+def test_a_split_wf4_run_reads_as_one_run(monkeypatch, split_run):
+    """WF4 runs simulations, then indicators, as two Snakemake passes (R11, W2).
+
+    The console presents one run: the first pass plans the indicator rules and
+    hides its internal `simulations_only` target and engine log line; the second
+    prints no opening block and continues the first pass's `[n/N]` counter.
+    """
+    progress = split_run
+    _split_pass(monkeypatch, "simulations")
     first = _emit(
         _console_handler(),
         _console_record(
@@ -3555,21 +3576,24 @@ def test_a_split_wf4_run_reads_as_one_run(monkeypatch, tmp_path):
         _job_info(4, "simulations_only", "simulations_only"),
         _console_record(event="job_finished", job_id=4),
         _console_record(event="progress", done=4, total=4),
+        _console_record("Complete log(s): C:/repo/.snakemake/log/x.snakemake.log"),
     )
-    rows = [line.split() for line in first.splitlines()[:5]]
-    assert rows[1:4] == [
+    assert first.count("wf4 simulate_system") == 1
+    assert _plan_rows_in(first)[:3] == [
         ["run", "sim", "3"],
         ["run", "plan", "2"],
         ["run", "derive", "2"],
     ]
-    assert rows[4][:2] == ["7", "jobs"]
-    assert "[3/7]" in first
+    assert "7 jobs" in first and "[3/7]" in first
     assert "simulations_only" not in first and "Requested outputs" not in first
-    assert json.loads(progress.read_text(encoding="utf-8")) == {"done": 3, "total": 7}
+    assert "Complete log" not in first
+    assert json.loads(progress.read_text(encoding="utf-8")) == {
+        "opened": True,
+        "done": 3,
+        "total": 7,
+    }
 
-    monkeypatch.setenv(cs.SPLIT_PHASE_ENV, "indicators")
-    monkeypatch.setattr(cs, "_HEADER_PRINTED", False)
-    assert cs.open_run_header("wf4 simulate_system", "test_case/test_rapid") is True
+    assert _split_pass(monkeypatch, "indicators") is True
     second = _emit(
         _console_handler(),
         _console_record(
@@ -3586,6 +3610,42 @@ def test_a_split_wf4_run_reads_as_one_run(monkeypatch, tmp_path):
     monkeypatch.setattr(sys, "stderr", stream)
     cs._flush_undrained_warnings()
     assert stream.getvalue() == ""  # no header reprinted at exit
+
+
+def test_a_split_run_with_simulations_retained_opens_once(monkeypatch, split_run):
+    """Adding an indicator set to a retained experiment: the first pass has no
+    work, so it stays silent, and the indicator pass opens the run with its plan.
+    """
+    _split_pass(monkeypatch, "simulations")
+    first = _emit(
+        _console_handler(),
+        _console_record(
+            "Nothing to be done (all requested files are present and up to date)."
+        ),
+    )
+    assert first == ""
+    stream = io.StringIO()
+    monkeypatch.setattr(sys, "stderr", stream)
+    cs._flush_undrained_warnings()
+    assert stream.getvalue() == ""  # the silent pass prints no header at exit
+    monkeypatch.setattr(sys, "stderr", sys.__stderr__)
+
+    _split_pass(monkeypatch, "indicators")
+    second = _emit(
+        _console_handler(),
+        _console_record(
+            "Job stats:\njob  count\n----  ---\nall  1\nplan  2\ntotal  3\n",
+            event="run_info",
+        ),
+        _job_info(5, "plan", "Rule 4.07: plan"),
+        _console_record(event="job_finished", job_id=5),
+        _console_record(event="progress", done=1, total=3),
+    )
+    assert second.count("wf4 simulate_system") == 1
+    assert ["run", "plan", "2"] in _plan_rows_in(second)
+    assert ["run", "derive", "2"] in _plan_rows_in(second)
+    assert "no jobs scheduled" not in second
+    assert second.splitlines()[-1].endswith("[1/4]"), second
 
 
 def test_deferred_warning_lands_under_the_run_block(monkeypatch):

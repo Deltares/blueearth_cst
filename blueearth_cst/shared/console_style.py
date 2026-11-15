@@ -1112,11 +1112,15 @@ ANNOUNCED_ENV = "CST_RUN_ANNOUNCED"
 #: PUBLIC: set by `simulation_runner.simulation_phases` on each pass of a
 #: split WF4 run -- ``simulations``, then ``indicators``. The split frees
 #: temp() intermediates early (t017 R11, W2) and is not the user's business:
-#: the console presents one WF4 run. The first pass plans the indicator rules
-#: as work of this run; the second prints no opening block of its own.
+#: the console presents one WF4 run. When the first pass has work, it opens
+#: the run with a plan that includes the indicator rules, and the second pass
+#: prints no opening block of its own. When the first pass has nothing to do
+#: (simulations already retained), it stays silent and the second pass opens
+#: the run normally.
 SPLIT_PHASE_ENV = "CST_SIMULATION_PHASE"
-#: PUBLIC: a file the first pass writes its job counter to, so the second pass
-#: continues ``[n/N]`` instead of restarting at 1. Owned by the launcher.
+#: PUBLIC: a JSON file the first pass writes -- ``opened`` once its opening
+#: block is printed, then its job counter -- so the second pass knows whether
+#: to open the run and continues ``[n/N]``. Owned by the launcher.
 SPLIT_PROGRESS_ENV = "CST_SIMULATION_PROGRESS"
 _ENGINE_ARGV = None
 
@@ -1127,25 +1131,30 @@ def _split_phase():
 
 
 def _read_split_progress():
-    """``(done, total)`` the first pass handed over, or ``(0, None)``."""
+    """The first pass's handoff, or ``{}`` when there is none."""
     path = os.environ.get(SPLIT_PROGRESS_ENV)
     try:
         state = json.loads(Path(path).read_text(encoding="utf-8"))
-        return int(state["done"]), int(state["total"])
-    except Exception:  # noqa: BLE001 -- a missing handoff only restarts the counter
-        return 0, None
+    except Exception:  # noqa: BLE001 -- no handoff: the second pass opens the run
+        return {}
+    return state if isinstance(state, dict) else {}
 
 
-def _write_split_progress(done, total):
+def _update_split_progress(**fields):
     path = os.environ.get(SPLIT_PROGRESS_ENV)
-    if not path or done is None or total is None:
+    if not path:
         return
     try:
         Path(path).write_text(
-            json.dumps({"done": done, "total": total}), encoding="utf-8"
+            json.dumps({**_read_split_progress(), **fields}), encoding="utf-8"
         )
     except OSError:
         pass
+
+
+def _split_continues():
+    """Whether this is the second pass of a run the first pass already opened."""
+    return _split_phase() == "indicators" and bool(_read_split_progress().get("opened"))
 
 
 _INPUT_CHECKS = []
@@ -1448,7 +1457,7 @@ def open_run_header(workflow, project_dir, config_path=None, **details):
     # the two; resetting the flag then made the exit hook print it again.
     if _HEADER_PRINTED and _CONSOLE_STYLE_ACTIVE:
         return True
-    if _split_phase() == "indicators":
+    if _split_continues():
         # A split WF4 run's second pass: the first pass already opened it.
         _HEADER_PRINTED = True
         return True
@@ -1830,8 +1839,9 @@ class _ConsoleHandler(logging.StreamHandler):
         event = None if event is None else str(event)
         plain = re.sub(r"\x1b\[[0-9;]*m", "", str(record.msg or "")).strip()
         if plain.startswith(("Nothing to be done", _UP_TO_DATE_LINE)):
-            if _split_phase() == "indicators":
-                # Mid-run for the reader: the first pass already opened it.
+            if _split_phase() == "simulations" or _split_continues():
+                # Nothing to report for this pass alone: the other pass of the
+                # same WF4 run opens it or already did. Held warnings only.
                 self._opened = True
                 _HEADER_PRINTED = True
                 return "\n".join(_drain_deferred_warnings(self._color))
@@ -2042,19 +2052,24 @@ class _ConsoleHandler(logging.StreamHandler):
                     and name not in _OFF_RULES
                 )
             )
-        if _split_phase() == "indicators":
+        if _split_continues():
             # The first pass printed this run's opening block, with these rules
             # in its plan; this pass only continues its execution log.
             self._opened = True
             _HEADER_PRINTED = True
-            done, total = _read_split_progress()
+            state = _read_split_progress()
+            done = int(state.get("done") or 0)
             self._progress_offset = done
-            if total is not None:
-                self._planned_jobs = max(total, done + (self._planned_jobs or 0))
+            if state.get("total") is not None:
+                self._planned_jobs = max(
+                    int(state["total"]), done + (self._planned_jobs or 0)
+                )
             held = _drain_deferred_warnings(self._color)
             return ["\n".join(held)] if held else []
         plan = _plan_lines(counts) if counts else None
         opening = self._opening(plan, counts)
+        if opening and plan is not None and _split_phase() == "simulations":
+            _update_split_progress(opened=True)
         if opening:
             return ["\n".join(opening) + self._opening_tail]
         elif plan is None:
@@ -2138,6 +2153,11 @@ class _ConsoleHandler(logging.StreamHandler):
                 )
             )
         ):
+            return True
+        if _split_phase() == "simulations" and str(record.msg or "").startswith(
+            "Complete log"
+        ):
+            # Mid-run for the reader; the indicator pass ends the WF4 run.
             return True
         return record.msg is None or str(record.msg or "").startswith(
             _CONSOLE_MUTED_PREFIXES
@@ -2269,7 +2289,10 @@ class _ConsoleHandler(logging.StreamHandler):
             return ""
         if rule_name in _PRE_CHECKPOINT_TARGETS and _split_phase() == "simulations":
             # End of the first pass: hand the counter to the indicator pass.
-            _write_split_progress(self._last_counter, self._planned_jobs)
+            if self._last_counter is not None and self._planned_jobs is not None:
+                _update_split_progress(
+                    done=self._last_counter, total=self._planned_jobs
+                )
             return ""
         if rule_name is None and fallback:
             # No start line was seen for this job, so there is nothing to render
