@@ -1288,7 +1288,7 @@ def member_null_bands(ratios):
     return result
 
 
-def product_availability(tables, windows=None, *, pet_change=None, state_variables=()):
+def product_availability(tables, windows=None):
     """Actual-data figure predicates, independent of the C0 coverage matrix.
 
     Any scenario satisfying a predicate makes the product available. Missing
@@ -1552,59 +1552,6 @@ def product_availability(tables, windows=None, *, pet_change=None, state_variabl
         cloud_windows >= 2,
         "fewer than two distinct cloud windows",
     )
-    derived = {name: "absolute" for name in state_variables}
-    if pet_change is not None:
-        derived["pet"] = pet_change
-    for variable, change in derived.items():
-        selected = data["models"].loc[data["models"].variable.eq(variable)]
-        sub = trajectory.loc[trajectory.variable.eq(variable)]
-        add(
-            f"trajectory-{variable}.png",
-            "full_period",
-            "",
-            np.isfinite(sub.anomaly.astype(float)).any(),
-            f"no {variable} member with valid reference",
-        )
-        quantity = "change_pct" if change == "relative" else "change"
-        for window_id in window_ids:
-            climate = data["climatology"]
-            climate = climate.loc[
-                climate.variable.eq(variable)
-                & climate.window_id.eq(window_id)
-                & climate.period.isin(MONTHS)
-            ]
-            complete = any(
-                set(
-                    group.loc[
-                        np.isfinite(group.reference) & np.isfinite(group.future),
-                        "period",
-                    ]
-                )
-                == set(MONTHS)
-                for _, group in climate.groupby(["model", "scenario"])
-            )
-            add(
-                f"seasonal-cycle-{variable}.png",
-                period_folder(window_id),
-                window_id,
-                complete,
-                f"no complete {variable} monthly climatology",
-            )
-            changes = selected.loc[
-                selected.window_id.eq(window_id)
-                & selected.quantity.eq(quantity)
-                & selected.statistic.eq("mean")
-                & selected.period.isin(PERIODS[:5])
-            ]
-            add(
-                f"change-{variable}-pct.png"
-                if quantity == "change_pct"
-                else f"change-{variable}.png",
-                period_folder(window_id),
-                window_id,
-                np.isfinite(changes.value.astype(float)).any(),
-                f"no eligible {variable} changes; inspect reference thresholds and coverage",
-            )
     return pd.DataFrame(
         rows, columns=["filename", "folder", "window_id", "available", "reason"]
     )

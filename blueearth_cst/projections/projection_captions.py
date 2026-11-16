@@ -1,28 +1,17 @@
 """Recoverable captions for table-driven WF2 projection figures.
 
-Captions are self-contained, in the register of journal figure legends: what
-is shown (quantity, units, periods, basin-average CMIP6 ensemble), how it is
-encoded where no key says so, and the interpretive caveat the figure needs
-(inter-model spread is not a confidence interval, sign agreement is not
-significance). Model support, omitted scenarios, shifted or joined windows
-and exclusions are reported where they apply; thresholds and per-model
-detail stay in the analysis record and the caption manifest.
+Captions are concise journal figure legends: quantity, units and periods, the
+encoding a key does not explain, and the per-figure facts a reader needs
+(model support, omitted scenarios, shifted or joined windows, hatching,
+variability bands). Suite-wide caveats and derivation methods are stated once
+in ``SUITE_NOTE``; thresholds and per-model detail stay in the analysis record
+and the caption manifest.
 """
 
 from blueearth_cst.climate_analysis.diagnostic_figures import plural
 from blueearth_cst.projections.projection_figures import figure_key
 
 TITLES = {
-    "trajectory-tdew.png": "Annual dew-point anomalies",
-    "seasonal-cycle-tdew.png": "Monthly dew-point climatology",
-    "change-tdew.png": "Annual and seasonal dew-point change",
-    "trajectory-wind.png": "Annual 10 m wind anomalies",
-    "seasonal-cycle-wind.png": "Monthly 10 m wind climatology",
-    "change-wind.png": "Annual and seasonal 10 m wind change",
-    "trajectory-pet.png": "Annual PET anomalies",
-    "seasonal-cycle-pet.png": "Monthly PET climatology",
-    "change-pet-pct.png": "Annual and seasonal PET change (%)",
-    "change-pet.png": "Annual and seasonal PET change",
     "availability.png": "CMIP6 ensemble composition",
     "trajectory-temperature.png": "Annual temperature anomalies",
     "trajectory-precipitation.png": "Annual precipitation anomalies",
@@ -47,33 +36,25 @@ TITLES = {
 
 #: Stated once for the whole suite, at the head of ``figure_captions.md``.
 SUITE_NOTE = (
-    "Spatial averages use the selected buffered bounding box and spherical cell-area weights, including "
-    "cells outside the basin polygon; they are not polygon integrals. "
-    "Ensemble summary figures show basin-average quantities from the CMIP6 ensemble. Spatial change "
-    "maps retain native GCM cells, clipped to the basin outline for display, and summarize paired "
-    "members by cell-wise median within each model/scenario. Unless stated otherwise, each "
-    "model is represented by the mean of its available ensemble members and models are weighted "
-    "equally. Inter-model spread describes structural model uncertainty; it is not a confidence "
-    "interval, and models that share code ancestry are not independent. Window definitions, "
-    "eligibility thresholds and per-figure support and exclusion counts are recorded in "
-    "_engine/analysis_record.json and _engine/plots/figure_captions.json."
+    "All figures show basin-average quantities from the CMIP6 ensemble. Spatial averages use the "
+    "selected buffered bounding box with spherical cell-area weights, including cells outside the "
+    "basin polygon; they are not polygon integrals. Spatial change maps keep native GCM cells, "
+    "clipped to the basin outline for display, and show the cell-wise median of paired members "
+    "within each model/scenario. Unless stated otherwise, each model is the mean of its available "
+    "ensemble members and models are weighted equally. Seasonal and annual temperatures are "
+    "day-weighted means; precipitation totals are monthly rates times days per month; variability "
+    "statistics use linearly detrended series. Inter-model spread describes structural model "
+    "uncertainty; it is not a confidence interval, and models that share code ancestry are not "
+    "independent. Historical spread reflects model differences in present-day climate; biases "
+    "against observations are not assessed. Window definitions, eligibility thresholds and per-figure support and exclusion counts are "
+    "recorded in _engine/analysis_record.json and _engine/plots/figure_captions.json."
 )
 
 #: Encoding of the seasonal grids (points, median, interquartile range).
 _GRID = (
-    "Each point represents one model (mean of its ensemble members); horizontal bars mark the "
-    "multi-model median and shaded boxes the interquartile range, shown where at least ten models "
-    "contribute."
+    "Points: models; bars: multi-model median; boxes: interquartile range (≥10 models)."
 )
-_AMOUNTS = (
-    "Panel titles give the reference-period seasonal total, the multi-model median of the monthly "
-    "climatologies summed over the season."
-)
-_SPREAD = "Inter-model spread is not a confidence interval."
-_HISTORICAL_SPREAD = (
-    "The spread of the Historical group reflects differences in simulated present-day climate among "
-    "models; model biases against observations are not assessed here."
-)
+_AMOUNTS = "Panel titles give reference-period seasonal totals."
 
 
 def title(filename, record, window_id=""):
@@ -100,14 +81,11 @@ def _window_notes(window):
         label = "" if horizon == "window" else f" ({horizon})"
         if supplied.get("shifted"):
             notes.append(
-                f"The analysis window{label} was shifted from {supplied['requested']} to "
-                f"{supplied['used']} to remain within the scenario simulations."
+                f"Window{label} shifted from {supplied['requested']} to "
+                f"{supplied['used']} to stay within the scenario runs."
             )
         if supplied.get("joined"):
-            notes.append(
-                f"Historical and scenario simulations are concatenated to complete the "
-                f"window{label}."
-            )
+            notes.append(f"Window{label} joins historical and scenario runs.")
     return notes
 
 
@@ -123,12 +101,12 @@ def _support(counts):
             + (f"{lo}" if lo == hi else f"{lo}–{hi}")
             for s, (lo, hi) in models.items()
         ]
-        notes.append("Number of models: " + "; ".join(parts) + ".")
+        notes.append("Models: " + "; ".join(parts) + ".")
     if dropped := counts.get("dropped"):
         names = ", ".join(
             f"{_label(s)} ({plural(n, 'model')})" for s, n in dropped.items()
         )
-        notes.append(f"Scenarios with fewer than ten models are not shown: {names}.")
+        notes.append(f"Not shown (fewer than ten models): {names}.")
     return notes
 
 
@@ -151,187 +129,82 @@ def _band(counts):
     if not counts.get("variability_band"):
         return []
     return [
-        "The grey band around zero spans the 90% range of differences between window means "
-        "expected from interannual variability alone, estimated from the models' historical "
-        "simulations (median across models) assuming serially independent years; autocorrelation "
-        "would widen it."
+        "Grey band: 90% range of window-mean differences expected from interannual "
+        "variability alone."
     ]
 
 
 def _dry(counts, cells="panels"):
     if not counts.get("mostly_dry"):
         return []
-    return [
-        f"Hatched {cells} {'are months' if cells == 'months' else 'mark seasons'} in which at least half of the models fall below the "
-        "dry-precipitation threshold and are excluded; the remaining models are too few to be "
-        "representative."
-    ]
+    unit = "months" if cells == "months" else "seasons"
+    return [f"Hatched {cells}: {unit} where most models fall below the dry threshold."]
+
+
+def _models(n):
+    return f"Based on {plural(n, 'model')}."
 
 
 def caption(filename, record, window_id="", counts=None):
-    """A self-contained figure legend for one product."""
+    """A concise, self-contained figure legend for one product."""
     filename = figure_key(filename)
     counts = counts or {}
     window = next(
         (w for w in record.get("windows", []) if w["window_id"] == window_id), None
     )
-    state = next((name for name in ("tdew", "wind") if name in filename), None)
-    if state:
-        from blueearth_cst.projections.variable_spec import VariableSpec
-
-        method = VariableSpec(*record["variable_spec"][state]).method
-        subject, unit = (
-            ("liquid-water dew point", "°C")
-            if state == "tdew"
-            else ("10 m wind", "m/s")
-        )
-        recipe = (
-            "Specific-humidity method: vapour pressure from monthly huss and surface ps, inverted using the NWS liquid-water relation, including below freezing (not frost point). Surface pressure approximates pressure at humidity height; monthly-input inversion does not recover the mean of subdaily dew points."
-            if state == "tdew"
-            else "sfcwind method: supplied monthly mean wind-speed magnitude at 10 m; no height conversion."
-            if method == "sfcwind"
-            else "components method: magnitude of the monthly mean wind vector at 10 m, computed per cell before area weighting; this is not monthly mean wind speed. No height conversion."
-        )
-        if filename.startswith("trajectory-"):
-            periods = "; ".join(_span(w["used"]) for w in record["windows"])
-            quantity = f"Annual {subject} anomalies ({unit}) relative to each member's {_span(record['reference'])} mean. Thin lines show members; thick lines show equal-model medians and shading their range. The dashed line marks 2014/2015; grey shading marks analysis windows ({periods})."
-            notes = list(
-                dict.fromkeys(
-                    note for w in record["windows"] for note in _window_notes(w)
-                )
-            )
-        else:
-            quantity = (
-                f"Monthly {subject} climatology ({unit}) for {_span(window['reference'])} (black) and {_span(window['used'])} under each SSP (colours). Lines show model medians and shading the historical model range."
-                if filename.startswith("seasonal-cycle-")
-                else f"Annual and seasonal {subject} mean differences ({unit}), {_period(window)}. Points show member-averaged model changes, ticks the median and boxes the IQR where at least ten models contribute."
-            )
-            notes = _window_notes(window)
-        support = {
-            **counts,
-            "models": {s: (n, n) for s, n in counts.get("by_scenario", {}).items()},
-        }
-        return " ".join(
-            [
-                quantity,
-                recipe,
-                "Annual and seasonal states use duration-weighted means, not totals. Spatial support is the entire selected buffered bounding box, including cells outside the basin polygon, with spherical cell-area weights. Inter-model spread is not a confidence interval.",
-                f"Based on {plural(counts.get('n_models', 0), 'model')}.",
-                *_support(support),
-                *notes,
-            ]
-        )
-    if "pet" in filename:
-        from blueearth_cst.projections.variable_spec import VariableSpec
-
-        fields = record.get("variable_spec", {}).get("pet")
-        method = VariableSpec(*fields).method if fields else None
-        recipe = (
-            f"HydroMT {method}, evaluated on native cells from monthly mean temperature, surface pressure and radiation; "
-            "this monthly-input approximation is not the mean of daily-derived PET. No elevation or pressure correction is applied. "
-            if method
-            else "Supplied PET variable; source method is recorded with the inputs. "
-        )
-        if filename.startswith("trajectory-"):
-            windows = record.get("windows", [])
-            spans = "; ".join(_span(w["used"]) for w in windows)
-            quantity = (
-                f"Annual PET anomalies (mm/year), relative to each member's {_span(record['reference'])} mean annual total. "
-                "Lines show equal-model medians and shading their range; thin traces show members. "
-                "The dashed line marks the historical/scenario transition (2014/2015); "
-                f"grey shading marks the future analysis windows ({spans}). "
-            )
-            notes = list(
-                dict.fromkeys(note for w in windows for note in _window_notes(w))
-            )
-        else:
-            quantity = (
-                f"Monthly PET climatology (mm/day) for the reference period {_span(window['reference'])} "
-                f"(black) and {_span(window['used'])} under each SSP scenario (colours). "
-                "Lines show model medians; shading shows the historical model range. "
-                if filename.startswith("seasonal-cycle-")
-                else "Annual and seasonal PET changes ("
-                + ("%" if "-pct" in filename else "mm, period integrals")
-                + f") for {_period(window)}. Points show member-averaged model changes, "
-                "ticks their median and boxes their IQR where at least ten models contribute. "
-            )
-            notes = _window_notes(window)
-        support = dict(counts)
-        support.setdefault(
-            "models", {s: (n, n) for s, n in counts.get("by_scenario", {}).items()}
-        )
-        return " ".join(
-            [
-                quantity + recipe,
-                f"Based on {plural(counts.get('n_models', len(record.get('models', []))), 'model')}.",
-                *_support(support),
-                "Spatial support is the entire selected buffered bounding box, including cells outside the basin polygon, with spherical cell-area weights. Near-zero reference daily rates exclude relative changes; absolute differences remain in the tables. Inter-model spread is not a confidence interval. Coverage and exclusions are recorded in the analysis tables.",
-                *notes,
-            ]
-        )
+    notes = _window_notes(window) if window else []
     n_models = counts.get("n_models", len(record.get("models", [])))
     reference = _span(record["reference"])
     temperature = "temperature" in filename
     variable = "temperature" if temperature else "precipitation"
-    notes = _window_notes(window) if window else []
 
     if filename == "availability.png":
         missing = counts.get("n_unretrieved", 0)
         text = [
-            "CMIP6 ensemble composition. Shaded cells mark models with at least one retrieved "
-            "member per experiment; numerals give member counts above one. Families follow Kuma et "
-            "al. (2023): * provisional, – unassigned.",
+            "CMIP6 ensemble composition. Shaded cells: models with at least one retrieved member "
+            "per experiment; numerals: member counts above one. Families after Kuma et al. "
+            "(2023); * provisional, – unassigned.",
             *(
-                [f"{plural(missing, 'model')} with no retrieved member are omitted."]
+                [f"{plural(missing, 'model')} with no retrieved member omitted."]
                 if missing
                 else []
             ),
         ]
     elif filename.startswith("trajectory-"):
-        unit = "°C" if temperature else "%"
+        unit = "°C" if temperature else f"% of each member's {reference} mean"
+        relative = "" if not temperature else f" relative to {reference}"
         text = [
-            f"Annual basin-average {variable} anomalies ({unit}) relative to {reference}. Thick "
-            "lines show the multi-model median and shading the inter-model range for the historical "
-            "simulations (black) and each SSP scenario (colours); thin lines show individual "
-            "ensemble members. Anomalies are computed against each member's own reference-period "
-            f"mean{' and expressed as a percentage of it' if not temperature else ''}. Annual values "
-            "are unsmoothed, so the range includes interannual variability. The dashed line marks "
-            "the transition from historical to scenario forcing (2014/2015) and grey shading the "
-            f"future analysis window. Based on {plural(n_models, 'model')}. {_SPREAD}"
+            f"Annual {variable} anomalies ({unit}){relative}. Thick lines: multi-model median; "
+            "shading: inter-model range; thin lines: ensemble members. Dashed line: "
+            "historical/scenario transition (2014/2015); grey band: analysis window. "
+            + _models(n_models)
         ]
     elif filename.startswith("annual-"):
         units = ("°C", "°C") if temperature else ("mm yr⁻¹", "%")
         text = [
-            f"Annual basin-average {variable} ({units[0]}, upper panels) and its anomaly relative to "
-            f"each member's {reference} mean ({units[1]}, lower panels), by SSP scenario. Thin lines "
-            "show individual ensemble members (grey: historical; colours: scenario), thick lines the "
-            "member median and shading the member range, which is not a confidence interval. The "
-            "dashed line marks the transition from historical to scenario forcing (2014/2015) and "
-            "grey shading the future analysis window; missing years are left as gaps."
+            f"Annual {variable} ({units[0]}, top) and anomaly relative to {reference} "
+            f"({units[1]}, bottom) by scenario. Thin lines: members (grey: historical); "
+            "thick lines and shading: member median and range. Dashed line: 2014/2015 "
+            "transition; grey band: analysis window."
         ]
     elif filename.startswith("change-factor-cloud"):
         windows = [
             w for w in record["windows"] if not window_id or w["window_id"] == window_id
         ]
         text = [
-            "Projected change in annual mean temperature (°C) against relative change in annual "
-            f"precipitation (%) for {'; '.join(_period(w) for w in windows)}. Each point represents "
-            "one model (mean of its ensemble members) under one SSP scenario (colours), pairing both "
-            "variables from the same simulations. The point cloud describes the spread of the "
-            "ensemble; it is not a joint probability distribution."
+            "Annual temperature change (°C) versus precipitation change (%), "
+            f"{'; '.join(_period(w) for w in windows)}. Each point is one model under one "
+            "scenario; the cloud shows ensemble spread, not a joint probability."
         ]
         if "combined" in filename:
-            text.append(
-                "Lines connect the same model and scenario across future periods."
-            )
+            text.append("Lines join each model and scenario across periods.")
     elif filename == "sign-agreement.png":
         text = [
-            f"Agreement on the sign of projected annual and seasonal change in temperature (a) and "
-            f"precipitation (b), {_period(window)}. Colour gives the fraction of models sharing the "
-            "sign of the multi-model median (blue: increase; red: decrease); agreement indicates "
-            "consistency of direction, not statistical significance.",
+            "Fraction of models sharing the sign of the multi-model median change in "
+            f"temperature (a) and precipitation (b), {_period(window)} (blue: increase; red: "
+            "decrease). Agreement is not significance.",
             *(
-                ["Hatched cells: too few models above the dry-precipitation threshold."]
+                ["Hatched cells: too few models above the dry threshold."]
                 if counts.get("mostly_dry")
                 else []
             ),
@@ -339,91 +212,55 @@ def caption(filename, record, window_id="", counts=None):
     elif filename.startswith("seasonal-cycle-"):
         unit = "°C" if temperature else "mm d⁻¹"
         text = [
-            f"Monthly climatology of basin-average {variable} ({unit}) for the reference period "
-            f"{_span(window['reference'])} (black) and for {_span(window['used'])} under each SSP "
-            "scenario (colours), shown as the multi-model median of model climatologies. Grey "
-            "shading spans the inter-model range of the reference climatology; the projected spread "
-            "is shown in the corresponding monthly-change figure. The reference climatology uses the "
-            "models of the first scenario shown."
+            f"Monthly {variable} climatology ({unit}), {_span(window['reference'])} (black) and "
+            f"{_span(window['used'])} by scenario; multi-model medians, shading the reference "
+            "inter-model range."
         ]
     elif filename.startswith("monthly-change-"):
         unit = "°C" if temperature else "%"
         text = [
-            f"Projected change in monthly basin-average {variable} ({unit}) for {_period(window)}, "
-            "by SSP scenario. Bars mark the multi-model median, boxes the interquartile range (where at "
-            "least ten models contribute) and whiskers the full inter-model range; each model contributes the mean of its ensemble "
-            "members.",
+            f"Monthly {variable} change ({unit}), {_period(window)}. Bars: multi-model median; "
+            "boxes: interquartile range (≥10 models); whiskers: full range.",
             *_band(counts),
             *_dry(counts, "months"),
             *_support(counts),
-            _SPREAD,
         ]
     elif filename == "change-temperature.png":
         text = [
-            f"Projected change in seasonal basin-average temperature (°C) for {_period(window)}, by "
-            f"SSP scenario. {_GRID}",
+            f"Seasonal temperature change (°C), {_period(window)}. {_GRID}",
             *_band(counts),
             *_support(counts),
-            _SPREAD,
         ]
     elif filename == "change-precipitation-pct.png":
         text = [
-            f"Projected relative change in seasonal basin-average precipitation (%) for "
-            f"{_period(window)}, by SSP scenario. {_GRID}",
+            f"Seasonal precipitation change (%), {_period(window)}. {_GRID}",
             _AMOUNTS,
             *_band(counts),
             *_dry(counts),
             *_support(counts),
-            _SPREAD,
         ]
     elif filename.startswith("values-"):
         ref, fut = _span(window["reference"]), _span(window["used"])
-        quantity, method = {
-            "values-precipitation-total.png": (
-                "Seasonal basin-average precipitation totals (mm)",
-                "Totals are derived from monthly mean precipitation rates multiplied by the number "
-                "of days in each month.",
-            ),
-            "values-temperature-mean.png": (
-                "Seasonal basin-average mean temperature (°C)",
-                "Seasonal means are day-weighted averages of the monthly mean temperatures.",
-            ),
-            "values-temperature-sd.png": (
-                "Interannual standard deviation of seasonal basin-average temperature (°C)",
-                "Standard deviations are computed from linearly detrended seasonal series within "
-                "each period, separately for each ensemble member.",
-            ),
-            "values-precipitation-sd.png": (
-                "Interannual standard deviation of seasonal basin-average precipitation totals (mm)",
-                "Standard deviations are computed from linearly detrended seasonal series within "
-                "each period, separately for each ensemble member, and expressed as season totals.",
-            ),
-            "values-precipitation-cv.png": (
-                "Interannual coefficient of variation of seasonal basin-average precipitation (%)",
-                "The coefficient of variation is the standard deviation of the linearly detrended "
-                "seasonal totals divided by their mean, computed separately for each ensemble "
-                "member; seasons with a reference or future mean below the dry-precipitation "
-                "threshold are excluded.",
-            ),
+        quantity = {
+            "values-precipitation-total.png": "Seasonal precipitation totals (mm)",
+            "values-temperature-mean.png": "Seasonal mean temperature (°C)",
+            "values-temperature-sd.png": "Interannual standard deviation of seasonal temperature (°C)",
+            "values-precipitation-sd.png": "Interannual standard deviation of seasonal precipitation (mm)",
+            "values-precipitation-cv.png": "Interannual coefficient of variation of seasonal precipitation (%)",
         }[filename]
         text = [
-            f"{quantity} simulated by each model for the reference period (Historical, {ref}) and "
-            f"for {fut} under each SSP scenario. {_GRID} {method}",
+            f"{quantity}, Historical ({ref}) and {fut} by scenario. {_GRID}",
             *([_AMOUNTS] if filename == "values-precipitation-total.png" else []),
-            _HISTORICAL_SPREAD,
             *_dry(counts),
             *_support(counts),
         ]
     else:  # variability-member-ratios.png
         text = [
-            "Ratio of future to reference interannual variability of annual basin-average "
-            "temperature (standard deviation, a), precipitation (standard deviation, b) and "
-            f"precipitation (coefficient of variation, c) for {_period(window)}. Faint points show "
-            "individual ensemble members; bars mark the multi-model median, boxes the interquartile "
-            "range (shown where at least ten models contribute) and whiskers the full range, after "
-            "geometric averaging of member ratios within each model. Series are linearly detrended "
-            "within each period; a ratio of 1 indicates no change. Members of one model are not "
-            "independent, and the spread is not a confidence interval.",
+            "Future-to-reference ratio of interannual variability of annual temperature "
+            "(standard deviation, a) and precipitation (standard deviation, b; coefficient of "
+            f"variation, c), {_period(window)}. Faint points: members; bars, boxes and whiskers: "
+            "median, interquartile range (≥10 models) and range of model geometric means. "
+            "A ratio of 1 means no change.",
             *_exclusions(counts),
         ]
     return " ".join([*text, *notes])

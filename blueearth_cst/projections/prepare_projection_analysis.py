@@ -28,7 +28,6 @@ from blueearth_cst.projections.series_checks import (
     assert_calendar_agreement,
     load_checked_series,
 )
-from blueearth_cst.projections.variable_spec import VariableSpec
 from blueearth_cst.shared.snake_utils import listed, log_row, plural, tee_to_log
 
 
@@ -276,8 +275,6 @@ def prepare_tables(
         "variability_model_ratios": model_ratios,
         "variability_summary": analysis.ratio_summary(ratios),
     }
-    pet = (variable_spec or {}).get("pet")
-    pet = pet if isinstance(pet, VariableSpec) or pet is None else VariableSpec(*pet)
     tables["availability"] = analysis.product_availability(
         {
             "coverage": coverage,
@@ -288,12 +285,6 @@ def prepare_tables(
             "model_ratios": model_ratios,
         },
         windows,
-        pet_change=pet.change if pet and pet.method else None,
-        state_variables=[
-            name
-            for name, value in (variable_spec or {}).items()
-            if name in {"tdew", "wind"} and VariableSpec(*value).method
-        ],
     )
     definitions = {
         name: attrs

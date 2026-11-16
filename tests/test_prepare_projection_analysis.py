@@ -19,7 +19,7 @@ def test_skipped_product_messages_explain_and_group_windows():
     availability = pd.DataFrame(
         [
             {
-                "filename": "cmip6_precip_temp_annual_member_ratio_box_basin_avg.png",
+                "filename": "cmip6_precip_temp_variability_ratio_basin.png",
                 "window_id": window,
                 "available": False,
                 "reason": "no model with two eligible member ratios",
@@ -28,13 +28,13 @@ def test_skipped_product_messages_explain_and_group_windows():
         ]
         + [
             {
-                "filename": "cmip6_ensemble_coverage_basin_avg.png",
+                "filename": "cmip6_ensemble_coverage.png",
                 "window_id": "",
                 "available": False,
                 "reason": "no resolved members",
             },
             {
-                "filename": "cmip6_temp_annual_overview_basin_avg.png",
+                "filename": "cmip6_temp_annual_basin.png",
                 "window_id": "",
                 "available": True,
                 "reason": "",
@@ -257,7 +257,7 @@ def test_shared_windows_compute_once_with_identity_checks(tmp_path):
         not tables["availability"]
         .loc[
             tables["availability"].filename
-            == "cmip6_precip_temp_annual_member_ratio_box_basin_avg.png",
+            == "cmip6_precip_temp_variability_ratio_basin.png",
             "available",
         ]
         .any()

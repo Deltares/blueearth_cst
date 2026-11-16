@@ -203,7 +203,53 @@ New WF0 renders use the shorter names. Scientific calculations, folder ownership
 keys and retained-table filenames are unchanged. Captions/title inventories use the new PNG paths.
 Original run PNGs remain historical evidence; render into a separate destination or preserve them before
 regenerating. Do not infer spatial reduction from a dropped `_avg`, `_ext` or `_point` suffix: use the
-diagnostic, location token and the retained support metadata. WF1 forcing and WF2/WF3 naming stay unchanged.
+diagnostic, location token and the retained support metadata. WF1 forcing and WF3 naming stay unchanged;
+WF2 follows its own profile below.
+
+## CMIP6 projections (WF2)
+
+WF2 reuses the WF0 field order, `<dataset>_<subject>_<diagnostic>_<location>.png`, with `cmip6` as the
+dataset and `basin` as the location of every basin-average product. The logical product keys and their
+filenames live in `FIGURE_FILENAMES` in [`projection_figures.py`](../../projections/projection_figures.py);
+native-grid maps are named in [`gcm_diagnostic_figures.py`](../../projections/gcm_diagnostic_figures.py).
+The analysis window lives in the `period_<start>_<end>/` folder, never in the filename; full-record
+products live in `full_period/`. Shape words (`ts`, `box`) and the unit word (`pct`) are omitted unless
+they distinguish products. The figure suite covers precipitation and temperature only.
+
+- `subject`: `temp`, `precip` or `precip_temp`; ensemble composition uses `ensemble_coverage` with no
+  location field because it is not a spatial quantity.
+- `diagnostic`: `annual`, `annual_anomaly`, `monthly_cycle`, `monthly_change`, `seasonal_change`,
+  `seasonal_total`, `seasonal_mean`, `seasonal_sd`, `seasonal_cv`, `variability_ratio`, `change_cloud`,
+  `change_cloud_periods` (all windows, in `full_period/`), `sign_agreement`, `annual_change_map` and
+  `monthly_change_map_<source_id>_<scenario>`. Filenames map back to one product key, so the combined
+  cloud keeps `_periods` although its folder already differs.
+- Maps keep the CMIP6 `source_id` without the institution prefix. Products spanning several pages append
+  `_page_01`, `_page_02`, …; a single page has no suffix, as in WF0.
+
+### Migration to shorter names (2026-11-16)
+
+Earlier WF2 renders used `_basin_avg` names. A rerender retires PNGs the previous caption manifest owned and
+the new one does not, so a regenerated folder holds only current names. Retained analysis tables are
+unchanged; `projection_rerender.py` rebuilds a stale availability table. PET, dew-point and wind figures
+were discontinued at the same time.
+
+| Previous name | Current name |
+| --- | --- |
+| `cmip6_ensemble_coverage_basin_avg.png` | `cmip6_ensemble_coverage.png` |
+| `cmip6_<var>_annual_anomaly_ts_basin_avg.png` | `cmip6_<var>_annual_anomaly_basin.png` |
+| `cmip6_<var>_annual_overview_basin_avg.png` | `cmip6_<var>_annual_basin.png` |
+| `cmip6_temp_annual_seasonal_change_box_basin_avg.png` | `cmip6_temp_seasonal_change_basin.png` |
+| `cmip6_precip_annual_seasonal_change_pct_box_basin_avg.png` | `cmip6_precip_seasonal_change_basin.png` |
+| `cmip6_<var>_seasonal_<stat>_box_basin_avg.png` | `cmip6_<var>_seasonal_<stat>_basin.png` |
+| `cmip6_<var>_monthly_clim_basin_avg.png` | `cmip6_<var>_monthly_cycle_basin.png` |
+| `cmip6_temp_monthly_change_box_basin_avg.png` | `cmip6_temp_monthly_change_basin.png` |
+| `cmip6_precip_monthly_change_pct_box_basin_avg.png` | `cmip6_precip_monthly_change_basin.png` |
+| `cmip6_precip_temp_annual_member_ratio_box_basin_avg.png` | `cmip6_precip_temp_variability_ratio_basin.png` |
+| `cmip6_precip_temp_annual_change_cloud_basin_avg.png` | `cmip6_precip_temp_change_cloud_basin.png` |
+| `cmip6_precip_temp_annual_multi_period_change_cloud_basin_avg.png` | `cmip6_precip_temp_change_cloud_periods_basin.png` |
+| `cmip6_precip_temp_annual_monthly_sign_agreement_basin_avg.png` | `cmip6_precip_temp_sign_agreement_basin.png` |
+| `cmip6_<var>_annual_change_map_models_page01_basin.png` | `cmip6_<var>_annual_change_map_basin.png` |
+| `cmip6_<var>_monthly_change_map_<inst>_<model>_<scen>_page01_basin.png` | `cmip6_<var>_monthly_change_map_<model>_<scen>_basin.png` |
 
 ## Adding or changing a profile
 

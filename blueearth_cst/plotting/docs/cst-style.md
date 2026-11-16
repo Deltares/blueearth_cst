@@ -89,7 +89,11 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
   Use modest white padding. Square plotting areas have equal physical axis lengths, not equal data scales.
 - Give each labelled tick a visible mark. Annual series retain yearly ticks and, where appropriate,
   annual minor ticks; reduce labels on long records. Anchor major/minor ticks to the same calendar grid.
-  Long WF2 records use 20-year major labels with annual minor ticks. Comparable panels share limits and ticks.
+  Long WF2 records use 20-year major labels with five-year minor ticks. Comparable panels share limits and
+  ticks.
+- Content-sized tables and matrices (WF2 ensemble coverage and sign agreement) snap to the smallest
+  standard width (88, 140 or 180 mm) that fits and stretch their cells to fill it, so text keeps the
+  same proportion to the canvas for any number of models or scenarios.
 - Axis titles show units alone, except WF2 reference-relative axes:
   `Relative to [reference-period] (symbol)`, using the actual period, e.g.
   `Relative to 1985–2014 (°C)` or `Relative to 1985–2014 (%)`. Absolute axes use units alone.
@@ -514,15 +518,9 @@ square plotting area and existing 0.002 display cutoff.
 
 ### WF2 annual and variability products
 
-- Calculated dew point and 10 m wind reuse the annual anomaly trajectory, monthly climatology and
-  Annual-plus-four-seasons change strip. Use degC and m/s state means and absolute differences.
-  Captions distinguish liquid-water dew point, supplied scalar wind speed and magnitude of the monthly
-  mean vector; retain method, height, periods/counts and monthly/buffered-bbox approximations.
-- Calculated PET uses the annual anomaly trajectory form in mm/year and the monthly climatology
-  form in mm/day. Its change strip contains Annual plus four seasons, with existing model points,
-  median ticks and IQR marks; use percent for relative changes and integrated mm for absolute changes.
-  Label unavailable panels explicitly. Captions name the method, monthly-input approximation and
-  shared buffered-bbox support; PET does not enter the temperature–precipitation cloud.
+- WF2 figures cover precipitation and temperature only. Calculated PET, dew point and 10 m wind are
+  reported in the analysis tables and record, not drawn; PET does not enter the
+  temperature–precipitation cloud.
 - Annual-overview median lines use 1.0 pt; trajectory medians 1.5 pt. Do not smooth annual values or
   bridge missing-year gaps.
 - Show temperature SD, precipitation SD and precipitation CV variability in separate figures, with
@@ -598,11 +596,11 @@ square plotting area and existing 0.002 display cutoff.
   only for material map-specific facts: off-scale values, missing scale/cells, source-grid PET method,
   auxiliary field or classes omitted from the key. Keys/overlays explain the rest; metadata retains
   support counts, thresholds and provenance.
-- WF2 captions (`projections/projection_captions.py`) stand alone: quantity/units, periods, encoding
-  where the key does not explain it, relevant method (detrending, day weighting, dry exclusion) and
-  interpretive caveat. Report counts, omitted scenarios/models, shifted/joined windows, hatched dry
-  periods and variability bands when relevant. Coverage and agreement captions use two or three
-  short sentences. `SUITE_NOTE` states suite-wide caveats once at the head of `figure_captions.md`.
+- WF2 captions (`projections/projection_captions.py`) are concise journal legends: quantity/units,
+  periods and encoding the key does not explain, in one to three short sentences. Report counts,
+  omitted scenarios/models, shifted/joined windows, hatched dry periods and variability bands when
+  relevant. `SUITE_NOTE` states suite-wide methods and caveats once at the head of `figure_captions.md`;
+  derivation recipes stay in the analysis record.
 - Span captions across all plotting columns. In captioned exports, add a band below the figure without
   resizing its plotting area. Keep font proportions stable. Set `savefig.dpi` before
   `plotting.fundamentals.add_caption(fig, text)`; it freezes drawn axes/decorations, adds the measured

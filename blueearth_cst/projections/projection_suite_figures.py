@@ -38,6 +38,7 @@ from blueearth_cst.shared.plot_preset import (
     LW_RANGE,
     LW_REF,
     MUTED,
+    W_COL1,
     W_FULL,
     W_MID,
 )
@@ -495,13 +496,7 @@ def seasonal_figure(climatology, changes, summary, *, variable, scenarios=None):
     fig, axes = new_fig(H_SINGLE, width_mm=W_MID)
     ax = axes[0, 0]
     scen = _scenarios(data, scenarios)
-    unit = (
-        "°C"
-        if variable in {"temp", "tdew"}
-        else "m/s"
-        if variable == "wind"
-        else "mm d⁻¹"
-    )
+    unit = "°C" if variable == "temp" else "mm d⁻¹"
     historical = (
         data.loc[(data.scenario == scen[0]) & (data.side == "reference")]
         .set_index("period")
@@ -740,7 +735,7 @@ def ipcc_trajectory(
     ax.axhline(0, color=MUTED, lw=LW_REF)
     ax.set(
         xlabel="Year",
-        ylabel=f"Relative to {reference[0]}–{reference[1]} ({'%' if variable == 'precip' else 'mm/year' if variable == 'pet' else 'm/s' if variable == 'wind' else '°C'})",
+        ylabel=f"Relative to {reference[0]}–{reference[1]} ({'%' if variable == 'precip' else '°C'})",
     )
     year_ticks(ax, np.arange(int(data.year.min()), int(data.year.max()) + 1))
     if data.year.max() - data.year.min() > 100:
@@ -749,10 +744,7 @@ def ipcc_trajectory(
                 int(data.year.min()) // 20 * 20 + 20, int(data.year.max()) + 1, 20
             )
         )
-        ax.set_xticks(
-            np.arange(int(data.year.min()), int(data.year.max()) + 1),
-            minor=True,
-        )
+        ax.set_xticks(_five_year_minor(data.year), minor=True)
         ax.set_xlim(data.year.min() - 0.5, data.year.max() + 0.5)
     ax.tick_params(axis="y", length=3)
     time_series_grid(ax)
@@ -764,6 +756,12 @@ def ipcc_trajectory(
         lines=ax.lines,
     )
     return fig
+
+
+def _five_year_minor(years):
+    """Minor ticks on five-year multiples for century-long annual axes."""
+    start, end = int(years.min()), int(years.max())
+    return np.arange(-(-start // 5) * 5, end + 1, 5)
 
 
 def annual_overview(
@@ -877,10 +875,7 @@ def annual_overview(
                         20,
                     )
                 )
-                ax.set_xticks(
-                    np.arange(int(data.year.min()), int(data.year.max()) + 1),
-                    minor=True,
-                )
+                ax.set_xticks(_five_year_minor(data.year), minor=True)
                 ax.set_xlim(data.year.min() - 0.5, data.year.max() + 0.5)
             ax.tick_params(axis="y", length=3)
             ax.tick_params(axis="x", labelbottom=bool(r))
@@ -1070,6 +1065,11 @@ def change_cloud(models, *, combined=False, scenarios=None):
     return fig
 
 
+def _standard_width(needed_mm):
+    """Smallest standard figure width that fits `needed_mm` (full width at most)."""
+    return next((w for w in (W_COL1, W_MID, W_FULL) if w >= needed_mm), W_FULL)
+
+
 def agreement_matrix(agreement, scenarios=None):
     """Prepared model sign counts, with discrete direction/agreement encoding."""
     data = agreement.loc[agreement.statistic == "mean"]
@@ -1081,14 +1081,18 @@ def agreement_matrix(agreement, scenarios=None):
     periods = [p for p in STRIP_PERIODS if p in set(data.period)]
     positive = ("#eef3f8", "#c6d6e8", "#8fb0d3", "#3d6fa5")
     negative = ("#f8eeee", "#ecc9c9", "#d98f8f", "#a8403f")
-    # Compact cells (about 7 x 3.6 mm) carry only the median sign, under
-    # two-line scenario labels ("SSP1" / "2.6"), annual then seasons. Text is
-    # one point below the preset so it stays in proportion to the cells.
+    # Cells carry only the median sign, under two-line scenario labels
+    # ("SSP1" / "2.6"), annual then seasons. The canvas snaps to a standard
+    # width and cells stretch to fill it, so text keeps the same proportion to
+    # the figure whatever the number of scenarios. Text is one point below the
+    # preset so it stays in proportion to the cells.
     small = FS_NOTE - 1
+    width = _standard_width(24 + 2 * 7 * len(scen))
+    cell = (width - 24) / (2 * len(scen))
     fig, axes = new_fig(
-        24 + 3.6 * len(periods),
+        24 + float(np.clip(0.45 * cell, 3.6, 6.0)) * len(periods),
         ncols=2,
-        width_mm=max(64, 24 + 2 * 7 * len(scen)),  # at least the legend
+        width_mm=width,
     )
     ys = [
         i + (0.45 if i and periods[0] == "annual" else 0) for i in range(len(periods))
@@ -1231,10 +1235,14 @@ def availability_matrix(coverage, scenarios=None):
     # names them.
     empty = identities.loc[[not any(counts_by_model[m]) for m in identities.model]]
     identities = identities.loc[~identities.model.isin(empty.model)]
-    # One line per model (x in mm): model, family, institution, then a 9 mm
-    # column per run whose filled tile marks loaded members.
-    xs = [0, 25, 38, *[68 + 9 * j for j in range(len(runs))]]
-    total = 68 + 9 * len(runs)
+    # One line per model (x in mm): model, family, institution, then one
+    # column per run whose filled tile marks loaded members. The canvas snaps
+    # to a standard width; text columns and run columns stretch to fill it, so
+    # text keeps the same proportion to the figure for any ensemble size.
+    total = _standard_width(68 + 9 * len(runs) + 4) - 4
+    step = float(np.clip(0.3 * total / len(runs), 9, 14))
+    scale = (total - step * len(runs)) / 68
+    xs = [0, 25 * scale, 38 * scale, *[68 * scale + step * j for j in range(len(runs))]]
     n = len(identities)
     fig, axes = new_fig(12 + 4.2 * n, width_mm=total + 4)
     ax = axes[0, 0]
@@ -1243,7 +1251,7 @@ def availability_matrix(coverage, scenarios=None):
     titles = ["Model", "Family", "Institution", "Hist.", *[_label(s) for s in scen]]
     for j, (x, title) in enumerate(zip(xs, titles, strict=True)):
         ax.text(
-            x + (4.5 if j >= 3 else 0),
+            x + (step / 2 if j >= 3 else 0),
             -0.25,
             title.replace("-", "\n", 1) if j >= 3 else title,
             ha="center" if j >= 3 else "left",
@@ -1274,12 +1282,16 @@ def availability_matrix(coverage, scenarios=None):
                 continue
             ax.add_patch(
                 Rectangle(
-                    (xs[j + 3] + 1.5, i - 0.32), 6, 0.64, facecolor="#c6d6e8", lw=0
+                    (xs[j + 3] + 1.5, i - 0.32),
+                    step - 3,
+                    0.64,
+                    facecolor="#c6d6e8",
+                    lw=0,
                 )
             )
             if count > 1:
                 ax.text(
-                    xs[j + 3] + 4.5,
+                    xs[j + 3] + step / 2,
                     i,
                     str(count),
                     ha="center",
@@ -1307,84 +1319,7 @@ def render_product(filename, tables, record, *, window_id="", scenarios=None):
     with use_preset(CST_PRESET):
         if filename == "availability.png":
             return availability_matrix(table("coverage"), scenarios)
-        variable = (
-            "tdew"
-            if "tdew" in filename
-            else "wind"
-            if "wind" in filename
-            else "pet"
-            if "pet" in filename
-            else "temp"
-            if "temperature" in filename
-            else "precip"
-        )
-        if filename in {
-            "change-pet.png",
-            "change-pet-pct.png",
-            "change-tdew.png",
-            "change-wind.png",
-        }:
-            quantity = "change_pct" if "-pct" in filename else "change"
-            data = table("model_changes")
-            data = data.loc[
-                data.variable.eq(variable)
-                & data.statistic.eq("mean")
-                & data.quantity.eq(quantity)
-            ]
-            summary = table("change_summary")
-            summary = summary.loc[
-                summary.variable.eq(variable)
-                & summary.statistic.eq("mean")
-                & summary.quantity.eq(quantity)
-            ]
-            fig, axes = _panels(
-                STRIP_PERIODS,
-                "%"
-                if quantity == "change_pct"
-                else "°C"
-                if variable == "tdew"
-                else "m/s"
-                if variable == "wind"
-                else "mm",
-            )
-            groups = _scenarios(data, scenarios)
-            for ax, period in zip(axes, STRIP_PERIODS, strict=True):
-                ax.axhline(0, color=MUTED, lw=LW_REF)
-                if not np.isfinite(
-                    data.loc[data.period.eq(period), "value"].to_numpy(float)
-                ).any():
-                    ax.text(
-                        0.5,
-                        0.5,
-                        "Unavailable",
-                        transform=ax.transAxes,
-                        ha="center",
-                        va="center",
-                        color=MUTED,
-                        fontsize=FS_NOTE,
-                    )
-                for x, scenario in enumerate(groups):
-                    selected = data.loc[
-                        data.period.eq(period) & data.scenario.eq(scenario)
-                    ]
-                    row = summary.loc[
-                        summary.period.eq(period) & summary.scenario.eq(scenario)
-                    ]
-                    _group(
-                        ax,
-                        x,
-                        selected.value.to_numpy(float),
-                        _color(scenario),
-                        row.iloc[0] if len(row) else None,
-                        f"{variable}:{period}:{scenario}",
-                    )
-                ax.set_xticks(
-                    range(len(groups)),
-                    [_label(s) for s in groups],
-                    rotation=45,
-                    ha="right",
-                )
-            return fig
+        variable = "temp" if "temperature" in filename else "precip"
         if filename.startswith("trajectory-"):
             return ipcc_trajectory(
                 table("trajectory_range"),

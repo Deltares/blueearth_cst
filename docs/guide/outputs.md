@@ -220,18 +220,16 @@ were excluded before comparing the ensemble. Figure captions explain the period 
 behind each product. Use projected changes to interpret the climate conditions in your stress test.
 Ensemble spread does not assign probabilities to its hydrological outcomes.
 
-When calculated PET is selected, the same tables include `pet`, and the plots add annual anomalies
-(mm/year), monthly climatology (mm/day), and annual/seasonal changes (% by default, mm for absolute
-changes). Captions name Makkink or de Bruin and the approximation from monthly mean inputs.
-Spatial averages use the selected buffered bounding box, including cells outside the basin polygon;
-the established `basin_avg` filenames do not imply polygon weighting. PET requires complete joint
+Figures cover precipitation and temperature only. When calculated PET is selected, the same tables
+include `pet`; the analysis record names Makkink or de Bruin and the approximation from monthly mean
+inputs. Spatial averages use the selected buffered bounding box, including cells outside the basin
+polygon; the `basin` token in figure names does not imply polygon weighting. PET requires complete joint
 meteorological support throughout this box. Near-zero reference rates flag unavailable percentages
 while absolute differences remain inspectable. Source paths, units, calendar, method/library and
 spatial support are retained in scalar attributes and `_engine/analysis_record.json`.
-Optional calculated dew point (`tdew`) and 10 m wind (`wind`) add rows to the same tables and
-three figure families: annual anomalies, monthly climatologies and annual/seasonal mean differences.
-These are duration-weighted states in degC and m/s. Captions and the analysis inventory distinguish
-supplied monthly mean wind speed from magnitude of the monthly mean vector; they preserve method,
+Optional calculated dew point (`tdew`) and 10 m wind (`wind`) add rows to the same tables, without
+figures. These are duration-weighted states in degC and m/s. The analysis inventory distinguishes
+supplied monthly mean wind speed from magnitude of the monthly mean vector; it preserves method,
 height and monthly/buffered-bbox approximations. No derived native-grid files are retained.
 See [dew point and wind](../technical-manual/workflow-analyze-projections.md#optional-projected-dew-point-and-wind)
 for opt-ins and input qualification limits.

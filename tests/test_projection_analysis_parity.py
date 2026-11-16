@@ -373,6 +373,6 @@ def test_coverage_and_product_support(parity_inputs):
     # only the combined cloud needs a second distinct window and is unavailable.
     assert availability.available.eq(
         ~availability.filename.eq(
-            "cmip6_precip_temp_annual_multi_period_change_cloud_basin_avg.png"
+            "cmip6_precip_temp_change_cloud_periods_basin.png"
         )
     ).all()

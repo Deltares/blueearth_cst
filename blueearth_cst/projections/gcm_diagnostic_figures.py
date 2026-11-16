@@ -12,6 +12,7 @@ import xarray as xr
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.ticker import MaxNLocator
 
+from blueearth_cst.climate_analysis.diagnostic_figures import plural
 from blueearth_cst.plotting.fundamentals import MONTH_ABBR
 from blueearth_cst.plotting.preset import use_preset
 from blueearth_cst.projections.grid_weights import midpoint_edges
@@ -26,6 +27,11 @@ from blueearth_cst.shared.snake_utils import save_figure
 
 def _token(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
+
+
+def _page(page: int, figures: list) -> str:
+    """WF0 pagination: `_page_NN` only when a product spans several pages."""
+    return f"_page_{page:02d}" if len(figures) > 1 else ""
 
 
 def _cmap(variable: str):
@@ -175,7 +181,7 @@ def _spatial_maps(grids, geometries, record, publish, scenarios):
         grouped = {}
         for identity, ds in members:
             grouped.setdefault((identity["model"], identity["scenario"]), []).append(ds)
-        span = f"{window['used']} relative to {window['reference']}"
+        span = "{}–{} relative to {}–{}".format(*window["used"], *window["reference"])
         for variable in ("temp", "precip"):
             if not any(f"{variable}_annual" in ds for _, ds in members):
                 continue
@@ -186,6 +192,7 @@ def _spatial_maps(grids, geometries, record, publish, scenarios):
                 for key, values in grouped.items()
             }
             unit = "°C" if variable == "temp" else "%"
+            name = "temperature" if variable == "temp" else "precipitation"
             for period in ("annual", "monthly"):
                 key = f"{variable}_{period}"
                 finite = np.concatenate(
@@ -243,15 +250,10 @@ def _spatial_maps(grids, geometries, record, publish, scenarios):
                         }
                         publish(
                             fig,
-                            f"{folder}/cmip6_{variable}_annual_change_map_models_page{page:02d}_basin.png",
-                            f"Annual native-grid GCM changes, {span}. Models are rows and scenarios columns; "
-                            "cell-wise median of available paired member changes within each model/scenario. "
-                            "Temperature uses day-weighted annual means; precipitation uses annual duration integrals, "
-                            "not averaged monthly percentages. Models retain their own grid; no interpolation. "
-                            "Cells require complete monthly inputs in both windows. Gray marks unavailable cells or "
-                            "model/scenario combinations. Display is clipped to the basin outline without resampling. "
-                            "Shared signed color scale uses the UNESCO Figure 13 hues. "
-                            f"Page {page}/{len(figures)}; member counts: {counts}.",
+                            f"{folder}/cmip6_{variable}_annual_change_map_basin{_page(page, figures)}.png",
+                            f"Annual {name} change ({unit}) on each model's native grid, {span}; rows: models, "
+                            "columns: scenarios; cell-wise median of paired members. Grey: unavailable. "
+                            f"Page {page}/{len(figures)}.",
                             window,
                             member_counts=counts,
                         )
@@ -274,14 +276,10 @@ def _spatial_maps(grids, geometries, record, publish, scenarios):
                             clip_maps(fig)
                             publish(
                                 fig,
-                                f"{folder}/cmip6_{variable}_monthly_change_map_{_token(model)}_{_token(scenario)}_page{page:02d}_basin.png",
-                                f"Monthly native-grid {variable} changes for {model}/{scenario}, {span}; "
-                                f"cell-wise member median, n={len(grouped[(model, scenario)])}. "
-                                "Months use their own reference means. Temperature is an additive offset (°C); "
-                                "precipitation is percent change, 100 × (future/reference − 1). "
-                                "Dry-reference or incomplete cells are unavailable, not zero. All months and members "
-                                f"are retained in the diagnostic grids; page {page}/{len(figures)}. "
-                                "Display is clipped to the basin outline without resampling. "
-                                "Shared signed color scale uses the UNESCO Figure 13 hues.",
+                                f"{folder}/cmip6_{variable}_monthly_change_map_{_token(model.rsplit('/', 1)[-1])}_{_token(scenario)}_basin{_page(page, figures)}.png",
+                                f"Monthly {name} change ({unit}) on the native grid, {model}/{scenario}, {span}; "
+                                f"cell-wise median of {plural(len(grouped[(model, scenario)]), 'member')}. "
+                                "Dry-reference or incomplete cells are unavailable, not zero. "
+                                f"Page {page}/{len(figures)}.",
                                 window,
                             )

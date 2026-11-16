@@ -85,8 +85,8 @@ aerodynamic/vegetation response. See the [HydroMT implementation](https://github
 
 PET, precipitation and temperature use the same buffered bounding box with spherical cell-area weights
 from native coordinate midpoint edges, including irregular rectilinear grids. Cells outside the basin
-polygon but inside that box contribute. This is a spatial approximation, not a polygon integral;
-established `basin_avg` filenames remain unchanged. Every PET dependency must be finite across the
+polygon but inside that box contribute. This is a spatial approximation, not a polygon integral; the
+`basin` location token in figure names does not imply polygon weighting. Every PET dependency must be finite across the
 entire selected box and all months. Missing inputs cannot become zero PET or change the represented area.
 
 Calculated PET has fixed `canonical: rate` and `units: mm/day`. Its default `change: relative` reports
@@ -97,8 +97,8 @@ threshold screens monthly, seasonal and annual references, never an unconverted 
 With `change: absolute`, omit `min_denominator`. Annual and seasonal diagnostic changes integrate
 the rates with native-calendar day counts and report mm; monthly changes retain mm/day.
 
-PET adds annual anomalies (mm/year), monthly climatology (mm/day), and annual/seasonal change figures
-(percent by default, mm with absolute change), with method and approximation in captions. It remains
+PET adds analysis tables but no figures; its method is recorded in `_engine/analysis_record.json`.
+The figure suite covers precipitation and temperature only. It remains
 an analytical output: precipitation–temperature clouds and stress-test axes are unchanged.
 Raw meteorological grids remain in `raw/`; member-resolved annual/monthly diagnostic changes are
 retained in `analysis/gridded_changes/`, including calculated PET when configured. Monthly PET
@@ -148,14 +148,14 @@ No clipping, filling, regridding or member fallback is performed.
 
 Dependencies share `raw/`, selected monthly results share `scalar/`, and additional selected-variable
 rows share `analysis/` and `summary/`. Method, statistic, height and source metadata remain in scalar
-attributes and `_engine/analysis_record.json`. Figures add annual anomalies, monthly climatologies and
-annual/seasonal mean differences. Analysis tables also carry `method`, `definition` and `height_m`;
-these fields distinguish the two wind statistics when tables circulate independently. Figures use
-`cmip6_tdew_*_basin_avg.png` and `cmip6_wind_*_basin_avg.png`.
-Standalone captions explain methods, periods, counts and approximations. Derived annual/monthly native-grid
+attributes and `_engine/analysis_record.json`; no figures are drawn for these variables. Analysis
+tables also carry `method`, `definition` and `height_m`; these fields distinguish the two wind
+statistics when tables circulate independently.
+Concise captions give quantity, periods and counts; the suite note in `figure_captions.md` and the
+analysis record carry methods and approximations. Derived annual/monthly native-grid
 changes are retained with the spatial diagnostics; full derived monthly meteorological series remain
-basin averages in `scalar/`. Removing opt-ins retires only their previously managed figures/captions, including
-removed horizons. Scientific choices refresh derived identities; presentation changes do not reacquire
+basin averages in `scalar/`. A rerender retires PNGs the previous caption manifest owned and the new one
+does not (renamed or removed products and removed horizons); unlisted files are kept. Scientific choices refresh derived identities; presentation changes do not reacquire
 inputs. Separate project roots retain alternative analyses. The P/T cloud and stressor axes are unchanged.
 Controlled fixtures exercise these methods; matching live input availability remains unqualified.
 
@@ -188,7 +188,8 @@ The main outputs are:
   is below the variable's `min_denominator`; the means remain, so dry cells can be reported.
 - **Figures (`plots/full_period/` and `plots/period_<start>_<end>/`).** Available figures for the full
   record and analysis windows. `plots/figure_captions.md` and `_engine/plots/figure_captions.json` explain
-  produced and unavailable figures; title inventories accompany them.
+  produced and unavailable figures; title inventories accompany them. Filenames follow the
+  [WF2 naming profile](../../blueearth_cst/plotting/docs/figure-naming.md#cmip6-projections-wf2).
 
 Figures use the diagnostic tables, whose effective periods may differ from the change-factor tables.
 By default, each window also includes annual spatial matrices with model rows and scenario columns, and
