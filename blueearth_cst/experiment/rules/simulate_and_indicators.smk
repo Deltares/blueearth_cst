@@ -268,7 +268,7 @@ if not _simulation_complete:
 
     # 4.04  downscale_scenario_series
     rule downscale_scenario_series:
-        message: DOWNSCALE_SCENARIO_SERIES.banner(context="run {wildcards.run_id}")
+        message: DOWNSCALE_SCENARIO_SERIES.banner(context="{wildcards.run_id}")
         wildcard_constraints:
             run_id="(?:" + "|".join(RUN_IDS) + ")",
         input:
@@ -406,7 +406,7 @@ if not _simulation_complete:
                      str(REPOSITORY / "blueearth_cst/experiment/run_wflow_batch.jl")])
 
     rule convert_wflow_responses:
-        message: CONVERT_WFLOW_RESPONSES.banner(context="run {wildcards.run_id}")
+        message: CONVERT_WFLOW_RESPONSES.banner(context="{wildcards.run_id}")
         input:
             simulation=_frozen_simulation,
             csv=f"{work_dir}/wflow_runs/{{run_id}}.csv",
