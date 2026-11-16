@@ -28,6 +28,8 @@ import pytest
 import xarray as xr
 import yaml
 
+from blueearth_cst.experiment.simulation_record import SIMULATION_KEY_PACKAGES
+
 #: The stage environment indicator planning and reduction observe (see
 #: `indicator_plan.resolve_indicator_environment`).
 FIXTURE_ENVIRONMENT = {"packages": {"numpy": "fixture"}}
@@ -43,6 +45,10 @@ KEY_PACKAGES = {
         "python:xarray",
         "python:netcdf4",
     )
+}
+SIMULATION_PACKAGES = {
+    **{key: "fixture" for key in SIMULATION_KEY_PACKAGES},
+    "julia:Wflow": "1.0.2:fixture",
 }
 EXPERIMENT = "indicator_experiment"
 RUN_IDS = ("run_1", "run_2")
@@ -543,7 +549,7 @@ def _freeze_simulation(project, config, root, marker_path, base, responses):
     run_ids = list(responses.csv)
     request = make_response_request(run_ids, responses.variables)
     preparation = _preparation(project, root, base)
-    environment = {"packages": {"julia:Wflow": "1.0.2:fixture"}, "locks": {}}
+    environment = {"packages": dict(SIMULATION_PACKAGES), "locks": {}}
     documents = {
         "model_reference": reference,
         "settings": {

@@ -46,7 +46,7 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: delta identity keys on the method revision; delta code leaves the stochastic closure"
+        "reason": "t038: simulation identity keys on the method revision"
       },
       "revision": 1
     },
@@ -300,7 +300,7 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: delta identity keys on the method revision; delta code leaves the stochastic closure"
+        "reason": "t038: simulation identity keys on the method revision"
       },
       "revision": 1
     },
@@ -398,7 +398,7 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: delta identity keys on the method revision; delta code leaves the stochastic closure"
+        "reason": "t038: simulation identity keys on the method revision"
       },
       "revision": 1
     },
@@ -552,7 +552,7 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: delta identity keys on the method revision; delta code leaves the stochastic closure"
+        "reason": "t038: simulation identity keys on the method revision"
       },
       "revision": 1
     }
