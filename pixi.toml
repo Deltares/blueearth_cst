@@ -5,12 +5,11 @@ authors = ["Umit Taner <tanerumit@gmail.com>"]
 channels = ["conda-forge"]
 platforms = ["win-64", "linux-64"]
 
-# Python + scientific stack — mirrors environment.yml.
+# Python + scientific stack.
 [dependencies]
 python = ">=3.12,<3.13"
 pip = "*"
 dask = "*"          # used directly via dask.diagnostics in extract/get_stats scripts
-dvc = "*"
 gcsfs = ">=2023.12.1"
 gdal = ">=3.1"
 geopandas = ">=0.10"
@@ -23,7 +22,7 @@ netcdf4 = "*"       # direct import in extract_historical_climate (chunk cache) 
 numpy = "*"
 pandas = ">=2.0.0"
 py-spy = ">=0.4.2,<0.5" # optional diagnostics for running Python processes
-pytest = "*"        # tests/ — was missing from environment.yml
+pytest = "*"        # tests/
 pytest-xdist = "*" # parallel test workers; `test-fast` is subprocess-light
                    # and finely divisible, so -n auto is most of its cost
 pyyaml = "*"        # `import yaml` in many src/ + tests + dev scripts
@@ -32,9 +31,9 @@ quarto = ">=1.9,<2"    # documentation site under docs/ (`pixi run docs-preview`
 ruff = ">=0.16,<0.17"  # lint + format; config in pyproject.toml [tool.ruff] (O-15)
 rasterio = "*"      # direct import in dev/scripts/stage_data.py
 scipy = "*"
-seaborn = "*"
 shapely = ">=2.0.0"
 tabulate = "*"
+tqdm = "*"          # optional progress bars in dev/scripts/stage_data.py
 xarray = "*"
 xclim = "*"
 zarr = "*"
