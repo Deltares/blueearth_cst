@@ -33,6 +33,7 @@ rasterio = "*"      # direct import in dev/scripts/stage_data.py
 scipy = "*"
 shapely = ">=2.0.0"
 tabulate = "*"
+tqdm = "*"          # optional progress bars in dev/scripts/stage_data.py
 xarray = "*"
 xclim = "*"
 zarr = "*"
