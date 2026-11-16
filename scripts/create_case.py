@@ -17,6 +17,7 @@ import tempfile
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
+from string import Template
 
 import yaml
 
@@ -28,6 +29,8 @@ from blueearth_cst.shared.config_paths import (  # noqa: E402
     resolve_project_paths,
     resolve_workflow_paths,
 )
+
+_INSTRUCTIONS_TEMPLATE = TOOLBOX_ROOT / "config" / "templates" / "case-instructions.md.tmpl"
 
 _WORKFLOW_LABELS = {
     "analyze_climate": ("WF0", "Historical climate analysis"),
@@ -343,55 +346,17 @@ def _inventory(previous: bytes | None, slug: str, trial: str, purpose: str) -> b
 
 def _instructions(slug: str, trial: str, destination: Path) -> bytes:
     """Render the trial's quick reference: commands and generic file roles."""
-    config = (destination / "project_config.yml").as_posix()
-    run = "pixi run python scripts"
-    files = "\n".join(
+    template = Template(_INSTRUCTIONS_TEMPLATE.read_text(encoding="utf-8"))
+    workflow_files = "\n".join(
         f"| `project_config_{name}.yml` | {code} {label.lower()} settings |"
         for name, (code, label) in _WORKFLOW_LABELS.items()
     )
-    sections = [
-        ("Set the config path", f'$config = "{config}"'),
-        (
-            "Preview the enabled workflows",
-            f"{run}/run_workflows.py --config $config --cores 3 -- --dry-run",
-        ),
-        (
-            "Run the enabled workflows",
-            f"{run}/run_workflows.py --config $config --cores 3",
-        ),
-        (
-            "Start a new simulation experiment",
-            f"{run}/run_workflows.py --config $config --cores 3 "
-            '--new-experiment --note "<reason>"',
-        ),
-        (
-            "Preview system simulation (WF4) alone",
-            f"{run}/simulate_system.py --config $config --cores 3 --dry-run",
-        ),
-        ("List runner options", f"{run}/run_workflows.py --help"),
-        ("List simulation options", f"{run}/simulate_system.py --help"),
-        (
-            "Create a new trial from this one",
-            f"pixi run create-case {slug} --cases-root <cases-root> --trial <name> "
-            f'--from-trial {trial} --purpose "<purpose>"',
-        ),
-    ]
-    blocks = "".join(
-        f"## {title}\n\n```powershell\n{command}\n```\n\n"
-        for title, command in sections
-    )
-    return (
-        f"# {slug} / {trial}: quick reference\n\n"
-        f"Run from the toolbox root (`{TOOLBOX_ROOT.as_posix()}` at creation).\n\n"
-        f"{blocks}"
-        "## Files\n\n"
-        "| File | Role |\n|---|---|\n"
-        "| `project_config.yml` | Project settings: data, basin, climate, enabled workflows |\n"
-        f"{files}\n"
-        "| `notes.md` | Trial purpose and run notes |\n"
-        "| `outputs/` | Results; each run reports a `summary.md` |\n\n"
-        "Docs (toolbox): `docs/guide/running.md`, `outputs.md`, `new-case.md`, "
-        "`troubleshooting.md`.\n"
+    return template.substitute(
+        slug=slug,
+        trial=trial,
+        toolbox_root=TOOLBOX_ROOT.as_posix(),
+        config_path=(destination / "project_config.yml").as_posix(),
+        workflow_files=workflow_files,
     ).encode("utf-8")
 
 

@@ -69,6 +69,17 @@ def test_new_case_and_additional_trials(cases, trial):
         assert snapshot(case / trial) == before
 
 
+def test_instructions_render_from_template(cases):
+    create(cases)
+    trial = cases / "new-basin/default"
+    text = (trial / "INSTRUCTIONS.md").read_text(encoding="utf-8")
+    assert text.startswith("# new-basin / default: quick reference")
+    assert f'$config = "{(trial / "project_config.yml").as_posix()}"' in text
+    assert "--from-trial default" in text
+    assert "| `project_config_simulate_system.yml` | WF4 system simulation settings |" in text
+    assert "$slug" not in text and "$workflow_files" not in text
+
+
 @pytest.mark.parametrize("mode", ["new", "starter", "copy"])
 def test_preview_writes_nothing(cases, mode, capsys):
     if mode != "new":
