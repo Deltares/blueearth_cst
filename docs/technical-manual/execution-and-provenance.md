@@ -145,7 +145,7 @@ Use the hydrological simulation child ID, rather than the all-workflow parent ID
 | File | Evidence |
 |---|---|
 | `resources.jsonl` | Host context, timestamped resource samples, phase boundaries and final summary |
-| `batch-*.json` | Batch selection, memory/core/disk constraints, requested threads and run membership |
+| `batch-*.json` | Batch selection, memory/core/disk constraints, concurrent-batch limit, requested threads and run membership |
 | `julia-<pid>.tsv` | Package loading and per-member wall time, allocations, GC and compilation |
 
 Resource samples are taken approximately every two seconds. They include the hydrological simulation launcher

@@ -338,11 +338,23 @@ if not _simulation_complete:
     sizing = resolve_batch_size(member_count=len(RUN_IDS), cores=_plan.max_parallel,
         batch_size_max=compute.get("batch_size_max"), explicit=compute.get("batch_size"),
         footprint=_footprint, headroom_bytes=_headroom)
+    # `batch_size_max`, an explicit `batch_size` or the disk ceiling can yield
+    # more batches than the plan's width; this global resource keeps at most
+    # that many running whatever `--cores` allows. A lower `--resources` wins.
+    # The batch rules below spell the same name in their `resources:`.
+    WFLOW_BATCH_RESOURCE = "wflow_batches"
+    _batch_limit = _plan.max_parallel
+    _requested_batch_limit = workflow.global_resources.get(WFLOW_BATCH_RESOURCE)
+    if _requested_batch_limit is not None:
+        _batch_limit = max(1, min(_batch_limit, int(_requested_batch_limit)))
+    workflow.register_resource(WFLOW_BATCH_RESOURCE, _batch_limit)
     # Observations stay out of rule params: changing free RAM must not itself
-    # become a reason for Snakemake to rerun a simulation.
+    # become a reason for Snakemake to rerun a simulation. Each batch rule
+    # declares the constant 1 below; only the global limit varies.
     _batch_resource_decision = {"selected_at_epoch_s": _batch_decision_epoch,
         "plan": asdict(_plan), "sizing": asdict(sizing),
         "settings": ADVANCED_SETTINGS["batching"], "compute": compute,
+        "concurrency_limit": {"resource": WFLOW_BATCH_RESOURCE, "limit": _batch_limit},
         "batches": split_evenly(RUN_IDS, sizing.batch_size)}
     if sizing.warning:
         # A bare `print` carried no stamp and no module column at all,
@@ -372,6 +384,7 @@ if not _simulation_complete:
             threads: _threads
             resources:
                 mem_mb=2048,
+                wflow_batches=1,
             params:
                 records=[str(batch), *[value for run in members for value in
                     (run, f"{work_dir}/run_settings/{run}.toml", f"{work_dir}/wflow_runs/{run}.csv")]],

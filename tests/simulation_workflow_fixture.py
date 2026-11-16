@@ -9,7 +9,13 @@ from tests.snakemake_state import prepare_workdir
 
 
 def parse_simulation_workflow(
-    tmp_path, monkeypatch, *, config=None, dry_run=False, include_unperturbed=True
+    tmp_path,
+    monkeypatch,
+    *,
+    config=None,
+    dry_run=False,
+    include_unperturbed=True,
+    compute=None,
 ):
     """Supply an already-validated collection to test scheduling declarations.
 
@@ -70,7 +76,8 @@ def parse_simulation_workflow(
             "operation: simulate-and-indicators\n"
             if include_unperturbed
             else "operations: [simulations]\ninclude_unperturbed: false\n"
-        ),
+        )
+        + (yaml.safe_dump({"compute": compute}) if compute else ""),
         encoding="utf-8",
     )
     document = config or {
