@@ -32,6 +32,18 @@ import yaml
 #: `indicator_plan.resolve_indicator_environment`).
 FIXTURE_ENVIRONMENT = {"packages": {"numpy": "fixture"}}
 
+METHOD = {"producer": "stochastic-collection", "revision": 1}
+KEY_PACKAGES = {
+    key: "fixture"
+    for key in (
+        "R:R",
+        "R:weathergenr",
+        "R:ncdf4",
+        "python:numpy",
+        "python:xarray",
+        "python:netcdf4",
+    )
+}
 EXPERIMENT = "indicator_experiment"
 RUN_IDS = ("run_1", "run_2")
 INVOCATION_ID = "f" * 32
@@ -157,7 +169,7 @@ def collection_intent_v2(capacity: int = 2) -> dict:
         simulation_window=window,
         climate_perturbations=perturbations,
         water_year_start="JAN",
-        provider_revision=content_sha256(code),
+        method_revision=METHOD,
         sources=sources,
         generator_settings=generator_settings,
     )
@@ -205,7 +217,7 @@ def collection_intent_v2(capacity: int = 2) -> dict:
         "source_inventory": source_inventory,
         "provider_code": code,
         "environment": {
-            "packages": {"python": "fixture"},
+            "packages": {"python": "fixture", **KEY_PACKAGES},
             "locks": {"Manifest.toml": digest},
         },
     }
@@ -224,12 +236,13 @@ def collection_intent_v2(capacity: int = 2) -> dict:
             "sources": sources,
             "interpretation": source_inventory["interpretation"],
         },
+        "key_packages": dict(sorted(KEY_PACKAGES.items())),
     }
     intent = {
-        "schema_version": "scenario-collection-intent/3",
+        "schema_version": "scenario-collection-intent/4",
         "canonicalization_id": "collection-canon/1",
         "collection_id": digest,
-        "provider": {"name": "weathergenr", "revision": content_sha256(code)},
+        "provider": {"name": "weathergenr", "method_revision": METHOD},
         "scenario_type": "stochastic",
         "scenario_spec": {
             "scenario_type": "stochastic",
@@ -256,8 +269,7 @@ def collection_intent_v2(capacity: int = 2) -> dict:
         },
         "identity_projections": projections,
         "identity_digests": {
-            name: content_sha256(projections[name] if name in projections else value)
-            for name, value in documents.items()
+            name: content_sha256(value) for name, value in projections.items()
         },
     }
     intent["collection_id"] = collection_id_v2(intent)

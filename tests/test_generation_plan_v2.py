@@ -10,6 +10,7 @@ import yaml
 from blueearth_cst.experiment import generation_plan
 from blueearth_cst.experiment.forcing_descriptor import UnitInterpretation
 from blueearth_cst.experiment.scenario_collection_v2 import _profile
+from tests._v2_experiment import KEY_PACKAGES
 
 
 def test_candidate_intent_uses_wf3_only_seed_projection(tmp_path, monkeypatch):
@@ -35,7 +36,7 @@ def test_candidate_intent_uses_wf3_only_seed_projection(tmp_path, monkeypatch):
         generation_plan,
         "stage_environment",
         lambda *_args, **_kwargs: {
-            "packages": {"python": "fixture"},
+            "packages": {"python": "fixture", **KEY_PACKAGES},
             "locks": {"Manifest.toml": "0" * 64},
         },
     )
@@ -54,6 +55,7 @@ def test_candidate_intent_uses_wf3_only_seed_projection(tmp_path, monkeypatch):
         "capacity": 15,
         "request": {"water_year_start": "JAN"},
         "code": [{"path": "provider.py", "sha256": "0" * 64}],
+        "method": {"producer": "stochastic-collection", "revision": 1},
     }
     intent = generation_plan.build_candidate_intent(settings)
     from blueearth_cst.shared.generation_config import normalize_generation
@@ -138,9 +140,9 @@ def test_candidate_intent_uses_wf3_only_seed_projection(tmp_path, monkeypatch):
         matching_explicit["identity_projections"] == automatic["identity_projections"]
     )
     settings["request"] = {
-        "schema_version": "generation-request/2",
+        "schema_version": "generation-request/3",
         "settings": {},
-        "provider_code": settings["code"],
+        "method_revision": settings["method"],
         "source": {},
         "water_year_start": "JAN",
         "template": str(settings["template"]),
@@ -194,7 +196,7 @@ def test_reuse_preserves_creator_storage_for_every_output(tmp_path, legacy_stora
     )
     settings = {
         "project_dir": case.project,
-        "request": {"schema_version": "generation-request/2", "settings": {}},
+        "request": {"schema_version": "generation-request/3", "settings": {}},
         "n_realizations": 1,
         "n_design_points": 1,
         "capacity": 2,

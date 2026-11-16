@@ -115,7 +115,7 @@ def generation_request(config, repository, *, captures=None):
     sources = basin.get("sources") or {}
     start, end = window_year_pair(climate["window"], "climate.window")
     return {
-        "schema_version": "reservation-generation-request/1",
+        "schema_version": "reservation-generation-request/2",
         "n_realizations": settings["n_realizations"],
         "simulation_window": {"start": settings["start"], "end": settings["end"]},
         "climate_perturbations": perturbations,
@@ -131,7 +131,8 @@ def generation_request(config, repository, *, captures=None):
             "basin_index": sources.get("basin_index", DEFAULT_BASIN_INDEX),
             "local_inputs": _local_inputs(basin),
         },
-        "provider_code": settings["code"],
+        # The generator's declared method revision, not its code bytes (t038).
+        "method_revision": settings["method"],
     }
 
 

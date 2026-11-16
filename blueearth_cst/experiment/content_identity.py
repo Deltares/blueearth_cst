@@ -463,14 +463,18 @@ def generation_seed_material_v2(
     simulation_window: Mapping[str, int],
     climate_perturbations: Mapping[str, Any],
     water_year_start: str,
-    provider_revision: str,
+    method_revision: Mapping[str, Any],
     sources: Sequence[Mapping[str, Any]],
     generator_settings: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Build the WF3-only automatic seed preimage from pinned source bytes."""
+    """Build the WF3-only automatic seed preimage from pinned source bytes.
+
+    ``generation-seed-material/3`` carries the generator's declared method
+    revision, so a code edit recorded as non-numerical keeps the automatic seed.
+    """
     if type(n_realizations) is not int or n_realizations < 1:
         raise ValueError("n_realizations must be a positive integer")
-    _digest(provider_revision, "provider_revision")
+    method = method_record(method_revision, "stochastic-collection")
     selected = []
     for role in ("basin_cells", "historical_climate"):
         matches = [item for item in sources if item.get("role") == role]
@@ -492,45 +496,84 @@ def generation_seed_material_v2(
             {"role": role, "sha256": _digest(item["sha256"], role), "size_bytes": size}
         )
     return {
-        "schema_version": "generation-seed-material/2",
+        "schema_version": SEED_MATERIAL,
         "scenario_type": "stochastic",
         "n_realizations": n_realizations,
         "simulation_window": dict(simulation_window),
         "climate_perturbations": dict(climate_perturbations),
         "water_year_start": water_year_start,
-        "provider_revision": provider_revision,
+        "method_revision": method,
         "source_inventory_sha256": content_sha256(selected),
         "generator_settings": dict(generator_settings),
     }
 
 
+#: Current and retained-readable seed materials; /2 carried a code digest.
+SEED_MATERIAL = "generation-seed-material/3"
+SEED_MATERIALS = ("generation-seed-material/2", SEED_MATERIAL)
+#: Current stochastic intent; /3 keyed on the code inventory and full environment.
+COLLECTION_INTENT = "scenario-collection-intent/4"
+COLLECTION_INTENTS = ("scenario-collection-intent/3", COLLECTION_INTENT)
+
+
+def method_record(value: Any, producer: str) -> dict[str, Any]:
+    """Check a ``{"producer", "revision"}`` method record for one producer."""
+    if (
+        not isinstance(value, Mapping)
+        or set(value) != {"producer", "revision"}
+        or value["producer"] != producer
+        or type(value["revision"]) is not int
+        or value["revision"] < 1
+    ):
+        raise ValueError(f"expected a {producer} method revision record, got {value!r}")
+    return dict(value)
+
+
+def key_packages(environment: Mapping[str, Any], keys: Sequence[str]) -> dict[str, str]:
+    """Select a producer's named numerical packages from a recorded environment.
+
+    The full environment stays provenance; only these revisions enter identity.
+    A missing key raises: an identity never silently drops a declared package.
+    """
+    packages = environment["packages"]
+    missing = sorted(set(keys) - set(packages))
+    if missing:
+        raise ValueError(f"environment lacks key packages: {missing}")
+    return {key: packages[key] for key in sorted(keys)}
+
+
 def automatic_seed_v2(material: Mapping[str, Any]) -> int:
     """Resolve collection-canon/1 digest to the accepted 31-bit seed."""
-    if material.get("schema_version") != "generation-seed-material/2":
-        raise ValueError("expected generation-seed-material/2")
+    if material.get("schema_version") not in SEED_MATERIALS:
+        raise ValueError(f"expected one of {SEED_MATERIALS}")
     return int(content_sha256(dict(material)), 16) % (2**31 - 1)
 
 
 def collection_id_v2(intent: Mapping[str, Any]) -> str:
-    """Hash only the declared scenario-collection/3 scientific dependencies."""
-    if intent.get("schema_version") != "scenario-collection-intent/3":
-        raise ValueError("expected scenario-collection-intent/3")
+    """Hash only the declared scientific dependencies of a stochastic intent.
+
+    /4 hashes the method revision and key packages; /3 (retained) hashed the
+    generator code inventory and the full stage environment.
+    """
+    if intent.get("schema_version") not in COLLECTION_INTENTS:
+        raise ValueError(f"expected one of {COLLECTION_INTENTS}")
     if intent.get("canonicalization_id") != "collection-canon/1":
         raise ValueError("expected collection-canon/1")
     capacity = intent["run_group_id_capacity"]
     if type(capacity) is not int or capacity < 1:
         raise ValueError("run_group_id_capacity must be positive")
     digests = intent["identity_digests"]
-    if set(digests) != {
-        "generation_config",
-        "source_inventory",
-        "provider_code",
-        "environment",
-    }:
+    current = intent["schema_version"] == COLLECTION_INTENT
+    if set(digests) != (
+        {"generation_config", "source_inventory", "key_packages"}
+        if current
+        else {"generation_config", "source_inventory", "provider_code", "environment"}
+    ):
         raise ValueError("collection identity_digests has unexpected fields")
     return content_sha256(
         {
-            "schema_version": "scenario-collection-identity/3",
+            "schema_version": "scenario-collection-identity/"
+            + ("4" if current else "3"),
             "scenario_spec": intent["scenario_spec"],
             "scenario_semantics_sha256": _digest(
                 intent["scenario_semantics_sha256"], "scenario_semantics_sha256"

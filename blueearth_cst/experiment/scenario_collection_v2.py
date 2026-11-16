@@ -7,14 +7,20 @@ from pathlib import Path
 from typing import Any
 
 from blueearth_cst.experiment.content_identity import (
+    COLLECTION_INTENT,
+    COLLECTION_INTENTS,
+    SEED_MATERIALS,
     collection_id_v2,
     collection_revision_v2,
     content_sha256,
     identity_segment,
+    key_packages,
+    method_record,
     read_canonical_json,
     scientific_source_entry,
 )
 from blueearth_cst.experiment.generation_plan import (
+    GENERATION_KEY_PACKAGES,
     GENERATOR_SEED_FIELDS,
     generator_seed_projection,
 )
@@ -176,20 +182,30 @@ def _profile(intent: dict[str, Any]) -> None:
         "collection intent",
     )
     if (
-        intent["schema_version"] != "scenario-collection-intent/3"
+        intent["schema_version"] not in COLLECTION_INTENTS
         or intent["canonicalization_id"] != "collection-canon/1"
         or intent["scenario_type"] != "stochastic"
     ):
         raise ValueError("unsupported collection intent version or provider binding")
+    # /4 keys on the method revision and key packages; retained /3 intents
+    # keyed on the code inventory and the full environment (t038).
+    current = intent["schema_version"] == COLLECTION_INTENT
     _digest(intent["collection_id"], "collection_id")
     _digest(intent["scenario_semantics_sha256"], "scenario_semantics_sha256")
     capacity = _positive(intent["run_group_id_capacity"], "run_group_id_capacity")
     if intent["run_group_id_width"] != len(str(capacity)):
         raise ValueError("run_group_id_width differs from capacity")
-    provider = _fields(intent["provider"], {"name", "revision"}, "provider")
+    provider = _fields(
+        intent["provider"],
+        {"name", "method_revision" if current else "revision"},
+        "provider",
+    )
     if provider["name"] != "weathergenr":
         raise ValueError("unsupported stochastic provider")
-    _digest(provider["revision"], "provider revision")
+    if current:
+        method_record(provider["method_revision"], "stochastic-collection")
+    else:
+        _digest(provider["revision"], "provider revision")
     spec = _fields(
         intent["scenario_spec"],
         {
@@ -221,24 +237,33 @@ def _profile(intent: dict[str, Any]) -> None:
     document_digests = _fields(
         intent["document_digests"], _DOCUMENTS, "document_digests"
     )
+    projected = {"generation_config", "source_inventory"} | (
+        {"key_packages"} if current else set()
+    )
     identity_digests = _fields(
-        intent["identity_digests"], _DOCUMENTS, "identity_digests"
+        intent["identity_digests"],
+        projected if current else _DOCUMENTS,
+        "identity_digests",
     )
     projections = _fields(
-        intent["identity_projections"],
-        {"generation_config", "source_inventory"},
-        "identity_projections",
+        intent["identity_projections"], projected, "identity_projections"
     )
     for name in _DOCUMENTS:
         if _digest(document_digests[name], name) != content_sha256(docs[name]):
             raise ValueError(f"{name}: embedded document digest differs")
-    for name in ("provider_code", "environment"):
-        if identity_digests[name] != document_digests[name]:
-            raise ValueError(f"{name}: identity must hash complete document")
+    if not current:
+        for name in ("provider_code", "environment"):
+            if identity_digests[name] != document_digests[name]:
+                raise ValueError(f"{name}: identity must hash complete document")
     for name in projections:
         if _digest(identity_digests[name], name) != content_sha256(projections[name]):
             raise ValueError(f"{name}: scientific projection digest differs")
-    if content_sha256(docs["provider_code"]) != provider["revision"]:
+    if current:
+        if projections["key_packages"] != key_packages(
+            docs["environment"], GENERATION_KEY_PACKAGES
+        ):
+            raise ValueError("key packages differ from the recorded environment")
+    elif content_sha256(docs["provider_code"]) != provider["revision"]:
         raise ValueError("provider revision differs from code inventory")
     code = docs["provider_code"]
     if type(code) is not list or [item["path"] for item in code] != sorted(
@@ -302,14 +327,14 @@ def _profile(intent: dict[str, Any]) -> None:
             "simulation_window",
             "climate_perturbations",
             "water_year_start",
-            "provider_revision",
+            "method_revision" if current else "provider_revision",
             "source_inventory_sha256",
             "generator_settings",
         },
         "generation seed material",
     )
-    if material["schema_version"] != "generation-seed-material/2":
-        raise ValueError("expected WF3-only generation-seed-material/2")
+    if material["schema_version"] != SEED_MATERIALS[current]:
+        raise ValueError(f"expected WF3-only {SEED_MATERIALS[current]}")
     if type(material["water_year_start"]) is not str or not re.fullmatch(
         r"[A-Z]{3}", material["water_year_start"]
     ):
@@ -384,8 +409,12 @@ def _profile(intent: dict[str, Any]) -> None:
         raise ValueError("missing pinned WF3 scientific source")
     if content_sha256(selected) != material["source_inventory_sha256"]:
         raise ValueError("seed material differs from pinned source inventory")
-    if material["provider_revision"] != provider["revision"]:
-        raise ValueError("seed material differs from provider code")
+    if (
+        material["method_revision"] != provider["method_revision"]
+        if current
+        else material["provider_revision"] != provider["revision"]
+    ):
+        raise ValueError("seed material differs from the provider revision")
     projected_sources = {
         "schema_version": version,
         "sources": selected,

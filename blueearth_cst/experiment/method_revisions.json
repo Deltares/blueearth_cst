@@ -1,7 +1,7 @@
 {
   "producers": {
     "delta-collection": {
-      "closure_sha256": "5164e046859126c28a2811d6b3104e8aae9d196f4cd319ae501dfeb6b5514154",
+      "closure_sha256": "0e73938934d008cf8aaba3022ac3708cf8c2a6cb2d1a21f697583e7de06b7e04",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -21,7 +21,7 @@
         },
         {
           "path": "blueearth_cst/experiment/content_identity.py",
-          "sha256": "becc7ba9135e9aa53d5012bf6f2e88fb5121f744f71326862b260c168f3420df"
+          "sha256": "c8a1f1e2d4a51e84b8d0803256abba0b5d56aad82a3a31a7a86ea74556dbbe5b"
         },
         {
           "path": "blueearth_cst/experiment/delta_scenarios.py",
@@ -45,13 +45,13 @@
         }
       ],
       "last_record": {
-        "kind": "bump",
-        "reason": "t038 clean break: identities key on method revisions"
+        "kind": "no-numerical-change",
+        "reason": "t038: stochastic identity keys on the method revision"
       },
       "revision": 1
     },
     "indicator-set": {
-      "closure_sha256": "b8a074acaafa45ec32e7a177e833c8ac5b9d4db4e2a6d9ef35e6be4e289adcb4",
+      "closure_sha256": "4f19420adf21034630737bb061ba21ae11cd9fa6c8fb9751fcb69dc99e2fbcc7",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -75,7 +75,7 @@
         },
         {
           "path": "blueearth_cst/experiment/content_identity.py",
-          "sha256": "becc7ba9135e9aa53d5012bf6f2e88fb5121f744f71326862b260c168f3420df"
+          "sha256": "c8a1f1e2d4a51e84b8d0803256abba0b5d56aad82a3a31a7a86ea74556dbbe5b"
         },
         {
           "path": "blueearth_cst/experiment/delta_scenarios.py",
@@ -299,13 +299,13 @@
         }
       ],
       "last_record": {
-        "kind": "bump",
-        "reason": "t038 clean break: identities key on method revisions"
+        "kind": "no-numerical-change",
+        "reason": "t038: stochastic identity keys on the method revision"
       },
       "revision": 1
     },
     "stochastic-collection": {
-      "closure_sha256": "018044b78de97eb8147656d5202c4049ba84847d9807e13eb7572c45111f15a5",
+      "closure_sha256": "e81c28957093211b88e623b291385653c302e2a36e708ab89c28081fa8002ecc",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -325,7 +325,7 @@
         },
         {
           "path": "blueearth_cst/experiment/content_identity.py",
-          "sha256": "becc7ba9135e9aa53d5012bf6f2e88fb5121f744f71326862b260c168f3420df"
+          "sha256": "c8a1f1e2d4a51e84b8d0803256abba0b5d56aad82a3a31a7a86ea74556dbbe5b"
         },
         {
           "path": "blueearth_cst/experiment/delta_scenarios.py",
@@ -341,7 +341,7 @@
         },
         {
           "path": "blueearth_cst/experiment/generation_plan.py",
-          "sha256": "58399459689af6ea4305fb235495ec5b12355091d47d2bd03966e1547e8c6f25"
+          "sha256": "3c86644f0ec02a4ee5b3fe446bdbcc4d72bc95ace70a81277dc9542208ec6934"
         },
         {
           "path": "blueearth_cst/experiment/generation_sources.py",
@@ -357,7 +357,7 @@
         },
         {
           "path": "blueearth_cst/experiment/scenario_collection_v2.py",
-          "sha256": "5b8f9673b4f7a79dd7892ade4bb2ed470daa1d0132e43eea8a8c23ed3d6221b6"
+          "sha256": "83a74ceafeafe73dc94ad71f9b87495fcec9ec7eaadbec68f7a1981685369c88"
         },
         {
           "path": "blueearth_cst/experiment/scenario_provider.py",
@@ -409,13 +409,13 @@
         }
       ],
       "last_record": {
-        "kind": "bump",
-        "reason": "t038 clean break: identities key on method revisions"
+        "kind": "no-numerical-change",
+        "reason": "t038: stochastic identity keys on the method revision"
       },
       "revision": 1
     },
     "wf4-simulation": {
-      "closure_sha256": "4f3416308c4795d366015d5d4e1e9bcda6c7011cbab4d5941063836588176517",
+      "closure_sha256": "a20e2a005364ab6e69d2e8979869112e49d856557f3ff1f8b14226fe3cbf792c",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -447,7 +447,7 @@
         },
         {
           "path": "blueearth_cst/experiment/content_identity.py",
-          "sha256": "becc7ba9135e9aa53d5012bf6f2e88fb5121f744f71326862b260c168f3420df"
+          "sha256": "c8a1f1e2d4a51e84b8d0803256abba0b5d56aad82a3a31a7a86ea74556dbbe5b"
         },
         {
           "path": "blueearth_cst/experiment/delta_scenarios.py",
@@ -483,7 +483,7 @@
         },
         {
           "path": "blueearth_cst/experiment/scenario_collection_v2.py",
-          "sha256": "5b8f9673b4f7a79dd7892ade4bb2ed470daa1d0132e43eea8a8c23ed3d6221b6"
+          "sha256": "83a74ceafeafe73dc94ad71f9b87495fcec9ec7eaadbec68f7a1981685369c88"
         },
         {
           "path": "blueearth_cst/experiment/shared_orography.py",
@@ -563,8 +563,8 @@
         }
       ],
       "last_record": {
-        "kind": "bump",
-        "reason": "t038 clean break: identities key on method revisions"
+        "kind": "no-numerical-change",
+        "reason": "t038: stochastic identity keys on the method revision"
       },
       "revision": 1
     }
