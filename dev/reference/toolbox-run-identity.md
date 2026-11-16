@@ -1,6 +1,6 @@
 # Run identity, reuse, reservations and batching
 
-Last updated: 2026-11-14
+Last updated: 2026-11-16
 
 Use this reference before changing what identifies a scenario collection, a WF4 simulation or an indicator
 set, before editing a module that one of those identities hashes, and when changing experiment reservation
@@ -146,12 +146,19 @@ WF4 runs selected runs in batches, one Julia session per batch, through rule 4.0
    estimated peak exceeds the headroom.
 3. `split_evenly` splits runs into `ceil(K/B)` consecutive batches whose sizes differ by at most one.
 
+`batch_size_max`, an explicit `batch_size` or the disk ceiling can produce more batches than the plan's
+width. Each batch rule therefore takes one unit of the `wflow_batches` resource, whose global limit the
+Snakefile registers at parse time as the plan's batches at once (or a lower `--resources` value), so at
+most that many batches run whatever `--cores` allows. The limit is saved with the batch decision.
+
 Batch membership can change between attempts. [`batch_staging.py`][batch-staging] therefore stages each
 finished run by run ID and reuses it on retry only when its TOML and frozen-simulation digests match.
 `batch_sizing.py` is in the simulation closure, so editing it changes simulation identities.
 
 [`scripts/calibrate_batching.py`](../../scripts/calibrate_batching.py) times thread and width settings on a
-user's basin and prints `compute:` keys; it writes nothing to configuration.
+user's basin and prints `compute:` keys; it writes nothing to configuration. Its default widths are 1, 2,
+then doubling up to the physical core count, less any above the batch plan's memory limit; width `w` runs
+`w` batches of `--members` each.
 [`dev/scripts/estimate_batch_makespan.py`](../../dev/scripts/estimate_batch_makespan.py) is the LPT
 makespan estimator behind the batching design. Tests: [`test_batch_plan.py`](../../tests/test_batch_plan.py),
 [`test_batch_sizing.py`](../../tests/test_batch_sizing.py),

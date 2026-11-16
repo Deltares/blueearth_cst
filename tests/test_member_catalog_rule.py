@@ -102,6 +102,34 @@ def test_resource_observations_do_not_become_rerun_parameters(
 
 
 @pytest.mark.workflow_contract
+def test_batches_beyond_the_planned_width_wait_for_a_slot(tmp_path, monkeypatch):
+    """More batches than the plan's width still run at most that many at once.
+
+    One run per batch gives three batches; one core gives a width of one.
+    Without the global limit, `--cores` alone would decide how many run.
+    """
+    from tests.simulation_workflow_fixture import parse_simulation_workflow
+
+    workflow = parse_simulation_workflow(
+        tmp_path, monkeypatch, compute={"batch_size": 1}
+    )
+    batch_rules = [
+        rule
+        for rule in workflow.rules
+        if rule.name.startswith("run_wflow_simulations_batch_")
+    ]
+    plan = workflow.globals["_plan"]
+    assert len(batch_rules) > plan.max_parallel
+    assert all(rule.resources["wflow_batches"] == 1 for rule in batch_rules)
+    assert workflow.global_resources["wflow_batches"] == plan.max_parallel
+    evidence = workflow.globals["_batch_resource_decision"]
+    assert evidence["concurrency_limit"] == {
+        "resource": "wflow_batches",
+        "limit": plan.max_parallel,
+    }
+
+
+@pytest.mark.workflow_contract
 def test_no_rule_builds_a_catalog_over_the_whole_sweep(workflow):
     """The removed rule, by name and by artifact.
 

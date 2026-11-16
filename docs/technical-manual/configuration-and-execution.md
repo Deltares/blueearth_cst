@@ -48,9 +48,10 @@ exports; scenario exports occupy space alongside their saved source copies.
 
 `--cores` is a positive integer with default 3. Hydrological simulation groups runs according to basin
 size and available resources. Its optional `compute` settings include `julia_threads`,
-`max_parallel_batches`, `batch_size_max`, `batch_size` and `disk_headroom_gb`. Increasing concurrency
-can increase memory and disk demands. Julia's first simulation in a process includes startup and
-compilation costs.
+`max_parallel_batches`, `batch_size_max`, `batch_size` and `disk_headroom_gb`. However many batches the
+size settings produce, no more than the chosen number of concurrent batches run at once, even when
+`--cores` would allow more. Increasing concurrency can increase memory and disk demands. Julia's first
+simulation in a process includes startup and compilation costs.
 
 Benchmark job durations can overlap, so their sum is not total elapsed time; peak memory for one job
 is not total concurrent memory. [Runtime and resource guidance](runtime-and-resources.md) explains
