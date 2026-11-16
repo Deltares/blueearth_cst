@@ -10,10 +10,13 @@ It times copies of the WF1 historical model -- the one Wflow model that stays
 on disk after a run -- through the same batch driver WF4 uses:
 
 1. one batch of ``--members`` at 1, 2 and 4 threads, one after another;
-2. ``--members x width`` members split into ``width`` single-thread-or-best
-   batches running at once, for each ``--widths`` value. The default widths
+2. ``width`` batches of ``--members`` each, at the best thread count, running
+   at once, for each ``--widths`` value. Every batch has the same cold/warm
+   mix at every width, so the cost grows with the width. The default widths
    are 1, 2, then doubling up to the physical core count, so a wide machine
-   is measured across its whole range.
+   is measured across its whole range; defaults that would not fit in memory
+   (the limit WF4's batch plan applies) are dropped. Explicit ``--widths`` are
+   timed as given, with a warning for any above that limit.
 
 Each copy writes into ``<project>/_engine/calibration/`` (its own
 ``dir_output``), so the WF1 model and its outputs are never touched. Nothing is
@@ -138,6 +141,57 @@ def _machine_cores() -> int | None:
     return psutil.cpu_count(logical=False) or psutil.cpu_count()
 
 
+def _memory_limit(cells: int | None) -> int | None:
+    """Batches at once that WF4's batch plan would allow by memory, or ``None``.
+
+    Asks ``resolve_batch_plan`` itself, with no core or width ceiling, so the
+    calibration and WF4 apply one memory rule.
+    """
+    import psutil
+
+    from blueearth_cst.experiment.batch_sizing import resolve_batch_plan
+    from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS
+
+    unbounded = sys.maxsize
+    plan = resolve_batch_plan(
+        cells,
+        unbounded,
+        ADVANCED_SETTINGS["batching"],
+        {"julia_threads": 1, "max_parallel_batches": unbounded},
+        psutil.virtual_memory().available,
+    )
+    return plan.memory_limit
+
+
+def _guard_widths(
+    widths: list[int], limit: int | None, explicit: bool
+) -> tuple[list[int], str | None]:
+    """Drop default widths above the memory ``limit``; only warn for explicit ones.
+
+    Returns the widths to time and the one line to print, if any.
+    """
+    over = [width for width in widths if limit is not None and width > limit]
+    if not over:
+        return widths, None
+    listed = ", ".join(map(str, over))
+    if explicit:
+        return widths, (
+            f"warning: width(s) {listed} exceed the {limit} batch(es) WF4 would "
+            "run at once by available memory; timing them anyway"
+        )
+    # The memory limit is at least 1 and the defaults start at 1, so one stays.
+    kept = [width for width in widths if width not in over]
+    return kept, (
+        f"skipping width(s) {listed}: more than the {limit} batch(es) that fit "
+        "in 80% of available memory"
+    )
+
+
+def _width_configs(widths, members, threads):
+    """For each width ``w``: ``w`` batches of ``members`` each, run at once."""
+    return [(f"width{w}", [(members, threads)] * w) for w in widths]
+
+
 def _run(configs, model_toml, root, years, julia):
     """Run each configuration's batches at once; return wall and member times."""
     results = {}
@@ -183,7 +237,8 @@ def main(argv=None) -> int:
         "--keep", action="store_true", help="keep the calibration outputs"
     )
     args = parser.parse_args(argv)
-    if args.widths is None:
+    explicit_widths = args.widths is not None
+    if not explicit_widths:
         args.widths = _default_widths(_machine_cores())
 
     from blueearth_cst.experiment.batch_sizing import count_active_cells
@@ -200,6 +255,11 @@ def main(argv=None) -> int:
     julia = ["julia", f"+{JULIA_VERSION}", "--project=."]
     cells = count_active_cells(model_dir / "staticmaps.nc")
     print(f"calibrating on {cells} active cells, {args.members} members per batch")
+    args.widths, note = _guard_widths(
+        args.widths, _memory_limit(cells), explicit_widths
+    )
+    if note:
+        print(note)
 
     try:
         print("warm-up batch (discarded)")
@@ -218,10 +278,11 @@ def main(argv=None) -> int:
             predicted[t] = _predict(cold, warm, args.runs, 1)
             threads[f"threads{t}"].update(cold_s=round(cold, 1), warm_s=round(warm, 1))
         best_threads = min(predicted, key=predicted.get)
-        print(f"batches at once ({best_threads} thread(s) each, same total members):")
-        total = args.members * max(args.widths)
+        print(
+            f"batches at once ({args.members} members, {best_threads} thread(s) each):"
+        )
         widths = _run(
-            [(f"width{w}", [(total // w, best_threads)] * w) for w in args.widths],
+            _width_configs(args.widths, args.members, best_threads),
             model_toml,
             root,
             args.years,

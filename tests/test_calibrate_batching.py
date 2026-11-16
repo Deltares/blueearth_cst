@@ -52,3 +52,51 @@ def test_machine_cores_falls_back_to_logical(monkeypatch):
         psutil, "cpu_count", lambda logical=True: 6 if logical else None
     )
     assert calibrate._machine_cores() == 6
+
+
+def test_each_width_runs_full_batches_of_the_member_count():
+    """No member is dropped: width w is w batches of --members, not a split total."""
+    configs = dict(calibrate._width_configs([1, 3, 8], 4, 2))
+    assert configs == {
+        "width1": [(4, 2)],
+        "width3": [(4, 2)] * 3,
+        "width8": [(4, 2)] * 8,
+    }
+
+
+def test_default_widths_above_the_memory_limit_are_dropped():
+    kept, note = calibrate._guard_widths([1, 2, 4, 8, 10], 4, explicit=False)
+    assert kept == [1, 2, 4]
+    assert note.startswith("skipping width(s) 8, 10")
+
+
+def test_explicit_widths_are_kept_with_a_warning():
+    kept, note = calibrate._guard_widths([2, 6], 4, explicit=True)
+    assert kept == [2, 6]
+    assert note.startswith("warning: width(s) 6")
+
+
+def test_widths_within_the_limit_print_nothing():
+    assert calibrate._guard_widths([1, 2], 4, explicit=False) == ([1, 2], None)
+    assert calibrate._guard_widths([1, 64], None, explicit=False) == ([1, 64], None)
+
+
+def test_memory_limit_is_the_batch_plan_memory_rule(monkeypatch):
+    """Room for exactly five batches in 80% of available memory gives five."""
+    from types import SimpleNamespace
+
+    import psutil
+
+    from blueearth_cst.shared.snake_utils import ADVANCED_SETTINGS
+
+    settings = ADVANCED_SETTINGS["batching"]
+    cells = 1000
+    per_batch = (
+        settings["memory_per_batch_gb"] * (1 << 30)
+        + cells * settings["memory_per_cell_kb"] * 1024
+    )
+    available = int(5 * per_batch / 0.8) + 1
+    monkeypatch.setattr(
+        psutil, "virtual_memory", lambda: SimpleNamespace(available=available)
+    )
+    assert calibrate._memory_limit(cells) == 5

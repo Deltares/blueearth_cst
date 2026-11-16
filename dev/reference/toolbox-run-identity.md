@@ -157,7 +157,8 @@ finished run by run ID and reuses it on retry only when its TOML and frozen-simu
 
 [`scripts/calibrate_batching.py`](../../scripts/calibrate_batching.py) times thread and width settings on a
 user's basin and prints `compute:` keys; it writes nothing to configuration. Its default widths are 1, 2,
-then doubling up to the physical core count.
+then doubling up to the physical core count, less any above the batch plan's memory limit; width `w` runs
+`w` batches of `--members` each.
 [`dev/scripts/estimate_batch_makespan.py`](../../dev/scripts/estimate_batch_makespan.py) is the LPT
 makespan estimator behind the batching design. Tests: [`test_batch_plan.py`](../../tests/test_batch_plan.py),
 [`test_batch_sizing.py`](../../tests/test_batch_sizing.py),
