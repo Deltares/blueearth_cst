@@ -1,7 +1,7 @@
 {
   "producers": {
     "delta-collection": {
-      "closure_sha256": "0e73938934d008cf8aaba3022ac3708cf8c2a6cb2d1a21f697583e7de06b7e04",
+      "closure_sha256": "88d3b019be511378b1db8b1e36f04a75553626ac4103159a20ed6f16e6c42a7d",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -25,7 +25,7 @@
         },
         {
           "path": "blueearth_cst/experiment/delta_scenarios.py",
-          "sha256": "37b9288aefb71442fe42304322dfc129ac194991cce34c647a9c8972255fc41a"
+          "sha256": "5de07f193f5ba2dfa8ee6d13249cab5de674326496e3c2285ddab208b62bd432"
         },
         {
           "path": "blueearth_cst/experiment/delta_wf2.py",
@@ -46,12 +46,12 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: stochastic identity keys on the method revision"
+        "reason": "t038: delta identity keys on the method revision; delta code leaves the stochastic closure"
       },
       "revision": 1
     },
     "indicator-set": {
-      "closure_sha256": "4f19420adf21034630737bb061ba21ae11cd9fa6c8fb9751fcb69dc99e2fbcc7",
+      "closure_sha256": "4fb72da255557f07d4682525ea52f82410d294cd424ecd6710cdd7cdb7923772",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -79,7 +79,7 @@
         },
         {
           "path": "blueearth_cst/experiment/delta_scenarios.py",
-          "sha256": "37b9288aefb71442fe42304322dfc129ac194991cce34c647a9c8972255fc41a"
+          "sha256": "5de07f193f5ba2dfa8ee6d13249cab5de674326496e3c2285ddab208b62bd432"
         },
         {
           "path": "blueearth_cst/experiment/delta_wf2.py",
@@ -107,7 +107,7 @@
         },
         {
           "path": "blueearth_cst/experiment/indicator_plan.py",
-          "sha256": "0c6c8b2089ec61459ddd987385fa1509f6f693c3c4f8d30bfc76ae3f06c97e0a"
+          "sha256": "95ee606170cf749afda8ca769723b1018d9f0d461b84674c4751768f9fe6b9fd"
         },
         {
           "path": "blueearth_cst/experiment/indicator_registry.py",
@@ -300,12 +300,12 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: stochastic identity keys on the method revision"
+        "reason": "t038: delta identity keys on the method revision; delta code leaves the stochastic closure"
       },
       "revision": 1
     },
     "stochastic-collection": {
-      "closure_sha256": "e81c28957093211b88e623b291385653c302e2a36e708ab89c28081fa8002ecc",
+      "closure_sha256": "a01f16e5ff19304392878401b6c9381327a4312bc6fab63ecb3af351fbf5e395",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -328,20 +328,12 @@
           "sha256": "c8a1f1e2d4a51e84b8d0803256abba0b5d56aad82a3a31a7a86ea74556dbbe5b"
         },
         {
-          "path": "blueearth_cst/experiment/delta_scenarios.py",
-          "sha256": "37b9288aefb71442fe42304322dfc129ac194991cce34c647a9c8972255fc41a"
-        },
-        {
-          "path": "blueearth_cst/experiment/delta_wf2.py",
-          "sha256": "3560ba19d51609b223c7d0928ca831b17824d5833b503a8613e889a970870f06"
-        },
-        {
           "path": "blueearth_cst/experiment/forcing_descriptor.py",
           "sha256": "55f40376b5306f1167a5cc09247ecb211050f4d684947aeaf5f99e0b2b56f385"
         },
         {
           "path": "blueearth_cst/experiment/generation_plan.py",
-          "sha256": "3c86644f0ec02a4ee5b3fe446bdbcc4d72bc95ace70a81277dc9542208ec6934"
+          "sha256": "d2f2aa63689185c7e4caf357bd9e4780a4ab58aded27036ff213733b51f9e186"
         },
         {
           "path": "blueearth_cst/experiment/generation_sources.py",
@@ -380,10 +372,6 @@
           "sha256": "82d85ac9ad984678a87962483e014e86e91a575f5f527e76f617d70748a8a7fb"
         },
         {
-          "path": "blueearth_cst/shared/variable_registry.py",
-          "sha256": "8d5221e9d420760d3e5ada6a5ac9ddc8941948d33a6adaaa88e7a60fbed08a76"
-        },
-        {
           "path": "blueearth_cst/shared/wf3_science.py",
           "sha256": "7a507bc02454cb0adbfd192bffd79e11aff87e6c0376f6cec3af20c5620f6af0"
         },
@@ -410,12 +398,12 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: stochastic identity keys on the method revision"
+        "reason": "t038: delta identity keys on the method revision; delta code leaves the stochastic closure"
       },
       "revision": 1
     },
     "wf4-simulation": {
-      "closure_sha256": "a20e2a005364ab6e69d2e8979869112e49d856557f3ff1f8b14226fe3cbf792c",
+      "closure_sha256": "c9a2436e7e84cc6a037580db86ed0f71567850d10f77f01a415242e03996b3b6",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -451,7 +439,7 @@
         },
         {
           "path": "blueearth_cst/experiment/delta_scenarios.py",
-          "sha256": "37b9288aefb71442fe42304322dfc129ac194991cce34c647a9c8972255fc41a"
+          "sha256": "5de07f193f5ba2dfa8ee6d13249cab5de674326496e3c2285ddab208b62bd432"
         },
         {
           "path": "blueearth_cst/experiment/delta_wf2.py",
@@ -491,7 +479,7 @@
         },
         {
           "path": "blueearth_cst/experiment/simulation_code.py",
-          "sha256": "2a3eff8e8b56f38592715283584d4b809a47f408b293983df6d22dd8d5f31706"
+          "sha256": "3496a6b67aa9ecd2c34f3792ff13c6c450adf677b5f857f9941fe2dcfb43ed93"
         },
         {
           "path": "blueearth_cst/experiment/simulation_runs.py",
@@ -564,7 +552,7 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: stochastic identity keys on the method revision"
+        "reason": "t038: delta identity keys on the method revision; delta code leaves the stochastic closure"
       },
       "revision": 1
     }

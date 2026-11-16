@@ -527,6 +527,8 @@ def _indicator_code_inventory(set_ids):
         # Used for logging, naming and the resolved water-year anchor above.
         # Reducers receive the anchor explicitly; no default is consulted.
         "blueearth_cst/shared/snake_utils.py",
+        # The method-revision guard checks closures; it reaches all of them lazily.
+        "blueearth_cst/experiment/method_revisions.py",
     ]
     excluded.extend(
         path.relative_to(repo).as_posix()

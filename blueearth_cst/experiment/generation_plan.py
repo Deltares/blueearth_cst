@@ -127,6 +127,9 @@ GENERATION_INVENTORY_EXCLUDED = (
     "blueearth_cst/shared/workflow_config_snapshot.py",
     # The method-revision guard checks this closure; it is not part of it.
     "blueearth_cst/experiment/method_revisions.py",
+    # The delta producer: stochastic code reaches it only to dispatch delta
+    # markers to their reader. It has its own pin (t038).
+    "blueearth_cst/experiment/delta_scenarios.py",
 )
 
 # Numerical packages whose revisions enter the collection identity. The full

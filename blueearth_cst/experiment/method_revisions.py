@@ -51,6 +51,8 @@ DELTA_INVENTORY_EXCLUDED = (
     "blueearth_cst/shared/windows_job.py",
     "blueearth_cst/shared/workflow_archive_launch.py",
     "blueearth_cst/shared/workflow_config_snapshot.py",
+    # The guard itself: it reaches every producer's closure lazily.
+    "blueearth_cst/experiment/method_revisions.py",
 )
 
 

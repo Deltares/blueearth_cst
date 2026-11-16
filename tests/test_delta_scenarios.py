@@ -438,3 +438,25 @@ def test_historical_units_cannot_be_relabelled_by_wf4(variable, units):
     ] + [[variable, units]]
     with pytest.raises(ValueError, match="historical effective units"):
         validate_settings(config)
+
+
+def test_named_identity_excludes_producer_provenance():
+    """t038: delta-scenario-intent/4 keys on the method revision, not producer bytes."""
+    from blueearth_cst.experiment.delta_scenarios import (
+        NAMED_INTENT,
+        named_collection_id,
+    )
+
+    intent = {
+        "schema_version": NAMED_INTENT,
+        "settings": {"name": "x"},
+        "method_revision": {"producer": "delta-collection", "revision": 1},
+        "provenance": {"producer_sha256": "a" * 64},
+    }
+    edited = {**intent, "provenance": {"producer_sha256": "b" * 64}}
+    bumped = {
+        **intent,
+        "method_revision": {"producer": "delta-collection", "revision": 2},
+    }
+    assert named_collection_id(intent) == named_collection_id(edited)
+    assert named_collection_id(intent) != named_collection_id(bumped)
