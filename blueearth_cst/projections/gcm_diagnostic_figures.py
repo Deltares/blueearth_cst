@@ -65,6 +65,7 @@ def render_gcm_diagnostics(
         try:
             save_figure(
                 path,
+                module="projection_plots",
                 fig=fig,
                 dpi=600,
                 annotation=annotation,
