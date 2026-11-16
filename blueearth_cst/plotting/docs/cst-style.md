@@ -518,15 +518,9 @@ square plotting area and existing 0.002 display cutoff.
 
 ### WF2 annual and variability products
 
-- Calculated dew point and 10 m wind reuse the annual anomaly trajectory, monthly climatology and
-  Annual-plus-four-seasons change strip. Use degC and m/s state means and absolute differences.
-  Captions distinguish liquid-water dew point, supplied scalar wind speed and magnitude of the monthly
-  mean vector; retain method, height, periods/counts and monthly/buffered-bbox approximations.
-- Calculated PET uses the annual anomaly trajectory form in mm/year and the monthly climatology
-  form in mm/day. Its change strip contains Annual plus four seasons, with existing model points,
-  median ticks and IQR marks; use percent for relative changes and integrated mm for absolute changes.
-  Label unavailable panels explicitly. Captions name the method, monthly-input approximation and
-  shared buffered-bbox support; PET does not enter the temperature–precipitation cloud.
+- WF2 figures cover precipitation and temperature only. Calculated PET, dew point and 10 m wind are
+  reported in the analysis tables and record, not drawn; PET does not enter the
+  temperature–precipitation cloud.
 - Annual-overview median lines use 1.0 pt; trajectory medians 1.5 pt. Do not smooth annual values or
   bridge missing-year gaps.
 - Show temperature SD, precipitation SD and precipitation CV variability in separate figures, with

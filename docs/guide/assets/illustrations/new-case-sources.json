@@ -26,22 +26,22 @@
     },
     {
       "asset": "cmip6-agreement.png",
-      "source": "wf2/projections/cmip6/plots/period_2040_2060/cmip6_precip_temp_annual_monthly_sign_agreement_basin_avg.png",
+      "source": "wf2/projections/cmip6/plots/period_2040_2060/cmip6_precip_temp_sign_agreement_basin.png",
       "sha256": "6a5e736f167acfa6bd37f47c7797145f45bc2c6f3c88526c95d857f677a65d16"
     },
     {
       "asset": "cmip6-cloud.png",
-      "source": "wf2/projections/cmip6/plots/period_2040_2060/cmip6_precip_temp_annual_change_cloud_basin_avg.png",
+      "source": "wf2/projections/cmip6/plots/period_2040_2060/cmip6_precip_temp_change_cloud_basin.png",
       "sha256": "9f8be2a2039862bb2fcf1b742de9b91a9162d8176d680bdca2b98ad63ad184c6"
     },
     {
       "asset": "cmip6-seasonal-precip.png",
-      "source": "wf2/projections/cmip6/plots/period_2040_2060/cmip6_precip_annual_seasonal_change_pct_box_basin_avg.png",
+      "source": "wf2/projections/cmip6/plots/period_2040_2060/cmip6_precip_seasonal_change_basin.png",
       "sha256": "dd7c7b89eb4057544c393bb1cdb0038fd9587b85759b1f3abac4270945e68ce6"
     },
     {
       "asset": "cmip6-temperature.png",
-      "source": "wf2/projections/cmip6/plots/full_period/cmip6_temp_annual_anomaly_ts_basin_avg.png",
+      "source": "wf2/projections/cmip6/plots/full_period/cmip6_temp_annual_anomaly_basin.png",
       "sha256": "9e71afeafa7ecef4b5896d85013ef81e091670a56421c776984c22706d077db3"
     },
     {

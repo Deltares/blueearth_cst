@@ -263,16 +263,16 @@ def test_availability_requires_plotted_period_and_statistic(
         ["2036-2065"],
     ).set_index("filename")
     assert not result.loc[
-        "cmip6_precip_temp_annual_member_ratio_box_basin_avg.png", "available"
+        "cmip6_precip_temp_variability_ratio_basin.png", "available"
     ]
     if period == "Jan":
-        assert not result.loc["cmip6_temp_seasonal_sd_box_basin_avg.png", "available"]
+        assert not result.loc["cmip6_temp_seasonal_sd_basin.png", "available"]
         means = models.assign(statistic="mean")
         result = analysis.product_availability(
             {"models": means}, ["2036-2065"]
         ).set_index("filename")
         assert not result.loc[
-            "cmip6_temp_annual_seasonal_change_box_basin_avg.png", "available"
+            "cmip6_temp_seasonal_change_basin.png", "available"
         ]
     assert members.variability_eligible.all()
 
@@ -298,5 +298,5 @@ def test_precipitation_sd_members_enable_member_ratio_comparison():
         {"member_ratios": members}, ["2036-2065"]
     ).set_index("filename")
     assert result.loc[
-        "cmip6_precip_temp_annual_member_ratio_box_basin_avg.png", "available"
+        "cmip6_precip_temp_variability_ratio_basin.png", "available"
     ]

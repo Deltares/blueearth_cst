@@ -29,6 +29,11 @@ def _token(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
 
 
+def _page(page: int, figures: list) -> str:
+    """WF0 pagination: `_page_NN` only when a product spans several pages."""
+    return f"_page_{page:02d}" if len(figures) > 1 else ""
+
+
 def _cmap(variable: str):
     return LinearSegmentedColormap.from_list(
         variable, PROJECTION_CHANGE_COLORS[variable]
@@ -245,7 +250,7 @@ def _spatial_maps(grids, geometries, record, publish, scenarios):
                         }
                         publish(
                             fig,
-                            f"{folder}/cmip6_{variable}_annual_change_map_models_page{page:02d}_basin.png",
+                            f"{folder}/cmip6_{variable}_annual_change_map_basin{_page(page, figures)}.png",
                             f"Annual {name} change ({unit}) on each model's native grid, {span}; rows: models, "
                             "columns: scenarios; cell-wise median of paired members. Grey: unavailable. "
                             f"Page {page}/{len(figures)}.",
@@ -271,7 +276,7 @@ def _spatial_maps(grids, geometries, record, publish, scenarios):
                             clip_maps(fig)
                             publish(
                                 fig,
-                                f"{folder}/cmip6_{variable}_monthly_change_map_{_token(model)}_{_token(scenario)}_page{page:02d}_basin.png",
+                                f"{folder}/cmip6_{variable}_monthly_change_map_{_token(model.rsplit('/', 1)[-1])}_{_token(scenario)}_basin{_page(page, figures)}.png",
                                 f"Monthly {name} change ({unit}) on the native grid, {model}/{scenario}, {span}; "
                                 f"cell-wise median of {plural(len(grouped[(model, scenario)]), 'member')}. "
                                 "Dry-reference or incomplete cells are unavailable, not zero. "

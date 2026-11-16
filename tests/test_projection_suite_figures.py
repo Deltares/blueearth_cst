@@ -150,7 +150,7 @@ def test_seasonal_grid_explains_unavailable_seasons(suite):
         "change_summary": analysis.ensemble_summary(models),
     }
     fig = render_product(
-        "cmip6_temp_annual_seasonal_change_box_basin_avg.png",
+        "cmip6_temp_seasonal_change_basin.png",
         tables,
         record,
         window_id="2036-2065",
@@ -186,13 +186,10 @@ def test_each_artist_renders_with_units_and_without_cloud_labels(suite):
         )
         fig.canvas.draw()
         assert all(not ax.get_title(loc="center") for ax in fig.axes)
-        if (
-            row["filename"]
-            == "cmip6_precip_temp_annual_monthly_sign_agreement_basin_avg.png"
-        ):
+        if row["filename"] == "cmip6_precip_temp_sign_agreement_basin.png":
             legend = fig.legends[0].get_window_extent(fig.canvas.get_renderer())
             assert legend.x0 >= 0 and legend.x1 <= fig.bbox.width
-        if row["filename"] == "cmip6_precip_temp_annual_change_cloud_basin_avg.png":
+        if row["filename"] == "cmip6_precip_temp_change_cloud_basin.png":
             assert all(not ax.texts for ax in fig.axes)
             assert fig.axes[0].get_box_aspect() == 1
         plt.close(fig)
@@ -205,8 +202,7 @@ def test_manifest_bijection_unavailable_and_annotation_mode(
     tables, record = suite
     # Keep one real available product to exercise selected-mode export.
     tables["availability"].loc[
-        tables["availability"].filename
-        != "cmip6_temp_annual_seasonal_change_box_basin_avg.png",
+        tables["availability"].filename != "cmip6_temp_seasonal_change_basin.png",
         "available",
     ] = False
     tables["availability"].loc[~tables["availability"].available, "reason"] = (
@@ -219,9 +215,7 @@ def test_manifest_bijection_unavailable_and_annotation_mode(
     assert "projection_plots - Rendering windows:" in console
     assert "; reference: " in console
     assert "Wrote 1 figure; 19 skipped; reasons → figure_captions.md" in console
-    assert set(manifest) == {
-        "period_2036_2065/cmip6_temp_annual_seasonal_change_box_basin_avg.png"
-    }
+    assert set(manifest) == {"period_2036_2065/cmip6_temp_seasonal_change_basin.png"}
     assert (plots / next(iter(manifest))).is_file()
     assert not (plots / "captioned").exists()
     assert (
@@ -247,7 +241,7 @@ def test_manifest_bijection_unavailable_and_annotation_mode(
 def test_captions_and_distinct_folder_contract(suite):
     _, record = suite
     text = caption(
-        "cmip6_precip_temp_annual_member_ratio_box_basin_avg.png",
+        "cmip6_precip_temp_variability_ratio_basin.png",
         record,
         "2036-2065",
         {"n_excluded": 3},
@@ -270,137 +264,40 @@ def test_captions_and_distinct_folder_contract(suite):
     assert sum(len(p["filenames"]) for p in contract.SUITE_PRODUCTS.values()) == 20
 
 
-@pytest.mark.parametrize(
-    "filename, units",
-    [
-        ("seasonal-cycle-pet.png", "mm/day"),
-        ("change-pet-pct.png", "%"),
-        ("change-pet.png", "mm, period integrals"),
-    ],
-)
-def test_pet_window_captions_stand_alone(suite, filename, units):
-    from blueearth_cst.projections.variable_spec import parse
-
-    _, record = suite
-    record["variable_spec"] = parse({"pet": {"method": "debruin"}})
-    window = record["windows"][0]
-    window.update(
-        reference=[1971, 2000],
-        used=[2010, 2039],
-        requested=[2005, 2034],
-        shifted=True,
-        joined=True,
-    )
-    window.pop("horizon_windows", None)
-    text = caption(
-        contract.FIGURE_FILENAMES[filename],
-        record,
-        window["window_id"],
-        {"n_models": 7, "by_scenario": {"ssp245": 5, "ssp585": 7}},
-    )
-    for phrase in (
-        "1971–2000",
-        "2010–2039",
-        "Based on 7 models.",
-        "Models: SSP2-4.5, 5; SSP5-8.5, 7.",
-        "shifted from [2005, 2034] to [2010, 2039]",
-        "joins historical and scenario runs",
-        units,
-    ):
-        assert phrase in text
-    assert "1985–2014" not in text  # use this window's actual reference
-
-
-def test_retired_derived_trajectory_is_removed_on_rerender(suite, tmp_path):
-    tables, record = suite
-    tables["availability"]["available"] = False
-    plots = tmp_path / "plots"
-    render_suite(tables, record, plots)
-    old = plots / "full_period" / contract.FIGURE_FILENAMES["trajectory-pet.png"]
-    old.write_bytes(b"previous render")
-    manifest_path = tmp_path / "_engine/plots/figure_captions.json"
-    manifest_path.write_text(json.dumps({f"full_period/{old.name}": {}}))
-    render_suite(tables, record, plots)
-    assert not old.exists()
-
-
-@pytest.mark.parametrize(
-    "variable,method",
-    [("pet", "makkink"), ("tdew", "specific_humidity"), ("wind", "sfcwind")],
-)
-def test_derived_opt_out_retires_previous_horizon_without_deleting_other_files(
-    suite, tmp_path, variable, method
+def test_rerender_retires_previously_owned_names_and_preserves_the_rest(
+    suite, tmp_path
 ):
-    from blueearth_cst.projections.variable_spec import parse
-
     tables, record = suite
-    original_availability = tables["availability"].copy()
-    for name, table in list(tables.items()):
-        if "variable" in table:
-            pet = table.loc[table.variable.eq("temp")].assign(variable=variable)
-            tables[name] = pd.concat([table, pet], ignore_index=True)
-    record["variable_spec"] = parse(
-        {variable: {"method": method, "change": "absolute"}}
-    )
     tables["availability"]["available"] = False
-    old_folder = "period_2036_2065"
-    pet_rows = [
-        dict(
-            filename=contract.FIGURE_FILENAMES[key],
-            folder=old_folder,
-            window_id="2036-2065",
-            available=key == f"seasonal-cycle-{variable}.png",
-            reason="synthetic unavailable product",
-        )
-        for key in (
-            f"seasonal-cycle-{variable}.png",
-            f"change-{variable}.png",
-        )
-    ]
-    tables["availability"] = pd.concat(
-        [tables["availability"], pd.DataFrame(pet_rows)], ignore_index=True
-    )
     plots = tmp_path / "plots"
-    manifest, _ = render_suite(tables, record, plots)
-    pet_path = (
-        plots / old_folder / contract.FIGURE_FILENAMES[f"seasonal-cycle-{variable}.png"]
-    )
-    assert set(manifest) == {f"{old_folder}/{pet_path.name}"}
-    assert pet_path.is_file()  # exercise real publication before opt-out
-
+    old_folder = plots / "period_2036_2065"
+    retired = [
+        plots / "full_period" / "cmip6_temp_annual_anomaly_ts_basin_avg.png",
+        old_folder / "cmip6_pet_monthly_clim_basin_avg.png",
+    ]
     preserved = [
-        plots
-        / old_folder
-        / contract.FIGURE_FILENAMES["seasonal-cycle-temperature.png"],
-        plots / old_folder / "unrelated.png",
-        plots
-        / old_folder
-        / contract.FIGURE_FILENAMES[
-            f"change-{variable}.png"
-        ],  # unmanaged derived figure
-        tmp_path / "outside" / pet_path.name,
+        old_folder / "cmip6_tdew_monthly_clim_basin_avg.png",  # never listed
+        old_folder / "unrelated.png",
+        tmp_path / "outside" / "escape.png",
         tmp_path / "raw" / "source.nc",
     ]
-    for path in preserved:
+    for path in retired + preserved:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(b"preserve these bytes")
+        path.write_bytes(b"previous render")
     manifest_path = tmp_path / "_engine/plots/figure_captions.json"
-    manifest[
-        f"../outside/{pet_path.name}"
-    ] = {}  # untrusted manifest must not escape root
-    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    previous = [str(p.relative_to(plots)).replace("\\", "/") for p in retired]
+    previous.append("../outside/escape.png")  # untrusted entry must not escape root
+    manifest_path.write_text(json.dumps(dict.fromkeys(previous, {})))
 
-    record.pop("variable_spec")
     record["windows"][0].update(window_id="2071-2100", used=[2071, 2100])
-    tables["availability"] = original_availability
-    tables["availability"]["available"] = False
-    period = tables["availability"].folder.eq(old_folder)
+    period = tables["availability"].folder.eq("period_2036_2065")
     tables["availability"].loc[period, "folder"] = "period_2071_2100"
     tables["availability"].loc[period, "window_id"] = "2071-2100"
     refreshed, _ = render_suite(tables, record, plots)
-    assert not pet_path.exists()
-    assert refreshed == json.loads(manifest_path.read_text()) == {}
-    assert all(path.read_bytes() == b"preserve these bytes" for path in preserved)
+    assert refreshed == {}
+    assert not any(path.exists() for path in retired)
+    assert all(path.read_bytes() == b"previous render" for path in preserved)
 
 
 def test_unplotted_statistics_do_not_enable_mean_figures(suite):
@@ -410,10 +307,10 @@ def test_unplotted_statistics_do_not_enable_mean_figures(suite):
     mean_products = result.loc[
         result.filename.isin(
             [
-                "cmip6_temp_annual_seasonal_change_box_basin_avg.png",
-                "cmip6_precip_annual_seasonal_change_pct_box_basin_avg.png",
-                "cmip6_precip_temp_annual_monthly_sign_agreement_basin_avg.png",
-                "cmip6_precip_temp_annual_change_cloud_basin_avg.png",
+                "cmip6_temp_seasonal_change_basin.png",
+                "cmip6_precip_seasonal_change_basin.png",
+                "cmip6_precip_temp_sign_agreement_basin.png",
+                "cmip6_precip_temp_change_cloud_basin.png",
             ]
         )
     ]
@@ -472,7 +369,7 @@ def test_driver_csv_roundtrip_normalizes_full_period_window(
 def test_precipitation_cycle_percentage_and_two_row_annual_content(suite):
     tables, record = suite
     cycle = render_product(
-        "cmip6_precip_monthly_clim_basin_avg.png", tables, record, window_id="2036-2065"
+        "cmip6_precip_monthly_cycle_basin.png", tables, record, window_id="2036-2065"
     )
     change = (
         tables["change_summary"]
@@ -486,7 +383,7 @@ def test_precipitation_cycle_percentage_and_two_row_annual_content(suite):
     assert len(cycle.axes) == 1
     assert cycle.axes[0].get_ylabel() == "mm d⁻¹"
     monthly = render_product(
-        "cmip6_precip_monthly_change_pct_box_basin_avg.png",
+        "cmip6_precip_monthly_change_basin.png",
         tables,
         record,
         window_id="2036-2065",
@@ -499,9 +396,7 @@ def test_precipitation_cycle_percentage_and_two_row_annual_content(suite):
     np.testing.assert_allclose(medians, change.loc[list(analysis.MONTHS), "median"])
     plt.close(cycle)
     plt.close(monthly)
-    annual = render_product(
-        "cmip6_precip_annual_overview_basin_avg.png", tables, record
-    )
+    annual = render_product("cmip6_precip_annual_basin.png", tables, record)
     assert len(annual.axes) == 2
     assert "mm yr" in annual.axes[0].get_ylabel()
     assert "1985–2014 (%)" in annual.axes[1].get_ylabel()
@@ -526,7 +421,7 @@ def test_cloud_pairs_derived_models_independent_of_member_labels(suite):
     ].assign(model="TEST/unpaired")
     tables["model_changes"] = pd.concat([models, unpaired], ignore_index=True)
     fig = render_product(
-        "cmip6_precip_temp_annual_change_cloud_basin_avg.png",
+        "cmip6_precip_temp_change_cloud_basin.png",
         tables,
         record,
         window_id="2036-2065",
@@ -540,7 +435,7 @@ def test_historical_only_trajectory_preserves_historical_data(suite):
     tables, record = suite
     for name in ("member_anomalies", "trajectory_range"):
         tables[name] = tables[name].loc[tables[name].year < 2014]
-    fig = render_product("cmip6_temp_annual_anomaly_ts_basin_avg.png", tables, record)
+    fig = render_product("cmip6_temp_annual_anomaly_basin.png", tables, record)
     assert any(np.isfinite(line.get_ydata()).any() for line in fig.axes[0].lines)
     plt.close(fig)
 
@@ -580,14 +475,14 @@ def test_caption_counts_exclude_unplotted_variability_and_monthly_strips():
         "model_changes": rows.assign(statistic="mean"),
     }
     assert (
-        figure_counts(
-            "cmip6_temp_annual_seasonal_change_box_basin_avg.png", tables, "2036-2065"
-        )["n_models"]
+        figure_counts("cmip6_temp_seasonal_change_basin.png", tables, "2036-2065")[
+            "n_models"
+        ]
         == 0
     )
     assert (
         figure_counts(
-            "cmip6_precip_temp_annual_member_ratio_box_basin_avg.png",
+            "cmip6_precip_temp_variability_ratio_basin.png",
             tables,
             "2036-2065",
         )["n_models"]
@@ -596,7 +491,7 @@ def test_caption_counts_exclude_unplotted_variability_and_monthly_strips():
     tables["variability_member_ratios"] = rows.assign(period="annual")
     assert (
         figure_counts(
-            "cmip6_precip_temp_annual_member_ratio_box_basin_avg.png",
+            "cmip6_precip_temp_variability_ratio_basin.png",
             tables,
             "2036-2065",
         )["n_models"]
@@ -630,11 +525,11 @@ def test_agreement_requires_a_plotted_cell(period, variable, quantity):
     )
     available = analysis.product_availability({"models": rows}, ["2036-2065"])
     assert not available.set_index("filename").loc[
-        "cmip6_precip_temp_annual_monthly_sign_agreement_basin_avg.png", "available"
+        "cmip6_precip_temp_sign_agreement_basin.png", "available"
     ]
     assert (
         figure_counts(
-            "cmip6_precip_temp_annual_monthly_sign_agreement_basin_avg.png",
+            "cmip6_precip_temp_sign_agreement_basin.png",
             {"model_changes": rows},
             "2036-2065",
         )["n_models"]
@@ -662,11 +557,11 @@ def test_mostly_dry_periods_are_shaded_and_captioned():
             ]
         )
 
-    pct = "cmip6_precip_annual_seasonal_change_pct_box_basin_avg.png"
+    pct = "cmip6_precip_seasonal_change_basin.png"
     record = {"reference": [1985, 2014], "windows": []}
     assert dry_shading(pct, {"change_summary": summary(5, 5)}, record, "2036-2065")
     assert not dry_shading(pct, {"change_summary": summary(6, 4)}, record, "2036-2065")
-    temperature = "cmip6_temp_annual_seasonal_change_box_basin_avg.png"
+    temperature = "cmip6_temp_seasonal_change_basin.png"
     assert not dry_shading(
         temperature, {"change_summary": summary(1, 9)}, record, "2036-2065"
     )

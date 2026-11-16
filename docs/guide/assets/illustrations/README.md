@@ -35,10 +35,10 @@ CMIP6 paths are relative to `data/climate/projections/cmip6/plots/` in the v2 ca
 
 | Asset | Source |
 |---|---|
-| `cmip6-cloud.png` | `period_2040_2060/cmip6_precip_temp_annual_change_cloud_basin_avg.png` |
-| `cmip6-temperature.png` | `full_period/cmip6_temp_annual_anomaly_ts_basin_avg.png` |
-| `cmip6-seasonal-precip.png` | `period_2040_2060/cmip6_precip_annual_seasonal_change_pct_box_basin_avg.png` |
-| `cmip6-agreement.png` | `period_2040_2060/cmip6_precip_temp_annual_monthly_sign_agreement_basin_avg.png` |
+| `cmip6-cloud.png` | `period_2040_2060/cmip6_precip_temp_change_cloud_basin.png` |
+| `cmip6-temperature.png` | `full_period/cmip6_temp_annual_anomaly_basin.png` |
+| `cmip6-seasonal-precip.png` | `period_2040_2060/cmip6_precip_seasonal_change_basin.png` |
+| `cmip6-agreement.png` | `period_2040_2060/cmip6_precip_temp_sign_agreement_basin.png` |
 
 Keep captions focused on how to read each output. The source figures retain their original labels,
 including rounded trend slopes and reporting-location identifiers. Source climate records have different

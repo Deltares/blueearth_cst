@@ -12,16 +12,6 @@ from blueearth_cst.climate_analysis.diagnostic_figures import plural
 from blueearth_cst.projections.projection_figures import figure_key
 
 TITLES = {
-    "trajectory-tdew.png": "Annual dew-point anomalies",
-    "seasonal-cycle-tdew.png": "Monthly dew-point climatology",
-    "change-tdew.png": "Annual and seasonal dew-point change",
-    "trajectory-wind.png": "Annual 10 m wind anomalies",
-    "seasonal-cycle-wind.png": "Monthly 10 m wind climatology",
-    "change-wind.png": "Annual and seasonal 10 m wind change",
-    "trajectory-pet.png": "Annual PET anomalies",
-    "seasonal-cycle-pet.png": "Monthly PET climatology",
-    "change-pet-pct.png": "Annual and seasonal PET change (%)",
-    "change-pet.png": "Annual and seasonal PET change",
     "availability.png": "CMIP6 ensemble composition",
     "trajectory-temperature.png": "Annual temperature anomalies",
     "trajectory-precipitation.png": "Annual precipitation anomalies",
@@ -56,8 +46,7 @@ SUITE_NOTE = (
     "statistics use linearly detrended series. Inter-model spread describes structural model "
     "uncertainty; it is not a confidence interval, and models that share code ancestry are not "
     "independent. Historical spread reflects model differences in present-day climate; biases "
-    "against observations are not assessed. Derived-variable methods (PET, dew point, wind), "
-    "window definitions, eligibility thresholds and per-figure support and exclusion counts are "
+    "against observations are not assessed. Window definitions, eligibility thresholds and per-figure support and exclusion counts are "
     "recorded in _engine/analysis_record.json and _engine/plots/figure_captions.json."
 )
 
@@ -164,30 +153,6 @@ def caption(filename, record, window_id="", counts=None):
         (w for w in record.get("windows", []) if w["window_id"] == window_id), None
     )
     notes = _window_notes(window) if window else []
-    derived = next((v for v in ("tdew", "wind", "pet") if v in filename), None)
-    if derived:
-        subject, unit = {
-            "tdew": ("dew-point", "°C"),
-            "wind": ("10 m wind", "m/s"),
-            "pet": ("PET", "mm/day"),
-        }[derived]
-        if filename.startswith("seasonal-cycle-"):
-            quantity = (
-                f"Monthly {subject} climatology ({unit}), {_span(window['reference'])} (black) "
-                f"and {_span(window['used'])} by scenario; multi-model medians, shading the "
-                "reference inter-model range."
-            )
-        else:
-            if derived == "pet":
-                unit = "%" if "-pct" in filename else "mm, period integrals"
-            quantity = f"Annual and seasonal {subject} change ({unit}), {_period(window)}. {_GRID}"
-        support = dict(counts)
-        support.setdefault(
-            "models", {s: (n, n) for s, n in counts.get("by_scenario", {}).items()}
-        )
-        n_models = counts.get("n_models", len(record.get("models", [])))
-        return " ".join([quantity, _models(n_models), *_support(support), *notes])
-
     n_models = counts.get("n_models", len(record.get("models", [])))
     reference = _span(record["reference"])
     temperature = "temperature" in filename
