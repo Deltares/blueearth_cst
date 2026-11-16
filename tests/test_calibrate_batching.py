@@ -5,6 +5,8 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "calibrate_batching.py"
 _spec = importlib.util.spec_from_file_location("calibrate_batching", SCRIPT)
 calibrate = importlib.util.module_from_spec(_spec)
@@ -25,3 +27,28 @@ def test_warm_time_decides_when_runs_are_many():
     one_thread = calibrate._predict(68.0, 3.0, 14, 1)
     two_threads = calibrate._predict(55.0, 4.5, 14, 1)
     assert one_thread < two_threads
+
+
+@pytest.mark.parametrize(
+    ("cores", "widths"),
+    [
+        (None, [1]),
+        (1, [1]),
+        (2, [1, 2]),
+        (3, [1, 2, 3]),
+        (8, [1, 2, 4, 8]),
+        (10, [1, 2, 4, 8, 10]),
+        (12, [1, 2, 4, 8, 12]),
+    ],
+)
+def test_default_widths_double_up_to_the_core_count(cores, widths):
+    assert calibrate._default_widths(cores) == widths
+
+
+def test_machine_cores_falls_back_to_logical(monkeypatch):
+    import psutil
+
+    monkeypatch.setattr(
+        psutil, "cpu_count", lambda logical=True: 6 if logical else None
+    )
+    assert calibrate._machine_cores() == 6

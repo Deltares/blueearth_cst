@@ -156,7 +156,8 @@ finished run by run ID and reuses it on retry only when its TOML and frozen-simu
 `batch_sizing.py` is in the simulation closure, so editing it changes simulation identities.
 
 [`scripts/calibrate_batching.py`](../../scripts/calibrate_batching.py) times thread and width settings on a
-user's basin and prints `compute:` keys; it writes nothing to configuration.
+user's basin and prints `compute:` keys; it writes nothing to configuration. Its default widths are 1, 2,
+then doubling up to the physical core count.
 [`dev/scripts/estimate_batch_makespan.py`](../../dev/scripts/estimate_batch_makespan.py) is the LPT
 makespan estimator behind the batching design. Tests: [`test_batch_plan.py`](../../tests/test_batch_plan.py),
 [`test_batch_sizing.py`](../../tests/test_batch_sizing.py),

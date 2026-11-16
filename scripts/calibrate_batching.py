@@ -11,7 +11,9 @@ on disk after a run -- through the same batch driver WF4 uses:
 
 1. one batch of ``--members`` at 1, 2 and 4 threads, one after another;
 2. ``--members x width`` members split into ``width`` single-thread-or-best
-   batches running at once, for each ``--widths`` value.
+   batches running at once, for each ``--widths`` value. The default widths
+   are 1, 2, then doubling up to the physical core count, so a wide machine
+   is measured across its whole range.
 
 Each copy writes into ``<project>/_engine/calibration/`` (its own
 ``dir_output``), so the WF1 model and its outputs are never touched. Nothing is
@@ -119,6 +121,23 @@ def _predict(cold, warm, runs, width):
     return cold + (per_batch - 1) * warm
 
 
+def _default_widths(cores: int | None) -> list[int]:
+    """1, 2, then doubling up to ``cores``, always ending at ``cores`` itself."""
+    cores = max(1, cores or 1)
+    widths, width = [], 1
+    while width < cores:
+        widths.append(width)
+        width *= 2
+    return [*widths, cores]
+
+
+def _machine_cores() -> int | None:
+    """Physical cores, else logical; ``None`` when neither can be read."""
+    import psutil
+
+    return psutil.cpu_count(logical=False) or psutil.cpu_count()
+
+
 def _run(configs, model_toml, root, years, julia):
     """Run each configuration's batches at once; return wall and member times."""
     results = {}
@@ -152,12 +171,20 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--runs", type=int, default=14, help="WF4 member count to predict for"
     )
-    parser.add_argument("--widths", type=int, nargs="+", default=[1, 2, 3])
+    parser.add_argument(
+        "--widths",
+        type=int,
+        nargs="+",
+        default=None,
+        help="batches at once to time (default: 1, 2, doubling to the core count)",
+    )
     parser.add_argument("--years", type=int, default=None)
     parser.add_argument(
         "--keep", action="store_true", help="keep the calibration outputs"
     )
     args = parser.parse_args(argv)
+    if args.widths is None:
+        args.widths = _default_widths(_machine_cores())
 
     from blueearth_cst.experiment.batch_sizing import count_active_cells
     from blueearth_cst.shared.snake_utils import JULIA_VERSION

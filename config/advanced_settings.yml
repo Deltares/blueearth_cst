@@ -245,7 +245,8 @@ batching:
   # ran at full speed each while three or more slowed every member down --
   # 124 s for 12 members against ~304 s at 4 threads one batch at a time
   # (t2609242342). Run `scripts/calibrate_batching.py` to measure a basin and
-  # machine of your own.
+  # machine of your own. That laptop mixes fast and slow cores, so the width
+  # may be low for a machine with uniform cores; calibrate there.
   #
   # `auto` picks by the model's active cell count. Only the SMALL regime is
   # measured; the LARGE values are a provisional guess -- threads should pay on
