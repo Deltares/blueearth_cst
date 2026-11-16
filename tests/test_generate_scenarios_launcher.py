@@ -120,15 +120,15 @@ def test_success_and_ready_reuse_index_the_selected_collection(
     assert len(children) == (0 if ready else 1)
     captured = capsys.readouterr()
     console = captured.out
+    # The launcher prints nothing before the child's header: the run header
+    # already states realizations, perturbations and scenario series.
+    assert "Scenario request" not in console
     if ready:
         assert captured.err == "\nUp to date\n"
-        assert "Scenario request" not in console
         assert "Reusing scenario collection" not in console
         assert plan["collection_id"] not in console
         assert "_engine" not in console
     else:
-        assert "1 stochastic realization across 1 perturbation point" in console
-        assert "planned collection: 2 runs" in console
         assert "Up to date" not in captured.err
     assert indexed == (
         [(tmp_path, ("selected", "configured"))] if exit_code == 0 else []

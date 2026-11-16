@@ -176,8 +176,6 @@ def run_owned(
                 project_root,
                 reservation_context.name,
             )
-        from blueearth_cst.shared.run_log_core import log_row, plural
-
         if ready:
             rebuild_collection_index(
                 project_root,
@@ -195,14 +193,6 @@ def run_owned(
                 invocation_history.update(history_path, history)
             print(up_to_date_verdict(sys.stderr), file=sys.stderr, flush=True)
             return 0
-        realization_count = len({row["rlz"] for row in plan["rows"]})
-        point_count = len({row["st_id"] for row in plan["rows"] if row["st_id"]})
-        log_row(
-            f"Scenario request: {plural(realization_count, 'stochastic realization')} across "
-            f"{plural(point_count, 'perturbation point')}, plus unperturbed baselines; "
-            f"planned collection: {plural(len(plan['rows']), 'run')}",
-            module="generation",
-        )
     lookup_path = (
         Path(settings["request_path"]).parent
         / "generation/config/stress_test_lookup.csv"
