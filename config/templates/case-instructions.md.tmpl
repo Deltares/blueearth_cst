@@ -1,0 +1,62 @@
+# $slug / $trial: quick reference
+
+Run from the toolbox root (`$toolbox_root` at creation).
+
+## Set the config path
+
+```powershell
+$$config = "$config_path"
+```
+
+## Preview the enabled workflows
+
+```powershell
+pixi run python scripts/run_workflows.py --config $$config --cores 3 -- --dry-run
+```
+
+## Run the enabled workflows
+
+```powershell
+pixi run python scripts/run_workflows.py --config $$config --cores 3
+```
+
+## Start a new simulation experiment
+
+```powershell
+pixi run python scripts/run_workflows.py --config $$config --cores 3 --new-experiment --note "<reason>"
+```
+
+## Preview system simulation (WF4) alone
+
+```powershell
+pixi run python scripts/simulate_system.py --config $$config --cores 3 --dry-run
+```
+
+## List runner options
+
+```powershell
+pixi run python scripts/run_workflows.py --help
+```
+
+## List simulation options
+
+```powershell
+pixi run python scripts/simulate_system.py --help
+```
+
+## Create a new trial from this one
+
+```powershell
+pixi run create-case $slug --cases-root <cases-root> --trial <name> --from-trial $trial --purpose "<purpose>"
+```
+
+## Files
+
+| File | Role |
+|---|---|
+| `project_config.yml` | Project settings: data, basin, climate, enabled workflows |
+$workflow_files
+| `notes.md` | Trial purpose and run notes |
+| `outputs/` | Results; each run reports a `summary.md` |
+
+Docs (toolbox): `docs/guide/running.md`, `outputs.md`, `new-case.md`, `troubleshooting.md`.
