@@ -598,11 +598,11 @@ square plotting area and existing 0.002 display cutoff.
   only for material map-specific facts: off-scale values, missing scale/cells, source-grid PET method,
   auxiliary field or classes omitted from the key. Keys/overlays explain the rest; metadata retains
   support counts, thresholds and provenance.
-- WF2 captions (`projections/projection_captions.py`) stand alone: quantity/units, periods, encoding
-  where the key does not explain it, relevant method (detrending, day weighting, dry exclusion) and
-  interpretive caveat. Report counts, omitted scenarios/models, shifted/joined windows, hatched dry
-  periods and variability bands when relevant. Coverage and agreement captions use two or three
-  short sentences. `SUITE_NOTE` states suite-wide caveats once at the head of `figure_captions.md`.
+- WF2 captions (`projections/projection_captions.py`) are concise journal legends: quantity/units,
+  periods and encoding the key does not explain, in one to three short sentences. Report counts,
+  omitted scenarios/models, shifted/joined windows, hatched dry periods and variability bands when
+  relevant. `SUITE_NOTE` states suite-wide methods and caveats once at the head of `figure_captions.md`;
+  derivation recipes stay in the analysis record.
 - Span captions across all plotting columns. In captioned exports, add a band below the figure without
   resizing its plotting area. Keep font proportions stable. Set `savefig.dpi` before
   `plotting.fundamentals.add_caption(fig, text)`; it freezes drawn axes/decorations, adds the measured

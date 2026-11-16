@@ -749,10 +749,7 @@ def ipcc_trajectory(
                 int(data.year.min()) // 20 * 20 + 20, int(data.year.max()) + 1, 20
             )
         )
-        ax.set_xticks(
-            np.arange(int(data.year.min()), int(data.year.max()) + 1),
-            minor=True,
-        )
+        ax.set_xticks(_five_year_minor(data.year), minor=True)
         ax.set_xlim(data.year.min() - 0.5, data.year.max() + 0.5)
     ax.tick_params(axis="y", length=3)
     time_series_grid(ax)
@@ -764,6 +761,12 @@ def ipcc_trajectory(
         lines=ax.lines,
     )
     return fig
+
+
+def _five_year_minor(years):
+    """Minor ticks on five-year multiples for century-long annual axes."""
+    start, end = int(years.min()), int(years.max())
+    return np.arange(-(-start // 5) * 5, end + 1, 5)
 
 
 def annual_overview(
@@ -877,10 +880,7 @@ def annual_overview(
                         20,
                     )
                 )
-                ax.set_xticks(
-                    np.arange(int(data.year.min()), int(data.year.max()) + 1),
-                    minor=True,
-                )
+                ax.set_xticks(_five_year_minor(data.year), minor=True)
                 ax.set_xlim(data.year.min() - 0.5, data.year.max() + 0.5)
             ax.tick_params(axis="y", length=3)
             ax.tick_params(axis="x", labelbottom=bool(r))

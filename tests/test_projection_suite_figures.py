@@ -255,7 +255,7 @@ def test_captions_and_distinct_folder_contract(suite):
     for phrase in (
         "2036–2065",
         "1985–2014",
-        "precipitation (standard deviation, b)",
+        "precipitation (standard deviation, b;",
         "3 degenerate ratios are excluded.",
     ):
         assert phrase in text
@@ -302,55 +302,26 @@ def test_pet_window_captions_stand_alone(suite, filename, units):
         "1971–2000",
         "2010–2039",
         "Based on 7 models.",
-        "Number of models: SSP2-4.5, 5; SSP5-8.5, 7.",
+        "Models: SSP2-4.5, 5; SSP5-8.5, 7.",
         "shifted from [2005, 2034] to [2010, 2039]",
-        "Historical and scenario simulations are concatenated",
-        "HydroMT debruin",
-        "monthly-input approximation",
-        "buffered bounding box",
+        "joins historical and scenario runs",
         units,
     ):
         assert phrase in text
     assert "1985–2014" not in text  # use this window's actual reference
 
 
-def test_pet_trajectory_caption_has_reference_shading_and_window_notes(suite):
-    from blueearth_cst.projections.variable_spec import parse
-
-    _, record = suite
-    record["variable_spec"] = parse({"pet": {"method": "makkink"}})
-    record["windows"] = [
-        {
-            "window_id": "2010-2039",
-            "used": [2010, 2039],
-            "horizon_windows": {
-                "near": {
-                    "requested": [2005, 2034],
-                    "used": [2010, 2039],
-                    "shifted": True,
-                    "joined": True,
-                }
-            },
-        },
-        {"window_id": "2071-2100", "used": [2071, 2100]},
-    ]
-    text = caption(
-        "cmip6_pet_annual_anomaly_ts_basin_avg.png",
-        record,
-        counts={"n_models": 3, "by_scenario": {"historical": 3, "ssp245": 2}},
-    )
-    for phrase in (
-        "1985–2014 mean annual total",
-        "grey shading marks the future analysis windows (2010–2039; 2071–2100)",
-        "historical/scenario transition (2014/2015)",
-        "Based on 3 models.",
-        "Number of models: Historical, 3; SSP2-4.5, 2.",
-        "window (near) was shifted",
-        "concatenated to complete the window (near)",
-        "HydroMT makkink",
-        "mm/year",
-    ):
-        assert phrase in text
+def test_retired_derived_trajectory_is_removed_on_rerender(suite, tmp_path):
+    tables, record = suite
+    tables["availability"]["available"] = False
+    plots = tmp_path / "plots"
+    render_suite(tables, record, plots)
+    old = plots / "full_period" / contract.FIGURE_FILENAMES["trajectory-pet.png"]
+    old.write_bytes(b"previous render")
+    manifest_path = tmp_path / "_engine/plots/figure_captions.json"
+    manifest_path.write_text(json.dumps({f"full_period/{old.name}": {}}))
+    render_suite(tables, record, plots)
+    assert not old.exists()
 
 
 @pytest.mark.parametrize(
@@ -376,13 +347,12 @@ def test_derived_opt_out_retires_previous_horizon_without_deleting_other_files(
     pet_rows = [
         dict(
             filename=contract.FIGURE_FILENAMES[key],
-            folder="full_period" if key.startswith("trajectory-") else old_folder,
-            window_id="" if key.startswith("trajectory-") else "2036-2065",
+            folder=old_folder,
+            window_id="2036-2065",
             available=key == f"seasonal-cycle-{variable}.png",
             reason="synthetic unavailable product",
         )
         for key in (
-            f"trajectory-{variable}.png",
             f"seasonal-cycle-{variable}.png",
             f"change-{variable}.png",
         )
@@ -703,7 +673,7 @@ def test_mostly_dry_periods_are_shaded_and_captioned():
     window = {"window_id": "2036-2065", "used": [2036, 2065], "reference": [1985, 2014]}
     record["windows"] = [window]
     text = caption(pct, record, "2036-2065", {"n_models": 10, "mostly_dry": True})
-    assert "Hatched panels mark seasons" in text
+    assert "Hatched panels: seasons" in text
     assert "Gray" not in caption(pct, record, "2036-2065", {"n_models": 10})
 
 

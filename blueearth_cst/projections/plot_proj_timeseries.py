@@ -207,7 +207,6 @@ def render_suite(
     if pet and pet.method:
         from blueearth_cst.projections.projection_figures import FIGURE_FILENAMES
 
-        expected.add(("full_period", FIGURE_FILENAMES["trajectory-pet.png"]))
         key = "change-pet-pct.png" if pet.change == "relative" else "change-pet.png"
         for folder in folders[1:]:
             expected.update(
@@ -219,7 +218,6 @@ def render_suite(
         fields = record.get("variable_spec", {}).get(variable)
         if not fields or not VariableSpec(*fields).method:
             continue
-        expected.add(("full_period", FIGURE_FILENAMES[f"trajectory-{variable}.png"]))
         for folder in folders[1:]:
             expected.update(
                 (folder, FIGURE_FILENAMES[f"{kind}-{variable}.png"])

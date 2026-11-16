@@ -1556,15 +1556,8 @@ def product_availability(tables, windows=None, *, pet_change=None, state_variabl
     if pet_change is not None:
         derived["pet"] = pet_change
     for variable, change in derived.items():
+        # Full-period trajectories cover precipitation and temperature only.
         selected = data["models"].loc[data["models"].variable.eq(variable)]
-        sub = trajectory.loc[trajectory.variable.eq(variable)]
-        add(
-            f"trajectory-{variable}.png",
-            "full_period",
-            "",
-            np.isfinite(sub.anomaly.astype(float)).any(),
-            f"no {variable} member with valid reference",
-        )
         quantity = "change_pct" if change == "relative" else "change"
         for window_id in window_ids:
             climate = data["climatology"]

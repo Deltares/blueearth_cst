@@ -97,8 +97,9 @@ threshold screens monthly, seasonal and annual references, never an unconverted 
 With `change: absolute`, omit `min_denominator`. Annual and seasonal diagnostic changes integrate
 the rates with native-calendar day counts and report mm; monthly changes retain mm/day.
 
-PET adds annual anomalies (mm/year), monthly climatology (mm/day), and annual/seasonal change figures
-(percent by default, mm with absolute change), with method and approximation in captions. It remains
+PET adds monthly climatology (mm/day) and annual/seasonal change figures (percent by default, mm with
+absolute change); its method is recorded in `_engine/analysis_record.json`. Full-period annual anomaly
+figures cover precipitation and temperature only. It remains
 an analytical output: precipitation–temperature clouds and stress-test axes are unchanged.
 Raw meteorological grids remain in `raw/`; member-resolved annual/monthly diagnostic changes are
 retained in `analysis/gridded_changes/`, including calculated PET when configured. Monthly PET
@@ -148,11 +149,12 @@ No clipping, filling, regridding or member fallback is performed.
 
 Dependencies share `raw/`, selected monthly results share `scalar/`, and additional selected-variable
 rows share `analysis/` and `summary/`. Method, statistic, height and source metadata remain in scalar
-attributes and `_engine/analysis_record.json`. Figures add annual anomalies, monthly climatologies and
-annual/seasonal mean differences. Analysis tables also carry `method`, `definition` and `height_m`;
+attributes and `_engine/analysis_record.json`. Figures add monthly climatologies and annual/seasonal
+mean differences per analysis window. Analysis tables also carry `method`, `definition` and `height_m`;
 these fields distinguish the two wind statistics when tables circulate independently. Figures use
 `cmip6_tdew_*_basin_avg.png` and `cmip6_wind_*_basin_avg.png`.
-Standalone captions explain methods, periods, counts and approximations. Derived annual/monthly native-grid
+Concise captions give quantity, periods and counts; the suite note in `figure_captions.md` and the
+analysis record carry methods and approximations. Derived annual/monthly native-grid
 changes are retained with the spatial diagnostics; full derived monthly meteorological series remain
 basin averages in `scalar/`. Removing opt-ins retires only their previously managed figures/captions, including
 removed horizons. Scientific choices refresh derived identities; presentation changes do not reacquire
