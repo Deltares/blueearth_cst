@@ -89,7 +89,11 @@ Axis labels name both ratios because their meaning is otherwise ambiguous. No re
   Use modest white padding. Square plotting areas have equal physical axis lengths, not equal data scales.
 - Give each labelled tick a visible mark. Annual series retain yearly ticks and, where appropriate,
   annual minor ticks; reduce labels on long records. Anchor major/minor ticks to the same calendar grid.
-  Long WF2 records use 20-year major labels with annual minor ticks. Comparable panels share limits and ticks.
+  Long WF2 records use 20-year major labels with five-year minor ticks. Comparable panels share limits and
+  ticks.
+- Content-sized tables and matrices (WF2 ensemble coverage and sign agreement) snap to the smallest
+  standard width (88, 140 or 180 mm) that fits and stretch their cells to fill it, so text keeps the
+  same proportion to the canvas for any number of models or scenarios.
 - Axis titles show units alone, except WF2 reference-relative axes:
   `Relative to [reference-period] (symbol)`, using the actual period, e.g.
   `Relative to 1985–2014 (°C)` or `Relative to 1985–2014 (%)`. Absolute axes use units alone.
