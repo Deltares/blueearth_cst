@@ -30,7 +30,7 @@ def test_nested_stochastic_composes_exactly_like_legacy(tmp_path):
     flat = {
         "seed": 42,
         "n_realizations": 2,
-        "simulation_window": {"start": 2000, "end": 2001},
+        "future_period": {"start": 2000, "end": 2001},
     }
     path = write_split(
         tmp_path, sections={}, bodies={"generate_scenarios": flat}, schema_version=3

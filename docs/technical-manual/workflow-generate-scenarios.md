@@ -13,7 +13,8 @@ the hydrological model, allowing the resulting weather scenarios to be reused.
 - **Historical climate data.** Selected NetCDF record used to train the weather generator.
 - **Basin cells.** CSV identifying the climate-grid cells included in the basin.
 - **Climate perturbations.** Monthly temperature and precipitation settings defining the tested conditions.
-- **Weather-generator recipe.** Generation settings, defaulting to `config/defaults/weathergen_config.yml`.
+- **Weather-generator recipe.** weathergenr settings, defaulting to `config/defaults/weathergenr_config.yml`; replace them with
+  `stochastic.generator_config_path`.
 
 Saved inputs and settings allow later checks that reused scenarios represent the same weather experiment.
 
@@ -36,7 +37,7 @@ selection and reservation behavior are preserved.
 
 | Setting | Purpose |
 |---|---|
-| `simulation_window` | Years covered by the generated scenarios. |
+| `future_period` | Years covered by the generated scenarios. |
 | `n_realizations` | Number of stochastic realizations per climate condition. |
 | `seed` | Fixed integer or `auto` for a reproducibly derived choice. |
 | `climate_perturbations.temp.mean.min/max` | Monthly temperature-change bounds in °C. |

@@ -11,7 +11,9 @@ from blueearth_cst.experiment.generation_plan import generator_seed_projection
 
 @pytest.fixture
 def generator():
-    path = Path(__file__).resolve().parents[1] / "config/defaults/weathergen_config.yml"
+    path = (
+        Path(__file__).resolve().parents[1] / "config/defaults/weathergenr_config.yml"
+    )
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 

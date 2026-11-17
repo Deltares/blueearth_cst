@@ -43,7 +43,7 @@ def test_candidate_intent_uses_wf3_only_seed_projection(tmp_path, monkeypatch):
     settings = {
         "project_dir": project,
         "store": SimpleNamespace(store_dir=str(store)),
-        "template": root / "config/defaults/weathergen_config.yml",
+        "template": root / "config/defaults/weathergenr_config.yml",
         "catalogs": [catalog],
         "source": "era5",
         "config": config,
@@ -118,7 +118,7 @@ def test_candidate_intent_uses_wf3_only_seed_projection(tmp_path, monkeypatch):
         == intent["documents"]["generation_config"]["seed"]["resolved"]
     )
     settings["capacity"] = 15
-    settings["template"] = root / "config/defaults/weathergen_config.yml"
+    settings["template"] = root / "config/defaults/weathergenr_config.yml"
     catalog.write_bytes(b"catalog")
     relocated = tmp_path / "relocated_store"
     relocated.mkdir()

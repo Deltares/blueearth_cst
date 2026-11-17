@@ -149,7 +149,7 @@ def resolve_workflow_paths(
             "engine.waterbodies_config",
         ),
         "analyze_projections": ("projections_catalog", "catalog"),
-        "generate_scenarios": ("weathergen_config",),
+        "generate_scenarios": ("generator_config_path", "weathergen_config"),
         "simulate_system": ("scenario_collection.manifest_path",),
     }
     _resolve_fields(result, fields.get(workflow, ()), source)

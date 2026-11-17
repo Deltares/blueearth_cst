@@ -1975,3 +1975,37 @@ def test_wf0_scales_without_basin_are_refused(tmp_path):
     )
     with pytest.raises(ValueError, match="basin-scale figures always render"):
         compose(path, "analyze_climate")
+
+
+def test_wf3_scalars_expand_to_twelve_and_keys_translate(tmp_path):
+    body = {
+        "seed": 1,
+        "future_period": {"start": 2046, "end": 2054},
+        "generator_config_path": "gen.yml",
+        "climate_perturbations": {
+            "temp": {
+                "n_levels": 2,
+                "trajectory": "transient",
+                "mean": {"min": 0.0, "max": 3.0},
+            },
+            "precip": {
+                "n_levels": 2,
+                "trajectory": "transient",
+                "mean": {"min": 0.7, "max": [1.3] * 12},
+                "variance": {"min": 1.0, "max": 1.0},
+            },
+            "spell_factors": {"dry": 1.0, "wet": [1.0] * 12},
+        },
+    }
+    path = write_split(tmp_path, bodies={"generate_scenarios": body})
+    section = compose(path, "generate_scenarios")["workflows"]["generate_scenarios"]
+    assert section["simulation_window"] == {"start": 2046, "end": 2054}
+    assert section["weathergen_config"].endswith("gen.yml")
+    perturbations = section["climate_perturbations"]
+    assert perturbations["temp"]["mean"] == {"min": [0.0] * 12, "max": [3.0] * 12}
+    assert perturbations["precip"]["mean"]["max"] == [1.3] * 12
+    assert perturbations["precip"]["variance"]["min"] == [1.0] * 12
+    assert perturbations["spell_factors"] == {"dry": [1.0] * 12, "wet": [1.0] * 12}
+    public = cc.public_workflow_section("generate_scenarios", section)
+    assert public["future_period"] == body["future_period"]
+    assert "simulation_window" not in public and "weathergen_config" not in public

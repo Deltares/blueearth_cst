@@ -22,7 +22,7 @@ REPO_ROOT = os.path.join(os.path.dirname(__file__), "..")
 # config/templates/, which now holds only files you copy. This literal must
 # track that Snakefile param.
 DEFAULT_WEAGEN_CONFIG = os.path.join(
-    REPO_ROOT, "config", "defaults", "weathergen_config.yml"
+    REPO_ROOT, "config", "defaults", "weathergenr_config.yml"
 )
 
 
@@ -47,7 +47,7 @@ def test_default_weathergen_config_resolves_at_defaults_path():
     --dry-run / test_cli would NOT catch a broken move here because the param is
     not a declared input:."""
     assert os.path.isfile(DEFAULT_WEAGEN_CONFIG), (
-        "config/defaults/weathergen_config.yml missing — the 2026-08-11 split "
+        "config/defaults/weathergenr_config.yml missing — the 2026-08-11 split "
         "or the generate_scenarios.smk:131 default_config param is broken"
     )
     cfg = read_yml(DEFAULT_WEAGEN_CONFIG)

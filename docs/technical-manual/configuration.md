@@ -51,7 +51,7 @@ the project file, including schema 2. Supported schema numbers are integers 2 an
 | Project | `project.project_dir`, `project.catalog`, `project.reuse_data_from`, `basin.output_locations`, file-valued region entries, `observations` paths |
 | model building | `hydromt.build_config_path`, `hydromt.waterbodies_config_path` |
 | projection analysis | `projections_catalog` |
-| scenario generation | `weathergen_config` |
+| scenario generation | `generator_config_path` |
 | hydrological simulation | `scenario_collection.manifest_path`, `indicator_set_definitions.<id>.config_path` |
 
 Use `toolbox:config/...` for resources in the executing toolbox checkout. A toolbox locator must stay
@@ -260,7 +260,7 @@ The following links explain the settings for each workflow.
 | historical climate analysis | `diagnostics`, workflow-local `plotting`: [historical analysis](workflow-analyze-climate.md#configuration) |
 | model building | `run_period`, `hydromt` recipes, workflow-local `plotting`, `evaluation`: [model](workflow-build-model.md#configuration) |
 | projection analysis | `projections_catalog`, `ensemble`, `models`, `scenarios`, `members`, `variables`, `variable_options`, `reference_period`, `future_periods`, `stats`: [projections](workflow-analyze-projections.md#configuration) |
-| scenario generation | `seed`, `n_realizations`, `simulation_window`, monthly perturbations, generator and capacity: [generation](workflow-generate-scenarios.md#configuration) |
+| scenario generation | `seed`, `n_realizations`, `future_period`, monthly perturbations, `generator_config_path` and capacity: [generation](workflow-generate-scenarios.md#configuration) |
 | hydrological simulation | Collection, experiment, operations, indicator requests and `compute`: [simulation](workflow-simulate-system.md#configuration) |
 
 `experiment_name` is optional. An omitted name selects family `stress_test`, initially `stress_test_01`;

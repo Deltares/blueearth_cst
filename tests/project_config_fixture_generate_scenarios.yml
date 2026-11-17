@@ -24,7 +24,7 @@ climate_perturbations:
   # why they sit beside `temp:`/`precip:` rather than under them.
     dry: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     wet: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-simulation_window:
+future_period:
   start: 2045
   end: 2055
 seed: 123

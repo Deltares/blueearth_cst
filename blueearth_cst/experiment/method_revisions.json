@@ -51,7 +51,7 @@
       "revision": 1
     },
     "indicator-set": {
-      "closure_sha256": "5be4ea39b59384dfa5dc35dc02296ecf57bda081b3a18534950c5fc084819537",
+      "closure_sha256": "6da9e655a7f1fedd046b03acac14061f61ad8de8e751088956fbf90a469ae804",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -243,7 +243,7 @@
         },
         {
           "path": "blueearth_cst/shared/config_paths.py",
-          "sha256": "87421b5649726a8b7d1ffa2c004317ae506908e91b969b42e38aadc3cc444abc"
+          "sha256": "72077164d03a1183a59772b897a66804f524da40bebc55e4af49adcc9ea63963"
         },
         {
           "path": "blueearth_cst/shared/csv_output.py",
@@ -304,12 +304,12 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t037: workflow path fields resolve authored and composed names"
+        "reason": "t037: generate_scenarios generator_config_path path field"
       },
       "revision": 1
     },
     "stochastic-collection": {
-      "closure_sha256": "f5311d4f639c6369f82556a96b1dd5a67dcf3144678b6276cde7830c84693499",
+      "closure_sha256": "e7a8a2c772cab2b55815375d197f17247d4031ce26b3dd6baf7180943d157b06",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -337,7 +337,7 @@
         },
         {
           "path": "blueearth_cst/experiment/generation_plan.py",
-          "sha256": "8c36b9d311b2b6c48478ee728596da1992460e73c7734f20a066046ed6f00e5b"
+          "sha256": "52c93750c4a3c82cd4a125abd12678d3a3b153b54d5ce2d898eda93bc1e4070d"
         },
         {
           "path": "blueearth_cst/experiment/generation_sources.py",
@@ -402,7 +402,7 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t037: named forcing sets are the only public climate form; one supported-dataset list"
+        "reason": "t037: default generator settings file renamed to weathergenr_config.yml; parsed values identical"
       },
       "revision": 1
     },

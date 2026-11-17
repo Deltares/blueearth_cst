@@ -109,7 +109,7 @@ climate:
   default_forcing: era5
 
   # Calendar years to extract, January 1 through December 31 inclusive. At least 16. This is not the model
-  # run period; see `simulation_window` in the build_model file.
+  # run period; see `run_period` in the build_model file.
   # Select inclusive historical calendar years. Input: year mapping spanning at least 16 years.
   window:
     # First historical calendar year. Input: integer year, <= end.

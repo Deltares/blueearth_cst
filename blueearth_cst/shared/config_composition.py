@@ -201,8 +201,10 @@ GENERATION_KEYS = frozenset(
     {
         "n_realizations",
         "simulation_window",
+        "future_period",
         "climate_perturbations",
         "weathergen_config",
+        "generator_config_path",
         "seed",
         "unit_id_capacity",
         "name",
@@ -343,6 +345,13 @@ RETIRED_KEYS: dict[str, str] = {
         "retired (t037): precipitation-temperature diagnostics use ERA5 temperature"
     ),
     "T2.build_model.simulation_window": "renamed (t037) to `run_period: {start, end}`",
+    "T2.generate_scenarios.simulation_window": (
+        "renamed (t037) to `future_period: {start, end}`"
+    ),
+    "T2.generate_scenarios.weathergen_config": (
+        "renamed (t037) to `generator_config_path`; the default is "
+        "toolbox:config/defaults/weathergenr_config.yml"
+    ),
     "T2.build_model.engine": (
         "renamed (t037) to `hydromt: {build_config_path, waterbodies_config_path}`"
     ),
@@ -880,7 +889,74 @@ def internal_workflow_section(
             body["diagnostics"] = diagnostics
     elif name == "analyze_projections":
         body = _internal_projections(body, climate)
+    elif name == "generate_scenarios":
+        body = _internal_wf3(body)
     return body
+
+
+#: Monthly perturbation fields that accept one value for every month (t037).
+_MONTHLY_BOUNDS = (
+    ("temp", "mean"),
+    ("precip", "mean"),
+    ("precip", "variance"),
+)
+
+
+def _twelve(value: Any) -> Any:
+    """A scalar becomes 12 copies of itself; anything else is left to validation."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return value
+    return [value] * 12
+
+
+def _internal_wf3(body: dict[str, Any]) -> dict[str, Any]:
+    """WF3 stochastic t037 keys, in the shapes generation already hashes.
+
+    `future_period` -> `simulation_window`, `generator_config_path` ->
+    `weathergen_config`, and monthly scalars -> 12 copies of the same value,
+    so a project that authors 12-lists keeps its identity.
+    """
+    if "method" in body:
+        return body  # the delta-change section
+    body = dict(body)
+    if "future_period" in body:
+        body["simulation_window"] = body.pop("future_period")
+    if "generator_config_path" in body:
+        body["weathergen_config"] = body.pop("generator_config_path")
+    perturbations = body.get("climate_perturbations")
+    if isinstance(perturbations, Mapping):
+        perturbations = dict(perturbations)
+        for axis, stat in _MONTHLY_BOUNDS:
+            axis_settings = perturbations.get(axis)
+            if not isinstance(axis_settings, Mapping):
+                continue
+            bounds = axis_settings.get(stat)
+            if isinstance(bounds, Mapping):
+                axis_settings = dict(axis_settings)
+                axis_settings[stat] = {
+                    key: _twelve(value) if key in ("min", "max") else value
+                    for key, value in bounds.items()
+                }
+                perturbations[axis] = axis_settings
+        spells = perturbations.get("spell_factors")
+        if isinstance(spells, Mapping):
+            perturbations["spell_factors"] = {
+                key: _twelve(value) if key in ("dry", "wet") else value
+                for key, value in spells.items()
+            }
+        body["climate_perturbations"] = perturbations
+    return body
+
+
+def _public_wf3(section: dict[str, Any]) -> dict[str, Any]:
+    """Inverse of `_internal_wf3` (12-lists stay lists)."""
+    if "method" in section:
+        return section
+    if "simulation_window" in section:
+        section["future_period"] = section.pop("simulation_window")
+    if "weathergen_config" in section:
+        section["generator_config_path"] = section.pop("weathergen_config")
+    return section
 
 
 #: WF1 public plotting keys -> the internal figure switches.
@@ -1192,6 +1268,8 @@ def public_workflow_section(name: str, section: Mapping[str, Any]) -> dict[str, 
             section["diagnostics"] = diagnostics
     elif name == "analyze_projections":
         section = _public_projections(section)
+    elif name == "generate_scenarios":
+        section = _public_wf3(section)
     return section
 
 

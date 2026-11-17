@@ -11,7 +11,7 @@ n_realizations: 2                      # C-29, was `realizations_num`
 # and that INCLUSIVE pair is declared directly now. Note the old form spanned
 # nine calendar years for a run_length of eight -- the window is what the run
 # used, not the length.
-simulation_window: {start: 2046, end: 2054}
+future_period: {start: 2046, end: 2054}
 
 # C-68: was `stress_test:`. Renamed because that name also named the workflow;
 # this block is specifically the perturbations.

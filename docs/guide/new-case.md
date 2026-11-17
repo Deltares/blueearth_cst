@@ -175,7 +175,7 @@ purposes; they do not need identical dates.
 - Model building: `run_period` uses water years within the available historical forcing.
 - Projection analysis: `reference_period` and `future_periods` use calendar years;
   historical runs end in 2014.
-- Scenario generation: `simulation_window` sets the years of the scenario simulation.
+- Scenario generation: `future_period` sets the years of the scenario simulation.
 
 Align projection and scenario periods when making a like-period plausibility comparison.
 
@@ -221,7 +221,7 @@ illustrative. Model names use `Institution/Source`; scenarios use SSP identifier
 
 In `project_config_generate_scenarios.yml`, choose:
 
-- `simulation_window` and `n_realizations`: years and weather realizations per grid point.
+- `future_period` and `n_realizations`: years and weather realizations per grid point.
 - `climate_perturbations`: monthly temperature changes (°C) and precipitation multipliers, with
   `min` and `max` values in January–December order; `0.7` means 30% less precipitation.
 - `n_levels` within each axis: two temperature and three precipitation levels give six combinations,

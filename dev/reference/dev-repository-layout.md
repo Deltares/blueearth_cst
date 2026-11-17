@@ -30,7 +30,7 @@ Project configuration files live beside their project, as the seeds do under `te
 There is no `config/workflows/` directory.
 
 **`defaults/` vs `templates/`:** rules read defaults, so changes to `wflow_build_model.yml`,
-`wflow_update_waterbodies.yml` or `weathergen_config.yml` change runs. Templates are scaffolds to copy.
+`wflow_update_waterbodies.yml` or `weathergenr_config.yml` change runs. Templates are scaffolds to copy.
 
 `<project_dir>/config/templates/` holds generated snapshots and is normally empty. It contains a file only
 when a project config points to its own copy; shipped defaults are recorded by Git blob ID instead.

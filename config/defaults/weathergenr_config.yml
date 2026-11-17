@@ -1,0 +1,97 @@
+# Weather generator settings for weathergenr 2.1.0 (pinned in pixi.toml).
+#
+# Each section is a weathergenr function and each key is one of its argument
+# names, so `?<section>` in R documents every key. Arguments absent here are
+# supplied at run time: observed data, grid and dates from the climate store,
+# perturbation factors from st_<m>.csv, and the values prepare_weathergen_config.py
+# injects per run. Every key is passed through: do not add one without wiring
+# it in generate_weather.R or impose_climate_change.R.
+#
+# Values that deliberately differ from weathergenr's defaults: warm_signif 0.80,
+# warm_pool_size 25000, annual_knn_n 100, wet_q 0.2, verbose, compute_pet false
+# and diagnostic false.
+#
+# A project replaces this file with `stochastic.generator_config_path`.
+
+# weathergenr::run_weather_generator, which wraps generate_weather and its
+# evaluation pass; the generate_weather section is its `config` argument.
+run_weather_generator:
+  eval_max_grids: 25         # cap on grid cells the evaluation pass plots
+  log_messages: false        # keep false: weathergenr's log file has a timestamped
+                             # name in out_dir; the console output is already
+                             # captured in the rule log
+
+# weathergenr::generate_weather.
+generate_weather:
+  vars: [precip, temp, temp_min, temp_max]  # variables to generate
+
+  # Wavelet / WARM low-frequency modelling.
+  warm_var: precip           # variable driving the wavelet analysis (do not change)
+  warm_signif: 0.80          # signal significance level (suggested 0.80-0.95)
+  warm_pool_size: 25000      # initial annual precip series generated (suggested 10,000-30,000)
+  warm_filter_bounds: []     # [] = weathergenr's filter_warm_bounds_defaults(); must be
+                             # `[]`, not `{}` (R reads `{}` as a named empty list)
+  relax_order: [wavelet, sd, tail_low, tail_high, mean]
+                             # order in which accept bounds relax when the WARM pool
+                             # underfills (weathergenr's default, spelled out)
+
+  # Daily resampling and Markov chain.
+  annual_knn_n: 100          # repeated samples per simulated year (suggested 100-120)
+  wet_q: 0.2                 # quantile threshold defining wet weather
+  extreme_q: 0.8             # quantile threshold defining very wet weather
+
+  # Execution. `seed` is injected (generate_scenarios `seed:`) and shared with
+  # apply_climate_perturbations, so generation and perturbation reproduce together.
+  parallel: false
+  n_cores: null              # null = weathergenr chooses; read only when parallel: true
+  verbose: true              # forwarded to generate_weather and the evaluation pass;
+                             # captured in the rule log
+  save_plots: true           # emit the generator's diagnostic plots
+
+  # Injected per run: n_years, start_year, n_realizations, out_dir, seed,
+  # year_start_month (from climate.water_year_start, as a month number),
+  # dry_spell_factor and wet_spell_factor (from climate_perturbations.spell_factors;
+  # multipliers on mean spell length, default 1.0).
+
+# weathergenr::apply_climate_perturbations, the stress-test perturbation.
+apply_climate_perturbations:
+  compute_pet: false         # Wflow's PET is computed downstream from perturbed
+                             # temperature, pressure and radiation
+  pet_method: hargreaves     # used only if compute_pet is enabled
+  qm_fit_method: mme         # quantile-mapping fit method
+  scale_var_with_mean: true
+  enforce_target_mean: true
+  precip_intensity_threshold: 0
+  precip_occurrence_transient: true
+                             # inert: no occurrence factor is supplied; kept as the
+                             # ramp-vs-step choice for a future occurrence axis
+
+  # Extreme-tail treatment; the thresholds are inert while exaggerate_extremes is false.
+  exaggerate_extremes: false
+  extreme_prob_threshold: 0.95
+  extreme_k: 1.2
+
+  # Precipitation clamps. null = unclamped.
+  precip_cap_mm_day: null
+  precip_floor_mm_day: null
+  precip_cap_quantile: null
+
+  verbose: false
+  diagnostic: false          # LOAD-BEARING: keep false. true returns a diagnostic
+                             # structure that write_netcdf cannot consume
+                             # (weathergenr's default is true)
+
+  # Supplied at run time: data, grid and dates, the st_<m>.csv factors, the two
+  # transient flags and seed. temp_range_factor stays unset (NULL).
+
+# weathergenr::write_netcdf, used for realizations and perturbed series. The time
+# axis is origin_date plus day offsets on this calendar.
+write_netcdf:
+  calendar: noleap
+  compression: 4
+  spatial_ref: spatial_ref
+  signif_digits: null        # null = full precision
+  verbose: true
+
+  # Supplied at run time: data, grid, out_dir, origin_date, template_path,
+  # file_suffix and file_prefix.
