@@ -24,12 +24,14 @@ seam docs ``dev/reference/{toolbox-weather-generator,toolbox-hydrological-model}
 
 import os
 from os.path import dirname, join, realpath
+from pathlib import Path
 
 import pandas as pd
 import pytest
 import yaml
 
 from blueearth_cst.shared import interchange_contracts as ic  # noqa: E402
+from blueearth_cst.shared.layout_stamp import STAMP
 from blueearth_cst.shared.snake_utils import (  # noqa: E402
     historical_window_bounds,
     slugify_window,
@@ -126,13 +128,23 @@ def _evaluated_runs():
 
 
 _FIXTURE_ABSENT = (
-    "untracked test_case/test_local fixture tree not present "
-    "(interchange-contract integration layer skipped)"
+    "untracked test_case/test_local fixture tree not present, or holds only the "
+    "layout stamp a Snakefile parse writes (interchange-contract integration layer skipped)"
 )
 
 
 def _fixture_present() -> bool:
-    return os.path.exists(_FIXTURE)
+    """True when the tree holds a file outside ``config/_engine/``.
+
+    WF0-WF2 Snakefiles stamp an absent project folder at parse time, so a dry
+    run against the baseline config leaves a stamp-only ``test_local`` that is
+    a missing fixture, not a stale one.
+    """
+    root = Path(_FIXTURE)
+    engine = root / STAMP.parent
+    return root.is_dir() and any(
+        path.is_file() and engine not in path.parents for path in root.rglob("*")
+    )
 
 
 # --- the fixture's SCHEMA, which its presence does not imply ----------------

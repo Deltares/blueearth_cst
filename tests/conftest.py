@@ -1,5 +1,7 @@
 """Global test attributes and fixtures"""
 
+import os
+import sys
 from copy import deepcopy
 from os.path import dirname, join, realpath
 from pathlib import Path
@@ -25,6 +27,39 @@ SNAKEDIR = join(TESTDIR, "..")
 config_fn = join(TESTDIR, "project_config_fixture.yml")
 
 pytest_plugins = ["dev.scripts.pytest_temp"]
+
+
+def _unactivated_runtime_message() -> str | None:
+    """Explain why a Windows conda/Pixi interpreter launched unactivated cannot run the suite.
+
+    Without ``<prefix>/Library/bin`` on PATH, MKL's Intel-OpenMP threading layer
+    aborts the process natively (0xC06D007F, no traceback) in the first LAPACK
+    call -- any matplotlib layout that inverts a transform -- and subprocess calls
+    miss ``hydromt`` or reach a system ``Rscript`` outside the locked environment.
+    """
+    library_bin = os.path.join(sys.prefix, "Library", "bin")
+    if sys.platform != "win32" or not os.path.isdir(library_bin):
+        return None
+    entries = {
+        os.path.normcase(os.path.normpath(entry))
+        for entry in os.environ.get("PATH", "").split(os.pathsep)
+        if entry
+    }
+    if os.path.normcase(os.path.normpath(library_bin)) in entries:
+        return None
+    return (
+        f"{sys.executable} is running without its environment activated "
+        f"({library_bin} is not on PATH): MKL would abort natively with 0xC06D007F "
+        "and `hydromt`/`Rscript` would resolve outside the environment. Launch pytest "
+        "from an activated shell, or through dev/scripts/session_runtime.py."
+    )
+
+
+def pytest_configure(config):
+    """Refuse an unactivated runtime before it crashes with no traceback."""
+    message = _unactivated_runtime_message()
+    if message:
+        raise pytest.UsageError(message)
 
 
 @pytest.fixture
