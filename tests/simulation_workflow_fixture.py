@@ -82,7 +82,10 @@ def parse_simulation_workflow(
     )
     document = config or {
         "schema_version": 2,
-        "climate": {"sources": ["era5"], "forcing": {"precip_source": "era5"}},
+        "climate": {
+            "forcings": {"era5": {"precip_source": "era5"}},
+            "default_forcing": "era5",
+        },
         "model": {"outvars": ["river discharge"]},
     }
     document["project"] = {"project_dir": project.as_posix()}

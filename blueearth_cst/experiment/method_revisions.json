@@ -51,7 +51,7 @@
       "revision": 1
     },
     "indicator-set": {
-      "closure_sha256": "433d273de6a885720f01cdb99bd507d9f19c075dff8ca8b31fbd35212aa8aa48",
+      "closure_sha256": "93c0680a5cfa08210f474cc6376c4bb272e64ac5aba382150cac6a0ae46a146e",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -107,7 +107,7 @@
         },
         {
           "path": "blueearth_cst/experiment/indicator_plan.py",
-          "sha256": "9340d33be232cb8c11d670affa10dcb742bc8f255b65373759ddf108acdabfe3"
+          "sha256": "0f333dda70f32fc47e11ba23fb43532f2e0a3bc730298d08f01427ae3e8cfb50"
         },
         {
           "path": "blueearth_cst/experiment/indicator_registry.py",
@@ -271,7 +271,7 @@
         },
         {
           "path": "blueearth_cst/shared/named_forcings.py",
-          "sha256": "af693907cc07ed17721b43153e1bf6d5e8092ae4855bb43d92dfc9976c4d47f6"
+          "sha256": "e0ef74941f83243e5959f2a083d09473b635ba8e95471c61aa8cb5bfd9016714"
         },
         {
           "path": "blueearth_cst/shared/native_locations.py",
@@ -304,12 +304,12 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t037: read the project file's workflows through the shared split-form normalizer"
+        "reason": "t037: named forcing sets are the only public climate form; one supported-dataset list"
       },
       "revision": 1
     },
     "stochastic-collection": {
-      "closure_sha256": "52f32f588e1e8cdcf546b9a6d1532ffbc07729988bf6dc1d1fd789c7923b940b",
+      "closure_sha256": "f5311d4f639c6369f82556a96b1dd5a67dcf3144678b6276cde7830c84693499",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -373,7 +373,7 @@
         },
         {
           "path": "blueearth_cst/shared/forcing_recipe.py",
-          "sha256": "82d85ac9ad984678a87962483e014e86e91a575f5f527e76f617d70748a8a7fb"
+          "sha256": "ca23277f7b63cefc238dc26f2213fde8ed7baa63dfa7c010071b931cef962254"
         },
         {
           "path": "blueearth_cst/shared/wf3_science.py",
@@ -402,12 +402,12 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: legacy reservation provider check"
+        "reason": "t037: named forcing sets are the only public climate form; one supported-dataset list"
       },
       "revision": 1
     },
     "wf4-simulation": {
-      "closure_sha256": "c9a2436e7e84cc6a037580db86ed0f71567850d10f77f01a415242e03996b3b6",
+      "closure_sha256": "2b5c8fa1961f973ebad24d7221d895e8da337c59fef2701be4c1109902112b12",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -515,7 +515,7 @@
         },
         {
           "path": "blueearth_cst/shared/forcing_recipe.py",
-          "sha256": "82d85ac9ad984678a87962483e014e86e91a575f5f527e76f617d70748a8a7fb"
+          "sha256": "ca23277f7b63cefc238dc26f2213fde8ed7baa63dfa7c010071b931cef962254"
         },
         {
           "path": "blueearth_cst/shared/grid_output.py",
@@ -556,7 +556,7 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: legacy reservation provider check"
+        "reason": "t037: named forcing sets are the only public climate form; one supported-dataset list"
       },
       "revision": 1
     }

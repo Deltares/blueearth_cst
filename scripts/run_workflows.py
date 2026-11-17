@@ -963,7 +963,9 @@ def _consumer_forcing_rows(config_path: str, workflow_name: str) -> tuple[str, .
         and composed["workflows"][workflow_name].get("method") == "delta_change"
     ):
         return ()
-    climate = _section(_read_config(config_path), "climate")
+    from blueearth_cst.shared.named_forcings import internal_climate
+
+    climate = internal_climate(_section(_read_config(config_path), "climate"))
     forcing_id = composed["climate"].get("forcing_id")
     rows: tuple[str, ...] = ()
     if forcing_id is not None:

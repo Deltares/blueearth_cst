@@ -50,10 +50,10 @@ basin:
 # -----------------------------------------------------------------------------
 
 climate:
-  sources:
-  - era5
-  forcing:
-    precip_source: era5
+  forcings:
+    era5:
+      precip_source: era5
+  default_forcing: era5
   # 17 years: one more than the 16-year minimum.
   window:
     start: 2000

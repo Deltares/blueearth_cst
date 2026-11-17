@@ -20,7 +20,7 @@ Saved inputs and settings allow later checks that reused scenarios represent the
 ## Configuration {#configuration}
 
 **Project settings** define the basin, historical source and training record through `basin`,
-`climate.forcing.precip_source` and `climate.window`.
+`climate.default_forcing` and `climate.window`.
 
 **Workflow settings** define the generated period and perturbation grid. The annotated template is
 `config/templates/example-basin/project_config_generate_scenarios.yml`.

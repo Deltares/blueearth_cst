@@ -101,7 +101,7 @@ def test_invalid_scientific_settings_fail_instead_of_being_ignored(forcing, fiel
     "source", ["eobs", "era5_daily_zarr", "new_precip", "", None, []]
 )
 def test_no_additional_precipitation_products(source):
-    with pytest.raises(ValueError, match="climate.selected"):
+    with pytest.raises(ValueError, match="climate.forcings precip_source"):
         normalize_forcing_recipe(source)
 
 

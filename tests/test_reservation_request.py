@@ -61,7 +61,10 @@ def case(tmp_path, monkeypatch):
                     "region": "{'subbasin': [9.666, 0.4476]}",
                     "resolution": 0.00833,
                 },
-                "climate": {"selected": "era5", "window": {"start": 2000, "end": 2016}},
+                "climate": {
+                    "forcings": {"era5": {"precip_source": "era5"}},
+                    "window": {"start": 2000, "end": 2016},
+                },
                 "workflows": {
                     "simulate_system": {"enabled": True, "config_path": wf4.name},
                     "build_model": {"enabled": False, "config_path": build.name},

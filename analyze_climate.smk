@@ -127,25 +127,10 @@ CANDIDATE_SOURCES = ([clim_source] if clim_source is not None else []) + [
     source for source in _declared_sources if source != clim_source
 ]
 if not CANDIDATE_SOURCES:
-    raise ValueError("climate.sources must contain comparison candidates")
+    raise ValueError("climate.forcings must declare the datasets to compare")
 
-# P3-2a bounded support (design ext2-3): the raw-climate path supports era5,
-# chirps and chirps_global only. Rejected HERE, at parse time, for every
-# candidate rather than only for the project's own source -- an unsupported
-# entry would otherwise fail deep inside a generated rule whose name does not
-# say which config key put it there.
-_SUPPORTED_SOURCES = ("era5", "chirps", "chirps_global")
-for _src in CANDIDATE_SOURCES:
-    if _src not in _SUPPORTED_SOURCES:
-        _where = (
-            "shared.clim_historical"
-            if _src == clim_source
-            else "workflows.analyze_climate.candidate_sources"
-        )
-        raise ValueError(
-            f"{_where}: {_src!r} is not supported by the wf0 raw-climate path; "
-            f"supported sources: {', '.join(_SUPPORTED_SOURCES)}"
-        )
+# Composition (forcing_recipe.SUPPORTED_CLIMATE_SOURCES) already refused any
+# dataset the raw-climate path does not support.
 
 # The current-only run record, one per workflow (config-snapshot redesign,
 # 2026-08-13).

@@ -11,6 +11,7 @@ from blueearth_cst.shared.named_forcings import (
 )
 from tests.test_config_composition import write_split
 
+ERA5 = {"precip_source": "era5"}
 CHIRPS = {
     "precip_source": "chirps",
     "temp_source": "era5",
@@ -25,7 +26,6 @@ def _named(tmp_path, *, climate=None, build=None, simulate=None):
             "basin": {"region": "x"},
             "climate": climate
             or {
-                "sources": ["era5", "chirps"],
                 "forcings": {"era5": {"precip_source": "era5"}, "chirps": CHIRPS},
                 "default_forcing": "chirps",
             },
@@ -47,19 +47,21 @@ def test_default_recipe_becomes_the_legacy_internal_form(tmp_path, entry):
     assert climate["default_forcing"] == "chirps"
     assert set(climate["forcings"]) == {"era5", "chirps"}
     assert climate["forcings"]["era5"] == {"selected": "era5"}
-    # The resolved default equals what the single-recipe form produces.
-    legacy = write_split(
-        tmp_path / "legacy",
+    assert climate["sources"] == ["era5", "chirps"]
+    # The resolved default equals what a one-set project produces.
+    one = write_split(
+        tmp_path / "one",
         sections={
             "basin": {"region": "x"},
-            "climate": {"sources": ["era5", "chirps"], "forcing": CHIRPS},
+            "climate": {"forcings": {"chirps": CHIRPS}, "default_forcing": "chirps"},
         },
         bodies={"build_model": {}, "generate_scenarios": {}},
     )
-    single = cc.load_composed_config(legacy, entry=entry)["climate"]
+    single = cc.load_composed_config(one, entry=entry)["climate"]
     assert {k: climate.get(k) for k in ("selected", "forcing")} == {
         k: single.get(k) for k in ("selected", "forcing")
     }
+    assert "forcing_id" not in single
 
 
 def test_simulation_selects_a_named_recipe(tmp_path):
@@ -76,27 +78,23 @@ def test_simulation_selects_a_named_recipe(tmp_path):
 @pytest.mark.parametrize(
     "climate,match",
     [
-        ({"forcings": {"era5": {}}}, "declared together"),
         (
-            {"forcings": {"era5": {}}, "default_forcing": "x"},
-            "not one of climate.forcings",
+            {"forcings": {"era5": ERA5, "chirps": CHIRPS}},
+            "default_forcing is required",
         ),
-        (
-            {"forcings": {"default": {}}, "default_forcing": "default"},
-            "reserved",
-        ),
-        (
-            {"forcings": {"Era5": {}}, "default_forcing": "Era5"},
-            "must match",
-        ),
+        ({"forcings": {"era5": ERA5}, "default_forcing": "x"}, "not one of"),
+        ({"forcings": {"default": ERA5}, "default_forcing": "default"}, "reserved"),
+        ({"forcings": {"Era5": ERA5}, "default_forcing": "Era5"}, "must match"),
+        ({"forcings": {"era5": {}}, "default_forcing": "era5"}, "precip_source"),
         (
             {
-                "forcings": {"era5": {}},
+                "forcings": {"era5": ERA5},
                 "default_forcing": "era5",
                 "forcing": {"precip_source": "era5"},
             },
-            "declare only one form",
+            "retired",
         ),
+        ({"sources": ["era5"], "forcings": {"era5": ERA5}}, "retired"),
         (
             {
                 "forcings": {
@@ -110,7 +108,7 @@ def test_simulation_selects_a_named_recipe(tmp_path):
     ],
 )
 def test_ambiguous_or_malformed_named_forcings_fail(tmp_path, climate, match):
-    path = _named(tmp_path, climate={"sources": ["era5", "chirps"], **climate})
+    path = _named(tmp_path, climate=climate)
     with pytest.raises(ValueError, match=match):
         cc.load_composed_config(path, entry="build_model")
 
@@ -177,14 +175,14 @@ def test_wf4_collection_lookup_composes_wf3_from_the_file(tmp_path, monkeypatch)
     assert seen["generation"]["climate"]["forcing_id"] == "chirps"
 
 
-def test_wf4_loader_keeps_legacy_climate_unchanged(tmp_path):
+def test_wf4_loader_keeps_one_set_in_the_single_recipe_layout(tmp_path):
     from blueearth_cst.experiment.simulation_runner import simulation_settings
 
     path = write_split(
         tmp_path,
         sections={
             "basin": {"region": "x"},
-            "climate": {"sources": ["era5"], "forcing": {"precip_source": "era5"}},
+            "climate": {"forcings": {"era5": ERA5}},
         },
         bodies={"simulate_system": {"operation": "simulate-and-indicators"}},
     )
@@ -199,22 +197,22 @@ def test_unknown_simulation_selection_fails(tmp_path):
         cc.load_composed_config(path, entry="simulate_system")
 
 
-def test_legacy_projects_only_offer_default(tmp_path):
+def test_one_set_projects_only_offer_default(tmp_path):
     path = write_split(
         tmp_path,
         sections={
             "basin": {"region": "x"},
-            "climate": {"sources": ["era5"], "forcing": {"precip_source": "era5"}},
+            "climate": {"forcings": {"era5": ERA5}},
         },
         bodies={"simulate_system": {"historical_forcing": "era5"}},
     )
-    with pytest.raises(ValueError, match="requires climate.forcings"):
+    with pytest.raises(ValueError, match="needs several climate.forcings"):
         cc.load_composed_config(path, entry="simulate_system")
     path = write_split(
         tmp_path / "ok",
         sections={
             "basin": {"region": "x"},
-            "climate": {"sources": ["era5"], "forcing": {"precip_source": "era5"}},
+            "climate": {"forcings": {"era5": ERA5}},
         },
         bodies={"build_model": {}},
     )
@@ -224,7 +222,6 @@ def test_legacy_projects_only_offer_default(tmp_path):
 
 def test_build_model_requests_and_retained_names(tmp_path):
     climate = {
-        "sources": ["era5", "chirps"],
         "forcings": {"era5": {"precip_source": "era5"}, "chirps": CHIRPS},
         "default_forcing": "era5",
     }
@@ -237,7 +234,7 @@ def test_build_model_requests_and_retained_names(tmp_path):
     )
     with pytest.raises(ValueError, match="unknown forcing"):
         historical_forcing_ids(climate, {"historical_forcings": ["eobs"]})
-    with pytest.raises(ValueError, match="requires climate.forcings"):
+    with pytest.raises(ValueError, match="needs several climate.forcings"):
         historical_forcing_ids({"sources": ["era5"]}, {"historical_forcings": ["era5"]})
     # Two or more recipes no longer need a retained-run name (D18).
     path = _named(tmp_path, build={"historical_forcings": ["era5", "chirps"]})
@@ -271,3 +268,16 @@ def test_runner_summary_names_the_active_recipe(tmp_path):
     rows = rw._consumer_forcing_rows(str(_named(tmp_path)), "build_model")
     assert rows[0] == "> Historical forcing: chirps (default)"
     assert any("CHIRPS" in row for row in rows)
+
+
+def test_several_sets_without_a_default_still_compare(tmp_path):
+    climate = {"forcings": {"era5": ERA5, "chirps": CHIRPS}}
+    for entry in ("analyze_climate", "analyze_projections"):
+        composed = cc.load_composed_config(
+            _named(tmp_path, climate=climate), entry=entry
+        )
+        assert composed["climate"]["sources"] == ["era5", "chirps"]
+        assert "forcing_id" not in composed["climate"]
+    for entry in ("build_model", "generate_scenarios", "simulate_system"):
+        with pytest.raises(ValueError, match="default_forcing is required"):
+            cc.load_composed_config(_named(tmp_path, climate=climate), entry=entry)

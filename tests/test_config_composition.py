@@ -121,7 +121,7 @@ PROJECTIONS = {
 #: themselves pass `sections=` explicitly and take what they need away.
 MINIMAL_T1_SECTIONS: dict = {
     "basin": {"region": "x"},
-    "climate": {"sources": ["era5"], "selected": "era5"},
+    "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
 }
 
 
@@ -217,10 +217,7 @@ def test_repeated_forcing_validation_does_not_emit_workflow_rows(tmp_path, capsy
         tmp_path,
         sections={
             "basin": {"region": "x"},
-            "climate": {
-                "sources": ["era5"],
-                "forcing": {"precip_source": "era5"},
-            },
+            "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
         },
         bodies={
             "build_model": {},
@@ -237,35 +234,31 @@ def test_repeated_forcing_validation_does_not_emit_workflow_rows(tmp_path, capsy
     assert captured.err == ""
 
 
+ERA5 = {"precip_source": "era5"}
+CHIRPS = {"precip_source": "chirps"}
+
+
 @pytest.mark.parametrize("entry", ["analyze_climate", "analyze_projections"])
 @pytest.mark.parametrize(
-    "sources,selection,expected",
+    "forcings,default,sources,expected",
     [
-        (["era5", "chirps"], {}, None),
-        (["era5"], {}, "era5"),
-        (["era5", "chirps"], {"forcing": {"precip_source": "chirps"}}, "chirps"),
-        (["era5", "chirps"], {"selected": "era5"}, "era5"),
-        (["era5"], {"forcing": {"precip_source": "unknown"}}, None),
-        (["era5"], {"selected": ["era5"]}, None),
-        (["era5"], {"forcing": {"precip_source": None}}, None),
-        (["era5"], {"selected": "era5", "forcing": {"precip_source": "era5"}}, None),
+        ({"era5": ERA5, "chirps": CHIRPS}, None, ["era5", "chirps"], None),
+        ({"era5": ERA5}, None, ["era5"], "era5"),
+        ({"era5": ERA5, "chirps": CHIRPS}, "chirps", ["era5", "chirps"], "chirps"),
+        # A draft recipe is neither validated nor applied by comparisons.
+        ({"era5": {**ERA5, "pet": {"mode": "draft"}}}, None, ["era5"], "era5"),
     ],
 )
 def test_comparisons_do_not_require_or_apply_a_draft_forcing_recipe(
-    tmp_path, entry, sources, selection, expected
+    tmp_path, entry, forcings, default, sources, expected
 ):
-    climate = {
-        "sources": sources,
-        **selection,
-        "forcing": {"temp_source": "invalid-draft", **selection.get("forcing", {})},
-    }
+    climate = {"forcings": forcings}
+    if default is not None:
+        climate["default_forcing"] = default
     path = write_split(
         tmp_path,
         bodies={entry: {}},
-        sections={
-            "basin": {"region": "x"},
-            "climate": climate,
-        },
+        sections={"basin": {"region": "x"}, "climate": climate},
     )
     compared = cc.load_composed_config(path, entry=entry)
     assert compared["climate"]["sources"] == sources
@@ -282,11 +275,16 @@ def test_general_configuration_admission_defers_forcing_selection(tmp_path):
         bodies={"build_model": {}},
         sections={
             "basin": {"region": "x"},
-            "climate": {"sources": ["era5", "chirps"]},
+            "climate": {
+                "forcings": {
+                    "era5": {"precip_source": "era5"},
+                    "chirps": {"precip_source": "chirps"},
+                }
+            },
         },
     )
     cc.load_composed_config(path, entry="build_model", validate_forcing=False)
-    with pytest.raises(ValueError, match="precip_source is required"):
+    with pytest.raises(ValueError, match="default_forcing is required"):
         cc.load_composed_config(path, entry="build_model")
 
 
@@ -341,6 +339,10 @@ def test_composed_document_equals_the_monolith_it_was_split_from(tmp_path):
     for name, body in bodies.items():
         monolith["workflows"][name].pop("config_path")
         monolith["workflows"][name].update(body)
+    # The one declared deviation: the public forcing sets compose to the
+    # internal single-recipe climate form (named_forcings.internal_climate).
+    assert composed["climate"] == {"sources": ["era5"], "selected": "era5"}
+    monolith["climate"] = composed["climate"]
     assert composed == monolith
 
 
@@ -849,7 +851,10 @@ def test_a_shared_key_planted_in_a_t2_file_is_refused(tmp_path):
     """D-9.2. A key read by more than one workflow lives in T1, never in a T2."""
     t1_path = write_split(
         tmp_path / "cfg",
-        sections={"basin": {"region": "x"}, "climate": {"selected": "era5"}},
+        sections={
+            "basin": {"region": "x"},
+            "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
+        },
         bodies={"build_model": {"selected": "chirps"}},
     )
     with pytest.raises(ValueError) as excinfo:
@@ -882,7 +887,10 @@ def test_a_frozen_seam_key_absent_from_this_t1_is_still_refused(tmp_path):
     """
     t1_path = write_split(
         tmp_path / "cfg",
-        sections={"basin": {"region": "x"}, "climate": {"selected": "era5"}},
+        sections={
+            "basin": {"region": "x"},
+            "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
+        },
         bodies={"build_model": {"sources": {"lulc": "vito"}}},
     )
     t1_doc = yaml.safe_load(t1_path.read_text(encoding="utf-8"))
@@ -922,7 +930,10 @@ def test_a_shared_key_is_refused_in_a_file_outside_this_entry_points_scope(tmp_p
     """
     t1_path = write_split(
         tmp_path / "cfg",
-        sections={"basin": {"region": "x"}, "climate": {"selected": "era5"}},
+        sections={
+            "basin": {"region": "x"},
+            "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
+        },
         bodies={
             "build_model": {"a": 1},
             "generate_scenarios": {"basin": {"region": "planted"}},
@@ -1256,7 +1267,7 @@ def test_the_hoisted_key_is_refused_inside_a_workflow_file(tmp_path):
         tmp_path / "cfg",
         sections={
             "basin": {"region": "x"},
-            "climate": {"selected": "era5"},
+            "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
             "model": {"outvars": ["river discharge"]},
         },
         bodies={"build_model": {"outvars": ["snow"]}},
@@ -1280,7 +1291,7 @@ def test_the_hoisted_key_reaches_both_readers_from_shared(tmp_path):
         tmp_path / "cfg",
         sections={
             "basin": {"region": "x"},
-            "climate": {"selected": "era5"},
+            "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
             "model": {"outvars": ["river discharge"]},
         },
         bodies={
@@ -1513,14 +1524,19 @@ def test_unset_climate_selection_is_refused_when_wf1_or_wf3_runs(tmp_path):
         tmp_path / "cfg",
         sections={
             "basin": {"region": "x"},
-            "climate": {"sources": ["era5", "chirps"]},
+            "climate": {
+                "forcings": {
+                    "era5": {"precip_source": "era5"},
+                    "chirps": {"precip_source": "chirps"},
+                }
+            },
         },
         bodies={"build_model": {}},
     )
     with pytest.raises(ValueError) as excinfo:
         compose(t1_path)
     message = str(excinfo.value)
-    assert "climate.forcing.precip_source" in message
+    assert "climate.default_forcing" in message
     assert "era5" in message and "chirps" in message, "name the candidates"
     assert "analyze_climate" in message, "and the workflow that compares them"
     assert "comparison" in message, "and where it writes the comparison"
@@ -1539,7 +1555,12 @@ def test_unset_climate_selection_is_valid_with_only_wf0_enabled(tmp_path):
         tmp_path / "cfg",
         sections={
             "basin": {"region": "x"},
-            "climate": {"sources": ["era5", "chirps"]},
+            "climate": {
+                "forcings": {
+                    "era5": {"precip_source": "era5"},
+                    "chirps": {"precip_source": "chirps"},
+                }
+            },
         },
         bodies={"analyze_climate": {}, "build_model": {}, "generate_scenarios": {}},
         enabled={
@@ -1559,16 +1580,19 @@ def test_a_non_member_climate_selection_is_refused_and_names_the_set(tmp_path):
         tmp_path / "cfg",
         sections={
             "basin": {"region": "x"},
-            "climate": {"sources": ["era5", "chirps"], "selected": "era-5"},
+            "climate": {
+                "forcings": {"era5": ERA5, "chirps": CHIRPS},
+                "default_forcing": "era6",
+            },
         },
         bodies={"build_model": {}},
     )
     with pytest.raises(ValueError) as excinfo:
         compose(t1_path)
     message = str(excinfo.value)
-    assert "era-5" in message
+    assert "era6" in message
     assert "era5" in message and "chirps" in message, "name the member set"
-    assert "climate.forcing.precip_source" in message
+    assert "climate.default_forcing" in message
 
 
 def test_an_observation_for_an_undeclared_outvar_is_refused(tmp_path):
@@ -1582,7 +1606,7 @@ def test_an_observation_for_an_undeclared_outvar_is_refused(tmp_path):
         tmp_path / "cfg",
         sections={
             "basin": {"region": "x"},
-            "climate": {"sources": ["era5"], "selected": "era5"},
+            "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
             "model": {"outvars": ["river discharge"]},
         },
         bodies={"build_model": {"observations": {"river disharge": "obs.csv"}}},
@@ -1601,7 +1625,7 @@ def test_an_observation_for_a_declared_outvar_composes(tmp_path):
         tmp_path / "cfg",
         sections={
             "basin": {"region": "x"},
-            "climate": {"sources": ["era5"], "selected": "era5"},
+            "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
             "model": {"outvars": ["river discharge"]},
         },
         bodies={"build_model": {"observations": {"river discharge": "obs.csv"}}},

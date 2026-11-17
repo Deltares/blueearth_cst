@@ -35,6 +35,7 @@ from blueearth_cst.shared.config_paths import (
     resolve_project_paths,
     resolve_workflow_paths,
 )
+from blueearth_cst.shared.project_workflows import normalize_project_workflows
 from dev.scripts.local_e2e_bundle import RAW_NAMES, verify_bundle
 
 pytestmark = pytest.mark.usefixtures("isolated_snakemake")
@@ -105,7 +106,8 @@ def _fresh_config_set(
         shutil.copyfile(source, base / source.name)
     target = base / CONFIG.name
     document = resolve_project_paths(
-        yaml.safe_load(target.read_text(encoding="utf-8")), CONFIG
+        normalize_project_workflows(yaml.safe_load(target.read_text(encoding="utf-8"))),
+        CONFIG,
     )
     for name, stanza in document["workflows"].items():
         if "config_path" in stanza:

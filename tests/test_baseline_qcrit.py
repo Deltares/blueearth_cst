@@ -241,7 +241,7 @@ def test_direct_wf4_reports_missing_historical_prerequisite(
         yaml.safe_dump(
             {
                 "project": {"project_dir": str(path.parent / "run")},
-                "climate": {"sources": ["era5"]},
+                "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
                 "model": {"outvars": ["river discharge"]},
                 "workflows": {
                     "simulate_system": {"enabled": True, "config_path": workflow.name}

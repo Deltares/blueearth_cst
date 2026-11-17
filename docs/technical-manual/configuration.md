@@ -22,7 +22,8 @@ Omitting the file composes an empty settings mapping; workflow-required fields s
 
 Workflow files hold that workflow's settings. Shared section names and shared leaf names cannot be placed
 there to override the project. Composition reads each declared file and adds the workflow's switch as
-`enabled` to the effective workflow mapping; the file path is not part of it. Workflow files cannot override arbitrary project
+`enabled` to the effective workflow mapping; the file path is not part of it. Workflow files cannot
+override arbitrary project
 settings. Duplicate or unknown fields are rejected in sections with a fixed set of allowed
 fields. Disabling a workflow leaves its previous files in place.
 
@@ -84,9 +85,8 @@ execution are unchanged; see [case creation and migration](../guide/new-case.md)
 | `basin.sources` | Hydrography and matching basin-index catalog entry names |
 | `basin.output_locations` | Optional location CSV; [format and snapping](input-formats.md#output-locations) |
 | `basin.delineation` | Spatial-unit controls, including `snap_tolerance_m`; starter comments describe the options |
-| `climate.sources` | Candidate historical catalog sources |
-| `climate.forcing.precip_source` | Precipitation choice from comparison candidates; infer only a sole candidate |
-| `climate.forcing` | Optional selected-source companion, elevation, PET and correction recipe; see below |
+| `climate.forcings` | Named forcing sets; historical comparison uses their datasets; see below |
+| `climate.default_forcing` | The set scenario generation uses and the default for model building and simulation |
 | `climate.window` | Inclusive calendar-year `start`/`end`; historical record, not hydrological run period |
 | `climate.water_year_start` | Reporting-year month, default January |
 | `climate.map_reference` | Historical-map completeness; default 3 missing days/month, 15/year |
@@ -106,19 +106,28 @@ diagnostic tolerances must
 equal these shared values. Model building forcing summaries retain their independent default 3/15 policy.
 Completeness and temporal aggregation are distinct from the inclusive extraction dates.
 
-### Historical forcing recipe
+### Historical forcing sets {#historical-forcing-recipe}
 
-`climate.forcing` applies when preparing the selected source for model building, scenario generation
-or simulation. Historical comparison and projection workflows do not resolve this choice; historical
-comparisons analyze the candidate datasets using their native/default source preparation.
-Selected precipitation remains `era5`, `chirps` or `chirps_global`. Omission and explicit defaults are
-equivalent. The [annotated starter](../../config/templates/example-basin/project_config.yml) shows the keys.
+`climate.forcings` names one or more forcing sets; each body is a recipe (keys below). Historical
+comparison analyzes each dataset the sets use once per variable: every `precip_source` and every
+temperature/PET source (ERA5 unless a set names another), with native/default source preparation.
+Projection analysis does not use the sets. Precipitation must be `era5`, `chirps` or `chirps_global`;
+unsupported datasets fail before execution. Omission and explicit defaults are equivalent. The
+[annotated starter](../../config/templates/example-basin/project_config.yml) shows the keys.
 
-Keep this block in the project file: model building and independent scenario generation share it.
-Comparison-only historical analysis needs no forcing selection; omit the block or use `{}`. When forcing
-is needed, the whole block may be omitted only with one valid candidate in `climate.sources`.
-With several candidates, set `climate.forcing.precip_source` explicitly. Candidate order and earlier runs
-never select forcing. Empty, duplicate or unsupported candidates fail before execution.
+```yaml
+climate:
+  forcings:
+    era5: {precip_source: era5}
+    chirps: {precip_source: chirps, temp_source: era5}
+  default_forcing: era5
+```
+
+Keep the sets in the project file: model building and scenario generation share them.
+`climate.default_forcing` names the set that drives scenario generation and the default for model building
+and simulation. It is optional with one set, and with several sets while only historical comparison and
+projection analysis run; choose it after reviewing the comparison. Model building, scenario generation
+and simulation refuse several sets without it. Order never selects the default.
 
 Defaults fill omitted settings, never missing data. ERA5 supplies all required companion fields by default,
 including for CHIRPS precipitation. A different `temp_source` must supply every required field; individual
@@ -126,37 +135,24 @@ variables are not silently borrowed from ERA5. The recipe derives seven total fi
 Makkink and precipitation/temperature/PET for direct mode. Supplied nulls, wrong types, unknown keys and
 empty names are errors. Entry-point summaries show resolved choices before execution.
 
-### Named historical forcing recipes {#named-historical-forcing-recipes}
+### Several forcing sets {#named-historical-forcing-recipes}
 
-To run one fixed model with several recipes, replace `climate.forcing` with a named map and a default:
+Names match `[a-z][a-z0-9_]{0,31}`; `default` is reserved, and two names may not describe the same recipe.
+With one set, model outputs use the single-recipe layout (`historical/default/`, `wflow_sbm.toml`). With
+several, model building simulates `build_model.historical_forcings` (default: the default set) in the
+per-set layout described in [model building](workflow-build-model.md#named-recipes), and simulation selects
+one set through `simulate_system.historical_forcing`.
 
-```yaml
-climate:
-  sources: [era5, chirps]
-  forcings:
-    era5: {precip_source: era5}
-    chirps: {precip_source: chirps, temp_source: era5}
-  default_forcing: era5
-```
-
-Each body is an ordinary `climate.forcing` recipe and is validated the same way. Names match
-`[a-z][a-z0-9_]{0,31}`; `default` is reserved. `forcings` and `default_forcing` are declared together, never
-alongside `climate.forcing` or `climate.selected`, and two names may not describe the same recipe. Order never
-selects the default. Scenario generation always uses the default. Model building simulates
-`build_model.historical_forcings` (default: the default recipe), and simulation selects one recipe through
-`simulate_system.historical_forcing`. Single-recipe projects need no migration. To adopt names, move the
-`forcing` block under a name and set `default_forcing` to it. Outputs then use the per-recipe layout described in
-[model building](workflow-build-model.md#named-recipes); earlier `run_default` results are not relabelled.
-
-Legacy `climate.selected` and `climate.forcing.temp_pet_source` remain accepted with deprecation notices.
-Do not supply both spellings of a field, even with equal values. A legacy null selection remains unselected;
-null under a new key is invalid. Archives and scientific recipe serialization retain their original bytes
-and meaning. Equivalent old/new or inferred/explicit choices have the same scientific identity within one
-software candidate; producer-code integrity can change identities across revisions.
+`climate.sources`, `climate.selected` and `climate.forcing` are retired and refused by name: move the recipe
+under `climate.forcings.<name>`, add a set for each further dataset to compare, and name the default. A
+project that compared several datasets but forced one now declares several sets, so its model run moves to the
+per-set layout: rerun model building once and start a new simulation experiment.
+`climate.forcings.<name>.temp_pet_source` remains accepted with a deprecation notice; do not supply both
+spellings. Archives and scientific recipe serialization retain their original bytes and meaning.
 
 | Key | Default and allowed meaning |
 |---|---|
-| `precip_source` | Candidate precipitation source; required explicitly when several candidates exist |
+| `precip_source` | Required precipitation dataset: `era5`, `chirps` or `chirps_global` |
 | `temp_source` | `era5`; temperature, extrema, pressure and radiation required by the selected PET recipe |
 | `orography_source` | `era5_orography`; source elevation entry; required explicitly for another companion |
 | `temp_correction` | `true`; boolean controlling lapse correction at extraction and model preparation |

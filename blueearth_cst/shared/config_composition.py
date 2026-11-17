@@ -80,6 +80,7 @@ from blueearth_cst.shared.config_paths import (
 from blueearth_cst.shared.named_forcings import (
     declares_named,
     historical_forcing_ids,
+    internal_climate,
     legacy_view,
     named_recipes,
     simulation_climate,
@@ -312,8 +313,23 @@ RETIRED_KEYS: dict[str, str] = {
         "renamed AND retyped to `climate.window: {start, end}` (`C-70`) -- "
         "inclusive WATER years now, not ISO timestamps"
     ),
-    "T1.shared.clim_historical": "renamed to `climate.selected` (`C-44`)",
+    "T1.shared.clim_historical": (
+        "renamed to `climate.selected` (`C-44`), since replaced by "
+        "`climate.forcings` and `climate.default_forcing` (t037)"
+    ),
     "T1.shared.water_year_start": ("regrouped as `climate.water_year_start` (`C-53`)"),
+    "T1.climate.sources": (
+        "retired (t037): analyze_climate compares the datasets of "
+        "`climate.forcings`; declare each dataset to compare in a forcing set"
+    ),
+    "T1.climate.selected": (
+        "retired (t037): declare the recipe under `climate.forcings.<name>` "
+        "and name it in `climate.default_forcing`"
+    ),
+    "T1.climate.forcing": (
+        "retired (t037): move the recipe under `climate.forcings.<name>` "
+        "and name it in `climate.default_forcing`"
+    ),
     "T1.shared.wflow_outvars": "regrouped as `model.outvars` (`C-19`)",
     "T1.shared.seed": (
         "moved DOWN to `seed:` at the top of the generate_scenarios file (`C-51`) "
@@ -1028,6 +1044,11 @@ def compose_config(
     _check_retired_keys(t1, {})
     _check_t1_top_level(t1)
     resolve_annotation(t1)
+    # Public named forcing sets -> the internal climate form (named_forcings.py).
+    # The retired-key check below needs the authored section, so keep it.
+    authored_t1 = t1
+    if isinstance(t1.get("climate"), Mapping):
+        t1 = {**t1, "climate": internal_climate(t1["climate"])}
 
     t1_dir = os.path.dirname(os.path.abspath(os.fspath(t1_path))) or os.getcwd()
     for section in T1_SHARED_SECTIONS:
@@ -1137,7 +1158,7 @@ def compose_config(
                 "plotting.annotation: caption in the project file instead "
                 "(or none for unannotated figures)."
             )
-    _check_retired_keys(t1, bodies)  # the T2 half; the T1 half ran above
+    _check_retired_keys(authored_t1, bodies)  # the T2 half; the T1 half ran above
     _check_observations(t1, bodies)
     _check_trajectories(bodies)
     for owner, forbidden, destination in (
@@ -1178,6 +1199,18 @@ def compose_config(
     # WF1 and WF3 use the default, WF4 its `historical_forcing` selection.
     declared_climate = composed.get("climate", {})
     requested = (bodies.get("simulate_system") or {}).get("historical_forcing")
+    if "forcings" in declared_climate and "default_forcing" not in declared_climate:
+        # Several sets and no default yet: comparison and projection runs work
+        # on the datasets alone; every forcing consumer needs the choice.
+        if validate_forcing and (
+            entry in {"build_model", "generate_scenarios"}
+            or (entry == "simulate_system" and not retained_only)
+        ):
+            named_recipes(declared_climate)  # raises: default_forcing required
+        declared_climate = {
+            key: value for key, value in declared_climate.items() if key != "forcings"
+        }
+        composed["climate"] = declared_climate
     forcing_id = None
     if declares_named(declared_climate):
         composed["climate"], forcing_id = simulation_climate(
@@ -1229,7 +1262,7 @@ def compose_config(
     if "climate" in composed or required:
         composed["climate"] = climate
     if entry == "analyze_climate" and not climate.get("sources"):
-        raise ValueError("climate.sources must contain comparison candidates")
+        raise ValueError("climate.forcings must declare the datasets to compare")
     merged: dict[str, Any] = {}
     workflow_config_paths: dict[str, str] = {}
     for name, stanza in workflows.items():

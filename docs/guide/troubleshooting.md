@@ -82,7 +82,7 @@ scientific input; review the source choice before reusing results.
 
 If the catalog is accessible but a dataset cannot be found, check that the configured source name
 matches an entry in the catalog and that the dataset covers the basin and analysis period. Review
-`basin.sources` and `climate.sources` in the project file; see
+`basin.sources` and `climate.forcings` in the project file; see
 [Define the catchment and data sources](new-case.md#define-the-catchment-and-data-sources).
 
 ## 6. CMIP6 data cannot be downloaded {#cmip6-data-cannot-be-downloaded}

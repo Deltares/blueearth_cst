@@ -54,7 +54,7 @@ def _write_cfg(
     """
     cfg = {
         "schema_version": 2,
-        "climate": {"sources": ["era5"]},
+        "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
         "workflows": {
             "generate_scenarios": {
                 "climate_perturbations": {

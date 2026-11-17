@@ -34,20 +34,17 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_execution_yaml_uses_public_forcing_keys(tmp_path, schema_version, legacy):
     from blueearth_cst.shared.config_composition import load_composed_config
     from blueearth_cst.shared.forcing_recipe import resolve_climate_forcing
+    from blueearth_cst.shared.named_forcings import internal_climate
 
-    climate = {
-        "sources": ["era5"],
-        "forcing": {
-            "temp_correction": False,
-            "press_correction": False,
-            "pet": {"mode": "computed", "method": "makkink"},
-        },
+    recipe = {
+        "precip_source": "era5",
+        "temp_correction": False,
+        "press_correction": False,
+        "pet": {"mode": "computed", "method": "makkink"},
     }
-    if legacy:
-        climate["selected"] = "era5"
-        climate["forcing"]["temp_pet_source"] = "era5"
-    else:
-        climate["forcing"].update(precip_source="era5", temp_source="era5")
+    # The deprecated companion spelling is still accepted inside a forcing set.
+    recipe["temp_pet_source" if legacy else "temp_source"] = "era5"
+    climate = {"forcings": {"era5": recipe}}
     root = tmp_path / "output"
     project = {
         "schema_version": schema_version,
@@ -71,18 +68,20 @@ def test_execution_yaml_uses_public_forcing_keys(tmp_path, schema_version, legac
             targets=["all"],
         )
     migrations = [item for item in initial if issubclass(item.category, FutureWarning)]
-    # Genuine legacy source settings warn once each; modern sources never warn.
-    assert len(migrations) == (2 if legacy else 0)
+    # The legacy companion spelling warns once; modern sources never warn.
+    assert len(migrations) == (1 if legacy else 0)
     staged = yaml.safe_load(execution.read_bytes())["climate"]
-    assert "selected" not in staged
-    assert "temp_pet_source" not in staged["forcing"]
-    assert staged["forcing"]["precip_source"] == "era5"
-    assert staged["forcing"]["temp_source"] == "era5"
+    staged_recipe = staged["forcings"]["era5"]
+    assert "temp_pet_source" not in staged_recipe
+    assert staged_recipe["precip_source"] == "era5"
+    assert staged_recipe["temp_source"] == "era5"
     with warnings.catch_warnings(record=True) as reparsed:
         warnings.simplefilter("always", FutureWarning)
         loaded = load_composed_config(execution, entry="build_model")
     assert not [item for item in reparsed if issubclass(item.category, FutureWarning)]
-    expected, _ = resolve_climate_forcing(climate, required=True, notices=False)
+    expected, _ = resolve_climate_forcing(
+        internal_climate(climate), required=True, notices=False
+    )
     assert loaded["climate"] == expected
     assert source.read_bytes() == original
     record = read_archive(root, "build_model", "config/build_model")

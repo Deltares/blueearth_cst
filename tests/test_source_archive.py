@@ -649,7 +649,7 @@ def test_a_to_b_to_relocated_c_composes_without_a(tmp_path, schema_version):
                 "schema_version": schema_version,
                 "project": {"project_dir": str(root_a)},
                 "basin": {"region": "{'subbasin': [1, 2]}"},
-                "climate": {"sources": ["era5"], "selected": "era5"},
+                "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
                 "workflows": {
                     "build_model": {"enabled": True, "config_path": workflow_path.name}
                 },

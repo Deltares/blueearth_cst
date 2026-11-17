@@ -38,8 +38,8 @@ globcover:
 ```
 
 The full entry also supplies reader options and metadata. In the project file, `basin.sources`
-selects spatial entries, `climate.sources` lists candidates, and `climate.forcing.precip_source` chooses
-forcing for historical simulation and weather generation. These names must match catalog entries.
+selects spatial entries, and `climate.forcings` names the datasets each forcing set uses for comparison,
+historical simulation and weather generation. These names must match catalog entries.
 
 ## Other bundled variants
 

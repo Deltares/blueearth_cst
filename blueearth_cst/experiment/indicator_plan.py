@@ -178,7 +178,11 @@ def indicators_only_configuration(config_path, *, prepare_baseline=True):
                     f"{field}: retained={retained[field]!r}; asserted={asserted[field]!r}"
                 )
     from blueearth_cst.shared.model_registry import recipe_key, reference_model_path
-    from blueearth_cst.shared.named_forcings import HistoricalLayout, simulation_climate
+    from blueearth_cst.shared.named_forcings import (
+        HistoricalLayout,
+        internal_climate,
+        simulation_climate,
+    )
 
     # Historical thresholds come from the model and recipe the experiment
     # simulated. The retained model always applies; a configured `model.name`
@@ -189,7 +193,8 @@ def indicators_only_configuration(config_path, *, prepare_baseline=True):
     model = {**configured_model, "name": Path(model_path).name}
     project = {**project, "model": model}
     climate, selected = simulation_climate(
-        project.get("climate") or {}, workflow.get("historical_forcing")
+        internal_climate(project.get("climate") or {}),
+        workflow.get("historical_forcing"),
     )
     selected = recipe_key(project_root / model_path, selected)
     frozen = HistoricalLayout.from_toml(reference["model_toml"]).forcing_id

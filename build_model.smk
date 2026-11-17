@@ -162,15 +162,8 @@ julia_threads = DEFAULT_JULIA_THREADS  # C-54: no project override; advanced_set
 # any rule can put them in a shell body.
 wflow_julia = julia_prefix(julia_threads)
 
-# P3-2a bounded support (design ext2-3): the wf1 raw-climate path (rule 1.03 +
-# the model-parity plot re-source) supports era5, chirps and chirps_global
-# only. eobs fails here at DAG-parse time — before any rule executes — so the
-# rejection is early and loud on every run and dry-run.
-if clim_source == "eobs":
-    raise ValueError(
-        "clim_historical: eobs is not supported by the P3-2a wf1 raw-climate "
-        "path; supported sources: era5, chirps, chirps_global"
-    )
+# Composition (forcing_recipe.SUPPORTED_CLIMATE_SOURCES) already refused any
+# precipitation forcing the raw-climate path does not support.
 
 # SHARED, not workflow-owned (R13 D-9.7). WF3 reads this key too -- to derive
 # its indicator tables before the DAG is built -- and a key read by more than

@@ -281,6 +281,16 @@ def _execution_climate_config(climate: Mapping[str, Any]) -> dict[str, Any]:
         forcing["temp_source"] = forcing.pop("temp_pet_source")
     if forcing or "forcing" in result:
         result["forcing"] = forcing
+    if isinstance(result.get("forcings"), Mapping):
+        result["forcings"] = {
+            name: {
+                ("temp_source" if key == "temp_pet_source" else key): value
+                for key, value in body.items()
+            }
+            if isinstance(body, Mapping)
+            else body
+            for name, body in result["forcings"].items()
+        }
     return result
 
 

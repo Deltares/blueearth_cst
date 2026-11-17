@@ -449,9 +449,10 @@ def test_composition_normalizes_defaults_and_refuses_direct_generation_before_st
     document = yaml.safe_load(path.read_text(encoding="utf-8"))
     original, _ = compose_config(document, path, entry="build_model")
     explicit = deepcopy(document)
-    explicit["climate"]["forcing"] = normalize_forcing_recipe(
-        document["climate"]["selected"]
-    ).settings()
+    explicit["climate"]["forcings"]["era5"] = {
+        "precip_source": "era5",
+        **normalize_forcing_recipe("era5").settings(),
+    }
     assert compose_config(explicit, path, entry="build_model")[0] == original
     direct = deepcopy(original)
     direct["climate"]["forcing"] = {"pet": {"mode": "direct", "source": "fixture_pet"}}

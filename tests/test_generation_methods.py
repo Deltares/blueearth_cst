@@ -86,7 +86,10 @@ def test_explicit_delta_reservation_capture_does_not_plan_stochastic(
     catalog = tmp_path / "catalog.yml"
     catalog.write_text("{}\n")
     project["project"]["catalog"] = [str(catalog)]
-    project["climate"] = {"selected": "era5", "window": {"start": 2000, "end": 2000}}
+    project["climate"] = {
+        "forcings": {"era5": {"precip_source": "era5"}},
+        "window": {"start": 2000, "end": 2000},
+    }
     project["workflows"]["simulate_system"] = {
         "enabled": True,
         "config_path": "simulation.yml",
@@ -121,8 +124,7 @@ def v3_project(tmp_path, monkeypatch, *, name=None):
         sections={
             "basin": {"region": "{'bbox': [0.0, 0.0, 1.0, 1.0]}"},
             "climate": {
-                "sources": ["era5"],
-                "selected": "era5",
+                "forcings": {"era5": {"precip_source": "era5"}},
                 "window": {"start": 1980, "end": 2010},
             },
         },

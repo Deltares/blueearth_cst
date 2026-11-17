@@ -76,39 +76,37 @@ basin:
 
 # Define historical climate data and calendar. Input: mapping.
 climate:
-  # Comparison candidates; their order never chooses model forcing.
-  # Select historical climate datasets to assess. Input: list of supported climate source names.
-  sources: [era5, chirps]
-  # Configure selected historical model forcing. Input: mapping.
-  forcing:
-    # Explicit choice required with multiple candidates; omit this block for comparison-only work.
-    # Select the precipitation forcing dataset. Input: supported climate source name.
-    precip_source: era5
+  # Historical forcing sets. analyze_climate compares their datasets, each once per variable;
+  # build_model can run several. Each set pairs precipitation with a temperature/PET source.
+  # Name the forcing sets. Input: mapping of [a-z][a-z0-9_]* names to forcing recipes.
+  forcings:
+    # Define one forcing recipe. Input: mapping.
+    era5:
+      # Select the precipitation forcing dataset. Input: era5 | chirps | chirps_global.
+      precip_source: era5
+    # Define one forcing recipe. Input: mapping.
+    chirps:
+      # Select the precipitation forcing dataset. Input: era5 | chirps | chirps_global.
+      precip_source: chirps
+      # Select the temperature and PET dataset. Input: catalog source name; default era5.
+      temp_source: era5
 
-  # Optional selected-source recipe; these are the effective defaults.
-  # Entries name existing HydroMT catalog sources, not file paths.
-  # An alternative temp_source requires its explicit orography_source.
-    #temp_source: era5
-    #orography_source: era5_orography
-    #temp_correction: true
-    #press_correction: true
-    #pet:
-    #  mode: computed
-    #  method: debruin  # debruin | makkink
-  # Historical-only supplied reference PET: use pet: {mode: direct, source: <catalog-entry>}
-  # and omit method and press_correction. Scenario generation/simulation reject direct PET.
-
-  # Alternative to `forcing`: named recipes run on one fixed model. Replace the
-  # `forcing` block with `forcings` plus `default_forcing`; never declare both.
-  # The default drives scenario generation and, unless overridden, simulation.
-  # Name recipes and choose the default. Input: mapping of [a-z][a-z0-9_]* names.
-  #forcings:
-  #  era5:
-  #    precip_source: era5
+  # Recipe settings name HydroMT catalog sources. Every optional setting at its default, for
+  # the chirps set; an alternative temp_source also needs orography_source.
   #  chirps:
   #    precip_source: chirps
   #    temp_source: era5
-  #default_forcing: era5
+  #    orography_source: era5_orography
+  #    temp_correction: true
+  #    press_correction: true
+  #    pet: {mode: computed, method: debruin}   # method: debruin | makkink
+  # Historical-only supplied PET: pet: {mode: direct, source: <catalog-entry>}; scenario
+  # generation and simulation reject direct PET.
+
+  # Set that drives scenario generation and is the default for build_model and simulate_system.
+  # Choose it after reviewing analyze_climate; analyze_climate and analyze_projections run without it.
+  # Name the default forcing set. Input: a climate.forcings name.
+  default_forcing: era5
 
   # Calendar years to extract, January 1 through December 31 inclusive. At least 16. This is not the model
   # run period; see `simulation_window` in the build_model file.

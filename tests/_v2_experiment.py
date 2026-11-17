@@ -316,7 +316,10 @@ def _write_configs(base: Path, project: Path) -> Path:
                     "catalog": (base / "unused-catalog.yml").as_posix(),
                 },
                 "basin": {},
-                "climate": {"selected": CLIMATE_SOURCE},
+                "climate": {
+                    "forcings": {CLIMATE_SOURCE: {"precip_source": CLIMATE_SOURCE}},
+                    "default_forcing": CLIMATE_SOURCE,
+                },
                 "model": {},
                 "workflows": {
                     "generate_scenarios": {

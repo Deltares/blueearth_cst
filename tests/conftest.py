@@ -219,6 +219,54 @@ def model_build_config(config):
     return join(SNAKEDIR, model_build_config)
 
 
+_INTERNAL_CLIMATE = frozenset(
+    {"sources", "selected", "forcing", "forcing_id", "forcings", "default_forcing"}
+)
+
+
+def public_climate(climate: dict) -> dict:
+    """Invert composition's internal climate form into ``climate.forcings``.
+
+    A composed single recipe (``selected``/``forcing``/``sources``) becomes one
+    forcing set per dataset, the selected one first and the default when there
+    are several; a composed named map keeps its names and default.
+    """
+    if not _INTERNAL_CLIMATE & set(climate):
+        return climate
+    result = {k: v for k, v in climate.items() if k not in _INTERNAL_CLIMATE}
+
+    def body(selected, forcing) -> dict:
+        recipe = {"precip_source": selected} if selected is not None else {}
+        for key, value in (forcing or {}).items():
+            recipe["temp_source" if key == "temp_pet_source" else key] = value
+        return recipe
+
+    if "forcings" in climate:
+        # A resolved entry carries `selected`; an unvalidated one wraps the
+        # public body in `forcing`; an authored (public) body is kept as is.
+        result["forcings"] = {
+            name: body(entry["selected"], entry.get("forcing"))
+            if "selected" in entry
+            else dict(entry["forcing"])
+            if set(entry) == {"forcing"}
+            else dict(entry)
+            for name, entry in climate["forcings"].items()
+        }
+        if "default_forcing" in climate:
+            result["default_forcing"] = climate["default_forcing"]
+        return result
+    selected = climate.get("selected")
+    sets = {selected: body(selected, climate.get("forcing"))} if selected else {}
+    for source in climate.get("sources") or []:
+        if source not in sets:
+            sets[source] = {"precip_source": source}
+    if sets:
+        result["forcings"] = sets
+        if len(sets) > 1 and selected:
+            result["default_forcing"] = selected
+    return result
+
+
 def write_config(tmp_path, cfg, stem: str = "project_config") -> Path:
     """Split a whole-config mapping into T1 + T2 files under ``tmp_path``.
 
@@ -261,6 +309,8 @@ def write_config(tmp_path, cfg, stem: str = "project_config") -> Path:
         stanzas[name] = stanza
 
     cfg["workflows"] = stanzas
+    if isinstance(cfg.get("climate"), dict):
+        cfg["climate"] = public_climate(cfg["climate"])
     t1 = tmp_path / f"{stem}.yml"
     t1.write_text(yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
     return t1

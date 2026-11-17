@@ -32,7 +32,8 @@ workflow_configs:
 ```
 
 Here, `workflow_configs` points to `project_config_analyze_climate.yml` beside `project_config.yml`.
-That workflow file contains the climate-analysis settings; `workflows.analyze_climate` controls whether it runs.
+That workflow file contains the climate-analysis settings; `workflows.analyze_climate` controls whether it
+runs.
 The output directory is separate from these configuration files, and disabling a workflow does not
 delete its existing products.
 
@@ -57,7 +58,7 @@ settings and the shared parameters it uses:
 | Output storage and data access | Project `project.project_dir`, `project.catalog`. |
 | Basin boundary and grid spacing | Project `basin.region`, `basin.resolution` (degrees). |
 | Reporting locations and saved variables | Project `basin.output_locations`, `model.outvars`. |
-| Candidates and forcing | Project `climate.sources`, `climate.forcing.precip_source`. |
+| Forcing sets | Project `climate.forcings`, `climate.default_forcing`. |
 | Historical record and reporting year | Project `climate.window`, `climate.water_year_start`. |
 
 The historical extraction window, historical model run, GCM comparison windows and generated scenario

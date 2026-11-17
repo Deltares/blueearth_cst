@@ -26,8 +26,8 @@ extraction requires overlap between the source record and that period.
 | Setting | Purpose |
 |---|---|
 | `basin.region`, `basin.resolution` | Basin extent and analysis resolution. |
-| `climate.sources` | Candidate historical datasets to analyze. |
-| `climate.forcing.precip_source` | Used by downstream forcing consumers; not required for comparisons. |
+| `climate.forcings` | Forcing sets; each dataset they use is analyzed once per variable. |
+| `climate.default_forcing` | Used by downstream forcing consumers; not required for comparisons. |
 | `climate.window` | Requested historical period. |
 | `climate.water_year_start` | Month that begins the reporting year. |
 

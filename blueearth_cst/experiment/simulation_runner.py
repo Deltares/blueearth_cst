@@ -73,10 +73,14 @@ def simulation_selection(config_path, *, validate_forcing=True):
         require_workflow_compatibility,
         resolve_climate_forcing,
     )
-    from blueearth_cst.shared.named_forcings import simulation_climate
+    from blueearth_cst.shared.named_forcings import (
+        internal_climate,
+        simulation_climate,
+    )
 
     # A named project runs WF4 on one recipe: the selection's legacy view.
-    declared = project.get("climate") or {}
+    declared = internal_climate(project.get("climate") or {})
+    project["climate"] = declared
     view, forcing_id = simulation_climate(declared, settings.get("historical_forcing"))
     if forcing_id is not None:
         project["climate"] = view

@@ -71,7 +71,7 @@ def _write_cfg(path, flags, project_dir=None):
         "project:",
         f"  project_dir: {project_dir}",
         "climate:",
-        "  sources: [era5]",
+        "  forcings: {era5: {precip_source: era5}}",
         "workflows:",
     ]
     for name in rw.WORKFLOW_ORDER:
@@ -441,11 +441,14 @@ def test_missing_forcing_choice_allows_comparison_but_stops_before_model(
     )
     cfg.write_text(
         "schema_version: 3\nbasin:\n  region: {bbox: [9, 0, 10, 1]}\n"
-        + cfg.read_text().replace("sources: [era5]", "sources: [era5, chirps]"),
+        + cfg.read_text().replace(
+            "forcings: {era5: {precip_source: era5}}",
+            "forcings: {era5: {precip_source: era5}, chirps: {precip_source: chirps}}",
+        ),
         encoding="utf-8",
     )
     monkeypatch.setattr(rw, "_consumer_forcing_rows", CONSUMER_FORCING_ROWS)
-    with pytest.raises(ValueError, match="precip_source is required"):
+    with pytest.raises(ValueError, match="default_forcing is required"):
         rw.run(str(cfg), cores=1, extra=[])
     assert _snakefiles_invoked(calls) == ["analyze_climate.smk"]
     assert not (tmp_path / "project/experiments").exists()

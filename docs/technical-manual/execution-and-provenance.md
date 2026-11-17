@@ -34,7 +34,8 @@ hydrological simulation captures belong to their collection/experiment. Edit sou
 resolved locators and relevant input references; provenance does not mean all external datasets are copied.
 
 Generated execution YAML uses the current public climate keys, including
-`climate.forcing.precip_source` and `climate.forcing.temp_source`. Internal resolved fields such as
+`climate.forcings.<name>.precip_source` and `climate.forcings.<name>.temp_source`. Internal resolved fields
+such as
 `selected` and `temp_pet_source` remain in resolved records where needed; they are not written back
 as deprecated settings in execution YAML. Legacy source files remain supported with migration notices,
 and archives retain their original bytes.
