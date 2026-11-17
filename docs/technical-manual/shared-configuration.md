@@ -16,14 +16,14 @@ project file, workflow files and output directory. Copy the complete
 `project_config.yml` and its five workflow files together. The starter's default catalog requires access
 to the Deltares P-drive.
 
-The following excerpt belongs in the case folder's `project_config.yml`. It shows the configuration
+The following excerpt belongs in a trial's `project_config.yml`. It shows the configuration
 version, output directory, data catalog and one enabled workflow; the full starter also contains the
 shared basin, climate and model settings.
 
 ```{.yaml filename="project_config.yml (excerpt)"}
 schema_version: 3
 project:
-  project_dir: "../../runs/my-basin"
+  project_dir: outputs
   catalog: toolbox:config/catalogs/deltares_data_pdrive.yml
 workflows:
   analyze_climate: true
@@ -34,8 +34,8 @@ workflow_configs:
 Here, `workflow_configs` points to `project_config_analyze_climate.yml` beside `project_config.yml`.
 That workflow file contains the climate-analysis settings; `workflows.analyze_climate` controls whether it
 runs.
-The output directory is separate from these configuration files, and disabling a workflow does not
-delete its existing products.
+The output directory is the trial's `outputs/` folder beside these configuration files, and disabling
+a workflow does not delete its existing products.
 
 ### How paths are read
 

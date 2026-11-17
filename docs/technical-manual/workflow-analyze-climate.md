@@ -293,9 +293,9 @@ Two shared outputs support the analysis:
 
 Map preparation identities normalize Python source line endings to LF, so equivalent Windows
 checkouts share code hashes. Input data, catalogs and environment locks retain byte-exact hashes.
-After upgrading from byte-exact Python hashes, regenerate the prepared fields once. If WF0 reports
-`stale preparation identity`, run the single-workflow runner with your usual config and project
-directory, targeting `--target produce_historical_map_reference` and forwarding
+After upgrading from byte-exact Python hashes, regenerate the prepared fields once. If historical
+climate analysis reports `stale preparation identity`, run the single-workflow runner with your usual
+config and project directory, targeting `--target produce_historical_map_reference` and forwarding
 `-- --forcerun prepare_historical_map_fields_era5 prepare_historical_map_fields_chirps`
 (include only sources declared in your project). Preview with `--dry-run`, execute without it,
 then resume the normal workflow command. This rebuilds map fields and their reference without
@@ -330,7 +330,7 @@ display a title, caption or neither.
   Theil–Sen slopes estimate change per decade, and start-year sensitivity tests how strongly that
   estimate depends on the selected period.
 
-SPI distribution-fit diagnostics remain available in the retained `spi_fit_checks` table; WF0 does
+SPI distribution-fit diagnostics remain available in the retained `spi_fit_checks` table; the workflow does
 not emit a separate reference-period normality-check figure.
 
 See the [processing rule reference](workflow-rule-reference.md#analyze-climate) for individual steps.
@@ -373,14 +373,13 @@ even when its forcing store contains ERA5 companion temperatures.
 | Heatwave days, longest heatwave | Total and maximum overlapping days in TX exceedance runs ≥3 days. |
 | Heatwave count | Number of qualifying events starting in the period, when their count is known. |
 
-The mean-temperature counts adapt the FAO branch's two temperature-count diagnostics, retaining strict
-comparisons and its 25°C default. Configure the upper boundary with
-`diagnostics.climate_indices.mean_temperature_threshold_degc`; it must be finite. These products are
-`mean_temp_below_zero_days` and `mean_temp_above_threshold_days`. They are not minimum-temperature frost
+The mean-temperature counts use strict comparisons and a 25°C default upper boundary. Configure the upper
+boundary with `diagnostics.climate_indices.mean_temperature_threshold_degc`; it must be finite. These products
+are `mean_temp_below_zero_days` and `mean_temp_above_threshold_days`. They are not minimum-temperature frost
 days, maximum-temperature summer days or heatwave events. They count observed qualifying days without
-missing-day scaling, use the same period-eligibility rules as other absolute indices, and need no
-percentile reference support or bootstrap. The boundary is retained in NetCDF attributes, publication
-identity, captions and figure labels. Both annual and configured-season results are produced.
+missing-day scaling, use the same period-eligibility rules as other absolute indices, and need no percentile
+reference support or bootstrap. The boundary is retained in NetCDF attributes, publication identity, captions
+and figure labels. Both annual and configured-season results are produced.
 
 Percentiles use Hyndman–Fan type 8. Precipitation thresholds pool reference wet days. Temperature uses
 a five-day calendar window, circular within each reference year. February 29 is excluded from fitting

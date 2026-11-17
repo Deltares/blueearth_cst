@@ -60,7 +60,7 @@ URLs and predefined HydroMT catalog names keep their spelling. Catalog-internal 
 semantics. There is no environment-variable expansion or search for a matching filename.
 The resolver expands `~` and normalizes slash-separated local paths.
 
-For example, `hydromt: {build_config_path: recipes/build.yml}` in `settings/wf1.yml` reads
+For example, `hydromt: {build_config_path: recipes/build.yml}` in `settings/build-model.yml` reads
 `settings/recipes/build.yml`. A bundled recipe can be `toolbox:config/defaults/wflow_build_model.yml`.
 Moving YAML files does not relocate retained outputs or datasets. Archives preserve exact source bytes
 and resolved runtime locators. `config_paths.py` and `tests/test_config_paths.py` implement these rules.
@@ -93,7 +93,7 @@ execution are unchanged; see [case creation and migration](../guide/new-case.md)
 | `climate.seasons` | Named contiguous month lists for climate indices; default DJF, MAM, JJA, SON |
 | `observations.river_discharge` | Observed daily-mean discharge `path` and optional `time_label` (default `interval_end`); model evaluation, see [observations](#observations) |
 | `observations.met_stations` | Station `stations_path`, `precip_path`, optional `temp_path` and required `time_label`; historical analysis, see [rain gauges](workflow-analyze-climate.md#rain-gauges) |
-| `model.name` | Folder under `models/hydrology/` that WF1 builds or runs and WF4 uses; default `wflow` |
+| `model.name` | Folder under `models/hydrology/` that model building creates or runs and hydrological simulation uses; default `wflow` |
 | `model.outvars` | Retained model variables; declarations must use supported Wflow display names |
 | `plotting.annotation` | `none` (default), `caption` or `title` on ordinary PNG paths |
 
@@ -271,7 +271,7 @@ experiment. See [retained identities](retained-handoffs.md#identities-and-reuse)
 
 ## Scalar response precision {#csv-precision}
 
-WF1 and WF4 each accept this setting in their own workflow YAML:
+Model building and hydrological simulation each accept this setting in their own workflow YAML:
 
 ```yaml
 output:
@@ -279,16 +279,16 @@ output:
     decimal_places: 5
 ```
 
-`decimal_places` defaults to 5 and accepts integers 0–15, excluding booleans. These are decimal places,
-not significant digits. WF1 evaluation and historical thresholds, and WF4 indicators, use the rounded
-retained time series. Values smaller than half the last decimal unit can become zero; use greater
-precision when very small flows matter. Missing values remain missing. Indicator-summary formatting
-and native NetCDF precision are independent. The CSV and NetCDF sections can be used together.
+`decimal_places` defaults to 5 and accepts integers 0–15, excluding booleans. These are decimal places, not
+significant digits. Historical model evaluation and thresholds, and the indicators of hydrological
+simulations, use the rounded retained time series. Values smaller than half the last decimal unit can become
+zero; use greater precision when very small flows matter. Missing values remain missing. Indicator-summary
+formatting and native NetCDF precision are independent. The CSV and NetCDF sections can be used together.
 
-Native Wflow CSVs are temporary conversion inputs. Verified per-variable CSVs and their metadata are
-the retained format; there is no native-retention or compatibility option. Increasing precision after
-conversion requires another simulation. New WF4 experiments freeze precision in their response request.
-Old native-only publications are not upgraded or rewritten: create new historical runs/experiments.
+Native Wflow CSVs are temporary conversion inputs. Verified per-variable CSVs and their metadata are the
+retained format; there is no native-retention or compatibility option. Increasing precision after conversion
+requires another simulation. New simulation experiments freeze precision in their response request. Old
+native-only publications are not upgraded or rewritten: create new historical runs/experiments.
 
 ## Optional native model grids {#netcdf-grid}
 

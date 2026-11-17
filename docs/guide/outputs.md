@@ -10,7 +10,7 @@ Figures illustrate output formats. In the website chapter, select an image to in
 version. The complete HTML manual embeds the images directly; use browser zoom to enlarge them.
 
 All paths below are relative to the output directory set by `project.project_dir` in your case's
-project file. For the external case example, this is `C:/cst-cases/runs/my-basin/`.
+project file. For the external case example, this is `C:/cst-cases/my-basin/default/outputs/`.
 
 ## The layout
 

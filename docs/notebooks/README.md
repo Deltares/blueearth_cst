@@ -24,7 +24,8 @@ pixi run jupyter lab docs/notebooks
 ```
 
 Inspect every command and path before executing. Use one checkout for a case and one writer per output root.
-WF1 and WF3 independently supply WF4; WF2 is optional plausibility context.
+Model building and scenario generation independently supply hydrological simulation; projection analysis
+is optional plausibility context.
 Changing `CONFIG` alone is not sufficient to qualify these notebooks for another case.
 
 ## Outputs are NOT committed
@@ -46,7 +47,7 @@ Do not commit generated outputs or execution counts.
 
 The rapid example references external catalogs under `config/catalogs/`.
 Check actual source entries and coverage; software installation does not supply model inputs.
-Use the [dataset reference](../technical-manual/datasets.md) and the case's retained provenance.
+Use the [data requirements](../technical-manual/data-requirements.md) and the case's retained provenance.
 The example is uncalibrated; execution and source agreement do not establish basin skill.
 
 ## Related reading

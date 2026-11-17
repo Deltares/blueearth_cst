@@ -14,10 +14,12 @@ toolbox folder each time, with only one active command writing to its output dir
 
 ## Run everything enabled in the project file
 
-Set the path to your case's project file, replacing the example below with your own:
+Set the path to your case's project file and its output directory, replacing the examples below with
+your own. Some commands on this page also use `$project_dir`:
 
 ```powershell
 $config = 'C:/cst-cases/my-basin/default/project_config.yml'
+$project_dir = 'C:/cst-cases/my-basin/default/outputs'
 pixi run python scripts/run_workflows.py --config $config --cores 3
 ```
 
@@ -46,7 +48,7 @@ For historical climate analysis, model building or projection analysis, you can 
 workflow directly. This command previews model building:
 
 ```powershell
-pixi run python scripts/run_workflow.py build_model --config $config --project-dir C:/cst-cases/runs/my-basin --cores 3 --dry-run
+pixi run python scripts/run_workflow.py build_model --config $config --project-dir $project_dir --cores 3 --dry-run
 ```
 
 Use your configured output directory for `--project-dir`; this option is required by the
@@ -186,7 +188,7 @@ To refresh a figure from existing results, select its plotting target with the s
 and output directory as the original run. For example:
 
 ```powershell
-pixi run python scripts/run_workflow.py analyze_projections --config $config --project-dir C:/cst-cases/runs/my-basin --target plot_climate_projections --dry-run -- --force --notemp
+pixi run python scripts/run_workflow.py analyze_projections --config $config --project-dir $project_dir --target plot_climate_projections --dry-run -- --force --notemp
 ```
 
 Check the preview, then remove `--dry-run`. `--force` reruns the selected target and `--notemp`
@@ -204,8 +206,8 @@ avoid `--forceall` when you only want new figures.
 
 Replace `<source>` with a configured source such as `era5`. Some plotting tasks also recalculate
 summaries or indicators, so they are not all image-only operations. Retain the underlying climate,
-spatial and model-response files. In particular, historical evaluation uses the model's native
-`historical/default/run/output.csv`; rounded exported tables cannot replace it.
+spatial and model-response files. In particular, historical evaluation reads the per-variable
+tables `output_<code>.csv` and their record `_engine/response_tables.json` in `historical/default/run/`.
 
 Use `plotting.annotation` in the project file to select `none`, `caption` or `title`.
 See [plot annotations](../technical-manual/shared-configuration.md#plot-annotations) for details.
@@ -236,11 +238,11 @@ before using rebuild.
 ## Transfer climate-projection results
 
 Completed climate-projection products can be exported to a ZIP and imported into another project.
-Replace the source output directory, ZIP path and destination output directory below:
+`$project_dir` is the source; replace the ZIP path and the destination output directory below:
 
 ```powershell
-pixi run python scripts/transfer_results.py export --project-dir "C:/cst-cases/runs/my-basin" --output "C:/exports/cmip6-results.zip"
-pixi run python scripts/transfer_results.py import "C:/exports/cmip6-results.zip" --project-dir "C:/cst-cases/runs/receiving-case"
+pixi run python scripts/transfer_results.py export --project-dir $project_dir --output "C:/exports/cmip6-results.zip"
+pixi run python scripts/transfer_results.py import "C:/exports/cmip6-results.zip" --project-dir "C:/cst-cases/receiving-case/default/outputs"
 ```
 
 Export writes a new ZIP. Before importing, check the

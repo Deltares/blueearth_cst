@@ -34,19 +34,22 @@ and workflow settings.
 
 ## Project structure and configuration
 
-Each assessment has a project YAML file and separate YAML files for the five workflows. The starter
-keeps them together in a case folder, alongside any input files supplied by the user:
+Each assessment has a project YAML file and separate YAML files for the five workflows. A case folder
+holds input files supplied by the user and one or more named trials; each trial keeps its own
+configuration files and outputs:
 
 ```text
 my-basin/
-├── project_config.yml                       # Shared project settings
-├── project_config_analyze_climate.yml       # Historical climate analysis
-├── project_config_build_model.yml           # Model building and historical simulation
-├── project_config_analyze_projections.yml    # Climate-projection analysis
-├── project_config_generate_scenarios.yml     # Weather scenario generation
-├── project_config_simulate_system.yml        # Hydrological simulation and indicators
-└── data/
-    └── output_locations.csv                 # Reporting locations supplied by the user
+├── README.md                          # Minimal trial inventory
+├── .gitignore                         # Trial outputs only
+├── data/                              # Shared authored inputs
+│   └── output_locations.csv           # Reporting locations supplied by the user
+└── default/
+    ├── project_config.yml             # Basin, data and enabled workflows
+    ├── project_config_<workflow>.yml  # Five workflow settings files
+    ├── outputs/                       # Created by execution
+    ├── INSTRUCTIONS.md                # Quick reference: commands and files
+    └── notes.md                       # Purpose, revisions and evidence
 ```
 
 - **Project configuration (`project_config.yml`).** Defines shared basin, climate and model settings,
@@ -55,8 +58,8 @@ my-basin/
   workflow, such as analysis periods, climate perturbations or indicator selections. Each workflow
   page explains its own settings and the shared project parameters it uses.
 - **Project output directory (`project.project_dir`).** Stores prepared data, models, generated
-  scenarios and experiment results. This directory can be separate from the case folder above;
-  its `data/` folder contains prepared data rather than the user-supplied files shown here.
+  scenarios and experiment results. The starter sets `project_dir: outputs`, the trial's `outputs/`
+  folder; its `data/` folder contains prepared data rather than the user-supplied files shown here.
 
 The [new-case guide](../guide/new-case.md) explains how to create this structure from the starter.
 [Shared configuration](shared-configuration.md) introduces the key project settings and file paths

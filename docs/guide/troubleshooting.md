@@ -44,19 +44,31 @@ Use those remedies for the diagnosed symptom, not as an automatic prerequisite f
 
 ## 3. The case folder is missing or already exists {#the-case-folder-is-missing-or-already-exists}
 
-If case creation cannot find your cases folder or its `applications/` subfolder, create the directory
-before running `create-case`:
+Case creation stops with `Cannot create trial:` followed by the reason. It writes no files when it
+refuses. Find the reason below, then follow [Creating a project](new-case.md#create-the-case-files) for
+the complete command. Append `--dry-run` to check a corrected command without writing.
 
-```powershell
-New-Item -ItemType Directory -Force C:/cst-cases/applications
-```
+- **`--cases-root must name an existing absolute directory`.** The cases folder does not exist, or the
+  path is relative. Create the folder, then pass its full path, such as `C:/cst-cases`:
 
-Pass the parent directory, `C:/cst-cases`, as the absolute `--cases-root` path. Replace this example
-with your chosen location. Follow [Creating a project](new-case.md#create-the-case-files) for the
-complete command.
+  ```powershell
+  New-Item -ItemType Directory -Force C:/cst-cases
+  ```
 
-If the named case already exists, open its configuration to continue, or choose a new case name.
-The creation command refuses to overwrite existing case files.
+- **`Trial already exists`.** The case already has a trial with this name. Open its configuration to
+  continue that trial, or choose another name with `--trial`. Creation never overwrites a trial.
+- **`must be lowercase kebab-case and not a reserved filename`.** Use lowercase letters, digits and
+  single hyphens, such as `my-basin` or `v2`. Names the toolbox uses for its own folders (`data`,
+  `outputs`, `logs`, `cache`, `applications`, `runs`, `trials`, `templates`) and Windows device names
+  such as `con` or `nul` are refused.
+- **`Legacy split-layout case exists`** or **`Legacy flat case detected`.** A case with this name
+  already exists in an older layout: under `applications/` or `runs/` in the cases folder, or with
+  `project_config.yml` directly in the case folder. Choose a new case name, or first copy the old case
+  into a named trial, following
+  [Copy and verify an existing case](new-case.md#copy-and-verify-an-existing-case).
+- **`A new case requires --longitude and --latitude`.** Supply both coordinates when creating the first
+  trial of a case. For a later trial, omit them or repeat the case's own values; different coordinates
+  are refused.
 
 ## 4. The delineated basin is unexpected {#the-delineated-basin-is-unexpected}
 

@@ -62,13 +62,12 @@ recipe. Their levels follow the precipitation level index; they do not add a thi
 These are distributional targets, not guarantees that a finite generated sample has exactly the
 specified variance.
 
-**Constant and transient changes.** A constant trajectory applies the selected offset or factor
-throughout the run. In weathergenr 2.0.1, a transient temperature offset ramps linearly from zero to
-twice the selected offset across the calendar years represented in the generated dates. A
-precipitation factor ramps from 1 to twice the selected factor minus 1. Thus, the selected values
-describe the arithmetic mean of the annual imposed settings, not their final values or a guaranteed
-change in the realized whole-period climate. Changes are constant within each calendar year for a
-given month; they are not interpolated daily.
+**Constant and transient changes.** A constant trajectory applies the selected offset or factor throughout the
+run. In the pinned weathergenr version, a transient temperature offset ramps linearly from zero to twice the
+selected offset across the calendar years represented in the generated dates. A precipitation factor ramps
+from 1 to twice the selected factor minus 1. Thus, the selected values describe the arithmetic mean of the
+annual imposed settings, not their final values or a guaranteed change in the realized whole-period climate.
+Changes are constant within each calendar year for a given month; they are not interpolated daily.
 
 The variance factor is ramped separately: with default mean-linked variance, its endpoint is twice
 the squared mean factor minus 1. The generator floors precipitation mean and variance factors at

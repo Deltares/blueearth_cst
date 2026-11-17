@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source_revision": "Local source build; source-hashes.json identifies consumed files",
-  "repository_url": "https://github.com/Deltares/blueearth_cst/blob/dev/",
+  "repository_url": "https://github.com/Deltares/blueearth_cst/blob/main/",
   "format": "docs/publication/format.yml",
   "asset": "docs/guide/assets/workflow-overview.png",
   "appendix_manifest": "docs/technical-manual/local-source-appendix.yml",

@@ -204,7 +204,7 @@ The main outputs are:
 - **Figures (`plots/full_period/` and `plots/period_<start>_<end>/`).** Available figures for the full
   record and analysis windows. `plots/figure_captions.md` and `_engine/plots/figure_captions.json` explain
   produced and unavailable figures; title inventories accompany them. Filenames follow the
-  [WF2 naming profile](../../blueearth_cst/plotting/docs/figure-naming.md#cmip6-projections-wf2).
+  [projection-analysis naming profile](../../blueearth_cst/plotting/docs/figure-naming.md#cmip6-projections-wf2).
 
 Figures use the diagnostic tables, whose effective periods may differ from the change-factor tables.
 By default, each window also includes annual spatial matrices with model rows and scenario columns, and
@@ -220,7 +220,8 @@ are retained as future/reference ratios; display changes are `100 × (factor −
 monthly inputs in both complete analysis windows; dry or incomplete cells remain unavailable.
 
 These are projection diagnostics, independent of stochastic or delta scenario generation and requiring no
-scenario collection or Wflow model. Native-grid changes reuse local raw slices and existing WF2 kernels.
+scenario collection or Wflow model. Native-grid changes reuse local raw slices and the workflow's existing
+calculations.
 Figure rerendering uses retained gridded changes when available, checking recorded member hashes.
 For older runs without these products, it reconstructs spatial changes from their local raw slices and
 scalar provenance in the review destination; those inputs must still be available.

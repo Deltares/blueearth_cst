@@ -166,30 +166,30 @@ ranking is supplied. Tables retain counts, actual years and exclusion reasons fo
 ## One model per folder {#model-versions}
 
 Each folder under `models/hydrology/` is one self-contained model: its static maps, TOMLs, every forcing
-recipe's run and their comparison. A model's runs change only when it is rerun with the same model
-settings. `model.name` in the project file names the folder WF1 builds or runs and WF4 uses; the default
-is `wflow`. To try different model-building settings (another soil dataset), set a new `model.name`:
-WF1 refuses to rebuild an existing model whose model-building settings changed and names the setting
-that differs.
+recipe's run and their comparison. A model's runs change only when it is rerun with the same model settings.
+`model.name` in the project file names the model folder that model building creates or runs and hydrological
+simulation uses; the default is `wflow`. To try different model-building settings (another soil dataset), set
+a new `model.name`: model building refuses to rebuild an existing model whose model-building settings changed
+and names the setting that differs.
 
 Every model records itself in `_engine/model.json`: its origin, parent, notes and the identity of its
 static inputs (the `wflow_sbm.toml` pointer graph plus `staticgeoms/`, excluding everything the toolbox
-writes per forcing recipe). Rule 1.09b `write_model_record` writes this record for a model WF1 builds
+writes per forcing recipe). The `write_model_record` rule writes this record for a model the toolbox builds
 (`origin: built`) after every build.
 
 A model prepared outside the toolbox is registered with `scripts/register_model.py register` (`origin:
-user_managed`); see [running](../guide/running.md#use-a-model-prepared-outside-the-toolbox). WF1 never
-rebuilds or rewrites a registered model: rules 1.06 to 1.08 are not defined for it and rule 1.08c
-`publish_registered_model` checks it again and marks it final as registered. Every recipe, including a single
-one, uses the staged forcing update and writes its own TOML, so a single recipe writes
-`wflow_sbm_default.toml` beside the model's own `wflow_sbm.toml`. Before planning, WF1 refuses a registered
-model whose files changed since registration and one whose TOML lacks an output that `model.outvars` or
-`build_model.output` asks for, naming each.
+user_managed`); see [running](../guide/running.md#use-a-model-prepared-outside-the-toolbox). Model building
+never rebuilds or rewrites a registered model: the model-building rules (`build_wflow_model` to
+`declare_gauges_and_outputs`) are not defined for it, and `publish_registered_model` checks it again and marks
+it final as registered. Every recipe, including a single one, uses the staged forcing update and writes its
+own TOML, so a single recipe writes `wflow_sbm_default.toml` beside the model's own `wflow_sbm.toml`. Before
+planning, model building refuses a registered model whose files changed since registration and one whose TOML
+lacks an output that `model.outvars` or `build_model.output` asks for, naming each.
 
-WF4 uses `model.name`; with several models and no name it stops and lists them. It refuses a registered
-model that changed since registration, and a retained experiment refuses a different model
-(`--new-experiment`). Each experiment's `_engine/model_reference.yml` records the model folder and the
-digest of its recipe inputs.
+Hydrological simulation uses `model.name`; with several models and no name it stops and lists them. It refuses
+a registered model that changed since registration, and a retained experiment refuses a different model
+(`--new-experiment`). Each experiment's `_engine/model_reference.yml` records the model folder and the digest
+of its recipe inputs.
 
 Comparisons across models (`scripts/register_model.py compare`) are written to
 `models/hydrology/comparisons/<name>/` with the same tables and figures as a model's own
@@ -206,32 +206,32 @@ which have separate provenance and compatibility checks. NetCDF inputs use conte
 compression and container timestamps.
 ## Named historical recipes {#named-recipes}
 
-With [named recipes](configuration.md#named-historical-forcing-recipes), WF1 builds the model once and simulates
-each recipe in `build_model.historical_forcings` separately. Each recipe owns one folder,
-`historical/<id>/`, holding `forcing/inmaps_historical.nc`, `run/`, the evaluation `plots/` and `tables/`,
-and `_engine/` (its build YAML, store catalog, forcing record and evaluation sidecars), plus its TOML `wflow_sbm_<id>.toml` at the model root. A single
-recipe uses `historical/default/` and the model's own `wflow_sbm.toml`. TOMLs stay at the model root
-because HydroMT-Wflow resolves model inputs from there. The shared `wflow_sbm.toml`, `staticmaps.nc` and
-geometries are never rewritten per recipe, and rerunning one recipe leaves the others' files untouched. Two
-or more recipes are compared automatically.
+With [named recipes](configuration.md#named-historical-forcing-recipes), the workflow builds the model once
+and simulates each recipe in `build_model.historical_forcings` separately. Each recipe owns one folder,
+`historical/<id>/`, holding `forcing/inmaps_historical.nc`, `run/`, the evaluation `plots/` and `tables/`, and
+`_engine/` (its build YAML, store catalog, forcing record and evaluation sidecars), plus its TOML
+`wflow_sbm_<id>.toml` at the model root. A single recipe uses `historical/default/` and the model's own
+`wflow_sbm.toml`. TOMLs stay at the model root because HydroMT-Wflow resolves model inputs from there. The
+shared `wflow_sbm.toml`, `staticmaps.nc` and geometries are never rewritten per recipe, and rerunning one
+recipe leaves the others' files untouched. Two or more recipes are compared automatically.
 
 ## Compare forcing recipes {#compare-recipes}
 
-When `build_model.historical_forcings` runs two or more named recipes, WF1 compares their current runs
-(rule 1.13b) into `models/hydrology/<model>/historical/forcing_comparison/`: `tables/` (performance, coverage,
-daily, monthly, seasonal, flow duration, stations, inventory), `tables/supporting/support.csv` (per-day
-support flags), `plots/` and `_engine/comparison.json`. It evaluates every complete reporting year the runs
-share: responses are labelled at interval end, so the first simulated year is never complete. Every input
-(TOMLs, forcing records, response tables, registry, observations) is hashed before and after the
-comparison, so a run that changes meanwhile is refused. Comparisons across models come with t2609281102.
-The requested dates must all exist in every run. The comparison requires identical fixed-model identity,
-simulation dates, timestep, initialization and station identity; only daily Gregorian responses are supported.
-The inventory records each recipe and its provenance.
-The window expands inclusive integer reporting-year labels using `water_year_start`; no water-year trimming
-or endpoint shortening occurs. Water-year labels use their starting year and seasonal months start at
-`water_year_start`. Exact requested and warm-up boundaries are recorded in `_engine/comparison.json`.
+When `build_model.historical_forcings` runs two or more named recipes, the workflow compares their current
+runs (`compare_historical_forcings`) into `models/hydrology/<model>/historical/forcing_comparison/`: `tables/`
+(performance, coverage, daily, monthly, seasonal, flow duration, stations, inventory),
+`tables/supporting/support.csv` (per-day support flags), `plots/` and `_engine/comparison.json`. It evaluates
+every complete reporting year the runs share: responses are labelled at interval end, so the first simulated
+year is never complete. Every input (TOMLs, forcing records, response tables, registry, observations) is
+hashed before and after the comparison, so a run that changes meanwhile is refused. The requested dates must
+all exist in every run. The comparison requires identical fixed-model identity, simulation dates, timestep,
+initialization and station identity; only daily Gregorian responses are supported. The inventory records each
+recipe and its provenance. The window expands inclusive integer reporting-year labels using
+`water_year_start`; no water-year trimming or endpoint shortening occurs. Water-year labels use their starting
+year and seasonal months start at `water_year_start`. Exact requested and warm-up boundaries are recorded in
+`_engine/comparison.json`.
 
-Warm-up preserves WF1's current behavior: when a run has more than 365 samples, exclude timestamps before
+Warm-up matches historical model evaluation: when a run has more than 365 samples, exclude timestamps before
 its first response timestamp plus one calendar year. This can exclude 366 samples across a leap year.
 Runs with at most 365 samples have no warm-up exclusion. Each run supplies its own simulated warm-up;
 the common exclusion uses the identical response calendar. Requested warm-up dates remain in the coverage
@@ -240,11 +240,11 @@ tables but never enter diagnostics. A wholly excluded window is reported with un
 At each station, simulation-only diagnostics use dates with finite nonnegative discharge in **all** runs.
 Observation-paired diagnostics additionally require finite nonnegative observations on those same dates.
 Missing stations or dates are reported without infilling. Duplicate or unknown observation station IDs,
-duplicate dates and non-midnight timestamps are errors. Missing observation columns are allowed.
-Daily and monthly KGE, NSE, NSElog, RMSE, MSE, Pbias and VE reuse WF1's existing calculations. Monthly
+duplicate dates and non-midnight timestamps are errors. Missing observation columns are allowed. Daily and
+monthly KGE, NSE, NSElog, RMSE, MSE, Pbias and VE reuse the historical evaluation's calculations. Monthly
 means use the same available paired days, with no completeness threshold. Undefined scores retain reasons;
-simulation-only results make no skill claim. Seasonal curves average available monthly means equally
-within calendar month; flow-duration curves rank available daily values using rank/(count+1), retaining zeros.
+simulation-only results make no skill claim. Seasonal curves average available monthly means equally within
+calendar month; flow-duration curves rank available daily values using rank/(count+1), retaining zeros.
 
 Outputs include `inventory.csv`, `coverage.csv`, `performance.csv`, `support.csv`, `daily.csv`, `monthly.csv`,
 `seasonal.csv` and `flow_duration.csv` under `tables/`. `support.csv` records every requested date and the

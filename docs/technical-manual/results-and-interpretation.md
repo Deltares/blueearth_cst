@@ -103,7 +103,7 @@ The inspection command can list saved indicator sets without running Wflow. Repl
 experiment path:
 
 ```powershell
-pixi run python scripts/inspect_indicators.py --experiment "C:/cst-cases/runs/my-basin/experiments/stress_test_01" --list
+pixi run python scripts/inspect_indicators.py --experiment "C:/cst-cases/my-basin/default/outputs/experiments/stress_test_01" --list
 ```
 
 To inspect a specific set, add `--manifest` with the path to its `indicators.json`, found under that
