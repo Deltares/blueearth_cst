@@ -30,6 +30,7 @@ from blueearth_cst.experiment.content_identity import (
     canonical_json_bytes,
     confined_path,
     content_sha256,
+    method_record,
     read_canonical_json,
 )
 from blueearth_cst.shared.provenance import toolbox_identity
@@ -293,11 +294,18 @@ def validate_request(request: dict, project_root: Path | str) -> dict:
                 "generator_settings",
                 "run_group_id_capacity",
                 "source_request",
-                "provider_code",
+                # /2 binds the method revision; retained /1 bound code bytes.
+                "method_revision"
+                if generation.get("schema_version")
+                == "reservation-generation-request/2"
+                else "provider_code",
             },
             "generation request",
         )
-        if generation["schema_version"] != "reservation-generation-request/1":
+        if generation["schema_version"] not in (
+            "reservation-generation-request/1",
+            "reservation-generation-request/2",
+        ):
             raise ValueError("unsupported generation request")
         _integer(generation["n_realizations"], "n_realizations", 1)
         _integer(generation["run_group_id_capacity"], "run_group_id_capacity", 1)
@@ -330,17 +338,20 @@ def validate_request(request: dict, project_root: Path | str) -> dict:
             _text(source[key], key)
         _window(source["historical_window"], "historical_window")
         _local_inputs(source["local_inputs"])
-        code = generation["provider_code"]
-        if type(code) is not list or not code:
-            raise ValueError("provider_code must be a nonempty inventory")
-        paths = []
-        for item in code:
-            _fields(item, {"path", "sha256"}, "provider code")
-            _path(root, item["path"])
-            _digest(item["sha256"], "provider code digest")
-            paths.append(item["path"])
-        if paths != sorted(set(paths)):
-            raise ValueError("provider code paths must be unique and sorted")
+        if "method_revision" in generation:
+            method_record(generation["method_revision"], "stochastic-collection")
+        else:
+            code = generation["provider_code"]
+            if type(code) is not list or not code:
+                raise ValueError("provider_code must be a nonempty inventory")
+            paths = []
+            for item in code:
+                _fields(item, {"path", "sha256"}, "provider code")
+                _path(root, item["path"])
+                _digest(item["sha256"], "provider code digest")
+                paths.append(item["path"])
+            if paths != sorted(set(paths)):
+                raise ValueError("provider code paths must be unique and sorted")
     simulation = request["simulation"]
     from blueearth_cst.experiment.simulation_runs import include_unperturbed
 
@@ -611,9 +622,14 @@ def _seed(value: Any, request: dict, root: Path, *, verify: bool = False) -> Non
                 compare_request(generation[key], projection[key])
             if config["run_group_id_capacity"] != generation[
                 "run_group_id_capacity"
-            ] or canonical_json_bytes(
-                candidate["documents"]["provider_code"]
-            ) != canonical_json_bytes(generation["provider_code"]):
+            ] or (
+                # /2 binds the method revision; a retained /1 request bound code bytes.
+                candidate["provider"].get("method_revision")
+                != generation["method_revision"]
+                if "method_revision" in generation
+                else canonical_json_bytes(candidate["documents"]["provider_code"])
+                != canonical_json_bytes(generation["provider_code"])
+            ):
                 raise ValueError("bound plan capacity/provider differ from request")
     else:
         raise ValueError("unsupported seed state")

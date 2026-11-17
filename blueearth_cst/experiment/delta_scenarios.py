@@ -15,12 +15,14 @@ import yaml
 from blueearth_cst.experiment.content_identity import (
     atomic_record,
     content_sha256,
+    method_record,
     read_canonical_json,
 )
 from blueearth_cst.experiment.forcing_descriptor import (
     collection_forcing_descriptor,
     reader_unit_interpretation,
 )
+from blueearth_cst.experiment.method_revisions import DELTA, method_revision
 from blueearth_cst.shared.provenance import file_sha256
 from blueearth_cst.shared.variable_registry import VARIABLES
 from blueearth_cst.shared.workflow_config_snapshot import (
@@ -1174,7 +1176,10 @@ def generate_collection(
 
 #: Named-set delta collections (``scenarios/<name>/``), produced from WF2.
 NAMED_SCHEMA = "delta-scenario-collection/2"
-NAMED_INTENT = "delta-scenario-intent/3"
+#: /4 keys on the declared method revision; the producer's bytes are provenance,
+#: outside the identity. Retained /3 intents hashed the producer bytes (t038).
+NAMED_INTENT = "delta-scenario-intent/4"
+NAMED_INTENT_V3 = "delta-scenario-intent/3"
 FACTOR_FIELDS = ["run_id", "factor_file", "model", "scenario", "member", "window_id"]
 _NAMED_MARKER_KEYS = {
     "schema_version",
@@ -1203,6 +1208,17 @@ _NAMED_INTENT_KEYS = {
     "run_group_id_width",
     "factors",
 }
+_NAMED_INTENT_KEYS_V4 = (_NAMED_INTENT_KEYS - {"provider_revision"}) | {
+    "method_revision",
+    "provenance",
+}
+
+
+def named_collection_id(intent: dict) -> str:
+    """The delta identity: the whole intent except its provenance record."""
+    if intent["schema_version"] == NAMED_INTENT_V3:
+        return content_sha256(intent)
+    return content_sha256({k: v for k, v in intent.items() if k != "provenance"})
 
 
 def default_delta_name(resolved: dict) -> str:
@@ -1334,7 +1350,11 @@ def _publish_named(
             ],
         },
         "inputs": inputs,
-        "provider_revision": file_sha256(Path(__file__)),
+        # Checks the live delta code against its pin before the identity uses it.
+        "method_revision": method_revision(DELTA),
+        # Recorded, never identity: the retained producer.py copy is checked
+        # against it.
+        "provenance": {"producer_sha256": file_sha256(Path(__file__))},
         "environment": {
             name: importlib.metadata.version(name)
             for name in ("numpy", "xarray", "netCDF4", "hydromt", "rasterio", "pyproj")
@@ -1347,7 +1367,7 @@ def _publish_named(
             for i, (o, r) in enumerate(factors)
         ],
     }
-    identity = content_sha256(intent)
+    identity = named_collection_id(intent)
     existing = find_ready_marker(project_root, identity)
     if existing is not None:
         read_delta_collection(existing)
@@ -1495,19 +1515,28 @@ def _read_named_delta_collection(marker_path: Path) -> dict:
     intent_path = resolve_file_reference(marker["intent"], anchors)
     if intent_path != engine / "collection_intent.json":
         raise ValueError("delta intent must be the sibling frozen record")
-    intent = _fields(read_canonical_json(intent_path), _NAMED_INTENT_KEYS, "intent")
+    intent = read_canonical_json(intent_path)
+    current = intent.get("schema_version") == NAMED_INTENT
+    _fields(intent, _NAMED_INTENT_KEYS_V4 if current else _NAMED_INTENT_KEYS, "intent")
     if (
-        intent["schema_version"] != NAMED_INTENT
+        intent["schema_version"] not in (NAMED_INTENT, NAMED_INTENT_V3)
         or intent["scenario_type"] != marker["scenario_type"]
-        or content_sha256(intent) != marker["collection_id"]
+        or named_collection_id(intent) != marker["collection_id"]
     ):
         raise ValueError("delta identity differs")
+    if current:
+        method_record(intent["method_revision"], DELTA)
+    producer_sha256 = (
+        intent["provenance"]["producer_sha256"]
+        if current
+        else intent["provider_revision"]
+    )
     settings = validate_settings(intent["settings"])
     if intent["run_group_id_capacity"] != settings["unit_id_capacity"] or intent[
         "run_group_id_width"
     ] != len(str(settings["unit_id_capacity"])):
         raise ValueError("delta namespace differs")
-    if file_sha256(engine / "producer.py") != intent["provider_revision"]:
+    if file_sha256(engine / "producer.py") != producer_sha256:
         raise ValueError("retained producer bytes differ")
     expected_inputs = [settings["historical_path"]] + [
         m["changes_path"] for m in settings["members"]

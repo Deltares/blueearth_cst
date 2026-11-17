@@ -14,6 +14,7 @@ from blueearth_cst.experiment.simulation_record import (
 )
 from blueearth_cst.experiment.write_model_reference import build_model_reference
 from blueearth_cst.shared.model_digest import model_digest_from_entries
+from tests._v2_experiment import SIMULATION_PACKAGES
 
 
 def test_preparse_wf4_sources_refuse_comment_mutation(tmp_path):
@@ -95,7 +96,7 @@ def test_simulation_intent_binds_prep_and_selected_runs():
             "simulation_window": {"start": 2046, "end": 2054},
             "csv": {"decimal_places": 5},
         },
-        "environment": {"packages": {}},
+        "environment": {"packages": dict(SIMULATION_PACKAGES)},
         "simulator_adapter_code": [],
         "response_request": request,
         "preparation": {"schema_version": "forcing-preparation/2"},
@@ -213,7 +214,7 @@ def test_a_changed_intent_refuses_the_retained_experiment(frozen, document):
     if document == "settings":
         documents["settings"]["simulation_window"]["end"] += 1
     else:
-        documents["environment"]["packages"]["extra"] = "changed"
+        documents["environment"]["packages"]["python:numpy"] = "changed"
     changed = simulation_intent_v2(
         root.name,
         retained["collection"],
@@ -229,6 +230,43 @@ def test_a_changed_intent_refuses_the_retained_experiment(frozen, document):
             root, changed, invocation_id="e" * 32, command=["simulate_system"]
         )
     assert read_simulation_intent_v2(root) == retained
+
+
+def test_provenance_only_changes_keep_the_retained_experiment(frozen):
+    """t038: a non-key package or adapter-code change keeps the simulation_id."""
+    from copy import deepcopy
+
+    from blueearth_cst.experiment.simulation_record import (
+        freeze_simulation_v2,
+        read_simulation_intent_v2,
+    )
+    from blueearth_cst.experiment.wf4_ancillary_descriptor import (
+        preparation_identity_v2,
+    )
+
+    root = frozen.root
+    retained = read_simulation_intent_v2(root)
+    documents = deepcopy(retained["documents"])
+    documents["environment"]["packages"]["extra"] = "changed"
+    documents["simulator_adapter_code"] = [
+        {"path": "blueearth_cst/experiment/simulator_adapter.py", "sha256": "e" * 64}
+    ]
+    changed = simulation_intent_v2(
+        root.name,
+        retained["collection"],
+        retained["simulator"],
+        documents,
+        preparation_identity_v2(
+            documents["preparation"], project_root=frozen.project, experiment_root=root
+        ),
+    )
+    assert changed["simulation_id"] == retained["simulation_id"]
+    assert (
+        freeze_simulation_v2(
+            root, changed, invocation_id="e" * 32, command=["simulate_system"]
+        )
+        == retained
+    )
 
 
 def test_a_tampered_retained_intent_refuses_without_the_live_model(frozen):
@@ -311,7 +349,7 @@ def test_the_live_input_planner_applies_the_prepared_clock_once(
         content_identity,
         "stage_environment",
         lambda *args, **kwargs: {
-            "packages": {"julia:Wflow": "1.0.2:fixture"} if wflow_available else {},
+            "packages": dict(SIMULATION_PACKAGES) if wflow_available else {},
             "locks": {},
         },
     )

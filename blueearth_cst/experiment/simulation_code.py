@@ -33,6 +33,8 @@ SIMULATION_INVENTORY_EXCLUDED = (
     # Environment probes use these only to capture their console output.
     "blueearth_cst/shared/output_capture.py",
     "blueearth_cst/shared/run_log_core.py",
+    # The method-revision guard checks closures; it reaches all of them lazily.
+    "blueearth_cst/experiment/method_revisions.py",
 )
 
 

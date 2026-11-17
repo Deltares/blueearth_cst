@@ -35,7 +35,7 @@ def prepared(api, helper, tmp_path):
     intent = helper.collection_intent_v2()
     material = intent["documents"]["generation_config"]["seed_resolution"]["projection"]
     generation = {
-        "schema_version": "reservation-generation-request/1",
+        "schema_version": "reservation-generation-request/2",
         **{
             key: material[key]
             for key in (
@@ -48,7 +48,7 @@ def prepared(api, helper, tmp_path):
         },
         "requested_seed": "auto",
         "run_group_id_capacity": 2,
-        "provider_code": intent["documents"]["provider_code"],
+        "method_revision": intent["provider"]["method_revision"],
         "source_request": {
             "region": {"bbox": [0, 0, 1, 1]},
             "climate_source": "era5",
@@ -792,7 +792,7 @@ def test_seed_binding_is_monotonic_plan_verified_and_retry_is_byte_identical(
     (root / "data").mkdir()
     for role in ("basin_cells", "historical_climate"):
         (root / "data" / f"{role}.dat").write_bytes(b"x")
-    plan_request = {"schema_version": "generation-request/2", "settings": {}}
+    plan_request = {"schema_version": "generation-request/3", "settings": {}}
     plan = build_create_plan(
         {
             "request": plan_request,
@@ -1126,7 +1126,7 @@ def test_new_integer_seed_reservation_can_bind_existing_auto_seed_collection(
     )
     candidate["document_digests"]["generation_config"] = content_sha256(config)
     plan_request = {
-        "schema_version": "generation-request/2",
+        "schema_version": "generation-request/3",
         "settings": {"seed": explicit},
     }
     plan = build_reuse_plan(

@@ -1,114 +1,115 @@
 # Run identity, reuse, reservations and batching
 
-Last updated: 2026-11-16
+Last updated: 2026-11-17
 
 Use this reference before changing what identifies a scenario collection, a WF4 simulation or an indicator
-set, before editing a module that one of those identities hashes, and when changing experiment reservation
-or WF4 batch sizing. The [retained-handoffs guide](../../docs/technical-manual/retained-handoffs.md) explains
+set, before editing code inside a producer's pinned closure, and when changing experiment reservation or
+WF4 batch sizing. The [retained-handoffs guide](../../docs/technical-manual/retained-handoffs.md) explains
 saved products and reuse to users; the [architecture reference](toolbox-architecture.md) owns workflow
 boundaries. The modules named below own exact schemas and fields.
 
-## Three identities
+## Four identities
+
+Every producer identity hashes resolved setting values, input content, a hand-bumped **method revision**
+and the producer's **key numerical packages**. Code bytes and the full stage environment are recorded with
+each product as provenance but never decide reuse.
 
 - **Stochastic collection** — `collection_id`, built in [`generation_plan.py`][generation] through
-  `collection_id_v2`. Hashes the scenario spec and semantics, provider revision, run-ID capacity,
-  generation settings with the resolved seed, the scientific source inventory, the generator code inventory
-  and the stage environment.
+  `collection_id_v2` (`scenario-collection-intent/4`). Hashes the scenario spec and semantics, the
+  `stochastic-collection` method revision, run-ID capacity, generation settings with the resolved seed,
+  the scientific source inventory and `GENERATION_KEY_PACKAGES`.
 - **Delta-change collection** — `collection_id`, built by `_publish_named` in
-  [`delta_scenarios.py`][delta]. Hashes the resolved settings without `name`, input file hashes, factor
-  values, the producer file's bytes and numerical package versions.
-- **WF4 simulation** — `simulation_id`, built by `_v2_simulation_id` in [`simulation_record.py`][record].
-  Hashes the collection ID, revision and selected run IDs, model digest, Wflow revision, simulation code
-  inventory, settings, response request, stage environment and forcing preparation.
+  [`delta_scenarios.py`][delta] (`delta-scenario-intent/4`). Hashes the intent without its `provenance`
+  record: resolved settings, input file hashes, factor values, the `delta-collection` method revision and
+  numerical package versions. The producer's bytes sit in `provenance` and check the retained
+  `producer.py` copy.
+- **WF4 simulation** — `simulation_id`, built by `_v2_simulation_id` in [`simulation_record.py`][record]
+  (`simulation-intent/3`). Hashes the collection ID, revision and selected run IDs, model digest, Wflow
+  revision, settings, response request, forcing preparation, the `wf4-simulation` method revision and
+  `SIMULATION_KEY_PACKAGES`.
 - **Indicator set** — `indicator_set_id`, built by `build_indicator_plan` in
-  [`indicator_plan.py`][indicator-plan]. Hashes the simulation ID, response identity, indicator definition
-  (which contains the calculation code inventory), indicator environment, run groups, references,
-  water-year anchor and return-level validation.
+  [`indicator_plan.py`][indicator-plan] (`indicator-request/6`, `indicator-set-identity/6`). Hashes the
+  simulation ID, response identity, indicator definition (declarations and the `indicator-set` method
+  revision), `INDICATOR_KEY_PACKAGES` with the return-level estimator, run groups, references, water-year
+  anchor and return-level validation. One revision covers the engine and every installed set; each
+  declaration's `implementation_revision` is that revision.
 
 All digests are SHA-256 of canonical JSON (`collection-canon/1`) from
 [`content_identity.py`](../../blueearth_cst/experiment/content_identity.py). The experiment name and the
-collection's folder name are not identity inputs. The automatic WF3 seed derives from the same generator
-code inventory (`generation_seed_material_v2`), so a code change also changes an unpinned seed.
+collection's folder name are not identity inputs. The automatic WF3 seed derives from the method revision
+(`generation-seed-material/3`), so it is stable across non-numerical edits.
 
-## Code inventories
+Earlier schemas (`scenario-collection-intent/3`, `delta-scenario-intent/3`, `simulation-intent/2`,
+`indicator-set-identity/5`) hashed code inventories and full environments. They stay readable and
+consumable, but are never matched for reuse; continuing such an experiment is refused with the
+`--new-experiment` advice.
+
+## Method revisions and pins
+
+[`method_revisions.json`](../../blueearth_cst/experiment/method_revisions.json) stores, per producer, the
+method revision with the code closure it was declared for: the file list, its digest and the last record
+(`bump` or `no-numerical-change`, with a reason). `method_revision()` in
+[`method_revisions.py`](../../blueearth_cst/experiment/method_revisions.py) is the only way an identity
+builder obtains a revision. It recomputes the closure and raises `MethodPinMismatch` naming the changed
+files, so WF3 and WF4 stop at start-up on unrecorded code. A run checks only the producers it computes:
+indicators-only runs check `indicator-set` alone, so a simulation-code edit does not block them.
+
+After editing code in a closure, record the change in the same commit:
+
+```powershell
+python dev/scripts/record_method_pins.py --check
+python dev/scripts/record_method_pins.py --producer wf4-simulation --no-numerical-change "log wording"
+python dev/scripts/record_method_pins.py --producer wf4-simulation --bump "kinematic-wave option"
+```
+
+Bump only when produced values can change; a bump re-keys every identity of that producer in every
+project. [`test_method_pins.py`](../../tests/test_method_pins.py) fails until every pin is current.
+
+### Closures
 
 `repository_code_inventory` hashes every file reached from declared entry paths through static
 `blueearth_cst` imports, including imports inside functions and package `__init__.py` files. R and Julia
-files enter only as explicit entries. Each file contributes the SHA-256 of its whole content after CRLF is
-folded to LF, so **a comment-only edit to any inventoried file changes the identity**. External packages are
-recorded separately by `stage_environment`, which captures installed Python distributions, Conda records,
-the R libraries weathergenr resolves and, for WF4, the Julia manifest.
+files enter only as explicit entries. CRLF is folded to LF before hashing, so a checkout's line endings
+never trip a pin. The pin file is JSON and therefore in no closure.
 
-Each caller owns its entries and an exclusion list of files judged unable to change output bytes (logging,
-archiving, configuration composition). Excluded files are neither hashed nor followed. The lists live in
-inventoried files, so changing one also changes the identity.
+Each producer owns its entries and an exclusion list of files outside its numerical method (logging,
+archiving, configuration composition, the guard itself). Exclusions no longer affect identity; they keep
+re-record churn down, so justify one by "not part of the method":
 
-- **Generator (WF3):** `GENERATION_CODE_ENTRIES` and `GENERATION_INVENTORY_EXCLUDED` in
-  [`generation_plan.py`][generation].
-- **Simulation (WF4):** `SIMULATION_CODE_ENTRIES` and `SIMULATION_INVENTORY_EXCLUDED` in
+- **Stochastic:** `GENERATION_CODE_ENTRIES` and `GENERATION_INVENTORY_EXCLUDED` in
+  [`generation_plan.py`][generation]. The delta producer is excluded; it has its own pin.
+- **Delta:** `DELTA_CODE_ENTRIES` and `DELTA_INVENTORY_EXCLUDED` in `method_revisions.py`.
+- **Simulation:** `SIMULATION_CODE_ENTRIES` and `SIMULATION_INVENTORY_EXCLUDED` in
   [`simulation_code.py`][simulation-code].
-- **Indicator calculation:** `_indicator_code_inventory` in [`indicator_plan.py`][indicator-plan], which
-  varies with the selected sets.
+- **Indicators:** `_indicator_code_inventory` in [`indicator_plan.py`][indicator-plan] over every installed
+  set.
 
-The delta producer is the exception: it hashes only the raw bytes of `delta_scenarios.py` itself, without
-following imports and without CRLF folding.
-
-Only the generator closure is pinned by a test
-([`test_wf3_helper_boundary.py`](../../tests/test_wf3_helper_boundary.py)); a module entering or leaving it
-fails that test. [`test_module_import_direction.py`](../../tests/test_module_import_direction.py) keeps the
-console tier out of all three closures, and
-[`test_weather_plot_identity.py`](../../tests/test_weather_plot_identity.py) keeps presentation files out of
-the generator closure. The closures overlap: shared modules such as `content_identity.py` and the delta
-modules sit in more than one.
-
-### Check before editing a shared module
-
-Compute the closures in the activated Pixi environment and look for the file you intend to edit:
-
-```python
-from pathlib import Path
-from blueearth_cst.experiment.content_identity import repository_code_inventory
-from blueearth_cst.experiment.generation_plan import (
-    GENERATION_CODE_ENTRIES, GENERATION_INVENTORY_EXCLUDED)
-from blueearth_cst.experiment.simulation_code import simulation_code_inventory
-from blueearth_cst.experiment.indicator_plan import _indicator_code_inventory
-from blueearth_cst.indicators.loader import available_sets
-
-repo = Path(".").resolve()
-closures = {
-    "generation": repository_code_inventory(
-        repo, GENERATION_CODE_ENTRIES, GENERATION_INVENTORY_EXCLUDED),
-    "simulation": simulation_code_inventory(repo),
-    "indicators": _indicator_code_inventory(available_sets()),
-}
-for name, inventory in closures.items():
-    print(name, sorted(item["path"] for item in inventory))
-```
-
-`_indicator_code_inventory` is private, and passing every available set gives the widest indicator closure.
-To measure a change, run the snippet on the base and on the branch and compare. A file in a closure needs
-an explicit decision: accept the new identities, move the logic out of the closure, or add a justified
-exclusion. Do not infer membership from a module's docstring; compute it. WF2 series caches carry a
-separate reducer hash that ignores comments; see the
-[caches reference](toolbox-data-catalogs-and-caches.md#project-caches).
+[`test_module_import_direction.py`](../../tests/test_module_import_direction.py) keeps the console tier out
+of all closures, and [`test_weather_plot_identity.py`](../../tests/test_weather_plot_identity.py) keeps
+presentation files out of the generator closure. `record_method_pins.py --check` lists each closure's
+added, removed and changed files. WF2 series caches carry a separate reducer hash that ignores comments; see
+the [caches reference](toolbox-data-catalogs-and-caches.md#project-caches).
 
 ## What a changed identity does
 
-- **Collection inputs** (generator closure, generation settings, sources, environment): the new
+- **Collection inputs** (method revision, generation settings, sources, key packages): the new
   `collection_id` finds no ready marker, so WF3 generates and publishes a new collection; a used name gets a
   `-2`, `-3` suffix ([`collection_index.py`][collection-index]). Nothing refuses. A WF4 experiment in
-  project-generation mode also carries the generator inventory in its reservation request, so continuing
-  that experiment is refused (see [Reservations](#reservations)). Delta collections behave the same way.
-- **Simulation inputs** (simulation closure, model, collection, settings, preparation, environment):
+  project-generation mode also carries the generator method revision in its reservation request, so a
+  bump refuses continuing that experiment (see [Reservations](#reservations)). Delta collections behave the
+  same way.
+- **Simulation inputs** (method revision, model, collection, settings, preparation, key packages):
   continuing a completed simulation is refused by `check_simulation_reuse` in
-  [`simulation_reuse.py`][simulation-reuse] ("use a new experiment name"); a differing frozen intent is
-  refused at freeze by `freeze_simulation_v2`.
-- **Indicator inputs** (indicator closure, declarations, environment, references): a new immutable
+  [`simulation_reuse.py`][simulation-reuse] ("use a new experiment name"); a differing `simulation_id` is
+  refused at freeze by `freeze_simulation_v2`. A differing code inventory or non-key package alone is
+  provenance and does not refuse.
+- **Indicator inputs** (method revision, declarations, key packages, references): a new immutable
   indicator set is published beside the old one; Wflow does not rerun.
 
-Indicators-only runs read the frozen simulation intent and retained responses; they do not re-observe the
-simulation closure. A simulation-closure edit therefore blocks re-simulation of an existing experiment
-but not new indicator sets from it. Retained products are never rewritten to match the current code.
+A product continued under the same revision keeps its creator's recorded code inventory; the completing
+invocation's publication record carries its own `toolbox_identity` (commit and dirty flag). An interrupted
+create run resumed after a no-numerical-change edit continues in place; Snakemake may rerun steps whose
+code changed. Retained products are never rewritten to match the current code.
 
 ## Reservations
 
@@ -120,7 +121,7 @@ publication, and indicators-only never allocates. Exact legacy names are admitte
 
 [`reservation_request.py`][reservation-request] captures the experiment request before producers run:
 selection mode (`project-generation`, `explicit-manifest` or `delta-generation`), catalogs with their root
-context, the generation request (including the generator code inventory) and the simulation request.
+context, the generation request (including the generator method revision) and the simulation request.
 `compare_request` refuses the first changed field and names it, suggesting the retained inputs or
 `--new-experiment`. Unclassified `simulate_system`, `compute` and `build_model` fields are refused, so a new
 key must be classified there; see [configuration changes](dev-configuration-changes.md).
@@ -153,7 +154,7 @@ most that many batches run whatever `--cores` allows. The limit is saved with th
 
 Batch membership can change between attempts. [`batch_staging.py`][batch-staging] therefore stages each
 finished run by run ID and reuses it on retry only when its TOML and frozen-simulation digests match.
-`batch_sizing.py` is in the simulation closure, so editing it changes simulation identities.
+`batch_sizing.py` is in the simulation closure, so editing it needs a `wf4-simulation` pin record.
 
 [`scripts/calibrate_batching.py`](../../scripts/calibrate_batching.py) times thread and width settings on a
 user's basin and prints `compute:` keys; it writes nothing to configuration. Its default widths are 1, 2,
@@ -168,12 +169,13 @@ makespan estimator behind the batching design. Tests: [`test_batch_plan.py`](../
 
 ## Verification
 
-Identity and reuse changes are covered by [`test_content_identity.py`](../../tests/test_content_identity.py),
+Identity and reuse changes are covered by [`test_method_pins.py`](../../tests/test_method_pins.py),
+[`test_content_identity.py`](../../tests/test_content_identity.py),
 [`test_scenario_collection_v2.py`](../../tests/test_scenario_collection_v2.py),
 [`test_simulation_reuse.py`](../../tests/test_simulation_reuse.py),
 [`test_indicator_plan_v2.py`](../../tests/test_indicator_plan_v2.py) and
 [`test_delta_scenarios.py`](../../tests/test_delta_scenarios.py). Use the
-[validation ladder](dev-validation.md) to select checks. A deliberate identity change invalidates reuse of
+[validation ladder](dev-validation.md) to select checks. A method-revision bump invalidates reuse of
 retained runs in every project; state it in the change's task or commit message.
 
 [generation]: ../../blueearth_cst/experiment/generation_plan.py

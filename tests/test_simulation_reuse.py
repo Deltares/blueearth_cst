@@ -8,6 +8,7 @@ import pytest
 from blueearth_cst.experiment.simulation_record import (
     SimulationFrozenError,
     read_simulation_intent_v2,
+    rebuild_simulation_intent,
     simulation_intent_v2,
 )
 from blueearth_cst.experiment.simulation_reuse import check_simulation_reuse
@@ -86,7 +87,6 @@ def test_completed_recheck_matches_full_planning_without_starting_julia(
     "changed",
     [
         "model",
-        "code",
         "environment",
         "settings",
         "precision",
@@ -101,14 +101,12 @@ def test_completed_recheck_observes_changed_inputs_every_time(
         check_completed_simulation_inputs,
     )
 
-    _, kwargs, code, environment, _ = observed_completed
+    _, kwargs, _, environment, _ = observed_completed
     check_completed_simulation_inputs(completed.root, **kwargs)
     if changed == "model":
         model = Path(kwargs["model_root"]) / "wflow_sbm.toml"
         original = model.read_bytes()
         model.write_bytes(original + b"\n# changed model bytes\n")
-    elif changed == "code":
-        code[0]["sha256"] = "d" * 64
     elif changed == "environment":
         environment["packages"]["julia:Wflow"] = "changed"
     elif changed == "settings":
@@ -128,11 +126,9 @@ def test_completed_recheck_observes_changed_inputs_every_time(
 
 
 def _rebuild(intent):
-    return simulation_intent_v2(
+    return rebuild_simulation_intent(
         intent["experiment_name"],
-        intent["collection"],
-        intent["simulator"],
-        intent["documents"],
+        intent,
         intent["identity_projections"]["preparation"],
     )
 
@@ -152,8 +148,40 @@ def test_identical_repeat_reuses_the_frozen_simulation(retained):
     check_simulation_reuse(retained, deepcopy(retained))
 
 
-def test_any_changed_source_inventory_requires_new_experiment(retained):
+def test_changed_code_under_the_same_method_revision_reuses(retained):
+    """t038: the adapter code inventory is provenance, not identity."""
     current = deepcopy(retained)
     current["documents"]["simulator_adapter_code"][0]["sha256"] = "f" * 64
+    check_simulation_reuse(retained, _rebuild(current))
+
+
+def test_a_bumped_method_revision_requires_new_experiment(retained):
+    current = deepcopy(retained)
+    current["identity_projections"]["method_revision"]["revision"] += 1
     with pytest.raises(SimulationFrozenError):
         check_simulation_reuse(retained, _rebuild(current))
+
+
+def test_a_pre_break_intent_stays_readable_but_refuses_continuation(retained):
+    """t038 clean break: /2 rebuilds exactly; continuing it needs a new experiment."""
+    from blueearth_cst.experiment.simulation_record import SIMULATION_INTENT_V2
+
+    legacy = simulation_intent_v2(
+        retained["experiment_name"],
+        retained["collection"],
+        retained["simulator"],
+        retained["documents"],
+        retained["identity_projections"]["preparation"],
+        version=SIMULATION_INTENT_V2,
+    )
+    assert "method_revision" not in legacy["identity_projections"]
+    assert (
+        rebuild_simulation_intent(
+            legacy["experiment_name"],
+            legacy,
+            legacy["identity_projections"]["preparation"],
+        )
+        == legacy
+    )
+    with pytest.raises(SimulationFrozenError, match="new experiment"):
+        check_simulation_reuse(legacy, retained)

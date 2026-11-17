@@ -273,7 +273,7 @@ def test_v2_indicator_plan_reads_collection_from_intent(tmp_path, monkeypatch):
     (root / "_engine").mkdir(parents=True)
     (root / "_engine/simulation.json").write_bytes(b"{}\n")
     request = {
-        "schema_version": "indicator-request/5",
+        "schema_version": "indicator-request/6",
         "simulation_schema_version": "simulation/3",
         "simulation_id": "a" * 64,
         "tokens": ["gwr"],

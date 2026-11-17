@@ -152,12 +152,14 @@ def test_named_requests_share_provenance_but_new_observations_detect_drift(
     experiment, monkeypatch
 ):
     from blueearth_cst.experiment import indicator_plan
+    from blueearth_cst.experiment.method_revisions import INDICATORS, method_revision
 
+    method_revision(INDICATORS)  # checked against the real code before mocking
     calls = {"environment": 0, "code": 0}
 
     def environment():
         calls["environment"] += 1
-        return {"revision": calls["environment"]}
+        return {**deepcopy(FIXTURE_ENVIRONMENT), "revision": calls["environment"]}
 
     def code(set_ids):
         assert set_ids == ("default",)
@@ -356,7 +358,7 @@ def test_a_v2_indicator_set_publishes_once_and_is_reused_byte_for_byte(
 
     root = experiment.root
     plan = _plan(root)
-    assert plan["schema_version"] == "indicator-request/5"
+    assert plan["schema_version"] == "indicator-request/6"
     assert len(plan["expected_result_keys"]) == 4
     assert plan["units"] == [
         {"run_group_id": run, "grain": "run", "run_id": run} for run in RUN_IDS
@@ -547,11 +549,21 @@ def test_mixed_or_escaping_indicator_layout_is_refused(published, changed):
 
 
 def test_the_indicator_environment_changes_only_the_indicator_identity(experiment):
+    from blueearth_cst.experiment.indicator_plan import indicator_key_packages
+
     root = experiment.root
     request = current_indicator_request(root, default_calculations(["gwr"]), "YS-JAN")
     before = build_indicator_plan(root, request)
+    # t038: a package outside the key list is provenance only.
+    recorded = deepcopy(request)
+    recorded["indicator_environment"]["packages"]["numpy"] = "another"
+    assert (
+        build_indicator_plan(root, recorded)["indicator_set_id"]
+        == before["indicator_set_id"]
+    )
     changed = deepcopy(request)
-    changed["indicator_environment"]["packages"]["numpy"] = "another"
+    changed["indicator_environment"]["packages"]["python:numpy"] = "another"
+    changed["key_packages"] = indicator_key_packages(changed["indicator_environment"])
     after = build_indicator_plan(root, changed)
     assert after["indicator_set_id"] != before["indicator_set_id"]
     assert after["response_inventory_sha256"] == before["response_inventory_sha256"]
@@ -567,7 +579,8 @@ def test_an_xclim_revision_changes_only_the_indicator_identity(bare, monkeypatch
     def environment(roots):
         return {
             "packages": {
-                name: revision if name == "xclim" else "fixed" for name in roots
+                f"python:{name.lower()}": revision if name == "xclim" else "fixed"
+                for name in roots
             }
         }
 
@@ -731,6 +744,12 @@ def test_the_published_set_carries_and_verifies_its_benchmark_report(published):
         read_indicator_set(root, marker)
 
 
+def _moved_environment():
+    moved = deepcopy(FIXTURE_ENVIRONMENT)
+    moved["packages"]["python:numpy"] = "moved"
+    return moved
+
+
 def test_a_stale_live_environment_refuses_reduction_before_any_fit(
     experiment, monkeypatch
 ):
@@ -740,13 +759,13 @@ def test_a_stale_live_environment_refuses_reduction_before_any_fit(
 
     root = experiment.root
     plan = _plan(root)
-    _live(monkeypatch, {"packages": {"numpy": "moved"}})
+    _live(monkeypatch, _moved_environment())
     calls = []
     real = gev_lmoments.fit_case
     monkeypatch.setattr(
         gev_lmoments, "fit_case", lambda *a, **k: (calls.append(a), real(*a, **k))[1]
     )
-    with pytest.raises(IndicatorPlanStale, match="live indicator-stage environment"):
+    with pytest.raises(IndicatorPlanStale, match="live indicator-stage key packages"):
         plan_module.reduce_indicator_plan(root, plan)
     assert calls == [], "the estimator ran despite a stale environment"
 
@@ -754,7 +773,7 @@ def test_a_stale_live_environment_refuses_reduction_before_any_fit(
 def test_a_stale_live_environment_leaves_no_ready_marker(experiment, monkeypatch):
     root = experiment.root
     plan = _plan(root)
-    _live(monkeypatch, {"packages": {"numpy": "moved"}})
+    _live(monkeypatch, _moved_environment())
     with pytest.raises(IndicatorPlanStale):
         publish_indicator_set(root, plan)
     assert not (_engine(root, plan) / "indicators.json").exists()

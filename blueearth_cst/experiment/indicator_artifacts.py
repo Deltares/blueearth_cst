@@ -309,10 +309,11 @@ def _read_indicator_set_v2(experiment_root, marker, *, integrity_only=False):
     if result_relative not in allowed_roots:
         raise ImmutableIndicatorSetError("indicator-set result identity differs")
     if version != "indicator-set/3":
-        if manifest["identity_projection"].get("schema_version") != (
-            "indicator-set-identity/5"
+        # /6 keys on the method revision and key packages (t038); /5 is retained.
+        if manifest["identity_projection"].get("schema_version") not in (
+            ("indicator-set-identity/5", "indicator-set-identity/6")
             if version in CONTEXT_VERSIONS
-            else "indicator-set-identity/4"
+            else ("indicator-set-identity/4",)
         ):
             raise ImmutableIndicatorSetError(
                 "indicator-set/4 identity projection version differs"

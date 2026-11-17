@@ -16,6 +16,7 @@ from blueearth_cst.experiment.content_identity import (
     canonical_json_bytes,
     content_sha256,
     identity_segment,
+    key_packages,
     read_canonical_json,
     repository_code_inventory,
 )
@@ -258,6 +259,26 @@ INDICATOR_ENVIRONMENT_ROOTS = (
     "lmoments3",
 )
 
+#: Numerical packages whose revisions enter the indicator-set identity, with the
+#: return-level estimator record. The full environment stays provenance (t038).
+INDICATOR_KEY_PACKAGES = (
+    "python:lmoments3",
+    "python:numpy",
+    "python:pandas",
+    "python:scipy",
+    "python:xarray",
+    "python:xclim",
+)
+INDICATOR_REQUEST = "indicator-request/6"
+
+
+def indicator_key_packages(environment):
+    """The identity-bearing part of an observed indicator environment."""
+    return {
+        "packages": key_packages(environment, INDICATOR_KEY_PACKAGES),
+        "return_level_estimator": environment["return_level_estimator"],
+    }
+
 
 def resolve_indicator_environment():
     """Observe the LIVE indicator-stage environment, including D7 source hashes.
@@ -469,8 +490,10 @@ def indicator_request(
         if code_inventory is None
         else code_inventory
     )
+    from blueearth_cst.experiment.method_revisions import INDICATORS, method_revision
+
     return {
-        "schema_version": "indicator-request/5",
+        "schema_version": INDICATOR_REQUEST,
         "simulation_id": simulation_id,
         "tokens": sorted({item.table_variable for item in registry}),
         "response_variables": sorted(
@@ -487,10 +510,22 @@ def indicator_request(
         "grouping": "stochastic/st_id including empty unperturbed key",
         "reference": "unperturbed evaluated runs; first native q location; monthly sum; first month on ties",
         "water_year_anchor": anchor,
+        # Identity: the declared method revision and key packages (t038).
+        "method_revision": method_revision(INDICATORS),
+        "key_packages": indicator_key_packages(environment),
+        # Provenance only: recorded and published, never compared for reuse.
         "code_inventory": code,
         "indicator_environment": environment,
         "return_level_validation": validation,
     }
+
+
+#: Request fields that are recorded provenance, not identity.
+_REQUEST_PROVENANCE = ("code_inventory", "indicator_environment")
+
+
+def _request_identity(request):
+    return {k: v for k, v in request.items() if k not in _REQUEST_PROVENANCE}
 
 
 def _calculation_sets(declarations) -> tuple[str, ...]:
@@ -527,6 +562,8 @@ def _indicator_code_inventory(set_ids):
         # Used for logging, naming and the resolved water-year anchor above.
         # Reducers receive the anchor explicitly; no default is consulted.
         "blueearth_cst/shared/snake_utils.py",
+        # The method-revision guard checks closures; it reaches all of them lazily.
+        "blueearth_cst/experiment/method_revisions.py",
     ]
     excluded.extend(
         path.relative_to(repo).as_posix()
@@ -658,7 +695,7 @@ def build_indicator_plan(experiment_root, request, *, _observed_code=None):
     }
     if request["simulation_id"] != simulation["simulation_id"]:
         raise IndicatorPlanStale("indicator request selects a different simulation")
-    if request.get("schema_version") != "indicator-request/5":
+    if request.get("schema_version") != INDICATOR_REQUEST:
         raise IndicatorPlanStale(
             f"unsupported indicator request {request.get('schema_version')!r}"
         )
@@ -674,8 +711,9 @@ def build_indicator_plan(experiment_root, request, *, _observed_code=None):
     live["simulation_schema_version"] = "simulation/3"
     collection, intent, rows = _collection(simulation)
     live = _provider_request(live, collection)
-    if live != request:
-        raise IndicatorPlanStale("indicator declarations or invoked code changed")
+    # Identity, not provenance: an edit recorded as non-numerical keeps the plan.
+    if _request_identity(live) != _request_identity(request):
+        raise IndicatorPlanStale("indicator declarations or method revision changed")
     inventory = read_canonical_json(
         resolve_file_reference(simulation["response_inventory"], anchors)
     )
@@ -804,7 +842,7 @@ def build_indicator_plan(experiment_root, request, *, _observed_code=None):
         "reference": request["reference"],
         "resolved_references": references,
         "water_year_anchor": request["water_year_anchor"],
-        "code_inventory": request["code_inventory"],
+        "method_revision": request["method_revision"],
         "return_level_validation": request["return_level_validation"],
         "group_summary": "equal-weight run reductions; NaN propagation; fixed Class-C reference; pooled return levels",
     }
@@ -816,9 +854,9 @@ def build_indicator_plan(experiment_root, request, *, _observed_code=None):
         "simulation_id": simulation["simulation_id"],
         "response_identity_sha256": inventory["response_identity_sha256"],
         "indicator_definition_sha256": definition_digest,
-        "indicator_environment_sha256": environment_digest,
+        "key_packages_sha256": content_sha256(request["key_packages"]),
         "groups": {key: list(value) for key, value in groups.items()},
-        "schema_version": "indicator-set-identity/5",
+        "schema_version": "indicator-set-identity/6",
         "run_groups": units,
         "reference": references,
         "water_year_anchor": request["water_year_anchor"],
@@ -834,7 +872,7 @@ def build_indicator_plan(experiment_root, request, *, _observed_code=None):
     # results/<digest>/ roots are never adopted by a new request.
     destination = engine / "data"
     plan = {
-        "schema_version": "indicator-request/5",
+        "schema_version": INDICATOR_REQUEST,
         "indicator_request_id": content_sha256(request),
         "request": request,
         "response_inventory_sha256": inventory["response_inventory_sha256"],
@@ -991,13 +1029,12 @@ def check_live_indicator_environment(plan):
     observed afresh here and both the canonical bytes and their digest must
     agree. A mismatch aborts before any fitting and leaves no ready marker.
     """
-    retained = plan["request"]["indicator_environment"]
-    observed = resolve_indicator_environment()
+    retained = plan["request"]["key_packages"]
+    observed = indicator_key_packages(resolve_indicator_environment())
     if canonical_json_bytes(observed) != canonical_json_bytes(retained):
         raise IndicatorPlanStale(
-            "the live indicator-stage environment differs from the retained "
-            f"descriptor: observed {content_sha256(observed)}, "
-            f"retained {content_sha256(retained)}"
+            "the live indicator-stage key packages differ from the retained "
+            f"request: observed {observed['packages']}, retained {retained['packages']}"
         )
 
 
@@ -1202,7 +1239,7 @@ def reduce_indicator_plan(
 
 def publish_indicator_set(experiment_root, plan):
     """Publish a whole declared set, preserving all bytes on exact ready reuse."""
-    if plan["schema_version"] != "indicator-request/5":
+    if plan["schema_version"] != INDICATOR_REQUEST:
         raise IndicatorPlanStale(
             f"unsupported indicator plan {plan['schema_version']!r}"
         )

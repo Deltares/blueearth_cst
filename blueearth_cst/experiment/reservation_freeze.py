@@ -96,7 +96,7 @@ def prepare_freeze_owned(
 
 def _validate_recipe(root: Path, recipe: dict) -> tuple[dict, dict]:
     from blueearth_cst.experiment.check_model_reference import compare_reference
-    from blueearth_cst.experiment.simulation_record import simulation_intent_v2
+    from blueearth_cst.experiment.simulation_record import rebuild_simulation_intent
     from blueearth_cst.experiment.wf4_ancillary_descriptor import (
         preparation_identity_v2,
     )
@@ -117,12 +117,8 @@ def _validate_recipe(root: Path, recipe: dict) -> tuple[dict, dict]:
     if recipe["reservation_id"] != reservation["reservation_id"]:
         raise ValueError("simulation freeze reservation owner differs")
     supplied = recipe["intent"]
-    rebuilt = simulation_intent_v2(
-        root.name,
-        supplied["collection"],
-        supplied["simulator"],
-        supplied["documents"],
-        supplied["identity_projections"]["preparation"],
+    rebuilt = rebuild_simulation_intent(
+        root.name, supplied, supplied["identity_projections"]["preparation"]
     )
     if canonical_json_bytes(rebuilt) != canonical_json_bytes(supplied):
         raise ValueError(

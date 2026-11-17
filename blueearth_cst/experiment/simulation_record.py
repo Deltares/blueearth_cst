@@ -41,6 +41,26 @@ _V2_DOCUMENTS = frozenset(
 )
 _V2_PROJECTED = frozenset({"settings", "response_request", "preparation"})
 
+#: /3 keys on the declared method revision and key packages; the adapter code
+#: inventory and the full environment stay recorded as provenance. Retained /2
+#: intents hashed both (t038) and stay readable.
+SIMULATION_INTENT = "simulation-intent/3"
+SIMULATION_INTENT_V2 = "simulation-intent/2"
+_V3_PROJECTED = _V2_PROJECTED | {"method_revision", "key_packages"}
+
+# Numerical packages whose revisions enter the simulation identity; Wflow also
+# names the simulator. A lock refresh of other Julia packages does not re-key.
+SIMULATION_KEY_PACKAGES = (
+    "julia",
+    "julia:Wflow",
+    "python:hydromt",
+    "python:hydromt-wflow",
+    "python:netcdf4",
+    "python:numpy",
+    "python:pyproj",
+    "python:xarray",
+)
+
 
 def _v2_fields(value, expected, name):
     if type(value) is not dict or set(value) != set(expected):
@@ -81,6 +101,21 @@ def _v2_model_reference(document):
 
 
 def _v2_simulation_id(intent):
+    if intent["schema_version"] == SIMULATION_INTENT:
+        return content_sha256(
+            {
+                "schema_version": "simulation-identity/3",
+                "collection_id": intent["collection"]["collection_id"],
+                "collection_revision": intent["collection"]["collection_revision"],
+                "run_ids": intent["collection"]["run_ids"],
+                "model_digest": intent["documents"]["model_reference"]["digest"],
+                "simulator_name_and_revision": intent["simulator"],
+                **{
+                    f"{name}_sha256": intent["identity_digests"][name]
+                    for name in sorted(_V3_PROJECTED)
+                },
+            }
+        )
     return content_sha256(
         {
             "schema_version": "simulation-identity/2",
@@ -103,9 +138,22 @@ def _v2_simulation_id(intent):
 
 
 def simulation_intent_v2(
-    experiment_name, collection, simulator, documents, preparation_identity
+    experiment_name,
+    collection,
+    simulator,
+    documents,
+    preparation_identity,
+    *,
+    method=None,
+    version=SIMULATION_INTENT,
 ):
-    """Build the closed immutable simulation intent from checked resolved inputs."""
+    """Build the closed immutable simulation intent from checked resolved inputs.
+
+    A new intent takes the live, pin-checked method revision; rebuilding a
+    retained intent passes its recorded ``method`` and ``version``.
+    """
+    if version not in (SIMULATION_INTENT, SIMULATION_INTENT_V2):
+        raise ValueError(f"unsupported simulation intent {version!r}")
     _v2_fields(
         collection,
         {
@@ -223,8 +271,26 @@ def simulation_intent_v2(
         "response_request": documents["response_request"],
         "preparation": preparation_identity,
     }
+    if version == SIMULATION_INTENT:
+        from blueearth_cst.experiment.content_identity import (
+            key_packages,
+            method_record,
+        )
+        from blueearth_cst.experiment.method_revisions import (
+            SIMULATION,
+            method_revision,
+        )
+
+        projections["method_revision"] = (
+            method_revision(SIMULATION)
+            if method is None
+            else method_record(method, SIMULATION)
+        )
+        projections["key_packages"] = key_packages(
+            documents["environment"], SIMULATION_KEY_PACKAGES
+        )
     intent = {
-        "schema_version": "simulation-intent/2",
+        "schema_version": version,
         "canonicalization_id": "collection-canon/1",
         "simulation_id": "",
         "experiment_name": experiment_name,
@@ -236,11 +302,24 @@ def simulation_intent_v2(
         },
         "identity_projections": projections,
         "identity_digests": {
-            key: content_sha256(projections[key]) for key in sorted(_V2_PROJECTED)
+            key: content_sha256(projections[key]) for key in sorted(projections)
         },
     }
     intent["simulation_id"] = _v2_simulation_id(intent)
     return intent
+
+
+def rebuild_simulation_intent(experiment_name, intent, preparation_identity):
+    """Re-derive a retained intent from its own documents and recorded revision."""
+    return simulation_intent_v2(
+        experiment_name,
+        intent["collection"],
+        intent["simulator"],
+        intent["documents"],
+        preparation_identity,
+        method=intent["identity_projections"].get("method_revision"),
+        version=intent["schema_version"],
+    )
 
 
 def read_simulation_intent_v2(experiment_root):
@@ -272,7 +351,7 @@ def read_simulation_intent_v2(experiment_root):
         "simulation intent",
     )
     if (
-        intent["schema_version"] != "simulation-intent/2"
+        intent["schema_version"] not in (SIMULATION_INTENT, SIMULATION_INTENT_V2)
         or intent["canonicalization_id"] != "collection-canon/1"
         or intent["experiment_name"] != root.name
     ):
@@ -304,13 +383,7 @@ def read_simulation_intent_v2(experiment_root):
         project_root=project,
         experiment_root=root,
     )
-    expected = simulation_intent_v2(
-        root.name,
-        intent["collection"],
-        intent["simulator"],
-        intent["documents"],
-        projected,
-    )
+    expected = rebuild_simulation_intent(root.name, intent, projected)
     if canonical_json_bytes(expected) != canonical_json_bytes(intent):
         raise SimulationFrozenError("retained simulation intent differs")
     return intent
@@ -550,14 +623,16 @@ def freeze_simulation_v2(experiment_root, intent, *, invocation_id, command):
         from blueearth_cst.experiment.reservation_freeze import finish_freeze_owned
 
         recipe = read_canonical_json(recipe_path)
-        if canonical_json_bytes(recipe["intent"]) != canonical_json_bytes(intent):
+        # Identity, not bytes: recorded code and environment are provenance and
+        # may differ under the same method revision (t038).
+        if recipe["intent"]["simulation_id"] != intent["simulation_id"]:
             raise SimulationFrozenError(
                 "experiment freeze recipe differs; use a new experiment"
             )
         return finish_freeze_owned(root)
     if path.exists():
         retained = read_simulation_intent_v2(root)
-        if canonical_json_bytes(retained) != canonical_json_bytes(intent):
+        if retained["simulation_id"] != intent["simulation_id"]:
             raise SimulationFrozenError("experiment intent differs; use a new name")
         archive = read_archive(
             project, intent["simulation_id"][:12], f"experiments/{root.name}/config"

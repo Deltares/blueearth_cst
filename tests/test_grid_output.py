@@ -284,12 +284,12 @@ def test_grid_inventory_binds_compact_responses_and_reads_without_raw_csv(
     original = simulation_record.simulation_intent_v2
     grid_request = {"compressionlevel": 1, "variables": {STANDARD: "q"}}
 
-    def with_grid(name, collection, simulator, documents, identity):
+    def with_grid(name, collection, simulator, documents, identity, **kwargs):
         documents = {
             **documents,
             "settings": {**documents["settings"], "netcdf_grid": grid_request},
         }
-        return original(name, collection, simulator, documents, identity)
+        return original(name, collection, simulator, documents, identity, **kwargs)
 
     with monkeypatch.context() as patch:
         patch.setattr(simulation_record, "simulation_intent_v2", with_grid)
