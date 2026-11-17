@@ -147,13 +147,14 @@ layout after writing the replacement figures directly under `plots/`.
 
 ### Compare daily rain gauges {#rain-gauges}
 
-Optionally set `rain_gauges` in the historical analysis YAML:
+Optionally set `observations.met_stations` in the project file:
 
 ```yaml
-rain_gauges:
-  stations_path: data/rain_gauge_stations.csv
-  precip_path: data/rain_gauge_precip.csv
-  time_label: interval_end
+observations:
+  met_stations:
+    stations_path: data/rain_gauge_stations.csv
+    precip_path: data/rain_gauge_precip.csv
+    time_label: interval_end
 ```
 
 Omission or `null` disables observation input; gridded per-location comparison calculations still run when
@@ -161,7 +162,7 @@ multiple candidates are selected. Their figures require `plotting.location: true
 requires these three fields and accepts optional `temp_path`.
 That CSV uses the same `time` and station-ID columns for daily mean temperature in degrees Celsius;
 negative temperatures are valid. It uses the same time-label declaration as precipitation.
-Schema 3 resolves paths beside that YAML; schema 2 keeps its existing invocation-relative base.
+Schema 3 resolves paths beside the project file; schema 2 keeps its existing invocation-relative base.
 The station CSV requires `id,x,y`, with optional display `name` and elevation `elevtn` (metres).
 IDs are unique nonempty strings, including leading zeros. Coordinates are finite WGS84 longitude and
 latitude in degrees. Elevation is metadata only. The precipitation CSV has `time` followed by literal

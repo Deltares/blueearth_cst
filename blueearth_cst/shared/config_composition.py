@@ -159,6 +159,9 @@ T1_SHARED_SECTIONS: dict[str, tuple[str, ...]] = {
     ),
     "model": ("outvars", "name"),
     "plotting": ("annotation",),
+    # Observed series, translated into the workflow settings that read them
+    # (`inject_observations`); a workflow file declaring one is refused.
+    "observations": ("river_discharge", "met_stations"),
 }
 
 #: T1's top level, closed (D-9.5). Closing it is what makes the migration
@@ -318,6 +321,10 @@ RETIRED_KEYS: dict[str, str] = {
         "`climate.forcings` and `climate.default_forcing` (t037)"
     ),
     "T1.shared.water_year_start": ("regrouped as `climate.water_year_start` (`C-53`)"),
+    "T2.analyze_climate.rain_gauges": (
+        "moved (t037) to the project file as `observations.met_stations: "
+        "{stations_path, precip_path, temp_path, time_label}`"
+    ),
     "T1.climate.sources": (
         "retired (t037): analyze_climate compares the datasets of "
         "`climate.forcings`; declare each dataset to compare in a forcing set"
@@ -640,6 +647,131 @@ def _check_retired_keys(
         + "\n".join(sorted(hits))
         + f"\nRemove or move these keys as indicated. See {CONFIG_DOC}."
     )
+
+
+#: Closed keys of the project file's `observations:` entries (t037).
+_OBSERVATION_KEYS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
+    # name: (required, optional)
+    "river_discharge": (frozenset({"path"}), frozenset({"time_label"})),
+    "met_stations": (
+        frozenset({"stations_path", "precip_path", "time_label"}),
+        frozenset({"temp_path"}),
+    ),
+}
+_TIME_LABELS = ("interval_start", "interval_end")
+
+
+def project_observations(
+    t1: Mapping[str, Any], t1_path: str | os.PathLike
+) -> dict[str, dict[str, Any]]:
+    """Validate the project file's `observations:` and resolve its paths.
+
+    `river_discharge.time_label` defaults to `interval_end`; `met_stations`
+    keeps its explicit one. Paths resolve beside the project file (schema 3).
+    """
+    raw = t1.get("observations")
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"{t1_path}: `observations:` must be a mapping")
+    stray = sorted(set(raw) - set(_OBSERVATION_KEYS))
+    if stray:
+        raise ValueError(
+            f"{t1_path}: unknown observations {stray!r}; supported: "
+            f"{sorted(_OBSERVATION_KEYS)!r}"
+        )
+    result: dict[str, dict[str, Any]] = {}
+    for name, entry in raw.items():
+        if entry is None:
+            continue
+        required, optional = _OBSERVATION_KEYS[name]
+        if (
+            not isinstance(entry, Mapping)
+            or not required <= set(entry)
+            or set(entry) - required - optional
+        ):
+            raise ValueError(
+                f"{t1_path}: observations.{name} requires {sorted(required)!r}; "
+                f"optional: {sorted(optional)!r}"
+            )
+        entry = dict(entry)
+        if name == "river_discharge":
+            entry.setdefault("time_label", "interval_end")
+        if entry["time_label"] not in _TIME_LABELS:
+            raise ValueError(
+                f"{t1_path}: observations.{name}.time_label must be one of "
+                f"{list(_TIME_LABELS)!r}"
+            )
+        result[name] = entry
+    resolved = resolve_project_paths(
+        {"schema_version": t1.get("schema_version"), "observations": result}, t1_path
+    )
+    return resolved["observations"]
+
+
+def inject_observations(
+    name: str, body: Mapping[str, Any], observation_settings: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Give one workflow file the observation settings it reads internally.
+
+    WF1 reads `observations: {"river discharge": path}` and, when the
+    `evaluation.budyko` switch is on, the `{discharge_statistic, time_label}`
+    declaration; WF0 reads `rain_gauges`. Producing exactly those shapes keeps
+    every rule's params, and so every retained output, unchanged.
+    """
+    body = dict(body)
+    if name == "build_model":
+        discharge = observation_settings.get("river_discharge")
+        if discharge is not None:
+            body["observations"] = {"river discharge": discharge["path"]}
+        evaluation = body.get("evaluation")
+        if isinstance(evaluation, Mapping) and "budyko" in evaluation:
+            switch = evaluation["budyko"]
+            if switch not in (True, False, None):
+                raise ValueError(
+                    "build_model evaluation.budyko is a switch: true or false. Its "
+                    "time_label moved to observations.river_discharge.time_label in "
+                    "the project file, and discharge_statistic is retired (observed "
+                    "discharge must be daily means labelled at interval end)."
+                )
+            evaluation = dict(evaluation)
+            if switch is True and discharge is not None:
+                evaluation["budyko"] = {
+                    "discharge_statistic": "daily_mean",
+                    "time_label": discharge["time_label"],
+                }
+            elif switch is True:
+                raise ValueError(
+                    "build_model evaluation.budyko requires "
+                    "observations.river_discharge in the project file"
+                )
+            body["evaluation"] = evaluation
+    elif (
+        name == "analyze_climate"
+        and observation_settings.get("met_stations") is not None
+    ):
+        body["rain_gauges"] = dict(observation_settings["met_stations"])
+    return body
+
+
+def extract_observations(name: str, section: Mapping[str, Any]) -> dict[str, Any]:
+    """Inverse of `inject_observations` for a composed workflow section.
+
+    Writers that turn composed settings back into files (execution configs,
+    test fixtures) keep the project-file `observations:` and must not write the
+    internal per-workflow forms.
+    """
+    section = dict(section)
+    if name == "build_model":
+        section.pop("observations", None)
+        evaluation = section.get("evaluation")
+        if isinstance(evaluation, Mapping) and isinstance(
+            evaluation.get("budyko"), Mapping
+        ):
+            section["evaluation"] = {**evaluation, "budyko": True}
+    elif name == "analyze_climate":
+        section.pop("rain_gauges", None)
+    return section
 
 
 def _check_observations(
@@ -1159,6 +1291,15 @@ def compose_config(
                 "(or none for unannotated figures)."
             )
     _check_retired_keys(authored_t1, bodies)  # the T2 half; the T1 half ran above
+    observations = project_observations(t1, t1_path)
+    probes = [
+        probe._replace(body=inject_observations(probe.name, probe.body, observations))
+        if probe.status == "ok"
+        else probe
+        for probe in probes
+    ]
+    by_name = {probe.name: probe for probe in probes}
+    bodies = {probe.name: probe.body for probe in probes if probe.status == "ok"}
     _check_observations(t1, bodies)
     _check_trajectories(bodies)
     for owner, forbidden, destination in (
@@ -1269,7 +1410,11 @@ def compose_config(
         section = {key: value for key, value in stanza.items() if key != "config_path"}
         if name in loaded_names:
             probe = by_name.get(name)
-            body = dict(probe.body) if probe is not None else {}
+            body = (
+                dict(probe.body)
+                if probe is not None
+                else inject_observations(name, {}, observations)
+            )
             if probe is not None:
                 body = resolve_workflow_paths(
                     body, probe.resolved, name, t1["schema_version"]

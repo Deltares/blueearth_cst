@@ -6,21 +6,6 @@
 # variables come from there; only the model build and its run are set here.
 
 
-# -----------------------------------------------------------------------------
-#  OBSERVATIONS
-# -----------------------------------------------------------------------------
-
-# One observed series per variable in `model.outvars`. Optional. Needs
-# `basin.output_locations`; columns are matched by wflow_id.
-# Format: data/observed_daily_discharge_template.csv beside this config.
-#
-# Schema 3 resolves relative paths beside this YAML. Use shared case data, e.g.
-#   river discharge: ../data/observed_discharge.csv
-# Observed series for model evaluation. Input: variable-to-file mapping.
-observations:
-  # Observed daily series for evaluation. Input: CSV path or null.
-  river discharge: null
-
 # Selection never changes model calculation or numerical evaluation.
 # Figures this workflow renders. Input: mapping.
 plotting:
@@ -34,11 +19,9 @@ plotting:
 # Model evaluation settings. Input: mapping.
 #evaluation:
 # Optional observed catchment water-balance screening, independent of simulated Q.
-# Requires observations.river discharge and an explicit assertion of daily means
-# over midnight-to-midnight UTC days. Labels: interval_end | interval_start.
-#  budyko:
-#    discharge_statistic: daily_mean
-#    time_label: interval_end
+# Requires the project file's observations.river_discharge.
+# Screen the observed water balance. Options: true | false.
+#  budyko: true
 
 
 # -----------------------------------------------------------------------------

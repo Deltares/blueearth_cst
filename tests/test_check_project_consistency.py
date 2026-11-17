@@ -47,6 +47,7 @@ _BASE_CFG = {
     # post-build edit is refused at rule 3.01 — the mechanism is unchanged and
     # only the path moved.
     "model": {"outvars": ["river discharge"]},
+    "observations": {"river_discharge": {"path": "obs.csv"}},
     "workflows": {
         "build_model": {
             "enabled": True,

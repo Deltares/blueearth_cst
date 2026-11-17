@@ -132,6 +132,36 @@ climate:
 
 
 # -----------------------------------------------------------------------------
+#  OBSERVATIONS
+# -----------------------------------------------------------------------------
+
+# Observed series. Optional; paths resolve beside this file.
+# Define observed series. Input: mapping.
+#observations:
+# Observed daily-mean river discharge (m3/s, midnight-to-midnight UTC days), one column per
+# output location (wflow_id); evaluates the model in build_model. Needs basin.output_locations.
+# Format: data/observed_daily_discharge_template.csv.
+# Configure observed river discharge. Input: mapping.
+#  river_discharge:
+# Locate the discharge CSV. Input: path.
+#    path: data/observed_daily_discharge_template.csv
+# Label the day each value covers. Options: interval_end (stamped the next day) | interval_start.
+#    time_label: interval_end
+# Meteorological station records, compared with the gridded datasets in analyze_climate.
+# Synthetic format examples only: replace with measured data before enabling.
+# Configure meteorological station records. Input: mapping.
+#  met_stations:
+# Locate the station list (id, x, y). Input: path.
+#    stations_path: data/rain_gauge_stations.csv
+# Locate daily precipitation totals (mm). Input: path.
+#    precip_path: data/rain_gauge_precip.csv
+# Locate daily mean temperature (degC). Input: path; optional.
+#    temp_path: data/gauge_temp.csv
+# Label the day each value covers. Options: interval_start | interval_end.
+#    time_label: interval_end
+
+
+# -----------------------------------------------------------------------------
 #  MODEL
 # -----------------------------------------------------------------------------
 

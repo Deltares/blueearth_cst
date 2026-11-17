@@ -42,7 +42,7 @@ Disabling a workflow leaves earlier products in place; check whether they still 
 
 For optional station rainfall comparisons, prepare the two CSVs described in the
 [historical analysis reference](../../../docs/technical-manual/workflow-analyze-climate.md#rain-gauges).
-Then enable `rain_gauges` in `project_config_analyze_climate.yml`. The supplied rain-gauge CSVs are
+Then enable `observations.met_stations` in `project_config.yml`. The supplied rain-gauge CSVs are
 synthetic format examples; replace them before interpreting results. Rain gauges have no forcing role.
 
 Use the [running guide](../../../docs/guide/running.md) from the toolbox checkout for commands,

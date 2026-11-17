@@ -1607,16 +1607,30 @@ def test_an_observation_for_an_undeclared_outvar_is_refused(tmp_path):
         sections={
             "basin": {"region": "x"},
             "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
-            "model": {"outvars": ["river discharge"]},
+            "model": {"outvars": ["actual evapotranspiration"]},
+            "observations": {"river_discharge": {"path": "obs.csv"}},
         },
-        bodies={"build_model": {"observations": {"river disharge": "obs.csv"}}},
+        bodies={"build_model": {}},
     )
     with pytest.raises(ValueError) as excinfo:
         compose(t1_path)
     message = str(excinfo.value)
-    assert "river disharge" in message
-    assert "river discharge" in message, "name the outvars that ARE declared"
+    assert "river discharge" in message
+    assert "actual evapotranspiration" in message, "name the declared outvars"
     assert "model.outvars" in message, "and where to add it if it belongs"
+
+
+def test_an_unknown_observation_is_refused(tmp_path):
+    t1_path = write_split(
+        tmp_path / "cfg",
+        sections={
+            "basin": {"region": "x"},
+            "observations": {"river_disharge": {"path": "obs.csv"}},
+        },
+        bodies={"build_model": {}},
+    )
+    with pytest.raises(ValueError, match="unknown observations"):
+        compose(t1_path)
 
 
 def test_an_observation_for_a_declared_outvar_composes(tmp_path):
@@ -1627,11 +1641,42 @@ def test_an_observation_for_a_declared_outvar_composes(tmp_path):
             "basin": {"region": "x"},
             "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
             "model": {"outvars": ["river discharge"]},
+            "observations": {"river_discharge": {"path": "obs.csv"}},
         },
-        bodies={"build_model": {"observations": {"river discharge": "obs.csv"}}},
+        bodies={"build_model": {"evaluation": {"budyko": True}}},
     )
-    section = compose(t1_path)["workflows"]["build_model"]
-    assert section["observations"] == {"river discharge": "obs.csv"}
+    composed = compose(t1_path)
+    section = composed["workflows"]["build_model"]
+    (path,) = section["observations"].values()
+    assert list(section["observations"]) == ["river discharge"]
+    assert path.endswith("obs.csv")
+    # The switch composes to the declaration Budyko has always read.
+    assert section["evaluation"]["budyko"] == {
+        "discharge_statistic": "daily_mean",
+        "time_label": "interval_end",
+    }
+    assert composed["observations"]["river_discharge"]["path"] == path
+
+
+def test_a_budyko_mapping_or_a_workflow_observation_is_refused(tmp_path):
+    for body, match in (
+        (
+            {"evaluation": {"budyko": {"time_label": "interval_end"}}},
+            "switch",
+        ),
+        ({"observations": {"river discharge": "obs.csv"}}, "observations"),
+    ):
+        t1_path = write_split(
+            tmp_path / match,
+            sections={
+                "basin": {"region": "x"},
+                "model": {"outvars": ["river discharge"]},
+                "observations": {"river_discharge": {"path": "obs.csv"}},
+            },
+            bodies={"build_model": body},
+        )
+        with pytest.raises(ValueError, match=match):
+            compose(t1_path)
 
 
 @pytest.mark.parametrize("axis", ["temp", "precip"])

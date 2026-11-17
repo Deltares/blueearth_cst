@@ -22,7 +22,9 @@ def budyko_settings(value: object, observations_path: object) -> dict[str, str] 
     ):
         raise ValueError(example)
     if observations_path is None or observations_path == "":
-        raise ValueError("evaluation.budyko requires observations.river discharge")
+        raise ValueError(
+            "evaluation.budyko requires observations.river_discharge in the project file"
+        )
     return dict(value)
 
 

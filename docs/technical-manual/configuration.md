@@ -60,8 +60,8 @@ URLs and predefined HydroMT catalog names keep their spelling. Catalog-internal 
 semantics. There is no environment-variable expansion or search for a matching filename.
 The resolver expands `~` and normalizes slash-separated local paths.
 
-For example, `observations: {river discharge: data/q.csv}` in `settings/wf1.yml` reads
-`settings/data/q.csv`. A bundled recipe can be `toolbox:config/defaults/wflow_build_model.yml`.
+For example, `engine: {build_config: recipes/build.yml}` in `settings/wf1.yml` reads
+`settings/recipes/build.yml`. A bundled recipe can be `toolbox:config/defaults/wflow_build_model.yml`.
 Moving YAML files does not relocate retained outputs or datasets. Archives preserve exact source bytes
 and resolved runtime locators. `config_paths.py` and `tests/test_config_paths.py` implement these rules.
 
@@ -90,6 +90,8 @@ execution are unchanged; see [case creation and migration](../guide/new-case.md)
 | `climate.window` | Inclusive calendar-year `start`/`end`; historical record, not hydrological run period |
 | `climate.water_year_start` | Reporting-year month, default January |
 | `climate.map_reference` | Historical-map completeness; default 3 missing days/month, 15/year |
+| `observations.river_discharge` | Observed daily-mean discharge `path` and optional `time_label` (default `interval_end`); model evaluation, see [observations](#observations) |
+| `observations.met_stations` | Station `stations_path`, `precip_path`, optional `temp_path` and required `time_label`; historical analysis, see [rain gauges](workflow-analyze-climate.md#rain-gauges) |
 | `model.name` | Folder under `models/hydrology/` that WF1 builds or runs and WF4 uses; default `wflow` |
 | `model.outvars` | Retained model variables; declarations must use supported Wflow display names |
 | `plotting.annotation` | `none` (default), `caption` or `title` on ordinary PNG paths |
@@ -105,6 +107,30 @@ coverage for its declared simulation window, including Wflow's initial-state tim
 diagnostic tolerances must
 equal these shared values. Model building forcing summaries retain their independent default 3/15 policy.
 Completeness and temporal aggregation are distinct from the inclusive extraction dates.
+
+### Observations {#observations}
+
+Observed series live in the project file, because several workflows read them:
+
+```yaml
+observations:
+  river_discharge:
+    path: data/observed_discharge.csv
+    time_label: interval_end   # or interval_start
+  met_stations:
+    stations_path: data/rain_gauge_stations.csv
+    precip_path: data/rain_gauge_precip.csv
+    time_label: interval_end
+```
+
+Discharge is daily mean m³/s over midnight-to-midnight UTC days, one column per `wflow_id`
+([format](input-formats.md)); `interval_start` labels are shifted one day before the model evaluation,
+historical forcing comparison and Budyko screening read them. Discharge evaluation needs
+`river discharge` in `model.outvars`. Unknown entries and keys are refused.
+Since t037 these entries replace `build_model` `observations: {river discharge: <path>}`, the
+`analyze_climate` `rain_gauges` block and the `evaluation.budyko` declaration (now a `true`/`false`
+switch; `discharge_statistic` is retired). Workflow files that still declare them are refused with
+the new location.
 
 ### Historical forcing sets {#historical-forcing-recipe}
 
@@ -231,8 +257,8 @@ The following links explain the settings for each workflow.
 
 | Workflow | Settings and detailed reference |
 |---|---|
-| historical climate analysis | `diagnostics`, workflow-local `plotting`, optional `rain_gauges`: [historical analysis](workflow-analyze-climate.md#configuration) |
-| model building | `simulation_window`, engine recipes, `observations`, workflow-local `plotting`, `evaluation`: [model](workflow-build-model.md#configuration) |
+| historical climate analysis | `diagnostics`, workflow-local `plotting`: [historical analysis](workflow-analyze-climate.md#configuration) |
+| model building | `simulation_window`, engine recipes, workflow-local `plotting`, `evaluation`: [model](workflow-build-model.md#configuration) |
 | projection analysis | `catalog`, `ensemble`, `models`, `scenarios`, `members`, `variables`, windows, `stats`: [projections](workflow-analyze-projections.md#configuration) |
 | scenario generation | `seed`, `n_realizations`, `simulation_window`, monthly perturbations, generator and capacity: [generation](workflow-generate-scenarios.md#configuration) |
 | hydrological simulation | Collection, experiment, operations, indicator requests and `compute`: [simulation](workflow-simulate-system.md#configuration) |

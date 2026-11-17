@@ -11,13 +11,5 @@ engine:
   build_config: config/defaults/wflow_build_model.yml
   waterbodies_config: config/defaults/wflow_update_waterbodies.yml
 
-# C-56 / D-7.3: a mapping KEYED BY VARIABLE, keys drawn from `model.outvars`
-# verbatim -- the loader refuses a key that is not a declared outvar, which is
-# what makes "observations only for a variable the model outputs" a parse-time
-# invariant rather than a convention. `null` is a declared absence, and the
-# probe uses it so the fixture needs no observations CSV on disk.
-observations:
-  river discharge: null
-
 # The Wflow run period must now be explicit; retain this probe's former period.
 simulation_window: {start: 2000, end: 2020}

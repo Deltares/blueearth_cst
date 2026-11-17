@@ -40,8 +40,8 @@ delete its existing products.
 ### How paths are read
 
 With `schema_version: 3`, supported file paths resolve beside the YAML that declares them.
-For example, `observations: {river discharge: data/q.csv}` in `settings/build-model.yml` reads
-`settings/data/q.csv`. A `workflow_configs` path resolves beside the project file.
+For example, `engine: {build_config: recipes/build.yml}` in `settings/build-model.yml` reads
+`settings/recipes/build.yml`. A `workflow_configs` path resolves beside the project file.
 
 Use `toolbox:config/...` for bundled resources or absolute paths for other locations.
 HydroMT catalogs follow their own internal path rules. Environment variables are not expanded.

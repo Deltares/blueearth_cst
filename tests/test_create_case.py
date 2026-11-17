@@ -108,18 +108,15 @@ def test_copy_preserves_science_and_required_sidecars(cases, monkeypatch, tmp_pa
     (source / "data").mkdir()
     (source / "data/observed.csv").write_text("time,value\n2000,1\n")
     (case / "data/shared.csv").write_text("time,value\n2000,2\n")
-    text = (source / "custom/model.yml").read_text()
-    text = text.replace(
-        '"river discharge": null', '"river discharge": ../data/observed.csv'
-    )
-    # Use parsed YAML to avoid coupling this behavioural fixture to template quoting.
-    body = yaml.safe_load(text)
-    body["observations"] = {
-        "river discharge": "../data/observed.csv",
-        "precipitation": "../../data/shared.csv",
-    }
-    (source / "custom/model.yml").write_text(yaml.safe_dump(body))
     project = yaml.safe_load((source / "project_config.yml").read_text())
+    project["observations"] = {
+        "river_discharge": {"path": "data/observed.csv"},
+        "met_stations": {
+            "stations_path": "../data/shared.csv",
+            "precip_path": "../data/shared.csv",
+            "time_label": "interval_end",
+        },
+    }
     project["workflow_configs"]["build_model"] = "custom/model.yml"
     project["workflows"]["build_model"] = True
     (source / "project_config.yml").write_text(yaml.safe_dump(project))
@@ -156,10 +153,15 @@ def test_copy_preserves_science_and_required_sidecars(cases, monkeypatch, tmp_pa
             == moved / "data/output_locations.csv"
         )
     observations = load_composed_config(moved / "v2/project_config.yml", "build_model")[
-        "workflows"
-    ]["build_model"]["observations"]
-    assert Path(observations["river discharge"]).read_text() == "time,value\n2000,1\n"
-    assert Path(observations["precipitation"]) == moved / "data/shared.csv"
+        "observations"
+    ]
+    assert (
+        Path(observations["river_discharge"]["path"]).read_text()
+        == "time,value\n2000,1\n"
+    )
+    assert (
+        Path(observations["met_stations"]["precip_path"]) == moved / "data/shared.csv"
+    )
 
 
 @pytest.mark.parametrize(

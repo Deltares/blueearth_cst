@@ -61,12 +61,12 @@ def test_case_relocation_and_launch_directory(tmp_path, monkeypatch):
         "basin": {"output_locations": "data/locations.csv"},
         "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
         "model": {"outvars": ["river discharge"]},
+        "observations": {"river_discharge": {"path": "data/observed.csv"}},
         "workflows": {
             "build_model": {"enabled": True, "config_path": "settings/model.yml"}
         },
     }
     model = {
-        "observations": {"river discharge": "../data/observed.csv"},
         "engine": {"build_config": "toolbox:config/defaults/wflow_build_model.yml"},
     }
     (original / "project.yml").write_text(yaml.safe_dump(project))
@@ -221,11 +221,14 @@ def test_schema3_archive_stages_original_relative_inputs(tmp_path, monkeypatch):
         "basin": {"region": "{'subbasin': [1, 2]}"},
         "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
         "model": {"outvars": ["river discharge"]},
+        "observations": {"river_discharge": {"path": "data/observed.csv"}},
         "workflows": {
             "build_model": {"enabled": True, "config_path": "settings/model.yml"}
         },
     }
-    workflow = {"observations": {"river discharge": "../data/observed.csv"}}
+    workflow = {
+        "engine": {"build_config": "toolbox:config/defaults/wflow_build_model.yml"}
+    }
     path = source / "project.yml"
     path.write_text(yaml.safe_dump(project))
     (source / "settings/model.yml").write_text(yaml.safe_dump(workflow))

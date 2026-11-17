@@ -87,6 +87,10 @@ def resolve_project_paths(document: Mapping[str, Any], source: str | Path) -> di
             "project.catalog",
             "project.reuse_data_from",
             "basin.output_locations",
+            "observations.river_discharge.path",
+            "observations.met_stations.stations_path",
+            "observations.met_stations.precip_path",
+            "observations.met_stations.temp_path",
         ),
         source,
     )

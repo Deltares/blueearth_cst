@@ -124,20 +124,17 @@ See the [processing rule reference](workflow-rule-reference.md#build-model) for 
 
 ## Observed catchment water balance
 
-Optional `evaluation.budyko` in the model-building YAML screens observed runoff against selected
-prepared historical precipitation and PET. It requires the existing `observations.river discharge` CSV
-and this explicit support declaration:
+Optional `evaluation.budyko: true` in the model-building YAML screens observed runoff against selected
+prepared historical precipitation and PET. It requires the project file's
+[`observations.river_discharge`](configuration.md#observations), whose `time_label` it uses:
 
 ```yaml
 evaluation:
-  budyko:
-    discharge_statistic: daily_mean
-    time_label: interval_end
+  budyko: true
 ```
 
-Both fields are required; `time_label` also accepts `interval_start`. Omitted, null or false disables
-the diagnostic. Bare true and incomplete or unknown settings fail with a complete configuration example.
-The declaration asserts daily mean m³/s over midnight-to-midnight UTC days. Naive timestamps are asserted
+Omitted, null or false disables the diagnostic. Enabling it asserts that the discharge file holds daily
+mean m³/s over midnight-to-midnight UTC days. Naive timestamps are asserted
 UTC; aware timestamps normalize to UTC and must land at midnight. Start labels shift one day in a derived
 series; the input CSV and ordinary model evaluation retain their labels. The toolbox checks structure
 and records the declaration as user-supplied support; it cannot establish measurement provenance from values.
