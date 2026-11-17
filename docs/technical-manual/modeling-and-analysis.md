@@ -18,3 +18,5 @@ component's role, methods and limitations.
   series into measures of water availability, flow regimes, extremes and selected impacts.
 - **[Visualization module](results-and-interpretation.md#evaluation-and-diagnostic-products):** toolbox
   plotting functions that produce maps, diagnostic plots and figures for interpreting results.
+
+The [limitations](limitations.md) page summarizes what these data and methods cannot establish.

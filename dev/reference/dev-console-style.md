@@ -1,6 +1,6 @@
 # Workflow console style
 
-Last updated: 2026-11-14
+Last updated: 2026-11-17
 
 Use this reference when changing workflow orientation, planning, launcher output or rule logs. The shared
 [`console_style.py`](../../blueearth_cst/shared/console_style.py) owns the layout for all five workflows;
@@ -59,6 +59,31 @@ filenames share: an explicit top-level `project_name`, else the case folder of a
 else the `project_dir` basename. Child blocks own their complete workflow identity and finalized commands.
 `CST_RUN_ANNOUNCED` remains child-scoped and must not leak into the calling environment or suppress the
 child's identity. Verbose invocations retain native startup output.
+
+## Historical forcing settings
+
+The all-workflow runner checks general workflow configuration at startup. It validates forcing and
+shows **Historical forcing settings** only when the first enabled forcing consumer is reached:
+model building, scenario generation, or simulation. Historical comparisons and projection analysis
+can finish without a forcing choice. If forcing is ambiguous or invalid, the runner stops before
+the consumer starts; completed comparison outputs remain available for review. It does not pause
+interactively or choose a dataset from the comparison results.
+
+Experiment admission also waits until that consumer boundary, before any model or scenario producer
+writes. An indicators-only simulation needs experiment admission but no forcing selection or settings
+block. Destructive rebuilds retain their full validation before erasing outputs.
+
+The forcing settings have no timestamp or subsystem prefix and appear once per invocation.
+The block uses a bold gray title followed immediately by flush-left `>` items in gray. Redirected
+output and terminals with color disabled retain the same layout without styling codes.
+This styling is limited to Historical forcing settings, whose lines fit 80 columns or the narrower
+terminal width. Settings, workflow sequence, handoffs, commands, summaries and rebuild previews keep
+their existing formatting. Command options and paths retain indented continuations without `>` markers.
+The preparation progress line is left aligned in the terminal's normal color.
+Timestamped subsystem rows report processing within a workflow; repeated configuration reads do
+not print another summary. The summary names rainfall and temperature datasets, the potential
+PET method and planned elevation adjustments, distinguishing project settings
+from toolbox defaults. It describes the configuration; data coverage is checked during processing.
 
 ## Input checks and failure behavior
 

@@ -8,17 +8,17 @@ data to construct Wflow-SBM models. The table links to each source and summarize
 resolution. Distances for angular grids are approximate at the equator; static inventories have no
 regular time step.
 
-| Dataset | Model contribution | Spatial representation | Time representation |
-|---|---|---|---|
-| [MERIT Hydro v1.0][merit] | Terrain and drainage | 3 arc-seconds (~90 m) | Static |
-| [MERIT Hydro IHU v1.0][ihu] | Upscaled hydrography | 30 arc-seconds (~1 km) | Static |
-| [Lin river data v1][lin] | Channel geometry | River-reach polylines | Static; 2019 release |
-| [GlobCover v2.3][globcover] | Land-cover parameters | 300 m raster | 2009 map |
-| [MODIS MCD15A3H][modis] | Seasonal vegetation | 500 m native grid | 4-day composites |
-| [SoilGrids 2017][soilgrids] | Soil parameters | 250 m maps | Static predictions |
-| [HydroLAKES v1.0][lakes] | Lake extent and storage | Polygons; lakes ≥10 ha | Static inventory |
-| [GRanD v1.1][grand] | Reservoir attributes | Dam points and polygons | Static inventory |
-| [RGI v6.0][rgi] | Glacier extent | Glacier polygons | Static; 2017 release |
+| Dataset | Model contribution | Spatial representation | Time representation | Assessment sensitivity |
+|---|---|---|---|---|
+| [MERIT Hydro v1.0][merit] | Terrain and drainage | 3 arc-seconds (~90 m) | Static | Basin extent, upstream area, routing, and location identity can change with the hydrography or snapping rules |
+| [MERIT Hydro IHU v1.0][ihu] | Upscaled hydrography | 30 arc-seconds (~1 km) | Static | Basin extent, upstream area, routing, and location identity can change with the hydrography or snapping rules |
+| [Lin river data v1][lin] | Channel geometry | River-reach polylines | Static; 2019 release | Flow travel time and channel response can change |
+| [GlobCover v2.3][globcover] | Land-cover parameters | 300 m raster | 2009 map | Interception, evapotranspiration, infiltration and runoff partitioning can change |
+| [MODIS MCD15A3H][modis] | Seasonal vegetation | 500 m native grid | 4-day composites | Evapotranspiration and interception behavior can change |
+| [SoilGrids 2017][soilgrids] | Soil parameters | 250 m maps | Static predictions | Soil-water storage, recharge, and low-flow response can change |
+| [HydroLAKES v1.0][lakes] | Lake extent and storage | Polygons; lakes ≥10 ha | Static inventory | Storage and routed flows can change, especially in regulated basins |
+| [GRanD v1.1][grand] | Reservoir attributes | Dam points and polygons | Static inventory | Storage and routed flows can change, especially in regulated basins |
+| [RGI v6.0][rgi] | Glacier extent | Glacier polygons | Static; 2017 release | Snow and ice contributions to seasonal flow can change |
 
 **Hydrography.** MERIT Hydro supplies terrain and drainage information for basin delineation, with
 the configured IHU entry using the coarser 30 arc-second product. Lin's river data add width and
@@ -37,8 +37,14 @@ the prepared reservoir data also use [JRC Global Surface Water][jrc] at 30 m for
 RGI provides static glacier outlines, and the model recipes apply area thresholds when selecting
 lakes, reservoirs and glaciers.
 
-Check the resulting drainage network, basin boundaries and major waterbodies against local information.
+Check the resulting drainage network, basin boundaries and major waterbodies against local information,
+especially where a small spatial error could move an outlet or change upstream area.
 Resampling these sources to the model grid does not improve their underlying resolution or accuracy.
+The model grid resolution is therefore a computational choice, not a statement of the effective resolution
+of soil, land-cover, or river parameters.
+
+`config/basemap/natural_earth_50m.gpkg` is a vendored locator-map asset, not basin forcing or model data.
+Its [local README](../../config/basemap/README.md) describes the map source and preparation.
 
 [merit]: https://global-hydrodynamics.github.io/MERIT_Hydro/
 [ihu]: https://zenodo.org/records/5166932

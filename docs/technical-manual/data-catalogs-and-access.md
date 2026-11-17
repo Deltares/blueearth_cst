@@ -31,6 +31,24 @@ may differ from the prepared daily archives expected by the toolbox. Historical 
 `UnverifiedForcingUnits` if conversion rules differ from those reviewed in the
 [forcing adapter](../../blueearth_cst/climate_analysis/prepare_climate_data_catalog.py).
 
+## Choosing, replacing, and recording sources {#choosing-replacing-and-recording-sources}
+
+HydroMT catalogs allow a project to name alternative data products without embedding file paths in the
+workflow. A substitute must still provide the variables, units, geometry, temporal coverage, and
+HydroMT-readable structure expected by the model setup. Changing a source can require rebuilding the model or
+regenerating the weather collection before results are comparable.
+
+Record the catalog and entry names, source product and version, spatial resolution, temporal windows,
+any local preprocessing and observation series used for evaluation. Keep them with run records when
+comparing basins or rerunning an assessment. See [configuration](configuration.md) for exact path rules.
+
+The executing project's `basin.sources` and the selected engine recipes determine the actual source names.
+The starter uses `deltares_data_pdrive.yml` and `lulc: globcover`; a local catalog's availability can differ.
+Do not infer enabled data from the illustrative dataset pages. Generated CMIP6 catalog and
+store-index files list the available models and ensemble members.
+Catalog YAML/root context is captured for reuse checks, while workflows check the input formats,
+coverage and units. A catalog entry alone cannot establish scientific suitability.
+
 ## Catalogs created during preparation
 
 The toolbox writes `data/spatial/_engine/spatial_catalog.yml` for `spatial_maps.nc`,

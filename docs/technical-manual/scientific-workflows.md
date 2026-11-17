@@ -25,7 +25,8 @@ processing steps, configuration and outputs.
 Historical climate analysis establishes baseline context and supports forcing selection. Model building
 and scenario generation supply the model and weather for hydrological simulation; scenario generation
 and simulation form the stress-testing part of the climate risk assessment. Projections provide context
-without determining the scenarios. See the [conceptual overview](overview.md#components).
+without determining the scenarios. Scenario generation needs no Wflow model, and hydrological simulation
+consumes no projection-analysis product. See the [conceptual overview](overview.md#components).
 
 The decision context sets the geographical scope, planning horizon and objectives—for example,
 catchment flash floods, basin-wide drought or reduced irrigation supply. These concerns guide the

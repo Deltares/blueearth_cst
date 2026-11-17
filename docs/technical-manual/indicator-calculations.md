@@ -87,3 +87,5 @@ An indicators-only evaluation can reuse retained model responses when they conta
 inputs. A measure requiring an unsaved model variable needs a new simulation. The
 [indicator module reference](../../blueearth_cst/indicators/README.md) describes the authoring interface;
 the [results chapter](results-and-interpretation.md) explains how indicators inform the assessment.
+The indicator-set appendices in [custom indicators](indicator-extension.md) describe formulas, units,
+data requirements and interpretation limits.

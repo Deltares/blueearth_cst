@@ -6,6 +6,16 @@ format: html
 This reference lists the processing rules for each workflow. Names match the executable rules;
 scenario generation also includes preparation steps performed by the launch command.
 
+Each workflow is defined in its own Snakemake entry point:
+
+| Workflow | Entry point | Principal product |
+|---|---|---|
+| [historical climate analysis](workflow-analyze-climate.md) | `analyze_climate.smk` | Historical source diagnostics and comparisons |
+| [model building](workflow-build-model.md) | `build_model.smk` | Completed model and historical simulation/evaluation |
+| [projection analysis](workflow-analyze-projections.md) | `analyze_projections.smk` | Basin change factors and projection diagnostics |
+| [scenario generation](workflow-generate-scenarios.md) | `generate_scenarios.smk` | Ready scenario collection |
+| [hydrological simulation](workflow-simulate-system.md) | `simulate_system.smk` | Retained responses and named indicator sets |
+
 ## Historical climate analysis {#analyze-climate}
 
 See [historical climate analysis](workflow-analyze-climate.md) for inputs, settings and outputs.

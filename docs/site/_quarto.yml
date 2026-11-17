@@ -102,6 +102,7 @@ website:
             - technical-manual/hydrological-simulation.qmd
             - technical-manual/weather-generation.qmd
             - technical-manual/indicator-calculations.qmd
+            - technical-manual/limitations.qmd
         - section: "Data"
           contents:
             - text: "Data requirements"
@@ -133,6 +134,7 @@ website:
             - technical-manual/workflow-rule-reference.qmd
         - section: "Execution and results"
           contents:
+            - technical-manual/software-and-execution.qmd
             - technical-manual/configuration-and-execution.qmd
             - technical-manual/results-and-interpretation.qmd
         - section: "Detailed references"

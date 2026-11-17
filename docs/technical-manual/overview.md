@@ -44,11 +44,13 @@ assessment of water-system vulnerability and robustness.
 
 This manual is the primary reference for methods, settings and interpretation:
 
-- [Models and tools](modeling-and-analysis.md): scientific methods and software components.
+- [Models and tools](modeling-and-analysis.md): scientific methods and software components, with their
+  [limitations](limitations.md).
 - [Data](data-requirements.md): datasets, access and input requirements.
 - [Workflows](scientific-workflows.md): project structure and processing steps, with
   [shared configuration](shared-configuration.md) introducing common settings.
-- [Execution and run management](configuration-and-execution.md): running, monitoring and reusing analyses.
+- [Execution and run management](configuration-and-execution.md): running, monitoring and reusing analyses,
+  after the [software and execution](software-and-execution.md) overview.
 - [Results, evaluation and interpretation](results-and-interpretation.md): outputs and their meaning.
 
 Detailed references provide the [configuration rules](configuration.md),

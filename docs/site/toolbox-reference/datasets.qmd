@@ -20,4 +20,4 @@ See [Climate projections](../../technical-manual/climate-projection-data.md).
 
 ## Choosing, replacing, and recording sources {#choosing-replacing-and-recording-sources}
 
-See [Data catalogs](../../technical-manual/data-catalogs-and-access.md).
+See [Data catalogs](../../technical-manual/data-catalogs-and-access.md#choosing-replacing-and-recording-sources).

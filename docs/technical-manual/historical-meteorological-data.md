@@ -27,5 +27,20 @@ period is chosen separately within that window. Use historical climate analysis 
 observations to compare
 seasonal patterns, variability and biases before selecting a forcing source.
 
+## Checks before assessment
+
+Historical meteorology serves two purposes: forcing the hydrological model and conditioning the stochastic
+weather generator. This makes source selection unusually consequential in the current toolbox, which does not
+locally calibrate the model. A structurally complete climate store is not, by itself, a scientific validation
+of the forcing. Compare source behavior with local stations or hydrological evidence where available; gridded
+products may smooth local extremes or miss topographic gradients even when basin-average statistics look
+plausible.
+
+| Source | Checks before assessment |
+|---|---|
+| ERA5 daily forcing | Coverage over the basin and time window, variable units, precipitation magnitude and seasonality, temperature, and missing values |
+| CHIRPS precipitation | Geographic coverage, rainfall seasonality and extremes, and consistency with the other forcing variables needed by the model and generator |
+| Local observed discharge | Gauge identity, dates, units and known regulation |
+
 [era5]: https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=overview
 [chirps]: https://www.chc.ucsb.edu/data/chirps
