@@ -118,7 +118,10 @@ def v3_project(tmp_path, monkeypatch, *, name=None):
 
     (tmp_path / "wf2").mkdir(parents=True)
     project_root, *_ = wf2_project(tmp_path / "wf2", monkeypatch)
-    body = wf2_settings(**({"name": name} if name else {}))
+    from blueearth_cst.shared.generation_config import public_delta_settings
+
+    # Authored (t037) form of the fixture's delta-change/3 settings.
+    body = public_delta_settings(wf2_settings(**({"name": name} if name else {})))
     path = write_split(
         tmp_path,
         sections={
@@ -383,3 +386,33 @@ def test_runner_delta_failure_does_not_launch_wf4(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="injected delta publication failure"):
         run_workflows.run(str(path), 1, [])
     assert observed == [True]
+
+
+def test_authored_delta_settings_compose_to_the_former_hashed_shape():
+    from blueearth_cst.shared.generation_config import (
+        internal_delta_settings,
+        public_delta_settings,
+    )
+
+    authored = {
+        "future_periods": ["mid"],
+        "scale_pet": True,
+        "dry_reference": {"policy": "refuse"},
+    }
+    internal = internal_delta_settings(authored)
+    assert internal == {
+        "schema_version": "delta-change/3",
+        "projections": {"ensemble": "cmip6", "future_windows": ["mid"]},
+        "pet": {"mode": "projection_ratio"},
+        "dry_reference": {"policy": "refuse"},
+    }
+    assert public_delta_settings(internal) == {
+        "schema_version": "delta-change/3",
+        **authored,
+    }
+    assert internal_delta_settings({}) == {
+        "schema_version": "delta-change/3",
+        "projections": {"ensemble": "cmip6"},
+    }
+    with pytest.raises(ValueError, match="replaced"):
+        internal_delta_settings({"projections": {"ensemble": "cmip6"}})

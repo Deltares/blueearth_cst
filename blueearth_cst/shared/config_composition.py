@@ -951,6 +951,11 @@ def _internal_wf3(body: dict[str, Any]) -> dict[str, Any]:
 def _public_wf3(section: dict[str, Any]) -> dict[str, Any]:
     """Inverse of `_internal_wf3` (12-lists stay lists)."""
     if "method" in section:
+        delta = section.get("delta_change")
+        if isinstance(delta, dict):
+            from blueearth_cst.shared.generation_config import public_delta_settings
+
+            section["delta_change"] = public_delta_settings(delta)
         return section
     if "simulation_window" in section:
         section["future_period"] = section.pop("simulation_window")
