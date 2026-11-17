@@ -28,12 +28,15 @@ def simulation_selection(config_path, *, validate_forcing=True):
     from blueearth_cst.experiment import indicator_sets
 
     path = Path(config_path).resolve()
-    project = yaml.safe_load(path.read_text(encoding="utf-8"))
     from blueearth_cst.shared.config_paths import (
         resolve_project_paths,
         resolve_workflow_paths,
     )
+    from blueearth_cst.shared.project_workflows import normalize_project_workflows
 
+    project = normalize_project_workflows(
+        yaml.safe_load(path.read_text(encoding="utf-8")), path
+    )
     project = resolve_project_paths(project, path)
     workflows = project.get("workflows", {})
     if "run_stress_test" in workflows:
@@ -46,11 +49,14 @@ def simulation_selection(config_path, *, validate_forcing=True):
     if set(stanza) != {"enabled", "config_path"} or not isinstance(
         stanza["enabled"], bool
     ):
-        raise ValueError("simulate_system requires a closed enabled/config_path stanza")
+        raise ValueError(
+            "simulate_system requires workflows.simulate_system (true or false) "
+            "and workflow_configs.simulate_system"
+        )
     if stanza["enabled"] is False:
         raise ValueError(
             f"Workflow simulate_system is disabled in {path}. "
-            "Set workflows.simulate_system.enabled to true in that "
+            "Set workflows.simulate_system to true in that "
             "project configuration file, then rerun the command."
         )
     workflow_path = path.parent / stanza["config_path"]

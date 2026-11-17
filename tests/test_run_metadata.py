@@ -14,6 +14,7 @@ from blueearth_cst.shared.config_paths import (
     resolve_project_paths,
     resolve_workflow_paths,
 )
+from blueearth_cst.shared.project_workflows import normalize_project_workflows
 from tests.test_snapshot_config_rules import _rule_block
 
 REPO = Path(__file__).resolve().parents[1]
@@ -24,7 +25,9 @@ def test_metadata_repeat_ignores_git_state_but_tracks_configuration_inputs(
     tmp_path, monkeypatch
 ):
     project = resolve_project_paths(
-        yaml.safe_load((REPO / "test_case/project_config_rapid.yml").read_text()),
+        normalize_project_workflows(
+            yaml.safe_load((REPO / "test_case/project_config_rapid.yml").read_text())
+        ),
         REPO / "test_case/project_config_rapid.yml",
     )
     root = tmp_path / "project"

@@ -26,13 +26,13 @@ project:
   project_dir: "../../runs/my-basin"
   catalog: toolbox:config/catalogs/deltares_data_pdrive.yml
 workflows:
-  analyze_climate:
-    enabled: true
-    config_path: project_config_analyze_climate.yml
+  analyze_climate: true
+workflow_configs:
+  analyze_climate: project_config_analyze_climate.yml
 ```
 
-Here, `config_path` points to `project_config_analyze_climate.yml` beside `project_config.yml`.
-That workflow file contains the climate-analysis settings; `enabled` controls whether it runs.
+Here, `workflow_configs` points to `project_config_analyze_climate.yml` beside `project_config.yml`.
+That workflow file contains the climate-analysis settings; `workflows.analyze_climate` controls whether it runs.
 The output directory is separate from these configuration files, and disabling a workflow does not
 delete its existing products.
 
@@ -40,7 +40,7 @@ delete its existing products.
 
 With `schema_version: 3`, supported file paths resolve beside the YAML that declares them.
 For example, `observations: {river discharge: data/q.csv}` in `settings/build-model.yml` reads
-`settings/data/q.csv`. A workflow's `config_path` resolves beside the project file.
+`settings/data/q.csv`. A `workflow_configs` path resolves beside the project file.
 
 Use `toolbox:config/...` for bundled resources or absolute paths for other locations.
 HydroMT catalogs follow their own internal path rules. Environment variables are not expanded.

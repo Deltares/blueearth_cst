@@ -168,35 +168,28 @@ plotting:
 #
 # Run WF0 alone first; then disable it before enabling downstream workflows.
 
-# Enable workflows and locate their configuration files. Input: workflow-name-to-settings mapping.
+# Select the workflows to run. Input: workflow-name-to-boolean mapping.
 workflows:
-  # Configure WF0 historical climate diagnostics. Input: workflow settings mapping.
-  analyze_climate:
-    # Include this workflow in the project run. Options: true | false.
-    enabled: true
-    # Locate this workflow's configuration. Input: YAML path relative to this file or absolute.
-    config_path: "project_config_analyze_climate.yml"
-  # Configure WF1 model construction and historical simulation. Input: workflow settings mapping.
-  build_model:
-    # Include this workflow in the project run. Options: true | false.
-    enabled: false
-    # Locate this workflow's configuration. Input: YAML path relative to this file or absolute.
-    config_path: "project_config_build_model.yml"
-  # Configure WF2 projection plausibility analysis. Input: workflow settings mapping.
-  analyze_projections:
-    # Include this workflow in the project run. Options: true | false.
-    enabled: false
-    # Locate this workflow's configuration. Input: YAML path relative to this file or absolute.
-    config_path: "project_config_analyze_projections.yml"
-  # Configure WF3 weather scenario generation. Input: workflow settings mapping.
-  generate_scenarios:
-    # Include this workflow in the project run. Options: true | false.
-    enabled: false
-    # Locate this workflow's configuration. Input: YAML path relative to this file or absolute.
-    config_path: "project_config_generate_scenarios.yml"
-  # Configure WF4 simulation and indicator calculation. Input: workflow settings mapping.
-  simulate_system:
-    # Include this workflow in the project run. Options: true | false.
-    enabled: false
-    # Locate this workflow's configuration. Input: YAML path relative to this file or absolute.
-    config_path: "project_config_simulate_system.yml"
+  # Run WF0 historical climate diagnostics. Options: true | false.
+  analyze_climate: true
+  # Run WF1 model construction and historical simulation. Options: true | false.
+  build_model: false
+  # Run WF2 projection plausibility analysis. Options: true | false.
+  analyze_projections: false
+  # Run WF3 weather scenario generation. Options: true | false.
+  generate_scenarios: false
+  # Run WF4 simulation and indicator calculation. Options: true | false.
+  simulate_system: false
+
+# Locate each workflow's settings file. Input: workflow-name-to-path mapping; omit a workflow to use its defaults.
+workflow_configs:
+  # Locate WF0's settings. Input: YAML path relative to this file or absolute.
+  analyze_climate: project_config_analyze_climate.yml
+  # Locate WF1's settings. Input: YAML path relative to this file or absolute.
+  build_model: project_config_build_model.yml
+  # Locate WF2's settings. Input: YAML path relative to this file or absolute.
+  analyze_projections: project_config_analyze_projections.yml
+  # Locate WF3's settings. Input: YAML path relative to this file or absolute.
+  generate_scenarios: project_config_generate_scenarios.yml
+  # Locate WF4's settings. Input: YAML path relative to this file or absolute.
+  simulate_system: project_config_simulate_system.yml

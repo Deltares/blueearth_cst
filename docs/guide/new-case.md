@@ -119,19 +119,19 @@ Use `--catalog` during creation to select a different data catalog.
 4. **Historical period:** set `climate.window` using the
    [period guidance below](#keep-the-analysis-periods-consistent).
 5. **Model outputs:** choose `model.outvars` so later indicators have their required responses.
-6. **Workflow selection:** check each workflow's `config_path` and set `enabled: true` for those you need.
+6. **Workflow selection:** check each workflow's file under `workflow_configs` and set its `workflows`
+   switch to `true` for those you need.
    Use `false` to skip a workflow without deleting its results; check their suitability before reuse.
 
 For example, the workflow selection has this shape:
 
 ```yaml
 workflows:
-  analyze_climate:
-    enabled: true
-    config_path: project_config_analyze_climate.yml
-  build_model:
-    enabled: false
-    config_path: project_config_build_model.yml
+  analyze_climate: true
+  build_model: false
+workflow_configs:
+  analyze_climate: project_config_analyze_climate.yml
+  build_model: project_config_build_model.yml
 ```
 
 This is a fragment, not a complete case file. Use the maintained starter for all five workflow entries.

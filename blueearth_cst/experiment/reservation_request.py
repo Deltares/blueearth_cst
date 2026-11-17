@@ -12,6 +12,7 @@ from blueearth_cst.shared.config_composition import (
     compose_captured_config,
 )
 from blueearth_cst.shared.model_registry import selected_model_root
+from blueearth_cst.shared.project_workflows import normalize_project_workflows
 from blueearth_cst.shared.provenance import file_sha256
 from blueearth_cst.shared.yaml_documents import parse_yaml_document
 
@@ -180,7 +181,7 @@ def capture_request(
     from blueearth_cst.shared.workflow_config_snapshot import file_reference
 
     path = _ordinary_file(config_path)
-    raw = parse_yaml_document(path.read_bytes())
+    raw = normalize_project_workflows(parse_yaml_document(path.read_bytes()), path)
     simulation_stanza = raw["workflows"]["simulate_system"]
     simulation = parse_yaml_document(
         (path.parent / simulation_stanza["config_path"]).read_bytes()

@@ -30,7 +30,9 @@ from blueearth_cst.shared.config_paths import (  # noqa: E402
     resolve_workflow_paths,
 )
 
-_INSTRUCTIONS_TEMPLATE = TOOLBOX_ROOT / "config" / "templates" / "case-instructions.md.tmpl"
+_INSTRUCTIONS_TEMPLATE = (
+    TOOLBOX_ROOT / "config" / "templates" / "case-instructions.md.tmpl"
+)
 
 _WORKFLOW_LABELS = {
     "analyze_climate": ("WF0", "Historical climate analysis"),
@@ -435,16 +437,19 @@ def _prepare(
             {**_region(config), "subbasin": region["subbasin"]}
         )
         config["basin"]["output_locations"] = "../data/output_locations.csv"
-    workflows = config.get("workflows")
-    if not isinstance(workflows, dict) or not workflows:
-        raise ValueError("Project requires workflow stanzas")
+    from blueearth_cst.shared.project_workflows import (
+        legacy_workflow_stanzas,
+        set_workflow_config_path,
+    )
+
+    workflows = legacy_workflow_stanzas(config, config_file)
+    if not workflows:
+        raise ValueError("Project requires workflow switches")
     files: dict[Path, bytes] = {}
     dependencies: list[str] = []
     previous: dict[Path, bytes | None] = {}
     documents = {config_file: (Path(args.trial) / "project_config.yml", config, None)}
     for name, stanza in workflows.items():
-        if not isinstance(stanza, dict):
-            raise ValueError(f"Invalid workflow stanza: {name}")
         if not args.from_trial and stanza.get("enabled") is not (
             name == "analyze_climate"
         ):
@@ -458,7 +463,7 @@ def _prepare(
                 )
             relative = target.relative_to(source)
             documents[target] = (Path(args.trial) / relative, _mapping(target), name)
-            stanza["config_path"] = relative.as_posix()
+            set_workflow_config_path(config, name, relative.as_posix())
 
     def dependency(
         raw: str, resolved: str, owner: Path, target: Path, field: str

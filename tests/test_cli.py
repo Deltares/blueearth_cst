@@ -201,8 +201,7 @@ def test_the_linux_baseline_set_is_a_twin_of_the_windows_one():
     for doc in (windows, linux):
         doc["project"].pop("project_dir")
         doc["project"].pop("catalog")
-        for stanza in doc["workflows"].values():
-            stanza.pop("config_path", None)
+        doc.pop("workflow_configs", None)
     assert linux == windows, (
         "project_config_baseline_linux.yml has drifted from its twin; only "
         "project.project_dir, project.catalog and the config_path names may "

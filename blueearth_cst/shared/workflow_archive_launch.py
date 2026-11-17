@@ -41,6 +41,7 @@ from blueearth_cst.shared.configuration_archive import (
     same_configuration,
     write_config_readme,
 )
+from blueearth_cst.shared.project_workflows import normalize_project_workflows
 from blueearth_cst.shared.provenance import (
     environment_file_hashes,
     short_digest,
@@ -404,6 +405,7 @@ def prepare_workflow(
     project_document = _replace_paths(yaml.safe_load(initial[0].data), replacements)
     if overrides:
         project_document.update(_replace_paths(dict(overrides), replacements))
+    project_document = normalize_project_workflows(project_document)
     declared_climate = project_document.get("climate")
     if composed.get("schema_version") == 3:
         # Resolve against the original declarations BEFORE relocating execution
@@ -697,12 +699,14 @@ def _run_workflow_started(
     record: dict[str, Any],
 ) -> int:
     config_path = Path(project_config).resolve()
-    project = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    project = normalize_project_workflows(
+        yaml.safe_load(config_path.read_text(encoding="utf-8")), config_path
+    )
     runtime_dir = TOOLBOX_ROOT if project.get("schema_version") == 3 else Path.cwd()
     if project.get("workflows", {}).get(workflow, {}).get("enabled") is False:
         raise ValueError(
             f"Workflow {workflow} is disabled in {config_path}. "
-            f"Set workflows.{workflow}.enabled to true in that "
+            f"Set workflows.{workflow} to true in that "
             "project configuration file, then rerun the command."
         )
     overrides, forwarded = (

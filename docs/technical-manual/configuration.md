@@ -13,14 +13,16 @@ read during execution.
 
 `blueearth_cst/shared/config_composition.py` combines the configuration files. The project top level accepts
 only
-`schema_version`, `project`, `basin`, `climate`, `model`, `plotting` and `workflows`.
-Each `workflows.<name>` stanza accepts only `enabled` and optional `config_path`.
-Use YAML booleans for enablement. Keep declared files readable even when their workflow is disabled.
+`schema_version`, `project`, `basin`, `climate`, `model`, `plotting`, `workflows` and
+`workflow_configs`. `workflows.<name>` is a YAML boolean that selects the workflow;
+`workflow_configs.<name>` is the optional path of its settings file. The legacy stanza
+`workflows.<name>: {enabled, config_path}` is still accepted but cannot be mixed with the new form.
+Keep declared files readable even when their workflow is disabled.
 Omitting the file composes an empty settings mapping; workflow-required fields still apply when enabled.
 
 Workflow files hold that workflow's settings. Shared section names and shared leaf names cannot be placed
-there to override the project. Composition reads each declared file, adds its project-level `enabled`, and
-removes `config_path` from the effective workflow mapping. Workflow files cannot override arbitrary project
+there to override the project. Composition reads each declared file and adds the workflow's switch as
+`enabled` to the effective workflow mapping; the file path is not part of it. Workflow files cannot override arbitrary project
 settings. Duplicate or unknown fields are rejected in sections with a fixed set of allowed
 fields. Disabling a workflow leaves its previous files in place.
 
@@ -40,7 +42,7 @@ It is never a `--configfile` target. Exact keys are closed by `_ADVANCED_SETTING
 ## How paths are read
 
 `schema_version: 3` resolves enumerated file fields beside the YAML declaring them.
-`schema_version: 2` retains invocation-relative file bases. Workflow `config_path` is always relative to
+`schema_version: 2` retains invocation-relative file bases. `workflow_configs` paths are always relative to
 the project file, including schema 2. Supported schema numbers are integers 2 and 3; other values fail.
 
 | Declaring file | File fields resolved by schema 3 |

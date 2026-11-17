@@ -128,12 +128,15 @@ def indicators_only_configuration(config_path, *, prepare_baseline=True):
     from blueearth_cst.shared.snake_utils import validate_experiment_name
 
     path = Path(config_path).resolve()
-    project = yaml.safe_load(path.read_text(encoding="utf-8"))
     from blueearth_cst.shared.config_paths import (
         resolve_project_paths,
         resolve_workflow_paths,
     )
+    from blueearth_cst.shared.project_workflows import normalize_project_workflows
 
+    project = normalize_project_workflows(
+        yaml.safe_load(path.read_text(encoding="utf-8")), path
+    )
     project = resolve_project_paths(project, path)
     descriptor = project["workflows"]["simulate_system"]
     if set(descriptor) != {"enabled", "config_path"} or not isinstance(

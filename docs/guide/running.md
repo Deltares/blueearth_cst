@@ -21,7 +21,7 @@ $config = 'C:/cst-cases/my-basin/default/project_config.yml'
 pixi run python scripts/run_workflows.py --config $config --cores 3
 ```
 
-The runner executes workflows marked `enabled: true` in this order: historical climate analysis,
+The runner executes workflows set to `true` under `workflows:` in this order: historical climate analysis,
 model building, projection analysis, scenario generation, then hydrological simulations and indicators.
 
 **Check the opening summary:** confirm the configuration and output directory (`project.project_dir`).

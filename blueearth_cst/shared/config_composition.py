@@ -1,8 +1,9 @@
 """Compose a project config and its per-workflow files into one mapping.
 
-The project file carries closed ``{enabled, config_path}`` workflow stanzas;
-each workflow file holds that workflow's settings. This module validates the
-boundary and composes the files for existing consumers.
+The project file carries ``workflows`` switches and ``workflow_configs`` paths,
+normalized on entry to closed ``{enabled, config_path}`` stanzas
+(``project_workflows.py``); each workflow file holds that workflow's settings.
+This module validates the boundary and composes the files for existing consumers.
 
 Current guidance: ``dev/reference/toolbox-architecture.md``, configuration
 and execution records. This module owns the exact schema and composition.
@@ -84,6 +85,10 @@ from blueearth_cst.shared.named_forcings import (
     simulation_climate,
 )
 from blueearth_cst.shared.plot_config import resolve_annotation
+from blueearth_cst.shared.project_workflows import (
+    WORKFLOW_CONFIGS_KEY,
+    normalize_project_workflows,
+)
 
 if TYPE_CHECKING:
     from blueearth_cst.shared.workflow_config_snapshot import CapturedSource
@@ -448,9 +453,9 @@ OWNERLESS_SECTION_READS: frozenset[tuple[str, str]] = frozenset(
         # neither consumes them as another workflow's inputs.
         ("blueearth_cst/shared/product_record.py", "*"),
         ("blueearth_cst/shared/result_bundle.py", "*"),
-        # The case scaffold checks enable flags and follows config_path entries
-        # to copy a template set; it consumes no workflow settings.
-        ("scripts/create_case.py", "*"),
+        # The raw-project normalizer maps `workflows` switches and
+        # `workflow_configs` paths to legacy stanzas; it reads no settings.
+        ("blueearth_cst/shared/project_workflows.py", "*"),
         ("scripts/suggest_experiment_name.py", "simulate_system"),
         ("scripts/plot_workflow_dag.py", "simulate_system"),
         # The artifact-scoped config snapshot rebuilds `compose_config`'s shape
@@ -497,13 +502,13 @@ def _resolve_config_path(raw: object, t1_dir: str, name: str) -> str:
     """
     if not isinstance(raw, (str, os.PathLike)):
         raise ValueError(
-            f"workflows.{name}.config_path must be a path string, got "
+            f"workflow_configs.{name} must be a path string, got "
             f"{type(raw).__name__}. See {CONFIG_DOC}."
         )
     text = os.path.expanduser(os.fspath(raw))
     if not text.strip():
         raise ValueError(
-            f"workflows.{name}.config_path is empty. Omit the key entirely to "
+            f"workflow_configs.{name} is empty. Omit the key entirely to "
             f"give the workflow no settings. See {CONFIG_DOC}."
         )
     if not os.path.isabs(text):
@@ -731,7 +736,7 @@ def _check_stanza_closed(name: str, stanza: Mapping[str, Any]) -> None:
             f"config's workflow stanza is closed to {sorted(WORKFLOW_STANZA_KEYS)!r}. "
             f"Move those settings into a workflow config file named "
             f"`<project_config_stem>_{name}.yml` beside this file and point "
-            f"`workflows.{name}.config_path` at it. See {CONFIG_DOC}."
+            f"`workflow_configs.{name}` at it. See {CONFIG_DOC}."
         )
 
 
@@ -769,7 +774,10 @@ def _rejected_in_t2(t1: Mapping[str, Any]) -> frozenset[str]:
     """
     return (
         frozenset(
-            set(T1_TOP_LEVEL) | {"enabled"} | _t1_declared_leaves(t1) | SHARED_SEAM_KEYS
+            set(T1_TOP_LEVEL)
+            | {"enabled", WORKFLOW_CONFIGS_KEY}
+            | _t1_declared_leaves(t1)
+            | SHARED_SEAM_KEYS
         )
         - WORKFLOW_OWNED_LEAVES
     )
@@ -880,12 +888,12 @@ def _raise_for_probe(probe: _Probe, t1_dir: str) -> None:
     """Apply §8.4's failure table to a file this entry point must load."""
     if probe.status == "not_captured":
         raise ValueError(
-            f"workflows.{probe.name}.config_path was not in the pre-parse "
+            f"workflow_configs.{probe.name} was not in the pre-parse "
             f"capture: {probe.resolved}"
         )
     if probe.status == "missing":
         raise ValueError(
-            f"workflows.{probe.name}.config_path names a file that does not "
+            f"workflow_configs.{probe.name} names a file that does not "
             f"exist: {probe.resolved}\n"
             f"  declared as: {probe.declared!r}\n"
             f"  resolved against: {t1_dir}\n"
@@ -895,14 +903,14 @@ def _raise_for_probe(probe: _Probe, t1_dir: str) -> None:
         )
     if probe.status == "unparseable":
         raise ValueError(
-            f"workflows.{probe.name}.config_path names a file that is not valid "
+            f"workflow_configs.{probe.name} names a file that is not valid "
             f"YAML: {probe.resolved}\n"
             f"  resolved against: {t1_dir}\n"
             f"  parser said: {probe.detail}"
         )
     if probe.status == "not_mapping":
         raise ValueError(
-            f"workflows.{probe.name}.config_path names a file that parses to "
+            f"workflow_configs.{probe.name} names a file that parses to "
             f"{probe.detail}, not a mapping of settings: {probe.resolved}\n"
             f"  resolved against: {t1_dir}\n"
             "A workflow config file's top level is that workflow's own settings "
@@ -930,8 +938,8 @@ def _check_no_duplicate_paths(probes: Sequence[_Probe]) -> None:
         key = os.path.normcase(probe.resolved)
         if key in seen:
             raise ValueError(
-                f"workflows.{seen[key]}.config_path and "
-                f"workflows.{probe.name}.config_path resolve to the same file: "
+                f"workflow_configs.{seen[key]} and "
+                f"workflow_configs.{probe.name} resolve to the same file: "
                 f"{probe.resolved}\n"
                 "One workflow config file per workflow — sharing one would give "
                 "each workflow the other's settings with nothing to detect it."
@@ -1007,6 +1015,9 @@ def compose_config(
             f"{t1_path}: the project config must parse to a mapping, got "
             f"{type(t1).__name__}."
         )
+    # `workflows: {name: bool}` + `workflow_configs` composes exactly like the
+    # legacy `{enabled, config_path}` stanzas, so no identity sees the form.
+    t1 = normalize_project_workflows(t1, t1_path)
     # FIRST, before every other refusal: a v1 document trips most of the checks
     # below, and reporting one of those would point a user at a single key in a
     # file that needs migrating whole. See `_check_schema_version`.
@@ -1363,10 +1374,10 @@ def capture_configuration_sources(
     from blueearth_cst.shared.workflow_config_snapshot import capture_sources
 
     project_source = capture_sources([("project", "project_config", project_path)])[0]
-    project = yaml.safe_load(project_source.data) or {}
+    project = normalize_project_workflows(
+        yaml.safe_load(project_source.data) or {}, project_path
+    )
     workflows = project.get("workflows") or {}
-    if not isinstance(workflows, Mapping):
-        raise ValueError("project workflows must be a mapping")
     loaded_names = {entry} | {
         section.split(".", 1)[1]
         for section in declared_sections

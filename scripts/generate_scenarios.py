@@ -151,7 +151,7 @@ def run_owned(
     if config["workflows"]["generate_scenarios"].get("enabled") is False:
         raise ValueError(
             f"WF3 is disabled in {config_path}. "
-            "Set workflows.generate_scenarios.enabled to true in that "
+            "Set workflows.generate_scenarios to true in that "
             "project configuration file, then rerun the command."
         )
     if Path(config["project"]["project_dir"]).resolve() != project_root:

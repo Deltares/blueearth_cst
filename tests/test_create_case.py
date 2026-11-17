@@ -76,7 +76,10 @@ def test_instructions_render_from_template(cases):
     assert text.startswith("# new-basin / default: quick reference")
     assert f'$config = "{(trial / "project_config.yml").as_posix()}"' in text
     assert "--from-trial default" in text
-    assert "| `project_config_simulate_system.yml` | WF4 system simulation settings |" in text
+    assert (
+        "| `project_config_simulate_system.yml` | WF4 system simulation settings |"
+        in text
+    )
     assert "$slug" not in text and "$workflow_files" not in text
 
 
@@ -117,8 +120,8 @@ def test_copy_preserves_science_and_required_sidecars(cases, monkeypatch, tmp_pa
     }
     (source / "custom/model.yml").write_text(yaml.safe_dump(body))
     project = yaml.safe_load((source / "project_config.yml").read_text())
-    project["workflows"]["build_model"]["config_path"] = "custom/model.yml"
-    project["workflows"]["build_model"]["enabled"] = True
+    project["workflow_configs"]["build_model"] = "custom/model.yml"
+    project["workflows"]["build_model"] = True
     (source / "project_config.yml").write_text(yaml.safe_dump(project))
     (source / "outputs/logs").mkdir(parents=True)
     (source / "outputs/logs/success.txt").write_text("old output")

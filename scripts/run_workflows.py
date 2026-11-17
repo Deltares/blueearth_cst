@@ -222,7 +222,12 @@ def _read_config(config_path: str) -> Mapping[str, Any]:
     if not isinstance(config, Mapping):
         raise ConfigError(f"{config_path}: config is not a mapping")
     from blueearth_cst.shared.config_paths import resolve_project_paths
+    from blueearth_cst.shared.project_workflows import normalize_project_workflows
 
+    try:
+        config = normalize_project_workflows(config, config_path)
+    except ValueError as error:
+        raise ConfigError(str(error)) from error
     return resolve_project_paths(config, path)
 
 
@@ -250,16 +255,18 @@ def _enabled_flags(cfg: Mapping[str, Any], config_path: str) -> dict[str, bool]:
     for name in WORKFLOW_ORDER:
         if name not in workflows or not isinstance(workflows[name], dict):
             raise ConfigError(
-                f"{config_path}: missing 'workflows.{name}' section "
-                f"(required for a full orchestration config)"
+                f"{config_path}: missing 'workflows.{name}' "
+                f"(true or false; required for a full orchestration config)"
             )
         section = workflows[name]
         if "enabled" not in section:
-            raise ConfigError(f"{config_path}: missing 'workflows.{name}.enabled' key")
+            raise ConfigError(
+                f"{config_path}: missing 'workflows.{name}' (true or false)"
+            )
         value = section["enabled"]
         if not isinstance(value, bool):
             raise ConfigError(
-                f"{config_path}: 'workflows.{name}.enabled' must parse to a "
+                f"{config_path}: 'workflows.{name}' must parse to a "
                 f"boolean (got {value!r} of type {type(value).__name__}); use an "
                 f"unquoted true/false (yes/no/on/off also accepted), not a "
                 f"quoted string or integer"
@@ -313,7 +320,7 @@ def _check_wf1_leaves(
         f"{len(LEAVES)} required model files are absent from "
         f"{project_dir}:\n{listed}\n"
         f"Only a {LEAF_PRODUCER} run produces them. Set "
-        f"'workflows.{LEAF_PRODUCER}.enabled: true', or disable "
+        f"'workflows.{LEAF_PRODUCER}: true', or disable "
         f"'simulate_system'. Simulation has not been invoked."
     )
 

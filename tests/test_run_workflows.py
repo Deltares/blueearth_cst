@@ -600,7 +600,7 @@ def test_missing_enabled_key_errors(tmp_path):
     )
     with pytest.raises(rw.ConfigError) as exc:
         rw.read_enabled_flags(str(cfg))
-    assert "simulate_system.enabled" in str(exc.value)
+    assert "'workflows.simulate_system' (true or false)" in str(exc.value)
     # And the CLI surfaces it as a nonzero exit.
     rc = rw.main(["--config", str(cfg)])
     assert rc != 0
@@ -627,7 +627,7 @@ def test_non_bool_enabled_rejected(tmp_path, bad):
     _write_cfg(cfg, flags)
     with pytest.raises(rw.ConfigError) as exc:
         rw.read_enabled_flags(str(cfg))
-    assert "build_model.enabled" in str(exc.value)
+    assert "'workflows.build_model' must parse to a" in str(exc.value)
 
 
 @pytest.mark.parametrize("spelling", ["yes", "on", "true", "True"])

@@ -87,11 +87,18 @@ def _scratch_config(config_path: Path, project_dir: Path, dest: Path) -> Path:
     """Write a copy of ``config_path`` whose project_dir points at the scratch tree."""
     cfg = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     cfg["project"]["project_dir"] = project_dir.as_posix()
-    for stanza in (cfg.get("workflows") or {}).values():
+    from blueearth_cst.shared.project_workflows import (
+        legacy_workflow_stanzas,
+        set_workflow_config_path,
+    )
+
+    for name, stanza in legacy_workflow_stanzas(cfg, config_path).items():
         if stanza.get("config_path"):
-            stanza["config_path"] = (
-                config_path.resolve().parent / stanza["config_path"]
-            ).as_posix()
+            set_workflow_config_path(
+                cfg,
+                name,
+                (config_path.resolve().parent / stanza["config_path"]).as_posix(),
+            )
     dest.write_text(yaml.safe_dump(cfg), encoding="utf-8")
     return dest
 

@@ -10,6 +10,7 @@ import yaml
 from blueearth_cst.shared import execution_outputs, product_record
 from blueearth_cst.shared.config_paths import resolve_project_paths
 from blueearth_cst.shared.product_record import RECORD_DIRECTORY, RECORD_NAME
+from blueearth_cst.shared.project_workflows import normalize_project_workflows
 from scripts import run_workflows
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,7 +24,9 @@ def project(tmp_path):
 def make_project(tmp_path):
     """A rapid project with only WF2 enabled and its catalogs local."""
     config = resolve_project_paths(
-        yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text()),
+        normalize_project_workflows(
+            yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text())
+        ),
         ROOT / "test_case/project_config_rapid.yml",
     )
     output = tmp_path / "output"

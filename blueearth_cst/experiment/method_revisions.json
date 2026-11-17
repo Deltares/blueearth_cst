@@ -51,7 +51,7 @@
       "revision": 1
     },
     "indicator-set": {
-      "closure_sha256": "bbe9135300df9cb9db46474625c4a0016e8318800ac3490b76faacfd38f93a2f",
+      "closure_sha256": "433d273de6a885720f01cdb99bd507d9f19c075dff8ca8b31fbd35212aa8aa48",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -107,7 +107,7 @@
         },
         {
           "path": "blueearth_cst/experiment/indicator_plan.py",
-          "sha256": "8c8e7bd969c4314cc0018c37fbc963bc720c2ec00d6130c207447b3b40308fe8"
+          "sha256": "9340d33be232cb8c11d670affa10dcb742bc8f255b65373759ddf108acdabfe3"
         },
         {
           "path": "blueearth_cst/experiment/indicator_registry.py",
@@ -278,6 +278,10 @@
           "sha256": "b9487e3e9fafdeea02f0872f20b48d4ccf14a5a0a29fc1e1d80eb3f84a7c4136"
         },
         {
+          "path": "blueearth_cst/shared/project_workflows.py",
+          "sha256": "cb2438fc39992b3a3a7a14c47d59391f30132859980c39ae8bd140cb1ca7dcca"
+        },
+        {
           "path": "blueearth_cst/shared/provenance.py",
           "sha256": "0164b52da52c2143248589106d79b1cde68e9b8a56ea2b87eff1b51adda934fb"
         },
@@ -300,7 +304,7 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: legacy reservation provider check"
+        "reason": "t037: read the project file's workflows through the shared split-form normalizer"
       },
       "revision": 1
     },

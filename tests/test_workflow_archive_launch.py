@@ -13,6 +13,7 @@ from blueearth_cst.shared.config_paths import (
     resolve_project_paths,
     resolve_workflow_paths,
 )
+from blueearth_cst.shared.project_workflows import normalize_project_workflows
 from blueearth_cst.shared.workflow_archive_launch import (
     CONTEXT_ENV,
     prepare_workflow,
@@ -98,7 +99,9 @@ def test_execution_inputs_ignore_source_locations_and_other_enable_flags(
     tmp_path, workflow_name
 ):
     project = resolve_project_paths(
-        yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text()),
+        normalize_project_workflows(
+            yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text())
+        ),
         ROOT / "test_case/project_config_rapid.yml",
     )
     project_root = tmp_path / "output"
@@ -189,7 +192,9 @@ def test_execution_inputs_ignore_source_locations_and_other_enable_flags(
 
 def test_preparse_capture_survives_source_edit(tmp_path, capsys):
     project = resolve_project_paths(
-        yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text()),
+        normalize_project_workflows(
+            yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text())
+        ),
         ROOT / "test_case/project_config_rapid.yml",
     )
     source_workflow = ROOT / "test_case/project_config_rapid_analyze_climate.yml"
@@ -247,7 +252,9 @@ def test_shared_dependency_stages_once_across_workflows(tmp_path):
     ran, even with nothing to redo.
     """
     project = resolve_project_paths(
-        yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text()),
+        normalize_project_workflows(
+            yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text())
+        ),
         ROOT / "test_case/project_config_rapid.yml",
     )
     project_root = tmp_path / "output"
@@ -306,7 +313,9 @@ def test_execution_config_schema_moves_immutable_bundle_directory(
 ):
     """A staging-format change gets a new bundle path for unchanged sources."""
     project = resolve_project_paths(
-        yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text()),
+        normalize_project_workflows(
+            yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text())
+        ),
         ROOT / "test_case/project_config_rapid.yml",
     )
     project_root = tmp_path / "output"
@@ -357,7 +366,9 @@ def test_projection_catalog_and_store_index_stage_as_siblings(tmp_path):
     store from.
     """
     project = resolve_project_paths(
-        yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text()),
+        normalize_project_workflows(
+            yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text())
+        ),
         ROOT / "test_case/project_config_rapid.yml",
     )
     project_root = tmp_path / "output"
@@ -422,7 +433,9 @@ def test_config_overrides_are_captured_before_forwarding():
 
 def test_all_workflow_wrapper_routes_wf0_through_capture(tmp_path, monkeypatch):
     project = resolve_project_paths(
-        yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text()),
+        normalize_project_workflows(
+            yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text())
+        ),
         ROOT / "test_case/project_config_rapid.yml",
     )
     output = tmp_path / "output"
