@@ -459,24 +459,25 @@ MIN_HISTORICAL_YEARS = ADVANCED_SETTINGS["constraints"]["min_historical_years"]
 
 JULIA_VERSION = ADVANCED_SETTINGS["runtime"]["julia_version"]
 
-DEFAULT_JULIA_THREADS = ADVANCED_SETTINGS["runtime"]["julia_threads"]
+DEFAULT_JULIA_THREADS = ADVANCED_SETTINGS["runtime"]["historical_julia_threads"]
 
 
 def validate_julia_threads(value) -> int:
     """Validate a Julia thread count as a positive whole number.
 
-    The count comes from ``advanced_settings.runtime.julia_threads`` or a
+    The count comes from ``advanced_settings.runtime.historical_julia_threads`` or a
     Wflow rule's ``--set-threads``; a project config cannot set it (``C-54``
     removed ``shared.julia_threads``), so the refusal names those two sources.
 
     Parse-time, like the other config validators here: the value lands in a
     ``shell:`` body, so a bad one would otherwise surface as a Julia usage error
     inside a rule rather than as a config problem. Same predicate the settings
-    file's own ``defaults.julia_threads`` is held to.
+    file's own ``runtime.historical_julia_threads`` is held to.
     """
     return _positive_int(
         value,
-        "julia threads (advanced_settings.runtime.julia_threads or --set-threads)",
+        "julia threads (advanced_settings.runtime.historical_julia_threads or "
+        "--set-threads)",
     )
 
 

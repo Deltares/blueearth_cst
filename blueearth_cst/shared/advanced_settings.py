@@ -41,10 +41,12 @@ _ADVANCED_SETTINGS_SCHEMA = {
         "spell_factor": "monthly_factors",
         "change_factor_stats": "statistic_names",
     },
-    # `julia_threads` moved here from `defaults:` with `C-54`, which removed the
-    # per-project override. `defaults:` is for values a project could have
-    # overridden; nothing overrides this one now.
-    "runtime": {"julia_threads": "positive_int", "julia_version": "version_string"},
+    # WF1's historical Wflow run only (renamed from `julia_threads`, t037); WF4
+    # batches take their threads from `batching:`. No project override (`C-54`).
+    "runtime": {
+        "historical_julia_threads": "positive_int",
+        "julia_version": "version_string",
+    },
     # WF4's batched Wflow runs (t2609242342). `threads`/`max_parallel` may be
     # `auto`, which picks a regime by the model's active cell count; the rest
     # are the regimes' values and the memory estimate that caps parallelism.
@@ -184,17 +186,19 @@ def _catalog_entry_name(value, where: str) -> str:
 
 
 def _monthly_factors(value, where: str) -> list[float]:
-    """Twelve numbers, one per calendar month.
+    """Twelve numbers, one per calendar month; one number applies to every month.
 
     The LENGTH is the whole check. These reach weathergenr, which indexes them
     by month, so R would recycle or truncate a ten-element list rather than
     reject it and the run would perturb the wrong months in silence. Same
     predicate ``validate_spell_factor`` holds the per-project override to.
     """
+    if not isinstance(value, bool) and isinstance(value, (int, float)):
+        value = [value] * 12
     if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
         raise ValueError(
-            f"{where} must be a list of 12 monthly coefficients, got "
-            f"{value!r} ({type(value).__name__})"
+            f"{where} must be one number or a list of 12 monthly coefficients, "
+            f"got {value!r} ({type(value).__name__})"
         )
     if len(value) != 12:
         raise ValueError(
