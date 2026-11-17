@@ -291,11 +291,11 @@ def test_general_configuration_admission_defers_forcing_selection(tmp_path):
 def test_captured_composition_does_not_reread_mutated_workflow_file(tmp_path):
     project = write_split(
         tmp_path / "cfg",
-        bodies={"build_model": {"engine": {"build_config": "old.yml"}}},
+        bodies={"build_model": {"hydromt": {"build_config_path": "old.yml"}}},
     )
     workflow = project.with_name("project_config_test_build_model.yml")
     captured = cc.capture_configuration_sources(project, "build_model")
-    workflow.write_text("engine:\n  build_config: new.yml\n", encoding="utf-8")
+    workflow.write_text("hydromt:\n  build_config_path: new.yml\n", encoding="utf-8")
     composed, paths = cc.compose_captured_config(captured[0], captured, "build_model")
     assert composed["workflows"]["build_model"]["engine"]["build_config"] == "old.yml"
     assert "build_model" in paths
@@ -305,7 +305,7 @@ def test_capture_excludes_unrelated_workflow_files(tmp_path):
     project = write_split(
         tmp_path / "cfg",
         bodies={
-            "build_model": {"engine": {}},
+            "build_model": {"hydromt": {}},
             "analyze_projections": {"ensemble": "cmip6"},
         },
     )
@@ -327,8 +327,8 @@ def test_composed_document_equals_the_monolith_it_was_split_from(tmp_path):
     """
     bodies = {
         "build_model": {
-            "engine": {"build_config": "config/defaults/wflow_build_model.yml"},
-            "simulation_window": {"start": 2000, "end": 2020},
+            "hydromt": {"build_config_path": "config/defaults/wflow_build_model.yml"},
+            "run_period": {"start": 2000, "end": 2020},
         },
         "analyze_projections": {"ensemble": "cmip6", "scenarios": ["ssp245"]},
     }
@@ -339,6 +339,10 @@ def test_composed_document_equals_the_monolith_it_was_split_from(tmp_path):
     for name, body in bodies.items():
         monolith["workflows"][name].pop("config_path")
         monolith["workflows"][name].update(body)
+    # Public WF1 keys (t037) compose to the internal names the Snakefile reads.
+    wf1 = monolith["workflows"]["build_model"]
+    wf1["engine"] = {"build_config": wf1.pop("hydromt")["build_config_path"]}
+    wf1["simulation_window"] = wf1.pop("run_period")
     # The one declared deviation: the public forcing sets compose to the
     # internal single-recipe climate form (named_forcings.internal_climate).
     assert composed["climate"] == {"sources": ["era5"], "selected": "era5"}
@@ -373,7 +377,7 @@ def test_enabled_is_merged_and_config_path_is_not(tmp_path):
     """
     t1_path = write_split(
         tmp_path / "cfg",
-        bodies={"build_model": {"engine": {"build_config": "wflow.yml"}}},
+        bodies={"build_model": {"hydromt": {"build_config_path": "wflow.yml"}}},
         enabled={"build_model": False},
     )
     section = compose(t1_path)["workflows"]["build_model"]
@@ -1120,7 +1124,8 @@ def test_the_composed_shape_is_visible_through_snakemake_workflow_config(tmp_pat
     four entry points are wired to call it.
     """
     t1_path = write_split(
-        tmp_path / "cfg", bodies={"build_model": {"engine": {"build_config": "x.yml"}}}
+        tmp_path / "cfg",
+        bodies={"build_model": {"hydromt": {"build_config_path": "x.yml"}}},
     )
     snakefile = tmp_path / "probe.smk"
     snakefile.write_text(
@@ -1304,7 +1309,7 @@ def test_the_hoisted_key_reaches_both_readers_from_shared(tmp_path):
             "model": {"outvars": ["river discharge"]},
         },
         bodies={
-            "build_model": {"engine": {"build_config": "x.yml"}},
+            "build_model": {"hydromt": {"build_config_path": "x.yml"}},
             "generate_scenarios": {},
         },
     )

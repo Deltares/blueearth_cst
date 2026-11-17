@@ -49,7 +49,7 @@ the project file, including schema 2. Supported schema numbers are integers 2 an
 | Declaring file | File fields resolved by schema 3 |
 |---|---|
 | Project | `project.project_dir`, `project.catalog`, `project.reuse_data_from`, `basin.output_locations`, file-valued region entries, `observations` paths |
-| model building | `engine.build_config`, `engine.waterbodies_config` |
+| model building | `hydromt.build_config_path`, `hydromt.waterbodies_config_path` |
 | projection analysis | `projections_catalog` |
 | scenario generation | `weathergen_config` |
 | hydrological simulation | `scenario_collection.manifest_path`, `indicator_set_definitions.<id>.config_path` |
@@ -60,7 +60,7 @@ URLs and predefined HydroMT catalog names keep their spelling. Catalog-internal 
 semantics. There is no environment-variable expansion or search for a matching filename.
 The resolver expands `~` and normalizes slash-separated local paths.
 
-For example, `engine: {build_config: recipes/build.yml}` in `settings/wf1.yml` reads
+For example, `hydromt: {build_config_path: recipes/build.yml}` in `settings/wf1.yml` reads
 `settings/recipes/build.yml`. A bundled recipe can be `toolbox:config/defaults/wflow_build_model.yml`.
 Moving YAML files does not relocate retained outputs or datasets. Archives preserve exact source bytes
 and resolved runtime locators. `config_paths.py` and `tests/test_config_paths.py` implement these rules.
@@ -258,7 +258,7 @@ The following links explain the settings for each workflow.
 | Workflow | Settings and detailed reference |
 |---|---|
 | historical climate analysis | `diagnostics`, workflow-local `plotting`: [historical analysis](workflow-analyze-climate.md#configuration) |
-| model building | `simulation_window`, engine recipes, workflow-local `plotting`, `evaluation`: [model](workflow-build-model.md#configuration) |
+| model building | `run_period`, `hydromt` recipes, workflow-local `plotting`, `evaluation`: [model](workflow-build-model.md#configuration) |
 | projection analysis | `projections_catalog`, `ensemble`, `models`, `scenarios`, `members`, `variables`, `variable_options`, `reference_period`, `future_periods`, `stats`: [projections](workflow-analyze-projections.md#configuration) |
 | scenario generation | `seed`, `n_realizations`, `simulation_window`, monthly perturbations, generator and capacity: [generation](workflow-generate-scenarios.md#configuration) |
 | hydrological simulation | Collection, experiment, operations, indicator requests and `compute`: [simulation](workflow-simulate-system.md#configuration) |

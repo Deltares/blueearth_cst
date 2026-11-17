@@ -37,13 +37,13 @@ See [input formats](data-formats-and-conventions.md) for file conventions and
 
 | Setting | Purpose |
 |---|---|
-| `simulation_window.start`, `simulation_window.end` | Simulation years within the climate record. |
-| `observations` | Observed CSV files associated with modeled variables. |
-| `plotting.spatial` | Spatial input maps; default `true`. |
-| `plotting.forcing` | Model-grid forcing maps and time series; default `false`. |
-| `plotting.location` | Individual reporting-location and upstream-subbasin figures; default `false`. |
-| `engine.build_config` | Alternative HydroMT model-building recipe. |
-| `engine.waterbodies_config` | Alternative waterbody-update recipe. |
+| `run_period.start`, `run_period.end` | Simulation years within the climate record. |
+| `plotting.input_maps` | Spatial input maps; default `true`. |
+| `plotting.forcing_figures` | Model-grid forcing maps and time series; default `false`. |
+| `plotting.scales` | `[basin]` (default) or `[basin, locations]` for reporting-location and upstream-subbasin figures. |
+| `plotting.view` | With several forcing sets: `comparison` (default) draws station discharge across runs only; `individual`/`both` keep the per-run station figures. |
+| `hydromt.build_config_path` | Alternative HydroMT model-building recipe. |
+| `hydromt.waterbodies_config_path` | Alternative waterbody-update recipe. |
 | `output.netcdf_grid` | Optional native grids from this historical simulation. |
 | `historical_forcings` | Named recipes to simulate on the fixed model; see [named recipes](#named-recipes). |
 
@@ -78,13 +78,14 @@ Paths below are relative to `project_dir`. The main outputs are:
   `wflow_sbm.toml`, geometries and the HydroMT recipes used to build the model.
   `_engine/outlet_index.csv` links outlets to reporting locations.
 - **Historical forcing (`models/hydrology/wflow/forcing/`).** Model-grid forcing in
-  `inmaps_historical.nc` and optional forcing-check figures (`plotting.forcing: true`).
+  `inmaps_historical.nc` and optional forcing-check figures (`plotting.forcing_figures: true`).
 - **Simulated time series (`models/hydrology/wflow/historical/default/run/`).** Per-variable `output_<code>.csv`
   tables and `_engine/response_tables.json`, with registry IDs linking series to reporting locations.
   Native Wflow `output.csv` is removed after successful conversion. Evaluation reads the retained tables.
 - **Evaluation (`models/hydrology/wflow/historical/default/plots/` and `tables/`).** Model-response
   figures and scores where observations are available, including `tables/performance_indicators.csv`
-  and station discharge summaries under `plots/stations/` when `plotting.location: true`.
+  and station discharge summaries under `plots/stations/` when `plotting.scales` includes `locations`
+  (with several forcing sets and `view: comparison`, these are drawn across runs in `forcing_comparison/`).
 
 The completed model supplies subsequent hydrological simulations. Logs, benchmarks and configuration
 archives are described in [execution records](execution-and-provenance.md).
@@ -94,20 +95,22 @@ plots and individual location/subbasin figures are optional. Enable them in the 
 
 ```yaml
 plotting:
-  spatial: true
-  forcing: true
-  location: true
+  input_maps: true
+  forcing_figures: true
+  scales: [basin, locations]
 ```
 
 These switches affect figures only. Historical simulation, retained responses, per-variable time-series
-exports and observation-based performance metrics remain enabled. `spatial` defaults to `true`;
-`forcing` and `location` default to `false`. `location` controls both reporting-location and associated
-upstream-subbasin figures. Turning a family off leaves its previously generated files intact;
+exports and observation-based performance metrics remain enabled. `input_maps` defaults to `true`;
+`forcing_figures` to `false` and `scales` to `[basin]`. `locations` controls both reporting-location and
+associated upstream-subbasin figures; basin-scale figures always render. The forcing comparison
+(`forcing_comparison/`) always renders with two or more forcing sets. Since t037, `simulation_window`,
+`engine`, `plotting.spatial`, `.forcing` and `.location` are refused with their new names. Turning a family off leaves its previously generated files intact;
 the workflow no longer requests them. Turning it on requests any missing products through the usual runner.
 
 Shared `plotting.annotation` remains in the project YAML. Legacy `forcing_plots`,
 `evaluation.station_plots` and `evaluation.subbasin_plots` are accepted with deprecation warnings;
-both evaluation switches map to `plotting.location`. Conflicting declarations, unknown plotting keys
+both evaluation switches map to the `locations` scale. Conflicting declarations, unknown plotting keys
 and nonboolean switches are errors.
 
 ## Diagnostics and interpretation {#interpretation}

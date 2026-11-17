@@ -41,7 +41,7 @@ def test_missing_window_names_the_key_and_owning_file(model):
             _shared(1970, 2020), model, model_source="project_config_build_model.yml"
         )
     message = str(error.value)
-    assert "build_model.simulation_window" in message
+    assert "build_model run_period" in message
     assert "is required" in message
     assert "project_config_build_model.yml" in message
     assert "does not default to the full climate record" in message
@@ -64,7 +64,9 @@ def test_scaffold_declares_a_shorter_model_run_inside_the_climate_record():
     model = yaml.safe_load(
         (templates / "project_config_build_model.yml").read_text(encoding="utf-8")
     )
-    window = resolve_simulation_window(project["climate"], model)
+    window = resolve_simulation_window(
+        project["climate"], {"simulation_window": model["run_period"]}
+    )
     record = project["climate"]["window"]
     assert window["end"] - window["start"] < record["end"] - record["start"]
 
@@ -159,7 +161,7 @@ def test_a_non_year_endpoint_names_the_offending_key():
     with pytest.raises(ValueError) as excinfo:
         resolve_simulation_window(_shared(), {"simulation_window": sim})
     message = str(excinfo.value)
-    assert "simulation_window" in message and "climate.window.start" in message
+    assert "run_period" in message and "climate.window.start" in message
     assert "INCLUSIVE YEARS" in message, "say what the spelling is now"
 
 

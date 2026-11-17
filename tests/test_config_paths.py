@@ -67,7 +67,9 @@ def test_case_relocation_and_launch_directory(tmp_path, monkeypatch):
         },
     }
     model = {
-        "engine": {"build_config": "toolbox:config/defaults/wflow_build_model.yml"},
+        "hydromt": {
+            "build_config_path": "toolbox:config/defaults/wflow_build_model.yml"
+        },
     }
     (original / "project.yml").write_text(yaml.safe_dump(project))
     (original / "settings/model.yml").write_text(yaml.safe_dump(model))
@@ -227,7 +229,9 @@ def test_schema3_archive_stages_original_relative_inputs(tmp_path, monkeypatch):
         },
     }
     workflow = {
-        "engine": {"build_config": "toolbox:config/defaults/wflow_build_model.yml"}
+        "hydromt": {
+            "build_config_path": "toolbox:config/defaults/wflow_build_model.yml"
+        }
     }
     path = source / "project.yml"
     path.write_text(yaml.safe_dump(project))

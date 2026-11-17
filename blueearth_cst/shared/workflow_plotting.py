@@ -7,6 +7,9 @@ PLOTTING_DEFAULTS = {
     "analyze_climate": {"comparison": True, "source": False, "location": False},
     "build_model": {"spatial": True, "forcing": False, "location": False},
 }
+#: Optional internal selections with no default entry, so a project that never
+#: sets them composes exactly as before (t037 WF1 `view`).
+OPTIONAL_PLOTTING = {"build_model": {"view": ("individual", "both")}}
 LEGACY_PLOTTING_KEYS = {
     "analyze_climate": {
         ("source_figures",): "source",
@@ -36,10 +39,18 @@ def normalize_workflow_plotting(owner: str, body: Mapping) -> dict:
         raise ValueError(f"{owner}.plotting must be a mapping")
     if "annotation" in block:
         raise ValueError("plotting.annotation belongs in the project file")
-    unknown = set(block) - set(PLOTTING_DEFAULTS[owner])
+    optional = OPTIONAL_PLOTTING.get(owner, {})
+    unknown = set(block) - set(PLOTTING_DEFAULTS[owner]) - set(optional)
     if unknown:
         raise ValueError(f"Unknown {owner}.plotting options: {sorted(unknown)}")
-    declarations = {key: [(f"plotting.{key}", value)] for key, value in block.items()}
+    for key, allowed in optional.items():
+        if key in block and block[key] not in allowed:
+            raise ValueError(f"{owner}.plotting.{key} must be one of {list(allowed)}")
+    declarations = {
+        key: [(f"plotting.{key}", value)]
+        for key, value in block.items()
+        if key not in optional
+    }
     legacy = []
     for path, key in LEGACY_PLOTTING_KEYS[owner].items():
         parent = body
@@ -65,6 +76,7 @@ def normalize_workflow_plotting(owner: str, body: Mapping) -> dict:
         return result
     selected = dict(PLOTTING_DEFAULTS[owner])
     selected.update({key: values[0][1] for key, values in declarations.items()})
+    selected.update({key: block[key] for key in optional if key in block})
     for path, key in legacy:
         name = ".".join(path)
         warnings.warn(

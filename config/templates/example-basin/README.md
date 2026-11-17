@@ -24,7 +24,7 @@ In either case, review these replacements:
    This starter expects `P:/wflow_global/hydromt`, `rivers: hydro_rivers_lin` and `lulc: globcover`.
 5. Review `climate.sources`, choose `climate.forcing.precip_source` after source comparison, and keep at least
    16 years of historical record for weather generation. There is no local model calibration.
-6. Set the required historical model `simulation_window` in `project_config_build_model.yml` within
+6. Set the required historical model `run_period` in `project_config_build_model.yml` within
    the extracted record. Review outputs and optional observations before running.
 7. Review generator period, realizations, monthly perturbations, grid levels, trajectories and seed.
    Review projection selections/windows independently; projections never drive generation.

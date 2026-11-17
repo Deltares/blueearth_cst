@@ -172,7 +172,7 @@ The historical climate record, model run, projection windows and generated scena
 purposes; they do not need identical dates.
 
 - `climate.window`: historical calendar years, with at least 16 years for weather generation.
-- Model building: `simulation_window` uses water years within the available historical forcing.
+- Model building: `run_period` uses water years within the available historical forcing.
 - Projection analysis: `reference_period` and `future_periods` use calendar years;
   historical runs end in 2014.
 - Scenario generation: `simulation_window` sets the years of the scenario simulation.
@@ -207,7 +207,7 @@ Projections provide context; they do not set the scenario grid.
 
 ### Hydrological model
 
-Set `simulation_window` in
+Set `run_period` in
 `project_config_build_model.yml` to water years within the historical forcing record.
 Choose historical forcing and the model variables to save in the shared project file.
 

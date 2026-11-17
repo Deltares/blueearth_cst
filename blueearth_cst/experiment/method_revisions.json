@@ -51,7 +51,7 @@
       "revision": 1
     },
     "indicator-set": {
-      "closure_sha256": "49d778ad0968302c3eb33c3e38016882c9d3a097cc1fd00c7e61396d1e95986f",
+      "closure_sha256": "5be4ea39b59384dfa5dc35dc02296ecf57bda081b3a18534950c5fc084819537",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -243,7 +243,7 @@
         },
         {
           "path": "blueearth_cst/shared/config_paths.py",
-          "sha256": "cf2dadfe39728910bed9d27ae9e830ab83e29cfee7a545346c8ec81fc31d8708"
+          "sha256": "87421b5649726a8b7d1ffa2c004317ae506908e91b969b42e38aadc3cc444abc"
         },
         {
           "path": "blueearth_cst/shared/csv_output.py",
@@ -304,7 +304,7 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t037: analyze_projections_catalog path field renamed"
+        "reason": "t037: workflow path fields resolve authored and composed names"
       },
       "revision": 1
     },

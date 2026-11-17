@@ -342,6 +342,15 @@ RETIRED_KEYS: dict[str, str] = {
     "T2.analyze_climate.diagnostics.pt_temperature_source": (
         "retired (t037): precipitation-temperature diagnostics use ERA5 temperature"
     ),
+    "T2.build_model.simulation_window": "renamed (t037) to `run_period: {start, end}`",
+    "T2.build_model.engine": (
+        "renamed (t037) to `hydromt: {build_config_path, waterbodies_config_path}`"
+    ),
+    "T2.build_model.plotting.spatial": "renamed (t037) to `plotting.input_maps`",
+    "T2.build_model.plotting.forcing": "renamed (t037) to `plotting.forcing_figures`",
+    "T2.build_model.plotting.location": (
+        "replaced (t037) by `plotting.scales: [basin, locations]`"
+    ),
     "T2.analyze_climate.plotting.comparison": (
         "replaced (t037) by `plotting.view: comparison | individual | both`"
     ),
@@ -815,6 +824,9 @@ def internal_workflow_section(
     """
     body = dict(body)
     if name == "build_model":
+        from blueearth_cst.shared.workflow_plotting import normalize_workflow_plotting
+
+        body = normalize_workflow_plotting(name, _internal_wf1(body))
         discharge = observation_settings.get("river_discharge")
         if discharge is not None:
             body["observations"] = {"river discharge": discharge["path"]}
@@ -869,6 +881,103 @@ def internal_workflow_section(
     elif name == "analyze_projections":
         body = _internal_projections(body, climate)
     return body
+
+
+#: WF1 public plotting keys -> the internal figure switches.
+_WF1_PLOTTING = {"input_maps": "spatial", "forcing_figures": "forcing"}
+_WF1_HYDROMT = {
+    "build_config_path": "build_config",
+    "waterbodies_config_path": "waterbodies_config",
+}
+
+
+def _internal_wf1(body: dict[str, Any]) -> dict[str, Any]:
+    """WF1's t037 keys, in the shapes `build_model.smk` reads.
+
+    `run_period` -> `simulation_window`; `hydromt: {build_config_path,
+    waterbodies_config_path}` -> `engine: {build_config, waterbodies_config}`;
+    `plotting: {input_maps, forcing_figures, scales, view}` -> `{spatial,
+    forcing, location}` plus `view` only when it is not the default, so a
+    project that never sets it composes exactly as before.
+    """
+    body = dict(body)
+    if "run_period" in body:
+        body["simulation_window"] = body.pop("run_period")
+    hydromt_settings = body.pop("hydromt", None)
+    if hydromt_settings is not None:
+        if not isinstance(hydromt_settings, Mapping) or set(hydromt_settings) - set(
+            _WF1_HYDROMT
+        ):
+            raise ValueError(
+                "build_model hydromt accepts build_config_path and "
+                "waterbodies_config_path"
+            )
+        engine = {}
+        if "build_config_path" in hydromt_settings:
+            engine["build_config"] = hydromt_settings.get("build_config_path")
+        if "waterbodies_config_path" in hydromt_settings:
+            engine["waterbodies_config"] = hydromt_settings.get(
+                "waterbodies_config_path"
+            )
+        body["engine"] = engine
+    plotting_settings = body.get("plotting")
+    if isinstance(plotting_settings, Mapping):
+        plotting_settings = dict(plotting_settings)
+        internal = {}
+        if "input_maps" in plotting_settings:
+            internal["spatial"] = plotting_settings.pop("input_maps")
+        if "forcing_figures" in plotting_settings:
+            internal["forcing"] = plotting_settings.pop("forcing_figures")
+        if "scales" in plotting_settings:
+            scales = plotting_settings.pop("scales")
+            if (
+                not isinstance(scales, list)
+                or not scales
+                or set(scales) - set(_WF0_SCALES)
+                or "basin" not in scales
+            ):
+                raise ValueError(
+                    "build_model plotting.scales is [basin] or [basin, locations]; "
+                    "basin-scale figures always render"
+                )
+            internal["location"] = "locations" in scales
+        view = plotting_settings.pop("view", "comparison")
+        if view not in _WF0_VIEWS:
+            raise ValueError(
+                f"build_model plotting.view must be one of {list(_WF0_VIEWS)}"
+            )
+        if view != "comparison":
+            internal["view"] = view
+        body["plotting"] = {**plotting_settings, **internal}
+    return body
+
+
+def _public_wf1(section: dict[str, Any]) -> dict[str, Any]:
+    """Inverse of `_internal_wf1`."""
+    if "simulation_window" in section:
+        section["run_period"] = section.pop("simulation_window")
+    engine = section.pop("engine", None)
+    if isinstance(engine, Mapping):
+        inverse = {target: source for source, target in _WF1_HYDROMT.items()}
+        section["hydromt"] = {inverse[key]: value for key, value in engine.items()}
+    plotting_settings = section.get("plotting")
+    if isinstance(plotting_settings, Mapping):
+        plotting_settings = dict(plotting_settings)
+        public = {
+            source: plotting_settings.pop(target)
+            for source, target in _WF1_PLOTTING.items()
+            if target in plotting_settings
+        }
+        if "location" in plotting_settings:
+            public["scales"] = (
+                ["basin", "locations"]
+                if plotting_settings.pop("location")
+                else ["basin"]
+            )
+        if "view" in plotting_settings:
+            public["view"] = plotting_settings.pop("view")
+        section["plotting"] = {**plotting_settings, **public}
+    return section
 
 
 #: WF0 `plotting.view` -> the internal (comparison, source) figure switches.
@@ -1056,6 +1165,7 @@ def public_workflow_section(name: str, section: Mapping[str, Any]) -> dict[str, 
     """
     section = dict(section)
     if name == "build_model":
+        section = _public_wf1(section)
         section.pop("observations", None)
         evaluation = section.get("evaluation")
         if isinstance(evaluation, Mapping) and isinstance(
@@ -1536,11 +1646,11 @@ def compose_config(
     ]
     from blueearth_cst.shared.workflow_plotting import normalize_workflow_plotting
 
-    # analyze_climate's plotting is normalized after its t037 public keys are
+    # WF0/WF1 plotting is normalized after their t037 public keys are
     # translated (internal_workflow_section), so retired keys report first.
     probes = [
         probe._replace(body=normalize_workflow_plotting(probe.name, probe.body))
-        if probe.status == "ok" and probe.name != "analyze_climate"
+        if probe.status == "ok" and probe.name not in {"analyze_climate", "build_model"}
         else probe
         for probe in probes
     ]

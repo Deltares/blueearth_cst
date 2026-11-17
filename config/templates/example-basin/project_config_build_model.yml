@@ -10,11 +10,16 @@
 # Figures this workflow renders. Input: mapping.
 plotting:
   # Render basin and spatial-input maps. Options: true | false.
-  spatial: true
+  input_maps: true
   # Render model-grid forcing maps and time series. Options: true | false.
-  forcing: false
-  # Render station and individual-subbasin evaluation figures. Options: true | false.
-  location: false
+  forcing_figures: false
+  # basin: outlet and basin-average figures; locations adds station and subbasin figures.
+  # Select spatial scales. Options: [basin] | [basin, locations].
+  scales: [basin]
+  # With several forcing sets, comparison draws discharge per station across runs (in
+  # forcing_comparison/) instead of per run; individual and both keep the per-run figures.
+  # Choose how forcing runs are shown. Options: comparison | individual | both.
+  #view: comparison
 
 # Model evaluation settings. Input: mapping.
 #evaluation:
@@ -31,7 +36,7 @@ plotting:
 # Required inclusive years for the Wflow run, inside `climate.window`.
 # Choose this separately from the longer climate record; short runs are allowed.
 # Select inclusive simulation water years. Input: years within climate.window.
-simulation_window:
+run_period:
   # First simulation water year. Input: integer year, <= end.
   start: 2010
   # Last simulation water year. Input: integer year, >= start.
@@ -45,19 +50,19 @@ simulation_window:
 
 
 # -----------------------------------------------------------------------------
-#  ENGINE
+#  HYDROMT
 # -----------------------------------------------------------------------------
 
 # hydromt build settings. These are the defaults; point at your own copies
 # to change how the model is built.
 # Model construction settings. Input: mapping of configuration paths.
-#engine:
+#hydromt:
 # Configure initial model construction. Input: HydroMT YAML file path.
-#  build_config: toolbox:config/defaults/wflow_build_model.yml
+#  build_config_path: toolbox:config/defaults/wflow_build_model.yml
 # Configure lake and reservoir updates. Input: HydroMT YAML file path.
-#  waterbodies_config: toolbox:config/defaults/wflow_update_waterbodies.yml
+#  waterbodies_config_path: toolbox:config/defaults/wflow_update_waterbodies.yml
 
-# Optional native grids at each simulation timestep; retained in run_default/output_grid.nc.
+# Optional native grids at each simulation timestep; retained in the run folder's output_grid.nc.
 # Output settings are independent of the simulation workflow. Omitted/null disables grids.
 # Retained model output settings. Input: mapping.
 output:

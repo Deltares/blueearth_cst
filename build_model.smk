@@ -1212,7 +1212,11 @@ _evaluation_cfg = get_config(my_cfg, "evaluation", {})
 if not isinstance(_evaluation_cfg, dict):
     raise ValueError("build_model.evaluation must be a mapping")
 _subbasin_plots = _plotting["location"]
-_station_plots = _plotting["location"]
+# `view: comparison` (default): with several forcing sets rule 1.13b redraws the
+# per-run discharge figures, so the per-run `stations/` set is dropped (t037).
+_station_plots = _plotting["location"] and not (
+    COMPARE_FORCINGS and _plotting.get("view", "comparison") == "comparison"
+)
 _WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT = ("river discharge", "precipitation")
 _basavg_pngs = lambda key: [
     f"{_hp(key, 'evaluation_dir')}/plots/wflow_{BASAVG_FIGURE_STEMS[WFLOW_OUTPUT_CODES[var]]}_{kind}_basin_avg.png"

@@ -1,4 +1,4 @@
-engine:
-  build_config: config/defaults/wflow_build_model.yml
-  waterbodies_config: config/defaults/wflow_update_waterbodies.yml
-simulation_window: {start: 2000, end: 2020}
+hydromt:
+  build_config_path: config/defaults/wflow_build_model.yml
+  waterbodies_config_path: config/defaults/wflow_update_waterbodies.yml
+run_period: {start: 2000, end: 2020}

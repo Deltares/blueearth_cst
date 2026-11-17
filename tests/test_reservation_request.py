@@ -48,7 +48,7 @@ def case(tmp_path, monkeypatch):
     )
     build = tmp_path / "build.yml"
     build.write_text(
-        yaml.safe_dump({"simulation_window": {"start": 2000, "end": 2016}}),
+        yaml.safe_dump({"run_period": {"start": 2000, "end": 2016}}),
         encoding="utf-8",
     )
     path = tmp_path / "project.yml"
@@ -238,25 +238,25 @@ def test_model_recipe_guard_precedes_model_existence(case):
         role for role, _, _ in captures
     }
     document = yaml.safe_load(case[3].read_bytes())
-    document["simulation_window"]["end"] = 2015
+    document["run_period"]["end"] = 2015
     case[3].write_text(yaml.safe_dump(document), encoding="utf-8")
     after, _ = project_request(case, execute_model=True)
     assert before != after
 
 
-@pytest.mark.parametrize("settings", [{}, {"simulation_window": None}])
+@pytest.mark.parametrize("settings", [{}, {"run_period": None}])
 def test_missing_model_window_is_refused_upfront(case, settings):
     case[3].write_text(
-        "# simulation_window is commented out.\n" + yaml.safe_dump(settings),
+        "# run_period is commented out.\n" + yaml.safe_dump(settings),
         encoding="utf-8",
     )
-    with pytest.raises(ValueError, match="build_model.simulation_window.*is required"):
+    with pytest.raises(ValueError, match="build_model run_period.*is required"):
         project_request(case, execute_model=True)
 
 
 def test_model_window_outside_climate_record_is_refused_upfront(case):
     case[3].write_text(
-        yaml.safe_dump({"simulation_window": {"start": 1999, "end": 2016}}),
+        yaml.safe_dump({"run_period": {"start": 1999, "end": 2016}}),
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="not inside climate.window"):

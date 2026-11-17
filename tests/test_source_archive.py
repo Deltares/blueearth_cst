@@ -657,7 +657,7 @@ def test_a_to_b_to_relocated_c_composes_without_a(tmp_path, schema_version):
         ),
         encoding="utf-8",
     )
-    workflow_bytes = b"# retained\r\nengine:\r\n  build_config: old.yml\r\n"
+    workflow_bytes = b"# retained\r\nhydromt:\r\n  build_config_path: old.yml\r\n"
     workflow_path.write_bytes(workflow_bytes)
     sources = cc.capture_configuration_sources(project_path, "build_model")
     composed, _ = cc.compose_captured_config(sources[0], sources, "build_model")

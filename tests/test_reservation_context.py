@@ -90,7 +90,7 @@ def configuration(base, *, retained=None):
     write_yaml(simulation, settings)
     write_yaml(
         base / "build_model.yml",
-        {"simulation_window": {"start": 2000, "end": 2016}},
+        {"run_period": {"start": 2000, "end": 2016}},
     )
     workflows = {
         name: {"enabled": False} for name in ("analyze_climate", "analyze_projections")

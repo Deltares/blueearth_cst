@@ -4,12 +4,12 @@
 # D-7.9: this file and its `config_path` stanza travel together -- an empty
 # file is legal, a MISSING file with `config_path` still declared is not.
 
-# C-22: the wflow-engine settings, regrouped under `engine:`. Both leaves are
+# C-22: the wflow-engine settings, under `hydromt:` since t037. Both leaves are
 # optional and carry the same defaults they had flat, so declaring neither is
 # the same run.
-engine:
-  build_config: config/defaults/wflow_build_model.yml
-  waterbodies_config: config/defaults/wflow_update_waterbodies.yml
+hydromt:
+  build_config_path: config/defaults/wflow_build_model.yml
+  waterbodies_config_path: config/defaults/wflow_update_waterbodies.yml
 
 # The Wflow run period must now be explicit; retain this probe's former period.
-simulation_window: {start: 2000, end: 2020}
+run_period: {start: 2000, end: 2020}

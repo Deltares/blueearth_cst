@@ -641,8 +641,8 @@ def resolve_simulation_window(
     window = get_config(model_cfg, "simulation_window", None)
     if window is None:
         raise ValueError(
-            f"workflows.build_model.simulation_window{where_model} is required: "
-            "declare {start: YEAR, end: YEAR} in the build_model config. "
+            f"build_model run_period{where_model} is required: "
+            "declare run_period: {start: YEAR, end: YEAR} in the build_model config. "
             "The Wflow run period must sit inside climate.window; it does not "
             "default to the full climate record"
         )
@@ -652,10 +652,10 @@ def resolve_simulation_window(
     try:
         start, end = historical_window_bounds(window)
     except ValueError as exc:
-        raise ValueError(f"workflows.build_model.simulation_window: {exc}") from None
+        raise ValueError(f"build_model run_period: {exc}") from None
     if end <= start:
         raise ValueError(
-            f"workflows.build_model.simulation_window {start.date()} .. "
+            f"build_model run_period {start.date()} .. "
             f"{end.date()} ends on or before it starts — check the order"
         )
     rec_start, rec_end = historical_window_bounds(
@@ -663,7 +663,7 @@ def resolve_simulation_window(
     )
     if start < rec_start or end > rec_end:
         raise ValueError(
-            f"workflows.build_model.simulation_window {start.date()} .. "
+            f"build_model run_period {start.date()} .. "
             f"{end.date()}{where_model} is not inside climate.window "
             f"{rec_start.date()} .. {rec_end.date()}{where_shared}. The forcing "
             "is built from "

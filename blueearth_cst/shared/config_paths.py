@@ -140,8 +140,15 @@ def resolve_workflow_paths(
             "rain_gauges.precip_path",
             "rain_gauges.temp_path",
         ),
-        "build_model": ("engine.build_config", "engine.waterbodies_config"),
-        "analyze_projections": ("projections_catalog",),
+        # Authored (t037) and composed names: create_case resolves authored files,
+        # composition resolves after translating them to the internal names.
+        "build_model": (
+            "hydromt.build_config_path",
+            "hydromt.waterbodies_config_path",
+            "engine.build_config",
+            "engine.waterbodies_config",
+        ),
+        "analyze_projections": ("projections_catalog", "catalog"),
         "generate_scenarios": ("weathergen_config",),
         "simulate_system": ("scenario_collection.manifest_path",),
     }
