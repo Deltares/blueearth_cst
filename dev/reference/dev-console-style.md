@@ -99,9 +99,9 @@ Each logged rule writes its own log part; the launcher merges the parts after su
   skipping it. Raw parts are retained after a failure.
 
 The [workflow map](toolbox-workflow-map.md#trace-a-rule-and-its-consumers) owns rule labels and
-`LOG_RULES` registration. Some of these helpers sit near the code inventories that WF3 and WF4
-identities hash; check with the [run identity reference](toolbox-run-identity.md#code-inventories) before
-moving code between them. Tests: [`test_run_logged.py`](../../tests/test_run_logged.py),
+`LOG_RULES` registration. Some of these helpers sit near the code closures that WF3 and WF4 method
+revisions pin; check with the [run identity reference](toolbox-run-identity.md#closures) before moving code
+between them. Tests: [`test_run_logged.py`](../../tests/test_run_logged.py),
 [`test_merge_logs.py`](../../tests/test_merge_logs.py) and
 [`test_log_rules_contract.py`](../../tests/test_log_rules_contract.py).
 

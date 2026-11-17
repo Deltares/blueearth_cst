@@ -18,9 +18,12 @@ Relative paths below start at `project_dir`, unless an experiment folder is name
 | Indicator set | Experiment `_engine/indicator_sets/<id>/indicators.json` (hashes); its tables only in `results/indicator_sets/<set-id>/` |
 | Named indicator view | Experiment `results/indicator_sets/<set-id>/`; committed by `_engine/indicator_sets/names/<set-id>/current.json` |
 
-Collection identity covers generation settings, resolved seed, scientific sources and environment.
-Simulation identity binds selected collection/runs, model and simulation settings. Indicator identity binds
-saved model time series, declarations, water year and contributing execution sources/dependencies.
+Collection identity covers generation settings, resolved seed, scientific sources, the generator's method
+revision and its key numerical packages. Simulation identity binds selected collection/runs, model,
+simulation settings, the simulation method revision and key packages. Indicator identity binds saved model
+time series, declarations, water year, the indicator method revision and key packages. A toolbox update that
+does not change a method revision or key package keeps every saved result reusable; the code and full
+environment that produced a result stay recorded with it.
 Changing the model, collection or frozen simulation inputs requires a new experiment. Changing a compatible
 indicator request can create another immutable set without rerunning Wflow. A missing retained variable
 requires a new simulation. Different simulations are never combined within one indicator set.

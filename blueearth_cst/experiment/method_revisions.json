@@ -305,7 +305,7 @@
       "revision": 1
     },
     "stochastic-collection": {
-      "closure_sha256": "a01f16e5ff19304392878401b6c9381327a4312bc6fab63ecb3af351fbf5e395",
+      "closure_sha256": "52f32f588e1e8cdcf546b9a6d1532ffbc07729988bf6dc1d1fd789c7923b940b",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -333,7 +333,7 @@
         },
         {
           "path": "blueearth_cst/experiment/generation_plan.py",
-          "sha256": "d2f2aa63689185c7e4caf357bd9e4780a4ab58aded27036ff213733b51f9e186"
+          "sha256": "8c36b9d311b2b6c48478ee728596da1992460e73c7734f20a066046ed6f00e5b"
         },
         {
           "path": "blueearth_cst/experiment/generation_sources.py",
@@ -398,7 +398,7 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: indicator identity keys on the method revision"
+        "reason": "t038: exclusion comment points at the pin"
       },
       "revision": 1
     },
