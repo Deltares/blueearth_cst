@@ -1,6 +1,6 @@
 # CST documentation guidelines
 
-Last updated: 2026-11-05
+Last updated: 2026-11-17
 
 Use this guide for CST user guides, scientific explanations, toolbox reference and technical notes.
 It owns CST content and presentation conventions; the [validation ladder](dev-validation.md) owns
@@ -24,6 +24,26 @@ check selection, and the [record lifecycle](dev-record-lifecycle.md) owns develo
   describe toolbox functions, not necessarily individual Python files.
 - Use neutral Technical Manual labels such as “Files supplied by the user” and “Files prepared by
   the toolbox”. Use direct instructions in procedures; the User Guide may address readers directly.
+
+### Preferred terms
+
+The [User Guide glossary](../../docs/guide/glossary.md) owns toolbox term definitions; user-facing pages use
+its preferred terms. Replace these toolbox-specific terms:
+
+| Avoid | Use |
+|---|---|
+| runner, launcher | run command |
+| checkout, repository | toolbox folder |
+| project directory, output root, run root, product root | output directory |
+| scenario collection | scenario set |
+| output location, station (as a model point) | reporting location |
+| reference, baseline (generated weather) | unperturbed reference |
+| historical period (extraction years) | climate window |
+| reservation (experiment) | experiment number allocation |
+
+In user-facing pages, replace general software terms (retained, identity, provenance, locator, sidecar,
+invocation, scaffold, publish) with plain words. Keep configuration keys, file names, flags and quoted
+console messages verbatim.
 
 ## Content and sources
 
