@@ -89,7 +89,8 @@ execution are unchanged; see [case creation and migration](../guide/new-case.md)
 | `climate.default_forcing` | The set scenario generation uses and the default for model building and simulation |
 | `climate.window` | Inclusive calendar-year `start`/`end`; historical record, not hydrological run period |
 | `climate.water_year_start` | Reporting-year month, default January |
-| `climate.map_reference` | Historical-map completeness; default 3 missing days/month, 15/year |
+| `climate.map_reference` | Historical completeness for maps and historical-analysis diagnostics; default 3 missing days/month, 15/year |
+| `climate.seasons` | Named contiguous month lists for climate indices; default DJF, MAM, JJA, SON |
 | `observations.river_discharge` | Observed daily-mean discharge `path` and optional `time_label` (default `interval_end`); model evaluation, see [observations](#observations) |
 | `observations.met_stations` | Station `stations_path`, `precip_path`, optional `temp_path` and required `time_label`; historical analysis, see [rain gauges](workflow-analyze-climate.md#rain-gauges) |
 | `model.name` | Folder under `models/hydrology/` that WF1 builds or runs and WF4 uses; default `wflow` |
@@ -104,8 +105,7 @@ coverage for its declared simulation window, including Wflow's initial-state tim
 
 `climate.map_reference` accepts only `max_missing_days_month` (integer 0–27) and
 `max_missing_days_year` (nonnegative integer). Booleans and fractions fail. Historical climate analysis
-diagnostic tolerances must
-equal these shared values. Model building forcing summaries retain their independent default 3/15 policy.
+diagnostics use these values. Model building forcing summaries retain their independent default 3/15 policy.
 Completeness and temporal aggregation are distinct from the inclusive extraction dates.
 
 ### Observations {#observations}

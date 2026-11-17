@@ -246,6 +246,10 @@ def _without_toggle(section, path):
     """
     if not isinstance(section, dict):
         return section
+    if path == "climate":
+        # `climate.seasons` shapes WF0/WF2 reporting only, never the model
+        # forcing, so adding it after a build must not refuse WF3/WF4 (t037).
+        return {k: v for k, v in section.items() if k != "seasons"}
     if not (isinstance(path, tuple) and len(path) == 2 and path[0] == "workflows"):
         return section
     return {k: v for k, v in section.items() if k != _STANZA_TOGGLE}

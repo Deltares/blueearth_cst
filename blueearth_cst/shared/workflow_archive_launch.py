@@ -30,7 +30,7 @@ from blueearth_cst.shared.config_composition import (
     capture_configuration_sources,
     compose_captured_config,
     compose_config,
-    extract_observations,
+    public_workflow_section,
 )
 from blueearth_cst.shared.config_paths import TOOLBOX_ROOT
 from blueearth_cst.shared.configuration_archive import (
@@ -429,11 +429,11 @@ def prepare_workflow(
             workflow: {"enabled": composed["workflows"][workflow]["enabled"]}
         }
         if workflow_source is not None:
-            # Observations stay in the project document (`observations:`).
+            # Project-file settings stay in the project document.
             workflow_document = _replace_paths(
                 {
                     key: value
-                    for key, value in extract_observations(
+                    for key, value in public_workflow_section(
                         workflow, composed["workflows"][workflow]
                     ).items()
                     if key != "enabled"

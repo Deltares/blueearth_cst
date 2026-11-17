@@ -30,17 +30,17 @@ extraction requires overlap between the source record and that period.
 | `climate.default_forcing` | Used by downstream forcing consumers; not required for comparisons. |
 | `climate.window` | Requested historical period. |
 | `climate.water_year_start` | Month that begins the reporting year. |
+| `climate.seasons` | Seasons for climate indices; default DJF, MAM, JJA, SON; `{}` for annual only. |
+| `climate.map_reference` | Missing-day tolerances, shared with the map reference; default 3 per month, 15 per year. |
 
 **Workflow settings** control the diagnostics and optional subbasin figures. The annotated template is
 `config/templates/example-basin/project_config_analyze_climate.yml`.
 
 | Setting | Purpose |
 |---|---|
-| `diagnostics.reference_period` | Reference water years for anomalies and SPI fitting. |
+| `diagnostics.reference_period` | Reference water years for anomalies, SPI fitting and climate indices. |
 | `diagnostics.comparison_period` | Requested period for comparing sources. |
 | `diagnostics.annual_spatial_anomalies` | Native-grid annual P/T departure panels; default `false`. |
-| `diagnostics.max_missing_days_month` | Allowed missing days per month; default 3. |
-| `diagnostics.max_missing_days_year` | Allowed missing days per water year; default 15. |
 | `diagnostics.wet_day_threshold_mm` | Wet-day threshold; default 1 mm/day. |
 | `diagnostics.spi_distribution` | SPI distribution: `gamma` (default) or `pearson3`. |
 | `plotting.comparison` | Render basin comparison figures; default `true`. |
@@ -48,7 +48,10 @@ extraction requires overlap between the source record and that period.
 | `plotting.location` | Render reporting-location and upstream-subbasin figures; default `false`. |
 
 The reference period defaults to the climate window, and the comparison period defaults to the
-reference period. Missing-day tolerances must match the project settings in `climate.map_reference`.
+reference period. Since t037 the missing-day tolerances come from `climate.map_reference`, seasons from
+`climate.seasons`, and the precipitation–temperature diagnostics always use ERA5 temperature;
+`max_missing_days_*`, `climate_indices.seasons`, `climate_indices.reference_period` and
+`pt_temperature_source` in this file are refused.
 See [execution and run management](configuration-and-execution.md) for running the workflow.
 
 Basin-average comparison figures and unique source maps remain on by default. With multiple sources,
@@ -335,13 +338,13 @@ See the [processing rule reference](workflow-rule-reference.md#analyze-climate) 
 Set `diagnostics.climate_indices.enabled: true` in the historical-analysis workflow file to calculate
 both native-grid indices and indices of the daily basin series. This bundle is disabled by default
 because cellwise percentile bootstrap and event retention can be expensive. The configuration starter
-contains the settings; `reference_period: null` uses complete calendar years from `climate.window`.
-An explicit `{start: 1991, end: 2020}` selects reference calendar years independently of the existing
-`diagnostics.reference_period`, which controls water-year anomalies and SPI. Requested reference years
+contains the settings. Index thresholds are fitted on `diagnostics.reference_period` (default
+`climate.window`), read as calendar years with those labels; with a non-January `climate.water_year_start`
+the index reference therefore starts in January of the first labelled year. Requested reference years
 outside the extracted record count as missing; they do not trigger additional acquisition.
 
-`diagnostics.climate_indices.seasons` maps names to ordered contiguous month lists, for example
-`{DJF: [12, 1, 2], JJA: [6, 7, 8]}`. No seasons are inferred. Annual periods use the configured water-year
+The project file's `climate.seasons` maps names to ordered contiguous month lists, for example
+`{DJF: [12, 1, 2], JJA: [6, 7, 8]}`. Omitted, it is DJF, MAM, JJA and SON; `{}` reports annual indices only. Annual periods use the configured water-year
 start; annual and seasonal labels use their start year. December 2000–February 2001 is `DJF:2000`.
 
 ### Definitions and reference conventions

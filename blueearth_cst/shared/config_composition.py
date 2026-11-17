@@ -156,11 +156,12 @@ T1_SHARED_SECTIONS: dict[str, tuple[str, ...]] = {
         "forcing",
         "forcings",
         "default_forcing",
+        "seasons",
     ),
     "model": ("outvars", "name"),
     "plotting": ("annotation",),
     # Observed series, translated into the workflow settings that read them
-    # (`inject_observations`); a workflow file declaring one is refused.
+    # (`internal_workflow_section`); a workflow file declaring one is refused.
     "observations": ("river_discharge", "met_stations"),
 }
 
@@ -321,6 +322,24 @@ RETIRED_KEYS: dict[str, str] = {
         "`climate.forcings` and `climate.default_forcing` (t037)"
     ),
     "T1.shared.water_year_start": ("regrouped as `climate.water_year_start` (`C-53`)"),
+    "T2.analyze_climate.diagnostics.climate_indices.seasons": (
+        "moved (t037) to the project file as `climate.seasons` (default DJF, MAM, "
+        "JJA, SON; `{}` for annual indices only)"
+    ),
+    "T2.analyze_climate.diagnostics.climate_indices.reference_period": (
+        "retired (t037): climate indices use `diagnostics.reference_period`"
+    ),
+    "T2.analyze_climate.diagnostics.max_missing_days_month": (
+        "retired (t037): analyze_climate reads `climate.map_reference` in the "
+        "project file"
+    ),
+    "T2.analyze_climate.diagnostics.max_missing_days_year": (
+        "retired (t037): analyze_climate reads `climate.map_reference` in the "
+        "project file"
+    ),
+    "T2.analyze_climate.diagnostics.pt_temperature_source": (
+        "retired (t037): precipitation-temperature diagnostics use ERA5 temperature"
+    ),
     "T2.analyze_climate.rain_gauges": (
         "moved (t037) to the project file as `observations.met_stations: "
         "{stations_path, precip_path, temp_path, time_label}`"
@@ -613,8 +632,12 @@ def _retired_hits(
         else:
             owner, _, name = rest.partition(".")
             targets = bodies if owner == "*" else {owner: bodies.get(owner) or {}}
+            parts = name.split(".")
             for workflow, body in targets.items():
-                if isinstance(body, Mapping) and name in body:
+                node = body
+                for part in parts[:-1]:
+                    node = node.get(part) if isinstance(node, Mapping) else None
+                if isinstance(node, Mapping) and parts[-1] in node:
                     hits.append(f"  {workflow} file: {name} -- {destination}")
     return hits
 
@@ -709,15 +732,60 @@ def project_observations(
     return resolved["observations"]
 
 
-def inject_observations(
-    name: str, body: Mapping[str, Any], observation_settings: Mapping[str, Any]
+#: `climate.seasons` when the project file omits it (t037): the seasons WF2
+#: has always reported. `{}` declares annual-only climate indices.
+DEFAULT_SEASONS: dict[str, list[int]] = {
+    "DJF": [12, 1, 2],
+    "MAM": [3, 4, 5],
+    "JJA": [6, 7, 8],
+    "SON": [9, 10, 11],
+}
+
+
+def project_seasons(climate: Mapping[str, Any]) -> dict[str, list[int]]:
+    """Validated `climate.seasons`, or `DEFAULT_SEASONS` when it is omitted.
+
+    The default is applied here, by readers, and never written into the
+    composed `climate:` section that the drift guard compares.
+    """
+    seasons = climate.get("seasons")
+    if seasons is None:
+        return {name: list(months) for name, months in DEFAULT_SEASONS.items()}
+    if not isinstance(seasons, Mapping):
+        raise ValueError(
+            "climate.seasons requires a mapping of names to month lists, "
+            "e.g. {DJF: [12, 1, 2]}"
+        )
+    from blueearth_cst.indicators.climate.periods import seasonal_periods
+
+    result = {}
+    for name, months in seasons.items():
+        if not isinstance(months, list):
+            raise ValueError(f"climate.seasons.{name} requires an ordered month list")
+        seasonal_periods(2000, 2000, name=str(name), months=tuple(months))
+        result[str(name)] = list(months)
+    return result
+
+
+#: Settings composition writes into a workflow section from the project file;
+#: `public_workflow_section` removes them again.
+_WF0_MAP_REFERENCE_KEYS = ("max_missing_days_month", "max_missing_days_year")
+
+
+def internal_workflow_section(
+    name: str,
+    body: Mapping[str, Any],
+    observation_settings: Mapping[str, Any],
+    climate: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Give one workflow file the observation settings it reads internally.
+    """Give one workflow file the project-file settings it reads internally.
 
     WF1 reads `observations: {"river discharge": path}` and, when the
     `evaluation.budyko` switch is on, the `{discharge_statistic, time_label}`
-    declaration; WF0 reads `rain_gauges`. Producing exactly those shapes keeps
-    every rule's params, and so every retained output, unchanged.
+    declaration; WF0 reads `rain_gauges`, `climate_indices.seasons` and
+    `.reference_period`, and its own completeness tolerances. Producing
+    exactly those shapes keeps rule params, and so retained outputs,
+    unchanged.
     """
     body = dict(body)
     if name == "build_model":
@@ -746,20 +814,38 @@ def inject_observations(
                     "observations.river_discharge in the project file"
                 )
             body["evaluation"] = evaluation
-    elif (
-        name == "analyze_climate"
-        and observation_settings.get("met_stations") is not None
-    ):
-        body["rain_gauges"] = dict(observation_settings["met_stations"])
+    elif name == "analyze_climate":
+        if observation_settings.get("met_stations") is not None:
+            body["rain_gauges"] = dict(observation_settings["met_stations"])
+        diagnostics = body.get("diagnostics")
+        if diagnostics is None:
+            diagnostics = {}
+        if not isinstance(diagnostics, Mapping):
+            return body  # parse_settings reports the type
+        diagnostics = dict(diagnostics)
+        map_reference = climate.get("map_reference")
+        if isinstance(map_reference, Mapping):
+            for key in _WF0_MAP_REFERENCE_KEYS:
+                if key in map_reference:
+                    diagnostics[key] = map_reference[key]
+        indices = diagnostics.get("climate_indices")
+        if isinstance(indices, Mapping):
+            indices = dict(indices)
+            indices["seasons"] = project_seasons(climate)
+            if "reference_period" in diagnostics:
+                indices["reference_period"] = diagnostics["reference_period"]
+            diagnostics["climate_indices"] = indices
+        if diagnostics or "diagnostics" in body:
+            body["diagnostics"] = diagnostics
     return body
 
 
-def extract_observations(name: str, section: Mapping[str, Any]) -> dict[str, Any]:
-    """Inverse of `inject_observations` for a composed workflow section.
+def public_workflow_section(name: str, section: Mapping[str, Any]) -> dict[str, Any]:
+    """Inverse of `internal_workflow_section` for a composed workflow section.
 
     Writers that turn composed settings back into files (execution configs,
-    test fixtures) keep the project-file `observations:` and must not write the
-    internal per-workflow forms.
+    test fixtures) keep the project-file settings there and must not write the
+    internal per-workflow forms, which are retired keys.
     """
     section = dict(section)
     if name == "build_model":
@@ -771,6 +857,21 @@ def extract_observations(name: str, section: Mapping[str, Any]) -> dict[str, Any
             section["evaluation"] = {**evaluation, "budyko": True}
     elif name == "analyze_climate":
         section.pop("rain_gauges", None)
+        diagnostics = section.get("diagnostics")
+        if isinstance(diagnostics, Mapping):
+            diagnostics = {
+                key: value
+                for key, value in diagnostics.items()
+                if key not in _WF0_MAP_REFERENCE_KEYS
+            }
+            indices = diagnostics.get("climate_indices")
+            if isinstance(indices, Mapping):
+                diagnostics["climate_indices"] = {
+                    key: value
+                    for key, value in indices.items()
+                    if key not in {"seasons", "reference_period"}
+                }
+            section["diagnostics"] = diagnostics
     return section
 
 
@@ -1292,8 +1393,14 @@ def compose_config(
             )
     _check_retired_keys(authored_t1, bodies)  # the T2 half; the T1 half ran above
     observations = project_observations(t1, t1_path)
+    project_climate = t1.get("climate") or {}
+    project_seasons(project_climate)  # validate even when no reader runs
     probes = [
-        probe._replace(body=inject_observations(probe.name, probe.body, observations))
+        probe._replace(
+            body=internal_workflow_section(
+                probe.name, probe.body, observations, project_climate
+            )
+        )
         if probe.status == "ok"
         else probe
         for probe in probes
@@ -1413,7 +1520,7 @@ def compose_config(
             body = (
                 dict(probe.body)
                 if probe is not None
-                else inject_observations(name, {}, observations)
+                else internal_workflow_section(name, {}, observations, project_climate)
             )
             if probe is not None:
                 body = resolve_workflow_paths(

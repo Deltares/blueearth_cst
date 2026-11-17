@@ -1777,7 +1777,8 @@ def test_every_retired_key_row_is_reachable(tmp_path, path):
     else:
         owner, _, name = rest.partition(".")
         owners = list(cc.WORKFLOW_NAMES) if owner == "*" else [owner]
-        body = {name: {"planted": True}}
+        body: dict = {}
+        _plant(body, name)
         (directory / f"t2_{owners[0]}.yml").write_text(
             yaml.safe_dump(body), encoding="utf-8"
         )
@@ -1798,3 +1799,67 @@ def test_every_retired_key_row_is_reachable(tmp_path, path):
         f"earlier refusal shadows this row, so the destination it records is "
         f"never shown to anyone. Got:\n{message}"
     )
+
+
+def _wf0(tmp_path, climate_extra=None, diagnostics=None):
+    sections = {
+        "basin": {"region": "x"},
+        "climate": {
+            "forcings": {"era5": {"precip_source": "era5"}},
+            **(climate_extra or {}),
+        },
+    }
+    body = {"diagnostics": diagnostics} if diagnostics is not None else {}
+    path = write_split(tmp_path, sections=sections, bodies={"analyze_climate": body})
+    return compose(path, "analyze_climate")
+
+
+def test_wf0_indices_read_project_seasons_and_one_reference_period(tmp_path):
+    composed = _wf0(
+        tmp_path / "default",
+        diagnostics={
+            "reference_period": {"start": 2001, "end": 2010},
+            "climate_indices": {"enabled": True},
+        },
+    )
+    diagnostics = composed["workflows"]["analyze_climate"]["diagnostics"]
+    indices = diagnostics["climate_indices"]
+    assert indices["seasons"] == cc.DEFAULT_SEASONS
+    assert indices["reference_period"] == {"start": 2001, "end": 2010}
+    # The default is applied at the reader, never in the guarded section.
+    assert "seasons" not in composed["climate"]
+
+    annual = _wf0(
+        tmp_path / "annual",
+        climate_extra={"seasons": {}, "map_reference": {"max_missing_days_month": 2}},
+        diagnostics={"climate_indices": {"enabled": True}},
+    )
+    diagnostics = annual["workflows"]["analyze_climate"]["diagnostics"]
+    assert diagnostics["climate_indices"]["seasons"] == {}
+    assert diagnostics["max_missing_days_month"] == 2
+
+
+def test_wf0_public_section_round_trips(tmp_path):
+    composed = _wf0(
+        tmp_path,
+        climate_extra={
+            "seasons": {"JJA": [6, 7, 8]},
+            "map_reference": {"max_missing_days_year": 9},
+        },
+        diagnostics={
+            "reference_period": {"start": 2001, "end": 2010},
+            "climate_indices": {"enabled": True},
+        },
+    )
+    public = cc.public_workflow_section(
+        "analyze_climate", composed["workflows"]["analyze_climate"]
+    )
+    assert public["diagnostics"] == {
+        "reference_period": {"start": 2001, "end": 2010},
+        "climate_indices": {"enabled": True},
+    }
+
+
+def test_invalid_project_seasons_are_refused(tmp_path):
+    with pytest.raises(ValueError):
+        _wf0(tmp_path, climate_extra={"seasons": {"X": [1, 3]}})

@@ -121,9 +121,17 @@ climate:
   # Set the first water-year month. Input: three-letter month abbreviation, Jan–Dec.
   #water_year_start: Jan
 
-  # Optional shared historical map policy. WF0 diagnostic tolerances must match.
-  # Monthly tolerance is an integer from 0 to 27; annual tolerance is nonnegative.
-  # Set shared historical map completeness tolerances. Input: mapping matching WF0 diagnostics.
+  # Seasons for climate indices in analyze_climate.
+  # Default DJF, MAM, JJA, SON; {} limits climate indices to annual values.
+  # Name contiguous seasons. Input: mapping of names to month lists; labels use the start year.
+  #seasons:
+  #  DJF: [12, 1, 2]
+  #  MAM: [3, 4, 5]
+  #  JJA: [6, 7, 8]
+  #  SON: [9, 10, 11]
+
+  # Shared historical completeness policy for maps and analyze_climate diagnostics.
+  # Set historical completeness tolerances. Input: mapping.
   #map_reference:
   # Allow missing days per month. Input: integer, 0–27.
   #  max_missing_days_month: 3

@@ -334,3 +334,11 @@ def test_the_parse_time_form_agrees_with_the_snapshot_derived_one(snapshots):
         "the guard compares one set of paths and the Snakefile threads another; "
         "an edit to the difference is refused without re-firing the guard"
     )
+
+
+def test_climate_seasons_are_not_guarded(snapshots):
+    """`climate.seasons` shapes reporting only; adding it after WF1 passes (t037)."""
+    wf1, wf2 = snapshots
+    live = copy.deepcopy(_BASE_CFG)
+    live["climate"] = {**live["climate"], "seasons": {"JJA": [6, 7, 8]}}
+    assert compare_project_consistency(live, wf1, wf2) == []

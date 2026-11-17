@@ -297,10 +297,10 @@ def write_config(tmp_path, cfg, stem: str = "project_config") -> Path:
     # No hoist step: `HOISTED_SECTIONS` retired in R14 P1 (D-10.1), so a T2
     # file's top-level sections are its own and nothing is lifted out of `cfg`.
     stanzas: dict[str, dict] = {}
-    from blueearth_cst.shared.config_composition import extract_observations
+    from blueearth_cst.shared.config_composition import public_workflow_section
 
     for name, section in workflows.items():
-        section = extract_observations(name, section or {})
+        section = public_workflow_section(name, section or {})
         stanza = {}
         if "enabled" in section:
             stanza["enabled"] = section.pop("enabled")

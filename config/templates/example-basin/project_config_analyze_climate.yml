@@ -9,46 +9,36 @@ plotting:
   source: false
   # Render location comparisons and per-source subbasin figures. Options: true | false.
   location: false
-# Historical climate diagnostic settings. Input: mapping.
+# Historical climate diagnostic settings; completeness tolerances come from the project's
+# climate.map_reference and seasons from climate.seasons.
+# Configure historical climate diagnostics. Input: mapping.
 diagnostics:
+  # Baseline water years for dataset comparisons and climate indices; default climate.window.
+  # Select reference water years. Input: inclusive year mapping.
+  #reference_period:
+  # First reference water year. Input: integer year, <= end.
+  #  start: 2000
+  # Last reference water year. Input: integer year, >= start.
+  #  end: 2016
+  # Water years compared against the baseline; default reference_period.
+  # Select comparison water years. Input: inclusive year mapping.
+  #comparison_period:
+  # First comparison water year. Input: integer year, <= end.
+  #  start: 2000
+  # Last comparison water year. Input: integer year, >= start.
+  #  end: 2016
+  # Minimum precipitation defining a wet day. Input: positive millimetres/day.
+  #wet_day_threshold_mm: 1.0
+  # Fit standardized precipitation index distribution. Options: gamma | pearson3.
+  #spi_distribution: gamma
+  # Plot all comparison years as native-grid P/T anomaly panels. Options: true | false (default).
+  #annual_spatial_anomalies: false
+  # Optional climate indices, annual and per climate.seasons season.
   # Configure optional historical climate indices. Input: mapping.
   climate_indices:
     # Calculate historical climate indices. Options: true | false.
     enabled: false
-    # Select index reference calendar years. Input: inclusive year mapping or null for climate.window.
-    reference_period: null
     # Require reference-period daily coverage. Input: fraction between zero and one.
     reference_minimum_fraction: 0.9
     # Count days above this mean temperature. Input: degrees Celsius.
     mean_temperature_threshold_degc: 25.0
-    # Define contiguous seasonal reporting periods. Input: mapping, e.g. {DJF: [12, 1, 2]}; start-year labels.
-    seasons: {}
-
-# Optional settings (omitted periods use climate.window):
-# Custom completeness must also be set in the project's climate.map_reference.
-# Shared maps require matching tolerances and at most 27 missing days per month.
-# Add these optional keys inside the diagnostics mapping above.
-# Plot all comparison years as native-grid P/T anomaly panels. Options: true | false (default).
-#  annual_spatial_anomalies: false
-# Select reference water years. Input: inclusive year mapping.
-#  reference_period:
-# First reference water year. Input: integer year, <= end.
-#    start: 2000
-# Last reference water year. Input: integer year, >= start.
-#    end: 2016
-# Select comparison water years. Input: inclusive year mapping.
-#  comparison_period:
-# First comparison water year. Input: integer year, <= end.
-#    start: 2000
-# Last comparison water year. Input: integer year, >= start.
-#    end: 2016
-# Allow missing days per month. Input: integer, 0–27; match climate.map_reference.
-#  max_missing_days_month: 3
-# Allow missing days per year. Input: nonnegative integer; match climate.map_reference.
-#  max_missing_days_year: 15
-# Minimum precipitation defining a wet day. Input: positive millimetres/day.
-#  wet_day_threshold_mm: 1.0
-# Fit standardized precipitation index distribution. Options: gamma | pearson3.
-#  spi_distribution: gamma
-# Supply temperature for precipitation–temperature diagnostics. Input: declared temperature source name.
-#  pt_temperature_source: era5
