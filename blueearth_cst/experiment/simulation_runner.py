@@ -676,7 +676,7 @@ def verify_selected_collection_source(project, selection, marker):
         if recipe != climate.get("default_forcing"):
             raise ValueError(
                 "delta collections record no forcing recipe; WF4 may select only "
-                "the default historical forcing for them (historical_forcing: default)"
+                "the default historical forcing for them (omit historical_forcing)"
             )
         return selected
     archive_path = resolve_file_reference(

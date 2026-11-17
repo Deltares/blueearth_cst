@@ -22,7 +22,7 @@ In either case, review these replacements:
 3. Replace `data/output_locations.csv` with intended locations consistent with that drainage network.
 4. Check every selected catalog/source covers the basin and period.
    This starter expects `P:/wflow_global/hydromt`, `rivers: hydro_rivers_lin` and `lulc: globcover`.
-5. Review `climate.sources`, choose `climate.forcing.precip_source` after source comparison, and keep at least
+5. Review the `climate.forcings` sets, choose `climate.default_forcing` after comparing them, and keep at least
    16 years of historical record for weather generation. There is no local model calibration.
 6. Set the required historical model `run_period` in `project_config_build_model.yml` within
    the extracted record. Review outputs and optional observations before running.

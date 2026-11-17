@@ -56,6 +56,11 @@ def test_new_case_and_additional_trials(cases, trial):
     assert config["project"]["project_dir"] == "outputs"
     assert config["basin"]["output_locations"] == "../data/output_locations.csv"
     assert "outlet,12.5,-3.0" in (case / "data/output_locations.csv").read_text()
+    assert config["basin"]["region"]["subbasin"] == [12.5, -3.0]
+    for scaffold in (case / trial).glob("project_config*.yml"):
+        text = scaffold.read_text(encoding="utf-8")
+        # One case header; the starter's own preamble is dropped.
+        assert text.startswith("# ---") and "create_case.py" not in text
     assert not (case / trial / "outputs").exists()
     assert f"[{trial}]({trial}/project_config.yml)" in (case / "README.md").read_text()
     assert "| Test &#124; basin | working |" in (case / "README.md").read_text()

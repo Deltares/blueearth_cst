@@ -1,9 +1,10 @@
-# WF0 diagnostics; shared sources/window belong in the project file.
-# Shared annotation stays in the project YAML.
+# analyze_climate (WF0): compares the historical forcing datasets. Datasets,
+# window, seasons, completeness tolerances and annotation are set in the project file.
+
 # Figures this workflow renders; maps always render per dataset. Input: mapping.
 plotting:
-  # comparison overlays the datasets in one figure; individual draws one per dataset (the
-  # fallback with one dataset); both draws both.
+  # comparison overlays the datasets in one figure; individual draws one per dataset
+  # (the fallback with one dataset); both draws both.
   # Choose how datasets are shown. Options: comparison | individual | both.
   view: comparison
   # basin: the basin as a whole; locations adds each output location and its subbasin.
@@ -11,29 +12,28 @@ plotting:
   scales: [basin]
   # Plot all comparison years as native-grid P/T anomaly panels. Options: true | false (default).
   #annual_anomaly_maps: false
-# Historical climate diagnostic settings; completeness tolerances come from the project's
-# climate.map_reference and seasons from climate.seasons.
+
 # Configure historical climate diagnostics. Input: mapping.
 diagnostics:
   # Baseline water years for dataset comparisons and climate indices; default climate.window.
   # Select reference water years. Input: inclusive year mapping.
   #reference_period:
-  # First reference water year. Input: integer year, <= end.
+    # First reference water year. Input: integer year, <= end.
   #  start: 2000
-  # Last reference water year. Input: integer year, >= start.
+    # Last reference water year. Input: integer year, >= start.
   #  end: 2016
   # Water years compared against the baseline; default reference_period.
   # Select comparison water years. Input: inclusive year mapping.
   #comparison_period:
-  # First comparison water year. Input: integer year, <= end.
+    # First comparison water year. Input: integer year, <= end.
   #  start: 2000
-  # Last comparison water year. Input: integer year, >= start.
+    # Last comparison water year. Input: integer year, >= start.
   #  end: 2016
   # Minimum precipitation defining a wet day. Input: positive millimetres/day.
   #wet_day_threshold_mm: 1.0
   # Fit standardized precipitation index distribution. Options: gamma | pearson3.
   #spi_distribution: gamma
-  # Optional climate indices, annual and per climate.seasons season.
+  # Annual and per-season (climate.seasons) indices.
   # Configure optional historical climate indices. Input: mapping.
   climate_indices:
     # Calculate historical climate indices. Options: true | false.

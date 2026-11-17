@@ -59,7 +59,8 @@ def _yaml_parameters(
             if isinstance(key, yaml.ScalarNode):
                 child = (*path, key.value)
                 yield child, key, value
-                yield from _yaml_parameters(value, child, seen)
+                if child != ("basin", "region"):  # a HydroMT value, not settings
+                    yield from _yaml_parameters(value, child, seen)
     elif isinstance(node, yaml.SequenceNode):
         for item in node.value:
             yield from _yaml_parameters(item, (*path, "*"), seen)
@@ -144,6 +145,11 @@ def _annotate_config(text: str, comments: dict[tuple[str, ...], str]) -> str:
     return "".join(
         "".join(additions.get(row, [])) + line for row, line in enumerate(lines)
     )
+
+
+def _without_template_preamble(text: str) -> str:
+    """Drop the starter's leading comment block; the case header replaces it."""
+    return re.sub(r"\A(?:#[^\r\n]*\r?\n)+(?:\r?\n)+", "", text, count=1)
 
 
 def _config_header(
@@ -436,8 +442,10 @@ def _prepare(
             raise ValueError("Catalog must be nonempty")
         config["project"]["catalog"] = args.catalog
     if not args.from_trial:
-        config["basin"]["region"] = str(
-            {**_region(config), "subbasin": region["subbasin"]}
+        located = {**_region(config), "subbasin": region["subbasin"]}
+        # Keep the authored form: a YAML mapping or a quoted mapping literal.
+        config["basin"]["region"] = (
+            str(located) if isinstance(config["basin"]["region"], str) else located
         )
         config["basin"]["output_locations"] = "../data/output_locations.csv"
     from blueearth_cst.shared.project_workflows import (
@@ -619,7 +627,9 @@ def _prepare(
         rewritten = _rewrite(text, desired)
         if not args.from_trial:
             comments = _template_comments(owner)
-            rewritten = _annotate_config(rewritten, comments)
+            rewritten = _annotate_config(
+                _without_template_preamble(rewritten), comments
+            )
         files[relative] = _config_header(
             rewritten, relative, args.case_slug, created, [workflow] if workflow else []
         ).encode("utf-8")

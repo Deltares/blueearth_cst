@@ -1,10 +1,5 @@
-# =============================================================================
-#  generate_scenarios (wf3) -- durable climate scenario collection
-# =============================================================================
-#
-# Generates weather series from climate.default_forcing, perturbs them across a
-# temperature x precipitation grid, and publishes the immutable collection.
-# Keep this next to the project file.
+# generate_scenarios (WF3): generates weather from climate.default_forcing, perturbs
+# it across a temperature x precipitation grid and publishes an immutable collection.
 
 # Select one method; schema-3 projects support stochastic or delta_change.
 # Choose the scenario producer. Options: stochastic | delta_change.
@@ -77,9 +72,9 @@ stochastic:
     # Dry and wet spell length multipliers, applied to every run. Not a grid axis.
     # Scale dry and wet spell lengths. Input: monthly multiplier mapping.
     #spell_factors:
-    # Scale dry spell lengths. Input: one positive multiplier or 12 (January–December).
+      # Scale dry spell lengths. Input: one positive multiplier or 12 (January–December).
     #  dry: 1.0
-    # Scale wet spell lengths. Input: one positive multiplier or 12 (January–December).
+      # Scale wet spell lengths. Input: one positive multiplier or 12 (January–December).
     #  wet: 1.0
 
 

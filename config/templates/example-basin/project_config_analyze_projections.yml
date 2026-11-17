@@ -1,9 +1,5 @@
-# =============================================================================
-#  analyze_projections (wf2) -- CMIP6 change factors
-# =============================================================================
-#
-# Shows where climate projections fall on the stress-test grid. It does not
-# drive the stress test. Keep this next to the project file.
+# analyze_projections (WF2): CMIP6 change factors that show where projections fall
+# on the stress-test grid. They do not drive the stress test.
 
 
 # -----------------------------------------------------------------------------
@@ -18,10 +14,7 @@ ensemble: cmip6
 
 # Models as Institution/Source. The full list of 65: config/templates/README.md.
 # Select climate models to compare. Input: list of catalog Institution/Source identifiers.
-models:
-  - NOAA-GFDL/GFDL-ESM4
-  - INM/INM-CM5-0
-  - CMCC/CMCC-ESM2
+models: [NOAA-GFDL/GFDL-ESM4, INM/INM-CM5-0, CMCC/CMCC-ESM2]
 # Select projection experiments. Input: list of catalog SSP identifiers.
 scenarios: [ssp245, ssp585]
 
@@ -48,25 +41,25 @@ variables: [precip, temp]
 # source, canonical, units and change (see the analyze_projections reference).
 # Configure individual variables. Input: variable-to-settings mapping.
 #variable_options:
-# Optional native-cell PET from monthly CMIP6 means; needs tas, ps and rsds (debruin also rsdt).
-# Configure projected PET. Input: {method: makkink | debruin, change: relative | absolute}.
+  # Optional native-cell PET from monthly CMIP6 means; needs tas, ps and rsds (debruin also rsdt).
+  # Configure projected PET. Input: {method: makkink | debruin, change: relative | absolute}.
 #  pet: {method: makkink}
-# Configure projected dew point. Input: {method: specific_humidity}.
+  # Configure projected dew point. Input: {method: specific_humidity}.
 #  tdew: {method: specific_humidity}
-# Configure projected wind speed. Input: {method: sfcwind | components}.
+  # Configure projected wind speed. Input: {method: sfcwind | components}.
 #  wind: {method: sfcwind}
-# A built-in with a full declaration, as the bundled test cases write it.
-# Declare precipitation explicitly. Input: {source, canonical, units, change}.
+  # A built-in with a full declaration, as the bundled test cases write it.
+  # Declare precipitation explicitly. Input: {source, canonical, units, change}.
 #  precip: {source: precip, canonical: rate, units: mm/day, change: relative}
-# Define a custom projection variable; list it in variables too. Input: mapping.
+  # Define a custom projection variable; list it in variables too. Input: mapping.
 #  'custom_variable':
-# Select the catalog's renamed variable. Input: post-rename variable name, such as temp.
+    # Select the catalog's renamed variable. Input: post-rename variable name, such as temp.
 #    source: temp
-# Specify the physical quantity type. Options: rate | state.
+    # Specify the physical quantity type. Options: rate | state.
 #    canonical: state
-# Set canonical measurement units. Input: supported unit string.
+    # Set canonical measurement units. Input: supported unit string.
 #    units: degC
-# Choose change calculation convention. Options: relative | absolute.
+    # Choose change calculation convention. Options: relative | absolute.
 #    change: absolute
 
 

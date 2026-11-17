@@ -261,7 +261,7 @@ The following links explain the settings for each workflow.
 | model building | `run_period`, `hydromt` recipes, workflow-local `plotting`, `evaluation`: [model](workflow-build-model.md#configuration) |
 | projection analysis | `projections_catalog`, `ensemble`, `models`, `scenarios`, `members`, `variables`, `variable_options`, `reference_period`, `future_periods`, `stats`: [projections](workflow-analyze-projections.md#configuration) |
 | scenario generation | `seed`, `n_realizations`, `future_period`, monthly perturbations, `generator_config_path` and capacity: [generation](workflow-generate-scenarios.md#configuration) |
-| hydrological simulation | Collection, experiment, operations, indicator requests and `compute`: [simulation](workflow-simulate-system.md#configuration) |
+| hydrological simulation | Collection, experiment, `steps`, `indicators` and `compute`: [simulation](workflow-simulate-system.md#configuration) |
 
 `experiment_name` is optional. An omitted name selects family `stress_test`, initially `stress_test_01`;
 a custom base selects its own numbered family. Plain execution selects the highest allocation, irrespective
