@@ -1925,3 +1925,48 @@ def test_wf0_public_section_round_trips(tmp_path):
 def test_invalid_project_seasons_are_refused(tmp_path):
     with pytest.raises(ValueError):
         _wf0(tmp_path, climate_extra={"seasons": {"X": [1, 3]}})
+
+
+@pytest.mark.parametrize(
+    "plotting,internal",
+    [
+        ({"view": "comparison"}, (True, False, False)),
+        (
+            {"view": "individual", "scales": ["basin", "locations"]},
+            (False, False, True),
+        ),
+        ({"view": "both"}, (True, True, False)),
+    ],
+)
+def test_wf0_view_and_scales_compose_to_the_figure_switches(
+    tmp_path, plotting, internal
+):
+    path = write_split(
+        tmp_path,
+        sections=MINIMAL_T1_SECTIONS,
+        bodies={
+            "analyze_climate": {"plotting": {**plotting, "annual_anomaly_maps": True}}
+        },
+    )
+    section = compose(path, "analyze_climate")["workflows"]["analyze_climate"]
+    selected = section["plotting"]
+    assert (
+        selected["comparison"],
+        selected["source"],
+        selected["location"],
+    ) == internal
+    assert section["diagnostics"]["annual_spatial_anomalies"] is True
+    public = cc.public_workflow_section("analyze_climate", section)
+    assert public["plotting"]["view"] == plotting["view"]
+    assert public["plotting"]["scales"] == plotting.get("scales", ["basin"])
+    assert public["plotting"]["annual_anomaly_maps"] is True
+
+
+def test_wf0_scales_without_basin_are_refused(tmp_path):
+    path = write_split(
+        tmp_path,
+        sections=MINIMAL_T1_SECTIONS,
+        bodies={"analyze_climate": {"plotting": {"scales": ["locations"]}}},
+    )
+    with pytest.raises(ValueError, match="basin-scale figures always render"):
+        compose(path, "analyze_climate")

@@ -342,6 +342,18 @@ RETIRED_KEYS: dict[str, str] = {
     "T2.analyze_climate.diagnostics.pt_temperature_source": (
         "retired (t037): precipitation-temperature diagnostics use ERA5 temperature"
     ),
+    "T2.analyze_climate.plotting.comparison": (
+        "replaced (t037) by `plotting.view: comparison | individual | both`"
+    ),
+    "T2.analyze_climate.plotting.source": (
+        "replaced (t037) by `plotting.view: both` (comparison and per-dataset figures)"
+    ),
+    "T2.analyze_climate.plotting.location": (
+        "replaced (t037) by `plotting.scales: [basin, locations]`"
+    ),
+    "T2.analyze_climate.diagnostics.annual_spatial_anomalies": (
+        "moved (t037) to `plotting.annual_anomaly_maps`"
+    ),
     "T2.analyze_climate.rain_gauges": (
         "moved (t037) to the project file as `observations.met_stations: "
         "{stations_path, precip_path, temp_path, time_label}`"
@@ -829,6 +841,9 @@ def internal_workflow_section(
                 )
             body["evaluation"] = evaluation
     elif name == "analyze_climate":
+        from blueearth_cst.shared.workflow_plotting import normalize_workflow_plotting
+
+        body = normalize_workflow_plotting(name, _internal_wf0_plotting(body))
         if observation_settings.get("met_stations") is not None:
             body["rain_gauges"] = dict(observation_settings["met_stations"])
         diagnostics = body.get("diagnostics")
@@ -854,6 +869,94 @@ def internal_workflow_section(
     elif name == "analyze_projections":
         body = _internal_projections(body, climate)
     return body
+
+
+#: WF0 `plotting.view` -> the internal (comparison, source) figure switches.
+_WF0_VIEWS: dict[str, tuple[bool, bool]] = {
+    "comparison": (True, False),
+    "individual": (False, False),
+    "both": (True, True),
+}
+_WF0_SCALES = ("basin", "locations")
+
+
+def _internal_wf0_plotting(body: dict[str, Any]) -> dict[str, Any]:
+    """WF0 `plotting: {view, scales, annual_anomaly_maps}` -> internal switches.
+
+    `view` sets `comparison`/`source`, `scales` sets `location`, and
+    `annual_anomaly_maps` becomes `diagnostics.annual_spatial_anomalies`.
+    Basin-scale figures always render, so `scales` must include `basin`.
+    """
+    plotting_settings = body.get("plotting")
+    if not isinstance(plotting_settings, Mapping):
+        return body
+    plotting_settings = dict(plotting_settings)
+    view = plotting_settings.pop("view", "comparison")
+    if view not in _WF0_VIEWS:
+        raise ValueError(
+            f"analyze_climate plotting.view must be one of {list(_WF0_VIEWS)}"
+        )
+    scales = plotting_settings.pop("scales", ["basin"])
+    if (
+        not isinstance(scales, list)
+        or not scales
+        or set(scales) - set(_WF0_SCALES)
+        or "basin" not in scales
+    ):
+        raise ValueError(
+            "analyze_climate plotting.scales is [basin] or [basin, locations]; "
+            "basin-scale figures always render"
+        )
+    maps = plotting_settings.pop("annual_anomaly_maps", None)
+    comparison, source = _WF0_VIEWS[view]
+    body = dict(body)
+    body["plotting"] = {
+        **plotting_settings,
+        "comparison": comparison,
+        "source": source,
+        "location": "locations" in scales,
+    }
+    if maps is not None:
+        if type(maps) is not bool:
+            raise ValueError(
+                "analyze_climate plotting.annual_anomaly_maps is true or false"
+            )
+        diagnostics = body.get("diagnostics")
+        diagnostics = dict(diagnostics) if isinstance(diagnostics, Mapping) else {}
+        diagnostics["annual_spatial_anomalies"] = maps
+        body["diagnostics"] = diagnostics
+    return body
+
+
+def _public_wf0_plotting(section: dict[str, Any]) -> dict[str, Any]:
+    """Inverse of `_internal_wf0_plotting`."""
+    plotting = section.get("plotting")
+    if isinstance(plotting, Mapping) and {"comparison", "source", "location"} <= set(
+        plotting
+    ):
+        plotting = dict(plotting)
+        comparison = plotting.pop("comparison")
+        source = plotting.pop("source")
+        location = plotting.pop("location")
+        plotting["view"] = (
+            "both"
+            if comparison and source
+            else "comparison"
+            if comparison
+            else "individual"
+        )
+        plotting["scales"] = ["basin", "locations"] if location else ["basin"]
+        section["plotting"] = plotting
+    diagnostics = section.get("diagnostics")
+    if isinstance(diagnostics, Mapping) and "annual_spatial_anomalies" in diagnostics:
+        diagnostics = dict(diagnostics)
+        maps = diagnostics.pop("annual_spatial_anomalies")
+        section["diagnostics"] = diagnostics
+        section["plotting"] = {
+            **(section.get("plotting") or {}),
+            "annual_anomaly_maps": maps,
+        }
+    return section
 
 
 #: The generated CMIP6 catalog WF2 reads when `projections_catalog` is omitted.
@@ -960,6 +1063,7 @@ def public_workflow_section(name: str, section: Mapping[str, Any]) -> dict[str, 
         ):
             section["evaluation"] = {**evaluation, "budyko": True}
     elif name == "analyze_climate":
+        section = _public_wf0_plotting(section)
         section.pop("rain_gauges", None)
         diagnostics = section.get("diagnostics")
         if isinstance(diagnostics, Mapping):
@@ -1432,9 +1536,11 @@ def compose_config(
     ]
     from blueearth_cst.shared.workflow_plotting import normalize_workflow_plotting
 
+    # analyze_climate's plotting is normalized after its t037 public keys are
+    # translated (internal_workflow_section), so retired keys report first.
     probes = [
         probe._replace(body=normalize_workflow_plotting(probe.name, probe.body))
-        if probe.status == "ok"
+        if probe.status == "ok" and probe.name != "analyze_climate"
         else probe
         for probe in probes
     ]

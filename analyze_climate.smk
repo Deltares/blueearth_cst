@@ -458,9 +458,10 @@ for _source in CANDIDATE_SOURCES:
     _compute_outputs = dict(_diag["compute"])
     _compute_outputs.pop("maps")
     _compute_outputs.pop("climate_indices", None)
-    if DIAGNOSTIC_SETTINGS["subbasin_figures"]:
-        _compute_inputs["subbasins"] = SPATIAL_UNITS.outputs["subbasins"]
-        _compute_outputs["subbasin_tables"] = directory(f"{_diag['root']}/tables/subbasins")
+    # Subbasin tables are always computed (t037), so the location-figure switch
+    # never changes this rule's params; rule 0.04b decides what is drawn.
+    _compute_inputs["subbasins"] = SPATIAL_UNITS.outputs["subbasins"]
+    _compute_outputs["subbasin_tables"] = directory(f"{_diag['root']}/tables/subbasins")
 
     rule:
         name: COMPUTE_DIAGNOSTICS.job_name(_source)
@@ -468,7 +469,7 @@ for _source in CANDIDATE_SOURCES:
         input: **_compute_inputs,
         output: **_compute_outputs,
         params:
-            settings=BASE_DIAGNOSTIC_SETTINGS, source=_source, store_dir=_spec.store_dir,
+            settings=BASE_DIAGNOSTIC_SETTINGS | {"subbasin_figures": True}, source=_source, store_dir=_spec.store_dir,
             m0=DIAGNOSTIC_M0, data_sources=DATA_SOURCES,
             forcing=climate_cfg.get("forcing") if _source == clim_source else None,
             preparation_code_digest=MAP_REFERENCE.params["preparation_code_digest"],

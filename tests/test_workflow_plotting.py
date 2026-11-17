@@ -128,7 +128,7 @@ def test_composition_keeps_global_annotation_and_local_selection_separate(tmp_pa
         tmp_path,
         sections=MINIMAL_T1_SECTIONS | {"plotting": {"annotation": "title"}},
         bodies={
-            "analyze_climate": {"plotting": {"source": True}},
+            "analyze_climate": {"plotting": {"view": "both"}},
             "build_model": {"plotting": {"spatial": False}},
             "analyze_projections": {},
         },

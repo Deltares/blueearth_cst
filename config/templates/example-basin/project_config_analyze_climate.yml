@@ -1,14 +1,16 @@
 # WF0 diagnostics; shared sources/window belong in the project file.
 # Shared annotation stays in the project YAML.
-# Figures this workflow renders. Input: mapping.
+# Figures this workflow renders; maps always render per dataset. Input: mapping.
 plotting:
-  # Render basin-level comparisons. Options: true | false.
-  comparison: true
-  # Unique source maps remain on; absent comparisons, source basin figures remain on.
-  # Add individual-source figures duplicated by comparisons. Options: true | false.
-  source: false
-  # Render location comparisons and per-source subbasin figures. Options: true | false.
-  location: false
+  # comparison overlays the datasets in one figure; individual draws one per dataset (the
+  # fallback with one dataset); both draws both.
+  # Choose how datasets are shown. Options: comparison | individual | both.
+  view: comparison
+  # basin: the basin as a whole; locations adds each output location and its subbasin.
+  # Select spatial scales. Options: [basin] | [basin, locations].
+  scales: [basin]
+  # Plot all comparison years as native-grid P/T anomaly panels. Options: true | false (default).
+  #annual_anomaly_maps: false
 # Historical climate diagnostic settings; completeness tolerances come from the project's
 # climate.map_reference and seasons from climate.seasons.
 # Configure historical climate diagnostics. Input: mapping.
@@ -31,8 +33,6 @@ diagnostics:
   #wet_day_threshold_mm: 1.0
   # Fit standardized precipitation index distribution. Options: gamma | pearson3.
   #spi_distribution: gamma
-  # Plot all comparison years as native-grid P/T anomaly panels. Options: true | false (default).
-  #annual_spatial_anomalies: false
   # Optional climate indices, annual and per climate.seasons season.
   # Configure optional historical climate indices. Input: mapping.
   climate_indices:
