@@ -9,12 +9,12 @@ For a first demonstration, follow the [Quick start](quick-start.md).
 The Technical Manual explains
 [execution behavior and reuse requirements](../technical-manual/configuration-and-execution.md).
 
-Open PowerShell in the `blueearth_cst` folder used to install the toolbox. Run a case from the same
-toolbox folder each time, with only one active command writing to its output directory.
+Open PowerShell in the `blueearth_cst` folder used to install the toolbox. Run a [case](glossary.md#case) from the same
+[toolbox folder](glossary.md#toolbox-folder) each time, with only one active command writing to its [output directory](glossary.md#output-directory).
 
 ## Run everything enabled in the project file
 
-Set the path to your case's project file and its output directory, replacing the examples below with
+Set the path to your case's [project file](glossary.md#project-file) and its output directory, replacing the examples below with
 your own. Some commands on this page also use `$project_dir`:
 
 ```powershell
@@ -23,17 +23,17 @@ $project_dir = 'C:/cst-cases/my-basin/default/outputs'
 pixi run python scripts/run_workflows.py --config $config --cores 3
 ```
 
-The runner executes workflows set to `true` under `workflows:` in this order: historical climate analysis,
+The [run command](glossary.md#run-command) executes [workflows](glossary.md#workflow) set to `true` under `workflows:` in this order: historical climate analysis,
 model building, projection analysis, scenario generation, then hydrological simulations and indicators.
 
 **Check the opening summary:** confirm the configuration and output directory (`project.project_dir`).
 The command uses up to three CPU cores; increasing `--cores` can also increase memory use.
 
-Append `-- --dry-run` to preview the planned tasks without executing them. On a first run, some
-later tasks cannot be fully planned until earlier workflows have produced their inputs.
+Append `-- --dry-run` for a [preview](glossary.md#preview) (dry run) of the planned tasks without executing
+them. On a first run, some later tasks cannot be fully planned until earlier workflows have produced their inputs.
 
-Run only the workflows you need. Hydrological simulations require a prepared model and generated
-scenarios. Projections provide context without driving scenario generation. Historical climate analysis
+Run only the workflows you need. Hydrological simulations require a prepared [model](glossary.md#model) and generated
+[scenarios](glossary.md#scenario). Projections provide context without driving scenario generation. Historical climate analysis
 can run on its own to help you choose forcing.
 
 Disabling a workflow leaves its existing results in place. Before reusing them, check that they
@@ -51,13 +51,14 @@ workflow directly. This command previews model building:
 pixi run python scripts/run_workflow.py build_model --config $config --project-dir $project_dir --cores 3 --dry-run
 ```
 
-Use your configured output directory for `--project-dir`; this option is required by the
-single-workflow runner. Remove `--dry-run` to execute. Replace `build_model` with
+Use your configured output directory for `--project-dir`; this option is required by
+`run_workflow.py`. Remove `--dry-run` to execute. Replace `build_model` with
 `analyze_climate` or `analyze_projections` for those analyses.
 
 For scenario generation, use the all-workflow command with only `generate_scenarios` enabled.
 For hydrological simulations, enable only `simulate_system`, or use the dedicated command below.
-These commands handle scenario and experiment preparation; do not substitute a bare Snakemake command.
+These commands handle scenario and experiment preparation; do not substitute a bare command for the
+workflow engine (Snakemake).
 
 To preview the dedicated simulation command, use:
 
@@ -65,7 +66,7 @@ To preview the dedicated simulation command, use:
 pixi run python scripts/simulate_system.py --config $config --cores 3 --dry-run
 ```
 
-Remove `--dry-run` to execute the configured `steps`. Each runner's `--help` lists supported
+Remove `--dry-run` to execute the configured `steps`. Each run command's `--help` lists supported
 options; not every Snakemake option can be forwarded.
 
 **When it finishes:** open the linked `summary.md` to check outcomes, warnings, detailed logs and available
@@ -73,13 +74,13 @@ timing reports. See [Reading outputs](outputs.md) for result checks and
 [runtime and resource use](../technical-manual/runtime-and-resources.md) for interpreting benchmarks.
 
 Each launch writes `logs/<YYYY-MM-DD_HH-MM-SSZ>__<scope>[__dry-run]/`. Executed runs are kept, failed
-ones included; only the latest dry run of each scope is kept. To list old log folders, run
+ones included; only the latest preview of each scope is kept. To list old log folders, run
 `pixi run python dev/scripts/prune_logs.py --project-dir <project_dir> --older-than 30`; add
-`--delete` to remove them. Folders a retained projection product refers to are never listed.
+`--delete` to remove them. Folders that saved projection results refer to are never listed.
 
 ## Select, resume or create an experiment
 
-An experiment groups hydrological simulations made with a particular model, set of climate scenarios
+An [experiment](glossary.md#experiment) groups hydrological simulations made with a particular model, set of climate scenarios
 and scientific simulation settings. Its results are stored under `experiments/<name>/`.
 
 **First experiment:** leave `experiment_name` unset in `project_config_simulate_system.yml`;
@@ -88,7 +89,7 @@ experiment number already assigned and reuses completed work when its inputs sti
 
 **Interrupted run:** keep its configuration and rerun the command. Use the
 [interruption and lock guidance](troubleshooting.md#a-project-is-locked-or-a-run-was-interrupted)
-if the runner reports incomplete jobs or a stale lock.
+if the run command reports incomplete jobs or a stale lock.
 
 **Changed inputs:** start a new experiment when you change the model, climate scenarios or scientific
 simulation settings, so previous results remain available:
@@ -97,8 +98,8 @@ simulation settings, so previous results remain available:
 pixi run python scripts/run_workflows.py --config $config --cores 3 --new-experiment --note "revised perturbation grid"
 ```
 
-The runner refuses incompatible changes to an existing experiment. Forcing jobs to rerun does
-not resolve that mismatch. Changing indicator choices or resource settings alone does not require
+The run command refuses incompatible changes to an existing experiment. Forcing jobs to rerun does
+not resolve that mismatch. Changing [indicator](glossary.md#indicator) choices or resource settings alone does not require
 a new scientific experiment.
 
 To use a different naming family, set `experiment_name: drought`; its experiments are numbered
@@ -106,11 +107,11 @@ To use a different naming family, set `experiment_name: drought`; its experiment
 be combined with `--new-experiment`. A new experiment can reuse previously generated climate scenarios
 if they are complete and unchanged; it does not necessarily regenerate weather.
 
-Keep `include_unperturbed: true` when your indicators need a reference simulation. Setting it
-to `false` omits those reference simulations, and changing this choice requires a new experiment.
+Keep `include_unperturbed: true` when your indicators need an [unperturbed reference](glossary.md#unperturbed-reference) simulation.
+Setting it to `false` omits those simulations, and changing this choice requires a new experiment.
 All generated climate scenarios remain available.
 
-For interrupted experiment allocation, consult the
+For an interrupted experiment number allocation, consult the
 [execution reference](../technical-manual/execution-and-provenance.md) before using
 `--recover-reservation`. That option is not a repair tool for partial weather generation or
 damaged model-response files.
@@ -121,7 +122,7 @@ Build the default model `wflow` first. To use a model you changed elsewhere, for
 calibration, give it its own folder beside the default and register it:
 
 1. Copy the files you changed (for example `staticmaps.nc` and `wflow_sbm.toml`) into
-   `models/hydrology/wflow_calibrated/` in the project directory. Start from the toolbox-built model so
+   `models/hydrology/wflow_calibrated/` in the output directory. Start from the toolbox-built model so
    the gauges and output declarations stay the same.
 2. Register the folder. `--copy-from-parent` copies the parent's other model inputs, never its runs:
 
@@ -130,7 +131,7 @@ calibration, give it its own folder beside the default and register it:
        --name wflow_calibrated --parent wflow --copy-from-parent --notes "Manual calibration"
    ```
 
-3. Select it in the project file and run `build_model`. For a registered model, the toolbox runs
+3. Select it in the project file and run `build_model`. For a [registered model](glossary.md#registered-model), the toolbox runs
    the historical simulations and evaluation without rebuilding or changing the model files:
 
    ```yaml
@@ -174,9 +175,9 @@ Replace the experiment name and indicator selection with your own, then run:
 pixi run python scripts/simulate_system.py --config $config --cores 3
 ```
 
-The runner reads completed model responses and writes each selected set to
+The command reads completed model responses and writes each selected set to
 `experiments/<name>/results/indicator_sets/<set-id>/`. No explicit target is needed.
-You can also use the all-workflow runner with the other workflows disabled.
+You can also use `run_workflows.py` with the other workflows disabled.
 
 The completed simulation record must exist, even for a preview. Indicators-only execution cannot
 create missing model variables or complete unfinished simulations. For a new simulation, restore
@@ -204,8 +205,8 @@ avoid `--forceall` when you only want new figures.
 | Historical model evaluation | `build_model` | `plot_model_evaluation` |
 | Projected climate changes | `analyze_projections` | `plot_climate_projections` |
 
-Replace `<source>` with a configured source such as `era5`. Some plotting tasks also recalculate
-summaries or indicators, so they are not all image-only operations. Retain the underlying climate,
+Replace `<source>` with a configured [source](glossary.md#source) such as `era5`. Some plotting tasks also recalculate
+summaries or indicators, so they are not all image-only operations. Keep the underlying climate,
 spatial and model-response files. In particular, historical evaluation reads the per-variable
 tables `output_<code>.csv` and their record `_engine/response_tables.json` in `historical/default/run/`.
 
@@ -225,19 +226,19 @@ pixi run python scripts/run_workflows.py --config $config --rebuild -- --dry-run
 ```
 
 To proceed, remove `-- --dry-run` and answer the confirmation prompt. Source configurations,
-external source datasets, logs and attempt history are retained, but custom files inside generated
+external source datasets, logs and attempt history are kept, but custom files inside generated
 output folders are treated as outputs and deleted. Models the toolbox built and cross-model comparisons
 are deleted; a registered model (`scripts/register_model.py register`) is kept.
 
 Only enabled workflows run afterwards. To rebuild hydrological simulations, also enable model building
-and scenario generation and set `steps.simulations: true`: their required products were deleted.
-Use `--new-experiment` instead when you want to retain previous experiments. Read the
+and scenario generation and set `steps.simulations: true`: their required results were deleted.
+Use `--new-experiment` instead when you want to keep previous experiments. Read the
 [reset boundaries](../technical-manual/execution-and-provenance.md#launcher-arguments-and-safety-boundaries)
 before using rebuild.
 
 ## Transfer climate-projection results
 
-Completed climate-projection products can be exported to a ZIP and imported into another project.
+Completed climate-projection results can be exported to a ZIP and imported into another project.
 `$project_dir` is the source; replace the ZIP path and the destination output directory below:
 
 ```powershell
@@ -248,10 +249,10 @@ pixi run python scripts/transfer_results.py import "C:/exports/cmip6-results.zip
 Export writes a new ZIP. Before importing, check the
 [destination requirements](../technical-manual/results-transfer.md#destination-checks-and-import):
 import validates integrity, basin geometry and applicable configuration, and does not merge into a
-different existing projection product. Check the command's result, then inspect the imported report
+different existing projection result. Check the command's result, then inspect the imported report
 and figures using [Reading outputs](outputs.md#reading-projection-diagnostics).
 
-This transfers projection products for reading and interpretation. It does not recreate the source
+This transfers projection results for reading and interpretation. It does not recreate the source
 environment or guarantee reuse by a later projection-analysis run.
 
 ## Next

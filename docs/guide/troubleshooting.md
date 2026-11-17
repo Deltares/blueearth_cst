@@ -3,7 +3,7 @@ title: "Troubleshooting"
 subtitle: "Find the cause before changing the case or environment"
 ---
 
-Start with the first specific error in the failed workflow's log, linked from the closing `summary.md`.
+Start with the first specific error in the failed [workflow](glossary.md#workflow)'s log, linked from the closing `summary.md`.
 If no summary was produced, read the PowerShell output or `console.log`.
 
 Find the matching symptom below. Keep the configuration and logs while diagnosing the problem;
@@ -44,7 +44,7 @@ Use those remedies for the diagnosed symptom, not as an automatic prerequisite f
 
 ## 3. The case folder is missing or already exists {#the-case-folder-is-missing-or-already-exists}
 
-Case creation stops with `Cannot create trial:` followed by the reason. It writes no files when it
+[Case](glossary.md#case) creation stops with `Cannot create trial:` followed by the reason. It writes no files when it
 refuses. Find the reason below, then follow [Creating a project](new-case.md#create-the-case-files) for
 the complete command. Append `--dry-run` to check a corrected command without writing.
 
@@ -55,7 +55,7 @@ the complete command. Append `--dry-run` to check a corrected command without wr
   New-Item -ItemType Directory -Force C:/cst-cases
   ```
 
-- **`Trial already exists`.** The case already has a trial with this name. Open its configuration to
+- **`Trial already exists`.** The case already has a [trial](glossary.md#trial) with this name. Open its configuration to
   continue that trial, or choose another name with `--trial`. Creation never overwrites a trial.
 - **`must be lowercase kebab-case and not a reserved filename`.** Use lowercase letters, digits and
   single hyphens, such as `my-basin` or `v2`. Names the toolbox uses for its own folders (`data`,
@@ -74,27 +74,27 @@ the complete command. Append `--dry-run` to check a corrected command without wr
 
 Review the outlet coordinates and `basin.region` upstream-area threshold. Coordinates are longitude
 followed by latitude; the `uparea` threshold is not a prescribed catchment area. Check the resulting
-boundary, river network and reporting locations, especially near a confluence, before continuing.
+boundary, river network and [reporting locations](glossary.md#reporting-location), especially near a confluence, before continuing.
 
 If the point falls on an isolated drainage cell, see
 [Search for an outlet within an area](new-case.md#search-for-an-outlet-within-an-area).
 
 ## 5. A catalog root is missing {#a-catalog-root-is-missing}
 
-For `None of the specified roots were found`, inspect the catalogs named by `project.catalog`.
+For `None of the specified roots were found`, inspect the [catalogs](glossary.md#data-catalog) named by `project.catalog`.
 For the supplied P-drive catalog:
 
 ```powershell
 Test-Path 'P:\wflow_global\hydromt'
 ```
 
-Mount the drive or choose a catalog that points to available data, then check source names and coverage.
+Mount the drive or choose a catalog that points to available data, then check [source](glossary.md#source) names and coverage.
 Installing software does not install those datasets. A different catalog is not automatically equivalent
 scientific input; review the source choice before reusing results.
 
 If the catalog is accessible but a dataset cannot be found, check that the configured source name
 matches an entry in the catalog and that the dataset covers the basin and analysis period. Review
-`basin.sources` and `climate.forcings` in the project file; see
+`basin.sources` and `climate.forcings` in the [project file](glossary.md#project-file); see
 [Define the catchment and data sources](new-case.md#define-the-catchment-and-data-sources).
 
 ## 6. CMIP6 data cannot be downloaded {#cmip6-data-cannot-be-downloaded}
@@ -110,7 +110,7 @@ rerun the workflow and check the reported coverage.
 ## 7. A project is locked or a run was interrupted {#a-project-is-locked-or-a-run-was-interrupted}
 
 1. Confirm that the previous run has stopped and no other process is writing to the same project.
-2. Use the same toolbox folder and case configuration. Replace the example path below with your own;
+2. Use the same [toolbox folder](glossary.md#toolbox-folder) and case configuration. Replace the example path below with your own;
    for incomplete jobs, run:
 
    ```powershell
@@ -118,30 +118,31 @@ rerun the workflow and check the reported coverage.
    pixi run python scripts/run_workflows.py --config $config --cores 3 -- --rerun-incomplete
    ```
 
-3. If Snakemake reports a stale lock after the active process has stopped, unlock through the runner:
+3. If the workflow engine (Snakemake) reports a stale lock after the active process has stopped, unlock
+   through the [run command](glossary.md#run-command):
 
    ```powershell
    pixi run python scripts/run_workflows.py --config $config --cores 3 -- --unlock
    ```
 
-4. Rerun the normal command and inspect the new summary. If the runner reports damaged or partial
-   model-response files, retain the logs for diagnosis; experiment reservation recovery does not repair them.
+4. Rerun the normal command and inspect the new summary. If the run command reports damaged or partial
+   model-response files, keep the logs for diagnosis; [experiment](glossary.md#experiment) number recovery does not repair them.
 
-Use [experiment recovery](running.md#select-resume-or-create-an-experiment) for an interrupted reservation.
+Use [experiment recovery](running.md#select-resume-or-create-an-experiment) for an interrupted experiment number allocation.
 Do not recycle allocated experiment numbers or delete locks while a run is active.
 
 ### Windows stops advancing after successful climate-projection writes
 
-If fetch logs report successful CMIP6 writes but Snakemake stops reporting completed jobs, retain
+If fetch logs report successful CMIP6 writes but Snakemake stops reporting completed jobs, keep
 the console log and process stacks before stopping the run. One observed failure is Python waiting
 in `socket._fallback_socketpair` → `accept` while Snakemake holds its scheduler lock. Successful
 downloads alone do not establish this diagnosis; other stalls need their own evidence.
 
-The toolbox's owned runners bound Windows fallback socket-pair setup to five seconds per attempt
+The toolbox's run commands bound Windows fallback socket-pair setup to five seconds per attempt
 and retry timeouts up to three attempts. A transient failure prints a warning and retries; persistent
 failure reports `Windows socket-pair setup timed out after 3 attempts`. This protection applies to
-the Snakemake process launched by the toolbox, including dry runs and verbose mode. Direct `snakemake`
-invocations and separate job processes do not receive it. Network download timeouts are unchanged.
+the Snakemake process launched by the toolbox, including [previews](glossary.md#preview) and verbose mode. Direct `snakemake`
+commands and separate job processes do not receive it. Network download timeouts are unchanged.
 
 After the old process has stopped, use the incomplete-job resume command above with the same
 configuration. Preserve the CMIP6 cache and completed outputs; do not use `--rebuild` for this symptom.
@@ -153,9 +154,9 @@ is still needed.
 
 ## 8. An experiment refuses changed inputs {#an-experiment-refuses-changed-inputs}
 
-Review changes to the model, climate scenarios and simulation settings.
+Review changes to the [model](glossary.md#model), climate [scenarios](glossary.md#scenario) and simulation settings.
 Use `--new-experiment` when scientific inputs changed. Keep previous results for comparison and traceability.
-For different indicators over intact completed responses, use the
+For different [indicators](glossary.md#indicator) over intact completed responses, use the
 [indicators-only procedure](running.md#calculate-different-indicators-from-existing-simulations).
 It does not supply missing model outputs. Check [indicator inputs](outputs.md#reading-an-indicator-set).
 
@@ -166,7 +167,7 @@ On a first run, a preview may report pending inputs rather than show the entire 
 Check whether the message describes an expected dependency or a configuration error that stops the command.
 
 **Missing indicator value:** read `status` and `reason` in the result tables,
-then check whether the required response variable, threshold and reference run were supplied.
+then check whether the required response variable, threshold and [unperturbed reference](glossary.md#unperturbed-reference) run were supplied.
 For historical flow-threshold preparation, read the
 [crop-water requirements](../../blueearth_cst/indicators/sets/crop_water/README.md).
 Distinguish `undefined` from `unavailable` using the result's status/reason and set conventions.
@@ -183,6 +184,6 @@ Use [runtime and resource measurements](../technical-manual/runtime-and-resource
 
 Share the following, with credentials and private paths removed:
 
-- The command, first specific error, run summary and affected workflow log.
+- The command, first specific error, [run summary](glossary.md#run-summary) and affected workflow log.
 - The toolbox version reported at startup and relevant configuration settings.
 - What you expected and whether the same case previously completed.

@@ -19,14 +19,14 @@ The [notebook index](../notebooks/README.md) links three walkthroughs:
 | Climate stress test | Examine scenario and indicator analysis code |
 
 **These notebooks are advanced examples, not verified current end-to-end tutorials.** Some cells
-still use older configuration, path or indicator interfaces. Read each notebook's opening status
+still use older configuration, path or [indicator](glossary.md#indicator) interfaces. Read each notebook's opening status
 note before executing it. In particular, the stress-test notebook is not a verified procedure
-for constructing response surfaces with the current toolbox.
+for constructing [response surfaces](glossary.md#response-surface) with the current toolbox.
 
 ## Open a notebook
 
 Complete the [installation and data-access checks](install.md), then run this command from the
-`blueearth_cst` folder used for your case:
+`blueearth_cst` folder used for your [case](glossary.md#case):
 
 ```powershell
 pixi run jupyter lab docs/notebooks
@@ -38,12 +38,12 @@ The supplied notebooks contain source code rather than saved results, so empty o
 
 ## Work safely with your case
 
-Notebook cells can launch real workflows, download data and write model outputs. Changing a
-configuration path alone may not update every command or output location in an older notebook.
-Keep your assessment outputs outside the toolbox repository and check those paths before execution.
+Notebook cells can launch real [workflows](glossary.md#workflow), download data and write [model](glossary.md#model) outputs. Changing a
+configuration path alone may not update every command or output path in an older notebook.
+Keep your assessment outputs outside the [toolbox folder](glossary.md#toolbox-folder) and check those paths before execution.
 
-Use the [documented runners](running.md) for scenario generation and simulation, and allow only
-one active process to write to a case's output directory. Inspect each cell's output before
+Use the [documented run commands](running.md) for scenario generation and simulation, and allow only
+one active process to write to a case's [output directory](glossary.md#output-directory). Inspect each cell's output before
 continuing; a plot appearing successfully does not establish that all underlying workflows completed.
 
 When a cell uses an outdated interface, compare it with the current configuration and output guides

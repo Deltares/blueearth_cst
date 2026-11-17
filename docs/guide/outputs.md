@@ -1,16 +1,16 @@
 ---
 title: "Reading the outputs"
-subtitle: "Find products, check their status and read indicator tables"
+subtitle: "Find results, check their status and read indicator tables"
 ---
 
-Start with the run summary, inspect the basin and climate plots, then read the indicators relevant to
+Start with the [run summary](glossary.md#run-summary), inspect the basin and climate plots, then read the [indicators](glossary.md#indicator) relevant to
 your question. This guide helps you locate results, check their status and connect them to climate conditions.
 
 Figures illustrate output formats. In the website chapter, select an image to inspect the full-size
 version. The complete HTML manual embeds the images directly; use browser zoom to enlarge them.
 
-All paths below are relative to the output directory set by `project.project_dir` in your case's
-project file. For the external case example, this is `C:/cst-cases/my-basin/default/outputs/`.
+All paths below are relative to the [output directory](glossary.md#output-directory) set by `project.project_dir` in your [case](glossary.md#case)'s
+[project file](glossary.md#project-file). For the external case example, this is `C:/cst-cases/my-basin/default/outputs/`.
 
 ## The layout
 
@@ -46,17 +46,17 @@ Folders named `_engine/` hold the toolbox's own records: hashes, markers, run se
 needs to check and reuse work. Everything you read (tables, figures, settings copies, reports) sits
 outside them, and each file is stored once.
 
-Historical simulations live with their model. Each forcing recipe has
+Historical simulations live with their [model](glossary.md#model). Each [forcing recipe](glossary.md#forcing-recipe) has
 `models/hydrology/<model>/historical/<recipe>/` (`default` for a single recipe) with its forcing, run and
 evaluation; with two or more recipes, `historical/forcing_comparison/` beside them compares the runs. The default
 model is `wflow`; further models, such as a registered calibration, are sibling folders, and
 `models/hydrology/comparisons/<name>/` compares runs of different models. A model's runs change only when
 it is rerun with the same model settings: different settings belong in a new model folder.
-Stress-test simulations belong to their experiment. See
+Stress-test simulations belong to their [experiment](glossary.md#experiment). See
 [one model per folder](../technical-manual/workflow-build-model.md#model-versions).
 
-A new output directory records the layout it was written with in `config/_engine/layout.json` (layout 5
-for this toolbox version); a directory without it uses layout 1. The runners refuse a directory written
+A new output directory records the [layout](glossary.md#layout) it was written with in `config/_engine/layout.json` (layout 5
+for this toolbox version); a directory without it uses layout 1. The [run commands](glossary.md#run-command) refuse a directory written
 with a different layout:
 set `project.project_dir` to a new folder and rerun. Existing directories are not converted.
 
@@ -67,34 +67,35 @@ case files when changing settings; the configuration copies in the output direct
 ## Native model grids {#native-grids}
 
 Opt into [native grid output](../technical-manual/configuration.md#netcdf-grid) separately in
-the model-building and simulation workflow files. Historical grids are saved at
+the model-building and simulation [workflow files](glossary.md#workflow-file). Historical grids are saved at
 `models/hydrology/wflow/historical/default/run/output_grid.nc`; selected scenario runs each produce
 `experiments/<name>/simulations/<run_id>/output_grid.nc`. Open them with xarray or GIS software.
 One file holds all requested variables, including native soil layers where present.
 
-Grid storage scales with rectangular cells × timesteps × variable layers × runs. The launcher
+Grid storage scales with rectangular cells × timesteps × variable layers × runs. The run command
 reports a conservative raw float64 estimate with no assumed compression saving and reserves space
-for retained grids and recovery copies. Compression is lossless but its benefit depends on the data.
+for saved grids and recovery copies. Compression is lossless but its benefit depends on the data.
 
 Changing historical grid variables requires rerunning the historical simulation; CSVs cannot
-reconstruct maps. Historical reruns replace their configured products, so archive completed cases
+reconstruct maps. Historical reruns replace their configured outputs, so archive completed cases
 that must be kept. Disabling output removes the declaration and preserves old files; an old file
 is not evidence that the current request produced a grid. Completed ensemble experiments freeze
-the request: use `--new-experiment` for a different request. Retain the complete experiment,
+the request: use `--new-experiment` for a different request. Keep the complete experiment,
 including its inventory, when archiving grids.
 
-Before publication or retry reuse, grids must contain finite values on each variable's native support.
+Before they are written or reused on retry, grids must contain finite values on each variable's native
+support.
 Masked cells outside that support remain valid. Units, coordinates, CRS and layers are checked against
 expectations captured directly from the initialized Wflow model in `<run>.toml.grid.toml`, beside its
-run settings. The retained inventory embeds these expectations, so archived reads do not need Julia
-or the original model-input paths. Existing inventories retain their original checksum and reader semantics.
+run settings. The saved inventory embeds these expectations, so archived reads do not need Julia
+or the original model-input paths. Existing inventories keep their original checksum and reader semantics.
 
 ## Check whether a run finished
 
-1. **Read the summary:** open the `summary.md` named by the runner and check outcomes and warnings.
-2. **Investigate problems:** follow the workflow-log links. A command may only preview tasks or find
+1. **Read the summary:** open the `summary.md` named by the run command and check outcomes and warnings.
+2. **Investigate problems:** follow the workflow-log links. A command may only [preview](glossary.md#preview) tasks or find
    that existing results need no updates. Successful completion alone does not mean new results were calculated.
-3. **Find the products:** confirm that the expected climate series, model responses or indicators exist for
+3. **Find the results:** confirm that the expected climate series, model responses or indicators exist for
    the selected experiment. If completion is uncertain, check its saved run information using the
    [output reference](../technical-manual/retained-handoffs.md).
 4. **Check interpretation:** read indicator definitions, units and limitations before comparing values.
@@ -106,7 +107,7 @@ Missing measurements remain unavailable, not zero. Use [benchmarking](../technic
 
 ### Basin maps
 
-Begin with the spatial maps: check the catchment boundary, river network and reporting locations.
+Begin with the spatial maps: check the catchment boundary, river network and [reporting locations](glossary.md#reporting-location).
 <figure class="guide-map-figure">
 <div class="guide-map-grid">
 <div>
@@ -140,7 +141,7 @@ Begin with the spatial maps: check the catchment boundary, river network and rep
 ### Historical climate
 
 Examine the historical climate diagnostics for coverage, seasonality, variability and differences
-between sources. Check each source's available period before choosing historical forcing.
+between [sources](glossary.md#source). Check each source's available period before choosing [historical forcing](glossary.md#historical-forcing).
 
 []{#climate-extent-and-basin-cells}
 
@@ -164,7 +165,7 @@ when comparing the map extents.
 
 </div>
 </div>
-<figcaption>Example historical climate maps, retaining the native climate grid to show its
+<figcaption>Example historical climate maps, keeping the native climate grid to show its
 resolution relative to the basin.</figcaption>
 </figure>
 
@@ -206,9 +207,9 @@ for your own case.
 ## Reading scenario exports
 
 After scenario generation finishes, `scenarios/` contains weather series and tables describing their
-realizations and climate perturbations.
+[realizations](glossary.md#realization) and [climate perturbations](glossary.md#climate-perturbation).
 
-Each experiment uses a specific set of generated climate scenarios. Generating new scenarios can replace
+Each experiment uses a specific set of generated climate [scenarios](glossary.md#scenario). Generating new scenarios can replace
 the tables in `scenarios/`, so they may no longer describe an earlier experiment. Check which scenarios
 the experiment used before linking its indicators to these tables.
 
@@ -216,8 +217,8 @@ the experiment used before linking its indicators to these tables.
 
 Look in `data/climate/projections/<ensemble>/summary/` for change-factor tables and their data sources.
 The `analysis/` tables identify coverage and availability; check whether models, periods or variables
-were excluded before comparing the ensemble. Figure captions explain the period and spatial coverage
-behind each product. Use projected changes to interpret the climate conditions in your stress test.
+were excluded before comparing the [ensemble](glossary.md#ensemble). Figure captions explain the period and spatial coverage
+behind each figure. Use projected changes to interpret the climate conditions in your [stress test](glossary.md#stress-test).
 Ensemble spread does not assign probabilities to its hydrological outcomes.
 
 Figures cover precipitation and temperature only. When calculated PET is selected, the same tables
@@ -226,11 +227,11 @@ inputs. Spatial averages use the selected buffered bounding box, including cells
 polygon; the `basin` token in figure names does not imply polygon weighting. PET requires complete joint
 meteorological support throughout this box. Near-zero reference rates flag unavailable percentages
 while absolute differences remain inspectable. Source paths, units, calendar, method/library and
-spatial support are retained in scalar attributes and `_engine/analysis_record.json`.
+spatial support are saved in scalar attributes and `_engine/analysis_record.json`.
 Optional calculated dew point (`tdew`) and 10 m wind (`wind`) add rows to the same tables, without
 figures. These are duration-weighted states in degC and m/s. The analysis inventory distinguishes
 supplied monthly mean wind speed from magnitude of the monthly mean vector; it preserves method,
-height and monthly/buffered-bbox approximations. No derived native-grid files are retained.
+height and monthly/buffered-bbox approximations. No derived native-grid files are saved.
 See [dew point and wind](../technical-manual/workflow-analyze-projections.md#optional-projected-dew-point-and-wind)
 for opt-ins and input qualification limits.
 
@@ -286,13 +287,13 @@ not magnitude, probability or statistical significance.
 
 []{#moving-projection-results-to-another-project}
 
-To share these products with another project, follow
+To share these results with another project, follow
 [Transfer climate-projection results](running.md#transfer-climate-projection-results).
 
 ## Reading an indicator set
 
 For post-processing, open the CSVs in `experiments/<name>/results/indicator_sets/<set-id>/`.
-There is one folder per selected indicator set: `default` unless `project_config_simulate_system.yml`
+There is one folder per selected [indicator set](glossary.md#indicator-set): `default` unless `project_config_simulate_system.yml`
 selects others.
 
 For example, a `default` set containing river discharge indicators looks like this:
@@ -336,7 +337,7 @@ For advanced details, see [input evaluation and recovery](../technical-manual/in
 ## Join an indicator to its climate settings
 
 To interpret an indicator, identify the climate conditions it represents. Results for individual
-simulations and groups of simulations connect to climate settings in different ways, as shown below.
+simulations and [groups](glossary.md#group) of simulations connect to climate settings in different ways, as shown below.
 
 Use the scenario tables associated with your experiment. The same run or group label in another
 experiment may refer to different simulations.
@@ -380,7 +381,7 @@ If newer scenarios have replaced them, use the preserved tables at the paths rec
 
 For either table, `st_id` then joins to `perturbation_lookup.csv` for monthly changes.
 That lookup has twelve rows per perturbed point, so this further join expands rows; it is not
-a one-row-per-indicator table. The unperturbed reference has empty `st_id` and `is_reference=true`
+a one-row-per-indicator table. The [unperturbed reference](glossary.md#unperturbed-reference) has empty `st_id` and `is_reference=true`
 in group metadata. Keep it explicitly: an inner perturbation join would drop it.
 Use `group_members.csv` to inspect contributing runs, including singleton groups.
 These joins identify which climate conditions belong to each value. They do not construct a response
@@ -393,14 +394,14 @@ normally keeps them as text.
 When importing perturbation `st_id` values, explicitly preserve them as text in Excel and code.
 
 When reading lookup tables in pandas, use `dtype=str` to preserve identifiers and
-`keep_default_na=False` to retain the empty reference `st_id`.
+`keep_default_na=False` to keep the empty reference `st_id`.
 Indicator `value` columns remain numeric.
 
 Keep these identifier conventions in mind when joining tables:
 
-- Each kind of ID uses a consistent number of digits within the relevant scenario collection or indicator set.
+- Each kind of ID uses a consistent number of digits within the relevant [scenario set](glossary.md#scenario-set) or indicator set.
 - Groups are numbered independently of run count and selected indicators.
-- The same label in different scenario collections or indicator sets may refer to different simulations.
+- The same label in different scenario sets or indicator sets may refer to different simulations.
 
 ## Are these outputs current?
 
