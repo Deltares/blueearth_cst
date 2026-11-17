@@ -9,6 +9,7 @@ from blueearth_cst.experiment.simulation_record import (
     SimulationFrozenError,
     read_simulation_intent_v2,
     rebuild_simulation_intent,
+    simulation_intent_v2,
 )
 from blueearth_cst.experiment.simulation_reuse import check_simulation_reuse
 from tests._v2_experiment import build_v2_experiment
@@ -159,3 +160,28 @@ def test_a_bumped_method_revision_requires_new_experiment(retained):
     current["identity_projections"]["method_revision"]["revision"] += 1
     with pytest.raises(SimulationFrozenError):
         check_simulation_reuse(retained, _rebuild(current))
+
+
+def test_a_pre_break_intent_stays_readable_but_refuses_continuation(retained):
+    """t038 clean break: /2 rebuilds exactly; continuing it needs a new experiment."""
+    from blueearth_cst.experiment.simulation_record import SIMULATION_INTENT_V2
+
+    legacy = simulation_intent_v2(
+        retained["experiment_name"],
+        retained["collection"],
+        retained["simulator"],
+        retained["documents"],
+        retained["identity_projections"]["preparation"],
+        version=SIMULATION_INTENT_V2,
+    )
+    assert "method_revision" not in legacy["identity_projections"]
+    assert (
+        rebuild_simulation_intent(
+            legacy["experiment_name"],
+            legacy,
+            legacy["identity_projections"]["preparation"],
+        )
+        == legacy
+    )
+    with pytest.raises(SimulationFrozenError, match="new experiment"):
+        check_simulation_reuse(legacy, retained)

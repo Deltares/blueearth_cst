@@ -622,8 +622,13 @@ def _seed(value: Any, request: dict, root: Path, *, verify: bool = False) -> Non
                 compare_request(generation[key], projection[key])
             if config["run_group_id_capacity"] != generation[
                 "run_group_id_capacity"
-            ] or candidate["provider"].get("method_revision") != generation.get(
-                "method_revision"
+            ] or (
+                # /2 binds the method revision; a retained /1 request bound code bytes.
+                candidate["provider"].get("method_revision")
+                != generation["method_revision"]
+                if "method_revision" in generation
+                else canonical_json_bytes(candidate["documents"]["provider_code"])
+                != canonical_json_bytes(generation["provider_code"])
             ):
                 raise ValueError("bound plan capacity/provider differ from request")
     else:

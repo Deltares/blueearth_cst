@@ -268,3 +268,37 @@ def test_collection_v2_requires_marker_and_matching_data(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="artifact reference bytes differ"):
         read_collection_v2(record / "collection.json")
     assert (record / "collection.json").read_bytes() == before
+
+
+def test_a_pre_break_collection_intent_stays_readable():
+    """t038: a retained /3 intent keyed on code and environment still validates."""
+    intent = collection_intent_v2()
+    code = intent["documents"]["provider_code"]
+    material = intent["documents"]["generation_config"]["seed_resolution"]["projection"]
+    generation = intent["documents"]["generation_config"]
+    material["schema_version"] = "generation-seed-material/2"
+    del material["method_revision"]
+    material["provider_revision"] = content_sha256(code)
+    seed = automatic_seed_v2(material)
+    generation["seed"]["resolved"] = seed
+    generation["weathergen"]["generate_weather"]["seed"] = seed
+    resolution = generation["seed_resolution"]
+    resolution["resolved_seed"] = seed
+    resolution["projection_sha256"] = content_sha256(material)
+    resolution["seed_resolution_id"] = content_sha256(
+        {key: value for key, value in resolution.items() if key != "seed_resolution_id"}
+    )
+    intent["schema_version"] = "scenario-collection-intent/3"
+    intent["provider"] = {"name": "weathergenr", "revision": content_sha256(code)}
+    del intent["identity_projections"]["key_packages"]
+    intent["identity_projections"]["generation_config"]["resolved_seed"] = seed
+    intent["document_digests"] = {
+        key: content_sha256(value) for key, value in intent["documents"].items()
+    }
+    intent["identity_digests"] = {
+        key: content_sha256(intent["identity_projections"].get(key, value))
+        for key, value in intent["documents"].items()
+    }
+    intent["collection_id"] = collection_id_v2(intent)
+    _profile(intent)
+    assert intent["collection_id"] != collection_intent_v2()["collection_id"]
