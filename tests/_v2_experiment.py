@@ -32,7 +32,16 @@ from blueearth_cst.experiment.simulation_record import SIMULATION_KEY_PACKAGES
 
 #: The stage environment indicator planning and reduction observe (see
 #: `indicator_plan.resolve_indicator_environment`).
-FIXTURE_ENVIRONMENT = {"packages": {"numpy": "fixture"}}
+FIXTURE_ENVIRONMENT = {
+    "packages": {
+        "numpy": "fixture",
+        **{
+            f"python:{name}": "fixture"
+            for name in ("lmoments3", "numpy", "pandas", "scipy", "xarray", "xclim")
+        },
+    },
+    "return_level_estimator": {"estimator_id": "fixture"},
+}
 
 METHOD = {"producer": "stochastic-collection", "revision": 1}
 KEY_PACKAGES = {

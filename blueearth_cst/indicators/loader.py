@@ -1,11 +1,10 @@
 """Discover trusted installed sets and orchestrate their local callables."""
 
-import hashlib
 import importlib
 import inspect
+import json
 import pkgutil
 from dataclasses import replace
-from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -90,29 +89,20 @@ def execution_sources(set_ids=None) -> tuple[Path, ...]:
     )
 
 
+#: The toolbox's shipped method-revision pins. Read as data so this module keeps
+#: no workflow import; the workflow checks the pin before any identity uses it.
+_PIN_PATH = Path(__file__).resolve().parents[1] / "experiment/method_revisions.json"
+
+
 def implementation_revision(set_id: str) -> str:
-    """Content identity of the contributing execution sources, without checkers."""
-    paths = execution_sources([set_id])
-    signature = tuple(
-        (str(path), path.stat().st_mtime_ns, path.stat().st_size) for path in paths
-    )
-    return _source_revision(signature)
+    """The declared indicator method revision, e.g. ``indicator-set/3``.
 
-
-@lru_cache(maxsize=32)
-def _source_revision(signature) -> str:
-    """Reuse source-byte hashing while the actual file identities remain unchanged."""
-    digest = hashlib.sha256()
-    root = Path(__file__).parent
-    for name, _, _ in signature:
-        path = Path(name)
-        try:
-            relative = path.relative_to(root)
-        except ValueError:
-            relative = Path(*path.parts[-2:])
-        digest.update(str(relative).replace("\\", "/").encode())
-        digest.update(path.read_text(encoding="utf-8").encode("utf-8"))
-    return digest.hexdigest()
+    One revision covers the engine and every installed set (t038); its pin,
+    not the set's source bytes, guards code changes.
+    """
+    load(set_id)  # an unknown set is still refused
+    pins = json.loads(_PIN_PATH.read_text(encoding="utf-8"))
+    return f"indicator-set/{pins['producers']['indicator-set']['revision']}"
 
 
 def _declaration(

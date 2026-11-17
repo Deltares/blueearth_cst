@@ -46,12 +46,12 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: simulation identity keys on the method revision"
+        "reason": "t038: indicator identity keys on the method revision"
       },
       "revision": 1
     },
     "indicator-set": {
-      "closure_sha256": "4fb72da255557f07d4682525ea52f82410d294cd424ecd6710cdd7cdb7923772",
+      "closure_sha256": "bbe9135300df9cb9db46474625c4a0016e8318800ac3490b76faacfd38f93a2f",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -99,7 +99,7 @@
         },
         {
           "path": "blueearth_cst/experiment/indicator_artifacts.py",
-          "sha256": "05b089a89befe64bca35c9913dfd2362acebf68cbc21d7e21fd6db1f743e1759"
+          "sha256": "72625a94e3aaccb2c5fcf754e3a47da236b82913cad995041c1ca796db0c9ca7"
         },
         {
           "path": "blueearth_cst/experiment/indicator_groups.py",
@@ -107,7 +107,7 @@
         },
         {
           "path": "blueearth_cst/experiment/indicator_plan.py",
-          "sha256": "95ee606170cf749afda8ca769723b1018d9f0d461b84674c4751768f9fe6b9fd"
+          "sha256": "8c8e7bd969c4314cc0018c37fbc963bc720c2ec00d6130c207447b3b40308fe8"
         },
         {
           "path": "blueearth_cst/experiment/indicator_registry.py",
@@ -159,7 +159,7 @@
         },
         {
           "path": "blueearth_cst/indicators/loader.py",
-          "sha256": "8e63ae2a4ece876eff7dd35b5cb466089e2558c84ecd98aa924125c6e867103c"
+          "sha256": "81e81bd821a153c087ec29fd51bbb3e4e7bc1d92e8103d46a592ae6fdfe4b895"
         },
         {
           "path": "blueearth_cst/indicators/series.py",
@@ -300,7 +300,7 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: simulation identity keys on the method revision"
+        "reason": "t038: indicator identity keys on the method revision"
       },
       "revision": 1
     },
@@ -398,7 +398,7 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: simulation identity keys on the method revision"
+        "reason": "t038: indicator identity keys on the method revision"
       },
       "revision": 1
     },
@@ -552,7 +552,7 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: simulation identity keys on the method revision"
+        "reason": "t038: indicator identity keys on the method revision"
       },
       "revision": 1
     }
