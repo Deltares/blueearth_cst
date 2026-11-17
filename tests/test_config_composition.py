@@ -2009,3 +2009,42 @@ def test_wf3_scalars_expand_to_twelve_and_keys_translate(tmp_path):
     public = cc.public_workflow_section("generate_scenarios", section)
     assert public["future_period"] == body["future_period"]
     assert "simulation_window" not in public and "weathergen_config" not in public
+
+
+def test_wf4_steps_and_indicators_translate_and_invert():
+    authored = {
+        "steps": {"simulations": False},
+        "indicators": {
+            "sets": ["default", "crop-water"],
+            "custom_sets": {"mine": "sets/mine.yml"},
+            "options": {"crop-water": {"winter_longest_dry_spell": {"enabled": False}}},
+            "subset": {"default": ["q_mean"], "crop-water": {"exclude": ["x"]}},
+            "evaluation": "strict",
+        },
+    }
+    internal = cc.internal_simulation_settings(authored)
+    assert internal == {
+        "operations": ["indicators"],
+        "indicator_sets": [
+            "default",
+            {"set": "crop-water", "winter_longest_dry_spell": {"enabled": False}},
+        ],
+        "indicator_set_definitions": {"mine": {"config_path": "sets/mine.yml"}},
+        "indicator_selection": {
+            "default": {"include": ["q_mean"]},
+            "crop-water": {"exclude": ["x"]},
+        },
+        "indicator_evaluation": "strict",
+    }
+    public = cc.public_workflow_section("simulate_system", dict(internal))
+    assert public["indicators"] == authored["indicators"]
+    assert public["steps"] == {"simulations": False, "indicators": True}
+    # Absent keys emit nothing, so the legacy `operation` interface survives.
+    legacy = {"operation": "simulate-and-indicators", "indicators": ["Q"]}
+    assert cc.internal_simulation_settings(legacy) == legacy
+    with pytest.raises(ValueError, match="at least one"):
+        cc.internal_simulation_settings(
+            {"steps": {"simulations": False, "indicators": False}}
+        )
+    with pytest.raises(ValueError, match="replaced"):
+        cc.internal_simulation_settings({"indicator_sets": ["default"]})

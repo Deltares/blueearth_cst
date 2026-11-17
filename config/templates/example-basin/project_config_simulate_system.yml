@@ -17,10 +17,14 @@
 # Select experiment family or exact experiment. Input: name string.
 #experiment_name: my_experiment
 
-# What to run, in any order: simulations, indicators, or both (the default).
-# Indicators alone read the retained responses and never start Wflow.
-# Select simulation and indicator operations. Input: list containing simulations and/or indicators.
-operations: [simulations, indicators]
+# Steps to run; at least one must be true. Indicators alone read the retained
+# responses and never start Wflow.
+# Select the steps to run. Input: mapping.
+steps:
+  # Run the model on the scenario collection. Options: true (default) | false.
+  simulations: true
+  # Compute indicators from retained responses. Options: true (default) | false.
+  indicators: true
 
 # Include each realization's unperturbed member in WF4 (default: true).
 # False skips its forcing preparation and simulation; WF3 retains it for ancestry.
@@ -53,53 +57,36 @@ initialization:
 # -----------------------------------------------------------------------------
 
 # Named sets, each published to results/indicator_sets/<set-id>/ with an
-# indicators.csv dictionary. `default` is bundled; omitted means [default].
-# Add eflow-erfa for 70 discharge median/IQR indicators: [default, eflow-erfa].
-# Crop-water also needs retained P, PET, AET, recharge and Q. Configure it inline:
-#indicator_sets:
-#  - set: crop-water
-#    'summer_low_flow_days':
-#      thresholds:
-#        baseline_quantile: {}
-#    'summer_longest_dry_spell':
-#      dry_day_mm: 2.0
-#    'winter_longest_dry_spell':
-#      enabled: false
-#  - set: flow_regime
-#    'q_mean_annual_90day_min':
-#      enabled: false
-# Omitted indicators/parameters inherit defaults. enabled defaults to true.
-# Historical Qcrit uses this project's WF1 model; omitted years (or all)
-# uses all historical calendar years. Q90 exceedance, summer and linear are defaults.
-# Preparation follows WF1 at the WF4 boundary; a combined dry-run may leave it pending.
-# See blueearth_cst/indicators/sets/crop_water/README.md for the complete rule.
-# Select named indicator sets to calculate. Input: list of IDs or inline mappings.
-indicator_sets:
-  # Select the registered indicator set. Input: installed set ID.
-  - set: default
-
-# Custom sets: set id -> file. A relative config_path resolves against THIS
-# file; absolute paths are allowed. Copy config/templates/indicator_set.template.yml.
-# An explicit file may replace a bundled set other than `default`.
-# Register custom indicator set definitions. Input: set-ID-to-definition mapping.
-#indicator_set_definitions:
-# Define a custom indicator set. Input: configuration path mapping.
-#  'example_subset':
-# Locate the indicator set definition. Input: YAML path relative to this file or absolute.
-#    config_path: indicator_sets/example_subset.yml
-
-# Calculate part of a selected set; omitted means all of its indicators.
-# Narrow selected sets to individual indicators. Input: set-ID-to-choice mapping.
-#indicator_selection:
-# Keep or drop named indicators of one set. Input: {include: [...]} or {exclude: [...]}.
-#  'crop-water':
-# Drop indicators by published name. Input: nonempty list of indicator names.
-#    exclude: [summer_low_flow_days]
-
-# partial (default) publishes an indicator lacking an input or enough data as
-# unavailable, with a warning; strict refuses the set instead.
-# Choose how unavailable indicators are handled. Options: partial | strict.
-#indicator_evaluation: partial
+# indicators.csv dictionary. Bundled: default, eflow-erfa (70 discharge
+# median/IQR indicators), crop-water (also needs retained P, PET, AET, recharge
+# and Q; see blueearth_cst/indicators/sets/crop_water/README.md).
+# Select and configure indicator sets. Input: mapping.
+indicators:
+  # Sets to calculate. Input: list of bundled or custom set IDs; default [default].
+  sets: [default]
+  # Custom sets: set id -> definition file, relative to THIS file or absolute.
+  # Copy config/templates/indicator_set.template.yml. A custom file may replace
+  # a bundled set other than `default`.
+  # Register custom indicator set definition files. Input: set-ID-to-path mapping.
+#  custom_sets:
+    # Locate one set's definition file. Input: YAML path.
+#    'example_subset': indicator_sets/example_subset.yml
+  # Per set, per indicator settings; omitted settings use defaults, and
+  # `enabled: false` drops one indicator. Cannot combine with custom_sets.
+  # Override indicator settings of selected sets. Input: set-ID-to-indicator mapping.
+#  options:
+#    'crop-water':
+#      'summer_longest_dry_spell': {dry_day_mm: 2.0}
+#      'winter_longest_dry_spell': {enabled: false}
+  # Calculate only these indicators of a set; {exclude: [...]} drops them instead.
+  # Narrow selected sets to named indicators. Input: set-ID-to-list mapping.
+#  subset:
+    # Indicators to keep. Input: nonempty list of indicator names.
+#    'crop-water': [summer_low_flow_days]
+  # partial publishes an indicator lacking an input or enough data as
+  # unavailable, with a warning; strict refuses the set instead.
+  # Choose how unavailable indicators are handled. Options: partial (default) | strict.
+#  evaluation: partial
 
 # -----------------------------------------------------------------------------
 #  COMPUTE

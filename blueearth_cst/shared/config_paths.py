@@ -164,4 +164,12 @@ def resolve_workflow_paths(
                 definition["config_path"] = resolve_path(
                     definition["config_path"], source
                 )
+        indicators = result.get("indicators")
+        if isinstance(indicators, dict) and isinstance(
+            indicators.get("custom_sets"), dict
+        ):
+            custom = indicators["custom_sets"]
+            for name, value in custom.items():
+                if isinstance(value, str):
+                    custom[name] = resolve_path(value, source)
     return result

@@ -1,5 +1,6 @@
 # simulate_system (wf4) -- rapid set
 
 experiment_name: experiment_rapid
-operations: [simulations, indicators]
-indicator_sets: [default]
+steps: {simulations: true, indicators: true}
+indicators:
+  sets: [default]

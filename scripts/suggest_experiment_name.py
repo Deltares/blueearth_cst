@@ -35,8 +35,18 @@ def main(argv: list[str] | None = None) -> int:
         project = resolve_project_paths(project, args.config)
         root = Path(project["project"]["project_dir"]).resolve()
         stanza = project["workflows"]["simulate_system"]
-        workflow = yaml.safe_load(
-            (args.config.resolve().parent / stanza["config_path"]).read_bytes()
+        from blueearth_cst.shared.config_composition import (
+            internal_simulation_settings,
+            normalize_indicator_settings,
+        )
+
+        workflow = internal_simulation_settings(
+            normalize_indicator_settings(
+                yaml.safe_load(
+                    (args.config.resolve().parent / stanza["config_path"]).read_bytes()
+                )
+                or {}
+            )
         )
         selected = preview_experiment(
             root,

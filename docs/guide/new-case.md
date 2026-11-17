@@ -96,7 +96,7 @@ in the files below. Pass `project_config.yml` to the runner with `--config`.
 | `project_config_build_model.yml` | Historical model period, observations and build settings |
 | `project_config_analyze_projections.yml` | CMIP6 models, SSPs and reference/future periods |
 | `project_config_generate_scenarios.yml` | Weather realizations, perturbations, periods and seed |
-| `project_config_simulate_system.yml` | Experiment, operations, indicator sets and resources |
+| `project_config_simulate_system.yml` | Experiment, steps, indicator sets and resources |
 
 The commented case files and [technical reference](../technical-manual/configuration.md) cover
 settings beyond the key choices below.
@@ -243,18 +243,19 @@ before simulation.
 - [Crop-water](../../blueearth_cst/indicators/sets/crop_water/README.md): seasonal water availability,
   dry spells and low flows. Use it for catchment screening, not crop-yield or damage estimates.
 
-In `project_config_simulate_system.yml`, select the operations and sets to calculate:
+In `project_config_simulate_system.yml`, select the steps and sets to calculate:
 
 ```yaml
-operations: [simulations, indicators]
-indicator_sets:
-  - set: default
-  - set: eflow-erfa
+steps:
+  simulations: true
+  indicators: true
+indicators:
+  sets: [default, eflow-erfa]
 include_unperturbed: true
 ```
 
 Keep `include_unperturbed: true` when your indicators require reference runs, and supply any required
-thresholds or observations. To calculate indicators from saved simulations, use `operations: [indicators]`;
+thresholds or observations. To calculate indicators from saved simulations, set `steps.simulations: false`;
 see [Recalculate indicators](running.md#calculate-different-indicators-from-existing-simulations).
 The [outputs guide](outputs.md#reading-an-indicator-set) explains the result tables and unavailable values.
 

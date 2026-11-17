@@ -400,8 +400,8 @@ def test_parameter_comments_preserve_flow_yaml_aliases_and_existing_help():
         ),
         (
             "simulate_system",
-            "indicator_set_definitions:\n  hydrology:\n    config_path: hydrology.yml\n",
-            "# Locate the indicator set definition. Input: YAML path relative to this file or absolute.",
+            "indicators:\n  custom_sets:\n    hydrology: hydrology.yml\n",
+            "# Locate one set's definition file. Input: YAML path.",
         ),
     ],
 )

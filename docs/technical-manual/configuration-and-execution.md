@@ -32,7 +32,7 @@ accepts all five names; for `generate_scenarios` and `simulate_system`, it deleg
 runners rather than launching Snakemake directly.
 
 Bare Snakemake execution omits required preparation and is not supported for scenario generation or
-hydrological simulation. Simulation targets are inferred from `operations` and indicator selection;
+hydrological simulation. Simulation targets are inferred from `steps` and indicator selection;
 routine requests need no target override.
 
 A dry run does not generate missing inputs. Some downstream checks remain pending until earlier
@@ -78,7 +78,7 @@ An experiment identifies the model, climate scenarios and scientific simulation 
 its responses. Changed scientific inputs require a new experiment; forcing jobs to rerun or
 unlocking the project does not make those inputs compatible.
 
-Indicator changes can use saved responses through `operations: [indicators]` when the completed
+Indicator changes can use saved responses through `steps.simulations: false` when the completed
 experiment contains the required variables, locations and periods. Missing response variables require
 new simulations. Resource changes alone do not define a new scientific experiment.
 The [saved-results reference](retained-handoffs.md#identities-and-reuse) specifies reuse requirements;

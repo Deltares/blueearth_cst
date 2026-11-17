@@ -2,5 +2,6 @@
 # see the header of `project_config_baseline_linux.yml`.
 
 experiment_name: experiment
-operations: [simulations, indicators]
-indicator_sets: [default]
+steps: {simulations: true, indicators: true}
+indicators:
+  sets: [default]

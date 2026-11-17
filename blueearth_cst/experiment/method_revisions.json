@@ -51,7 +51,7 @@
       "revision": 1
     },
     "indicator-set": {
-      "closure_sha256": "6da9e655a7f1fedd046b03acac14061f61ad8de8e751088956fbf90a469ae804",
+      "closure_sha256": "31abd381960f64bde26cdc0c165ca63b97924a6180ab3f8a30302849e6321b77",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -107,7 +107,7 @@
         },
         {
           "path": "blueearth_cst/experiment/indicator_plan.py",
-          "sha256": "0f333dda70f32fc47e11ba23fb43532f2e0a3bc730298d08f01427ae3e8cfb50"
+          "sha256": "9149e3e4bef214ec9dc624ddabc9e1b683323f2d3477dce47ef39b2a33d04ece"
         },
         {
           "path": "blueearth_cst/experiment/indicator_registry.py",
@@ -115,7 +115,7 @@
         },
         {
           "path": "blueearth_cst/experiment/indicator_sets.py",
-          "sha256": "2562caf6b32267d1eee243dc5c5639cb1ddc4afdaf80bd9f66ba4d11a9924200"
+          "sha256": "9d44c92cfdbcf417a632dabfb30773aeb74add7b472ad9d0fa70a7c2b516fdac"
         },
         {
           "path": "blueearth_cst/experiment/legacy_indicator_names.py",
@@ -243,7 +243,7 @@
         },
         {
           "path": "blueearth_cst/shared/config_paths.py",
-          "sha256": "72077164d03a1183a59772b897a66804f524da40bebc55e4af49adcc9ea63963"
+          "sha256": "c6aac8327a126d482c9ea80d1634f79e422fe14f15b0418c1a586f1f5e75b500"
         },
         {
           "path": "blueearth_cst/shared/csv_output.py",
@@ -304,7 +304,7 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t037: generate_scenarios generator_config_path path field"
+        "reason": "t037: simulate_system steps/indicators keys compose to the former internal shapes; remedy messages name them"
       },
       "revision": 1
     },

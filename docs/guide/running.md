@@ -63,7 +63,7 @@ To preview the dedicated simulation command, use:
 pixi run python scripts/simulate_system.py --config $config --cores 3 --dry-run
 ```
 
-Remove `--dry-run` to execute the configured `operations`. Each runner's `--help` lists supported
+Remove `--dry-run` to execute the configured `steps`. Each runner's `--help` lists supported
 options; not every Snakemake option can be forwarded.
 
 **When it finishes:** open the linked `summary.md` to check outcomes, warnings, detailed logs and available
@@ -160,8 +160,10 @@ existing experiment and request indicators only:
 
 ```yaml
 experiment_name: stress_test_01
-operations: [indicators]
-indicator_sets: [default]
+steps:
+  simulations: false
+indicators:
+  sets: [default]
 ```
 
 Replace the experiment name and indicator selection with your own, then run:
@@ -176,7 +178,7 @@ You can also use the all-workflow runner with the other workflows disabled.
 
 The completed simulation record must exist, even for a preview. Indicators-only execution cannot
 create missing model variables or complete unfinished simulations. For a new simulation, restore
-`operations: [simulations, indicators]`. See [Choose indicators](new-case.md#choose-indicators) for input requirements.
+`steps.simulations: true`. See [Choose indicators](new-case.md#choose-indicators) for input requirements.
 
 ## Regenerate figures after visual changes
 
@@ -226,7 +228,7 @@ output folders are treated as outputs and deleted. Models the toolbox built and 
 are deleted; a registered model (`scripts/register_model.py register`) is kept.
 
 Only enabled workflows run afterwards. To rebuild hydrological simulations, also enable model building
-and scenario generation and include `simulations` in the operations: their required products were deleted.
+and scenario generation and set `steps.simulations: true`: their required products were deleted.
 Use `--new-experiment` instead when you want to retain previous experiments. Read the
 [reset boundaries](../technical-manual/execution-and-provenance.md#launcher-arguments-and-safety-boundaries)
 before using rebuild.

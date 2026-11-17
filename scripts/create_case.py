@@ -84,11 +84,12 @@ def _template_comments(path: Path) -> dict[tuple[str, ...], str]:
             if previous.startswith("# ") and re.search(
                 r"\b(Input|Options): ", previous
             ):
-                if len(keys) >= 2 and keys[0] in {
-                    "indicator_set_definitions",
-                    "indicator_selection",
+                if len(keys) >= 3 and keys[:2] in {
+                    ("indicators", "custom_sets"),
+                    ("indicators", "options"),
+                    ("indicators", "subset"),
                 }:
-                    keys = (keys[0], "*", *keys[2:])
+                    keys = (*keys[:2], "*", *keys[3:])
                 elif len(keys) >= 3 and keys[:2] == ("members", "overrides"):
                     keys = (*keys[:2], "*", *keys[3:])
                 elif len(keys) >= 2 and keys[0] in {

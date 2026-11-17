@@ -352,6 +352,23 @@ RETIRED_KEYS: dict[str, str] = {
         "renamed (t037) to `generator_config_path`; the default is "
         "toolbox:config/defaults/weathergenr_config.yml"
     ),
+    "T2.simulate_system.operations": (
+        "replaced (t037) by `steps: {simulations: true|false, indicators: true|false}`"
+    ),
+    "T2.simulate_system.indicator_sets": (
+        "replaced (t037) by `indicators.sets: [<set ids>]`; per-indicator settings "
+        "go in `indicators.options.<set>`"
+    ),
+    "T2.simulate_system.indicator_set_definitions": (
+        "replaced (t037) by `indicators.custom_sets: {<set id>: <definition file>}`"
+    ),
+    "T2.simulate_system.indicator_selection": (
+        "replaced (t037) by `indicators.subset: {<set id>: [<indicators>]}` "
+        "(or `{exclude: [...]}`)"
+    ),
+    "T2.simulate_system.indicator_evaluation": (
+        "replaced (t037) by `indicators.evaluation: partial|strict`"
+    ),
     "T2.build_model.engine": (
         "renamed (t037) to `hydromt: {build_config_path, waterbodies_config_path}`"
     ),
@@ -891,7 +908,164 @@ def internal_workflow_section(
         body = _internal_projections(body, climate)
     elif name == "generate_scenarios":
         body = _internal_wf3(body)
+    elif name == "simulate_system":
+        body = internal_simulation_settings(body)
     return body
+
+
+#: simulate_system's internal names for the public `steps`/`indicators` keys.
+_WF4_INTERNAL = (
+    "operations",
+    "indicator_sets",
+    "indicator_set_definitions",
+    "indicator_selection",
+    "indicator_evaluation",
+)
+_WF4_STEPS = ("simulations", "indicators")
+_WF4_INDICATOR_KEYS = {"sets", "custom_sets", "options", "subset", "evaluation"}
+
+
+def internal_simulation_settings(body: Mapping[str, Any]) -> dict[str, Any]:
+    """simulate_system's t037 `steps`/`indicators` keys in the internal shapes.
+
+    `steps` -> `operations` (in `simulations, indicators` order); the
+    `indicators` mapping -> `indicator_sets` (a set with `options` becomes the
+    former inline `{set: <id>, ...}` entry), `indicator_set_definitions`,
+    `indicator_selection` (a list means `include`) and `indicator_evaluation`.
+    Only authored keys are emitted, so identities are unchanged and a file
+    with neither key keeps the legacy `operation` interface. A list-valued
+    `indicators` is that legacy token list and passes through. Raw readers
+    call this too, so the former internal names are refused here as well.
+    """
+    body = dict(body)
+    found = [key for key in _WF4_INTERNAL if key in body]
+    if found:
+        raise ValueError(
+            "simulate_system: "
+            + "; ".join(
+                f"`{key}` is {RETIRED_KEYS[f'T2.simulate_system.{key}']}"
+                for key in found
+            )
+        )
+    if "steps" in body:
+        steps_settings = body.pop("steps")
+        if not isinstance(steps_settings, Mapping) or set(steps_settings) - set(
+            _WF4_STEPS
+        ):
+            raise ValueError(
+                "simulate_system.steps must be a mapping of simulations and "
+                "indicators to true or false"
+            )
+        values = {
+            "simulations": steps_settings.get("simulations", True),
+            "indicators": steps_settings.get("indicators", True),
+        }
+        if any(type(value) is not bool for value in values.values()):
+            raise ValueError("simulate_system.steps values must be true or false")
+        if not any(values.values()):
+            raise ValueError(
+                "simulate_system.steps: at least one of simulations and "
+                "indicators must be true"
+            )
+        body["operations"] = [key for key in _WF4_STEPS if values[key]]
+    indicator_settings = body.get("indicators")
+    if not isinstance(indicator_settings, Mapping):
+        return body
+    body.pop("indicators")
+    unknown = sorted(set(indicator_settings) - _WF4_INDICATOR_KEYS)
+    if unknown:
+        raise ValueError(
+            f"simulate_system.indicators: unknown keys {unknown}; allowed "
+            f"{sorted(_WF4_INDICATOR_KEYS)}"
+        )
+    options = indicator_settings.get("options") or {}
+    if not isinstance(options, Mapping):
+        raise ValueError("simulate_system.indicators.options must be a mapping")
+    sets = indicator_settings.get("sets")
+    if sets is not None or options:
+        sets = ["default"] if sets is None else sets
+        if not isinstance(sets, list):
+            raise ValueError(
+                "simulate_system.indicators.sets must be a list of set ids"
+            )
+        stray = sorted(set(options) - set(sets))
+        if stray:
+            raise ValueError(
+                f"simulate_system.indicators.options names sets {stray} that "
+                "indicators.sets does not select"
+            )
+        body["indicator_sets"] = [
+            {"set": name, **options[name]}
+            if isinstance(name, str) and options.get(name)
+            else name
+            for name in sets
+        ]
+    custom = indicator_settings.get("custom_sets")
+    if custom is not None:
+        if not isinstance(custom, Mapping):
+            raise ValueError(
+                "simulate_system.indicators.custom_sets must map set ids to files"
+            )
+        body["indicator_set_definitions"] = {
+            name: {"config_path": path} for name, path in custom.items()
+        }
+    subset = indicator_settings.get("subset")
+    if subset is not None:
+        if not isinstance(subset, Mapping):
+            raise ValueError(
+                "simulate_system.indicators.subset must map set ids to indicator lists"
+            )
+        body["indicator_selection"] = {
+            name: {"include": choice} if isinstance(choice, list) else choice
+            for name, choice in subset.items()
+        }
+    evaluation = indicator_settings.get("evaluation")
+    if evaluation is not None:
+        body["indicator_evaluation"] = evaluation
+    return body
+
+
+def _public_wf4(section: dict[str, Any]) -> dict[str, Any]:
+    """Inverse of `internal_simulation_settings` for execution YAML."""
+    if "operations" in section:
+        operations = section.pop("operations")
+        section["steps"] = {key: key in operations for key in _WF4_STEPS}
+    indicators: dict[str, Any] = {}
+    if "indicator_sets" in section:
+        sets, options = [], {}
+        for entry in section.pop("indicator_sets"):
+            if isinstance(entry, Mapping):
+                extra = sorted(
+                    set(entry) & {"id", "title", "description", "schema_version"}
+                )
+                if extra:
+                    raise ValueError(
+                        f"inline indicator set fields {extra} have no public form; "
+                        "use indicators.custom_sets with a definition file"
+                    )
+                name = entry["set"]
+                options[name] = {k: v for k, v in entry.items() if k != "set"}
+                sets.append(name)
+            else:
+                sets.append(entry)
+        indicators["sets"] = sets
+        if options:
+            indicators["options"] = options
+    if "indicator_set_definitions" in section:
+        indicators["custom_sets"] = {
+            name: definition["config_path"]
+            for name, definition in section.pop("indicator_set_definitions").items()
+        }
+    if "indicator_selection" in section:
+        indicators["subset"] = {
+            name: choice["include"] if set(choice) == {"include"} else choice
+            for name, choice in section.pop("indicator_selection").items()
+        }
+    if "indicator_evaluation" in section:
+        indicators["evaluation"] = section.pop("indicator_evaluation")
+    if indicators:
+        section["indicators"] = indicators
+    return section
 
 
 #: Monthly perturbation fields that accept one value for every month (t037).
@@ -1275,6 +1449,8 @@ def public_workflow_section(name: str, section: Mapping[str, Any]) -> dict[str, 
         section = _public_projections(section)
     elif name == "generate_scenarios":
         section = _public_wf3(section)
+    elif name == "simulate_system":
+        section = _public_wf4(section)
     return section
 
 

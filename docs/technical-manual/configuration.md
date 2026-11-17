@@ -52,7 +52,7 @@ the project file, including schema 2. Supported schema numbers are integers 2 an
 | model building | `hydromt.build_config_path`, `hydromt.waterbodies_config_path` |
 | projection analysis | `projections_catalog` |
 | scenario generation | `generator_config_path` |
-| hydrological simulation | `scenario_collection.manifest_path`, `indicator_set_definitions.<id>.config_path` |
+| hydrological simulation | `scenario_collection.manifest_path`, `indicators.custom_sets.<id>` |
 
 Use `toolbox:config/...` for resources in the executing toolbox checkout. A toolbox locator must stay
 inside that checkout. Absolute paths remain supported; a foreign-platform absolute path is rejected.

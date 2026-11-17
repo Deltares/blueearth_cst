@@ -179,8 +179,8 @@ def prepare_indicator_plan(root, request, sets, evaluation="strict"):
         names = ", ".join(item.set_id for item in matching_sets(sets, request))
         raise ValueError(
             f"{names or 'selected set'}: selected indicators lack inputs: "
-            f"{listed(unavailable)}. Exclude them with indicator_selection, supply "
-            "the missing parameter, or set indicator_evaluation: partial"
+            f"{listed(unavailable)}. Leave them out with indicators.subset, supply "
+            "the missing parameter, or set indicators.evaluation: partial"
         )
     with _planning_output(root):
         plan = write_indicator_plan(root, request)

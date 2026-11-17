@@ -84,7 +84,7 @@ def _require_v2(root):
             f"No completed simulation is available for experiment {root.name!r}: "
             f"missing {root / '_engine/simulation.json'}. "
             "Indicators-only operations require retained simulation responses, "
-            "including for a dry run. Set operations: [simulations, indicators] "
+            "including for a dry run. Set steps.simulations: true "
             "to run a simulation first, or select the experiment_name of an "
             "existing completed simulation."
         )
@@ -148,15 +148,18 @@ def indicators_only_configuration(config_path, *, prepare_baseline=True):
     workflow = load_unique_yaml(
         (path.parent / descriptor["config_path"]).read_text(encoding="utf-8")
     )
-    from blueearth_cst.shared.config_composition import normalize_indicator_settings
+    from blueearth_cst.shared.config_composition import (
+        internal_simulation_settings,
+        normalize_indicator_settings,
+    )
 
+    workflow = internal_simulation_settings(normalize_indicator_settings(workflow))
     workflow = resolve_workflow_paths(
         workflow,
         path.parent / descriptor["config_path"],
         "simulate_system",
         project.get("schema_version", 2),
     )
-    workflow = normalize_indicator_settings(workflow)
     project_root = Path(project["project"]["project_dir"]).resolve()
     from blueearth_cst.experiment.reservation_context import resolve_experiment_name
 

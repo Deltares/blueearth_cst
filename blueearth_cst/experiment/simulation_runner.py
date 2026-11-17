@@ -11,7 +11,7 @@ import yaml
 def simulation_settings(config_path, *, validate_forcing=True):
     """Read the simulation file without opening generation or model files.
 
-    The named interface (``operations``/``indicator_sets``) is validated and
+    The named interface (authored ``steps``/``indicators``) is validated and
     normalized to the internal ``operation`` the Snakemake branches select on:
     ``indicators-only`` for indicators alone, otherwise ``simulate-and-indicators``.
     The all-workflow runner uses ``validate_forcing=False`` for structural
@@ -63,12 +63,15 @@ def simulation_selection(config_path, *, validate_forcing=True):
     settings = (
         indicator_sets.load_unique_yaml(workflow_path.read_text(encoding="utf-8")) or {}
     )
-    from blueearth_cst.shared.config_composition import normalize_indicator_settings
+    from blueearth_cst.shared.config_composition import (
+        internal_simulation_settings,
+        normalize_indicator_settings,
+    )
 
+    settings = internal_simulation_settings(normalize_indicator_settings(settings))
     settings = resolve_workflow_paths(
         settings, workflow_path, "simulate_system", project.get("schema_version", 2)
     )
-    settings = normalize_indicator_settings(settings)
     from blueearth_cst.shared.forcing_recipe import (
         require_workflow_compatibility,
         resolve_climate_forcing,
@@ -112,7 +115,7 @@ def simulation_selection(config_path, *, validate_forcing=True):
     if settings.get("operation") not in {"simulate-and-indicators", "indicators-only"}:
         raise ValueError(
             "simulate_system.operation must be simulate-and-indicators or indicators-only; "
-            "or use operations: [simulations, indicators]"
+            "or use steps: {simulations: true, indicators: true}"
         )
     return project, settings, indicator_sets.workflow_selection(settings, workflow_path)
 
@@ -202,8 +205,8 @@ def check_required_variables(
             + "; ".join(gap["text"] for gap in missing)
             + ". "
             + " ".join(remedies)
-            + " Alternatively exclude the indicator with indicator_selection, or set "
-            "indicator_evaluation: partial."
+            + " Alternatively leave the indicator out with indicators.subset, or set "
+            "indicators.evaluation: partial."
         )
     return missing
 
@@ -272,7 +275,7 @@ def simulation_indicator_sets(
                 "unperturbed reference runs: "
                 + ", ".join(dependent)
                 + ". Select an indicator set without these indicators, use "
-                "operations: [simulations], or set include_unperturbed: true."
+                "steps.indicators: false, or set include_unperturbed: true."
             )
     return sets
 

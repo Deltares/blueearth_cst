@@ -171,14 +171,12 @@ def _q90_config(tmp_path, *, build_model=True):
     workflow.write_text(
         yaml.safe_dump(
             {
-                "operations": ["simulations", "indicators"],
+                "steps": {"simulations": True, "indicators": True},
                 "experiment_name": "test",
-                "indicator_sets": ["crop-water"],
-                "indicator_set_definitions": {
-                    "crop-water": {"config_path": "crop-water-q90.yml"}
-                },
-                "indicator_selection": {
-                    "crop-water": {"include": ["summer_low_flow_days"]}
+                "indicators": {
+                    "sets": ["crop-water"],
+                    "custom_sets": {"crop-water": "crop-water-q90.yml"},
+                    "subset": {"crop-water": ["summer_low_flow_days"]},
                 },
             }
         ),
@@ -248,13 +246,12 @@ def _inline_q90_config(tmp_path):
 
     path = tmp_path / "q90-project-simulation.yml"
     settings = yaml.safe_load(path.read_text())
-    settings.pop("indicator_set_definitions")
-    settings["indicator_sets"] = [
-        {
-            "set": "crop-water",
-            "summer_low_flow_days": {"thresholds": {"baseline_quantile": {}}},
+    settings["indicators"].pop("custom_sets")
+    settings["indicators"]["options"] = {
+        "crop-water": {
+            "summer_low_flow_days": {"thresholds": {"baseline_quantile": {}}}
         }
-    ]
+    }
     path.write_text(yaml.safe_dump(settings), encoding="utf-8")
 
 
@@ -271,8 +268,8 @@ def test_inline_duplicate_indicator_keys_are_not_silently_overwritten(
     path = tmp_path / "q90-project-simulation.yml"
     path.write_text(
         path.read_text().replace(
-            "  summer_low_flow_days:",
-            "  summer_low_flow_days: {}\n  summer_low_flow_days:",
+            "      summer_low_flow_days:",
+            "      summer_low_flow_days: {}\n      summer_low_flow_days:",
         ),
         encoding="utf-8",
     )
@@ -1917,14 +1914,14 @@ def test_indicators_without_a_simulation_report_recovery(
         },
     )
     (tmp_path / "project-simulation.yml").write_text(
-        "experiment_name: test\noperations: [indicators]\nindicator_sets: [default]\n",
+        "experiment_name: test\nsteps: {simulations: false}\nindicators: {sets: [default]}\n",
         encoding="utf-8",
     )
     assert rw.main(["--config", str(cfg), *extra]) == 2
     error = capsys.readouterr().err
     assert "No completed simulation" in error
     assert "test" in error and "_engine" in error and "simulation.json" in error
-    assert "operations: [simulations, indicators]" in error
+    assert "steps.simulations: true" in error
     assert "Traceback" not in error
     assert not (tmp_path / "project/experiments").exists()
     assert capture_runs[0] == []
