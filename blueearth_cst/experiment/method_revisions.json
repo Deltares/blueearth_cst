@@ -51,7 +51,7 @@
       "revision": 1
     },
     "indicator-set": {
-      "closure_sha256": "a87bc314cdacc9f65cc10ee09f91ea260a0e285c292f080161b5012f50afa6ef",
+      "closure_sha256": "49d778ad0968302c3eb33c3e38016882c9d3a097cc1fd00c7e61396d1e95986f",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -243,7 +243,7 @@
         },
         {
           "path": "blueearth_cst/shared/config_paths.py",
-          "sha256": "887df82f166b53487d0e8caddfc13a83c95c32587e2eb025cbb24310345945b1"
+          "sha256": "cf2dadfe39728910bed9d27ae9e830ab83e29cfee7a545346c8ec81fc31d8708"
         },
         {
           "path": "blueearth_cst/shared/csv_output.py",
@@ -304,7 +304,7 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t037: project-file observations paths resolve beside the project file"
+        "reason": "t037: analyze_projections_catalog path field renamed"
       },
       "revision": 1
     },

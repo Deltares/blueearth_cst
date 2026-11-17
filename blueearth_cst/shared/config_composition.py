@@ -74,6 +74,8 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 import yaml
 
 from blueearth_cst.shared.config_paths import (
+    TOOLBOX_ROOT,
+    resolve_path,
     resolve_project_paths,
     resolve_workflow_paths,
 )
@@ -278,8 +280,8 @@ RETIRED_KEYS: dict[str, str] = {
     "T1.project.static_dir": ("deleted (`C-07`) -- nothing read it; remove the key"),
     "T1.project.data_sources": "renamed to `project.catalog` (`C-40`)",
     "T1.project.data_sources_climate": (
-        "moved DOWN to `catalog:` at the top of the analyze_projections file "
-        "(`C-39`) -- it has one reader, so it does not belong in the project file"
+        "moved DOWN to the analyze_projections file as `projections_catalog:` "
+        "(optional; `C-39`, t037) -- it has one reader"
     ),
     "T1.shared": (
         "dissolved into `basin:`, `climate:` and `model:` at the project file's "
@@ -422,12 +424,24 @@ RETIRED_KEYS: dict[str, str] = {
         "folded into the `members:` group as `members.overrides` (`C-63`)"
     ),
     "T2.analyze_projections.historical_year_range": (
-        "renamed and retyped to `reference_window: {start, end}` (`C-59`) -- "
-        "CALENDAR years, deliberately, not water years (`C-74`)"
+        "renamed to `reference_period: {start, end}` (t037) -- CALENDAR "
+        "years, deliberately, not water years (`C-74`)"
     ),
     "T2.analyze_projections.future_horizons": (
-        "renamed and retyped to `future_windows:`, a LIST of "
-        "`{start, end, name}` mappings (`C-60`, `C-61`)"
+        "renamed to `future_periods:`, a mapping of output labels to "
+        "`{start, end}` (t037)"
+    ),
+    "T2.analyze_projections.catalog": (
+        "renamed (t037) to `projections_catalog:`, optional; the default is the "
+        "generated toolbox:config/catalogs/cmip6_data.yml"
+    ),
+    "T2.analyze_projections.reference_window": (
+        "renamed (t037) to `reference_period: {start, end}`, calendar years, "
+        "optional; the default is `climate.window`, cut back to 2014"
+    ),
+    "T2.analyze_projections.future_windows": (
+        "renamed (t037) to `future_periods:`, a mapping of output labels to "
+        "`{start, end}`, e.g. `future_periods: {mid: {start: 2046, end: 2054}}`"
     ),
     "T2.analyze_projections.relative_change": (
         "dissolved (`C-66`): `min_denominator` is per-variable registry "
@@ -837,7 +851,97 @@ def internal_workflow_section(
             diagnostics["climate_indices"] = indices
         if diagnostics or "diagnostics" in body:
             body["diagnostics"] = diagnostics
+    elif name == "analyze_projections":
+        body = _internal_projections(body, climate)
     return body
+
+
+#: The generated CMIP6 catalog WF2 reads when `projections_catalog` is omitted.
+DEFAULT_PROJECTIONS_CATALOG = "toolbox:config/catalogs/cmip6_data.yml"
+
+
+def _internal_projections(
+    body: dict[str, Any], climate: Mapping[str, Any]
+) -> dict[str, Any]:
+    """WF2's t037 keys, in the shapes `analyze_projections.smk` reads.
+
+    `projections_catalog` -> `catalog`; `variables` list + `variable_options`
+    -> one mapping (`None` for a built-in); `reference_period` ->
+    `reference_window` (default `climate.window`); `future_periods` mapping ->
+    the `future_windows` list of `{start, end, name}`.
+    """
+    if not body:
+        return dict(body)  # nothing composed: an omitted workflow file
+    body = dict(body)
+    body["catalog"] = body.pop("projections_catalog", None) or resolve_path(
+        DEFAULT_PROJECTIONS_CATALOG, TOOLBOX_ROOT / "config"
+    )
+    options = body.pop("variable_options", None)
+    if options is None:
+        options = {}
+    variables = body.get("variables")
+    if not isinstance(options, Mapping):
+        raise ValueError(
+            "analyze_projections variable_options must map variable names to settings"
+        )
+    if variables is not None:
+        if not isinstance(variables, list) or not all(
+            isinstance(name, str) for name in variables
+        ):
+            raise ValueError(
+                "analyze_projections variables must be a list of names, e.g. "
+                "[precip, temp]; per-variable settings go under variable_options"
+            )
+        stray = sorted(set(options) - set(variables))
+        if stray:
+            raise ValueError(
+                f"analyze_projections variable_options names {stray!r}, which "
+                "`variables` does not list"
+            )
+        body["variables"] = {name: options.get(name) for name in variables}
+    elif options:
+        raise ValueError("analyze_projections variable_options requires variables")
+    reference = body.pop("reference_period", None)
+    if reference is None and isinstance(climate.get("window"), Mapping):
+        reference = dict(climate["window"])
+    if reference is not None:
+        body["reference_window"] = reference
+    periods = body.pop("future_periods", None)
+    if periods is not None:
+        if not isinstance(periods, Mapping) or not all(
+            isinstance(window, Mapping) for window in periods.values()
+        ):
+            raise ValueError(
+                "analyze_projections future_periods maps output labels to "
+                "{start, end}, e.g. {mid: {start: 2046, end: 2054}}"
+            )
+        body["future_windows"] = [
+            {**dict(window), "name": label} for label, window in periods.items()
+        ]
+    return body
+
+
+def _public_projections(section: dict[str, Any]) -> dict[str, Any]:
+    """Inverse of `_internal_projections`, keeping the resolved catalog."""
+    if "catalog" in section:
+        section["projections_catalog"] = section.pop("catalog")
+    variables = section.get("variables")
+    if isinstance(variables, Mapping):
+        section["variables"] = list(variables)
+        options = {
+            name: value for name, value in variables.items() if value is not None
+        }
+        if options:
+            section["variable_options"] = options
+    if "reference_window" in section:
+        section["reference_period"] = section.pop("reference_window")
+    windows = section.pop("future_windows", None)
+    if isinstance(windows, list):
+        section["future_periods"] = {
+            window["name"]: {k: v for k, v in window.items() if k != "name"}
+            for window in windows
+        }
+    return section
 
 
 def public_workflow_section(name: str, section: Mapping[str, Any]) -> dict[str, Any]:
@@ -872,6 +976,8 @@ def public_workflow_section(name: str, section: Mapping[str, Any]) -> dict[str, 
                     if key not in {"seasons", "reference_period"}
                 }
             section["diagnostics"] = diagnostics
+    elif name == "analyze_projections":
+        section = _public_projections(section)
     return section
 
 

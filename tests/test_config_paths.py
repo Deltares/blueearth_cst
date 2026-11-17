@@ -160,8 +160,8 @@ def test_each_workflow_path_and_geometry(tmp_path):
     for workflow, document, expected in [
         (
             "analyze_projections",
-            {"catalog": "../catalog.yml"},
-            {"catalog": (tmp_path / "catalog.yml").as_posix()},
+            {"projections_catalog": "../catalog.yml"},
+            {"projections_catalog": (tmp_path / "catalog.yml").as_posix()},
         ),
         (
             "generate_scenarios",

@@ -85,15 +85,17 @@ def _template_comments(path: Path) -> dict[tuple[str, ...], str]:
                 r"\b(Input|Options): ", previous
             ):
                 if len(keys) >= 2 and keys[0] in {
-                    "observations",
                     "indicator_set_definitions",
                     "indicator_selection",
                 }:
                     keys = (keys[0], "*", *keys[2:])
                 elif len(keys) >= 3 and keys[:2] == ("members", "overrides"):
                     keys = (*keys[:2], "*", *keys[3:])
-                elif keys[:2] == ("variables", "custom_variable"):
-                    keys = ("variables", "*", *keys[2:])
+                elif len(keys) >= 2 and keys[0] in {
+                    "variable_options",
+                    "future_periods",
+                }:
+                    keys = (keys[0], "*", *keys[2:])
                 comments[keys] = previous
     return comments
 

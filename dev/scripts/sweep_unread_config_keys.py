@@ -173,6 +173,15 @@ ALLOWANCES = (
         line_patterns=(r"^(era5|chirps)$",),
     ),
     Allowance(
+        name="user-chosen projection labels and variable entries",
+        reason=(
+            "keys under analyze_projections future_periods are output labels the "
+            "user picks (near, far, mid), and variable_options entries name listed "
+            "variables; config_composition._internal_projections iterates both maps"
+        ),
+        line_patterns=(r"^(near|far|mid|precip|temp)$",),
+    ),
+    Allowance(
         name="a key pair read by iterating a literal tuple",
         reason=(
             "`window` is validated and rendered as a PAIR, so its two leaves "

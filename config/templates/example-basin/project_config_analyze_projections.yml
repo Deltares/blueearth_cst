@@ -10,8 +10,9 @@
 #  ENSEMBLE
 # -----------------------------------------------------------------------------
 
-# Locate available climate projections. Input: generated CMIP6 catalog YAML path.
-catalog: toolbox:config/catalogs/cmip6_data.yml
+# The generated CMIP6 catalog is the default.
+# Locate available climate projections. Input: CMIP6 catalog YAML path.
+#projections_catalog: toolbox:config/catalogs/cmip6_data.yml
 # Identify the climate projection ensemble. Options: cmip6.
 ensemble: cmip6
 
@@ -40,68 +41,63 @@ members:
 #  VARIABLES
 # -----------------------------------------------------------------------------
 
-# Leave the value empty to use the built-in definition (precip: relative
-# change in mm/day; temp: absolute change in degC). For any other variable:
-# Custom definitions specify source, canonical, units and change below.
-# Define projection variables and change conventions. Input: variable-to-definition mapping.
-variables:
-  # Calculate relative precipitation change. Input: null for built-in definition, or mapping.
-  precip:
-  # Calculate absolute temperature change. Input: null for built-in definition, or mapping.
-  temp:
-  # Optional native-cell PET from monthly CMIP6 means. Options: makkink | debruin.
-  # Requires tas, ps and rsds; debruin also requires rsdt. No pressure/elevation correction.
-  # Missing dependencies fail; availability beyond pr/tas is not certified by the catalog.
-  # pet:
-  #   method: makkink
-  #   change: relative          # default; alternative: absolute
-  #   min_denominator: 0.1      # mm/day; relative only, default reporting safeguard
-  # Optional liquid-water dew point from monthly huss and ps; absolute degC changes only.
-  # tdew: {method: specific_humidity}
-  # Optional 10 m monthly mean scalar wind speed; absolute m/s changes only.
-  # wind: {method: sfcwind}
-  # Alternative wind method: components (magnitude of monthly mean uas/vas vector,
-  # not mean wind speed). Requires documented 10 m height; no automatic substitution.
-  # Define another projection variable. Input: mapping.
-  #'custom_variable':
-  # Select the catalog's renamed variable. Input: post-rename variable name, such as temp.
-  #  source: temp
-  # Specify the physical quantity type. Options: rate | state.
-  #  canonical: state
-  # Set canonical measurement units. Input: supported unit string.
-  #  units: degC
-  # Choose change calculation convention. Options: relative | absolute.
-  #  change: absolute
+# Built-ins: precip (relative % change), temp (absolute degC change), pet, tdew, wind.
+# Select projection variables. Input: list of variable names.
+variables: [precip, temp]
+# Per-variable settings; built-ins need none, a custom variable needs all four of
+# source, canonical, units and change (see the analyze_projections reference).
+# Configure individual variables. Input: variable-to-settings mapping.
+#variable_options:
+# Optional native-cell PET from monthly CMIP6 means; needs tas, ps and rsds (debruin also rsdt).
+# Configure projected PET. Input: {method: makkink | debruin, change: relative | absolute}.
+#  pet: {method: makkink}
+# Configure projected dew point. Input: {method: specific_humidity}.
+#  tdew: {method: specific_humidity}
+# Configure projected wind speed. Input: {method: sfcwind | components}.
+#  wind: {method: sfcwind}
+# A built-in with a full declaration, as the bundled test cases write it.
+# Declare precipitation explicitly. Input: {source, canonical, units, change}.
+#  precip: {source: precip, canonical: rate, units: mm/day, change: relative}
+# Define a custom projection variable; list it in variables too. Input: mapping.
+#  'custom_variable':
+# Select the catalog's renamed variable. Input: post-rename variable name, such as temp.
+#    source: temp
+# Specify the physical quantity type. Options: rate | state.
+#    canonical: state
+# Set canonical measurement units. Input: supported unit string.
+#    units: degC
+# Choose change calculation convention. Options: relative | absolute.
+#    change: absolute
 
 
 # -----------------------------------------------------------------------------
 #  WINDOWS
 # -----------------------------------------------------------------------------
 
-# Calendar years, inclusive. CMIP6 historical runs end in 2014; a later end
-# is cut back to 2014.
+# Calendar years, inclusive; 30 years are recommended. Omitted, it is climate.window.
+# CMIP6 historical runs end in 2014, so a later end is cut back to 2014 with a notice.
 # Select historical reference calendar years. Input: inclusive year mapping.
-reference_window:
+reference_period:
   # First historical reference calendar year. Input: integer year, <= end.
   start: 1985
   # Last historical reference calendar year. Input: integer year; clipped to 2014.
   end: 2014
 
-# One entry per horizon. `name` labels the outputs.
-# Select future projection horizons. Input: list of named calendar-year windows.
-future_windows:
-  # First future horizon calendar year. Input: integer year, <= end.
-  - start: 2030
+# Future horizons, keyed by the label used in outputs.
+# Select future projection horizons. Input: mapping of labels to inclusive year mappings.
+future_periods:
+  # Define one future horizon. Input: inclusive year mapping.
+  mid:
+    # First future horizon calendar year. Input: integer year, <= end.
+    start: 2030
     # Last future horizon calendar year. Input: integer year, >= start.
     end: 2060
-    # Label this horizon in outputs. Input: unique name string.
-    name: near
-  # First future horizon calendar year. Input: integer year, <= end.
-  - start: 2070
+  # Define one future horizon. Input: inclusive year mapping.
+  far:
+    # First future horizon calendar year. Input: integer year, <= end.
+    start: 2070
     # Last future horizon calendar year. Input: integer year, >= start.
     end: 2100
-    # Label this horizon in outputs. Input: unique name string.
-    name: far
 
 
 # -----------------------------------------------------------------------------

@@ -184,7 +184,7 @@ baseline has 2 × 3 plus `st_0` (14). Rapid keeps the unperturbed member needed 
 indicators and two CMIP6 models for ensemble reduction; `wf2_fast` gives up coverage. To alter
 generated length, change `simulation_window.end`, not its start: the series spans from the end of
 `climate.window` to that end plus two years. Keep the simulation window within a projection
-`future_windows` entry; alignment is calculated separately.
+`future_periods` entry; alignment is calculated separately.
 
 Record the baseline only from the baseline config; never point `check_baseline.py` at rapid. Its
 `check` exits 0 for matched targets, 1 for differences and **2 for no comparison** (empty scope or

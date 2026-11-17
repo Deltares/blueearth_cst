@@ -141,7 +141,7 @@ def resolve_workflow_paths(
             "rain_gauges.temp_path",
         ),
         "build_model": ("engine.build_config", "engine.waterbodies_config"),
-        "analyze_projections": ("catalog",),
+        "analyze_projections": ("projections_catalog",),
         "generate_scenarios": ("weathergen_config",),
         "simulate_system": ("scenario_collection.manifest_path",),
     }

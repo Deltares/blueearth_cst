@@ -96,7 +96,7 @@ def test_the_template_config_recommends_the_30_year_window():
         Path(__file__).resolve().parents[1]
         / "config/templates/example-basin/project_config_analyze_projections.yml"
     ).read_text(encoding="utf-8")
-    window = yaml.safe_load(template)["reference_window"]
+    window = yaml.safe_load(template)["reference_period"]
     assert [window["start"], window["end"]] == OQ4_WINDOW
 
 
@@ -123,9 +123,9 @@ def test_the_seed_fixture_keeps_its_own_shorter_window():
         / "test_case/project_config_baseline_analyze_projections.yml"
     ).read_text(encoding="utf-8")
     m = re.search(
-        r"reference_window:[^\n]*\n\s*start:\s*(\d{4})[^\n]*\n\s*end:\s*(\d{4})", seed
+        r"reference_period:[^\n]*\n\s*start:\s*(\d{4})[^\n]*\n\s*end:\s*(\d{4})", seed
     )
-    assert m, "seed must declare reference_window"
+    assert m, "seed must declare reference_period"
     start, end = int(m.group(1)), int(m.group(2))
 
     assert end <= HISTORICAL_END_YEAR, (

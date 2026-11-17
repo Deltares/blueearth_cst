@@ -173,7 +173,7 @@ purposes; they do not need identical dates.
 
 - `climate.window`: historical calendar years, with at least 16 years for weather generation.
 - Model building: `simulation_window` uses water years within the available historical forcing.
-- Projection analysis: `reference_window` and `future_windows` use calendar years;
+- Projection analysis: `reference_period` and `future_periods` use calendar years;
   historical runs end in 2014.
 - Scenario generation: `simulation_window` sets the years of the scenario simulation.
 
@@ -214,7 +214,7 @@ Choose historical forcing and the model variables to save in the shared project 
 ### Climate projections
 
 In `project_config_analyze_projections.yml`, choose `models` and `scenarios` for your ensemble,
-and `reference_window` and `future_windows` for the comparison. The small starter ensemble is
+and `reference_period` (default `climate.window`) and `future_periods` for the comparison. The small starter ensemble is
 illustrative. Model names use `Institution/Source`; scenarios use SSP identifiers such as `ssp245`.
 
 ### Climate scenarios

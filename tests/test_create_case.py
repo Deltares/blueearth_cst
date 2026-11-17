@@ -395,7 +395,7 @@ def test_parameter_comments_preserve_flow_yaml_aliases_and_existing_help():
     [
         (
             "analyze_projections",
-            "variables:\n  custom_temperature:\n    source: temp\n",
+            "variable_options:\n  custom_temperature:\n    source: temp\n",
             "# Select the catalog's renamed variable. Input: post-rename variable name, such as temp.",
         ),
         (

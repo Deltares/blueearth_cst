@@ -48,9 +48,9 @@ the project file, including schema 2. Supported schema numbers are integers 2 an
 
 | Declaring file | File fields resolved by schema 3 |
 |---|---|
-| Project | `project.project_dir`, `project.catalog`, `project.reuse_data_from`, `basin.output_locations`, file-valued region entries |
-| model building | `engine.build_config`, `engine.waterbodies_config`, each `observations` value |
-| projection analysis | `catalog` |
+| Project | `project.project_dir`, `project.catalog`, `project.reuse_data_from`, `basin.output_locations`, file-valued region entries, `observations` paths |
+| model building | `engine.build_config`, `engine.waterbodies_config` |
+| projection analysis | `projections_catalog` |
 | scenario generation | `weathergen_config` |
 | hydrological simulation | `scenario_collection.manifest_path`, `indicator_set_definitions.<id>.config_path` |
 
@@ -259,7 +259,7 @@ The following links explain the settings for each workflow.
 |---|---|
 | historical climate analysis | `diagnostics`, workflow-local `plotting`: [historical analysis](workflow-analyze-climate.md#configuration) |
 | model building | `simulation_window`, engine recipes, workflow-local `plotting`, `evaluation`: [model](workflow-build-model.md#configuration) |
-| projection analysis | `catalog`, `ensemble`, `models`, `scenarios`, `members`, `variables`, windows, `stats`: [projections](workflow-analyze-projections.md#configuration) |
+| projection analysis | `projections_catalog`, `ensemble`, `models`, `scenarios`, `members`, `variables`, `variable_options`, `reference_period`, `future_periods`, `stats`: [projections](workflow-analyze-projections.md#configuration) |
 | scenario generation | `seed`, `n_realizations`, `simulation_window`, monthly perturbations, generator and capacity: [generation](workflow-generate-scenarios.md#configuration) |
 | hydrological simulation | Collection, experiment, operations, indicator requests and `compute`: [simulation](workflow-simulate-system.md#configuration) |
 

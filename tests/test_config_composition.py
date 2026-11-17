@@ -343,6 +343,15 @@ def test_composed_document_equals_the_monolith_it_was_split_from(tmp_path):
     # internal single-recipe climate form (named_forcings.internal_climate).
     assert composed["climate"] == {"sources": ["era5"], "selected": "era5"}
     monolith["climate"] = composed["climate"]
+    # And the analyze_projections defaults (t037): the generated catalog and a
+    # reference period equal to `climate.window`, when it is declared.
+    projections = composed["workflows"]["analyze_projections"]
+    assert projections["catalog"].endswith("config/catalogs/cmip6_data.yml")
+    monolith["workflows"]["analyze_projections"]["catalog"] = projections["catalog"]
+    if "reference_window" in projections:
+        monolith["workflows"]["analyze_projections"]["reference_window"] = projections[
+            "reference_window"
+        ]
     assert composed == monolith
 
 
@@ -1382,11 +1391,64 @@ def test_the_wf2_catalog_key_composes(tmp_path):
     """The same claim, exercised rather than asserted about the constants."""
     t1_path = write_split(
         tmp_path / "cfg",
-        bodies={"analyze_projections": {"catalog": "config/catalogs/cmip6_data.yml"}},
+        bodies={
+            "analyze_projections": {
+                "projections_catalog": "config/catalogs/cmip6_data.yml"
+            }
+        },
     )
     composed = compose(t1_path, "analyze_projections")
     section = composed["workflows"]["analyze_projections"]
     assert section["catalog"] == "config/catalogs/cmip6_data.yml"
+
+
+def test_wf2_t037_keys_compose_to_the_internal_shapes_and_back(tmp_path):
+    body = {
+        "ensemble": "cmip6",
+        "variables": ["precip", "temp", "pet"],
+        "variable_options": {"pet": {"method": "makkink"}},
+        "future_periods": {"mid": {"start": 2046, "end": 2054}},
+    }
+    t1_path = write_split(
+        tmp_path / "cfg",
+        sections={
+            "basin": {"region": "x"},
+            "climate": {
+                "forcings": {"era5": {"precip_source": "era5"}},
+                "window": {"start": 2000, "end": 2016},
+            },
+        },
+        bodies={"analyze_projections": body},
+    )
+    section = compose(t1_path, "analyze_projections")["workflows"][
+        "analyze_projections"
+    ]
+    assert section["variables"] == {
+        "precip": None,
+        "temp": None,
+        "pet": {"method": "makkink"},
+    }
+    assert section["future_windows"] == [{"start": 2046, "end": 2054, "name": "mid"}]
+    assert section["reference_window"] == {"start": 2000, "end": 2016}
+    assert section["catalog"].endswith("config/catalogs/cmip6_data.yml")
+    public = cc.public_workflow_section("analyze_projections", section)
+    for key in ("variables", "variable_options", "future_periods", "ensemble"):
+        assert public[key] == body[key]
+    assert "catalog" not in public and "future_windows" not in public
+
+
+def test_wf2_variable_options_must_name_listed_variables(tmp_path):
+    t1_path = write_split(
+        tmp_path / "cfg",
+        bodies={
+            "analyze_projections": {
+                "variables": ["precip"],
+                "variable_options": {"pet": {"method": "makkink"}},
+            }
+        },
+    )
+    with pytest.raises(ValueError, match="does not list"):
+        compose(t1_path, "analyze_projections")
 
 
 # --- D-10.4, one case per row. Each asserts the message names the FIX. -------

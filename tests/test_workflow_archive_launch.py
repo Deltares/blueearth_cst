@@ -386,7 +386,7 @@ def test_projection_catalog_and_store_index_stage_as_siblings(tmp_path):
     workflow_config = yaml.safe_load(
         (ROOT / "test_case" / stanza["config_path"]).read_text()
     )
-    workflow_config["catalog"] = str(catalog)
+    workflow_config["projections_catalog"] = str(catalog)
     workflow_file = tmp_path / "project_config_rapid_analyze_projections.yml"
     workflow_file.write_text(yaml.safe_dump(workflow_config), encoding="utf-8")
     stanza["config_path"] = str(workflow_file)
@@ -407,7 +407,7 @@ def test_projection_catalog_and_store_index_stage_as_siblings(tmp_path):
             ]
         ).read_bytes()
     )
-    staged_catalog = Path(execution_workflow["catalog"])
+    staged_catalog = Path(execution_workflow["projections_catalog"])
     staged_index = staged_catalog.parent / "cmip6_store_index.json"
     assert staged_index.is_file()
     assert staged_index.read_text(encoding="utf-8") == index.read_text(encoding="utf-8")
