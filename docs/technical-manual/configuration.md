@@ -318,7 +318,24 @@ respectively; neither is fractional snow cover. Discharge is the native timestep
 in m3/s. Other variables retain Wflow's own units and temporal meaning. Native values and masks
 are written by Wflow; metadata adds units from its standard-name API and CRS from staticmaps.
 
-The [output guide](../guide/outputs.md#native-grids) describes placement, storage and reruns.
+The [output guide](../guide/outputs.md#native-grids) gives the file locations. Open the files with xarray or
+GIS software. One file holds all requested variables, including native soil layers where present.
+
+Grid storage scales with rectangular cells × timesteps × variable layers × runs. The run command reports a
+conservative raw float64 estimate with no assumed compression saving and reserves space for saved grids and
+recovery copies. Compression is lossless but its benefit depends on the data.
+
+Changing historical grid variables requires rerunning the historical simulation; CSVs cannot reconstruct maps.
+Historical reruns replace their configured outputs, so archive completed cases that must be kept. Disabling
+output removes the declaration and preserves old files; an old file is not evidence that the current request
+produced a grid. Completed ensemble experiments freeze the request: use `--new-experiment` for a different
+request. Keep the complete experiment, including its inventory, when archiving grids.
+
+Before they are written or reused on retry, grids must contain finite values on each variable's native
+support. Masked cells outside that support remain valid. Units, coordinates, CRS and layers are checked
+against expectations captured directly from the initialized Wflow model in `<run>.toml.grid.toml`, beside its
+run settings. The saved inventory embeds these expectations, so archived reads do not need Julia or the
+original model-input paths. Existing inventories keep their original checksum and reader semantics.
 
 ## Plotting resources
 

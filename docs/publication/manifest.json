@@ -16,6 +16,8 @@
         "docs/guide/running.md",
         "docs/guide/outputs.md",
         "docs/guide/troubleshooting.md",
+        "docs/guide/calibrated-model.md",
+        "docs/guide/advanced-tasks.md",
         "docs/guide/notebooks.md",
         "docs/guide/glossary.md"
       ],
@@ -56,7 +58,8 @@
         "docs/technical-manual/execution-and-provenance.md",
         "docs/technical-manual/runtime-and-resources.md",
         "docs/technical-manual/results-transfer.md",
-        "docs/technical-manual/indicator-extension.md"
+        "docs/technical-manual/indicator-extension.md",
+        "docs/technical-manual/changes-and-migration.md"
       ],
       "include_appendices": false
     }

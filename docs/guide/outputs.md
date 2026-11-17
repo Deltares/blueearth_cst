@@ -57,10 +57,8 @@ is rerun with the same model settings: different settings belong in a new model 
 simulations belong to their [experiment](glossary.md#experiment). See
 [one model per folder](../technical-manual/workflow-build-model.md#model-versions).
 
-A new output directory records the [layout](glossary.md#layout) it was written with in
-`config/_engine/layout.json` (layout 5 for this toolbox version); a directory without it uses layout 1. The
-[run commands](glossary.md#run-command) refuse a directory written with a different layout: set
-`project.project_dir` to a new folder and rerun. Existing directories are not converted.
+An output directory written by an older toolbox version may be refused; see
+[layout versions](../technical-manual/changes-and-migration.md#output-directory-layout-versions).
 
 Keep the complete output directory when archiving an assessment. Indicator CSVs alone do not preserve
 the model, climate conditions or calculation settings needed to understand a result. Edit the source
@@ -71,24 +69,7 @@ case files when changing settings; the configuration copies in the output direct
 Opt into [native grid output](../technical-manual/configuration.md#netcdf-grid) separately in the
 model-building and simulation [workflow files](glossary.md#workflow-file). Historical grids are saved at
 `models/hydrology/wflow/historical/default/run/output_grid.nc`; selected scenario runs each produce
-`experiments/<name>/simulations/<run_id>/output_grid.nc`. Open them with xarray or GIS software. One file
-holds all requested variables, including native soil layers where present.
-
-Grid storage scales with rectangular cells × timesteps × variable layers × runs. The run command reports a
-conservative raw float64 estimate with no assumed compression saving and reserves space for saved grids and
-recovery copies. Compression is lossless but its benefit depends on the data.
-
-Changing historical grid variables requires rerunning the historical simulation; CSVs cannot reconstruct maps.
-Historical reruns replace their configured outputs, so archive completed cases that must be kept. Disabling
-output removes the declaration and preserves old files; an old file is not evidence that the current request
-produced a grid. Completed ensemble experiments freeze the request: use `--new-experiment` for a different
-request. Keep the complete experiment, including its inventory, when archiving grids.
-
-Before they are written or reused on retry, grids must contain finite values on each variable's native
-support. Masked cells outside that support remain valid. Units, coordinates, CRS and layers are checked
-against expectations captured directly from the initialized Wflow model in `<run>.toml.grid.toml`, beside its
-run settings. The saved inventory embeds these expectations, so archived reads do not need Julia or the
-original model-input paths. Existing inventories keep their original checksum and reader semantics.
+`experiments/<name>/simulations/<run_id>/output_grid.nc`.
 
 ## Check whether a run finished
 
@@ -222,18 +203,9 @@ excluded before comparing the ensemble. Figure captions explain the period and s
 figure. Use projected changes to interpret the climate conditions in your stress test. Ensemble spread does
 not assign probabilities to its hydrological outcomes.
 
-Figures cover precipitation and temperature only. When calculated PET is selected, the same tables include
-`pet`; the analysis record names Makkink or de Bruin and the approximation from monthly mean inputs. Spatial
-averages use the selected buffered bounding box, including cells outside the basin polygon; the `basin` token
-in figure names does not imply polygon weighting. PET requires complete joint meteorological support
-throughout this box. Near-zero reference rates flag unavailable percentages while absolute differences remain
-inspectable. Source paths, units, calendar, method/library and spatial support are saved in scalar attributes
-and `_engine/analysis_record.json`. Optional calculated dew point (`tdew`) and 10 m wind (`wind`) add rows to
-the same tables, without figures. These are duration-weighted states in degC and m/s. The analysis inventory
-distinguishes supplied monthly mean wind speed from magnitude of the monthly mean vector; it preserves method,
-height and monthly/buffered-bbox approximations. No derived native-grid files are saved. See
-[dew point and wind](../technical-manual/workflow-analyze-projections.md#optional-projected-dew-point-and-wind)
-for opt-ins and input qualification limits.
+Figures cover precipitation and temperature only; calculated PET, dew point and wind add rows to the same
+tables. See [dew point and wind](../technical-manual/workflow-analyze-projections.md#optional-projected-dew-point-and-wind)
+for their methods, spatial averaging and records.
 
 See [projected PET](../technical-manual/workflow-analyze-projections.md#optional-projected-pet)
 for configuration, source requirements and qualification limits. PET does not add a stress-test axis.
@@ -288,7 +260,7 @@ not magnitude, probability or statistical significance.
 []{#moving-projection-results-to-another-project}
 
 To share these results with another project, follow
-[Transfer climate-projection results](running.md#transfer-climate-projection-results).
+[Transfer climate-projection results](advanced-tasks.md#transfer-climate-projection-results).
 
 ## Reading an indicator set
 
@@ -389,19 +361,9 @@ and their scenario coverage.
 
 ### Opening an indicator table in Excel
 
-Run IDs such as `run_01` and group IDs such as `group_01` are prefixed strings, so opening the CSV
-normally keeps them as text.
-When importing perturbation `st_id` values, explicitly preserve them as text in Excel and code.
-
-When reading lookup tables in pandas, use `dtype=str` to preserve identifiers and `keep_default_na=False` to
-keep the empty reference `st_id`. Indicator `value` columns remain numeric.
-
-Keep these identifier conventions in mind when joining tables:
-
-- Each kind of ID uses a consistent number of digits within the relevant
-  [scenario set](glossary.md#scenario-set) or indicator set.
-- Groups are numbered independently of run count and selected indicators.
-- The same label in different scenario sets or indicator sets may refer to different simulations.
+Run and group IDs such as `run_01` and `group_01` stay text when the CSV is opened. Import perturbation `st_id`
+values as text; in pandas, read lookup tables with `dtype=str` and `keep_default_na=False` to keep the empty
+reference `st_id`. See [identifier conventions](../technical-manual/retained-handoffs.md#joins-and-reference-membership).
 
 ## Are these outputs current?
 

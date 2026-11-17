@@ -14,6 +14,8 @@ GUIDES = (
     "running",
     "outputs",
     "troubleshooting",
+    "calibrated-model",
+    "advanced-tasks",
     "notebooks",
     "glossary",
 )

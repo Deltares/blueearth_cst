@@ -138,6 +138,13 @@ NaN propagation, while qualified return-level bundles pool member-local blocks. 
 set README describe the precise aggregation. The [output guide](../guide/outputs.md) provides worked table
 joins.
 
+Keep these identifier conventions in mind when joining tables; indicator `value` columns remain numeric:
+
+- Each kind of ID uses a consistent number of digits within the relevant
+  [scenario set](../guide/glossary.md#scenario-set) or indicator set.
+- Groups are numbered independently of run count and selected indicators.
+- The same label in different scenario sets or indicator sets may refer to different simulations.
+
 ## Saving and checking named indicator sets {#named-publication-and-inspection}
 
 Each named indicator set commits independently. A complete set may publish when another fails; the failed

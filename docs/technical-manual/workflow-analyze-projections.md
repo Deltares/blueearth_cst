@@ -112,7 +112,8 @@ threshold screens monthly, seasonal and annual references, never an unconverted 
 With `change: absolute`, omit `min_denominator`. Annual and seasonal diagnostic changes integrate
 the rates with native-calendar day counts and report mm; monthly changes retain mm/day.
 
-PET adds analysis tables but no figures; its method is recorded in `_engine/analysis_record.json`.
+PET adds analysis tables but no figures; its method (Makkink or de Bruin) and the approximation from monthly
+mean inputs are recorded in `_engine/analysis_record.json`.
 The figure suite covers precipitation and temperature only. It remains
 an analytical output: precipitation–temperature clouds and stress-test axes are unchanged.
 Raw meteorological grids remain in `raw/`; member-resolved annual/monthly diagnostic changes are

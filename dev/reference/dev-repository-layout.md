@@ -161,7 +161,7 @@ workflow logs and Markdown/TSV benchmarks. Child invocations share their parent'
 has fresh part namespaces. Only the latest dry-run folder per scope is kept. A bare `snakemake` WF0–WF2 run
 writes `logs/<name>.log` and `logs/benchmarks/`. Historical shared logs and benchmark files remain
 untouched. The maintained
-layout and interpretation live in `docs/guide/running.md` § Execution logs and benchmarks.
+layout and interpretation live in `docs/guide/running.md` § Run one workflow.
 The WF2 product additionally owns `_engine/execution/production.json` (production attribution, naming
 contributing logs by path rather than copying them) and, after an import, `_engine/imported/`;
 `docs/guide/outputs.md` owns both.

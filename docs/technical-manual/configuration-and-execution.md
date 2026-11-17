@@ -90,7 +90,7 @@ Use the User Guide to
 An interrupted allocation has separate reservation-recovery checks; recovery does not repair partial
 weather generation or damaged responses. A rebuild permanently removes generated products and all
 experiments, including disabled workflows' outputs. Its preview and deletion boundaries are described
-beside the [rebuild procedure](../guide/running.md#rebuild-outputs-for-testing).
+beside the [rebuild procedure](../guide/advanced-tasks.md#rebuild-outputs-for-testing).
 
 ## Run records and reproducibility
 
@@ -117,5 +117,5 @@ The supported ZIP transfer covers completed climate-projection products. Import 
 basin geometry and applicable configuration, and does not merge into a different existing projection
 product. Imported products support reading; they do not recreate the source environment or guarantee
 reuse by a later projection-analysis run. See the
-[transfer procedure](../guide/running.md#transfer-climate-projection-results) and
+[transfer procedure](../guide/advanced-tasks.md#transfer-climate-projection-results) and
 [transfer reference](results-transfer.md) for commands and destination requirements.

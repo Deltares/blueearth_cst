@@ -71,8 +71,10 @@ website:
             - text: "Reading outputs"
               href: guide/outputs.qmd
             - guide/troubleshooting.qmd
-        - section: "Advanced examples"
+        - section: "Advanced tasks"
           contents:
+            - guide/calibrated-model.qmd
+            - guide/advanced-tasks.qmd
             - guide/notebooks.qmd
         - section: "Reference"
           contents:
@@ -143,6 +145,7 @@ website:
             - technical-manual/runtime-and-resources.qmd
             - technical-manual/results-transfer.qmd
             - technical-manual/indicator-extension.qmd
+            - technical-manual/changes-and-migration.qmd
   search:
     location: navbar
     type: textbox

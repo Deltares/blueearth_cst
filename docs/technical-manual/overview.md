@@ -55,6 +55,7 @@ Detailed references provide the [configuration rules](configuration.md),
 [location matching and daily-response conventions](input-formats.md),
 [indicator selection](indicator-requests.md), [saved-result tables](retained-handoffs.md),
 [run records](execution-and-provenance.md), [resource measurements](runtime-and-resources.md),
-[projection-result transfer](results-transfer.md) and [custom indicators](indicator-extension.md).
+[projection-result transfer](results-transfer.md), [custom indicators](indicator-extension.md) and
+[changes and migration](changes-and-migration.md).
 
 For installation and a first run, start with the [user guide](../guide/quick-start.md).

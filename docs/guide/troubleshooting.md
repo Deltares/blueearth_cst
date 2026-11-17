@@ -65,7 +65,8 @@ for the complete command. Append `--dry-run` to check a corrected command withou
 - **`Legacy split-layout case exists`** or **`Legacy flat case detected`.** A case with this name already
   exists in an older layout: under `applications/` or `runs/` in the cases folder, or with
   `project_config.yml` directly in the case folder. Choose a new case name, or first copy the old case into a
-  named trial, following [Copy and verify an existing case](new-case.md#copy-and-verify-an-existing-case).
+  named trial, following
+  [Copy and verify an existing case](../technical-manual/changes-and-migration.md#copy-and-verify-an-existing-case).
 - **`A new case requires --longitude and --latitude`.** Supply both coordinates when creating the first trial
   of a case. For a later trial, omit them or repeat the case's own values; different coordinates are refused.
 
@@ -76,8 +77,26 @@ by latitude; the `uparea` threshold is not a prescribed catchment area. Check th
 network and [reporting locations](glossary.md#reporting-location), especially near a confluence, before
 continuing.
 
-If the point falls on an isolated drainage cell, see
-[Search for an outlet within an area](new-case.md#search-for-an-outlet-within-an-area).
+If the point falls on an isolated drainage cell, search for an outlet within an area as described below.
+
+### Search for an outlet within an area {#search-for-an-outlet-within-an-area}
+
+If an approximate outlet falls on an isolated drainage cell, use a `subbasin` search box.
+HydroMT expects coordinates in west, south, east, north order:
+
+```yaml
+basin:
+  region: "{'subbasin': [29.81375, 31.12208, 29.87375, 31.18208], 'uparea': 100}"
+  sources:
+    hydrography: merit_hydro_ihu
+    basin_index: merit_hydro_ihu_index
+```
+
+Use a matching hydrography/index available in your catalog.
+The box searches for outlets; upstream catchments can extend outside it and several rivers can select
+several basins. It is distinct from the `bounds` argument limiting available hydrography.
+Inspect the result before downstream runs. This search does not revise your output-location CSV.
+Record any manual coordinate correction in case notes.
 
 ## 5. A catalog root is missing {#a-catalog-root-is-missing}
 
@@ -135,23 +154,10 @@ number allocation. Do not recycle allocated experiment numbers or delete locks w
 ### Windows stops advancing after successful climate-projection writes
 
 If fetch logs report successful CMIP6 writes but Snakemake stops reporting completed jobs, keep the console
-log and process stacks before stopping the run. One observed failure is Python waiting in
-`socket._fallback_socketpair` → `accept` while Snakemake holds its scheduler lock. Successful downloads alone
-do not establish this diagnosis; other stalls need their own evidence.
-
-The toolbox's run commands bound Windows fallback socket-pair setup to five seconds per attempt and retry
-timeouts up to three attempts. A transient failure prints a warning and retries; persistent failure reports
-`Windows socket-pair setup timed out after 3 attempts`. This protection applies to the Snakemake process
-launched by the toolbox, including previews and verbose mode. Direct `snakemake` commands and separate job
-processes do not receive it. Network download timeouts are unchanged.
-
-After the old process has stopped, use the incomplete-job resume command above with the same
-configuration. Preserve the CMIP6 cache and completed outputs; do not use `--rebuild` for this symptom.
-If socket-pair timeouts persist, investigate local loopback filtering and socket-resource pressure.
-Reducing `--cores` may help diagnosis but is not an established fix. The workaround has been checked
-with injected failures and parallel job completion; confirmation on the originally affected machine
-is still needed.
-
+log before stopping the run. After the old process has stopped, use the incomplete-job resume command above
+with the same configuration. Preserve the CMIP6 cache and completed outputs; do not use `--rebuild` for this
+symptom. For diagnosis, see the socket-pair notes in
+[environment maintenance](../../dev/scripts/environment-notes.md#windows-socket-pair-stalls-after-climate-projection-writes).
 
 ## 8. An experiment refuses changed inputs {#an-experiment-refuses-changed-inputs}
 

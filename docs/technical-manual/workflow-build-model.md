@@ -178,7 +178,7 @@ writes per forcing recipe). The `write_model_record` rule writes this record for
 (`origin: built`) after every build.
 
 A model prepared outside the toolbox is registered with `scripts/register_model.py register` (`origin:
-user_managed`); see [running](../guide/running.md#use-a-model-prepared-outside-the-toolbox). Model building
+user_managed`); see [Use a calibrated model](../guide/calibrated-model.md). Model building
 never rebuilds or rewrites a registered model: the model-building rules (`build_wflow_model` to
 `declare_gauges_and_outputs`) are not defined for it, and `publish_registered_model` checks it again and marks
 it final as registered. Every recipe, including a single one, uses the staged forcing update and writes its
