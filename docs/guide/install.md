@@ -89,7 +89,7 @@ This installation includes the R weather generator, `weathergenr`, and the Julia
 needed for Wflow. Downloads may take some time.
 
 The weather-generator installer verifies both package version and source commit. After a toolbox
-update that changes this pin, rerun `pixi run install-rdeps` before generating climate [scenarios](glossary.md#scenario).
+update that changes this pin, rerun `pixi run install-rdeps` before generating climate scenarios.
 
 If either command stops with an error, consult the [troubleshooting guide](troubleshooting.md)
 before continuing.
@@ -102,7 +102,7 @@ Run the installation check:
 pixi run pytest tests/test_cli.py
 ```
 
-This checks that the toolbox's [workflow](glossary.md#workflow) commands are connected correctly. Read the final summary:
+This checks that the toolbox's workflow commands are connected correctly. Read the final summary:
 if it reports `FAILED` or `ERROR`, consult the [troubleshooting guide](troubleshooting.md)
 before proceeding.
 
@@ -121,7 +121,7 @@ Test-Path 'P:\wflow_global\hydromt'
 ```
 
 A result of `True` confirms that the folder is accessible. If the result is `False`, connect
-to the drive if you have access, or configure alternative data [sources](glossary.md#source) before running the example.
+to the drive if you have access, or configure alternative data sources before running the example.
 Alternative sources must provide the required variables and source names and cover your basin
 and study period. See [Creating a project](new-case.md) for configuration guidance.
 

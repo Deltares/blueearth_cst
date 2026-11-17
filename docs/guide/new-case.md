@@ -3,18 +3,19 @@ title: "Creating a project"
 subtitle: "Create case files, choose settings and start an assessment"
 ---
 
-Set up a basin assessment, check its data and run the [workflows](glossary.md#workflow) needed for your question.
-Keep [case](glossary.md#case) files and results outside `blueearth_cst` so one installation can serve several basins.
+Set up a basin assessment, check its data and run the workflows needed for your question. Keep
+[case](glossary.md#case) files and results outside `blueearth_cst` so one installation can serve several
+basins.
 
 Complete the [installation guide](install.md) and try the [Quick start](quick-start.md). You will need:
 
 - A basin outlet in longitude and latitude (decimal degrees).
 - Spatial and historical climate datasets covering your basin and analysis period.
-- Storage for the [model](glossary.md#model), climate series and simulation outputs.
+- Storage for the model, climate series and simulation outputs.
 - An assessment question, such as how seasonal flows respond to warmer or drier conditions.
 
 The supplied starter provides settings and input templates. You must arrange access to the datasets:
-the default [catalog](glossary.md#data-catalog) uses the Deltares P-drive, and CMIP6 analysis also needs internet access.
+the default catalog uses the Deltares P-drive, and CMIP6 analysis also needs internet access.
 
 ## 1. Create the case files {#create-the-case-files}
 
@@ -31,11 +32,11 @@ case name; longitude comes before latitude:
 pixi run create-case my-basin --cases-root C:/cst-cases --longitude 12.5 --latitude -3 --purpose "Assess sensitivity of seasonal flows to climate change"
 ```
 
-Append `--dry-run` to [preview](glossary.md#preview) files and dependencies without writing. Creation never runs workflows
-or overwrites an existing [trial](glossary.md#trial). The default trial is named `default`.
+Append `--dry-run` to preview files and dependencies without writing. Creation never runs workflows or
+overwrites an existing [trial](glossary.md#trial). The default trial is named `default`.
 
-Your case contains your shared input files and named trials. A trial is a configuration and its outputs;
-it remains a trial after completion:
+Your case contains your shared input files and named trials. A trial is a configuration and its outputs; it
+remains a trial after completion:
 
 ```text
 C:/cst-cases/
@@ -82,13 +83,13 @@ Keep catalogs with relative dataset locators together with their datasets in sha
 Copying a trial-local catalog with relative dataset dependencies is refused, rather than rewriting
 HydroMT's catalog semantics or silently leaving datasets behind.
 
-Creation adds one row to the case README's Trial/Purpose/Status table, initially `working`.
-No central registry is updated. Change status manually to `retained` or `complete`; complete means the
-declared scope was reviewed, not that every workflow ran. Preserve saved evidence for new [experiments](glossary.md#experiment).
+Creation adds one row to the case README's Trial/Purpose/Status table, initially `working`. No central
+registry is updated. Change status manually to `retained` or `complete`; complete means the declared scope was
+reviewed, not that every workflow ran. Preserve saved evidence for new [experiments](glossary.md#experiment).
 Toolbox revision, source trial and run-note fields stay with each trial.
 
-**Edit your case files.** Shared settings belong in `project_config.yml`; workflow settings belong
-in the files below. Pass `project_config.yml` to the [run command](glossary.md#run-command) with `--config`.
+**Edit your case files.** Shared settings belong in `project_config.yml`; workflow settings belong in the
+files below. Pass `project_config.yml` to the [run command](glossary.md#run-command) with `--config`.
 
 | File | Workflow and main choices |
 |---|---|
@@ -114,12 +115,12 @@ Use `--catalog` during creation to select a different data catalog.
    Coordinates are longitude then latitude; grid spacing is in degrees. The `uparea` delineation
    threshold is in km², not a target catchment area. Finer grids do not add detail to source datasets.
    Check that `basin.sources` names exist in your catalog.
-3. **[Historical forcing](glossary.md#historical-forcing):** declare a set per dataset under
+3. **Historical forcing:** declare a set per dataset under
    `climate.forcings`, compare them, then set `climate.default_forcing`.
    Selected forcing also conditions weather generation; the toolbox does no local calibration.
 4. **[Climate window](glossary.md#climate-window):** set `climate.window` using the
    [period guidance below](#keep-the-analysis-periods-consistent).
-5. **Model outputs:** choose `model.outvars` so later [indicators](glossary.md#indicator) have their required responses.
+5. **Model outputs:** choose `model.outvars` so later indicators have their required responses.
 6. **Workflow selection:** check each workflow's file under `workflow_configs` and set its `workflows`
    switch to `true` for those you need.
    Use `false` to skip a workflow without deleting its results; check their suitability before reuse.
@@ -161,18 +162,18 @@ Record any manual coordinate correction in case notes.
 Provide `station_name`, longitude `x` and latitude `y` in decimal degrees. The optional `location_role`
 is `control` (default) or `observation`.
 
-Locations must lie in their declared parent basin and drain to its outlet. The toolbox follows drainage
-to a river cell within `basin.delineation.snap_tolerance_m`; it does not snap across a divide, and it rejects
-points draining into a pit. Inspect the original and resolved coordinates before changing tolerances.
-See [location matching](../technical-manual/input-formats.md) for location identifiers and observation matching.
+Locations must lie in their declared parent basin and drain to its outlet. The toolbox follows drainage to a
+river cell within `basin.delineation.snap_tolerance_m`; it does not snap across a divide, and it rejects
+points draining into a pit. Inspect the original and resolved coordinates before changing tolerances. See
+[location matching](../technical-manual/input-formats.md) for location identifiers and observation matching.
 
 ## 3. Set analysis periods {#keep-the-analysis-periods-consistent}
 
-The historical climate record, model run, projection windows and generated [scenarios](glossary.md#scenario) serve different
+The historical climate record, model run, projection windows and generated scenarios serve different
 purposes; they do not need identical dates.
 
 - `climate.window`: historical calendar years, with at least 16 years for weather generation.
-- Model building: `run_period` uses [water years](glossary.md#water-year) within the available historical forcing.
+- Model building: `run_period` uses water years within the available historical forcing.
 - Projection analysis: `reference_period` and `future_periods` use calendar years;
   historical runs end in 2014.
 - Scenario generation: `future_period` sets the years of the scenario simulation.
@@ -191,13 +192,13 @@ $config = 'C:/cst-cases/my-basin/default/project_config.yml'
 pixi run python scripts/run_workflows.py --config $config --cores 3
 ```
 
-Append `-- --dry-run` to preview the tasks. The run command executes the enabled workflows and writes to
-your configured [output directory](glossary.md#output-directory).
+Append `-- --dry-run` to preview the tasks. The run command executes the enabled workflows and writes to your
+configured [output directory](glossary.md#output-directory).
 
-**Review the outputs:** inspect the basin boundary, river network, [reporting locations](glossary.md#reporting-location) and climate
-diagnostics using
-[Reading outputs](outputs.md#inspect-the-basin-and-historical-conditions). Then set `climate.default_forcing`
-to your chosen forcing set. You can stop here for a climate-only study.
+**Review the outputs:** inspect the basin boundary, river network,
+[reporting locations](glossary.md#reporting-location) and climate diagnostics using
+[Reading outputs](outputs.md#inspect-the-basin-and-historical-conditions). Then set
+`climate.default_forcing` to your chosen forcing set. You can stop here for a climate-only study.
 
 ## 5. Prepare the remaining workflows {#set-workflow-parameters}
 
@@ -207,13 +208,13 @@ Projections provide context; they do not set the scenario grid.
 
 ### Hydrological model
 
-Set `run_period` in
-`project_config_build_model.yml` to water years within the historical forcing record.
-Choose historical forcing and the model variables to save in the shared [project file](glossary.md#project-file).
+Set `run_period` in `project_config_build_model.yml` to water years within the historical forcing
+record. Choose historical forcing and the model variables to save in the shared
+[project file](glossary.md#project-file).
 
 ### Climate projections
 
-In `project_config_analyze_projections.yml`, choose `models` and `scenarios` for your [ensemble](glossary.md#ensemble),
+In `project_config_analyze_projections.yml`, choose `models` and `scenarios` for your ensemble,
 and `reference_period` (default `climate.window`) and `future_periods` for the comparison. The small starter ensemble is
 illustrative. Model names use `Institution/Source`; scenarios use SSP identifiers such as `ssp245`.
 
@@ -221,20 +222,20 @@ illustrative. Model names use `Institution/Source`; scenarios use SSP identifier
 
 In `project_config_generate_scenarios.yml`, choose:
 
-- `future_period` and `n_realizations`: years and weather [realizations](glossary.md#realization) per grid point.
+- `future_period` and `n_realizations`: years and weather [realizations](glossary.md#realization) per grid
+  point.
 - `climate_perturbations`: monthly temperature changes (°C) and precipitation multipliers, with
   `min` and `max` values in January–December order; `0.7` means 30% less precipitation.
-- `n_levels` within each axis: two temperature and three precipitation levels give six combinations,
-  plus an [unperturbed reference](glossary.md#unperturbed-reference).
+- `n_levels` within each axis: two temperature and three precipitation levels give six combinations, plus an
+  [unperturbed reference](glossary.md#unperturbed-reference).
 
 Choose ranges and sample sizes for your question, rather than copying the demonstration settings.
 The unperturbed reference is generated weather without imposed changes, not the historical record.
 
 ### Simulations and indicators {#choose-indicators}
 
-The simulation workflow uses the prepared model and generated scenarios to calculate indicators.
-Choose sets for your assessment question and keep their required variables in `model.outvars`
-before simulation.
+The simulation workflow uses the prepared model and generated scenarios to calculate indicators. Choose sets
+for your assessment question and keep their required variables in `model.outvars` before simulation.
 
 - [Default](../../blueearth_cst/indicators/sets/default/README.md): water balance, flow means and extremes.
   Use it for an initial comparison across climate scenarios.
@@ -255,9 +256,10 @@ include_unperturbed: true
 ```
 
 Keep `include_unperturbed: true` when your indicators require unperturbed reference runs, and supply any
-required thresholds or observations. To calculate indicators from saved simulations, set `steps.simulations: false`;
-see [Recalculate indicators](running.md#calculate-different-indicators-from-existing-simulations).
-The [outputs guide](outputs.md#reading-an-indicator-set) explains the result tables and unavailable values.
+required thresholds or observations. To calculate indicators from saved simulations, set
+`steps.simulations: false`; see
+[Recalculate indicators](running.md#calculate-different-indicators-from-existing-simulations). The
+[outputs guide](outputs.md#reading-an-indicator-set) explains the result tables and unavailable values.
 
 Rerun the command above after updating your settings. See [Running the workflows](running.md)
 for execution options and recovery.
@@ -266,8 +268,9 @@ for execution options and recovery.
 
 - **Check the run:** open the summary named in the closing message and review outcomes and warnings.
 - **Inspect the results:** use the [outputs guide](outputs.md) to find maps, diagnostics and indicator tables.
-  Check basin delineation, forcing and historical model behavior before expanding the [stress test](glossary.md#stress-test).
-- **Record your findings:** add data choices, model limits and links to [run summaries](glossary.md#run-summary) to `notes.md`.
+  Check basin delineation, forcing and historical model behavior before expanding the stress test.
+- **Record your findings:** add data choices, model limits and links to
+  [run summaries](glossary.md#run-summary) to `notes.md`.
 
 For case-creation problems, unexpected basin boundaries or workflow failures, see
 [Troubleshooting](troubleshooting.md).
