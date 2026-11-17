@@ -74,6 +74,9 @@ website:
         - section: "Advanced examples"
           contents:
             - guide/notebooks.qmd
+        - section: "Reference"
+          contents:
+            - guide/glossary.qmd
     - title: "Methodology"
       style: docked
       collapse-level: 1

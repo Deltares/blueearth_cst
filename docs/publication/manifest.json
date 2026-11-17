@@ -16,7 +16,8 @@
         "docs/guide/running.md",
         "docs/guide/outputs.md",
         "docs/guide/troubleshooting.md",
-        "docs/guide/notebooks.md"
+        "docs/guide/notebooks.md",
+        "docs/guide/glossary.md"
       ],
       "include_appendices": false
     },

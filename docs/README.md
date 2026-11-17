@@ -16,7 +16,7 @@ The technical manual and local component READMEs own reference detail.
 The site configuration selects published sources and stages derived guide copies; edit canonical sources,
 never those generated copies. Repository source compatibility pages remain at existing setup/reference routes.
 
-The [publication manifest](publication/manifest.json) selects seven User Guide chapters and 32
+The [publication manifest](publication/manifest.json) selects eight User Guide chapters and 32
 Technical Manual chapters for shared HTML/PDF assembly.
 See [Build the publications](publication/README.md) for exact commands and output locations.
 The [site configuration](site/_quarto.yml) owns navigation and retained routes.

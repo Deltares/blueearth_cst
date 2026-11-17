@@ -15,6 +15,7 @@ GUIDES = (
     "outputs",
     "troubleshooting",
     "notebooks",
+    "glossary",
 )
 
 
