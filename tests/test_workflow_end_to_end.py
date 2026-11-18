@@ -204,7 +204,8 @@ def _assert_all_five_outputs(project: Path, config: Path) -> None:
     # WF1 forces from the selected source's store and runs Wflow.
     historical = project / "data/climate/historical"
     climate = yaml.safe_load(config.read_text(encoding="utf-8"))["climate"]
-    selected = climate["forcings"][climate["default_forcing"]]["precip_source"]
+    forcing_id = climate["default_forcing"]
+    selected = climate["forcings"][forcing_id]["precip_source"]
     assert _one(historical.glob(f"{selected}_*/extract_historical.nc"))
     with xr.open_dataset(
         _one(historical.glob("chirps_*/extract_historical.nc"))
@@ -213,7 +214,9 @@ def _assert_all_five_outputs(project: Path, config: Path) -> None:
         assert str(chirps.time.values[0])[:10] == "2000-01-01"
         assert str(chirps.time.values[-1])[:10] == "2016-12-31"
     assert (historical / "source_comparison/dataset_comparison.csv").stat().st_size > 0
-    discharge = project / "models/hydrology/wflow/historical/default/run/output_q.csv"
+    discharge = (
+        project / f"models/hydrology/wflow/historical/{forcing_id}/run/output_q.csv"
+    )
     assert discharge.stat().st_size > 0
     # WF2: the CMIP6 change factors.
     annual = project / "data/climate/projections/cmip6/summary"
