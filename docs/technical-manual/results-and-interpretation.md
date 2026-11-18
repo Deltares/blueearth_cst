@@ -89,10 +89,10 @@ See [model building](workflow-build-model.md) and
 
 ### Weather-generator products and checks
 
-Generated weather should represent the seasonality, variability and wet- and dry-spell behaviour
-relevant to the assessment. The [weather-generation chapter](weather-generation.md#assumptions-and-applicability)
-explains these checks and their limits. Available diagnostics depend on the generator recipe;
-historical climate diagnostics are not automatically calculated for every scenario.
+Generated weather should represent the seasonality, variability and wet- and dry-spell behaviour relevant to
+the assessment. The [weather-generation chapter](weather-generation.md#assumptions-and-applicability) explains
+these checks and their limits. Available diagnostics depend on the generator settings; historical climate
+diagnostics are not automatically calculated for every scenario.
 
 Matching the requested realization counts, dates and variables confirms that the expected weather
 series are present. It does not establish that those series adequately represent basin climate.

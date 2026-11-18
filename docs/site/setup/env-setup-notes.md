@@ -6,7 +6,8 @@ Detailed installation fixes, staging and developer runtime procedures have one m
 
 ## Live workarounds (automated via pixi activation)
 
-See the [live workaround recipes](../../../dev/scripts/environment-notes.md#live-workarounds-automated-via-pixi-activation).
+See the
+[live workarounds](../../../dev/scripts/environment-notes.md#live-workarounds-automated-via-pixi-activation).
 
 ## Local data staging (P-drive bypass)
 

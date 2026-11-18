@@ -50,7 +50,7 @@ See [hydrological model building](workflow-build-model.md) for inputs, settings 
 | `build_wflow_model` | Build the Wflow-SBM model. |
 | `add_reservoirs_lakes_glaciers` | Add waterbodies and glaciers. |
 | `declare_gauges_and_outputs` | Configure gauges and Wflow output variables. |
-| `finalize_model_root` | With named forcing recipes, mark the built model ready for them. |
+| `finalize_model_root` | With named forcing sets, mark the built model ready for them. |
 | `publish_registered_model` | Registered model: check it is unchanged, mark it ready (no build rules). |
 | `add_climate_forcing` | Add model forcing and complete the model. |
 | `write_model_record` | Record a built model's origin and static-input identity in `_engine/model.json`. |

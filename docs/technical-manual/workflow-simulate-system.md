@@ -11,8 +11,8 @@ Compatible indicator calculations can also use saved simulations without rerunni
 
 - **Prepared basin model.** Completed Wflow-SBM model and the information needed to prepare its forcing.
 - **Historical end state.** Model building's `historical/default/run/outstate/outstates.nc`
-  (`historical/<id>/run/` for a named recipe), the default initial state for every run unless the model TOML
-  configures its own warm state.
+  (`historical/<id>/run/` for a named forcing set), the default initial state for every run unless the model
+  TOML configures its own warm state.
 - **Generated weather.** Climate NetCDFs for selected runs, including pressure and radiation alongside
   perturbed rainfall and temperature.
 - **Saved responses for indicators-only calculations.** Rounded per-variable CSVs and records of available
@@ -43,15 +43,16 @@ simulations. Climate projections are not simulation inputs.
 | `compute` | Julia threads, concurrent batches, batch size and reserved disk space. |
 | `output.netcdf_grid` | Optional native grids for every selected run; independent of historical output. |
 | `output.csv.decimal_places` | Retained daily scalar precision, default 5; see [precision](configuration.md#csv-precision). |
-| `historical_forcing` | `default` (or omitted) or a named recipe; see below. |
+| `historical_forcing` | `default` (or omitted) or a named forcing set; see below. |
 
-**Historical forcing selection.** With [named recipes](configuration.md#named-historical-forcing-recipes),
-`historical_forcing` chooses the recipe whose `wflow_sbm_<id>.toml`, model fingerprint, forcing preparation,
-end state and historical Qcrit discharge the experiment uses. Single-recipe projects accept only `default`.
-Hydrological simulation refuses a recipe that model building has not simulated, a scenario collection whose
-forcing extraction differs from the recipe, and any non-default recipe for delta-change collections, which
-record no recipe. An existing experiment keeps the recipe it was created with: changing the selection requires
-`--new-experiment`, and indicators-only recalculation refuses a different selection.
+**Historical forcing selection.** With
+[several forcing sets](configuration.md#named-historical-forcing-recipes), `historical_forcing` chooses the
+forcing set whose `wflow_sbm_<id>.toml`, model fingerprint, forcing preparation, end state and historical
+Qcrit discharge the experiment uses. Projects with one forcing set accept only `default`. Hydrological
+simulation refuses a forcing set that model building has not simulated, a scenario collection whose forcing
+extraction differs from the forcing set, and any non-default forcing set for delta-change collections, which
+record no forcing set. An existing experiment keeps the forcing set it was created with: changing the
+selection requires `--new-experiment`, and indicators-only recalculation refuses a different selection.
 
 Scenario selection normally follows the project's scenario-generation settings. Omitting unperturbed
 simulations does not remove the reference weather saved by scenario generation. See

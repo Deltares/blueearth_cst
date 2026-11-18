@@ -31,7 +31,7 @@ temperature–precipitation relationships and the persistence of wet and dry per
 to evaluate. Longer synthetic sequences explore combinations permitted by the generator; they do not
 create new historical evidence about rare events or multidecadal variability.
 
-The generation workflow produces diagnostic plots. The supplied recipe limits the evaluation plots
+The generation workflow produces diagnostic plots. The supplied generator settings limit the evaluation plots
 to 25 grid cells, so those plots do not constitute an exhaustive spatial check for larger domains.
 Review basin-wide statistics and the cells or subregions relevant to the assessment, particularly
 where climate gradients are strong.
@@ -47,18 +47,18 @@ pattern, not twelve independent choices. Every temperature level is paired with 
 level. With one level, the minimum is used.
 
 Temperature offsets are added equally to daily mean, minimum and maximum temperature; the supplied
-recipe therefore leaves the daily temperature range unchanged. Precipitation is adjusted through
+settings therefore leave the daily temperature range unchanged. Precipitation is adjusted through
 Gamma quantile mapping of positive daily amounts, fitted using the method of moments. The supplied
-recipe enforces the target wet-day mean, disables additional extreme-tail amplification and sets no
+settings enforce the target wet-day mean, disables additional extreme-tail amplification and sets no
 precipitation cap or floor. Its intensity threshold is zero; this differs from historical climate analysis's
 default 1 mm/day
 threshold for reporting wet days.
 
-**Variance control.** In the supplied recipe, `scale_var_with_mean: true` sets the target wet-day
+**Variance control.** In the supplied generator settings, `scale_var_with_mean: true` sets the target wet-day
 variance factor to the square of the precipitation mean factor. For a constant mean factor of 1.2,
 the variance factor is 1.44. Separate `precip.variance.min/max` values are passed to the generator but
 ignored under this setting. To use those bounds, set `scale_var_with_mean: false` in the generator
-recipe. Their levels follow the precipitation level index; they do not add a third grid axis.
+settings. Their levels follow the precipitation level index; they do not add a third grid axis.
 These are distributional targets, not guarantees that a finite generated sample has exactly the
 specified variance.
 
@@ -91,7 +91,7 @@ increase throughout. A five-calendar-year transient run instead applies temperat
 0, 0.5, 1, 1.5 and 2 °C, and precipitation factors of 1, 1.1, 1.2, 1.3 and 1.4.
 Its default variance factors run from 1 to 1.88, rather than being the square of each annual mean
 factor. The lookup still records the selected +1 °C and +20% settings, so read it together with
-the saved trajectory and generator recipe.
+the saved trajectory and generator settings.
 
 `perturbation_lookup.csv` contains twelve monthly rows per design point and expresses precipitation
 mean and variance settings as percentage changes. `scenario_run_lookup.csv` links each daily NetCDF

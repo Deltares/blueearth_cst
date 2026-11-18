@@ -34,7 +34,7 @@ storage and hydraulic parameters. The prepared soil-thickness layer also uses th
 
 **Waterbodies and glaciers.** HydroLAKES and GRanD describe lake and reservoir extent and storage;
 the prepared reservoir data also use [JRC Global Surface Water][jrc] at 30 m for 1984–2015.
-RGI provides static glacier outlines, and the model recipes apply area thresholds when selecting
+RGI provides static glacier outlines, and the build configuration files apply area thresholds when selecting
 lakes, reservoirs and glaciers.
 
 Check the resulting drainage network, basin boundaries and major waterbodies against local information,

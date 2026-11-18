@@ -16,11 +16,11 @@ evapotranspiration and routed flow. It provides a conceptual guide to the model'
 
 ![Hydrological stores and fluxes represented by Wflow-SBM. Rainfall and snowmelt feed surface and soil stores; evapotranspiration returns water to the atmosphere, while runoff and subsurface flow feed the river network. Glacier and waterbody contributions depend on the configured model features.](assets/wflow-sbm-processes.png){width=100% fig-alt="Wflow-SBM process diagram showing interception, snow and glacier melt, evaporation, transpiration, infiltration, unsaturated and saturated soil stores, capillary rise, overland flow, subsurface flow and river routing." style="background-color: white;"}
 
-Snow accumulation and melt influence the seasonal water balance where temperatures cross the snow
-thresholds. Glacier and waterbody processes contribute where the model contains those features.
-The supplied waterbody recipe distinguishes reservoirs with simple control from waterbodies without
-that control. These representations should be inspected in regulated basins; they do not establish
-that actual operating rules, abstractions or transfers are reproduced.
+Snow accumulation and melt influence the seasonal water balance where temperatures cross the snow thresholds.
+Glacier and waterbody processes contribute where the model contains those features. The supplied waterbody
+configuration file distinguishes reservoirs with simple control from waterbodies without that control. These
+representations should be inspected in regulated basins; they do not establish that actual operating rules,
+abstractions or transfers are reproduced.
 
 The toolbox runs daily simulations. River discharge is reported at selected outlets or gauges;
 other selected variables, such as precipitation, evapotranspiration and recharge, are retained as
@@ -29,10 +29,10 @@ water-balance quantity or interpreting a result for a particular site.
 
 ## Parameters and spatial discretization
 
-The model grid determines the spatial units over which processes are calculated. Topography and
-hydrography determine drainage connections, while soil and land-cover information provide spatially
-varying properties. The recipe also fixes parameters such as snow thresholds and melt coefficients,
-infiltration controls and the ratio of horizontal to vertical saturated hydraulic conductivity.
+The model grid determines the spatial units over which processes are calculated. Topography and hydrography
+determine drainage connections, while soil and land-cover information provide spatially varying properties.
+The build configuration file also fixes parameters such as snow thresholds and melt coefficients, infiltration
+controls and the ratio of horizontal to vertical saturated hydraulic conductivity.
 
 Choosing a finer grid increases the number of cells and computational demand. It can improve the
 representation of basin geometry where the source data support it, but it does not add information

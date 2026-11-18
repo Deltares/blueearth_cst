@@ -77,6 +77,6 @@ These settings do not apply to R/weathergenr plots.
 
 Most assessment choices belong in your case files. Resources inside the toolbox can affect all cases
 using that installation: `config/catalogs/` describes data access; `config/defaults/` contains live
-model and generator recipes; `config/plotting/` controls Python appearance.
+build configuration files and generator settings; `config/plotting/` controls Python appearance.
 `config/templates/` contains copyable starters. Normally leave `config/advanced_settings.yml` as supplied.
 Pass the project file to the command, never the advanced-settings file.

@@ -17,12 +17,12 @@ This page describes their use within the CST Toolbox.
 The schematic below shows how HydroMT connects different data types to model components through its
 data adapters and model interface. In the CST Toolbox, HydroMT-Wflow provides the model-specific setup.
 
-![HydroMT connects cataloged input data to model configuration, maps, forcing, states and results (Eilander et al., 2023). The original schematic includes an INI configuration label; current CST model-build recipes use YAML.](assets/hydromt-data-to-model.png){width=100% fig-alt="Raster, table and geospatial inputs pass through HydroMT data adapters and the model interface to configuration, geometries, maps, forcing, states and results." style="background-color: white;"}
+![HydroMT connects cataloged input data to model configuration, maps, forcing, states and results (Eilander et al., 2023). The original schematic includes an INI configuration label; current CST build configuration files use YAML.](assets/hydromt-data-to-model.png){width=100% fig-alt="Raster, table and geospatial inputs pass through HydroMT data adapters and the model interface to configuration, geometries, maps, forcing, states and results." style="background-color: white;"}
 
 Model preparation starts from the basin definition, model resolution, reporting locations and selected
 data sources. Hydrography establishes the drainage structure, while land cover, vegetation and soil
 data support parameter estimation. Lake, reservoir and glacier inventories supply additional features
-where they intersect the basin and satisfy the model recipe's selection criteria. The
+where they intersect the basin and satisfy the build configuration file's selection criteria. The
 [Datasets](data-requirements.md) chapter describes these inputs and their limitations.
 
 ## Data preparation and model construction
@@ -33,10 +33,10 @@ Model construction then prepares the thematic spatial inputs and passes them to 
 standard setup methods.
 
 These methods derive river geometry and routing properties, translate land-cover classes into model
-parameters, prepare seasonal leaf area index and estimate soil hydraulic properties. The supplied soil
-recipe uses the Brakensiek pedotransfer relationship for vertical saturated hydraulic conductivity.
-Other parameters are supplied as explicit constants in the model recipe. Waterbody and glacier setup,
-forcing preparation and output-location configuration complete the model.
+parameters, prepare seasonal leaf area index and estimate soil hydraulic properties. The supplied soil build
+configuration file uses the Brakensiek pedotransfer relationship for vertical saturated hydraulic
+conductivity. Other parameters are supplied as explicit constants in the build configuration file. Waterbody
+and glacier setup, forcing preparation and output-location configuration complete the model.
 
 ## From generated weather to Wflow forcing {#weather-to-forcing}
 
@@ -71,7 +71,7 @@ pressure to model elevation. Hydrological simulation enables both temperature an
 supplies the
 forcing source's elevation grid. HydroMT then computes PET from the adjusted temperature and pressure
 and the resampled radiation. Wflow reads the resulting precipitation, temperature and PET fields.
-The supplied generator recipe sets `compute_pet: false`; its Hargreaves option does not determine
+The supplied generator settings set `compute_pet: false`; its Hargreaves option does not determine
 the PET used by Wflow.
 
 **What warming changes.** De Bruin PET depends on temperature through the saturation-vapour-pressure
@@ -95,7 +95,7 @@ They are not fitted to local discharge observations by this workflow. For exampl
 provides a consistent basis for assigning vegetation properties, but it does not establish that those
 properties represent a particular plantation, irrigated field or urban area accurately.
 
-Review the prepared basin and model maps before relying on the historical simulation. Drainage-area
-errors, misplaced reporting points and unsuitable waterbody attributes can affect results even when
-model construction completes successfully. Changing source data or the build recipe may require a new
-model and a renewed evaluation of its historical performance.
+Review the prepared basin and model maps before relying on the historical simulation. Drainage-area errors,
+misplaced reporting points and unsuitable waterbody attributes can affect results even when model construction
+completes successfully. Changing source data or the build configuration file may require a new model and a
+renewed evaluation of its historical performance.

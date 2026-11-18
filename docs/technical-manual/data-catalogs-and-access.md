@@ -42,12 +42,12 @@ Record the catalog and entry names, source product and version, spatial resoluti
 any local preprocessing and observation series used for evaluation. Keep them with run records when
 comparing basins or rerunning an assessment. See [configuration](configuration.md) for exact path rules.
 
-The executing project's `basin.sources` and the selected engine recipes determine the actual source names.
-The starter uses `deltares_data_pdrive.yml` and `lulc: globcover`; a local catalog's availability can differ.
-Do not infer enabled data from the illustrative dataset pages. Generated CMIP6 catalog and
-store-index files list the available models and ensemble members.
-Catalog YAML/root context is captured for reuse checks, while workflows check the input formats,
-coverage and units. A catalog entry alone cannot establish scientific suitability.
+The executing project's `basin.sources` and the selected build configuration files determine the actual source
+names. The starter uses `deltares_data_pdrive.yml` and `lulc: globcover`; a local catalog's availability can
+differ. Do not infer enabled data from the illustrative dataset pages. Generated CMIP6 catalog and store-index
+files list the available models and ensemble members. Catalog YAML/root context is captured for reuse checks,
+while workflows check the input formats, coverage and units. A catalog entry alone cannot establish scientific
+suitability.
 
 ## Catalogs created during preparation
 

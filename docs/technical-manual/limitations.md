@@ -19,19 +19,19 @@ or soil variability. The generator uses equal weights for climate cells intersec
 without fractional-area weighting; small basins and strong climate gradients need particular care.
 Inspect `location_registry.csv`, basin boundaries and the spatial maps, especially near confluences.
 
-**Model parameters and water management.** HydroMT-Wflow derives parameters from global inputs;
-the workflow does not calibrate them to the basin. The build recipe estimates river depth using a
-power-law method and soil hydraulic conductivity using the Brakensiek pedotransfer function, rather
-than local channel surveys or soil measurements. Lake and reservoir routines are included, but the
-supplied recipes select reservoirs of at least 1 km², lakes of at least 10 km² and glaciers of at least
-1 km². Inventory-based storage and simple reservoir controls do not establish actual operating rules
-or reproduce unconfigured abstractions and transfers. Check the active model configuration, not just
-the waterbodies shown on the map.
+**Model parameters and water management.** HydroMT-Wflow derives parameters from global inputs; the workflow
+does not calibrate them to the basin. The build configuration file estimates river depth using a power-law
+method and soil hydraulic conductivity using the Brakensiek pedotransfer function, rather than local channel
+surveys or soil measurements. Lake and reservoir routines are included, but the supplied build configuration
+files select reservoirs of at least 1 km², lakes of at least 10 km² and glaciers of at least 1 km².
+Inventory-based storage and simple reservoir controls do not establish actual operating rules or reproduce
+unconfigured abstractions and transfers. Check the active model configuration, not just the waterbodies shown
+on the map.
 
 **Weather generation.** weathergenr resamples historical daily fields and adjusts their statistics.
 More realizations explore its stochastic variability; they do not add independent evidence about
-unobserved extremes or remove forcing and model-parameter uncertainty. The supplied evaluation recipe
-plots at most 25 grid cells, so larger domains require additional spatial review. Compare generated
+unobserved extremes or remove forcing and model-parameter uncertainty. The supplied generator settings
+plot at most 25 grid cells, so larger domains require additional spatial review. Compare generated
 unperturbed conditions with the historical record before interpreting perturbed scenarios.
 
 **Projection coverage.** projection analysis selects from the cataloged models and available preferred

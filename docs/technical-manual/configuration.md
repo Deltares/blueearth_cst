@@ -6,8 +6,8 @@ format: html
 This reference specifies how project and workflow settings are combined, how file paths are resolved,
 and which constraints apply. [Shared configuration](shared-configuration.md) introduces the assessment
 choices; [Creating a project](../guide/new-case.md) explains how to prepare a case.
-The annotated starter is under `config/templates/example-basin/`; `config/defaults/` contains recipes
-read during execution.
+The annotated starter is under `config/templates/example-basin/`; `config/defaults/` contains the build
+configuration files and generator settings read during execution.
 
 ## How configuration settings are combined {#composition-and-precedence}
 
@@ -61,9 +61,10 @@ semantics. There is no environment-variable expansion or search for a matching f
 The resolver expands `~` and normalizes slash-separated local paths.
 
 For example, `hydromt: {build_config_path: recipes/build.yml}` in `settings/build-model.yml` reads
-`settings/recipes/build.yml`. A bundled recipe can be `toolbox:config/defaults/wflow_build_model.yml`.
-Moving YAML files does not relocate retained outputs or datasets. Archives preserve exact source bytes
-and resolved runtime locators. `config_paths.py` and `tests/test_config_paths.py` implement these rules.
+`settings/recipes/build.yml`. A bundled build configuration file can be
+`toolbox:config/defaults/wflow_build_model.yml`. Moving YAML files does not relocate retained outputs or
+datasets. Archives preserve exact source bytes and resolved runtime locators. `config_paths.py` and
+`tests/test_config_paths.py` implement these rules.
 
 The case scaffolder creates `<case>/<trial>/project_config.yml`, defaulting to trial `default`.
 A first trial may have another name, but later creation then needs `--from-trial` until a default trial
@@ -135,7 +136,7 @@ Earlier locations of these settings are refused; see
 
 ### Historical forcing sets {#historical-forcing-recipe}
 
-`climate.forcings` names one or more forcing sets; each body is a recipe (keys below). Historical
+`climate.forcings` names one or more forcing sets; each body lists its datasets (keys below). Historical
 comparison analyzes each dataset the sets use once per variable: every `precip_source` and every
 temperature/PET source (ERA5 unless a set names another), with native/default source preparation.
 Projection analysis does not use the sets. Precipitation must be `era5`, `chirps` or `chirps_global`;
@@ -158,28 +159,28 @@ and simulation refuse several sets without it. Order never selects the default.
 
 Defaults fill omitted settings, never missing data. ERA5 supplies all required companion fields by default,
 including for CHIRPS precipitation. A different `temp_source` must supply every required field; individual
-variables are not silently borrowed from ERA5. The recipe derives seven total fields for de Bruin, six for
-Makkink and precipitation/temperature/PET for direct mode. Supplied nulls, wrong types, unknown keys and
+variables are not silently borrowed from ERA5. The forcing set derives seven total fields for de Bruin, six
+for Makkink and precipitation/temperature/PET for direct mode. Supplied nulls, wrong types, unknown keys and
 empty names are errors. Entry-point summaries show resolved choices before execution.
 
 ### Several forcing sets {#named-historical-forcing-recipes}
 
-Names match `[a-z][a-z0-9_]{0,31}`; `default` is reserved, and two names may not describe the same recipe.
-With one set, model outputs use the single-recipe layout (`historical/default/`, `wflow_sbm.toml`). With
-several, model building simulates `build_model.historical_forcings` (default: the default set) in the
-per-set layout described in [model building](workflow-build-model.md#named-recipes), and simulation selects
-one set through `simulate_system.historical_forcing`.
+Names match `[a-z][a-z0-9_]{0,31}`; `default` is reserved, and two names may not describe the same forcing
+set. With one set, model outputs use the single-set layout (`historical/default/`, `wflow_sbm.toml`). With
+several, model building simulates `build_model.historical_forcings` (default: the default set) in the per-set
+layout described in [model building](workflow-build-model.md#named-recipes), and simulation selects one set
+through `simulate_system.historical_forcing`.
 
 The earlier `climate.sources`, `climate.selected` and `climate.forcing` keys are refused;
 [renamed settings](changes-and-migration.md#renamed-configuration-settings) explains the conversion and its
 one-time reruns.
 `climate.forcings.<name>.temp_pet_source` remains accepted with a deprecation notice; do not supply both
-spellings. Archives and scientific recipe serialization retain their original bytes and meaning.
+spellings. Archives and the saved forcing-set settings retain their original bytes and meaning.
 
 | Key | Default and allowed meaning |
 |---|---|
 | `precip_source` | Required precipitation dataset: `era5`, `chirps` or `chirps_global` |
-| `temp_source` | `era5`; temperature, extrema, pressure and radiation required by the selected PET recipe |
+| `temp_source` | `era5`; temperature, extrema, pressure and radiation required by the selected PET method |
 | `orography_source` | `era5_orography`; source elevation entry; required explicitly for another companion |
 | `temp_correction` | `true`; boolean controlling lapse correction at extraction and model preparation |
 | `press_correction` | `true`; boolean controlling pressure correction during computed-PET preparation |
@@ -193,8 +194,8 @@ Supply reference PET, not actual evapotranspiration. Direct PET is available for
 model forcing; scenario generation and scenario simulation reject it before preparation. No PET
 perturbation model is implied.
 
-Computed recipes require companion `temp`, `temp_min`, `temp_max`, `press_msl` and `kin`, plus `kout`
-for de Bruin. Direct recipes require companion `temp` and supplied `pet`. Precipitation defines the
+Computed-PET forcing sets require companion `temp`, `temp_min`, `temp_max`, `press_msl` and `kin`, plus `kout`
+for de Bruin. Direct-PET forcing sets require companion `temp` and supplied `pet`. Precipitation defines the
 extraction grid. Sources are clipped to their actual daily overlap; gaps, duplicates, unsupported
 calendars, absent variables and invalid required-domain values fail instead of being padded. Supplied
 PET must be finite and nonnegative inside the required basin; masked cells outside it are allowed.
@@ -218,7 +219,7 @@ and independent PET products require separate source qualification.
 Extraction identity contains sources, required variables and corrections performed during extraction.
 Non-default extraction settings select a separate store. Preparation-only pressure settings, and
 same-source elevation/lapse settings, do not change that store or its generator input identity.
-Scenario simulation compares extraction recipes with the selected collection's archived creator recipe
+Scenario simulation compares extraction settings with the selected collection's archived creator settings
 and applies the current preparation settings. Non-default preparation records use version 3; retained
 version-2 records retain their original correction settings. Producer-code integrity remains part of
 scenario identity. Numerical backward comparisons therefore use equivalent fixed inputs and seeds.
@@ -242,7 +243,7 @@ python scripts/run_workflows.py --config showcase/project_config.yml --reuse-dat
 ```
 
 Sources are only read. A historical climate store is reused when its extraction record names the same
-extraction code, source, forcing recipe, hydrography entry, region geometry and catalog entries, and its
+extraction code, source, forcing set, hydrography entry, region geometry and catalog entries, and its
 data cover the requested window; the requested window is then sliced from it and has the content of a
 fresh extraction. Catalog entries are compared without the catalog root, but the shipped P-drive and
 local-mirror catalogs describe ERA5 and CHIRPS differently, so reuse works between trials that use the
@@ -258,7 +259,7 @@ The following links explain the settings for each workflow.
 | Workflow | Settings and detailed reference |
 |---|---|
 | historical climate analysis | `diagnostics`, workflow-local `plotting`: [historical analysis](workflow-analyze-climate.md#configuration) |
-| model building | `run_period`, `hydromt` recipes, workflow-local `plotting`, `evaluation`: [model](workflow-build-model.md#configuration) |
+| model building | `run_period`, `hydromt` build configuration files, workflow-local `plotting`, `evaluation`: [model](workflow-build-model.md#configuration) |
 | projection analysis | `projections_catalog`, `ensemble`, `models`, `scenarios`, `members`, `variables`, `variable_options`, `reference_period`, `future_periods`, `stats`: [projections](workflow-analyze-projections.md#configuration) |
 | scenario generation | `seed`, `n_realizations`, `future_period`, monthly perturbations, `generator_config_path` and capacity: [generation](workflow-generate-scenarios.md#configuration) |
 | hydrological simulation | Collection, experiment, `steps`, `indicators` and `compute`: [simulation](workflow-simulate-system.md#configuration) |

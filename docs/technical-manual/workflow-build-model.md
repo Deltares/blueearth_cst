@@ -12,14 +12,14 @@ stress testing. Construction uses global datasets and includes no local calibrat
 - **Spatial data.** Terrain, hydrography, land cover, vegetation, soils and waterbody datasets for
   constructing the basin model.
 - **Historical climate data.** Selected meteorological forcing for the historical simulation.
-- **Model-building recipes.** HydroMT settings, defaulting to `config/defaults/wflow_build_model.yml`
+- **Build configuration files.** HydroMT settings, defaulting to `config/defaults/wflow_build_model.yml`
   and `config/defaults/wflow_update_waterbodies.yml`.
 - **Reporting locations.** Optional CSV specifying locations for model outputs.
 - **Discharge observations.** Optional CSV files for evaluation, with columns and units matching
   the modeled locations and variables.
 
 See [input formats](data-formats-and-conventions.md) for file conventions and
-[model preparation](model-preparation.md) for recipe roles and links to the upstream manuals.
+[model preparation](model-preparation.md) for the role of each file and links to the upstream manuals.
 
 ## Configuration {#configuration}
 
@@ -42,10 +42,10 @@ See [input formats](data-formats-and-conventions.md) for file conventions and
 | `plotting.forcing_figures` | Model-grid forcing maps and time series; default `false`. |
 | `plotting.scales` | `[basin]` (default) or `[basin, locations]` for reporting-location and upstream-subbasin figures. |
 | `plotting.view` | With several forcing sets: `comparison` (default) draws station discharge across runs only; `individual`/`both` keep the per-run station figures. |
-| `hydromt.build_config_path` | Alternative HydroMT model-building recipe. |
-| `hydromt.waterbodies_config_path` | Alternative waterbody-update recipe. |
+| `hydromt.build_config_path` | Alternative HydroMT build configuration file. |
+| `hydromt.waterbodies_config_path` | Alternative waterbody-update configuration file. |
 | `output.netcdf_grid` | Optional native grids from this historical simulation. |
-| `historical_forcings` | Named recipes to simulate on the fixed model; see [named recipes](#named-recipes). |
+| `historical_forcings` | Named forcing sets to simulate on the fixed model; see [named forcing sets](#named-recipes). |
 
 Wflow treats the starting date as the initial state time. With daily forcing, the first output is one
 day later; forcing must cover that first update through the requested end date. See
@@ -75,7 +75,7 @@ Paths below are relative to `project_dir`. The main outputs are:
   reference, with additional map candidates where needed.
 - **Basin model (`models/hydrology/wflow/`; the folder is `model.name`, see
   [one model per folder](#model-versions)).** Model maps in `staticmaps.nc`, settings in
-  `wflow_sbm.toml`, geometries and the HydroMT recipes used to build the model.
+  `wflow_sbm.toml`, geometries and the HydroMT build configuration files used to build the model.
   `_engine/outlet_index.csv` links outlets to reporting locations.
 - **Historical forcing (`models/hydrology/wflow/forcing/`).** Model-grid forcing in
   `inmaps_historical.nc` and optional forcing-check figures (`plotting.forcing_figures: true`).
@@ -155,10 +155,12 @@ partial edge years are excluded, and no spin-up year is removed. Aridity is tota
 coefficient is total runoff depth / total P over the same retained years. Zero P or no eligible years
 produces an unavailable result. These are ratios of totals, rather than averages of annual ratios.
 
-Outputs live in each recipe folder, `models/hydrology/wflow/historical/<id>/`: `tables/budyko_stations.csv`,
-`budyko_annual.csv` and `budyko_summary.csv`, the diagram `plots/budyko_observed_runoff_coefficient_stations.png` (drawn by the evaluation rule), and daily evidence, input
-hashes and support declarations in `_engine/budyko_daily.csv` and `_engine/budyko_methods.json`. The target `evaluate_budyko` requires model/forcing preparation but no Wflow simulation.
-Retained tables support `scripts/render_figures.py budyko --project <project_dir> --out <new_dir>`.
+Outputs live in each forcing-set folder, `models/hydrology/wflow/historical/<id>/`:
+`tables/budyko_stations.csv`, `budyko_annual.csv` and `budyko_summary.csv`, the diagram
+`plots/budyko_observed_runoff_coefficient_stations.png` (drawn by the evaluation rule), and daily evidence,
+input hashes and support declarations in `_engine/budyko_daily.csv` and `_engine/budyko_methods.json`. The
+target `evaluate_budyko` requires model/forcing preparation but no Wflow simulation. Retained tables support
+`scripts/render_figures.py budyko --project <project_dir> --out <new_dir>`.
 
 Water and energy limits describe long-term equilibrium assumptions. Short/discontinuous records,
 storage changes, regulation, transfers, basin area and forcing/observation errors can explain departures.
@@ -168,30 +170,30 @@ ranking is supplied. Tables retain counts, actual years and exclusion reasons fo
 ## One model per folder {#model-versions}
 
 Each folder under `models/hydrology/` is one self-contained model: its static maps, TOMLs, every forcing
-recipe's run and their comparison. A model's runs change only when it is rerun with the same model settings.
-`model.name` in the project file names the model folder that model building creates or runs and hydrological
-simulation uses; the default is `wflow`. To try different model-building settings (another soil dataset), set
-a new `model.name`: model building refuses to rebuild an existing model whose model-building settings changed
-and names the setting that differs.
+forcing set's run and their comparison. A model's runs change only when it is rerun with the same model
+settings. `model.name` in the project file names the model folder that model building creates or runs and
+hydrological simulation uses; the default is `wflow`. To try different model-building settings (another soil
+dataset), set a new `model.name`: model building refuses to rebuild an existing model whose model-building
+settings changed and names the setting that differs.
 
 Every model records itself in `_engine/model.json`: its origin, parent, notes and the identity of its
 static inputs (the `wflow_sbm.toml` pointer graph plus `staticgeoms/`, excluding everything the toolbox
-writes per forcing recipe). The `write_model_record` rule writes this record for a model the toolbox builds
+writes per forcing set). The `write_model_record` rule writes this record for a model the toolbox builds
 (`origin: built`) after every build.
 
-A model prepared outside the toolbox is registered with `scripts/register_model.py register` (`origin:
-user_managed`); see [Use a calibrated model](../guide/calibrated-model.md). Model building
-never rebuilds or rewrites a registered model: the model-building rules (`build_wflow_model` to
+A model prepared outside the toolbox is registered with `scripts/register_model.py register`
+(`origin: user_managed`); see [Use a calibrated model](../guide/calibrated-model.md). Model building never
+rebuilds or rewrites a registered model: the model-building rules (`build_wflow_model` to
 `declare_gauges_and_outputs`) are not defined for it, and `publish_registered_model` checks it again and marks
-it final as registered. Every recipe, including a single one, uses the staged forcing update and writes its
-own TOML, so a single recipe writes `wflow_sbm_default.toml` beside the model's own `wflow_sbm.toml`. Before
-planning, model building refuses a registered model whose files changed since registration and one whose TOML
-lacks an output that `model.outvars` or `build_model.output` asks for, naming each.
+it final as registered. Every forcing set, including a single one, uses the staged forcing update and writes
+its own TOML, so a single forcing set writes `wflow_sbm_default.toml` beside the model's own `wflow_sbm.toml`.
+Before planning, model building refuses a registered model whose files changed since registration and one
+whose TOML lacks an output that `model.outvars` or `build_model.output` asks for, naming each.
 
 Hydrological simulation uses `model.name`; with several models and no name it stops and lists them. It refuses
 a registered model that changed since registration, and a retained experiment refuses a different model
 (`--new-experiment`). Each experiment's `_engine/model_reference.yml` records the model folder and the digest
-of its recipe inputs.
+of its forcing-set inputs.
 
 Comparisons across models (`scripts/register_model.py compare`) are written to
 `models/hydrology/comparisons/<name>/` with the same tables and figures as a model's own
@@ -206,29 +208,29 @@ cyclic, waterbody and initial-state inputs, including forcing variable bindings,
 excludes the forcing file contents and pointer, simulation dates, output configuration and logging paths,
 which have separate source and compatibility checks. NetCDF inputs use content hashes independent of
 compression and container timestamps.
-## Named historical recipes {#named-recipes}
+## Named forcing sets {#named-recipes}
 
-With [named recipes](configuration.md#named-historical-forcing-recipes), the workflow builds the model once
-and simulates each recipe in `build_model.historical_forcings` separately. Each recipe owns one folder,
+With [several forcing sets](configuration.md#named-historical-forcing-recipes), the workflow builds the model
+once and simulates each set in `build_model.historical_forcings` separately. Each set owns one folder,
 `historical/<id>/`, holding `forcing/inmaps_historical.nc`, `run/`, the evaluation `plots/` and `tables/`, and
 `_engine/` (its build YAML, store catalog, forcing record and evaluation sidecars), plus its TOML
-`wflow_sbm_<id>.toml` at the model root. A single recipe uses `historical/default/` and the model's own
+`wflow_sbm_<id>.toml` at the model root. A single forcing set uses `historical/default/` and the model's own
 `wflow_sbm.toml`. TOMLs stay at the model root because HydroMT-Wflow resolves model inputs from there. The
-shared `wflow_sbm.toml`, `staticmaps.nc` and geometries are never rewritten per recipe, and rerunning one
-recipe leaves the others' files untouched. Two or more recipes are compared automatically.
+shared `wflow_sbm.toml`, `staticmaps.nc` and geometries are never rewritten per forcing set, and rerunning
+one set leaves the others' files untouched. Two or more sets are compared automatically.
 
-## Compare forcing recipes {#compare-recipes}
+## Compare forcing sets {#compare-recipes}
 
-When `build_model.historical_forcings` runs two or more named recipes, the workflow compares their current
-runs (`compare_historical_forcings`) into `models/hydrology/<model>/historical/forcing_comparison/`: `tables/`
-(performance, coverage, daily, monthly, seasonal, flow duration, stations, inventory),
+When `build_model.historical_forcings` runs two or more named forcing sets, the workflow compares their
+current runs (`compare_historical_forcings`) into `models/hydrology/<model>/historical/forcing_comparison/`:
+`tables/` (performance, coverage, daily, monthly, seasonal, flow duration, stations, inventory),
 `tables/supporting/support.csv` (per-day support flags), `plots/` and `_engine/comparison.json`. It evaluates
 every complete reporting year the runs share: responses are labelled at interval end, so the first simulated
 year is never complete. Every input (TOMLs, forcing records, response tables, registry, observations) is
 hashed before and after the comparison, so a run that changes meanwhile is refused. The requested dates must
 all exist in every run. The comparison requires identical fixed-model identity, simulation dates, timestep,
 initialization and station identity; only daily Gregorian responses are supported. The inventory records each
-recipe and its run record. The window expands inclusive integer reporting-year labels using
+forcing set and its run record. The window expands inclusive integer reporting-year labels using
 `water_year_start`; no water-year trimming or endpoint shortening occurs. Water-year labels use their starting
 year and seasonal months start at `water_year_start`. Exact requested and warm-up boundaries are recorded in
 `_engine/comparison.json`.

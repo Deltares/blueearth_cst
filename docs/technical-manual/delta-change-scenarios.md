@@ -28,7 +28,7 @@ derived from the case:
 | Derived | From |
 |---|---|
 | Members, windows, monthly changes | WF2 `analysis/gridded_changes/` (inventory schema ≥ 2) and `_engine/analysis_record.json` |
-| Historical record | the case's climate-store extract (`climate` source, window and recipe), as for stochastic generation |
+| Historical record | the case's climate-store extract (`climate` source, window and forcing set), as for stochastic generation |
 | Historical period | WF2's effective reference dates, including non-January water years |
 | Units | supplied by the toolbox for supported sources (ERA5); extraction labels are not trusted |
 | Run IDs | one run per member and window after the historical and neutral controls; capacity = runs + 2 |
