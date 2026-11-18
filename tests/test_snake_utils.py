@@ -3076,23 +3076,16 @@ def test_console_finish_line_shows_series_identifier_without_label():
     assert "[series " not in out and "series_key" not in out
 
 
-def test_console_finish_line_drops_the_id_suffix_the_banner_drops():
-    """`run_id` is the WILDCARD's name; `run` is the console's, on both lines.
-
-    The `_num` defect two suffixes along, and the one with the most wildcards
-    behind it: `collection_id`, `run_id`, `indicator_request_id` and
-    `indicator_set_id` are every fan-out wildcard WF3 and WF4 have. WF4's 4.04
-    banner wrote `run {wildcards.run_id}` against a finish line reading
-    `[run_id 07]` from the day it was written.
-    """
+@pytest.mark.parametrize(("run_id", "label"), [("07", "run 07"), ("run_02", "run_02")])
+def test_console_finish_line_formats_the_run_id_once(run_id, label):
     handler = _console_handler()
     out = _emit(
         handler,
-        _job_info(1, "r", "x", {"collection_id": "967615227842", "run_id": "07"}),
+        _job_info(1, "r", "x", {"collection_id": "967615227842", "run_id": run_id}),
         _console_record(event="job_finished", job_id=1),
         _console_record(event="progress", done=1, total=1),
     )
-    assert "[collection 967615227842 | run 07]" in out
+    assert f"[collection 967615227842 | {label}]" in out
     assert "run_id" not in out and "collection_id" not in out
 
 

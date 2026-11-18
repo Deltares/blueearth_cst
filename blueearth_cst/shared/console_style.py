@@ -46,6 +46,7 @@ import re
 import shlex
 import shutil
 import sys
+import textwrap
 import threading
 import time
 from dataclasses import dataclass
@@ -1119,6 +1120,7 @@ def register_indicator_context(key, identity, names):
 #: the child's environment (`simulation_command` builds its own from
 #: `os.environ`, so one assignment covers both spawn paths).
 ANNOUNCED_ENV = "CST_RUN_ANNOUNCED"
+HISTORICAL_FORCING_ENV = "CST_RUN_HISTORICAL_FORCING"
 
 #: PUBLIC: set by `simulation_runner.simulation_phases` on each pass of a
 #: split WF4 run -- ``simulations``, then ``indicators``. The split frees
@@ -1268,8 +1270,37 @@ def _dry_run():
     )
 
 
+def historical_forcing_lines() -> list[tuple[str, str]]:
+    """Render the batch runner's checked forcing settings as a workflow section."""
+    raw = os.environ.get(HISTORICAL_FORCING_ENV)
+    if not raw:
+        return []
+    rows = [row.split(": ", 1) for row in json.loads(raw)]
+    if not rows:
+        return []
+    width = min(_BAND_WIDTH, shutil.get_terminal_size().columns - 1)
+    label_width = max(len(label) for label, _ in rows)
+    lines = [("", "body"), ("Historical forcing settings", "section")]
+    for label, value in rows:
+        if width - label_width - 2 < 22:
+            lines.append((label, "body"))
+            prefix = "  "
+        else:
+            prefix = f"{label.ljust(label_width)}  "
+        wrapped = textwrap.wrap(
+            value,
+            width=max(width, len(prefix) + 1),
+            initial_indent=prefix,
+            subsequent_indent=" " * len(prefix),
+            break_long_words=False,
+            break_on_hyphens=False,
+        )
+        lines.extend((line, "body") for line in wrapped)
+    return lines
+
+
 def _compact_header():
-    """Identify a no-op without printing settings, paths or scheduled-input checks."""
+    """Identify a no-op without printing the plan or routine run metadata."""
     if _RUN_HEADER is None:
         return []
     workflow = _RUN_HEADER[0]
@@ -1330,6 +1361,7 @@ def opening_block(
     )
     if _dry_run():
         out.extend([("", "body"), ("DRY RUN — no jobs will execute", "warning")])
+    out.extend(historical_forcing_lines())
     checks = _input_check_lines(counts or {})
     if checks:
         out.extend([("", "body"), *checks])
@@ -1399,10 +1431,11 @@ def _console_wildcards(wildcards):
         return ""
     if len(items) == 1 and tuple(map(str, items[0])) in _INDICATOR_CONTEXTS:
         return f"[{_INDICATOR_CONTEXTS[tuple(map(str, items[0]))]}]"
-    # CMIP6 series identifiers already describe the source, experiment and
-    # member; the extra "series" label adds no information to a DONE row.
+    # CMIP6 series identifiers and canonical WF4 run IDs carry their own labels.
     fields = " | ".join(
-        str(value) if key == "series_key" else f"{_console_wildcard_key(key)} {value}"
+        str(value)
+        if key == "series_key" or (key == "run_id" and str(value).startswith("run_"))
+        else f"{_console_wildcard_key(key)} {value}"
         for key, value in items
     )
     return f"[{fields}]"
@@ -1867,6 +1900,11 @@ class _ConsoleHandler(logging.StreamHandler):
                 else line
                 for line in lines
             ]
+            if lines:
+                lines.extend(
+                    self._paint(line, "1;36" if tier == "section" else _ANSI_BODY)
+                    for line, tier in historical_forcing_lines()
+                )
             self._opened = True
             _HEADER_PRINTED = True
             lines.extend(

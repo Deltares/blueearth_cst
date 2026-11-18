@@ -315,9 +315,6 @@ if not _simulation_complete:
         ADVANCED_SETTINGS["batching"], compute, psutil.virtual_memory().available)
     _threads = min([_plan.threads, *[int(value) for name, value in
         getattr(workflow.resource_settings, "overwrite_threads", {}).items() if name.startswith("run_wflow_simulations_batch_")]])
-    BATCH_PLAN_SUMMARY = f"Up to {plural(_plan.max_parallel, 'simulation')} at once; {plural(_threads, 'Julia thread')} per simulation"
-    if _plan.active_cells is not None:
-        BATCH_PLAN_SUMMARY += f"; {_plan.active_cells} active model cells"
     # Native forcing and grids also cover the discarded warm-up years.
     _NATIVE_START = SIM_WINDOW_START - (INITIALIZATION or {}).get("warmup_years", 0)
     _footprint = measure_member_footprint(basin_dir, _NATIVE_START, SIM_WINDOW_END, write_states=False,
@@ -327,7 +324,6 @@ if not _simulation_complete:
     if grid_output:
         from blueearth_cst.experiment.batch_sizing import estimate_grid_payload, MemberFootprint
         _grid_bytes = estimate_grid_payload(basin_dir, _NATIVE_START, SIM_WINDOW_END, len(grid_output["variables"]), HISTORICAL.toml)
-        BATCH_PLAN_SUMMARY += f"; grid raw {_grid_bytes / (1 << 30):.2f} GiB/run x {len(RUN_IDS)} (all cells/layers, daily float64; no compression saving)"
         # Completed staging pairs survive until publication. Both the complete
         # staging set and its published copies can coexist; reserve both sets,
         # with an additional active-batch allowance in the footprint below.
@@ -348,6 +344,7 @@ if not _simulation_complete:
     if _requested_batch_limit is not None:
         _batch_limit = max(1, min(_batch_limit, int(_requested_batch_limit)))
     workflow.register_resource(WFLOW_BATCH_RESOURCE, _batch_limit)
+    BATCH_PLAN_SUMMARY = f"{_batch_limit} at a time · {plural(min(_threads, _cores), 'Julia thread')} each"
     # Observations stay out of rule params: changing free RAM must not itself
     # become a reason for Snakemake to rerun a simulation. Each batch rule
     # declares the constant 1 below; only the global limit varies.

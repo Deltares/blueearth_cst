@@ -67,6 +67,7 @@ def test_simulation_startup_details_wait_for_header(
     else:
         assert details["scenario series"]
         assert details["simulation period"] == "2046–2054"
+        assert details["parallel simulations"] == "1 at a time · 1 Julia thread each"
         if operation == "reuse":
             assert details["simulation results"] == "Reusing saved simulations"
 

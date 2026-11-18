@@ -22,7 +22,10 @@ from blueearth_cst.experiment.generation_plan import (
 from blueearth_cst.experiment.generation_publication import initialize_generation
 from blueearth_cst.shared import execution_outputs, invocation_history, layout_stamp
 from blueearth_cst.shared.config_composition import compose_config
-from blueearth_cst.shared.console_style import up_to_date_verdict
+from blueearth_cst.shared.console_style import (
+    historical_forcing_lines,
+    up_to_date_verdict,
+)
 from blueearth_cst.shared.output_capture import captured_output
 from blueearth_cst.shared.windows_job import run_project_child
 from blueearth_cst.shared.workflow_config_snapshot import archive_lock
@@ -191,6 +194,9 @@ def run_owned(
                 }
                 history["configuration"]["archive_state"] = "retained_creator"
                 invocation_history.update(history_path, history)
+            forcing = historical_forcing_lines()
+            if forcing:
+                print("\n".join(line for line, _ in forcing), file=sys.stderr)
             print(up_to_date_verdict(sys.stderr), file=sys.stderr, flush=True)
             return 0
     lookup_path = (
