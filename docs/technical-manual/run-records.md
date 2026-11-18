@@ -5,11 +5,11 @@ aliases:
   - execution-and-provenance.html
 ---
 
-Every supported workflow launcher writes a readable summary at
+Every supported run command writes a readable summary at
 `<project>/logs/<UTC timestamp>__<workflow scope>/summary.md`. An all-workflow run has one parent summary
 covering its explicitly linked children; a standalone workflow has its own summary.
-Different attempts keep separate folders. The runner's closing output links to the report.
-The invocation JSON is authoritative when a report is missing or stale.
+Different attempts keep separate folders. The run command's closing output links to the report.
+The run record JSON is authoritative when a report is missing or stale.
 
 ## Run records and saved configurations {#invocation-hierarchy-and-configuration-captures}
 
@@ -34,7 +34,8 @@ dumps.
 
 ### Saved configuration
 
-`configuration` records source/effective/input digests, `run_record` and archive availability.
+`configuration` records hashes of the source, effective and input files, `run_record` and archive
+availability.
 
 - Historical climate analysis, model building and projection analysis latest captures live in
   `config/<workflow>/run_record.yml` and `sources/`; saved configuration snapshots live in
@@ -43,7 +44,7 @@ dumps.
   sources; a superseded generation's snapshot holds its sources, which are then their only copy.
 - Scenario generation and hydrological simulation captures belong to their collection/experiment.
 
-Edit source YAML, never generated archives. Archives preserve exact source bytes, resolved locators and
+Edit source YAML, never generated archives. Archives preserve exact source bytes, resolved paths and
 relevant input references; recording them does not copy external datasets.
 
 Generated execution YAML uses the current public climate keys, including
@@ -54,7 +55,7 @@ Generated execution YAML uses the current public climate keys, including
 The folder contains `summary.md`, `console.log`, `wfN.log`, `wfN-benchmarks.md` and `.tsv` where available,
 with job diagnostics in `_parts/wfN-<child-id>/`.
 Hydrological simulation adds `wf4-indicators.log`. Console counters and final verdicts aid monitoring;
-invocation and ready product records answer different questions about execution and product validity.
+run records and ready product records answer different questions about execution and product validity.
 
 ## Run commands and supported options {#launcher-arguments-and-safety-boundaries}
 
@@ -64,34 +65,33 @@ The argument owners are `scripts/run_workflows.py`, `scripts/run_workflow.py` an
 | Argument | Contract |
 |---|---|
 | `--config` | Required project YAML, naming workflow files |
-| `--project-dir` | Startup-history locator; must equal the composed project root |
+| `--project-dir` | Output directory used to record start-up failures; must equal the resolved `project.project_dir` |
 | `--cores` | Positive integer, default 3 |
 | `--new-experiment` | Request the next experiment allocation |
-| `--note` | Optional experiment note on the all-workflow and hydrological simulation runners |
-| `--recover-reservation` | Request guarded reservation recovery on those same runners |
+| `--note` | Optional experiment note on the all-workflow and hydrological simulation run commands |
+| `--recover-reservation` | Request guarded reservation recovery on those same run commands |
 | `--dry-run` | Direct hydrological simulation option; all-workflow execution forwards it after `--` |
-| `--forceall` | Direct hydrological simulation option or forwarded execution flag; does not bypass identity guards |
+| `--forceall` | Direct hydrological simulation option or forwarded execution flag; does not bypass checks of the recorded inputs |
 
 ### Single-workflow command
 
 `run_workflow.py` requires workflow name, `--config` and `--project-dir`; its `--target` can repeat and it
 supports `--dry-run` and `--keep-going`. Scenario generation and hydrological simulation are routed to their
-supported run commands. Routine scenario generation execution uses the all-workflow runner with only scenario
-generation enabled. Named hydrological simulation requests infer the target from operations; omit explicit
-`--target`/`--simulation-target` overrides.
+supported run commands. Routine scenario generation execution uses the all-workflow run command with only
+scenario generation enabled. Named hydrological simulation requests infer the target from operations; omit
+explicit `--target`/`--simulation-target` overrides.
 
 ### All-workflow command
 
-The all-workflow runner executes enabled workflows in fixed order and stops at the first workflow failure.
-Hydrological simulation can continue independent sets/batches internally. Forwarded hydrological simulation
-execution flags are limited to an allowlist; arbitrary config or target overrides
-are rejected. Use `--help` to inspect supported flags rather than assuming every Snakemake flag can be
-forwarded.
+The all-workflow run command executes enabled workflows in fixed order and stops at the first workflow
+failure. Hydrological simulation can continue independent sets/batches internally. Forwarded hydrological
+simulation execution flags are limited to an allowlist; arbitrary config or target overrides are rejected. Use
+`--help` to inspect supported flags rather than assuming every Snakemake flag can be forwarded.
 
 ### Unlock and rebuild
 
-- `--unlock` after `--` unlocks enabled workflows without generation, execution-source capture or indicator
-  publication. It does not validate products or repair scientific identity mismatches.
+- `--unlock` after `--` unlocks enabled workflows without generation, execution-source capture or writing
+  indicators. It does not validate products or repair mismatches with the recorded scientific inputs.
 - The all-workflow `--rebuild` permanently erases generated namespaces, experiments and allocations,
   including disabled workflows' outputs, before the usual input checks and execution. It requires default-no
   interactive confirmation or `--yes`. `--rebuild -- --dry-run` previews that reset without writing records
@@ -99,30 +99,30 @@ forwarded.
 
 ### After a failure
 
-After a failed or interrupted attempt, existing files remain evidence rather than proof of readiness. An
-identity mismatch calls for a separate experiment; forced scheduling never makes incompatible inputs
-equivalent. Reservation recovery is guarded; it is not a general overwrite switch, nor a repair tool for
-partial weather generation or damaged model-response files.
+After a failed or interrupted attempt, existing files remain evidence rather than proof of readiness. A
+mismatch with the recorded inputs calls for a separate experiment; forced scheduling never makes incompatible
+inputs equivalent. Reservation recovery is guarded; it is not a general overwrite switch, nor a repair tool
+for partial weather generation or damaged model-response files.
 
 ## Run status and elapsed time {#timing-and-attempt-lifecycle}
 
 The source is `<project>/config/_engine/invocations/<id>.json`, not console output or
-per-rule benchmark tables. Records retain numeric `elapsed_seconds` alongside UTC timestamps for
-chronology. The total covers the recorded launcher attempt and is not the sum of parallel job durations.
-Time before invocation-record creation is not measured.
+per-rule benchmark tables. Records keep numeric `elapsed_seconds` alongside UTC timestamps for
+chronology. The total covers the recorded run attempt and is not the sum of parallel job durations.
+Time before the run record is created is not measured.
 
 Reports distinguish execution from dry runs, disabled workflows, workflows not invoked, launch
 failures and unfinished attempts. Warning counts appear only when recorded. Exit zero does not prove
 that computation ran, outputs are complete or scientific results are adequate; `work_performed`
-remains unknown unless the launcher has evidence. A no-op with every workflow disabled records no work.
-Records without measured elapsed seconds retain an unavailable duration; UTC differences are not substituted.
+remains unknown unless the run command has evidence. A no-op with every workflow disabled records no work.
+Records without measured elapsed seconds keep an unavailable duration; UTC differences are not substituted.
 
-A report starts as a running snapshot and refreshes as the launcher observes children and completion.
-A hard-killed attempt retains its last snapshot without a fabricated end time. Report-writing failures
-are reported separately and preserve the original execution outcome. Structured invocation records
+A report starts as a running snapshot and refreshes as the run command observes children and completion.
+A hard-killed attempt keeps its last snapshot without a fabricated end time. Report-writing failures
+are reported separately and preserve the original execution outcome. Structured run records
 remain authoritative, including when a report is missing or stale.
 Startup failures can be recorded once the project root is known. Supply `--project-dir` to
-the all-workflow runner or hydrological simulation runner to retain failures that occur while reading
+the all-workflow or hydrological simulation run command to record failures that occur while reading
 configuration.
 
 ## Workflow benchmark reports
@@ -135,10 +135,10 @@ count as samples; per-job medians determine job-duration statistics so repeats d
 Expand the detailed table for job identifiers and individual measurements, or use the adjacent TSV
 for further analysis.
 
-Summed job time is not workflow elapsed time: parallel jobs overlap and launcher overhead is separate.
+Summed job time is not workflow elapsed time: parallel jobs overlap and run-command overhead is separate.
 Peak job RSS is not peak concurrent workflow memory. Missing or invalid measurements are unavailable,
 never zero. Coverage remains unknown unless explicitly recorded; a successful attempt can reuse existing
-outputs and collect few or no new benchmark samples. Partial failures retain the collected measurements
+outputs and collect few or no new benchmark samples. Partial failures keep the collected measurements
 without claiming complete workflow coverage. Each retry starts with its own parts and reports.
 
 Hydrological simulation reports also summarize available Julia timings: Wflow loading, compilation in the
@@ -149,14 +149,14 @@ counted separately. First and later members refer to observations within each pr
 
 ## Hydrological simulation resource diagnostics {#wf4-resource-diagnostics}
 
-Resource sampling remains limited to hydrological simulation, automatically through either supported runner.
-Dry runs do not start resource monitoring. No external monitoring service is used.
+Resource sampling remains limited to hydrological simulation, automatically through either supported run
+command. Dry runs do not start resource monitoring. No external monitoring service is used.
 
 ### Finding the diagnostics
 
-Find the hydrological simulation child invocation in `<project>/config/_engine/invocations/<id>.json`.
+Find the hydrological simulation child record in `<project>/config/_engine/invocations/<id>.json`.
 Its `resources` field links to `<id>/diagnostics/` and summarizes elapsed time,
-sampled CPU core use, peak process-tree RAM, minimum available system RAM and launcher phases.
+sampled CPU core use, peak process-tree RAM, minimum available system RAM and run-command phases.
 Use the hydrological simulation child ID, rather than the all-workflow parent ID.
 
 | File | Evidence |
@@ -167,9 +167,9 @@ Use the hydrological simulation child ID, rather than the all-workflow parent ID
 
 ### What is sampled
 
-Resource samples are taken approximately every two seconds. They include the hydrological simulation launcher
-and its descendants, with process identities, CPU seconds, RSS, logical read/write counters, available
-system RAM, swap counters, system CPU load, reported CPU frequency and power-source status.
+Resource samples are taken approximately every two seconds. They include the hydrological simulation run
+command and its descendants, with process IDs, CPU seconds, RSS, logical read/write counters, available system
+RAM, swap counters, system CPU load, reported CPU frequency and power-source status.
 
 Julia records its actual thread count; Snakemake can reduce the rule's requested count to fit its cores.
 Process affinity and priority are recorded when first observed. Host context includes processor
@@ -178,11 +178,11 @@ power plan at startup. No process command lines or environment dumps are collect
 
 ### Reading the timings
 
-The launcher phases distinguish preparation, Snakemake execution, finalization and indicator exports.
+The run-command phases distinguish preparation, Snakemake execution, finalization and indicator exports.
 Within Snakemake, correlate sample timestamps with rule logs and `wf4-benchmarks.md` in the execution
 folder.
 
-- Summed job durations are not workflow wall time, and the table does not include all launcher overhead.
+- Summed job durations are not workflow wall time, and the table does not include all run-command overhead.
 - Julia's first member includes its cold compilation costs; later members provide a better comparison of
   sustained simulation speed.
 - Compilation and GC timings are components of wall time; do not add them to it.
@@ -206,23 +206,23 @@ Treat these measurements as diagnostic evidence with explicit limits:
 - Unavailable measurements appear as `null`; failed reads are counted, rather than reported as zero usage.
   Swap-in/out counters may remain zero on platforms that do not expose them.
 - Samples are flushed during execution. A hard termination can leave a partial trace and a running
-  invocation record. Only an observed completion produces a final summary.
+  run record. Only an observed completion produces a final summary.
 
 ### Effect on the run
 
 The summary records sampler collection time so its cost can be inspected. Diagnostic failures emit
-a warning and do not change the workflow result. Records belong to the invocation and do not modify
+a warning and do not change the workflow result. Records belong to the run and do not modify
 saved model time series or indicator outputs. Existing runs cannot acquire historical resource evidence
-retroactively. Instrumented simulation code remains subject to the normal code-identity guard; use
+retroactively. Instrumented simulation code remains subject to the normal check of the recorded code; use
 a new experiment when rerunning simulations after a code change.
 
 ## Tracing climate-projection results to their source run {#wf2-product-attribution}
 
 Runs launched through `scripts/run_workflows.py` or `scripts/run_workflow.py` keep
 `_engine/execution/production.json` at the ensemble root. It names, for every current product file,
-the invocation whose bytes are present, with that invocation's outcome, configuration snapshot under
+the run whose bytes are present, with that run's outcome, configuration snapshot under
 `config/_engine/snapshots/analyze_projections/`, and `region.geojson` checksum.
-Each contributing invocation's record lists the paths of its `wf2.log` and `wf2-benchmarks.md`/`.tsv` in
+Each contributing run's record lists the paths of its `wf2.log` and `wf2-benchmarks.md`/`.tsv` in
 its `logs/` folder; they are referenced, not copied. `dev/scripts/prune_logs.py` never lists a log folder
 a product record refers to.
 
@@ -231,8 +231,8 @@ a product record refers to.
 - A run that writes no product file, successful or failed, leaves the record untouched. A file is
   credited when the run changed its bytes or rewrote it identically (detected by write time under the
   project lock), so a partial plotting rerun credits only the figures and figure manifests it rewrote.
-- `producer: null` marks bytes no launcher observed being written: products from before this record
+- `producer: null` marks bytes no run command observed being written: products from before this record
   existed, direct Snakemake runs, or edits by hand. The record never credits them to a later run.
-- Rules 2.01–2.02 run inside projection analysis but write the shared `data/spatial/geoms/`. They appear in
-  the copied
-  log and are listed as `shared_steps`; their files are not product files.
+- The `delineate_region` and `delineate_subbasins_and_rivers` steps run inside projection analysis but write
+  the shared `data/spatial/geoms/`. They appear in the copied log and are listed as `shared_steps`; their
+  files are not product files.

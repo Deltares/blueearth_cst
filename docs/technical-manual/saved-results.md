@@ -15,7 +15,7 @@ Relative paths below start at `project_dir`, unless an experiment folder is name
 
 | Product | Immutable data and authoritative record |
 |---|---|
-| Scenario collection | `scenarios/<name>/`; marker `scenarios/<name>/_engine/collection.json` (retained: `scenarios/_engine/data/<id>/`, `scenarios/_engine/collections/<id>/`) |
+| Scenario collection | `scenarios/<name>/`; marker `scenarios/<name>/_engine/collection.json` (earlier versions: `scenarios/_engine/data/<id>/`, `scenarios/_engine/collections/<id>/`) |
 | Simulation | `experiments/<name>/_engine/simulation.json`; per-variable `simulations/<run_id>/` and `_engine/response_inventory.json` inside that experiment |
 | Indicator set | Experiment `_engine/indicator_sets/<id>/indicators.json` (hashes); its tables only in `results/indicator_sets/<set-id>/` |
 | Named indicator view | Experiment `results/indicator_sets/<set-id>/`; committed by `_engine/indicator_sets/names/<set-id>/current.json` |
@@ -47,7 +47,7 @@ The refusal names the setting that differs; use the saved inputs again, or start
 Each set is read in place from `scenarios/<name>/`; nothing is copied to the top of `scenarios/`.
 `scenarios/collections.csv` lists every set and is rebuilt from the set records, which remain authoritative.
 The historical climate extract and basin cells are referenced in place by path and hash; generation refuses to
-publish if they change mid-run, and a later rebuild does not affect sets already published (their series are
+write a set if they change mid-run, and a later rebuild does not affect sets already written (their series are
 self-contained, but exact regeneration is no longer possible). The small generator template and catalog inputs
 keep content-addressed copies in `scenarios/_engine/generation_inputs/<hash>/`.
 
@@ -71,12 +71,12 @@ decimal precision. Only the current table format is accepted; old native-only in
 experiment. Existing archived bytes are never rewritten to manufacture compatibility.
 
 Enabled simulation completion requires both CSV and NetCDF for every selected run. Batch retries
-retain verified pairs outside declared job outputs, check their hashes and native time coverage,
-and recover interrupted publication from those copies. The complete simulation marker is written
+keep verified pairs outside declared job outputs, check their hashes and native time coverage,
+and recover an interrupted write from those copies. The complete simulation marker is written
 after inventory validation; recovery copies are then removed. A missing or corrupted enabled grid
-fails readiness, including indicators-only admission. Indicators-only never generates a missing grid.
+fails readiness, including the indicators-only start-up check. Indicators-only never generates a missing grid.
 
-Changing a frozen output request requires `--new-experiment`. Source/model identity guards still
+Changing a frozen output request requires `--new-experiment`. Checks of the recorded sources and model still
 apply across toolbox revisions; the ability to read old responses does not authorize re-simulation
 with changed code or model inputs.
 
@@ -104,12 +104,12 @@ inputs. It is distinct from each value row's `status`.
 | `undefined` | Empty, representing a calculated NaN | Empty |
 | `unavailable` | Empty | Location-level reason, e.g. `missing_parameter:thresholds` |
 
-Never turn either empty case into zero. Undefined results retain their method-specific interpretation;
+Never turn either empty case into zero. Undefined results keep their method-specific interpretation;
 for example, absent zero-flow events can leave ERFA timing undefined. An unexpected calculation error
 propagates as an error rather than an undefined result. Rejected return-level fits also remain explicit.
 
 A completely absent response excludes the affected calculation from value tables and records it under
-manifest `unavailable_calculations`, for example with `missing_response:pet`. The dictionary retains the
+manifest `unavailable_calculations`, for example with `missing_response:pet`. The dictionary keeps the
 declaration and its unavailable reason. Location-level omissions use `unavailable_results` and the rows
 above. A set with no calculable declarations has no variable tables; dictionary and manifest inspection
 remain necessary. See [evaluation mechanics](indicator-requests.md#inputs-evaluation-and-recovery).
@@ -137,10 +137,10 @@ Keep these identifier conventions in mind when joining tables; indicator `value`
 
 ## Saving and checking named indicator sets {#named-publication-and-inspection}
 
-Each named indicator set commits independently. A complete set may publish when another fails; the failed
-set keeps its previous publication. The command exits nonzero when a required set fails. Thus named folders
-can have different ages. The committed pointer and source manifest establish each view's identity.
-Request-equivalent sets share calculation artifacts while retaining their own presentation metadata.
+Each named indicator set commits independently. A complete set may be written when another fails; the failed
+set keeps its previous results. The command exits nonzero when a required set fails. Thus named folders
+can have different ages. The committed pointer and source manifest record each view's inputs and settings.
+Request-equivalent sets share calculation artifacts while keeping their own presentation metadata.
 
 `inspect_indicators.py` checks integrity without importing the current calculation registry.
 Numerical rechecking needs matching execution sources, inputs and dependencies. Historical check receipts

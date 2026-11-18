@@ -12,7 +12,7 @@ This chapter explains scheduling, reuse and run records. For commands, follow
 
 ## Supported entry points {#running-the-assessment}
 
-The runners prepare inputs and check results as well as schedule Snakemake rules.
+The run commands prepare inputs and check results as well as schedule Snakemake rules.
 
 | Entry point | Scope |
 |---|---|
@@ -20,16 +20,16 @@ The runners prepare inputs and check results as well as schedule Snakemake rules
 | `scripts/run_workflow.py` | One explicitly named workflow; accepts all five workflow names. |
 | `scripts/simulate_system.py` | Hydrological simulations and/or indicators for a selected experiment. |
 
-The all-workflow runner follows a fixed order: historical climate analysis, model building, projection
+The all-workflow run command follows a fixed order: historical climate analysis, model building, projection
 analysis, scenario generation and hydrological simulation. It skips disabled workflows and stops at
 the first workflow failure. Disabled workflows do not supply missing prerequisites, although their
 compatible existing products can be reused. Model building and scenario generation supply the model
 and weather required for simulation; projections do not determine the generated scenarios.
 
-For ordinary use, the User Guide recommends the all-workflow runner, with only the required workflows
+For ordinary use, the User Guide recommends the all-workflow run command, with only the required workflows
 enabled. It also documents the dedicated hydrological simulation command. The single-workflow script
 accepts all five names; for `generate_scenarios` and `simulate_system`, it delegates to their dedicated
-runners rather than launching Snakemake directly.
+run commands rather than launching Snakemake directly.
 
 Bare Snakemake execution omits required preparation and is not supported for scenario generation or
 hydrological simulation. Simulation targets are inferred from `steps` and indicator selection;

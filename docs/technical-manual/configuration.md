@@ -18,18 +18,18 @@ The project top level accepts only `schema_version`, `project`, `basin`, `climat
 `workflow_configs.<name>` is the optional path of its settings file. Keep declared files readable even
 when their workflow is disabled. For the earlier form, see
 [renamed settings](changes-and-migration.md#renamed-configuration-settings).
-Omitting the file composes an empty settings mapping; workflow-required fields still apply when enabled.
+Omitting the file gives an empty settings mapping; workflow-required fields still apply when enabled.
 
 Workflow files hold that workflow's settings. Shared section names and shared leaf names cannot be placed
-there to override the project. Composition reads each declared file and adds the workflow's switch as
-`enabled` to the effective workflow mapping; the file path is not part of it. Workflow files cannot override
-arbitrary project settings. Duplicate or unknown fields are rejected in sections with a fixed set of allowed
-fields. Disabling a workflow leaves its previous files in place.
+there to override the project. Combining the settings reads each declared file and adds the workflow's switch
+as `enabled` to the effective workflow mapping; the file path is not part of it. Workflow files cannot
+override arbitrary project settings. Duplicate or unknown fields are rejected in sections with a fixed set of
+allowed fields. Disabling a workflow leaves its previous files in place.
 
 ### Read scope
 
-Composition has an explicit read scope. A workflow's own file and sections declared by that entry point
-are required to load; an unreadable unrelated file can be skipped with a diagnostic. Shared-name and
+Combining the settings has an explicit read scope. A workflow's own file and sections declared by that entry
+point are required to load; an unreadable unrelated file can be skipped with a diagnostic. Shared-name and
 content checks still inspect every declared file that does load. Tools that inspect the complete configuration
 load all readable declared files. This tolerance is not permission to omit an enabled workflow's required
 inputs or bypass configuration capture and input checks.
@@ -58,8 +58,8 @@ For schema 2, see [schema 2 path rules](changes-and-migration.md#schema-2-path-r
 
 ### Path forms
 
-- Use `toolbox:config/...` for resources in the executing toolbox checkout. A toolbox locator must stay
-  inside that checkout.
+- Use `toolbox:config/...` for resources in the toolbox folder in use. A `toolbox:` path must stay
+  inside that folder.
 - Absolute paths remain supported; a foreign-platform absolute path is rejected.
 - URLs and predefined HydroMT catalog names keep their spelling. Catalog-internal paths keep HydroMT
   semantics.
@@ -71,17 +71,17 @@ For schema 2, see [schema 2 path rules](changes-and-migration.md#schema-2-path-r
 `hydromt: {build_config_path: hydromt/build.yml}` in `settings/build-model.yml` reads
 `settings/hydromt/build.yml`. A bundled build configuration file can be
 `toolbox:config/defaults/wflow_build_model.yml`. Moving YAML files does not relocate saved outputs or
-datasets. Archives preserve exact source bytes and resolved runtime locators.
+datasets. Archives preserve exact source bytes and resolved runtime paths.
 
-### Case scaffolder
+### Case creation {#case-scaffolder}
 
-The case scaffolder creates `<case>/<trial>/project_config.yml`, defaulting to trial `default`. A first trial
-may have another name, but later creation then needs `--from-trial` until a default trial exists. It writes
-`project.project_dir: outputs` and a shared outlet reference `../data/output_locations.csv`.
+The case creation command creates `<case>/<trial>/project_config.yml`, defaulting to trial `default`. A first
+trial may have another name, but later creation then needs `--from-trial` until a default trial exists. It
+writes `project.project_dir: outputs` and a shared outlet reference `../data/output_locations.csv`.
 
 `--from-trial` requires schema 3, preserves scientific settings and workflow enablement, and copies
 referenced authored trial inputs. Shared case data stay shared; external inputs are reported. References to
-saved products must be removed from a working source copy before scaffolding a fresh trial. `--catalog` uses
+saved products must be removed from a working source copy before creating a fresh trial. `--catalog` uses
 destination-YAML-relative paths or `toolbox:` resources. See [case creation](../guide/new-case.md).
 
 ## Shared fields
@@ -105,7 +105,7 @@ destination-YAML-relative paths or `toolbox:` resources. See [case creation](../
 | `observations.river_discharge` | Observed daily-mean discharge `path` and optional `time_label` (default `interval_end`); model evaluation, see [observations](#observations) |
 | `observations.met_stations` | Station `stations_path`, `precip_path`, optional `temp_path` and required `time_label`; historical analysis, see [rain gauges](rain-gauge-comparison.md) |
 | `model.name` | Folder under `models/hydrology/` that model building creates or runs and hydrological simulation uses; default `wflow` |
-| `model.outvars` | Retained model variables; declarations must use supported Wflow display names |
+| `model.outvars` | Saved model variables; declarations must use supported Wflow display names |
 | `plotting.annotation` | `none` (default), `caption` or `title` on ordinary PNG paths |
 
 The climate window must span at least the 16 years set by `constraints.min_historical_years` in
@@ -116,7 +116,7 @@ including Wflow's initial-state time convention.
 
 `climate.map_reference` accepts only `max_missing_days_month` (integer 0–27) and
 `max_missing_days_year` (nonnegative integer). Booleans and fractions fail. Historical climate analysis
-diagnostics use these values. Model building forcing summaries retain their independent default 3/15 policy.
+diagnostics use these values. Model building forcing summaries keep their independent default 3/15 policy.
 Completeness and temporal aggregation are distinct from the inclusive extraction dates.
 
 ### Observations {#observations}
@@ -216,7 +216,7 @@ PET must be finite and nonnegative inside the required basin; masked cells outsi
 #### Temperature and pressure corrections
 
 When a different companion is regridded, its declared source elevation references the lapse correction
-onto the hydrography sidecar. Subsequent model preparation uses that sidecar. Disabling temperature
+onto the hydrography's accompanying file. Subsequent model preparation uses that file. Disabling temperature
 correction disables both steps. Same-source ERA5 extraction reads native temperature without applying
 lapse correction; its configured elevation is used during preparation. Pressure is corrected only during
 PET preparation.
@@ -234,16 +234,16 @@ enforced one-day interval contract. No additional conversion profile or new data
 Controlled fixtures establish the mechanism; real alternative companions and independent PET products require
 separate source qualification.
 
-#### Extraction identity
+#### Extraction record {#extraction-identity}
 
-Extraction identity contains sources, required variables and corrections performed during extraction.
+The extraction record contains sources, required variables and corrections performed during extraction.
 Non-default extraction settings select a separate store. Preparation-only pressure settings, and
-same-source elevation/lapse settings, do not change that store or its generator input identity.
+same-source elevation/lapse settings, do not change that store or the generator's record of inputs.
 
-Scenario simulation compares extraction settings with the selected collection's archived creator settings
-and applies the current preparation settings. Non-default preparation records use version 3; saved
-version-2 records keep their original correction settings. Producer-code integrity remains part of
-scenario identity. Numerical backward comparisons therefore use equivalent fixed inputs and seeds.
+Scenario simulation compares extraction settings with the selected collection's archived creator settings and
+applies the current preparation settings. Non-default preparation records use version 3; saved version-2
+records keep their original correction settings. The generating code remains part of the scenario set's record
+of inputs. Numerical backward comparisons therefore use equivalent fixed inputs and seeds.
 
 #### CHIRPS diagnostics
 
@@ -273,9 +273,10 @@ Sources are only read.
 - Catalog entries are compared without the catalog root, but the shipped P-drive and local-mirror catalogs
   describe ERA5 and CHIRPS differently, so reuse works between trials that use the same catalog.
 - Stores extracted before records existed, or by other extraction code, are never reused.
-- A CMIP6 raw slice is reused when its recorded digest matches, including slices fetched before this feature.
+- A CMIP6 raw slice is reused when its recorded hash matches, including slices fetched before this feature.
 
-Each decision is logged by the extraction or fetch rule; reuse changes no rerun decision and no run identity.
+Each decision is logged by the extraction or fetch rule; reuse changes no rerun decision and no run's record
+of inputs.
 
 ## Workflow settings
 
@@ -294,7 +295,7 @@ The following links explain the settings for each workflow.
 a custom base selects its own numbered family. Plain execution selects the highest allocation, irrespective
 of completion. `--new-experiment` advances it; an exact numbered name selects that experiment. Previewing with
 `scripts/suggest_experiment_name.py` reserves nothing. Changed scientific simulation inputs require a new
-experiment. See [retained identities](saved-results.md#identities-and-reuse).
+experiment. See [saved results](saved-results.md#identities-and-reuse).
 
 ## Scalar response precision {#csv-precision}
 
@@ -308,13 +309,13 @@ output:
 
 `decimal_places` defaults to 5 and accepts integers 0–15, excluding booleans. These are decimal places, not
 significant digits. Historical model evaluation and thresholds, and the indicators of hydrological
-simulations, use the rounded retained time series. Values smaller than half the last decimal unit can become
+simulations, use the rounded saved time series. Values smaller than half the last decimal unit can become
 zero; use greater precision when very small flows matter. Missing values remain missing. Indicator-summary
 formatting and native NetCDF precision are independent. The CSV and NetCDF sections can be used together.
 
-Native Wflow CSVs are temporary conversion inputs. Verified per-variable CSVs and their metadata are the
-retained format; there is no native-retention or compatibility option. Increasing precision after conversion
-requires another simulation. New simulation experiments freeze precision in their response request.
+Native Wflow CSVs are temporary conversion inputs. Verified per-variable CSVs and their metadata are the saved
+format; there is no option to keep native CSVs or a compatibility option. Increasing precision after
+conversion requires another simulation. New simulation experiments freeze precision in their response request.
 
 ## Optional native model grids {#netcdf-grid}
 
@@ -336,7 +337,7 @@ output:
 
 Keys under `variables` are installed Wflow-SBM standard names; values are unique lowercase
 snake_case NetCDF names. Coordinate names are reserved. Variables must exist in enabled model
-components and have a native writer-supported shape; admission occurs before timestepping.
+components and have a native writer-supported shape; these checks run before timestepping.
 Native soil-layer dimensions are preserved. Empty mappings, unknown keys and user-specified
 paths reject. `compressionlevel` defaults to 1 and accepts integers 0–9, excluding booleans.
 
@@ -377,10 +378,9 @@ original model-input paths.
 
 ## Plotting resources
 
-Python plotting adapters load `config/plotting/colors.yml` and `style.yml` from the toolbox.
-These affect every project using that checkout. The
-[local plotting reference](../../config/plotting/README.md) explains how to change these settings.
-Appearance changes schedule affected plots without changing scenario/simulation identity; model building's
-combined
-evaluation job also refreshes its indicators. R generator figures retain their own settings.
-Changing colors does not change normalization, classification or scientific missingness rules.
+Python plotting adapters load `config/plotting/colors.yml` and `style.yml` from the toolbox. These affect
+every project using that toolbox folder. The [local plotting reference](../../config/plotting/README.md)
+explains how to change these settings. Appearance changes schedule affected plots without changing the
+scenario or simulation record of inputs; model building's combined evaluation job also refreshes its
+indicators. R generator figures keep their own settings. Changing colors does not change normalization,
+classification or scientific missingness rules.

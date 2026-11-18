@@ -43,18 +43,18 @@ figures describe simulated behavior.
 
 ## Cataloged climate and spatial inputs
 
-Catalogs retain upstream HydroMT schema, driver and adapter semantics. Supply the variables, units, geometry
+Catalogs keep upstream HydroMT schema, driver and adapter semantics. Supply the variables, units, geometry
 and dates expected by the consuming build configuration file. Register source names rather than embedding
 dataset paths in workflow rules. See [data requirements](data-requirements.md) and the configured build
 configuration files. Catalog presence alone does not establish readable data, sufficient coverage or valid
 forcing units.
 
-Historical stores retain a rectangular basin extent with one native source-grid cell on each side.
+Historical stores keep a rectangular basin extent with one native source-grid cell on each side.
 `basin_cells.csv` identifies intersecting cells; equal weights over those cells determine the generator's
 resampled dates. The full buffered rectangle remains available for forcing reprojection. This buffer does
 not enlarge the modeled basin.
 
-## Retained daily responses
+## Saved daily responses {#retained-daily-responses}
 
 `model.outvars` uses these display names; the toolbox fixes their response tokens and native units.
 

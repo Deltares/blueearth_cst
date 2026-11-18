@@ -43,10 +43,10 @@ Optional settings:
 | `unit_id_capacity` | Advanced. At least runs + 2; changes run-ID width and the set's record of inputs. |
 | `historical_override` | Advanced. `period: {start, end}` replaces the projection-analysis reference years (reported as a mismatch). `path` with `source`, `units` and `units_note` replaces the historical file with a supported source; `units` must list every variable with that source's effective units. |
 
-Unknown keys are refused. `analyze_projections` must use the same `ensemble`. In the owned runner projection
-analysis runs before scenario generation; with projection analysis disabled its products must already exist. A
-missing historical extract is accepted when historical climate analysis or model building runs earlier in the
-same command, and refused otherwise with the expected path.
+Unknown keys are refused. `analyze_projections` must use the same `ensemble`. In the all-workflow run command,
+projection analysis runs before scenario generation; with projection analysis disabled its products must
+already exist. A missing historical extract is accepted when historical climate analysis or model building
+runs earlier in the same command, and refused otherwise with the expected path.
 
 ## Generate and simulate
 

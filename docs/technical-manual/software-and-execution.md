@@ -17,7 +17,7 @@ Julia into Pixi or edit generated locks by hand. Use the [installation guide](..
 
 | Runtime | Operations | Authoritative files |
 |---|---|---|
-| Python | Runners, configuration, HydroMT preparation, reductions and plots | `pixi.toml`, `pixi.lock` |
+| Python | Run commands, configuration, HydroMT preparation, reductions and plots | `pixi.toml`, `pixi.lock` |
 | R | `weathergenr` and its generation scripts | `dev/scripts/install_weathergenr.R`, Pixi tasks |
 | Julia | Wflow execution | `Project.toml`, `Manifest.toml`, `config/advanced_settings.yml` |
 | Snakemake | Workflow scheduling | Five root `.smk` entry points and included rule files |
@@ -31,11 +31,11 @@ interpretation metadata.
 
 ## Run commands
 
-A **runner** ([run command](../guide/glossary.md#run-command)) is a Python script launched from the command
-line to start and coordinate an analysis. `scripts/run_workflows.py` runs the workflows enabled in a project
-configuration, while `scripts/simulate_system.py` runs hydrological simulation directly. Each runner checks
-the required inputs, starts the requested processing and records its outcome. The
-[running guide](../guide/running.md) gives commands and examples.
+A [run command](../guide/glossary.md#run-command) is a Python script launched from the command line to start
+and coordinate an analysis. `scripts/run_workflows.py` runs the workflows enabled in a project configuration,
+while `scripts/simulate_system.py` runs hydrological simulation directly. Each run command checks the required
+inputs, starts the requested processing and records its outcome. The [running guide](../guide/running.md)
+gives commands and examples.
 
 The run command's final verdict includes writing the results. Progress or a completed simulation batch alone
 is not confirmation that every requested indicator set is current.
@@ -44,7 +44,7 @@ is not confirmation that every requested indicator set is current.
 
 Snakemake schedules individual processing steps according to their dependencies and available resources.
 For example, a simulation can start only after its model and forcing inputs are ready. Independent steps
-can run concurrently within the configured resource limits. Use the supported runners to execute scenario
+can run concurrently within the configured resource limits. Use the supported run commands to execute scenario
 generation and hydrological simulation, including their preparation and result-saving steps.
 
 ## Data access and environment records {#availability-and-provenance}
