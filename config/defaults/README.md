@@ -4,8 +4,8 @@ These files are live engine settings, not case scaffolds. Changing a selected fi
 Point case settings to these supplied files or an intentional edited copy; the copyable project starter
 lives in [config/templates](../templates/README.md).
 
-- `wflow_build_model.yml`: initial HydroMT-Wflow build recipe.
-- `wflow_update_waterbodies.yml`: waterbody/glacier update recipe.
+- `wflow_build_model.yml`: initial HydroMT-Wflow build configuration file.
+- `wflow_update_waterbodies.yml`: waterbody/glacier update configuration file.
 - `weathergenr_config.yml`: weathergenr settings used by generation planning; a project replaces it with
   `stochastic.generator_config_path`.
 

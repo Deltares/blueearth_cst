@@ -40,6 +40,7 @@ its preferred terms. Replace these toolbox-specific terms:
 | reference, baseline (generated weather) | unperturbed reference |
 | historical period (extraction years) | climate window |
 | reservation (experiment) | experiment number allocation |
+| forcing recipe, recipe | forcing set; for a HydroMT build YAML, build configuration file |
 
 In user-facing pages, replace general software terms (retained, identity, provenance, locator, sidecar,
 invocation, scaffold, publish) with plain words. Keep configuration keys, file names, flags and quoted

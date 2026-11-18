@@ -56,11 +56,13 @@ simulation of one climate model, such as `r1i1p1f1`.
 A set of simulations made with one model, one scenario set and one group of simulation settings, in
 `experiments/<name>/`. The first is `stress_test_01`; `--new-experiment` starts the next.
 
-## Forcing recipe {#forcing-recipe}
+## Forcing set {#forcing-set}
 
-A named choice of historical forcing datasets. Several recipes (`climate.forcings`, with `default_forcing`)
-let one model run with different historical datasets. A single `climate.forcing` block is the recipe
-`default`.
+[]{#forcing-recipe}
+
+A named choice of historical forcing datasets. Several forcing sets (`climate.forcings`, with
+`default_forcing`) let one model run with different historical datasets. A single `climate.forcing` block is
+the forcing set `default`. Replaces: forcing recipe.
 
 ## Group {#group}
 

@@ -30,8 +30,8 @@ external case example, this is `C:/cst-cases/my-basin/default/outputs/`.
 │   └── hydrology/
 │       └── wflow/                       one model: static maps, TOMLs, _engine/
 │           └── historical/
-│               ├── <recipe>/            forcing, run, plots and tables per forcing recipe
-│               └── forcing_comparison/  comparison of two or more recipes
+│               ├── <forcing-set>/       forcing, run, plots and tables per forcing set
+│               └── forcing_comparison/  comparison of two or more forcing sets
 ├── scenarios/
 │   └── <name>/                          one scenario set: series, lookups, settings
 ├── experiments/
@@ -48,11 +48,11 @@ external case example, this is `C:/cst-cases/my-basin/default/outputs/`.
 Folders named `_engine/` hold the toolbox's own records; you do not need to open them. Everything you read
 (tables, figures, settings copies, reports) sits outside them.
 
-Each [forcing recipe](glossary.md#forcing-recipe)'s historical simulation is in
-`models/hydrology/<model>/historical/<recipe>/` (`default` for a single recipe); with two or more recipes,
-`historical/forcing_comparison/` compares them. The default model is `wflow`. A further model, such as a
-registered calibration, has its own folder beside it, and `models/hydrology/comparisons/<name>/` compares
-models. See [one model per folder](../technical-manual/workflow-build-model.md#model-versions).
+Each [forcing set](glossary.md#forcing-set)'s historical simulation is in
+`models/hydrology/<model>/historical/<forcing-set>/` (`default` for a single forcing set); with two or more
+forcing sets, `historical/forcing_comparison/` compares them. The default model is `wflow`. A further model,
+such as a registered calibration, has its own folder beside it, and `models/hydrology/comparisons/<name>/`
+compares models. See [one model per folder](../technical-manual/workflow-build-model.md#model-versions).
 
 To archive an assessment, keep the whole output directory: indicator tables alone do not record the model,
 climate conditions or settings behind them. Change settings in the case files; the copies under `config/`

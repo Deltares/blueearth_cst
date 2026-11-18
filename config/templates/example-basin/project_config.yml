@@ -70,20 +70,20 @@ basin:
 # Define historical climate data and calendar. Input: mapping.
 climate:
   # analyze_climate compares the sets' datasets; build_model can simulate several.
-  # Name the forcing sets. Input: mapping of [a-z][a-z0-9_]* names to forcing recipes.
+  # Name the forcing sets. Input: mapping of [a-z][a-z0-9_]* names to dataset choices.
   forcings:
-    # Define one forcing recipe. Input: mapping.
+    # Define one forcing set. Input: mapping.
     era5:
       # Select the precipitation forcing dataset. Input: era5 | chirps | chirps_global.
       precip_source: era5
-    # Define one forcing recipe. Input: mapping.
+    # Define one forcing set. Input: mapping.
     chirps:
       # Select the precipitation forcing dataset. Input: era5 | chirps | chirps_global.
       precip_source: chirps
       # Select the temperature and PET dataset. Input: catalog source name; default era5.
       temp_source: era5
 
-  # Every optional recipe setting at its default (another temp_source also needs
+  # Every optional forcing-set setting at its default (another temp_source also needs
   # orography_source). Supplied PET, pet: {mode: direct, source: <entry>}, is
   # historical-only; scenario generation and simulation reject it.
   #  chirps:

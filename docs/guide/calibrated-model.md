@@ -51,7 +51,7 @@ pixi run python scripts/register_model.py compare --project-dir <project_dir> `
 ```
 
 The tables and figures are written to `models/hydrology/comparisons/calibration_effect/`. Each `--run` names
-`<model>/<recipe>`, with `default` for a single forcing recipe.
+`<model>/<forcing-set>`, with `default` for a single forcing set.
 
 ## Remove a model {#remove-a-model}
 
