@@ -28,6 +28,7 @@ def test_simulation_startup_details_wait_for_header(
 
     monkeypatch.setattr(console_style, "_CONSOLE_STYLE_ACTIVE", True)
     monkeypatch.setattr(console_style, "_RUN_HEADER", None)
+    monkeypatch.setattr(console_style, "_HEADER_PRINTED", False)
     monkeypatch.setitem(
         scheduling,
         "OPERATION",
