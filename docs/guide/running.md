@@ -81,13 +81,13 @@ An [experiment](glossary.md#experiment) groups hydrological simulations made wit
 [scenario set](glossary.md#scenario-set) and one set of scientific simulation settings. Its results are stored
 under `experiments/<name>/`.
 
-### Run your first experiment {#run-your-first-experiment}
+### First experiment {#run-your-first-experiment}
 
 Leave `experiment_name` unset in `project_config_simulate_system.yml` and run the command above. The toolbox
 names the experiment `stress_test_01`. Running the same command again selects the highest experiment number
 already assigned and reuses completed work while its inputs still match.
 
-### Continue after an interruption {#continue-after-an-interruption}
+### Interrupted run {#continue-after-an-interruption}
 
 Keep the configuration unchanged and rerun the same command. If the run command reports incomplete jobs or a
 stale lock, follow
@@ -96,7 +96,7 @@ If it reports an interrupted experiment number allocation and suggests `--recove
 [Run records](../technical-manual/execution-and-provenance.md#launcher-arguments-and-safety-boundaries)
 before using that option.
 
-### Start a new experiment after changing inputs {#start-a-new-experiment-after-changing-inputs}
+### Changed inputs {#start-a-new-experiment-after-changing-inputs}
 
 Start a new experiment when you change the model, the climate scenarios or a scientific simulation setting,
 including `include_unperturbed`. Previous results stay available:
@@ -110,7 +110,7 @@ longer match the experiment. Changing only the indicator choices or resource set
 experiment. A new experiment reuses previously generated climate scenarios when they are complete and
 unchanged, so it does not necessarily regenerate weather.
 
-### Name experiments {#name-experiments}
+### Experiment names {#name-experiments}
 
 To use your own naming family, set `experiment_name: drought` in `project_config_simulate_system.yml`; its
 experiments are numbered `drought_01`, `drought_02`, and so on. To return to one experiment, set its exact

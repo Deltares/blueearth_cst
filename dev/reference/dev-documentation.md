@@ -1,6 +1,6 @@
 # CST documentation guidelines
 
-Last updated: 2026-11-17
+Last updated: 2026-11-18
 
 Use this guide for CST user guides, scientific explanations, toolbox reference and technical notes.
 It owns CST content and presentation conventions; the [validation ladder](dev-validation.md) owns
@@ -43,7 +43,10 @@ its preferred terms. Replace these toolbox-specific terms:
 
 In user-facing pages, replace general software terms (retained, identity, provenance, locator, sidecar,
 invocation, scaffold, publish) with plain words. Keep configuration keys, file names, flags and quoted
-console messages verbatim.
+console messages verbatim. "Output" and similar common words (data, results, settings) are established
+terminology and need no plain-language replacement. Keep labels, list lead-ins, table headers and headings
+short: prefer "Output and data:" to an explanatory phrase such as "Where results go and where data come
+from:".
 
 ## Content and sources
 

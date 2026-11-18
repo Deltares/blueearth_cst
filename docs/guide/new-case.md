@@ -104,10 +104,10 @@ Use `--catalog` during creation to select a different data catalog.
 
 Each item below is one decision in `project_config.yml`.
 
-1. **Where results go and where data come from** (`project.project_dir`, `project.catalog`): keep `outputs`
-   and point the catalog at datasets you can reach. A catalog locates data but does not download it, so
+1. **Output and data** (`project.project_dir`, `project.catalog`): keep `outputs` and point the catalog at
+   datasets you can reach. A catalog locates data but does not download it, so
    check that its datasets cover your basin and years before running.
-2. **Basin and grid** (`basin.region`, `basin.resolution`, `basin.sources`): give the outlet as longitude,
+2. **Catchment** (`basin.region`, `basin.resolution`, `basin.sources`): give the outlet as longitude,
    then latitude. `uparea` in `basin.region` is a threshold in km² that the outlet's upstream area must
    reach, not a target catchment area. Choose the grid spacing in degrees; a finer grid adds no detail that
    the source datasets lack. Check that the names under `basin.sources` exist in your catalog.
@@ -117,9 +117,9 @@ Each item below is one decision in `project_config.yml`.
    toolbox does no local calibration.
 4. **[Climate window](glossary.md#climate-window)** (`climate.window`): the historical years to extract;
    see the [period guidance below](#keep-the-analysis-periods-consistent).
-5. **Saved model variables** (`model.outvars`): include every variable your indicators need
+5. **Model outputs** (`model.outvars`): include every variable your indicators need
    ([section 5](#choose-indicators)).
-6. **Workflows to run** (`workflows`, `workflow_configs`): set a workflow's switch to `true` to run it.
+6. **Workflow selection** (`workflows`, `workflow_configs`): set a workflow's switch to `true` to run it.
    `false` skips it without deleting its results; check that those results still suit your settings before
    reusing them.
 

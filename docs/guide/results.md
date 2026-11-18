@@ -9,7 +9,7 @@ where the tables are, what each one holds, how to check a value before using it 
 climate perturbation it represents. Paths are relative to the [output
 directory](glossary.md#output-directory).
 
-## Where the tables are {#where-the-tables-are}
+## Table location {#where-the-tables-are}
 
 Each selected [indicator set](glossary.md#indicator-set) has its own folder,
 `experiments/<name>/results/indicator_sets/<set-id>/`: `default` unless `project_config_simulate_system.yml`
@@ -26,7 +26,7 @@ experiments/stress_test_01/results/indicator_sets/default/
 
 Here, `q` means river discharge. Other selected variables have their own run and group tables.
 
-## What each table holds {#what-each-table-holds}
+## Table contents {#what-each-table-holds}
 
 - **`indicators.csv`** defines each indicator: what the value measures, its units, reporting period and
   coverage, that is, how much usable data it rests on. Start here for the indicator you need.
@@ -114,7 +114,7 @@ Run and group IDs such as `run_01` and `group_01` stay text when the CSV is open
 empty reference `st_id`. See [identifier
 conventions](../technical-manual/retained-handoffs.md#joins-and-reference-membership).
 
-## What the tables do not give you yet {#what-the-tables-do-not-give-you-yet}
+## Current limits {#what-the-tables-do-not-give-you-yet}
 
 These joins identify the climate perturbation behind each value; they do not build a
 [response surface](glossary.md#response-surface), which needs a separate analysis of the selected indicators

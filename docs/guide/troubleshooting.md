@@ -40,7 +40,7 @@ Then run `pixi run install` and repeat the failed command. The toolbox uses its 
 one. If the installation itself fails, read its specific error: an Rtools message alone does not mean the
 weather generator needs a separate Rtools installation.
 
-### Julia installation reports `Access is denied` {#julia-installation-reports-access-is-denied}
+### Julia installation file locks {#julia-installation-reports-access-is-denied}
 
 **Symptom:** installing Julia or its packages fails with `Access is denied` or `directory not empty`.
 
@@ -180,7 +180,7 @@ stall recurs, report it with the details in [section 11](#if-you-need-further-he
 started.
 
 **Fix:** start a new experiment with `--new-experiment`, keeping the previous results for comparison; see
-[Start a new experiment](running.md#start-a-new-experiment-after-changing-inputs). For different indicators
+[Changed inputs](running.md#start-a-new-experiment-after-changing-inputs). For different indicators
 over completed simulations, use the
 [indicators-only procedure](running.md#calculate-different-indicators-from-existing-simulations); it does not
 supply missing model outputs. Check [indicator inputs](results.md#check-status-before-value).
