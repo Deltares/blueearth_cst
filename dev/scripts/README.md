@@ -106,6 +106,20 @@ The scaffolder requires a new or empty `--out` directory. Use `--keep` to add mi
 while preserving existing files; it never deletes the destination. A failed workflow summary stops
 with a nonzero exit status and diagnostics. Staged prerequisites may remain in the incomplete tree.
 
+## Synthetic observation fixtures
+
+Generate repeatable daily inputs for checking observation readers, evaluation metrics and plots. Both commands take a prepared `data/spatial/location_registry.csv`, an inclusive date range of UTC interval ends, an explicit seed, and a new output directory. They can run without a prior simulation or climate extraction. Use `--wet-month` to move the peak of the synthetic wet season (default August).
+
+```powershell
+pixi run python dev/scripts/generate_synthetic_discharge.py --locations <location_registry.csv> --start 2000-01-02 --end 2003-01-01 --seed 42 --out <new-discharge-dir>
+pixi run python dev/scripts/generate_synthetic_rain_gauges.py --locations <location_registry.csv> --start 2000-01-02 --end 2003-01-01 --seed 42 --out <new-rain-gauge-dir>
+```
+
+- [`generate_synthetic_discharge.py`](generate_synthetic_discharge.py) writes `synthetic-observed-discharge.csv` in the `observations.river_discharge` format (semicolon-separated, daily mean m³/s, columns keyed by `wflow_id`). On its own it uses shared and local storms with fast and slow recessions. Pass `--reference <output_q.csv>` to retain the general timing and scale of a Wflow simulation while varying peak timing and magnitude, adding persistent residuals, and changing the low-flow response.
+- [`generate_synthetic_rain_gauges.py`](generate_synthetic_rain_gauges.py) writes `synthetic-rain-gauge-stations.csv` and `synthetic-rain-gauge-precip.csv` for `observations.met_stations`. Gauge IDs match `wflow_id`, coordinates retain the reporting locations' original precision, and rain amounts are in mm/day. Pass `--reference <daily_basin.csv>` from historical climate analysis to keep the source's storm timing with gauge-specific noise, local showers and light-rain dropouts.
+
+Set `time_label: interval_end` for either output. A reference must cover every requested day with finite nonnegative values. Each output directory also contains `synthetic-observations.json` with settings and input hashes. Use the same seed and locked environment to reproduce a fixture. Scores against these files exercise software behavior and figure layouts.
+
 ## Figures and console
 
 | Script | What it does |
