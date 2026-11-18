@@ -156,5 +156,6 @@ folders, see [Advanced tasks](advanced-tasks.md).
 
 ## Next
 
-- [Read the outputs](outputs.md) to connect indicators with their climate conditions.
+- [Read the outputs](outputs.md) to check maps and diagnostics, and the
+  [stress-test results](results.md) to connect indicators with their climate conditions.
 - [Troubleshoot a failed run](troubleshooting.md) using its summary and logs.

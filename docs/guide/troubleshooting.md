@@ -165,7 +165,7 @@ Review changes to the model, climate scenarios and simulation settings.
 Use `--new-experiment` when scientific inputs changed. Keep previous results for comparison and traceability.
 For different indicators over intact completed responses, use the
 [indicators-only procedure](running.md#calculate-different-indicators-from-existing-simulations).
-It does not supply missing model outputs. Check [indicator inputs](outputs.md#reading-an-indicator-set).
+It does not supply missing model outputs. Check [indicator inputs](results.md#check-status-before-value).
 
 ## 9. The preview is partial or an indicator value is missing {#the-preview-is-partial-or-an-indicator-value-is-missing}
 

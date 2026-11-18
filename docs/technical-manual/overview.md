@@ -35,7 +35,7 @@ needed, additional local evidence.
 The toolbox produces climate diagnostics, simulated hydrological responses and indicator tables.
 Constructing response surfaces, applying acceptability thresholds and comparing adaptation options
 require further analysis of those results. The current User Guide explains
-[how to connect indicators to climate conditions](../guide/outputs.md#join-an-indicator-to-its-climate-settings);
+[how to connect indicators to climate conditions](../guide/results.md#link-a-value-to-its-climate-perturbation);
 it does not yet provide a supported response-surface construction walkthrough. The
 [Methodology](../site/scientific-approach/overview.qmd) places these calculations within the wider
 assessment of water-system vulnerability and robustness.

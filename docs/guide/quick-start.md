@@ -102,9 +102,9 @@ test_case/test_rapid/experiments/experiment_rapid/results/indicator_sets/default
 3. **Grouped results:** open `q_group_indicators.csv` alongside `group_metadata.csv` to identify each
    [group](glossary.md#group)'s climate perturbation and reference status.
 
-The output guide explains how to link these tables to their source runs and climate perturbations.
-Treat the rapid example's flood and drought return levels as demonstrations of the calculation, not basin
-estimates.
+[Stress-test results](results.md) explains how to link these tables to their source runs and climate
+perturbations. Treat the rapid example's flood and drought return levels as demonstrations of the calculation,
+not basin estimates.
 
 For setup errors or interrupted runs, see [Troubleshooting](troubleshooting.md).
 
@@ -114,3 +114,4 @@ For setup errors or interrupted runs, see [Troubleshooting](troubleshooting.md).
 - [Running the workflows](running.md) — individual workflow commands and how to resume a
   [case](glossary.md#case).
 - [Reading the outputs](outputs.md) — find and interpret results, and check which inputs produced them.
+- [Stress-test results](results.md) — read indicator tables and link them to climate perturbations.

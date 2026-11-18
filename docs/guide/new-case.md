@@ -295,7 +295,7 @@ Keep `include_unperturbed: true` when your indicators compare with the unperturb
 required thresholds or observations. To calculate indicators from saved simulations, set
 `steps.simulations: false`; see
 [Recalculate indicators](running.md#calculate-different-indicators-from-existing-simulations). The
-[outputs guide](outputs.md#reading-an-indicator-set) explains the result tables and unavailable values.
+[stress-test results](results.md) page explains the result tables and unavailable values.
 
 Rerun the command above after updating your settings. See [Running the workflows](running.md)
 for execution options and recovery.
@@ -303,7 +303,8 @@ for execution options and recovery.
 ## 6. Review and record the results
 
 - **Check the run:** open the summary named in the closing message and review outcomes and warnings.
-- **Inspect the results:** use the [outputs guide](outputs.md) to find maps, diagnostics and indicator tables.
+- **Inspect the results:** use the [outputs guide](outputs.md) to find maps and diagnostics, and
+  [Stress-test results](results.md) to read the indicator tables.
   Check basin delineation, forcing and historical model behavior before expanding the stress test.
 - **Record your findings:** add data choices, model limits and links to
   [run summaries](glossary.md#run-summary) to `notes.md`.

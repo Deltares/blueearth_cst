@@ -61,7 +61,7 @@ uses precipitation multipliers. Lookups must belong to the experiment being inte
 exports under `scenarios/` can be replaced by later generation.
 
 See the [table reference](retained-handoffs.md) for column definitions and the
-[User Guide example](../guide/outputs.md#join-an-indicator-to-its-climate-settings) for connecting
+[User Guide example](../guide/results.md#link-a-value-to-its-climate-perturbation) for connecting
 indicator values to climate conditions.
 
 ## Evaluation and diagnostic products

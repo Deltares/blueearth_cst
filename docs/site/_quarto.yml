@@ -70,6 +70,8 @@ website:
               href: guide/running.qmd
             - text: "Reading outputs"
               href: guide/outputs.qmd
+            - text: "Stress-test results"
+              href: guide/results.qmd
             - guide/troubleshooting.qmd
         - section: "Advanced tasks"
           contents:
