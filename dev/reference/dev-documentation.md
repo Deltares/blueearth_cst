@@ -92,8 +92,9 @@ Preserve these scientific distinctions:
 
 - Section numbers come from the renderer (`number-sections` in `docs/site/_quarto.yml` and
   `docs/publication/format.yml`). Never type a number into a heading, and cite a section by its name as
-  a link, not by its number. A page opts out in its front matter (the glossary) or a folder
-  `_metadata.yml`. Give figures and tables no `fig-`/`tbl-` ids: the site keeps them unnumbered.
+  a link, not by its number. Numbers end with a dot in every output (1., 1.1.). A page opts out in its
+  front matter (the glossary) or a folder `_metadata.yml`. Give figures and tables no `fig-`/`tbl-` ids:
+  the site keeps them unnumbered.
 - Keep website figures unnumbered; use direct references such as “the diagram below”. Retain useful
   captions; the top-down/bottom-up comparison has none. PDF numbering is separate. Scientific figures
   follow [CST style](../../blueearth_cst/plotting/docs/cst-style.md).
