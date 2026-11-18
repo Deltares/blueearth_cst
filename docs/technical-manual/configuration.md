@@ -108,7 +108,7 @@ unchanged; see [case creation](../guide/new-case.md) and [changes and migration]
 | `climate.map_reference` | Historical completeness for maps and historical-analysis diagnostics; default 3 missing days/month, 15/year |
 | `climate.seasons` | Named contiguous month lists for climate indices; default DJF, MAM, JJA, SON |
 | `observations.river_discharge` | Observed daily-mean discharge `path` and optional `time_label` (default `interval_end`); model evaluation, see [observations](#observations) |
-| `observations.met_stations` | Station `stations_path`, `precip_path`, optional `temp_path` and required `time_label`; historical analysis, see [rain gauges](workflow-analyze-climate.md#rain-gauges) |
+| `observations.met_stations` | Station `stations_path`, `precip_path`, optional `temp_path` and required `time_label`; historical analysis, see [rain gauges](rain-gauge-comparison.md) |
 | `model.name` | Folder under `models/hydrology/` that model building creates or runs and hydrological simulation uses; default `wflow` |
 | `model.outvars` | Retained model variables; declarations must use supported Wflow display names |
 | `plotting.annotation` | `none` (default), `caption` or `title` on ordinary PNG paths |
@@ -180,7 +180,7 @@ empty names are errors. Entry-point summaries show resolved choices before execu
 Names match `[a-z][a-z0-9_]{0,31}`; `default` is reserved, and two names may not describe the same forcing
 set. With one set, model outputs use the single-set layout (`historical/default/`, `wflow_sbm.toml`). With
 several, model building simulates `build_model.historical_forcings` (default: the default set) in the per-set
-layout described in [model building](workflow-build-model.md#named-recipes), and simulation selects one set
+layout described in [forcing-set comparison](forcing-comparison.md#named-recipes), and simulation selects one set
 through `simulate_system.historical_forcing`.
 
 #### Earlier keys

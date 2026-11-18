@@ -133,6 +133,14 @@ website:
             - technical-manual/workflow-generate-scenarios.qmd
             - technical-manual/workflow-simulate-system.qmd
             - technical-manual/workflow-rule-reference.qmd
+        - section: "Optional analyses"
+          contents:
+            - technical-manual/rain-gauge-comparison.qmd
+            - technical-manual/climate-indices.qmd
+            - technical-manual/projected-derived-variables.qmd
+            - technical-manual/catchment-water-balance.qmd
+            - technical-manual/forcing-comparison.qmd
+            - technical-manual/delta-change-scenarios.qmd
         - section: "Execution and results"
           contents:
             - technical-manual/software-and-execution.qmd

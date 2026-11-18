@@ -45,7 +45,7 @@ See [input formats](data-formats-and-conventions.md) for file conventions and
 | `hydromt.build_config_path` | Alternative HydroMT build configuration file. |
 | `hydromt.waterbodies_config_path` | Alternative waterbody-update configuration file. |
 | `output.netcdf_grid` | Optional native grids from this historical simulation. |
-| `historical_forcings` | Named forcing sets to simulate on the fixed model; see [named forcing sets](#named-recipes). |
+| `historical_forcings` | Named forcing sets to simulate on the fixed model; see [named forcing sets](forcing-comparison.md#named-recipes). |
 
 Wflow treats the starting date as the initial state time. With daily forcing, the first output is one
 day later; forcing must cover that first update through the requested end date. See
@@ -134,59 +134,10 @@ See the [processing rule reference](workflow-rule-reference.md#build-model) for 
 
 ## Observed catchment water balance
 
+[]{#discharge-declaration}[]{#catchment-areas-and-forcing}[]{#ratios}[]{#saved-files}[]{#interpretation-1}
+
 Optional `evaluation.budyko: true` in the model-building YAML screens observed runoff against selected
-prepared historical precipitation and PET. It requires the project file's
-[`observations.river_discharge`](configuration.md#observations), whose `time_label` it uses:
-
-```yaml
-evaluation:
-  budyko: true
-```
-
-### Discharge declaration
-
-Omitted, null or false disables the diagnostic. Enabling it asserts that the discharge file holds daily
-mean m³/s over midnight-to-midnight UTC days. Naive timestamps are asserted
-UTC; aware timestamps normalize to UTC and must land at midnight. Start labels shift one day in a derived
-series; the input CSV and ordinary model evaluation keep their labels. The toolbox checks structure
-and records the declaration as user-supplied support; it cannot establish from the values where the
-measurements came from.
-
-### Catchment areas and forcing
-
-The diagnostic uses original snapped upstream catchments and hydrography cell areas. Prepared model
-forcing is sampled at those cell centres using nearest cells, then area-weighted. The same contributing
-area converts daily mean Q to depth with `Q * 86400 * 1000 / area_m2`. This discretization is a screening
-approximation; inspect station areas and forcing coverage before interpreting departures.
-
-### Ratios
-
-Only complete matched water years of precipitation, PET and observed Q enter the ratios. The covered day
-(interval end minus one day) determines window and water-year membership. Missing days remain missing;
-partial edge years are excluded, and no spin-up year is removed.
-
-Aridity is total PET / total P and runoff coefficient is total runoff depth / total P over the same saved
-years. Zero P or no eligible years produces an unavailable result. These are ratios of totals, rather than
-averages of annual ratios.
-
-### Saved files
-
-Outputs live in each forcing-set folder, `models/hydrology/wflow/historical/<id>/`:
-
-- `tables/budyko_stations.csv`, `budyko_annual.csv` and `budyko_summary.csv`;
-- the diagram `plots/budyko_observed_runoff_coefficient_stations.png` (drawn by the evaluation rule);
-- daily evidence, input hashes and support declarations in `_engine/budyko_daily.csv` and
-  `_engine/budyko_methods.json`.
-
-The target `evaluate_budyko` requires model/forcing preparation but no Wflow simulation. Saved tables support
-`scripts/render_figures.py budyko --project <project_dir> --out <new_dir>`.
-
-### Interpretation
-
-Water and energy limits describe long-term equilibrium assumptions. Short/discontinuous records,
-storage changes, regulation, transfers, basin area and forcing/observation errors can explain departures.
-The residual `1-Q/P` is not measured ET. Unusual points remain visible; no automatic pass/fail or source
-ranking is supplied. Tables keep counts, actual years and exclusion reasons for inspection.
+prepared historical precipitation and PET. See [observed catchment water balance](catchment-water-balance.md).
 
 ## One model per folder {#model-versions}
 
@@ -247,84 +198,8 @@ longer used. It is accepted with a deprecation warning and ignored; remove it fr
 
 ## Named forcing sets {#named-recipes}
 
-With [several forcing sets](configuration.md#named-historical-forcing-recipes), the workflow builds the model
-once and simulates each set in `build_model.historical_forcings` separately. Each set owns one folder,
-`historical/<id>/`, holding `forcing/inmaps_historical.nc`, `run/`, the evaluation `plots/` and `tables/`, and
-`_engine/` (its build YAML, store catalog, forcing record and evaluation sidecars), plus its TOML
-`wflow_sbm_<id>.toml` at the model root. A single forcing set uses `historical/default/` and the model's own
-`wflow_sbm.toml`. TOMLs stay at the model root because HydroMT-Wflow resolves model inputs from there. The
-shared `wflow_sbm.toml`, `staticmaps.nc` and geometries are never rewritten per forcing set, and rerunning
-one set leaves the others' files untouched. Two or more sets are compared automatically.
+[]{#compare-recipes}[]{#compare-retained-historical-runs}[]{#requirements}[]{#evaluation-period}
+[]{#dates-and-scores}[]{#output-tables}[]{#regenerate-figures}[]{#limits}
 
-## Compare forcing sets {#compare-recipes}
-
-When `build_model.historical_forcings` runs two or more named forcing sets, the workflow compares their
-current runs (`compare_historical_forcings`). The comparison gives scores, discharge diagnostics and coverage
-for every station, side by side. It is written to `models/hydrology/<model>/historical/forcing_comparison/`:
-tables in `tables/`, figures in `plots/` and the run record in `_engine/comparison.json`.
-
-### Requirements
-
-- The runs must have identical fixed-model identity, simulation dates, timestep, initialization and station
-  identity. The requested dates must all exist in every run.
-- Only daily Gregorian responses are supported.
-- Every input (TOMLs, forcing records, response tables, registry, observations) is hashed before and after
-  the comparison, so a run that changes meanwhile is refused.
-
-### Evaluation period
-
-- The comparison evaluates every complete reporting year the runs share. Responses are labelled at interval
-  end, so the first simulated year is never complete.
-- The window expands inclusive integer reporting-year labels using `water_year_start`; no water-year trimming
-  or endpoint shortening occurs. Water-year labels use their starting year, and seasonal months start at
-  `water_year_start`.
-- Warm-up matches historical model evaluation: when a run has more than 365 samples, timestamps before its
-  first response timestamp plus one calendar year are excluded. This can exclude 366 samples across a leap
-  year. Runs with at most 365 samples have no warm-up exclusion. Each run supplies its own simulated warm-up;
-  the common exclusion uses the identical response calendar.
-- Requested warm-up dates remain in the coverage tables but never enter diagnostics. A wholly excluded window
-  is reported with unavailable results. Exact requested and warm-up boundaries are recorded in
-  `_engine/comparison.json`.
-
-### Dates and scores
-
-- At each station, simulation-only diagnostics use the dates with finite nonnegative discharge in **all**
-  runs. Observation-paired diagnostics additionally require finite nonnegative observations on those dates.
-- Missing stations or dates are reported without infilling. Missing observation columns are allowed;
-  duplicate or unknown observation station IDs, duplicate dates and non-midnight timestamps are errors.
-- Daily and monthly KGE, NSE, NSElog, RMSE, MSE, Pbias and VE reuse the historical evaluation's calculations.
-  Monthly means use the same available paired days, with no completeness threshold. Undefined scores keep
-  their reasons; simulation-only results make no skill claim.
-- Seasonal curves average available monthly means equally within each calendar month. Flow-duration curves
-  rank available daily values using rank/(count+1), keeping zeros.
-
-### Output tables
-
-| File | Contents |
-|---|---|
-| `tables/inventory.csv` | One row per run: model and forcing hashes, forcing-set settings, start, end, sample count, toolbox and environment records |
-| `tables/coverage.csv` | Per station: requested, warm-up, simulated-common, observation-paired and excluded day counts, first and last usable dates, and whether observations are available (with a reason when not) |
-| `tables/performance.csv` | Per station, run, scale (daily or monthly) and metric: the score, the number of pairs and the reason for an unavailable score |
-| `tables/daily.csv` | Daily discharge per station, support (simulated-common or observation-paired) and series (each run, plus the observations on the paired support) |
-| `tables/monthly.csv` | Monthly mean discharge and its day count, per station, support and series |
-| `tables/seasonal.csv` | Mean of the monthly means for each calendar month, per station, support and series |
-| `tables/flow_duration.csv` | Exceedance (%) and discharge per station, support and series |
-| `tables/stations.csv` | The first run's station registry, sorted by `wflow_id`; every run must have the same registry apart from `station_name` |
-| `tables/supporting/support.csv` | Per-day support flags: every requested date with the warm-up, simulated-common and observation-paired masks, invalid-simulation count, observation validity and water year |
-
-Figures in `plots/` cover every station on each applicable support, using the shared CST preset, palette,
-legends and caption/title inventories.
-
-### Regenerate figures
-
-The numerical tables and their hashes are saved for independent inspection and rerendering, without current
-model files:
-
-```powershell
-pixi run python scripts/render_figures.py historical-hydrology --project <comparison-dir> --out <figure-dir>
-```
-
-### Limits
-
-Controlled checks establish arithmetic and artifact handling, not real-basin forcing suitability, local
-calibration or empirical model adequacy. Review coverage before interpreting comparative performance.
+With several forcing sets, the workflow builds the model once, simulates each set separately and compares
+them automatically. See [forcing-set comparison](forcing-comparison.md).

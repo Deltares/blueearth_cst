@@ -199,7 +199,7 @@ side-by-side comparison in `data/climate/historical/source_comparison/` in the o
 - **Extremes and dry spells:** if floods or droughts drive your question, compare annual maximum one- and
   five-day rainfall and dry-spell lengths; gridded products may smooth local extremes.
 - **Local evidence:** where rain-gauge records exist, add them with `observations.met_stations` and
-  [compare them with the gridded sources](../technical-manual/workflow-analyze-climate.md#rain-gauges).
+  [compare them with the gridded sources](../technical-manual/rain-gauge-comparison.md).
 
 See [Meteorological data](../technical-manual/historical-meteorological-data.md#checks-before-assessment) for
 the checks per dataset.

@@ -22,4 +22,4 @@ Classification, normalization, completeness, statistical methods and quantity-sp
 in Python. Geometry and artist placement specific to one figure also remain with that renderer.
 R/weathergenr plots retain their own setup. The agreed appearance and exceptions live in
 [CST style](../../blueearth_cst/plotting/docs/cst-style.md); user choices are in
-[configuration](../../docs/technical-manual/configuration-and-execution.md#plot-annotations).
+[configuration](../../docs/technical-manual/shared-configuration.md#plot-annotations).

@@ -202,10 +202,10 @@ not assign probabilities to its hydrological outcomes.
 ### Derived variables
 
 Figures cover precipitation and temperature only; calculated PET, dew point and wind add rows to the same
-tables. See [dew point and wind](../technical-manual/workflow-analyze-projections.md#optional-projected-dew-point-and-wind)
+tables. See [dew point and wind](../technical-manual/projected-derived-variables.md#dew-point-and-wind)
 for their methods, spatial averaging and records.
 
-See [projected PET](../technical-manual/workflow-analyze-projections.md#optional-projected-pet)
+See [projected PET](../technical-manual/projected-derived-variables.md#pet)
 for configuration, source requirements and qualification limits. PET does not add a stress-test axis.
 
 ### Paired changes

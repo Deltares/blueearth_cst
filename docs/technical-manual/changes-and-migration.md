@@ -76,7 +76,7 @@ mix it with the current form.
 Some changes cause one-time reruns or changed outputs:
 
 - A project that compared several datasets but used only one as forcing now declares one forcing set per
-  dataset. Model building reruns once in the [per-set layout](workflow-build-model.md#named-recipes); start a
+  dataset. Model building reruns once in the [per-set layout](forcing-comparison.md#named-recipes); start a
   new simulation experiment afterwards.
 - Every compared dataset can now drive the model, so each must cover at least 16 years.
 - Climate indices gain seasonal rows; set `climate.seasons: {}` to keep annual values only. Historical

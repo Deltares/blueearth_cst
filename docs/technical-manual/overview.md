@@ -49,6 +49,8 @@ This manual is the primary reference for methods, settings and interpretation:
 - [Data](data-requirements.md): datasets, access and input requirements.
 - [Workflows](scientific-workflows.md): project structure and processing steps, with
   [shared configuration](shared-configuration.md) introducing common settings.
+- [Optional analyses](rain-gauge-comparison.md): rain-gauge comparison, daily climate indices, projected PET,
+  dew point and wind, observed catchment water balance, forcing-set comparison and delta-change scenarios.
 - [Execution and run management](configuration-and-execution.md): running, monitoring and reusing analyses,
   after the [software and execution](software-and-execution.md) overview.
 - [Results, evaluation and interpretation](results-and-interpretation.md): outputs and their meaning.
