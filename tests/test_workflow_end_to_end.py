@@ -196,7 +196,10 @@ def _run_and_assert_all_five(
 
 
 def _assert_all_five_outputs(project: Path, config: Path) -> None:
-    from blueearth_cst.experiment.indicator_plan import read_indicator_set
+    from blueearth_cst.experiment.indicator_artifacts import (
+        read_indicator_set,
+        stored_table,
+    )
     from blueearth_cst.experiment.scenario_collection_v2 import read_collection_v2
     from blueearth_cst.experiment.simulation_record import read_simulation_v2
 
@@ -230,7 +233,10 @@ def _assert_all_five_outputs(project: Path, config: Path) -> None:
     assert read_simulation_v2(experiment)["status"] == "ready"
     indicators = _one(experiment.glob("_engine/indicator_sets/*/indicators.json"))
     manifest = read_indicator_set(experiment, indicators)
-    tables = [experiment / item["file"]["path"] for item in manifest["tables"]]
+    tables = [
+        stored_table(experiment, manifest, item["file"]["path"])
+        for item in manifest["tables"]
+    ]
     assert tables and all(path.stat().st_size > 0 for path in tables)
 
     records = [
