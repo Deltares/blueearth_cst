@@ -78,11 +78,13 @@ simulates projection runs only.
 ### Monthly factors
 
 For calendar month *m* and each historical grid cell, WF2's monthly kernel supplies the temperature offset
-(future minus reference mean) and the precipitation ratio (future divided by reference mean); both are
-mapped to the historical forcing grid by HydroMT nearest neighbour. The offset is added to mean, minimum
-and maximum temperature; the ratio multiplies precipitation. Outside the active historical domain the
-factors are neutral. Dates, leap days, event order and missing-value masks are preserved; the method adds
-no subgrid climate information, never changes rain-day frequency and never creates rain on dry days.
+(future minus reference mean) and the precipitation ratio (future divided by reference mean); both are mapped
+to the historical forcing grid by HydroMT nearest neighbour.
+
+The offset is added to mean, minimum and maximum temperature; the ratio multiplies precipitation. Outside the
+active historical domain the factors are neutral. Dates, leap days, event order and missing-value masks are
+preserved; the method adds no subgrid climate information, never changes rain-day frequency and never creates
+rain on dry days.
 
 ### Dry reference months
 

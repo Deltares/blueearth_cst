@@ -11,8 +11,7 @@ configuration files and generator settings read during execution.
 
 ## How configuration settings are combined {#composition-and-precedence}
 
-`blueearth_cst/shared/config_composition.py` combines the configuration files. The parts below cover what the
-project and workflow files may hold, which files must load, and the advanced settings read for every project.
+`blueearth_cst/shared/config_composition.py` combines the configuration files.
 
 ### Project and workflow files
 
@@ -45,9 +44,6 @@ versions. It is never a `--configfile` target. Exact keys are closed by `_ADVANC
 `blueearth_cst/shared/advanced_settings.py`.
 
 ## How paths are read
-
-The schema version decides where relative file paths start. The parts below give the bases, the accepted path
-forms, an example and what the case scaffolder writes.
 
 ### Path bases
 

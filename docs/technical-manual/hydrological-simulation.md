@@ -74,10 +74,11 @@ Stress-test simulations set initialization through `simulate_system.initializati
 ### Starting-state quality
 
 The state's date need not match the stress-test calendar. Its quality depends on the historical simulation: a
-short historical run that itself started cold yields a near-cold end state. In one arid test basin, cold
-starts drained for about seven years and a -40% rainfall response ranged from -10% to -82% depending on the
-first analysed year. Starting from the historical end state made it -82% to -83%. Wet perturbations still
-filled stores for about a year, which the default warm-up covers.
+short historical run that itself started cold yields a near-cold end state.
+
+In one arid test basin, cold starts drained for about seven years and a -40% rainfall response ranged from
+-10% to -82% depending on the first analysed year. Starting from the historical end state made it -82% to
+-83%. Wet perturbations still filled stores for about a year, which the default warm-up covers.
 
 Slowly responding stores, typically groundwater, can keep adjusting to a perturbed climate after the warm-up;
 in one arid test basin, recharge still drifted by 1-2 mm/yr after 20 years. This drift is part of the

@@ -22,7 +22,8 @@ extraction requires overlap between the source record and that period.
 ## Configuration {#configuration}
 
 Project settings define the shared basin and climate inputs; workflow settings control the diagnostics and
-figures. The annotated template is `config/templates/example-basin/project_config_analyze_climate.yml`. See
+optional subbasin figures. The annotated template is
+`config/templates/example-basin/project_config_analyze_climate.yml`. See
 [execution and run management](configuration-and-execution.md) for running the workflow.
 
 ### Project settings
@@ -144,11 +145,12 @@ tolerances to zero, also in `climate.map_reference`, for strict no-infill summar
 #### Map display
 
 Maps keep native cells and existing basin/subbasin/river overlays, including cells outside the basin that
-intersect the displayed frame. No polygon mask, spatial averaging or regridding is applied. Each variable uses
-one symmetric zero-centred scale across finite displayed cells of all candidate sources and comparison years,
-without clipping. All-zero data use a disclosed display-only range of ±1 mm or ±1 °C; wholly unavailable data
-have no numerical key. Gray denotes missing cells, white uncovered area. These are descriptive departures, not
-trends or significance estimates.
+intersect the displayed frame. No polygon mask, spatial averaging or regridding is applied.
+
+Each variable uses one symmetric zero-centred scale across finite displayed cells of all candidate sources and
+comparison years, without clipping. All-zero data use a disclosed display-only range of ±1 mm or ±1 °C; wholly
+unavailable data have no numerical key. Gray denotes missing cells, white uncovered area. These are
+descriptive departures, not trends or significance estimates.
 
 #### Saved files
 
@@ -173,9 +175,7 @@ directly under `plots/`.
 
 ### Compare daily rain gauges {#rain-gauges}
 
-Optionally set `observations.met_stations` in the project file to compare every precipitation candidate with
-daily gauge records. The comparison samples each dataset at the gauges and declared locations and writes a
-basin-average view and a location view under `data/climate/historical/source_comparison/`.
+Optionally set `observations.met_stations` in the project file:
 
 ```yaml
 observations:
@@ -323,7 +323,7 @@ available period; subbasin results follow the same processing steps when enabled
 ## Outputs {#outputs}
 
 Results are saved under `data/climate/historical/` in the output directory, with a separate folder for each
-source. Two shared outputs support the analysis, and the map preparation keeps its own records.
+source. Two shared outputs support the analysis.
 
 ### Main outputs
 
@@ -462,6 +462,7 @@ For TX90p/TN90p within reference years, replace the evaluated reference year wit
 year in turn, evaluate the original daily observations, then average exceedance indicators. Out-of-reference
 evaluation uses the saved full-reference thresholds. This also supports evaluation wholly inside the
 reference period. All replacement replicates must have adequate support; failed replicates are not dropped.
+
 WSDI and the three-day heatwave adaptation use fixed thresholds throughout so their day totals reconcile
 with one event catalogue. They are not bootstrap-adjusted WSDI or extended-summer Climpact heatwaves.
 
@@ -496,9 +497,6 @@ sample the native cell containing their original coordinates. These are meteorol
 impacts or hydrological drought measurements.
 
 ### Saved products and reruns {#retained-products-and-reruns}
-
-Each source saves one index table, two supporting records and a set of basin figures. The parts below
-describe each, then how failures and reruns are handled.
 
 #### Index table
 

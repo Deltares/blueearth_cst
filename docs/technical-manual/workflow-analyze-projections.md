@@ -235,8 +235,7 @@ serve several future scenarios. Data availability determines which comparisons c
 
 ## Outputs {#outputs}
 
-Results are saved under `data/climate/projections/<ensemble>/` in the output directory. The main outputs are
-listed first, then how figures and maps are made and how the products can be rerendered.
+Results are saved under `data/climate/projections/<ensemble>/` in the output directory.
 
 ### Main outputs
 
@@ -284,9 +283,11 @@ listed first, then how figures and maps are made and how the products can be rer
 
 These are projection diagnostics, independent of stochastic or delta scenario generation and requiring no
 scenario collection or Wflow model. Native-grid changes reuse local raw slices and the workflow's existing
-calculations. Figure rerendering uses saved gridded changes when available, checking recorded member hashes.
-For older runs without these products, it reconstructs spatial changes from their local raw slices and scalar
-run records in the review destination; those inputs must still be available. See
+calculations.
+
+Figure rerendering uses saved gridded changes when available, checking recorded member hashes. For older runs
+without these products, it reconstructs spatial changes from their local raw slices and scalar run records in
+the review destination; those inputs must still be available. See
 [run records](run-records.md#wf2-product-attribution) for production records and
 [results transfer](results-transfer.md) for export and import.
 

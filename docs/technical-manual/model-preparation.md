@@ -71,8 +71,8 @@ HydroMT-Wflow reprojects precipitation and temperature, corrects temperature for
 forcing-grid and model-grid elevation, and adjusts sea-level pressure to model elevation. Hydrological
 simulation enables both temperature and pressure corrections and supplies the forcing source's elevation grid.
 HydroMT then computes PET from the adjusted temperature and pressure and the resampled radiation. Wflow reads
-the resulting precipitation, temperature and PET fields. The supplied generator settings set `compute_pet:
-false`; its Hargreaves option does not determine the PET used by Wflow.
+the resulting precipitation, temperature and PET fields. The supplied generator settings set
+`compute_pet: false`; its Hargreaves option does not determine the PET used by Wflow.
 
 ### Effect of warming
 

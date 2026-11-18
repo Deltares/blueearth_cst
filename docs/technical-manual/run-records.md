@@ -13,8 +13,7 @@ The invocation JSON is authoritative when a report is missing or stale.
 
 ## Run records and saved configurations {#invocation-hierarchy-and-configuration-captures}
 
-`blueearth_cst/shared/invocation_history.py` defines the record format `invocation/1`. Each run command writes
-one record; its saved configuration and the execution folder are described below.
+`blueearth_cst/shared/invocation_history.py` defines the record format `invocation/1`.
 
 ### Record identity
 
