@@ -40,8 +40,8 @@ a workflow does not delete its existing products.
 ### How paths are read
 
 With `schema_version: 3`, supported file paths resolve beside the YAML that declares them.
-For example, `hydromt: {build_config_path: recipes/build.yml}` in `settings/build-model.yml` reads
-`settings/recipes/build.yml`. A `workflow_configs` path resolves beside the project file.
+For example, `hydromt: {build_config_path: hydromt/build.yml}` in `settings/build-model.yml` reads
+`settings/hydromt/build.yml`. A `workflow_configs` path resolves beside the project file.
 
 Use `toolbox:config/...` for bundled resources or absolute paths for other locations.
 HydroMT catalogs follow their own internal path rules. Environment variables are not expanded.

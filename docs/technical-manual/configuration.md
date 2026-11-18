@@ -11,10 +11,13 @@ configuration files and generator settings read during execution.
 
 ## How configuration settings are combined {#composition-and-precedence}
 
-`blueearth_cst/shared/config_composition.py` combines the configuration files. The project top level accepts
-only
-`schema_version`, `project`, `basin`, `climate`, `model`, `plotting`, `workflows` and
-`workflow_configs`. `workflows.<name>` is a YAML boolean that selects the workflow;
+`blueearth_cst/shared/config_composition.py` combines the configuration files. The parts below cover what the
+project and workflow files may hold, which files must load, and the advanced settings read for every project.
+
+### Project and workflow files
+
+The project top level accepts only `schema_version`, `project`, `basin`, `climate`, `model`, `plotting`,
+`workflows` and `workflow_configs`. `workflows.<name>` is a YAML boolean that selects the workflow;
 `workflow_configs.<name>` is the optional path of its settings file. Keep declared files readable even
 when their workflow is disabled. For the earlier form, see
 [renamed settings](changes-and-migration.md#renamed-configuration-settings).
@@ -22,28 +25,34 @@ Omitting the file composes an empty settings mapping; workflow-required fields s
 
 Workflow files hold that workflow's settings. Shared section names and shared leaf names cannot be placed
 there to override the project. Composition reads each declared file and adds the workflow's switch as
-`enabled` to the effective workflow mapping; the file path is not part of it. Workflow files cannot
-override arbitrary project
-settings. Duplicate or unknown fields are rejected in sections with a fixed set of allowed
+`enabled` to the effective workflow mapping; the file path is not part of it. Workflow files cannot override
+arbitrary project settings. Duplicate or unknown fields are rejected in sections with a fixed set of allowed
 fields. Disabling a workflow leaves its previous files in place.
+
+### Read scope
 
 Composition has an explicit read scope. A workflow's own file and sections declared by that entry point
 are required to load; an unreadable unrelated file can be skipped with a diagnostic. Shared-name and
 content checks still inspect every declared file that does load. Tools that inspect the complete configuration
 load all readable declared files. This tolerance is not permission to omit an enabled workflow's required
-inputs or bypass
-configuration capture and input checks.
+inputs or bypass configuration capture and input checks.
+
+### Advanced settings
 
 `config/advanced_settings.yml` is loaded for every project. Its `constraints` are hard limits, `defaults`
 provide values that supported project settings may override, and `runtime` specifies required software
-versions.
-It is never a `--configfile` target. Exact keys are closed by `_ADVANCED_SETTINGS_SCHEMA` in
+versions. It is never a `--configfile` target. Exact keys are closed by `_ADVANCED_SETTINGS_SCHEMA` in
 `blueearth_cst/shared/advanced_settings.py`.
 
 ## How paths are read
 
+The schema version decides where relative file paths start. The parts below give the bases, the accepted path
+forms, an example and what the case scaffolder writes.
+
+### Path bases
+
 `schema_version: 3` resolves enumerated file fields beside the YAML declaring them.
-`schema_version: 2` retains invocation-relative file bases. `workflow_configs` paths are always relative to
+`schema_version: 2` keeps invocation-relative file bases. `workflow_configs` paths are always relative to
 the project file, including schema 2. Supported schema numbers are integers 2 and 3; other values fail.
 
 | Declaring file | File fields resolved by schema 3 |
@@ -54,28 +63,35 @@ the project file, including schema 2. Supported schema numbers are integers 2 an
 | scenario generation | `generator_config_path` |
 | hydrological simulation | `scenario_collection.manifest_path`, `indicators.custom_sets.<id>` |
 
-Use `toolbox:config/...` for resources in the executing toolbox checkout. A toolbox locator must stay
-inside that checkout. Absolute paths remain supported; a foreign-platform absolute path is rejected.
-URLs and predefined HydroMT catalog names keep their spelling. Catalog-internal paths retain HydroMT
-semantics. There is no environment-variable expansion or search for a matching filename.
-The resolver expands `~` and normalizes slash-separated local paths.
+### Path forms
 
-For example, `hydromt: {build_config_path: recipes/build.yml}` in `settings/build-model.yml` reads
-`settings/recipes/build.yml`. A bundled build configuration file can be
-`toolbox:config/defaults/wflow_build_model.yml`. Moving YAML files does not relocate retained outputs or
+- Use `toolbox:config/...` for resources in the executing toolbox checkout. A toolbox locator must stay
+  inside that checkout.
+- Absolute paths remain supported; a foreign-platform absolute path is rejected.
+- URLs and predefined HydroMT catalog names keep their spelling. Catalog-internal paths keep HydroMT
+  semantics.
+- There is no environment-variable expansion or search for a matching filename. The resolver expands `~` and
+  normalizes slash-separated local paths.
+
+### Example
+
+`hydromt: {build_config_path: hydromt/build.yml}` in `settings/build-model.yml` reads
+`settings/hydromt/build.yml`. A bundled build configuration file can be
+`toolbox:config/defaults/wflow_build_model.yml`. Moving YAML files does not relocate saved outputs or
 datasets. Archives preserve exact source bytes and resolved runtime locators. `config_paths.py` and
 `tests/test_config_paths.py` implement these rules.
 
-The case scaffolder creates `<case>/<trial>/project_config.yml`, defaulting to trial `default`.
-A first trial may have another name, but later creation then needs `--from-trial` until a default trial
-exists.
-It writes `project.project_dir: outputs` and a shared outlet reference `../data/output_locations.csv`.
+### Case scaffolder
+
+The case scaffolder creates `<case>/<trial>/project_config.yml`, defaulting to trial `default`. A first trial
+may have another name, but later creation then needs `--from-trial` until a default trial exists. It writes
+`project.project_dir: outputs` and a shared outlet reference `../data/output_locations.csv`.
+
 `--from-trial` requires schema 3, preserves scientific settings and workflow enablement, and copies
-referenced authored trial inputs. Shared case data stay shared; external inputs are reported.
-Retained-product references must be removed from a working source copy before scaffolding a fresh trial.
-`--catalog` uses destination-YAML-relative paths or `toolbox:` resources. Existing layouts and schema-2
-execution are unchanged; see [case creation](../guide/new-case.md) and
-[changes and migration](changes-and-migration.md).
+referenced authored trial inputs. Shared case data stay shared; external inputs are reported. References to
+saved products must be removed from a working source copy before scaffolding a fresh trial. `--catalog` uses
+destination-YAML-relative paths or `toolbox:` resources. Existing layouts and schema-2 execution are
+unchanged; see [case creation](../guide/new-case.md) and [changes and migration](changes-and-migration.md).
 
 ## Shared fields
 
@@ -171,11 +187,14 @@ several, model building simulates `build_model.historical_forcings` (default: th
 layout described in [model building](workflow-build-model.md#named-recipes), and simulation selects one set
 through `simulate_system.historical_forcing`.
 
+#### Earlier keys
+
 The earlier `climate.sources`, `climate.selected` and `climate.forcing` keys are refused;
 [renamed settings](changes-and-migration.md#renamed-configuration-settings) explains the conversion and its
-one-time reruns.
-`climate.forcings.<name>.temp_pet_source` remains accepted with a deprecation notice; do not supply both
-spellings. Archives and the saved forcing-set settings retain their original bytes and meaning.
+one-time reruns. `climate.forcings.<name>.temp_pet_source` remains accepted with a deprecation notice; do not
+supply both spellings. Archives and the saved forcing-set settings keep their original bytes and meaning.
+
+#### Forcing-set keys
 
 | Key | Default and allowed meaning |
 |---|---|
@@ -188,17 +207,23 @@ spellings. Archives and the saved forcing-set settings retain their original byt
 | `pet.method` | `debruin` (default) or `makkink`; computed mode only |
 | `pet.source` | Required catalog entry for supplied reference PET in direct mode; forbidden in computed mode |
 
+#### Direct PET
+
 Direct mode forbids both `pet.method` and an explicitly supplied `press_correction`, even if false.
 It prepares temperature and transports the supplied PET through HydroMT-Wflow's `setup_pet_forcing`.
 Supply reference PET, not actual evapotranspiration. Direct PET is available for historical analysis and
 model forcing; scenario generation and scenario simulation reject it before preparation. No PET
 perturbation model is implied.
 
-Computed-PET forcing sets require companion `temp`, `temp_min`, `temp_max`, `press_msl` and `kin`, plus `kout`
-for de Bruin. Direct-PET forcing sets require companion `temp` and supplied `pet`. Precipitation defines the
-extraction grid. Sources are clipped to their actual daily overlap; gaps, duplicates, unsupported
+#### Companion fields
+
+Computed-PET forcing sets require companion `temp`, `temp_min`, `temp_max`, `press_msl` and `kin`, plus
+`kout` for de Bruin. Direct-PET forcing sets require companion `temp` and supplied `pet`. Precipitation
+defines the extraction grid. Sources are clipped to their actual daily overlap; gaps, duplicates, unsupported
 calendars, absent variables and invalid required-domain values fail instead of being padded. Supplied
 PET must be finite and nonnegative inside the required basin; masked cells outside it are allowed.
+
+#### Temperature and pressure corrections
 
 When a different companion is regridded, its declared source elevation references the lapse correction
 onto the hydrography sidecar. Subsequent model preparation uses that sidecar. Disabling temperature
@@ -206,23 +231,31 @@ correction disables both steps. Same-source ERA5 extraction reads native tempera
 lapse correction; its configured elevation is used during preparation. Pressure is corrected only during
 PET preparation.
 
+#### Alternative inputs
+
 The reviewed ERA5/CHIRPS catalog arithmetic remains supported. An alternative canonical-unit input must
 declare `metadata.time_label: interval_end` in its catalog and actually deliver daily midnight fields in
 mm/day, degrees Celsius, hPa and W/m² as applicable. This declaration describes the daily interval ending
-at each timestamp; regular midnight timestamps alone do not establish it. Required-variable unit scaling
-must be identity arithmetic, and variable attributes are checked. Supplied PET may also use HydroMT's
-native `mm` label for a daily total; it is equivalent to mm/day only under this enforced one-day interval
-contract. No additional conversion profile or new data product is supplied. Controlled fixtures establish
-the mechanism; real alternative companions
-and independent PET products require separate source qualification.
+at each timestamp; regular midnight timestamps alone do not establish it.
+
+Required-variable unit scaling must be identity arithmetic, and variable attributes are checked. Supplied PET
+may also use HydroMT's native `mm` label for a daily total; it is equivalent to mm/day only under this
+enforced one-day interval contract. No additional conversion profile or new data product is supplied.
+Controlled fixtures establish the mechanism; real alternative companions and independent PET products require
+separate source qualification.
+
+#### Extraction identity
 
 Extraction identity contains sources, required variables and corrections performed during extraction.
 Non-default extraction settings select a separate store. Preparation-only pressure settings, and
 same-source elevation/lapse settings, do not change that store or its generator input identity.
+
 Scenario simulation compares extraction settings with the selected collection's archived creator settings
-and applies the current preparation settings. Non-default preparation records use version 3; retained
-version-2 records retain their original correction settings. Producer-code integrity remains part of
+and applies the current preparation settings. Non-default preparation records use version 3; saved
+version-2 records keep their original correction settings. Producer-code integrity remains part of
 scenario identity. Numerical backward comparisons therefore use equivalent fixed inputs and seeds.
+
+#### CHIRPS diagnostics
 
 CHIRPS diagnostics remain precipitation-only contributors even when their forcing stores borrow
 temperature/PET fields. Captions identify the companion or supplied-PET source when those fields are shown.
@@ -242,15 +275,18 @@ project:
 python scripts/run_workflows.py --config showcase/project_config.yml --reuse-data-from v2/outputs
 ```
 
-Sources are only read. A historical climate store is reused when its extraction record names the same
-extraction code, source, forcing set, hydrography entry, region geometry and catalog entries, and its
-data cover the requested window; the requested window is then sliced from it and has the content of a
-fresh extraction. Catalog entries are compared without the catalog root, but the shipped P-drive and
-local-mirror catalogs describe ERA5 and CHIRPS differently, so reuse works between trials that use the
-same catalog. Stores extracted before records existed, or by other extraction code, are never reused.
-A CMIP6 raw slice is reused when its recorded digest matches, including slices fetched before this
-feature. Each decision is logged by the extraction or fetch rule; reuse changes no rerun decision and no
-run identity.
+Sources are only read.
+
+- A historical climate store is reused when its extraction record names the same extraction code, source,
+  forcing set, hydrography entry, region geometry and catalog entries, and its data cover the requested
+  window; the requested window is then sliced from it and has the content of a fresh extraction.
+- Catalog entries are compared without the catalog root, but the shipped P-drive and local-mirror catalogs
+  describe ERA5 and CHIRPS differently, so reuse works between trials that use the same catalog.
+- Stores extracted before records existed, or by other extraction code, are never reused.
+- A CMIP6 raw slice is reused when its recorded digest matches, including slices fetched before this feature.
+
+Each decision is logged by the extraction or fetch rule; reuse changes no rerun decision and no run identity.
+
 ## Workflow settings
 
 Use the complete annotated starter files for supported optional fields and example values.
@@ -307,30 +343,42 @@ output:
       river_water__volume_flow_rate: discharge
 ```
 
+### Grid variables
+
 Keys under `variables` are installed Wflow-SBM standard names; values are unique lowercase
 snake_case NetCDF names. Coordinate names are reserved. Variables must exist in enabled model
 components and have a native writer-supported shape; admission occurs before timestepping.
 Native soil-layer dimensions are preserved. Empty mappings, unknown keys and user-specified
 paths reject. `compressionlevel` defaults to 1 and accepts integers 0–9, excluding booleans.
 
+### File contents
+
 Files follow the native simulation timestep, period and calendar, with interval-end labels.
 Snow depths are end-of-step storages in mm: dry-snow water equivalent and liquid water,
 respectively; neither is fractional snow cover. Discharge is the native timestep-average flow
-in m3/s. Other variables retain Wflow's own units and temporal meaning. Native values and masks
+in m3/s. Other variables keep Wflow's own units and temporal meaning. Native values and masks
 are written by Wflow; metadata adds units from its standard-name API and CRS from staticmaps.
 
 The [output guide](../guide/outputs.md#native-grids) gives the file locations. Open the files with xarray or
 GIS software. One file holds all requested variables, including native soil layers where present.
 
+### Storage
+
 Grid storage scales with rectangular cells × timesteps × variable layers × runs. The run command reports a
 conservative raw float64 estimate with no assumed compression saving and reserves space for saved grids and
 recovery copies. Compression is lossless but its benefit depends on the data.
 
-Changing historical grid variables requires rerunning the historical simulation; CSVs cannot reconstruct maps.
-Historical reruns replace their configured outputs, so archive completed cases that must be kept. Disabling
-output removes the declaration and preserves old files; an old file is not evidence that the current request
-produced a grid. Completed ensemble experiments freeze the request: use `--new-experiment` for a different
-request. Keep the complete experiment, including its inventory, when archiving grids.
+### Changes and archiving
+
+- Changing historical grid variables requires rerunning the historical simulation; CSVs cannot reconstruct
+  maps.
+- Historical reruns replace their configured outputs, so archive completed cases that must be kept.
+- Disabling output removes the declaration and preserves old files; an old file is not evidence that the
+  current request produced a grid.
+- Completed ensemble experiments freeze the request: use `--new-experiment` for a different request. Keep the
+  complete experiment, including its inventory, when archiving grids.
+
+### Grid checks
 
 Before they are written or reused on retry, grids must contain finite values on each variable's native
 support. Masked cells outside that support remain valid. Units, coordinates, CRS and layers are checked
