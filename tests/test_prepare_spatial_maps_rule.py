@@ -102,10 +102,11 @@ def model_workflow():
 def test_evaluation_changes_preserve_thematic_parameters(tmp_path, model_workflow):
     """Observation and figure settings must not rebuild the model foundation."""
     cfg = load_composed_config(CONFIG)
-    cfg["workflows"]["build_model"].update(
-        observations={"river discharge": "tests/data/new_observations.csv"},
-        plotting={"location": True},
-    )
+    # Observations live in the project file since t037.
+    cfg["observations"] = {
+        "river_discharge": {"path": "tests/data/new_observations.csv"}
+    }
+    cfg["workflows"]["build_model"]["plotting"] = {"location": True}
     changed = parse_workflow("build_model.smk", write_config(tmp_path, cfg))
     original_rule = model_workflow.get_rule("prepare_land_and_soil_maps")
     changed_rule = changed.get_rule("prepare_land_and_soil_maps")

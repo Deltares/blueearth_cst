@@ -41,7 +41,7 @@ from pathlib import Path
 import pytest
 
 from blueearth_cst.shared.config_composition import load_composed_config  # noqa: E402
-from tests.conftest import parse_workflow, write_config  # noqa: E402
+from tests.conftest import parse_workflow, set_forcings, write_config  # noqa: E402
 
 SNAKEDIR = Path(__file__).resolve().parents[1]
 CONFIG_FN = Path(__file__).resolve().parent / "project_config_fixture.yml"
@@ -485,9 +485,7 @@ def test_wf0_primary_source_rule_equals_the_shared_contract(tmp_path):
 def test_wf0_candidate_source_gets_its_own_store_and_family_outputs(tmp_path):
     """A comparison-only CHIRPS store carries no forcing-only sidecar."""
 
-    cfg = load_composed_config(CONFIG_FN)
-    assert cfg["climate"]["selected"] == "era5"
-    cfg["climate"]["sources"] = [cfg["climate"]["selected"], "chirps"]
+    cfg = set_forcings(load_composed_config(CONFIG_FN), ["era5", "chirps"])
     cfg_path = write_config(tmp_path, cfg, stem="project_config_two_sources")
 
     wf0 = _parse_workflow("analyze_climate.smk", cfg_path)
@@ -502,11 +500,10 @@ def test_wf0_candidate_source_gets_its_own_store_and_family_outputs(tmp_path):
     assert "/data/climate/historical/era5_" in era5_nc.replace("\\", "/")
     assert "/data/climate/historical/chirps_" in chirps_nc.replace("\\", "/")
 
-    # Neither source needs an orography sidecar for source comparison. A
-    # selected CHIRPS store still declares one for wf1/wf3 forcing.
-    assert not hasattr(era5.output, "oro_nc") or "oro_nc" not in era5.output.keys()
-    assert not hasattr(chirps.output, "oro_nc") or "oro_nc" not in chirps.output.keys()
-    assert chirps.params["forcing_required"] is False
+    # Every named forcing set may drive WF1 (t037 retired comparison-only
+    # candidates), so the CHIRPS set's store is forcing-ready with its sidecar.
+    assert "oro_nc" in chirps.output.keys()
+    assert "forcing_required" not in chirps.params.keys()
 
 
 def _store_producer(workflow, climate_nc):
@@ -566,15 +563,14 @@ def test_wf0_rejects_an_unsupported_candidate_source(tmp_path):
     name that does not say which config key put the source there.
     """
 
-    cfg = load_composed_config(CONFIG_FN)
-    cfg["climate"]["sources"] = [cfg["climate"]["selected"], "eobs"]
+    cfg = set_forcings(load_composed_config(CONFIG_FN), ["era5", "eobs"])
     cfg_path = write_config(tmp_path, cfg, stem="project_config_bad_source")
 
     with pytest.raises(Exception) as exc:
         _parse_workflow("analyze_climate.smk", cfg_path)
     message = str(exc.value)
     assert "eobs" in message
-    assert "climate.sources" in message or "sources" in message
+    assert "climate.forcings" in message
 
 
 # ---------------------------------------------------------------------------
@@ -634,17 +630,14 @@ def test_wf0_relaxes_the_floor_for_candidates_only(tmp_path):
     recorded and re-extracts it under the floor.
     """
 
-    cfg = load_composed_config(CONFIG_FN)
-    assert cfg["climate"]["selected"] == "era5"
-    cfg["climate"]["sources"] = [cfg["climate"]["selected"], "chirps"]
+    cfg = set_forcings(load_composed_config(CONFIG_FN), ["era5", "chirps"])
     cfg_path = write_config(tmp_path, cfg, stem="project_config_floor_split")
 
     wf0 = _parse_workflow("analyze_climate.smk", cfg_path)
-    primary = _wf0_rule(wf0, "era5")
-    candidate = _wf0_rule(wf0, "chirps")
-
-    assert "enforce_min_years" not in primary.params.keys()
-    assert candidate.params["enforce_min_years"] is False
+    # Named forcing sets only (t037): every set may drive WF1, so none relaxes
+    # the floor; the params stay as the default path wrote them.
+    for source in ("era5", "chirps"):
+        assert "enforce_min_years" not in _wf0_rule(wf0, source).params.keys()
 
 
 @pytest.mark.workflow_contract

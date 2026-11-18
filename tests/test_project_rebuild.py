@@ -404,7 +404,7 @@ def test_rebuild_refuses_wf4_without_its_producers(project, missing):
 
 def test_rebuild_refuses_indicators_only_before_erasure(project):
     settings = _write(
-        project.config.parent / "simulation.yml", "operations: [indicators]\n"
+        project.config.parent / "simulation.yml", "steps: {simulations: false}\n"
     )
     for name in ("build_model", "generate_scenarios", "simulate_system"):
         project.document["workflows"][name]["enabled"] = True

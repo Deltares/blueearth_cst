@@ -100,8 +100,8 @@ def test_a_dry_run_writes_nothing_and_a_stale_response_is_refused(tmp_path):
         yaml.safe_dump(
             {
                 "experiment_name": root.name,
-                "operations": ["indicators"],
-                "indicator_sets": ["default", "flow_regime"],
+                "steps": {"simulations": False},
+                "indicators": {"sets": ["default", "flow_regime"]},
             }
         ),
         encoding="utf-8",

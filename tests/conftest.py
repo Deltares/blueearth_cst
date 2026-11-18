@@ -224,6 +224,28 @@ _INTERNAL_CLIMATE = frozenset(
 )
 
 
+def set_forcings(cfg: dict, names, default: str | None = None) -> dict:
+    """Give a composed config one forcing set per dataset (the t037 form).
+
+    CHIRPS pairs with ERA5 temperature and PET; `default` defaults to the first.
+    """
+    climate = {k: v for k, v in cfg["climate"].items() if k not in _INTERNAL_CLIMATE}
+    climate.pop("forcings", None)
+    climate.pop("default_forcing", None)
+    forcings = {
+        name: {
+            "precip_source": name,
+            **({"temp_source": "era5"} if name != "era5" else {}),
+        }
+        for name in names
+    }
+    if forcings:
+        climate["forcings"] = forcings
+        climate["default_forcing"] = default or next(iter(forcings))
+    cfg["climate"] = climate
+    return cfg
+
+
 def public_climate(climate: dict) -> dict:
     """Invert composition's internal climate form into ``climate.forcings``.
 

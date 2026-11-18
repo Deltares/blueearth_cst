@@ -229,10 +229,11 @@ def _resolved_annotation_params(rule):
         ),
         (
             "build_model.smk",
+            # Named forcing sets (t037) give WF1 per-set rule names.
             {
                 "plot_basin_map",
-                "plot_model_forcing",
-                "plot_model_evaluation",
+                "plot_model_forcing_era5",
+                "plot_model_evaluation_era5",
             },
         ),
         ("analyze_projections.smk", {"plot_climate_projections"}),

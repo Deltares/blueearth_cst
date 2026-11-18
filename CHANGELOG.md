@@ -36,7 +36,7 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
   WF1 rule 1.15 and the forcing comparison rerun once. `config/defaults/weathergen_config.yml` is renamed
   `weathergenr_config.yml`; its path is part of the generation request, so a standalone simulate_system run
   is refused until generate_scenarios reruns and reuses the ready collection. With several WF1 forcing sets
-  the default `view: comparison` drops the per-run station figures. `basin.region` may now be written as a
+  the default `view: comparison` drops the per-run station figures. Every compared dataset is now a forcing set WF1 may simulate, so its historical store is forcing-ready (orography sidecar) and must meet the 16-year floor; the former comparison-only relaxation is gone. `basin.region` may now be written as a
   YAML mapping, and `create_case.py` scaffolds drop the starter's preamble comment.
 - WF1 evaluation outputs move into each recipe folder `models/hydrology/<model>/historical/<recipe>/`:
   figures under `plots/` (Budyko diagram under `plots/budyko/`), tables under `tables/`

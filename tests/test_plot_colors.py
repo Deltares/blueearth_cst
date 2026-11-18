@@ -254,7 +254,7 @@ def test_palette_and_workflow_contract_imports_stay_matplotlib_free():
         ),
         (
             "build_model.smk",
-            ["plot_model_evaluation", "plot_basin_map", "plot_model_forcing"],
+            ["plot_model_evaluation_era5", "plot_basin_map", "plot_model_forcing_era5"],
         ),
         ("analyze_projections.smk", ["plot_climate_projections"]),
     ],

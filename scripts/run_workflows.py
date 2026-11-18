@@ -1182,7 +1182,7 @@ def _validate_rebuild(
         _, settings = simulation_settings(config_path)
         if settings["operation"] == "indicators-only":
             raise ValueError(
-                "--rebuild cannot use indicators-only; enable simulations as retained responses will be erased"
+                "--rebuild cannot use indicators-only; set steps.simulations: true, because retained responses will be erased"
             )
         simulation_command(
             config_path, list(simulation_targets), cores, extra, prepare_baseline=False

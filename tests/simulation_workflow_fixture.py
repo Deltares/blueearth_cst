@@ -75,7 +75,7 @@ def parse_simulation_workflow(
         + (
             "operation: simulate-and-indicators\n"
             if include_unperturbed
-            else "operations: [simulations]\ninclude_unperturbed: false\n"
+            else "steps: {indicators: false}\ninclude_unperturbed: false\n"
         )
         + (yaml.safe_dump({"compute": compute}) if compute else ""),
         encoding="utf-8",

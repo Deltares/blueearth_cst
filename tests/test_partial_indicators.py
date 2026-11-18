@@ -253,12 +253,12 @@ def test_cli_partial_run_succeeds_with_warning_and_strict_refuses(experiment, ex
             yaml.safe_dump(
                 {
                     "experiment_name": built.root.name,
-                    "operations": ["indicators"],
-                    "indicator_sets": ["crop-water"],
-                    "indicator_set_definitions": {
-                        "crop-water": {"config_path": source.name}
+                    "steps": {"simulations": False},
+                    "indicators": {
+                        "sets": ["crop-water"],
+                        "custom_sets": {"crop-water": source.name},
+                        "evaluation": evaluation,
                     },
-                    "indicator_evaluation": evaluation,
                 }
             ),
             encoding="utf-8",
@@ -285,7 +285,7 @@ def test_cli_partial_run_succeeds_with_warning_and_strict_refuses(experiment, ex
     strict = run("strict")
     assert strict.returncode != 0
     assert "summer_low_flow_days" in strict.stdout + strict.stderr
-    assert "indicator_evaluation: partial" in strict.stdout + strict.stderr
+    assert "indicators.evaluation: partial" in strict.stdout + strict.stderr
     partial = run("partial", *(() if execute else ("--dry-run",)))
     assert partial.returncode == 0, partial.stdout + partial.stderr
     if not execute:
