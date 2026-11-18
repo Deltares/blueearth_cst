@@ -17,7 +17,7 @@ Complete the [installation guide](install.md) and try the [Quick start](quick-st
 The supplied starter provides settings and input templates. You must arrange access to the datasets:
 the default catalog uses the Deltares P-drive, and CMIP6 analysis also needs internet access.
 
-## 1. Create the case files {#create-the-case-files}
+## Create the case files {#create-the-case-files}
 
 Open PowerShell in the [toolbox folder](glossary.md#toolbox-folder), `blueearth_cst`. Choose a folder for your
 cases, replacing `C:/cst-cases` below:
@@ -95,7 +95,7 @@ files below. Pass `project_config.yml` to the [run command](glossary.md#run-comm
 The commented case files and [technical reference](../technical-manual/configuration.md) cover
 settings beyond the key choices below.
 
-## 2. Define the catchment and data sources {#define-the-catchment-and-data-sources}
+## Define the catchment and data sources {#define-the-catchment-and-data-sources}
 
 Open `project_config.yml`. The case-creation command has filled in your outlet and paths.
 Use `--catalog` during creation to select a different data catalog.
@@ -112,13 +112,14 @@ Each item below is one decision in `project_config.yml`.
    reach, not a target catchment area. Choose the grid spacing in degrees; a finer grid adds no detail that
    the source datasets lack. Check that the names under `basin.sources` exist in your catalog.
 3. **[Historical forcing](glossary.md#historical-forcing)** (`climate.forcings`, `climate.default_forcing`):
-   declare one set per candidate dataset, compare them in [section 4](#check-historical-climate-data), then
-   name your choice in `climate.default_forcing`. The choice also conditions weather generation, and the
-   toolbox does no local calibration.
+   declare one set per candidate dataset, compare them in
+   [Check historical climate data](#check-historical-climate-data), then name your choice in
+   `climate.default_forcing`. The choice also conditions weather generation, and the toolbox does no local
+   calibration.
 4. **[Climate window](glossary.md#climate-window)** (`climate.window`): the historical years to extract;
    see the [period guidance below](#keep-the-analysis-periods-consistent).
 5. **Model outputs** (`model.outvars`): include every variable your indicators need
-   ([section 5](#choose-indicators)).
+   ([Simulations and indicators](#choose-indicators)).
 6. **Workflow selection** (`workflows`, `workflow_configs`): set a workflow's switch to `true` to run it.
    `false` skips it without deleting its results; check that those results still suit your settings before
    reusing them.
@@ -149,7 +150,7 @@ resolved coordinates in `data/spatial/location_registry.csv` in the output direc
 tolerance. See [location matching](../technical-manual/input-formats.md) for the matching rules and
 observation records.
 
-## 3. Set analysis periods {#keep-the-analysis-periods-consistent}
+## Set analysis periods {#keep-the-analysis-periods-consistent}
 
 The historical climate record, model run, projection windows and generated scenarios serve different
 purposes; they do not need identical dates.
@@ -162,7 +163,7 @@ purposes; they do not need identical dates.
 
 Align projection and scenario periods when making a like-period plausibility comparison.
 
-## 4. Check historical climate data
+## Check historical climate data
 
 Run historical climate analysis, the only workflow the starter enables, to check coverage and seasonal
 patterns before choosing the forcing for your assessment. From the `blueearth_cst` folder, run:
@@ -203,16 +204,16 @@ side-by-side comparison in `data/climate/historical/source_comparison/` in the o
 See [Meteorological data](../technical-manual/historical-meteorological-data.md#checks-before-assessment) for
 the checks per dataset.
 
-## 5. Prepare the remaining workflows {#set-workflow-parameters}
+## Prepare the remaining workflows {#set-workflow-parameters}
 
 Enable the workflows you need and review their settings below. Model building and scenario generation
 must finish before running hydrological simulations with the generated scenarios.
 
 ### Hydrological model
 
-Set `run_period` in `project_config_build_model.yml` to water years within the climate window. The forcing
-and the model variables to save are set in the shared [project file](glossary.md#project-file)
-([section 2](#set-the-shared-assessment-choices)).
+Set `run_period` in `project_config_build_model.yml` to water years within the climate window. The forcing and
+the model variables to save are set in the shared [project file](glossary.md#project-file)
+([Shared assessment choices](#set-the-shared-assessment-choices)).
 
 ### Climate projections
 
@@ -271,7 +272,8 @@ Set the temperature and precipitation ranges over a span you can justify for the
 [From climate stresses to system vulnerabilities](../site/scientific-approach/system-vulnerabilities.qmd).
 Projection analysis then shows where projected changes for the basin fall relative to the grid, as context for
 judging plausibility. It does not set the grid, and the grid may deliberately extend beyond the projections.
-For a like-period comparison, align the periods as in [section 3](#keep-the-analysis-periods-consistent).
+For a like-period comparison, align the periods as in
+[Set analysis periods](#keep-the-analysis-periods-consistent).
 
 ### Simulations and indicators {#choose-indicators}
 
@@ -305,7 +307,7 @@ required thresholds or observations. To calculate indicators from saved simulati
 Rerun the command above after updating your settings. See [Running the workflows](running.md)
 for execution options and recovery.
 
-## 6. Review and record the results
+## Review and record the results
 
 - **Check the run:** open the summary named in the closing message and review outcomes and warnings.
 - **Inspect the results:** use the [outputs guide](outputs.md) to find maps and diagnostics, and

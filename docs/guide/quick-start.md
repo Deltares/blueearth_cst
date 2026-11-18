@@ -22,7 +22,7 @@ commands below in PowerShell from the `blueearth_cst` folder created during inst
 on downloads, data access and your computer's capacity. You will also need disk space for the model,
 climate series and simulation outputs.
 
-## 1. Understand what the example runs
+## Understand what the example runs
 
 The example runs all five [workflows](glossary.md#workflow). The table shows what each one gives you and what
 it needs, so that later you can run only the workflows your question requires. The toolbox prepares the shared
@@ -43,7 +43,7 @@ reuses them while their inputs are unchanged.
 when their required inputs are available. Hydrological simulations need a prepared model and generated
 scenarios.
 
-## 2. Run the example
+## Run the example
 
 The supplied configuration covers an approximately 220 km² catchment east of Libreville, Gabon.
 It uses ERA5 data from 2000–2016 to generate two weather realizations across a 2 × 2
@@ -73,7 +73,7 @@ outcome and any warnings; follow the log links if something needs investigation.
 Successful execution confirms that the example ran. Suitability for a real assessment needs further
 evaluation.
 
-## 3. Explore the results
+## Explore the results
 
 Outputs are saved under `test_case/test_rapid/`:
 
