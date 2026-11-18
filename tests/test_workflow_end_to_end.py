@@ -38,11 +38,18 @@ from blueearth_cst.shared.config_paths import (
 from blueearth_cst.shared.project_workflows import normalize_project_workflows
 from dev.scripts.local_e2e_bundle import RAW_NAMES, verify_bundle
 
-pytestmark = pytest.mark.usefixtures("isolated_snakemake")
+pytestmark = pytest.mark.usefixtures("isolated_wflow")
 
 
 REPO = Path(__file__).resolve().parents[1]
 CONFIG = REPO / "test_case" / "project_config_rapid.yml"
+
+
+@pytest.fixture
+def isolated_wflow(isolated_snakemake: Path) -> None:
+    """Provide the locked Julia project in Snakemake's working directory."""
+    for name in ("Project.toml", "Manifest.toml"):
+        shutil.copyfile(REPO / name, isolated_snakemake / name)
 
 
 def _catalog_root():
@@ -157,10 +164,6 @@ def test_local_config_catalogs_have_only_the_bundle_root(tmp_path):
 def _run_and_assert_all_five(
     project: Path, config: Path, log: Path, *, local_inputs: bool = False
 ) -> None:
-    from blueearth_cst.experiment.indicator_plan import read_indicator_set
-    from blueearth_cst.experiment.scenario_collection_v2 import read_collection_v2
-    from blueearth_cst.experiment.simulation_record import read_simulation_v2
-
     environment = os.environ.copy()
     if local_inputs:
         environment["BLUEEARTH_CST_LOCAL_INPUTS"] = "1"
@@ -189,11 +192,19 @@ def _run_and_assert_all_five(
         )
     output = log.read_text(encoding="utf-8", errors="replace")
     assert result.returncode == 0, output[-6000:]
+    _assert_all_five_outputs(project, config)
+
+
+def _assert_all_five_outputs(project: Path, config: Path) -> None:
+    from blueearth_cst.experiment.indicator_plan import read_indicator_set
+    from blueearth_cst.experiment.scenario_collection_v2 import read_collection_v2
+    from blueearth_cst.experiment.simulation_record import read_simulation_v2
 
     # WF0 builds one historical store per compared source and compares them;
     # WF1 forces from the selected source's store and runs Wflow.
     historical = project / "data/climate/historical"
-    selected = yaml.safe_load(config.read_text(encoding="utf-8"))["climate"]["selected"]
+    climate = yaml.safe_load(config.read_text(encoding="utf-8"))["climate"]
+    selected = climate["forcings"][climate["default_forcing"]]["precip_source"]
     assert _one(historical.glob(f"{selected}_*/extract_historical.nc"))
     with xr.open_dataset(
         _one(historical.glob("chirps_*/extract_historical.nc"))
@@ -201,14 +212,14 @@ def _run_and_assert_all_five(
         assert chirps.time.size == 6210
         assert str(chirps.time.values[0])[:10] == "2000-01-01"
         assert str(chirps.time.values[-1])[:10] == "2016-12-31"
-    assert (historical / "comparison/dataset_comparison.csv").stat().st_size > 0
+    assert (historical / "source_comparison/dataset_comparison.csv").stat().st_size > 0
     discharge = project / "models/hydrology/wflow/historical/default/run/output_q.csv"
     assert discharge.stat().st_size > 0
     # WF2: the CMIP6 change factors.
     annual = project / "data/climate/projections/cmip6/summary"
     assert (annual / "cmip6_change_factors_annual.csv").stat().st_size > 0
     # WF3: one ready scenario collection, read back by the production reader.
-    marker = _one(project.glob("scenarios/_engine/collections/*/collection.json"))
+    marker = _one(project.glob("scenarios/*/_engine/collection.json"))
     assert read_collection_v2(marker)["status"] == "ready"
     # WF4: a ready simulation and one published, readable indicator set.
     # The rapid config chooses a family; a fresh root gets its first number.
