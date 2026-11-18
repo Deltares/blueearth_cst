@@ -182,9 +182,9 @@ Rapid and baseline both simulate nine years (2046–2054) and request 40 generat
 (`compute_nr_years(2054, 2016)`). Rapid has a 2 × 2 perturbation grid plus `st_0` (10 members);
 baseline has 2 × 3 plus `st_0` (14). Rapid keeps the unperturbed member needed by two class-C monthly
 indicators and two CMIP6 models for ensemble reduction; `wf2_fast` gives up coverage. To alter
-generated length, change `simulation_window.end`, not its start: the series spans from the end of
+generated length, change `future_period.end`, not its start: the series spans from the end of
 `climate.window` to that end plus two years. Keep the simulation window within a projection
-`future_windows` entry; alignment is calculated separately.
+`future_periods` entry; alignment is calculated separately.
 
 Record the baseline only from the baseline config; never point `check_baseline.py` at rapid. Its
 `check` exits 0 for matched targets, 1 for differences and **2 for no comparison** (empty scope or

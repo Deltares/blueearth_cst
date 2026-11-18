@@ -71,7 +71,7 @@ def _write_cfg(path, flags, project_dir=None):
         "project:",
         f"  project_dir: {project_dir}",
         "climate:",
-        "  sources: [era5]",
+        "  forcings: {era5: {precip_source: era5}}",
         "workflows:",
     ]
     for name in rw.WORKFLOW_ORDER:
@@ -171,14 +171,12 @@ def _q90_config(tmp_path, *, build_model=True):
     workflow.write_text(
         yaml.safe_dump(
             {
-                "operations": ["simulations", "indicators"],
+                "steps": {"simulations": True, "indicators": True},
                 "experiment_name": "test",
-                "indicator_sets": ["crop-water"],
-                "indicator_set_definitions": {
-                    "crop-water": {"config_path": "crop-water-q90.yml"}
-                },
-                "indicator_selection": {
-                    "crop-water": {"include": ["summer_low_flow_days"]}
+                "indicators": {
+                    "sets": ["crop-water"],
+                    "custom_sets": {"crop-water": "crop-water-q90.yml"},
+                    "subset": {"crop-water": ["summer_low_flow_days"]},
                 },
             }
         ),
@@ -248,13 +246,12 @@ def _inline_q90_config(tmp_path):
 
     path = tmp_path / "q90-project-simulation.yml"
     settings = yaml.safe_load(path.read_text())
-    settings.pop("indicator_set_definitions")
-    settings["indicator_sets"] = [
-        {
-            "set": "crop-water",
-            "summer_low_flow_days": {"thresholds": {"baseline_quantile": {}}},
+    settings["indicators"].pop("custom_sets")
+    settings["indicators"]["options"] = {
+        "crop-water": {
+            "summer_low_flow_days": {"thresholds": {"baseline_quantile": {}}}
         }
-    ]
+    }
     path.write_text(yaml.safe_dump(settings), encoding="utf-8")
 
 
@@ -271,8 +268,8 @@ def test_inline_duplicate_indicator_keys_are_not_silently_overwritten(
     path = tmp_path / "q90-project-simulation.yml"
     path.write_text(
         path.read_text().replace(
-            "  summer_low_flow_days:",
-            "  summer_low_flow_days: {}\n  summer_low_flow_days:",
+            "      summer_low_flow_days:",
+            "      summer_low_flow_days: {}\n      summer_low_flow_days:",
         ),
         encoding="utf-8",
     )
@@ -441,11 +438,14 @@ def test_missing_forcing_choice_allows_comparison_but_stops_before_model(
     )
     cfg.write_text(
         "schema_version: 3\nbasin:\n  region: {bbox: [9, 0, 10, 1]}\n"
-        + cfg.read_text().replace("sources: [era5]", "sources: [era5, chirps]"),
+        + cfg.read_text().replace(
+            "forcings: {era5: {precip_source: era5}}",
+            "forcings: {era5: {precip_source: era5}, chirps: {precip_source: chirps}}",
+        ),
         encoding="utf-8",
     )
     monkeypatch.setattr(rw, "_consumer_forcing_rows", CONSUMER_FORCING_ROWS)
-    with pytest.raises(ValueError, match="precip_source is required"):
+    with pytest.raises(ValueError, match="default_forcing is required"):
         rw.run(str(cfg), cores=1, extra=[])
     assert _snakefiles_invoked(calls) == ["analyze_climate.smk"]
     assert not (tmp_path / "project/experiments").exists()
@@ -600,7 +600,7 @@ def test_missing_enabled_key_errors(tmp_path):
     )
     with pytest.raises(rw.ConfigError) as exc:
         rw.read_enabled_flags(str(cfg))
-    assert "simulate_system.enabled" in str(exc.value)
+    assert "'workflows.simulate_system' (true or false)" in str(exc.value)
     # And the CLI surfaces it as a nonzero exit.
     rc = rw.main(["--config", str(cfg)])
     assert rc != 0
@@ -627,7 +627,7 @@ def test_non_bool_enabled_rejected(tmp_path, bad):
     _write_cfg(cfg, flags)
     with pytest.raises(rw.ConfigError) as exc:
         rw.read_enabled_flags(str(cfg))
-    assert "build_model.enabled" in str(exc.value)
+    assert "'workflows.build_model' must parse to a" in str(exc.value)
 
 
 @pytest.mark.parametrize("spelling", ["yes", "on", "true", "True"])
@@ -1914,14 +1914,14 @@ def test_indicators_without_a_simulation_report_recovery(
         },
     )
     (tmp_path / "project-simulation.yml").write_text(
-        "experiment_name: test\noperations: [indicators]\nindicator_sets: [default]\n",
+        "experiment_name: test\nsteps: {simulations: false}\nindicators: {sets: [default]}\n",
         encoding="utf-8",
     )
     assert rw.main(["--config", str(cfg), *extra]) == 2
     error = capsys.readouterr().err
     assert "No completed simulation" in error
     assert "test" in error and "_engine" in error and "simulation.json" in error
-    assert "operations: [simulations, indicators]" in error
+    assert "steps.simulations: true" in error
     assert "Traceback" not in error
     assert not (tmp_path / "project/experiments").exists()
     assert capture_runs[0] == []

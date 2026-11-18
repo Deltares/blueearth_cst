@@ -33,9 +33,8 @@ Native Wflow CSVs remain unchanged; derived table locations use resolved `wflow_
 
 ## Observed time series
 
-Model building `observations` associates a configured `model.outvars` variable with an observation file.
-The current historical model evaluation uses `river discharge` only. Other configured observation variables
-are reported as unused; declaring them does not add an evaluation calculation.
+The project file's [`observations.river_discharge`](configuration.md#observations) supplies observed
+discharge for model evaluation; `river discharge` must be in `model.outvars`.
 Locations must exist when observations are supplied. The
 [discharge-observation format](data-formats-and-conventions.md#discharge-observations) defines the
 delimiter, timestamps, station columns and units. Every user-supplied control and observation location

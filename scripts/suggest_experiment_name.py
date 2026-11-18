@@ -26,14 +26,27 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     try:
-        project = yaml.safe_load(args.config.read_bytes())
         from blueearth_cst.shared.config_paths import resolve_project_paths
+        from blueearth_cst.shared.project_workflows import normalize_project_workflows
 
+        project = normalize_project_workflows(
+            yaml.safe_load(args.config.read_bytes()), args.config
+        )
         project = resolve_project_paths(project, args.config)
         root = Path(project["project"]["project_dir"]).resolve()
         stanza = project["workflows"]["simulate_system"]
-        workflow = yaml.safe_load(
-            (args.config.resolve().parent / stanza["config_path"]).read_bytes()
+        from blueearth_cst.shared.config_composition import (
+            internal_simulation_settings,
+            normalize_indicator_settings,
+        )
+
+        workflow = internal_simulation_settings(
+            normalize_indicator_settings(
+                yaml.safe_load(
+                    (args.config.resolve().parent / stanza["config_path"]).read_bytes()
+                )
+                or {}
+            )
         )
         selected = preview_experiment(
             root,

@@ -15,6 +15,7 @@ from blueearth_cst.shared.configuration_archive import (
     maintenance_report,
     snapshot_source,
 )
+from blueearth_cst.shared.project_workflows import normalize_project_workflows
 from blueearth_cst.shared.workflow_config_snapshot import (
     CapturedSource,
     capture_rerun_predecessor,
@@ -33,7 +34,9 @@ ROOT = Path(__file__).resolve().parents[1]
 @pytest.fixture
 def case(tmp_path, monkeypatch):
     project = resolve_project_paths(
-        yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_bytes()),
+        normalize_project_workflows(
+            yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_bytes())
+        ),
         ROOT / "test_case/project_config_rapid.yml",
     )
     output = tmp_path / "output"

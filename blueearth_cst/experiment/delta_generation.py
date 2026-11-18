@@ -216,10 +216,10 @@ def capture_delta(
     config_path = config_path.resolve(strict=True)
     project_bytes = config_path.read_bytes()
     project = parse_yaml_document(project_bytes)
+    from blueearth_cst.shared.project_workflows import workflow_config_path
+
     source = Path(
-        resolve_path(
-            project["workflows"]["generate_scenarios"]["config_path"], config_path
-        )
+        resolve_path(workflow_config_path(project, "generate_scenarios"), config_path)
     ).resolve(strict=True)
     source_bytes = source.read_bytes()
     config, _ = compose_config(

@@ -30,6 +30,7 @@ from blueearth_cst.shared.config_composition import (
     capture_configuration_sources,
     compose_captured_config,
     compose_config,
+    public_workflow_section,
 )
 from blueearth_cst.shared.config_paths import TOOLBOX_ROOT
 from blueearth_cst.shared.configuration_archive import (
@@ -41,6 +42,7 @@ from blueearth_cst.shared.configuration_archive import (
     same_configuration,
     write_config_readme,
 )
+from blueearth_cst.shared.project_workflows import normalize_project_workflows
 from blueearth_cst.shared.provenance import (
     environment_file_hashes,
     short_digest,
@@ -280,6 +282,16 @@ def _execution_climate_config(climate: Mapping[str, Any]) -> dict[str, Any]:
         forcing["temp_source"] = forcing.pop("temp_pet_source")
     if forcing or "forcing" in result:
         result["forcing"] = forcing
+    if isinstance(result.get("forcings"), Mapping):
+        result["forcings"] = {
+            name: {
+                ("temp_source" if key == "temp_pet_source" else key): value
+                for key, value in body.items()
+            }
+            if isinstance(body, Mapping)
+            else body
+            for name, body in result["forcings"].items()
+        }
     return result
 
 
@@ -404,6 +416,7 @@ def prepare_workflow(
     project_document = _replace_paths(yaml.safe_load(initial[0].data), replacements)
     if overrides:
         project_document.update(_replace_paths(dict(overrides), replacements))
+    project_document = normalize_project_workflows(project_document)
     declared_climate = project_document.get("climate")
     if composed.get("schema_version") == 3:
         # Resolve against the original declarations BEFORE relocating execution
@@ -416,10 +429,13 @@ def prepare_workflow(
             workflow: {"enabled": composed["workflows"][workflow]["enabled"]}
         }
         if workflow_source is not None:
+            # Project-file settings stay in the project document.
             workflow_document = _replace_paths(
                 {
                     key: value
-                    for key, value in composed["workflows"][workflow].items()
+                    for key, value in public_workflow_section(
+                        workflow, composed["workflows"][workflow]
+                    ).items()
                     if key != "enabled"
                 },
                 replacements,
@@ -697,12 +713,14 @@ def _run_workflow_started(
     record: dict[str, Any],
 ) -> int:
     config_path = Path(project_config).resolve()
-    project = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    project = normalize_project_workflows(
+        yaml.safe_load(config_path.read_text(encoding="utf-8")), config_path
+    )
     runtime_dir = TOOLBOX_ROOT if project.get("schema_version") == 3 else Path.cwd()
     if project.get("workflows", {}).get(workflow, {}).get("enabled") is False:
         raise ValueError(
             f"Workflow {workflow} is disabled in {config_path}. "
-            f"Set workflows.{workflow}.enabled to true in that "
+            f"Set workflows.{workflow} to true in that "
             "project configuration file, then rerun the command."
         )
     overrides, forwarded = (

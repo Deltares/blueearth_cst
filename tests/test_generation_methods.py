@@ -30,7 +30,7 @@ def test_nested_stochastic_composes_exactly_like_legacy(tmp_path):
     flat = {
         "seed": 42,
         "n_realizations": 2,
-        "simulation_window": {"start": 2000, "end": 2001},
+        "future_period": {"start": 2000, "end": 2001},
     }
     path = write_split(
         tmp_path, sections={}, bodies={"generate_scenarios": flat}, schema_version=3
@@ -86,7 +86,10 @@ def test_explicit_delta_reservation_capture_does_not_plan_stochastic(
     catalog = tmp_path / "catalog.yml"
     catalog.write_text("{}\n")
     project["project"]["catalog"] = [str(catalog)]
-    project["climate"] = {"selected": "era5", "window": {"start": 2000, "end": 2000}}
+    project["climate"] = {
+        "forcings": {"era5": {"precip_source": "era5"}},
+        "window": {"start": 2000, "end": 2000},
+    }
     project["workflows"]["simulate_system"] = {
         "enabled": True,
         "config_path": "simulation.yml",
@@ -115,14 +118,16 @@ def v3_project(tmp_path, monkeypatch, *, name=None):
 
     (tmp_path / "wf2").mkdir(parents=True)
     project_root, *_ = wf2_project(tmp_path / "wf2", monkeypatch)
-    body = wf2_settings(**({"name": name} if name else {}))
+    from blueearth_cst.shared.generation_config import public_delta_settings
+
+    # Authored (t037) form of the fixture's delta-change/3 settings.
+    body = public_delta_settings(wf2_settings(**({"name": name} if name else {})))
     path = write_split(
         tmp_path,
         sections={
             "basin": {"region": "{'bbox': [0.0, 0.0, 1.0, 1.0]}"},
             "climate": {
-                "sources": ["era5"],
-                "selected": "era5",
+                "forcings": {"era5": {"precip_source": "era5"}},
                 "window": {"start": 1980, "end": 2010},
             },
         },
@@ -381,3 +386,33 @@ def test_runner_delta_failure_does_not_launch_wf4(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="injected delta publication failure"):
         run_workflows.run(str(path), 1, [])
     assert observed == [True]
+
+
+def test_authored_delta_settings_compose_to_the_former_hashed_shape():
+    from blueearth_cst.shared.generation_config import (
+        internal_delta_settings,
+        public_delta_settings,
+    )
+
+    authored = {
+        "future_periods": ["mid"],
+        "scale_pet": True,
+        "dry_reference": {"policy": "refuse"},
+    }
+    internal = internal_delta_settings(authored)
+    assert internal == {
+        "schema_version": "delta-change/3",
+        "projections": {"ensemble": "cmip6", "future_windows": ["mid"]},
+        "pet": {"mode": "projection_ratio"},
+        "dry_reference": {"policy": "refuse"},
+    }
+    assert public_delta_settings(internal) == {
+        "schema_version": "delta-change/3",
+        **authored,
+    }
+    assert internal_delta_settings({}) == {
+        "schema_version": "delta-change/3",
+        "projections": {"ensemble": "cmip6"},
+    }
+    with pytest.raises(ValueError, match="replaced"):
+        internal_delta_settings({"projections": {"ensemble": "cmip6"}})

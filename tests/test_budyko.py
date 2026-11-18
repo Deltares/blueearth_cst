@@ -36,7 +36,7 @@ def test_invalid_settings(value):
 
 
 def test_enabled_requires_observations():
-    with pytest.raises(ValueError, match="observations.river discharge"):
+    with pytest.raises(ValueError, match="observations.river_discharge"):
         budyko_settings(
             {"discharge_statistic": "daily_mean", "time_label": "interval_end"}, None
         )

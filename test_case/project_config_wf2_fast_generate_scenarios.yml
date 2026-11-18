@@ -2,7 +2,7 @@
 
 n_realizations: 2
 
-simulation_window:
+future_period:
   start: 2070
   end: 2090
 

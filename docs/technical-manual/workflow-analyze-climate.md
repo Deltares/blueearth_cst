@@ -26,45 +26,50 @@ extraction requires overlap between the source record and that period.
 | Setting | Purpose |
 |---|---|
 | `basin.region`, `basin.resolution` | Basin extent and analysis resolution. |
-| `climate.sources` | Candidate historical datasets to analyze. |
-| `climate.forcing.precip_source` | Used by downstream forcing consumers; not required for comparisons. |
+| `climate.forcings` | Forcing sets; each dataset they use is analyzed once per variable. |
+| `climate.default_forcing` | Used by downstream forcing consumers; not required for comparisons. |
 | `climate.window` | Requested historical period. |
 | `climate.water_year_start` | Month that begins the reporting year. |
+| `climate.seasons` | Seasons for climate indices; default DJF, MAM, JJA, SON; `{}` for annual only. |
+| `climate.map_reference` | Missing-day tolerances, shared with the map reference; default 3 per month, 15 per year. |
 
 **Workflow settings** control the diagnostics and optional subbasin figures. The annotated template is
 `config/templates/example-basin/project_config_analyze_climate.yml`.
 
 | Setting | Purpose |
 |---|---|
-| `diagnostics.reference_period` | Reference water years for anomalies and SPI fitting. |
+| `diagnostics.reference_period` | Reference water years for anomalies, SPI fitting and climate indices. |
 | `diagnostics.comparison_period` | Requested period for comparing sources. |
-| `diagnostics.annual_spatial_anomalies` | Native-grid annual P/T departure panels; default `false`. |
-| `diagnostics.max_missing_days_month` | Allowed missing days per month; default 3. |
-| `diagnostics.max_missing_days_year` | Allowed missing days per water year; default 15. |
 | `diagnostics.wet_day_threshold_mm` | Wet-day threshold; default 1 mm/day. |
 | `diagnostics.spi_distribution` | SPI distribution: `gamma` (default) or `pearson3`. |
-| `plotting.comparison` | Render basin comparison figures; default `true`. |
-| `plotting.source` | Include individual-source copies of comparison figures; default `false`. |
-| `plotting.location` | Render reporting-location and upstream-subbasin figures; default `false`. |
+| `plotting.view` | `comparison` (default) overlays datasets; `individual` draws one figure per dataset; `both` draws both. |
+| `plotting.scales` | `[basin]` (default) or `[basin, locations]` to add reporting-location and upstream-subbasin figures. |
+| `plotting.annual_anomaly_maps` | Native-grid annual P/T departure panels; default `false`. |
 
 The reference period defaults to the climate window, and the comparison period defaults to the
-reference period. Missing-day tolerances must match the project settings in `climate.map_reference`.
+reference period. Since t037 the missing-day tolerances come from `climate.map_reference`, seasons from
+`climate.seasons`, and the precipitation–temperature diagnostics always use ERA5 temperature;
+`max_missing_days_*`, `climate_indices.seasons`, `climate_indices.reference_period` and
+`pt_temperature_source` in this file are refused.
 See [execution and run management](configuration-and-execution.md) for running the workflow.
 
 Basin-average comparison figures and unique source maps remain on by default. With multiple sources,
 individual-source figures duplicating those comparisons are omitted. A comparison includes temperature
 when at least one source provides it; its legend identifies the contributing source. Unique source-specific
-precipitation–temperature relationships remain. With one source, or comparison figures disabled, source
-basin diagnostics remain on. Set `plotting.source: true` to restore individual-source copies.
+precipitation–temperature relationships remain. With one source, or `view: individual`, source
+basin diagnostics remain on. Set `view: both` to add individual-source copies of the comparisons.
 
-Location and upstream-subbasin figures share `plotting.location`. Its default `false` preserves comparison
-data and numerical tables. These figure switches accept booleans only and leave existing disabled PNGs
-untouched; title and caption inventories describe the figures selected for the current run.
+Location and upstream-subbasin figures need `locations` in `plotting.scales`. Comparison data and numerical
+tables, including subbasin tables, are computed either way. Basin-scale figures always render, so
+`scales` must include `basin`. Changing these settings leaves existing disabled PNGs untouched; title
+and caption inventories describe the figures selected for the current run. Since t037,
+`plotting.comparison`, `.source` and `.location` and `diagnostics.annual_spatial_anomalies` are refused
+with their replacements.
 
 These switches belong under `plotting:` in this workflow's YAML; shared `plotting.annotation` stays in
-the project YAML. Old `source_figures`, `location_figures` and `subbasin_figures` are accepted with
-deprecation warnings. The latter two both map to `plotting.location`; conflicting declarations are errors.
-Unknown keys and nonboolean switches are rejected. Comparison filenames omit the `comparison_` prefix.
+the project YAML. Old top-level `source_figures`, `location_figures` and `subbasin_figures` are still accepted with
+deprecation warnings (`view: both` and `locations`); conflicting declarations are errors. Unknown keys
+are rejected. Comparison filenames omit the `comparison_` prefix.
 Machine-readable figure inventories live under the dataset's `_engine/plots/`, with an `indices/`
 subfolder for index metadata; readable title/caption Markdown stays beside the figures. Older retained
 metadata remains readable in place.
@@ -147,21 +152,22 @@ layout after writing the replacement figures directly under `plots/`.
 
 ### Compare daily rain gauges {#rain-gauges}
 
-Optionally set `rain_gauges` in the historical analysis YAML:
+Optionally set `observations.met_stations` in the project file:
 
 ```yaml
-rain_gauges:
-  stations_path: data/rain_gauge_stations.csv
-  precip_path: data/rain_gauge_precip.csv
-  time_label: interval_end
+observations:
+  met_stations:
+    stations_path: data/rain_gauge_stations.csv
+    precip_path: data/rain_gauge_precip.csv
+    time_label: interval_end
 ```
 
 Omission or `null` disables observation input; gridded per-location comparison calculations still run when
-multiple candidates are selected. Their figures require `plotting.location: true`. A populated mapping
+multiple candidates are selected. Their figures require `plotting.scales: [basin, locations]`. A populated mapping
 requires these three fields and accepts optional `temp_path`.
 That CSV uses the same `time` and station-ID columns for daily mean temperature in degrees Celsius;
 negative temperatures are valid. It uses the same time-label declaration as precipitation.
-Schema 3 resolves paths beside that YAML; schema 2 keeps its existing invocation-relative base.
+Schema 3 resolves paths beside the project file; schema 2 keeps its existing invocation-relative base.
 The station CSV requires `id,x,y`, with optional display `name` and elevation `elevtn` (metres).
 IDs are unique nonempty strings, including leading zeros. Coordinates are finite WGS84 longitude and
 latitude in degrees. Elevation is metadata only. The precipitation CSV has `time` followed by literal
@@ -206,8 +212,8 @@ data/climate/historical/source_comparison/
 
 The basin-average view compares gridded basin means. The location view replaces the former comparison
 `plots/subbasins/`: each dataset is sampled at the original coordinates of every declared spatial location
-and rainfall-gauge site. These are native-cell values, not subbasin averages. The `plotting.location` switch
-continues to control optional area-average diagnostics inside individual source stores.
+and rainfall-gauge site. These are native-cell values, not subbasin averages. `plotting.scales` continues to control the optional area-average figures inside individual source
+stores.
 
 The location tables are long tables keyed by `location_id`; `annual` and `monthly` add a `variable`
 column (`precip` with `total_mm`, `temp` with `mean_degC`), and `agreement` a `scope` column (`daily`,
@@ -275,8 +281,8 @@ for each source. The main outputs are:
   Location tables under `tables/locations/` (one row set per `location_id`) and figures under
   `plots/locations/<id>/` include
   observations when available; `locations.csv` indexes every site.
-- **Subbasin results (`tables/subbasins/` and `plots/subbasins/`).** Additional tables and figures when
-  `plotting.location: true`. Basin maps show subbasin outlines regardless of this setting.
+- **Subbasin results (`tables/subbasins/` and `plots/subbasins/`).** Tables always; figures when
+  `plotting.scales` includes `locations`. Basin maps show subbasin outlines regardless of this setting.
 - **Diagnostic record (`_engine/diagnostics.json`).** Methods, data availability and provenance.
 
 Two shared outputs support the analysis:
@@ -334,13 +340,13 @@ See the [processing rule reference](workflow-rule-reference.md#analyze-climate) 
 Set `diagnostics.climate_indices.enabled: true` in the historical-analysis workflow file to calculate
 both native-grid indices and indices of the daily basin series. This bundle is disabled by default
 because cellwise percentile bootstrap and event retention can be expensive. The configuration starter
-contains the settings; `reference_period: null` uses complete calendar years from `climate.window`.
-An explicit `{start: 1991, end: 2020}` selects reference calendar years independently of the existing
-`diagnostics.reference_period`, which controls water-year anomalies and SPI. Requested reference years
+contains the settings. Index thresholds are fitted on `diagnostics.reference_period` (default
+`climate.window`), read as calendar years with those labels; with a non-January `climate.water_year_start`
+the index reference therefore starts in January of the first labelled year. Requested reference years
 outside the extracted record count as missing; they do not trigger additional acquisition.
 
-`diagnostics.climate_indices.seasons` maps names to ordered contiguous month lists, for example
-`{DJF: [12, 1, 2], JJA: [6, 7, 8]}`. No seasons are inferred. Annual periods use the configured water-year
+The project file's `climate.seasons` maps names to ordered contiguous month lists, for example
+`{DJF: [12, 1, 2], JJA: [6, 7, 8]}`. Omitted, it is DJF, MAM, JJA and SON; `{}` reports annual indices only. Annual periods use the configured water-year
 start; annual and seasonal labels use their start year. December 2000–February 2001 is `DJF:2000`.
 
 ### Definitions and reference conventions

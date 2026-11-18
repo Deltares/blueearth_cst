@@ -18,7 +18,7 @@ OPERATION = _settings["operation"]
 # strict or partial; read from the runner snapshot, never part of a request.
 INDICATOR_EVALUATION = simulation_selection(config_path)[2].evaluation
 if os.environ.get("CST_SIMULATION_OPERATION") != OPERATION or not os.environ.get("CST_SIMULATION_INVOCATION_ID"):
-    raise ValueError("Use python scripts/simulate_system.py --config <project> (operations/indicator_sets infer the target; a legacy operation config takes --target all, or --target simulations_and_indicators for indicators-only); bare simulate_system.smk is unsupported")
+    raise ValueError("Use python scripts/simulate_system.py --config <project> (steps/indicators infer the target; a legacy operation config takes --target all, or --target simulations_and_indicators for indicators-only); bare simulate_system.smk is unsupported")
 if OPERATION == "indicators-only":
     include: "blueearth_cst/experiment/rules/indicators_only.smk"
 else:

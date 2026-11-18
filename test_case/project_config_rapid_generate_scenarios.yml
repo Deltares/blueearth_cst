@@ -4,7 +4,7 @@ n_realizations: 2
 
 # Nine years around 2050. Return periods are read off 18 pooled years
 # (2 realizations x 9), enough to exercise the fit, not a number to interpret.
-simulation_window:
+future_period:
   start: 2046
   end: 2054
 

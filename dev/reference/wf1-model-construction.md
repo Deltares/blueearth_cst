@@ -11,7 +11,8 @@ products; the [workflow map](toolbox-workflow-map.md) locates WF1 rules. The
 
 WF1 reads the shared `project`, `basin`, `climate` and `model.outvars` settings from the project YAML,
 and its build and waterbody configs, observations and simulation window from `workflows.build_model`.
-`climate.window` bounds the historical record; `climate.selected` selects forcing. The simulation window
+`climate.window` bounds the historical record; `climate.default_forcing` (or `historical_forcings`) selects
+forcing. The simulation window
 must fit that record; [`resolve_simulation_window`](../../blueearth_cst/shared/snake_utils.py) validates
 it. [`spatial/config.py`](../../blueearth_cst/spatial/config.py) parses the basin fields. Follow the
 [configuration change procedure](dev-configuration-changes.md) to add or move a key; do not restore a

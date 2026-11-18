@@ -51,11 +51,13 @@ it from the historical hydrological simulation in workflow (WF) 1. For example, 
 `project_config_simulate_system.yml`:
 
 ```yaml
-indicator_sets:
-  - set: crop-water
-    summer_low_flow_days:
-      thresholds:
-        baseline_quantile: {}
+indicators:
+  sets: [crop-water]
+  options:
+    crop-water:
+      summer_low_flow_days:
+        thresholds:
+          baseline_quantile: {}
 ```
 
 This requests the default **Q90 exceedance threshold**: the flow exceeded 90% of the time,

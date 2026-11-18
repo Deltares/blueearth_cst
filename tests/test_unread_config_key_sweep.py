@@ -251,7 +251,7 @@ def test_the_shipped_seeds_are_declared_and_covered():
         leaves(yaml.safe_load(path.read_text(encoding="utf-8")), seed_leaves)
     declared = set(declared_keys())
     assert seed_leaves, "no shipped seed configs found"
-    assert {"build_config", "waterbodies_config", "source", "dry"} <= declared
+    assert {"build_config_path", "waterbodies_config_path", "source", "dry"} <= declared
     # Only user-chosen names outside the key grammar stay undeclared.
     assert all(" " in str(key) for key in seed_leaves - declared), (
         seed_leaves - declared

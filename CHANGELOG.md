@@ -9,6 +9,35 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- **Breaking: simpler project configuration (t037).** Retired keys are refused by name with their
+  replacement. Plain renames compose to the former settings, so retained identities are unchanged unless
+  noted below.
+
+  | File | Old | New |
+  |---|---|---|
+  | project | `workflows.<wf>: {enabled, config_path}` | `workflows.<wf>: true\|false` + `workflow_configs.<wf>: <path>` |
+  | project | `climate.sources`, `climate.forcing`, `climate.selected` | `climate.forcings.<name>` sets + `climate.default_forcing` |
+  | project | build_model `observations`, analyze_climate `rain_gauges` | `observations.river_discharge.{path, time_label}`, `observations.met_stations` |
+  | project | analyze_climate `diagnostics.climate_indices.seasons` | `climate.seasons` (default DJF, MAM, JJA, SON; `{}` = annual only) |
+  | analyze_climate | `diagnostics.max_missing_days_*`; `pt_temperature_source` | project `climate.map_reference`; removed |
+  | analyze_climate | `plotting.{comparison, source, location}`; `diagnostics.annual_spatial_anomalies` | `plotting.view: comparison\|individual\|both`, `plotting.scales`; `plotting.annual_anomaly_maps` |
+  | analyze_projections | `catalog`, `reference_window`, `future_windows: [{name, start, end}]` | optional `projections_catalog`, optional `reference_period`, `future_periods: {<name>: {start, end}}` |
+  | analyze_projections | `variables: {<name>: <settings>}` | `variables: [<names>]` + `variable_options` |
+  | build_model | `simulation_window`, `engine.{build_config, waterbodies_config}` | `run_period`, `hydromt.{build_config_path, waterbodies_config_path}` |
+  | build_model | `plotting.{spatial, forcing, location}`; `evaluation.budyko: {...}` | `plotting.{input_maps, forcing_figures, scales, view}`; `evaluation.budyko: true` |
+  | generate_scenarios | `simulation_window`, `weathergen_config` | `future_period`, `generator_config_path`; monthly values accept one number |
+  | generate_scenarios | `delta_change.{projections, pet}`; required `schema_version` | `future_periods`, `scale_pet: true`; `schema_version` optional |
+  | simulate_system | `operations`, `indicator_sets`, `indicator_set_definitions`, `indicator_selection`, `indicator_evaluation` | `steps: {simulations, indicators}`, `indicators: {sets, custom_sets, options, subset, evaluation}` |
+  | advanced settings | `runtime.julia_threads` | `runtime.historical_julia_threads`; `defaults.spell_factor` accepts one number |
+
+  One-time reruns: a project that compared several datasets but forced one now uses the named-forcing
+  layout, so build_model reruns once and simulate_system needs a new experiment; WF0 climate indices gain
+  seasonal rows (set `climate.seasons: {}` to keep annual only); WF0 always computes the subbasin tables;
+  WF1 rule 1.15 and the forcing comparison rerun once. `config/defaults/weathergen_config.yml` is renamed
+  `weathergenr_config.yml`; its path is part of the generation request, so a standalone simulate_system run
+  is refused until generate_scenarios reruns and reuses the ready collection. With several WF1 forcing sets
+  the default `view: comparison` drops the per-run station figures. Every compared dataset is now a forcing set WF1 may simulate, so its historical store is forcing-ready (orography sidecar) and must meet the 16-year floor; the former comparison-only relaxation is gone. `basin.region` may now be written as a
+  YAML mapping, and `create_case.py` scaffolds drop the starter's preamble comment.
 - WF1 evaluation outputs move into each recipe folder `models/hydrology/<model>/historical/<recipe>/`:
   figures under `plots/` (Budyko diagram under `plots/budyko/`), tables under `tables/`
   (`performance_indicators.csv`, `budyko_{stations,annual,summary}.csv`), sidecars under the recipe's

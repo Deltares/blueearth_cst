@@ -3,7 +3,8 @@ title: "CMIP6 catalog"
 format: html
 ---
 
-Projection analysis uses its own catalog, selected by `catalog` in the projection settings file.
+Projection analysis uses its own catalog, selected by the optional `projections_catalog` in the projection settings file
+(default `toolbox:config/catalogs/cmip6_data.yml`).
 The current catalog, `toolbox:config/catalogs/cmip6_data.yml`, describes CMIP6 data in the
 [Pangeo archive on Google Cloud](https://console.cloud.google.com/storage/browser/cmip6/CMIP6).
 It is separate from the project catalog used for spatial data and historical meteorology.

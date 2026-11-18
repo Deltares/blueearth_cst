@@ -3,7 +3,7 @@
 # =============================================================================
 #
 # Select it from the WF4 file through indicator_sets and
-# indicator_set_definitions. The id must equal the name selected there.
+# indicators.custom_sets. The id must equal the name selected there.
 # A set chooses registered calculations; it never defines arithmetic, units,
 # calendars, missingness or grain. This example illustrates reuse only; it is
 # not an approved second scientific set.

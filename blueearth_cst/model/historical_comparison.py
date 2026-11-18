@@ -386,7 +386,11 @@ def compare(settings: dict) -> Path:
         "evaluation_window",
         "output_dir",
     }
-    allowed = required | {"water_year_start", "observations_path"}
+    allowed = required | {
+        "water_year_start",
+        "observations_path",
+        "observations_time_label",
+    }
     if not required <= settings.keys() or settings.keys() - allowed:
         raise ValueError(
             f"comparison requires {sorted(required)}; optional water_year_start, observations_path"
@@ -428,7 +432,16 @@ def _observations(settings: dict, runs: dict, inputs: dict) -> pd.DataFrame | No
     observation_path = Path(observation_path).resolve()
     inputs[str(observation_path)] = file_sha256(observation_path)
     ids = set(next(iter(runs.values()))[1].columns)
-    return read_observations(observation_path, ids)
+    observed = read_observations(observation_path, ids)
+    label = settings.get("observations_time_label", "interval_end")
+    if label == "interval_start":
+        # Simulated daily values carry Wflow's interval-end labels.
+        observed.index = observed.index + pd.Timedelta(days=1)
+    elif label != "interval_end":
+        raise ValueError(
+            "observations time_label must be interval_start or interval_end"
+        )
+    return observed
 
 
 def compare_models(settings: dict) -> Path:
@@ -444,7 +457,11 @@ def compare_models(settings: dict) -> Path:
     from blueearth_cst.shared.model_registry import model_root, recipe_key
 
     required = {"project_dir", "runs", "registry_path", "output_dir"}
-    allowed = required | {"water_year_start", "observations_path"}
+    allowed = required | {
+        "water_year_start",
+        "observations_path",
+        "observations_time_label",
+    }
     if not required <= settings.keys() or settings.keys() - allowed:
         raise ValueError(
             f"model comparison requires {sorted(required)}; "

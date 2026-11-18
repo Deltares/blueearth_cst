@@ -40,14 +40,23 @@ basin:
 # -----------------------------------------------------------------------------
 
 climate:
-  sources:
-  - era5
-  forcing:
-    precip_source: era5
+  forcings:
+    era5:
+      precip_source: era5
+  default_forcing: era5
   # 17 years: one more than the 16-year minimum.
   window:
     start: 2000
     end: 2016
+
+
+# -----------------------------------------------------------------------------
+#  OBSERVATIONS
+# -----------------------------------------------------------------------------
+
+observations:
+  river_discharge:
+    path: test_data/observations_timeseries.csv
 
 
 # -----------------------------------------------------------------------------
@@ -63,17 +72,14 @@ model:
 # -----------------------------------------------------------------------------
 
 workflows:
-  analyze_climate:
-    enabled: true
-  build_model:
-    enabled: true
-    config_path: project_config_baseline_build_model.yml
-  analyze_projections:
-    enabled: true
-    config_path: project_config_baseline_analyze_projections.yml
-  generate_scenarios:
-    enabled: true
-    config_path: project_config_baseline_generate_scenarios.yml
-  simulate_system:
-    enabled: true
-    config_path: project_config_baseline_simulate_system.yml
+  analyze_climate: true
+  build_model: true
+  analyze_projections: true
+  generate_scenarios: true
+  simulate_system: true
+
+workflow_configs:
+  build_model: project_config_baseline_build_model.yml
+  analyze_projections: project_config_baseline_analyze_projections.yml
+  generate_scenarios: project_config_baseline_generate_scenarios.yml
+  simulate_system: project_config_baseline_simulate_system.yml

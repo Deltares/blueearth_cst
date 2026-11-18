@@ -42,7 +42,10 @@ model:
   - snow
 
 climate:
-  selected: era5
+  forcings:
+    era5:
+      precip_source: era5
+  default_forcing: era5
   window:
     # >= snake_utils.MIN_HISTORICAL_YEARS (16), or every dry-run test in this
     # suite reds at parse time. Was 2015..2020 (6 years) until 2026-08-01, when
@@ -50,6 +53,4 @@ climate:
     # only that the DAG builds, so widening it is inert for these tests.
     start: 2000
     end: 2020
-  sources:
-  - era5
 schema_version: 2

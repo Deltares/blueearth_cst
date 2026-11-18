@@ -222,7 +222,12 @@ def _read_config(config_path: str) -> Mapping[str, Any]:
     if not isinstance(config, Mapping):
         raise ConfigError(f"{config_path}: config is not a mapping")
     from blueearth_cst.shared.config_paths import resolve_project_paths
+    from blueearth_cst.shared.project_workflows import normalize_project_workflows
 
+    try:
+        config = normalize_project_workflows(config, config_path)
+    except ValueError as error:
+        raise ConfigError(str(error)) from error
     return resolve_project_paths(config, path)
 
 
@@ -250,16 +255,18 @@ def _enabled_flags(cfg: Mapping[str, Any], config_path: str) -> dict[str, bool]:
     for name in WORKFLOW_ORDER:
         if name not in workflows or not isinstance(workflows[name], dict):
             raise ConfigError(
-                f"{config_path}: missing 'workflows.{name}' section "
-                f"(required for a full orchestration config)"
+                f"{config_path}: missing 'workflows.{name}' "
+                f"(true or false; required for a full orchestration config)"
             )
         section = workflows[name]
         if "enabled" not in section:
-            raise ConfigError(f"{config_path}: missing 'workflows.{name}.enabled' key")
+            raise ConfigError(
+                f"{config_path}: missing 'workflows.{name}' (true or false)"
+            )
         value = section["enabled"]
         if not isinstance(value, bool):
             raise ConfigError(
-                f"{config_path}: 'workflows.{name}.enabled' must parse to a "
+                f"{config_path}: 'workflows.{name}' must parse to a "
                 f"boolean (got {value!r} of type {type(value).__name__}); use an "
                 f"unquoted true/false (yes/no/on/off also accepted), not a "
                 f"quoted string or integer"
@@ -313,7 +320,7 @@ def _check_wf1_leaves(
         f"{len(LEAVES)} required model files are absent from "
         f"{project_dir}:\n{listed}\n"
         f"Only a {LEAF_PRODUCER} run produces them. Set "
-        f"'workflows.{LEAF_PRODUCER}.enabled: true', or disable "
+        f"'workflows.{LEAF_PRODUCER}: true', or disable "
         f"'simulate_system'. Simulation has not been invoked."
     )
 
@@ -956,7 +963,9 @@ def _consumer_forcing_rows(config_path: str, workflow_name: str) -> tuple[str, .
         and composed["workflows"][workflow_name].get("method") == "delta_change"
     ):
         return ()
-    climate = _section(_read_config(config_path), "climate")
+    from blueearth_cst.shared.named_forcings import internal_climate
+
+    climate = internal_climate(_section(_read_config(config_path), "climate"))
     forcing_id = composed["climate"].get("forcing_id")
     rows: tuple[str, ...] = ()
     if forcing_id is not None:
@@ -1173,7 +1182,7 @@ def _validate_rebuild(
         _, settings = simulation_settings(config_path)
         if settings["operation"] == "indicators-only":
             raise ValueError(
-                "--rebuild cannot use indicators-only; enable simulations as retained responses will be erased"
+                "--rebuild cannot use indicators-only; set steps.simulations: true, because retained responses will be erased"
             )
         simulation_command(
             config_path, list(simulation_targets), cores, extra, prepare_baseline=False
@@ -2496,7 +2505,7 @@ def main(argv: list[str] | None = None) -> int:
         nargs="+",
         default=["all"],
         help="explicit WF4 targets for a legacy operation config (indicators-only requires "
-        "indicators or one selected indicator-set file); operations/indicator_sets infer the target",
+        "indicators or one selected indicator-set file); steps/indicators infer the target",
     )
     ap.add_argument(
         "extra",

@@ -46,22 +46,37 @@ precipitation problem. A request containing only excluded models fails with no r
 
 | Setting | Purpose |
 |---|---|
-| `catalog`, `ensemble` | Projection catalog and ensemble name, currently `cmip6`. |
+| `ensemble` | Projection ensemble name, currently `cmip6`. |
+| `projections_catalog` | Optional projection catalog; default the generated `toolbox:config/catalogs/cmip6_data.yml`. |
 | `models`, `scenarios` | Climate models and emissions scenarios. |
 | `members.preference` | Preferred ensemble members. |
 | `members.selection`, `members.overrides` | Optional member-selection refinements. |
-| `reference_window` | Historical reference period in inclusive calendar years. |
-| `future_windows` | Named future periods in inclusive calendar years. |
-| `variables` | Variables and their change conventions. |
+| `reference_period` | Historical reference calendar years; default `climate.window`, cut back to 2014. |
+| `future_periods` | Future periods keyed by output label, e.g. `{mid: {start: 2046, end: 2054}}`. |
+| `variables` | List of variables to analyse, e.g. `[precip, temp]`. |
+| `variable_options` | Per-variable settings: derived-variable methods or a custom variable's full declaration. |
 | `stats` | Summary statistics. |
 
 Each projection is compared with its own modeled historical reference, independently of the observed
 record used for model building. Temperature changes are additive in °C; precipitation changes are
-relative. See [execution and run management](configuration-and-execution.md) for running the workflow.
+relative. Seasonal results use DJF, MAM, JJA and SON; `climate.seasons` does not apply here yet.
+Since t037, `catalog`, `reference_window` and `future_windows` are refused with their new names, and
+`variables` is a list. See [execution and run management](configuration-and-execution.md) for running
+the workflow.
+
+A custom variable is listed in `variables` and declared under `variable_options` with `source` (the
+catalog's renamed variable), `canonical` (`rate` or `state`), `units` and `change` (`relative` or
+`absolute`):
+
+```yaml
+variables: [precip, temp, tmax]
+variable_options:
+  tmax: {source: tmax, canonical: state, units: degC, change: absolute}
+```
 
 ### Optional projected PET
 
-Add `pet: {method: makkink}` to `variables` in the existing workflow configuration to estimate PET.
+List `pet` in `variables` and set `variable_options.pet: {method: makkink}` to estimate PET.
 Use `method: debruin` for de Bruin. The method is explicit and applies to every model, member and period;
 omitting `pet` preserves the existing output selection. A full supplied-variable declaration with
 `source`, `canonical`, `units` and `change` remains supported and does not calculate PET. Bare `pet:`
@@ -113,8 +128,8 @@ unchanged cache keys across toolbox revisions.
 
 ## Optional projected dew point and wind
 
-In the existing projection workflow configuration, select `tdew: {method: specific_humidity}`
-and/or `wind: {method: sfcwind}` under `variables`. Omission produces no corresponding derived result.
+In the projection workflow configuration, list `tdew` and/or `wind` in `variables` and set
+`tdew: {method: specific_humidity}` or `wind: {method: sfcwind}` under `variable_options`. Omission produces no corresponding derived result.
 These calculated forms accept only `method` and optional `change: absolute`; Celsius percentages
 and relative wind changes are unsupported. Full supplied-variable declarations remain readable.
 

@@ -56,6 +56,11 @@ def test_new_case_and_additional_trials(cases, trial):
     assert config["project"]["project_dir"] == "outputs"
     assert config["basin"]["output_locations"] == "../data/output_locations.csv"
     assert "outlet,12.5,-3.0" in (case / "data/output_locations.csv").read_text()
+    assert config["basin"]["region"]["subbasin"] == [12.5, -3.0]
+    for scaffold in (case / trial).glob("project_config*.yml"):
+        text = scaffold.read_text(encoding="utf-8")
+        # One case header; the starter's own preamble is dropped.
+        assert text.startswith("# ---") and "create_case.py" not in text
     assert not (case / trial / "outputs").exists()
     assert f"[{trial}]({trial}/project_config.yml)" in (case / "README.md").read_text()
     assert "| Test &#124; basin | working |" in (case / "README.md").read_text()
@@ -76,7 +81,10 @@ def test_instructions_render_from_template(cases):
     assert text.startswith("# new-basin / default: quick reference")
     assert f'$config = "{(trial / "project_config.yml").as_posix()}"' in text
     assert "--from-trial default" in text
-    assert "| `project_config_simulate_system.yml` | WF4 system simulation settings |" in text
+    assert (
+        "| `project_config_simulate_system.yml` | WF4 system simulation settings |"
+        in text
+    )
     assert "$slug" not in text and "$workflow_files" not in text
 
 
@@ -105,20 +113,17 @@ def test_copy_preserves_science_and_required_sidecars(cases, monkeypatch, tmp_pa
     (source / "data").mkdir()
     (source / "data/observed.csv").write_text("time,value\n2000,1\n")
     (case / "data/shared.csv").write_text("time,value\n2000,2\n")
-    text = (source / "custom/model.yml").read_text()
-    text = text.replace(
-        '"river discharge": null', '"river discharge": ../data/observed.csv'
-    )
-    # Use parsed YAML to avoid coupling this behavioural fixture to template quoting.
-    body = yaml.safe_load(text)
-    body["observations"] = {
-        "river discharge": "../data/observed.csv",
-        "precipitation": "../../data/shared.csv",
-    }
-    (source / "custom/model.yml").write_text(yaml.safe_dump(body))
     project = yaml.safe_load((source / "project_config.yml").read_text())
-    project["workflows"]["build_model"]["config_path"] = "custom/model.yml"
-    project["workflows"]["build_model"]["enabled"] = True
+    project["observations"] = {
+        "river_discharge": {"path": "data/observed.csv"},
+        "met_stations": {
+            "stations_path": "../data/shared.csv",
+            "precip_path": "../data/shared.csv",
+            "time_label": "interval_end",
+        },
+    }
+    project["workflow_configs"]["build_model"] = "custom/model.yml"
+    project["workflows"]["build_model"] = True
     (source / "project_config.yml").write_text(yaml.safe_dump(project))
     (source / "outputs/logs").mkdir(parents=True)
     (source / "outputs/logs/success.txt").write_text("old output")
@@ -153,10 +158,15 @@ def test_copy_preserves_science_and_required_sidecars(cases, monkeypatch, tmp_pa
             == moved / "data/output_locations.csv"
         )
     observations = load_composed_config(moved / "v2/project_config.yml", "build_model")[
-        "workflows"
-    ]["build_model"]["observations"]
-    assert Path(observations["river discharge"]).read_text() == "time,value\n2000,1\n"
-    assert Path(observations["precipitation"]) == moved / "data/shared.csv"
+        "observations"
+    ]
+    assert (
+        Path(observations["river_discharge"]["path"]).read_text()
+        == "time,value\n2000,1\n"
+    )
+    assert (
+        Path(observations["met_stations"]["precip_path"]) == moved / "data/shared.csv"
+    )
 
 
 @pytest.mark.parametrize(
@@ -333,12 +343,12 @@ def test_source_generator_recipe_is_copied(cases):
     recipe.write_bytes(
         (
             Path(__file__).resolve().parents[1]
-            / "config/defaults/weathergen_config.yml"
+            / "config/defaults/weathergenr_config.yml"
         ).read_bytes()
     )
     workflow = source / "project_config_generate_scenarios.yml"
     workflow.write_text(
-        workflow.read_text() + "\n  weathergen_config: data/weather.yml\n"
+        workflow.read_text() + "\n  generator_config_path: data/weather.yml\n"
     )
     assert main(args(cases, "v2") + ["--from-trial", "default"]) == 0
     copied = cases / "new-basin/v2/data/weather.yml"
@@ -390,13 +400,13 @@ def test_parameter_comments_preserve_flow_yaml_aliases_and_existing_help():
     [
         (
             "analyze_projections",
-            "variables:\n  custom_temperature:\n    source: temp\n",
+            "variable_options:\n  custom_temperature:\n    source: temp\n",
             "# Select the catalog's renamed variable. Input: post-rename variable name, such as temp.",
         ),
         (
             "simulate_system",
-            "indicator_set_definitions:\n  hydrology:\n    config_path: hydrology.yml\n",
-            "# Locate the indicator set definition. Input: YAML path relative to this file or absolute.",
+            "indicators:\n  custom_sets:\n    hydrology: hydrology.yml\n",
+            "# Locate one set's definition file. Input: YAML path.",
         ),
     ],
 )

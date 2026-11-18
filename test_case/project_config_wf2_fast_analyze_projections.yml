@@ -1,6 +1,5 @@
 # analyze_projections (wf2) -- wf2_fast set
 
-catalog: toolbox:config/catalogs/cmip6_data.yml
 ensemble: cmip6
 
 # One model, one scenario.
@@ -11,14 +10,13 @@ members:
   preference:
   - r1i1p1f1
 
-variables:
+variables: [precip, temp]
+variable_options:
   precip: {source: precip, canonical: rate, units: mm/day, change: relative}
   temp: {source: temp, canonical: state, units: degC, change: absolute}
 
-reference_window:
+reference_period:
   start: 1990
   end: 2010
-future_windows:
-- start: 2070
-  end: 2090
-  name: far
+future_periods:
+  far: {start: 2070, end: 2090}

@@ -108,8 +108,10 @@ def _input_paths(
         found = {}
         for name, child in value.items():
             if name not in {"project_dir", "out_dir", "output_dir"}:
+                # `workflow_configs` values are workflow settings files.
+                child_key = "config_path" if key == "workflow_configs" else str(name)
                 for path, read_yaml in _input_paths(
-                    child, source, str(name), roots
+                    child, source, child_key, roots
                 ).items():
                     found[path] = found.get(path, False) or read_yaml
         return found

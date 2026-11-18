@@ -41,7 +41,7 @@ def _write_r01_cfg(path, project_dir, experiment=None):
         f"schema_version: 2\n"
         f"project:\n  project_dir: {project_dir}\n"
         "basin:\n  region: \"{'subbasin': [9.7, 0.4], 'uparea': 100}\"\n"
-        "climate:\n  selected: era5\n  sources: [era5]\n"
+        "climate:\n  forcings: {era5: {precip_source: era5}}\n"
         "  window: {start: 2000, end: 2020}\n"
         "model:\n  outvars: [river discharge]\n"
     )

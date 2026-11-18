@@ -14,26 +14,29 @@ or change their units, calendars, missing-data rules or aggregation methods.
 
 ## Calculation modes and indicator sets {#operations-and-sets}
 
-In the hydrological simulation file, `operations` is a nonempty list containing `simulations`, `indicators`,
-or both.
-Omitted means both. Duplicates and unknown entries fail; ordering does not change meaning.
+In the hydrological simulation file, `steps: {simulations, indicators}` switches each step on or off.
+Each defaults to `true`; setting both to `false` fails.
+Since t037 the former `operations` list and `indicator_sets`, `indicator_set_definitions`,
+`indicator_selection` and `indicator_evaluation` keys are refused; their settings moved under
+`indicators:` as shown below and compose to the same request, so identities are unchanged.
 Simulations alone validate request structure without opening set files. Indicators alone require retained
 responses and do not launch Wflow.
 
-`indicator_sets` defaults to `[default]`. It accepts string IDs or inline mappings. IDs start with a
+`indicators.sets` defaults to `[default]` and lists set IDs. IDs start with a
 lowercase letter, then use lowercase letters, digits, `_` or `-`, up to 64 characters. Windows reserved
 names are rejected. Selected IDs must be unique. `default` is the reserved bundled preset at
 `config/indicator_sets/default.yml`; a custom file cannot replace it.
 
 ```yaml
-operations: [indicators]
-indicator_sets: [default, example_subset]
-indicator_set_definitions:
-  example_subset:
-    config_path: indicator_sets/example_subset.yml
+steps:
+  simulations: false
+indicators:
+  sets: [default, example_subset]
+  custom_sets:
+    example_subset: indicator_sets/example_subset.yml
 ```
 
-`config_path` is absolute or relative to the declaring hydrological simulation YAML. Selected sources are
+A `custom_sets` path is absolute or relative to the declaring hydrological simulation YAML. Selected sources are
 read once per
 invocation and captured. Installed bundled IDs resolve against the toolbox, never the current directory.
 The default preset follows configured output variables for simulation requests and retained variables for
@@ -41,37 +44,38 @@ indicators-only requests. A selection cannot recover a variable the simulation d
 
 ## Selecting indicators and setting parameters {#inline-parameters-and-selection}
 
-An inline mapping's `set` names a registered set. Optional `id` defaults to `set`.
-`title` and `description` are presentation metadata. Other keys name registered indicators.
+`indicators.options.<set>` adjusts a selected registered set; its keys name registered indicators.
 Omitted indicators stay enabled; omitted parameters inherit registered defaults.
 
 ```yaml
-indicator_sets:
-  - set: crop-water
-    summer_low_flow_days:
-      thresholds:
-        baseline_quantile: {}
-    summer_longest_dry_spell:
-      dry_day_mm: 2.0
-    winter_longest_dry_spell:
-      enabled: false
-  - set: default
+indicators:
+  sets: [crop-water, default]
+  options:
+    crop-water:
+      summer_low_flow_days:
+        thresholds:
+          baseline_quantile: {}
+      summer_longest_dry_spell:
+        dry_day_mm: 2.0
+      winter_longest_dry_spell:
+        enabled: false
 ```
 
 Each supplied parameter replaces that parameter's complete value; nested threshold mappings are not
 merged. `enabled` is Boolean and defaults to true. Disabled declarations still undergo static parameter
 validation, but require no responses or historical preparation. Disabling all indicators fails.
-Parameters encoded in a registered name cannot contradict that name. An inline set cannot also have a
-file definition. Standalone flat files add `schema_version: 1` to this structure.
+Parameters encoded in a registered name cannot contradict that name. A set with options cannot also be
+a `custom_sets` file. Standalone flat files add `schema_version: 1` to this structure.
 
-`indicator_selection` further narrows a selected set with one nonempty `include` or `exclude` list.
-Names are published indicator keys and retain set order. It cannot re-enable an inline-disabled indicator.
+`indicators.subset` further narrows a selected set: a nonempty list keeps only those indicators, and
+`{exclude: [...]}` drops them instead. Names are published indicator keys and retain set order. It cannot
+re-enable an indicator disabled in `options`.
 
 ```yaml
-indicator_sets: [default, crop-water]
-indicator_selection:
-  crop-water:
-    exclude: [summer_low_flow_days]
+indicators:
+  sets: [default, crop-water]
+  subset:
+    crop-water: {exclude: [summer_low_flow_days]}
 ```
 
 A deselected indicator is neither evaluated nor published nor checked for required inputs.
@@ -114,7 +118,7 @@ limits.
 
 Before simulation, selected requirements are checked against `model.outvars`. Indicators-only requests
 check retained variables and locations. Paired methods require aligned inputs. Supplied malformed
-parameters always fail. `indicator_evaluation` is `partial` by default; set `strict` to refuse any gap.
+parameters always fail. `indicators.evaluation` is `partial` by default; set `strict` to refuse any gap.
 
 | Mode/input | Result |
 |---|---|

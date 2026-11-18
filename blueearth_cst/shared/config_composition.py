@@ -1,8 +1,9 @@
 """Compose a project config and its per-workflow files into one mapping.
 
-The project file carries closed ``{enabled, config_path}`` workflow stanzas;
-each workflow file holds that workflow's settings. This module validates the
-boundary and composes the files for existing consumers.
+The project file carries ``workflows`` switches and ``workflow_configs`` paths,
+normalized on entry to closed ``{enabled, config_path}`` stanzas
+(``project_workflows.py``); each workflow file holds that workflow's settings.
+This module validates the boundary and composes the files for existing consumers.
 
 Current guidance: ``dev/reference/toolbox-architecture.md``, configuration
 and execution records. This module owns the exact schema and composition.
@@ -73,17 +74,24 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 import yaml
 
 from blueearth_cst.shared.config_paths import (
+    TOOLBOX_ROOT,
+    resolve_path,
     resolve_project_paths,
     resolve_workflow_paths,
 )
 from blueearth_cst.shared.named_forcings import (
     declares_named,
     historical_forcing_ids,
+    internal_climate,
     legacy_view,
     named_recipes,
     simulation_climate,
 )
 from blueearth_cst.shared.plot_config import resolve_annotation
+from blueearth_cst.shared.project_workflows import (
+    WORKFLOW_CONFIGS_KEY,
+    normalize_project_workflows,
+)
 
 if TYPE_CHECKING:
     from blueearth_cst.shared.workflow_config_snapshot import CapturedSource
@@ -150,9 +158,13 @@ T1_SHARED_SECTIONS: dict[str, tuple[str, ...]] = {
         "forcing",
         "forcings",
         "default_forcing",
+        "seasons",
     ),
     "model": ("outvars", "name"),
     "plotting": ("annotation",),
+    # Observed series, translated into the workflow settings that read them
+    # (`internal_workflow_section`); a workflow file declaring one is refused.
+    "observations": ("river_discharge", "met_stations"),
 }
 
 #: T1's top level, closed (D-9.5). Closing it is what makes the migration
@@ -189,8 +201,10 @@ GENERATION_KEYS = frozenset(
     {
         "n_realizations",
         "simulation_window",
+        "future_period",
         "climate_perturbations",
         "weathergen_config",
+        "generator_config_path",
         "seed",
         "unit_id_capacity",
         "name",
@@ -268,8 +282,8 @@ RETIRED_KEYS: dict[str, str] = {
     "T1.project.static_dir": ("deleted (`C-07`) -- nothing read it; remove the key"),
     "T1.project.data_sources": "renamed to `project.catalog` (`C-40`)",
     "T1.project.data_sources_climate": (
-        "moved DOWN to `catalog:` at the top of the analyze_projections file "
-        "(`C-39`) -- it has one reader, so it does not belong in the project file"
+        "moved DOWN to the analyze_projections file as `projections_catalog:` "
+        "(optional; `C-39`, t037) -- it has one reader"
     ),
     "T1.shared": (
         "dissolved into `basin:`, `climate:` and `model:` at the project file's "
@@ -307,8 +321,90 @@ RETIRED_KEYS: dict[str, str] = {
         "renamed AND retyped to `climate.window: {start, end}` (`C-70`) -- "
         "inclusive WATER years now, not ISO timestamps"
     ),
-    "T1.shared.clim_historical": "renamed to `climate.selected` (`C-44`)",
+    "T1.shared.clim_historical": (
+        "renamed to `climate.selected` (`C-44`), since replaced by "
+        "`climate.forcings` and `climate.default_forcing` (t037)"
+    ),
     "T1.shared.water_year_start": ("regrouped as `climate.water_year_start` (`C-53`)"),
+    "T2.analyze_climate.diagnostics.climate_indices.seasons": (
+        "moved (t037) to the project file as `climate.seasons` (default DJF, MAM, "
+        "JJA, SON; `{}` for annual indices only)"
+    ),
+    "T2.analyze_climate.diagnostics.climate_indices.reference_period": (
+        "retired (t037): climate indices use `diagnostics.reference_period`"
+    ),
+    "T2.analyze_climate.diagnostics.max_missing_days_month": (
+        "retired (t037): analyze_climate reads `climate.map_reference` in the "
+        "project file"
+    ),
+    "T2.analyze_climate.diagnostics.max_missing_days_year": (
+        "retired (t037): analyze_climate reads `climate.map_reference` in the "
+        "project file"
+    ),
+    "T2.analyze_climate.diagnostics.pt_temperature_source": (
+        "retired (t037): precipitation-temperature diagnostics use ERA5 temperature"
+    ),
+    "T2.build_model.simulation_window": "renamed (t037) to `run_period: {start, end}`",
+    "T2.generate_scenarios.simulation_window": (
+        "renamed (t037) to `future_period: {start, end}`"
+    ),
+    "T2.generate_scenarios.weathergen_config": (
+        "renamed (t037) to `generator_config_path`; the default is "
+        "toolbox:config/defaults/weathergenr_config.yml"
+    ),
+    "T2.simulate_system.operations": (
+        "replaced (t037) by `steps: {simulations: true|false, indicators: true|false}`"
+    ),
+    "T2.simulate_system.indicator_sets": (
+        "replaced (t037) by `indicators.sets: [<set ids>]`; per-indicator settings "
+        "go in `indicators.options.<set>`"
+    ),
+    "T2.simulate_system.indicator_set_definitions": (
+        "replaced (t037) by `indicators.custom_sets: {<set id>: <definition file>}`"
+    ),
+    "T2.simulate_system.indicator_selection": (
+        "replaced (t037) by `indicators.subset: {<set id>: [<indicators>]}` "
+        "(or `{exclude: [...]}`)"
+    ),
+    "T2.simulate_system.indicator_evaluation": (
+        "replaced (t037) by `indicators.evaluation: partial|strict`"
+    ),
+    "T2.build_model.engine": (
+        "renamed (t037) to `hydromt: {build_config_path, waterbodies_config_path}`"
+    ),
+    "T2.build_model.plotting.spatial": "renamed (t037) to `plotting.input_maps`",
+    "T2.build_model.plotting.forcing": "renamed (t037) to `plotting.forcing_figures`",
+    "T2.build_model.plotting.location": (
+        "replaced (t037) by `plotting.scales: [basin, locations]`"
+    ),
+    "T2.analyze_climate.plotting.comparison": (
+        "replaced (t037) by `plotting.view: comparison | individual | both`"
+    ),
+    "T2.analyze_climate.plotting.source": (
+        "replaced (t037) by `plotting.view: both` (comparison and per-dataset figures)"
+    ),
+    "T2.analyze_climate.plotting.location": (
+        "replaced (t037) by `plotting.scales: [basin, locations]`"
+    ),
+    "T2.analyze_climate.diagnostics.annual_spatial_anomalies": (
+        "moved (t037) to `plotting.annual_anomaly_maps`"
+    ),
+    "T2.analyze_climate.rain_gauges": (
+        "moved (t037) to the project file as `observations.met_stations: "
+        "{stations_path, precip_path, temp_path, time_label}`"
+    ),
+    "T1.climate.sources": (
+        "retired (t037): analyze_climate compares the datasets of "
+        "`climate.forcings`; declare each dataset to compare in a forcing set"
+    ),
+    "T1.climate.selected": (
+        "retired (t037): declare the recipe under `climate.forcings.<name>` "
+        "and name it in `climate.default_forcing`"
+    ),
+    "T1.climate.forcing": (
+        "retired (t037): move the recipe under `climate.forcings.<name>` "
+        "and name it in `climate.default_forcing`"
+    ),
     "T1.shared.wflow_outvars": "regrouped as `model.outvars` (`C-19`)",
     "T1.shared.seed": (
         "moved DOWN to `seed:` at the top of the generate_scenarios file (`C-51`) "
@@ -375,12 +471,24 @@ RETIRED_KEYS: dict[str, str] = {
         "folded into the `members:` group as `members.overrides` (`C-63`)"
     ),
     "T2.analyze_projections.historical_year_range": (
-        "renamed and retyped to `reference_window: {start, end}` (`C-59`) -- "
-        "CALENDAR years, deliberately, not water years (`C-74`)"
+        "renamed to `reference_period: {start, end}` (t037) -- CALENDAR "
+        "years, deliberately, not water years (`C-74`)"
     ),
     "T2.analyze_projections.future_horizons": (
-        "renamed and retyped to `future_windows:`, a LIST of "
-        "`{start, end, name}` mappings (`C-60`, `C-61`)"
+        "renamed to `future_periods:`, a mapping of output labels to "
+        "`{start, end}` (t037)"
+    ),
+    "T2.analyze_projections.catalog": (
+        "renamed (t037) to `projections_catalog:`, optional; the default is the "
+        "generated toolbox:config/catalogs/cmip6_data.yml"
+    ),
+    "T2.analyze_projections.reference_window": (
+        "renamed (t037) to `reference_period: {start, end}`, calendar years, "
+        "optional; the default is `climate.window`, cut back to 2014"
+    ),
+    "T2.analyze_projections.future_windows": (
+        "renamed (t037) to `future_periods:`, a mapping of output labels to "
+        "`{start, end}`, e.g. `future_periods: {mid: {start: 2046, end: 2054}}`"
     ),
     "T2.analyze_projections.relative_change": (
         "dissolved (`C-66`): `min_denominator` is per-variable registry "
@@ -448,9 +556,9 @@ OWNERLESS_SECTION_READS: frozenset[tuple[str, str]] = frozenset(
         # neither consumes them as another workflow's inputs.
         ("blueearth_cst/shared/product_record.py", "*"),
         ("blueearth_cst/shared/result_bundle.py", "*"),
-        # The case scaffold checks enable flags and follows config_path entries
-        # to copy a template set; it consumes no workflow settings.
-        ("scripts/create_case.py", "*"),
+        # The raw-project normalizer maps `workflows` switches and
+        # `workflow_configs` paths to legacy stanzas; it reads no settings.
+        ("blueearth_cst/shared/project_workflows.py", "*"),
         ("scripts/suggest_experiment_name.py", "simulate_system"),
         ("scripts/plot_workflow_dag.py", "simulate_system"),
         # The artifact-scoped config snapshot rebuilds `compose_config`'s shape
@@ -497,13 +605,13 @@ def _resolve_config_path(raw: object, t1_dir: str, name: str) -> str:
     """
     if not isinstance(raw, (str, os.PathLike)):
         raise ValueError(
-            f"workflows.{name}.config_path must be a path string, got "
+            f"workflow_configs.{name} must be a path string, got "
             f"{type(raw).__name__}. See {CONFIG_DOC}."
         )
     text = os.path.expanduser(os.fspath(raw))
     if not text.strip():
         raise ValueError(
-            f"workflows.{name}.config_path is empty. Omit the key entirely to "
+            f"workflow_configs.{name} is empty. Omit the key entirely to "
             f"give the workflow no settings. See {CONFIG_DOC}."
         )
     if not os.path.isabs(text):
@@ -585,8 +693,12 @@ def _retired_hits(
         else:
             owner, _, name = rest.partition(".")
             targets = bodies if owner == "*" else {owner: bodies.get(owner) or {}}
+            parts = name.split(".")
             for workflow, body in targets.items():
-                if isinstance(body, Mapping) and name in body:
+                node = body
+                for part in parts[:-1]:
+                    node = node.get(part) if isinstance(node, Mapping) else None
+                if isinstance(node, Mapping) and parts[-1] in node:
                     hits.append(f"  {workflow} file: {name} -- {destination}")
     return hits
 
@@ -619,6 +731,727 @@ def _check_retired_keys(
         + "\n".join(sorted(hits))
         + f"\nRemove or move these keys as indicated. See {CONFIG_DOC}."
     )
+
+
+#: Closed keys of the project file's `observations:` entries (t037).
+_OBSERVATION_KEYS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
+    # name: (required, optional)
+    "river_discharge": (frozenset({"path"}), frozenset({"time_label"})),
+    "met_stations": (
+        frozenset({"stations_path", "precip_path", "time_label"}),
+        frozenset({"temp_path"}),
+    ),
+}
+_TIME_LABELS = ("interval_start", "interval_end")
+
+
+def project_observations(
+    t1: Mapping[str, Any], t1_path: str | os.PathLike
+) -> dict[str, dict[str, Any]]:
+    """Validate the project file's `observations:` and resolve its paths.
+
+    `river_discharge.time_label` defaults to `interval_end`; `met_stations`
+    keeps its explicit one. Paths resolve beside the project file (schema 3).
+    """
+    raw = t1.get("observations")
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"{t1_path}: `observations:` must be a mapping")
+    stray = sorted(set(raw) - set(_OBSERVATION_KEYS))
+    if stray:
+        raise ValueError(
+            f"{t1_path}: unknown observations {stray!r}; supported: "
+            f"{sorted(_OBSERVATION_KEYS)!r}"
+        )
+    result: dict[str, dict[str, Any]] = {}
+    for name, entry in raw.items():
+        if entry is None:
+            continue
+        required, optional = _OBSERVATION_KEYS[name]
+        if (
+            not isinstance(entry, Mapping)
+            or not required <= set(entry)
+            or set(entry) - required - optional
+        ):
+            raise ValueError(
+                f"{t1_path}: observations.{name} requires {sorted(required)!r}; "
+                f"optional: {sorted(optional)!r}"
+            )
+        entry = dict(entry)
+        if name == "river_discharge":
+            entry.setdefault("time_label", "interval_end")
+        if entry["time_label"] not in _TIME_LABELS:
+            raise ValueError(
+                f"{t1_path}: observations.{name}.time_label must be one of "
+                f"{list(_TIME_LABELS)!r}"
+            )
+        result[name] = entry
+    resolved = resolve_project_paths(
+        {"schema_version": t1.get("schema_version"), "observations": result}, t1_path
+    )
+    return resolved["observations"]
+
+
+#: `climate.seasons` when the project file omits it (t037): the seasons WF2
+#: has always reported. `{}` declares annual-only climate indices.
+DEFAULT_SEASONS: dict[str, list[int]] = {
+    "DJF": [12, 1, 2],
+    "MAM": [3, 4, 5],
+    "JJA": [6, 7, 8],
+    "SON": [9, 10, 11],
+}
+
+
+def project_seasons(climate: Mapping[str, Any]) -> dict[str, list[int]]:
+    """Validated `climate.seasons`, or `DEFAULT_SEASONS` when it is omitted.
+
+    The default is applied here, by readers, and never written into the
+    composed `climate:` section that the drift guard compares.
+    """
+    seasons = climate.get("seasons")
+    if seasons is None:
+        return {name: list(months) for name, months in DEFAULT_SEASONS.items()}
+    if not isinstance(seasons, Mapping):
+        raise ValueError(
+            "climate.seasons requires a mapping of names to month lists, "
+            "e.g. {DJF: [12, 1, 2]}"
+        )
+    from blueearth_cst.indicators.climate.periods import seasonal_periods
+
+    result = {}
+    for name, months in seasons.items():
+        if not isinstance(months, list):
+            raise ValueError(f"climate.seasons.{name} requires an ordered month list")
+        seasonal_periods(2000, 2000, name=str(name), months=tuple(months))
+        result[str(name)] = list(months)
+    return result
+
+
+#: Settings composition writes into a workflow section from the project file;
+#: `public_workflow_section` removes them again.
+_WF0_MAP_REFERENCE_KEYS = ("max_missing_days_month", "max_missing_days_year")
+
+
+def internal_workflow_section(
+    name: str,
+    body: Mapping[str, Any],
+    observation_settings: Mapping[str, Any],
+    climate: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Give one workflow file the project-file settings it reads internally.
+
+    WF1 reads `observations: {"river discharge": path}` and, when the
+    `evaluation.budyko` switch is on, the `{discharge_statistic, time_label}`
+    declaration; WF0 reads `rain_gauges`, `climate_indices.seasons` and
+    `.reference_period`, and its own completeness tolerances. Producing
+    exactly those shapes keeps rule params, and so retained outputs,
+    unchanged.
+    """
+    body = dict(body)
+    if name == "build_model":
+        from blueearth_cst.shared.workflow_plotting import normalize_workflow_plotting
+
+        body = normalize_workflow_plotting(name, _internal_wf1(body))
+        discharge = observation_settings.get("river_discharge")
+        if discharge is not None:
+            body["observations"] = {"river discharge": discharge["path"]}
+        evaluation = body.get("evaluation")
+        if isinstance(evaluation, Mapping) and "budyko" in evaluation:
+            switch = evaluation["budyko"]
+            if switch not in (True, False, None):
+                raise ValueError(
+                    "build_model evaluation.budyko is a switch: true or false. Its "
+                    "time_label moved to observations.river_discharge.time_label in "
+                    "the project file, and discharge_statistic is retired (observed "
+                    "discharge must be daily means labelled at interval end)."
+                )
+            evaluation = dict(evaluation)
+            if switch is True and discharge is not None:
+                evaluation["budyko"] = {
+                    "discharge_statistic": "daily_mean",
+                    "time_label": discharge["time_label"],
+                }
+            elif switch is True:
+                raise ValueError(
+                    "build_model evaluation.budyko requires "
+                    "observations.river_discharge in the project file"
+                )
+            body["evaluation"] = evaluation
+    elif name == "analyze_climate":
+        from blueearth_cst.shared.workflow_plotting import normalize_workflow_plotting
+
+        body = normalize_workflow_plotting(name, _internal_wf0_plotting(body))
+        if observation_settings.get("met_stations") is not None:
+            body["rain_gauges"] = dict(observation_settings["met_stations"])
+        diagnostics = body.get("diagnostics")
+        if diagnostics is None:
+            diagnostics = {}
+        if not isinstance(diagnostics, Mapping):
+            return body  # parse_settings reports the type
+        diagnostics = dict(diagnostics)
+        map_reference = climate.get("map_reference")
+        if isinstance(map_reference, Mapping):
+            for key in _WF0_MAP_REFERENCE_KEYS:
+                if key in map_reference:
+                    diagnostics[key] = map_reference[key]
+        indices = diagnostics.get("climate_indices")
+        if isinstance(indices, Mapping):
+            indices = dict(indices)
+            indices["seasons"] = project_seasons(climate)
+            if "reference_period" in diagnostics:
+                indices["reference_period"] = diagnostics["reference_period"]
+            diagnostics["climate_indices"] = indices
+        if diagnostics or "diagnostics" in body:
+            body["diagnostics"] = diagnostics
+    elif name == "analyze_projections":
+        body = _internal_projections(body, climate)
+    elif name == "generate_scenarios":
+        body = _internal_wf3(body)
+    elif name == "simulate_system":
+        body = internal_simulation_settings(body)
+    return body
+
+
+#: simulate_system's internal names for the public `steps`/`indicators` keys.
+_WF4_INTERNAL = (
+    "operations",
+    "indicator_sets",
+    "indicator_set_definitions",
+    "indicator_selection",
+    "indicator_evaluation",
+)
+_WF4_STEPS = ("simulations", "indicators")
+_WF4_INDICATOR_KEYS = {"sets", "custom_sets", "options", "subset", "evaluation"}
+
+
+def internal_simulation_settings(body: Mapping[str, Any]) -> dict[str, Any]:
+    """simulate_system's t037 `steps`/`indicators` keys in the internal shapes.
+
+    `steps` -> `operations` (in `simulations, indicators` order); the
+    `indicators` mapping -> `indicator_sets` (a set with `options` becomes the
+    former inline `{set: <id>, ...}` entry), `indicator_set_definitions`,
+    `indicator_selection` (a list means `include`) and `indicator_evaluation`.
+    Only authored keys are emitted, so identities are unchanged and a file
+    with neither key keeps the legacy `operation` interface. A list-valued
+    `indicators` is that legacy token list and passes through. Raw readers
+    call this too, so the former internal names are refused here as well.
+    """
+    body = dict(body)
+    found = [key for key in _WF4_INTERNAL if key in body]
+    if found:
+        raise ValueError(
+            "simulate_system: "
+            + "; ".join(
+                f"`{key}` is {RETIRED_KEYS[f'T2.simulate_system.{key}']}"
+                for key in found
+            )
+        )
+    if "steps" in body:
+        steps_settings = body.pop("steps")
+        if not isinstance(steps_settings, Mapping) or set(steps_settings) - set(
+            _WF4_STEPS
+        ):
+            raise ValueError(
+                "simulate_system.steps must be a mapping of simulations and "
+                "indicators to true or false"
+            )
+        values = {
+            "simulations": steps_settings.get("simulations", True),
+            "indicators": steps_settings.get("indicators", True),
+        }
+        if any(type(value) is not bool for value in values.values()):
+            raise ValueError("simulate_system.steps values must be true or false")
+        if not any(values.values()):
+            raise ValueError(
+                "simulate_system.steps: at least one of simulations and "
+                "indicators must be true"
+            )
+        body["operations"] = [key for key in _WF4_STEPS if values[key]]
+    indicator_settings = body.get("indicators")
+    if not isinstance(indicator_settings, Mapping):
+        return body
+    body.pop("indicators")
+    unknown = sorted(set(indicator_settings) - _WF4_INDICATOR_KEYS)
+    if unknown:
+        raise ValueError(
+            f"simulate_system.indicators: unknown keys {unknown}; allowed "
+            f"{sorted(_WF4_INDICATOR_KEYS)}"
+        )
+    options = indicator_settings.get("options") or {}
+    if not isinstance(options, Mapping):
+        raise ValueError("simulate_system.indicators.options must be a mapping")
+    sets = indicator_settings.get("sets")
+    if sets is not None or options:
+        sets = ["default"] if sets is None else sets
+        if not isinstance(sets, list):
+            raise ValueError(
+                "simulate_system.indicators.sets must be a list of set ids"
+            )
+        stray = sorted(set(options) - set(sets))
+        if stray:
+            raise ValueError(
+                f"simulate_system.indicators.options names sets {stray} that "
+                "indicators.sets does not select"
+            )
+        body["indicator_sets"] = [
+            {"set": name, **options[name]}
+            if isinstance(name, str) and options.get(name)
+            else name
+            for name in sets
+        ]
+    custom = indicator_settings.get("custom_sets")
+    if custom is not None:
+        if not isinstance(custom, Mapping):
+            raise ValueError(
+                "simulate_system.indicators.custom_sets must map set ids to files"
+            )
+        body["indicator_set_definitions"] = {
+            name: {"config_path": path} for name, path in custom.items()
+        }
+    subset = indicator_settings.get("subset")
+    if subset is not None:
+        if not isinstance(subset, Mapping):
+            raise ValueError(
+                "simulate_system.indicators.subset must map set ids to indicator lists"
+            )
+        body["indicator_selection"] = {
+            name: {"include": choice} if isinstance(choice, list) else choice
+            for name, choice in subset.items()
+        }
+    evaluation = indicator_settings.get("evaluation")
+    if evaluation is not None:
+        body["indicator_evaluation"] = evaluation
+    return body
+
+
+def _public_wf4(section: dict[str, Any]) -> dict[str, Any]:
+    """Inverse of `internal_simulation_settings` for execution YAML."""
+    if "operations" in section:
+        operations = section.pop("operations")
+        section["steps"] = {key: key in operations for key in _WF4_STEPS}
+    indicators: dict[str, Any] = {}
+    if "indicator_sets" in section:
+        sets, options = [], {}
+        for entry in section.pop("indicator_sets"):
+            if isinstance(entry, Mapping):
+                extra = sorted(
+                    set(entry) & {"id", "title", "description", "schema_version"}
+                )
+                if extra:
+                    raise ValueError(
+                        f"inline indicator set fields {extra} have no public form; "
+                        "use indicators.custom_sets with a definition file"
+                    )
+                name = entry["set"]
+                options[name] = {k: v for k, v in entry.items() if k != "set"}
+                sets.append(name)
+            else:
+                sets.append(entry)
+        indicators["sets"] = sets
+        if options:
+            indicators["options"] = options
+    if "indicator_set_definitions" in section:
+        indicators["custom_sets"] = {
+            name: definition["config_path"]
+            for name, definition in section.pop("indicator_set_definitions").items()
+        }
+    if "indicator_selection" in section:
+        indicators["subset"] = {
+            name: choice["include"] if set(choice) == {"include"} else choice
+            for name, choice in section.pop("indicator_selection").items()
+        }
+    if "indicator_evaluation" in section:
+        indicators["evaluation"] = section.pop("indicator_evaluation")
+    if indicators:
+        section["indicators"] = indicators
+    return section
+
+
+#: Monthly perturbation fields that accept one value for every month (t037).
+_MONTHLY_BOUNDS = (
+    ("temp", "mean"),
+    ("precip", "mean"),
+    ("precip", "variance"),
+)
+
+
+def _twelve(value: Any) -> Any:
+    """A scalar becomes 12 copies of itself; anything else is left to validation."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return value
+    return [value] * 12
+
+
+def _internal_wf3(body: dict[str, Any]) -> dict[str, Any]:
+    """WF3 stochastic t037 keys, in the shapes generation already hashes.
+
+    `future_period` -> `simulation_window`, `generator_config_path` ->
+    `weathergen_config`, and monthly scalars -> 12 copies of the same value,
+    so a project that authors 12-lists keeps its identity.
+    """
+    if "method" in body:
+        return body  # the delta-change section
+    body = dict(body)
+    if "future_period" in body:
+        body["simulation_window"] = body.pop("future_period")
+    if "generator_config_path" in body:
+        body["weathergen_config"] = body.pop("generator_config_path")
+    perturbations = body.get("climate_perturbations")
+    if isinstance(perturbations, Mapping):
+        perturbations = dict(perturbations)
+        for axis, stat in _MONTHLY_BOUNDS:
+            axis_settings = perturbations.get(axis)
+            if not isinstance(axis_settings, Mapping):
+                continue
+            bounds = axis_settings.get(stat)
+            if isinstance(bounds, Mapping):
+                axis_settings = dict(axis_settings)
+                axis_settings[stat] = {
+                    key: _twelve(value) if key in ("min", "max") else value
+                    for key, value in bounds.items()
+                }
+                perturbations[axis] = axis_settings
+        spells = perturbations.get("spell_factors")
+        if isinstance(spells, Mapping):
+            perturbations["spell_factors"] = {
+                key: _twelve(value) if key in ("dry", "wet") else value
+                for key, value in spells.items()
+            }
+        body["climate_perturbations"] = perturbations
+    return body
+
+
+def _public_wf3(section: dict[str, Any]) -> dict[str, Any]:
+    """Inverse of `_internal_wf3` (12-lists stay lists)."""
+    if "method" in section:
+        delta = section.get("delta_change")
+        if isinstance(delta, dict):
+            from blueearth_cst.shared.generation_config import public_delta_settings
+
+            section["delta_change"] = public_delta_settings(delta)
+        return section
+    if "simulation_window" in section:
+        section["future_period"] = section.pop("simulation_window")
+    if "weathergen_config" in section:
+        section["generator_config_path"] = section.pop("weathergen_config")
+    return section
+
+
+#: WF1 public plotting keys -> the internal figure switches.
+_WF1_PLOTTING = {"input_maps": "spatial", "forcing_figures": "forcing"}
+_WF1_HYDROMT = {
+    "build_config_path": "build_config",
+    "waterbodies_config_path": "waterbodies_config",
+}
+
+
+def _internal_wf1(body: dict[str, Any]) -> dict[str, Any]:
+    """WF1's t037 keys, in the shapes `build_model.smk` reads.
+
+    `run_period` -> `simulation_window`; `hydromt: {build_config_path,
+    waterbodies_config_path}` -> `engine: {build_config, waterbodies_config}`;
+    `plotting: {input_maps, forcing_figures, scales, view}` -> `{spatial,
+    forcing, location}` plus `view` only when it is not the default, so a
+    project that never sets it composes exactly as before.
+    """
+    body = dict(body)
+    if "run_period" in body:
+        body["simulation_window"] = body.pop("run_period")
+    hydromt_settings = body.pop("hydromt", None)
+    if hydromt_settings is not None:
+        if not isinstance(hydromt_settings, Mapping) or set(hydromt_settings) - set(
+            _WF1_HYDROMT
+        ):
+            raise ValueError(
+                "build_model hydromt accepts build_config_path and "
+                "waterbodies_config_path"
+            )
+        engine = {}
+        if "build_config_path" in hydromt_settings:
+            engine["build_config"] = hydromt_settings.get("build_config_path")
+        if "waterbodies_config_path" in hydromt_settings:
+            engine["waterbodies_config"] = hydromt_settings.get(
+                "waterbodies_config_path"
+            )
+        body["engine"] = engine
+    plotting_settings = body.get("plotting")
+    if isinstance(plotting_settings, Mapping):
+        plotting_settings = dict(plotting_settings)
+        internal = {}
+        if "input_maps" in plotting_settings:
+            internal["spatial"] = plotting_settings.pop("input_maps")
+        if "forcing_figures" in plotting_settings:
+            internal["forcing"] = plotting_settings.pop("forcing_figures")
+        if "scales" in plotting_settings:
+            scales = plotting_settings.pop("scales")
+            if (
+                not isinstance(scales, list)
+                or not scales
+                or set(scales) - set(_WF0_SCALES)
+                or "basin" not in scales
+            ):
+                raise ValueError(
+                    "build_model plotting.scales is [basin] or [basin, locations]; "
+                    "basin-scale figures always render"
+                )
+            internal["location"] = "locations" in scales
+        view = plotting_settings.pop("view", "comparison")
+        if view not in _WF0_VIEWS:
+            raise ValueError(
+                f"build_model plotting.view must be one of {list(_WF0_VIEWS)}"
+            )
+        if view != "comparison":
+            internal["view"] = view
+        body["plotting"] = {**plotting_settings, **internal}
+    return body
+
+
+def _public_wf1(section: dict[str, Any]) -> dict[str, Any]:
+    """Inverse of `_internal_wf1`."""
+    if "simulation_window" in section:
+        section["run_period"] = section.pop("simulation_window")
+    engine = section.pop("engine", None)
+    if isinstance(engine, Mapping):
+        inverse = {target: source for source, target in _WF1_HYDROMT.items()}
+        section["hydromt"] = {inverse[key]: value for key, value in engine.items()}
+    plotting_settings = section.get("plotting")
+    if isinstance(plotting_settings, Mapping):
+        plotting_settings = dict(plotting_settings)
+        public = {
+            source: plotting_settings.pop(target)
+            for source, target in _WF1_PLOTTING.items()
+            if target in plotting_settings
+        }
+        if "location" in plotting_settings:
+            public["scales"] = (
+                ["basin", "locations"]
+                if plotting_settings.pop("location")
+                else ["basin"]
+            )
+        if "view" in plotting_settings:
+            public["view"] = plotting_settings.pop("view")
+        section["plotting"] = {**plotting_settings, **public}
+    return section
+
+
+#: WF0 `plotting.view` -> the internal (comparison, source) figure switches.
+_WF0_VIEWS: dict[str, tuple[bool, bool]] = {
+    "comparison": (True, False),
+    "individual": (False, False),
+    "both": (True, True),
+}
+_WF0_SCALES = ("basin", "locations")
+
+
+def _internal_wf0_plotting(body: dict[str, Any]) -> dict[str, Any]:
+    """WF0 `plotting: {view, scales, annual_anomaly_maps}` -> internal switches.
+
+    `view` sets `comparison`/`source`, `scales` sets `location`, and
+    `annual_anomaly_maps` becomes `diagnostics.annual_spatial_anomalies`.
+    Basin-scale figures always render, so `scales` must include `basin`.
+    """
+    plotting_settings = body.get("plotting")
+    if not isinstance(plotting_settings, Mapping):
+        return body
+    plotting_settings = dict(plotting_settings)
+    view = plotting_settings.pop("view", "comparison")
+    if view not in _WF0_VIEWS:
+        raise ValueError(
+            f"analyze_climate plotting.view must be one of {list(_WF0_VIEWS)}"
+        )
+    scales = plotting_settings.pop("scales", ["basin"])
+    if (
+        not isinstance(scales, list)
+        or not scales
+        or set(scales) - set(_WF0_SCALES)
+        or "basin" not in scales
+    ):
+        raise ValueError(
+            "analyze_climate plotting.scales is [basin] or [basin, locations]; "
+            "basin-scale figures always render"
+        )
+    maps = plotting_settings.pop("annual_anomaly_maps", None)
+    comparison, source = _WF0_VIEWS[view]
+    body = dict(body)
+    body["plotting"] = {
+        **plotting_settings,
+        "comparison": comparison,
+        "source": source,
+        "location": "locations" in scales,
+    }
+    if maps is not None:
+        if type(maps) is not bool:
+            raise ValueError(
+                "analyze_climate plotting.annual_anomaly_maps is true or false"
+            )
+        diagnostics = body.get("diagnostics")
+        diagnostics = dict(diagnostics) if isinstance(diagnostics, Mapping) else {}
+        diagnostics["annual_spatial_anomalies"] = maps
+        body["diagnostics"] = diagnostics
+    return body
+
+
+def _public_wf0_plotting(section: dict[str, Any]) -> dict[str, Any]:
+    """Inverse of `_internal_wf0_plotting`."""
+    plotting = section.get("plotting")
+    if isinstance(plotting, Mapping) and {"comparison", "source", "location"} <= set(
+        plotting
+    ):
+        plotting = dict(plotting)
+        comparison = plotting.pop("comparison")
+        source = plotting.pop("source")
+        location = plotting.pop("location")
+        plotting["view"] = (
+            "both"
+            if comparison and source
+            else "comparison"
+            if comparison
+            else "individual"
+        )
+        plotting["scales"] = ["basin", "locations"] if location else ["basin"]
+        section["plotting"] = plotting
+    diagnostics = section.get("diagnostics")
+    if isinstance(diagnostics, Mapping) and "annual_spatial_anomalies" in diagnostics:
+        diagnostics = dict(diagnostics)
+        maps = diagnostics.pop("annual_spatial_anomalies")
+        section["diagnostics"] = diagnostics
+        section["plotting"] = {
+            **(section.get("plotting") or {}),
+            "annual_anomaly_maps": maps,
+        }
+    return section
+
+
+#: The generated CMIP6 catalog WF2 reads when `projections_catalog` is omitted.
+DEFAULT_PROJECTIONS_CATALOG = "toolbox:config/catalogs/cmip6_data.yml"
+
+
+def _internal_projections(
+    body: dict[str, Any], climate: Mapping[str, Any]
+) -> dict[str, Any]:
+    """WF2's t037 keys, in the shapes `analyze_projections.smk` reads.
+
+    `projections_catalog` -> `catalog`; `variables` list + `variable_options`
+    -> one mapping (`None` for a built-in); `reference_period` ->
+    `reference_window` (default `climate.window`); `future_periods` mapping ->
+    the `future_windows` list of `{start, end, name}`.
+    """
+    if not body:
+        return dict(body)  # nothing composed: an omitted workflow file
+    body = dict(body)
+    body["catalog"] = body.pop("projections_catalog", None) or resolve_path(
+        DEFAULT_PROJECTIONS_CATALOG, TOOLBOX_ROOT / "config"
+    )
+    options = body.pop("variable_options", None)
+    if options is None:
+        options = {}
+    variables = body.get("variables")
+    if not isinstance(options, Mapping):
+        raise ValueError(
+            "analyze_projections variable_options must map variable names to settings"
+        )
+    if variables is not None:
+        if not isinstance(variables, list) or not all(
+            isinstance(name, str) for name in variables
+        ):
+            raise ValueError(
+                "analyze_projections variables must be a list of names, e.g. "
+                "[precip, temp]; per-variable settings go under variable_options"
+            )
+        stray = sorted(set(options) - set(variables))
+        if stray:
+            raise ValueError(
+                f"analyze_projections variable_options names {stray!r}, which "
+                "`variables` does not list"
+            )
+        body["variables"] = {name: options.get(name) for name in variables}
+    elif options:
+        raise ValueError("analyze_projections variable_options requires variables")
+    reference = body.pop("reference_period", None)
+    if reference is None and isinstance(climate.get("window"), Mapping):
+        reference = dict(climate["window"])
+    if reference is not None:
+        body["reference_window"] = reference
+    periods = body.pop("future_periods", None)
+    if periods is not None:
+        if not isinstance(periods, Mapping) or not all(
+            isinstance(window, Mapping) for window in periods.values()
+        ):
+            raise ValueError(
+                "analyze_projections future_periods maps output labels to "
+                "{start, end}, e.g. {mid: {start: 2046, end: 2054}}"
+            )
+        body["future_windows"] = [
+            {**dict(window), "name": label} for label, window in periods.items()
+        ]
+    return body
+
+
+def _public_projections(section: dict[str, Any]) -> dict[str, Any]:
+    """Inverse of `_internal_projections`, keeping the resolved catalog."""
+    if "catalog" in section:
+        section["projections_catalog"] = section.pop("catalog")
+    variables = section.get("variables")
+    if isinstance(variables, Mapping):
+        section["variables"] = list(variables)
+        options = {
+            name: value for name, value in variables.items() if value is not None
+        }
+        if options:
+            section["variable_options"] = options
+    if "reference_window" in section:
+        section["reference_period"] = section.pop("reference_window")
+    windows = section.pop("future_windows", None)
+    if isinstance(windows, list):
+        section["future_periods"] = {
+            window["name"]: {k: v for k, v in window.items() if k != "name"}
+            for window in windows
+        }
+    return section
+
+
+def public_workflow_section(name: str, section: Mapping[str, Any]) -> dict[str, Any]:
+    """Inverse of `internal_workflow_section` for a composed workflow section.
+
+    Writers that turn composed settings back into files (execution configs,
+    test fixtures) keep the project-file settings there and must not write the
+    internal per-workflow forms, which are retired keys.
+    """
+    section = dict(section)
+    if name == "build_model":
+        section = _public_wf1(section)
+        section.pop("observations", None)
+        evaluation = section.get("evaluation")
+        if isinstance(evaluation, Mapping) and isinstance(
+            evaluation.get("budyko"), Mapping
+        ):
+            section["evaluation"] = {**evaluation, "budyko": True}
+    elif name == "analyze_climate":
+        section = _public_wf0_plotting(section)
+        section.pop("rain_gauges", None)
+        diagnostics = section.get("diagnostics")
+        if isinstance(diagnostics, Mapping):
+            diagnostics = {
+                key: value
+                for key, value in diagnostics.items()
+                if key not in _WF0_MAP_REFERENCE_KEYS
+            }
+            indices = diagnostics.get("climate_indices")
+            if isinstance(indices, Mapping):
+                diagnostics["climate_indices"] = {
+                    key: value
+                    for key, value in indices.items()
+                    if key not in {"seasons", "reference_period"}
+                }
+            section["diagnostics"] = diagnostics
+    elif name == "analyze_projections":
+        section = _public_projections(section)
+    elif name == "generate_scenarios":
+        section = _public_wf3(section)
+    elif name == "simulate_system":
+        section = _public_wf4(section)
+    return section
 
 
 def _check_observations(
@@ -731,7 +1564,7 @@ def _check_stanza_closed(name: str, stanza: Mapping[str, Any]) -> None:
             f"config's workflow stanza is closed to {sorted(WORKFLOW_STANZA_KEYS)!r}. "
             f"Move those settings into a workflow config file named "
             f"`<project_config_stem>_{name}.yml` beside this file and point "
-            f"`workflows.{name}.config_path` at it. See {CONFIG_DOC}."
+            f"`workflow_configs.{name}` at it. See {CONFIG_DOC}."
         )
 
 
@@ -769,7 +1602,10 @@ def _rejected_in_t2(t1: Mapping[str, Any]) -> frozenset[str]:
     """
     return (
         frozenset(
-            set(T1_TOP_LEVEL) | {"enabled"} | _t1_declared_leaves(t1) | SHARED_SEAM_KEYS
+            set(T1_TOP_LEVEL)
+            | {"enabled", WORKFLOW_CONFIGS_KEY}
+            | _t1_declared_leaves(t1)
+            | SHARED_SEAM_KEYS
         )
         - WORKFLOW_OWNED_LEAVES
     )
@@ -880,12 +1716,12 @@ def _raise_for_probe(probe: _Probe, t1_dir: str) -> None:
     """Apply §8.4's failure table to a file this entry point must load."""
     if probe.status == "not_captured":
         raise ValueError(
-            f"workflows.{probe.name}.config_path was not in the pre-parse "
+            f"workflow_configs.{probe.name} was not in the pre-parse "
             f"capture: {probe.resolved}"
         )
     if probe.status == "missing":
         raise ValueError(
-            f"workflows.{probe.name}.config_path names a file that does not "
+            f"workflow_configs.{probe.name} names a file that does not "
             f"exist: {probe.resolved}\n"
             f"  declared as: {probe.declared!r}\n"
             f"  resolved against: {t1_dir}\n"
@@ -895,14 +1731,14 @@ def _raise_for_probe(probe: _Probe, t1_dir: str) -> None:
         )
     if probe.status == "unparseable":
         raise ValueError(
-            f"workflows.{probe.name}.config_path names a file that is not valid "
+            f"workflow_configs.{probe.name} names a file that is not valid "
             f"YAML: {probe.resolved}\n"
             f"  resolved against: {t1_dir}\n"
             f"  parser said: {probe.detail}"
         )
     if probe.status == "not_mapping":
         raise ValueError(
-            f"workflows.{probe.name}.config_path names a file that parses to "
+            f"workflow_configs.{probe.name} names a file that parses to "
             f"{probe.detail}, not a mapping of settings: {probe.resolved}\n"
             f"  resolved against: {t1_dir}\n"
             "A workflow config file's top level is that workflow's own settings "
@@ -930,8 +1766,8 @@ def _check_no_duplicate_paths(probes: Sequence[_Probe]) -> None:
         key = os.path.normcase(probe.resolved)
         if key in seen:
             raise ValueError(
-                f"workflows.{seen[key]}.config_path and "
-                f"workflows.{probe.name}.config_path resolve to the same file: "
+                f"workflow_configs.{seen[key]} and "
+                f"workflow_configs.{probe.name} resolve to the same file: "
                 f"{probe.resolved}\n"
                 "One workflow config file per workflow — sharing one would give "
                 "each workflow the other's settings with nothing to detect it."
@@ -1007,6 +1843,9 @@ def compose_config(
             f"{t1_path}: the project config must parse to a mapping, got "
             f"{type(t1).__name__}."
         )
+    # `workflows: {name: bool}` + `workflow_configs` composes exactly like the
+    # legacy `{enabled, config_path}` stanzas, so no identity sees the form.
+    t1 = normalize_project_workflows(t1, t1_path)
     # FIRST, before every other refusal: a v1 document trips most of the checks
     # below, and reporting one of those would point a user at a single key in a
     # file that needs migrating whole. See `_check_schema_version`.
@@ -1017,6 +1856,11 @@ def compose_config(
     _check_retired_keys(t1, {})
     _check_t1_top_level(t1)
     resolve_annotation(t1)
+    # Public named forcing sets -> the internal climate form (named_forcings.py).
+    # The retired-key check below needs the authored section, so keep it.
+    authored_t1 = t1
+    if isinstance(t1.get("climate"), Mapping):
+        t1 = {**t1, "climate": internal_climate(t1["climate"])}
 
     t1_dir = os.path.dirname(os.path.abspath(os.fspath(t1_path))) or os.getcwd()
     for section in T1_SHARED_SECTIONS:
@@ -1061,9 +1905,11 @@ def compose_config(
     ]
     from blueearth_cst.shared.workflow_plotting import normalize_workflow_plotting
 
+    # WF0/WF1 plotting is normalized after their t037 public keys are
+    # translated (internal_workflow_section), so retired keys report first.
     probes = [
         probe._replace(body=normalize_workflow_plotting(probe.name, probe.body))
-        if probe.status == "ok"
+        if probe.status == "ok" and probe.name not in {"analyze_climate", "build_model"}
         else probe
         for probe in probes
     ]
@@ -1126,7 +1972,22 @@ def compose_config(
                 "plotting.annotation: caption in the project file instead "
                 "(or none for unannotated figures)."
             )
-    _check_retired_keys(t1, bodies)  # the T2 half; the T1 half ran above
+    _check_retired_keys(authored_t1, bodies)  # the T2 half; the T1 half ran above
+    observations = project_observations(t1, t1_path)
+    project_climate = t1.get("climate") or {}
+    project_seasons(project_climate)  # validate even when no reader runs
+    probes = [
+        probe._replace(
+            body=internal_workflow_section(
+                probe.name, probe.body, observations, project_climate
+            )
+        )
+        if probe.status == "ok"
+        else probe
+        for probe in probes
+    ]
+    by_name = {probe.name: probe for probe in probes}
+    bodies = {probe.name: probe.body for probe in probes if probe.status == "ok"}
     _check_observations(t1, bodies)
     _check_trajectories(bodies)
     for owner, forbidden, destination in (
@@ -1167,6 +2028,18 @@ def compose_config(
     # WF1 and WF3 use the default, WF4 its `historical_forcing` selection.
     declared_climate = composed.get("climate", {})
     requested = (bodies.get("simulate_system") or {}).get("historical_forcing")
+    if "forcings" in declared_climate and "default_forcing" not in declared_climate:
+        # Several sets and no default yet: comparison and projection runs work
+        # on the datasets alone; every forcing consumer needs the choice.
+        if validate_forcing and (
+            entry in {"build_model", "generate_scenarios"}
+            or (entry == "simulate_system" and not retained_only)
+        ):
+            named_recipes(declared_climate)  # raises: default_forcing required
+        declared_climate = {
+            key: value for key, value in declared_climate.items() if key != "forcings"
+        }
+        composed["climate"] = declared_climate
     forcing_id = None
     if declares_named(declared_climate):
         composed["climate"], forcing_id = simulation_climate(
@@ -1218,14 +2091,18 @@ def compose_config(
     if "climate" in composed or required:
         composed["climate"] = climate
     if entry == "analyze_climate" and not climate.get("sources"):
-        raise ValueError("climate.sources must contain comparison candidates")
+        raise ValueError("climate.forcings must declare the datasets to compare")
     merged: dict[str, Any] = {}
     workflow_config_paths: dict[str, str] = {}
     for name, stanza in workflows.items():
         section = {key: value for key, value in stanza.items() if key != "config_path"}
         if name in loaded_names:
             probe = by_name.get(name)
-            body = dict(probe.body) if probe is not None else {}
+            body = (
+                dict(probe.body)
+                if probe is not None
+                else internal_workflow_section(name, {}, observations, project_climate)
+            )
             if probe is not None:
                 body = resolve_workflow_paths(
                     body, probe.resolved, name, t1["schema_version"]
@@ -1363,10 +2240,10 @@ def capture_configuration_sources(
     from blueearth_cst.shared.workflow_config_snapshot import capture_sources
 
     project_source = capture_sources([("project", "project_config", project_path)])[0]
-    project = yaml.safe_load(project_source.data) or {}
+    project = normalize_project_workflows(
+        yaml.safe_load(project_source.data) or {}, project_path
+    )
     workflows = project.get("workflows") or {}
-    if not isinstance(workflows, Mapping):
-        raise ValueError("project workflows must be a mapping")
     loaded_names = {entry} | {
         section.split(".", 1)[1]
         for section in declared_sections

@@ -96,11 +96,13 @@ def _simulate(experiment, *extra):
 
 
 SETTINGS = {
-    "operations": ["indicators"],
-    "indicator_sets": ["default", "depth_alias", "same_numbers"],
-    "indicator_set_definitions": {
-        "depth_alias": {"config_path": "sets/depth_alias.yml"},
-        "same_numbers": {"config_path": "sets/same_numbers.yml"},
+    "steps": {"simulations": False},
+    "indicators": {
+        "sets": ["default", "depth_alias", "same_numbers"],
+        "custom_sets": {
+            "depth_alias": "sets/depth_alias.yml",
+            "same_numbers": "sets/same_numbers.yml",
+        },
     },
 }
 
@@ -172,7 +174,10 @@ def test_erfa_set_executes_and_rechecks_retained_discharge(tmp_path):
         ],
     )
     experiment = build_v2_experiment(tmp_path, responses)
-    _named(experiment, {"operations": ["indicators"], "indicator_sets": ["eflow-erfa"]})
+    _named(
+        experiment,
+        {"steps": {"simulations": False}, "indicators": {"sets": ["eflow-erfa"]}},
+    )
     code, output = _simulate(experiment, "--dry-run")
     assert code == 0, output
     code, output = _simulate(experiment)

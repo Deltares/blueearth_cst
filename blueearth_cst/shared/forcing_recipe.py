@@ -11,6 +11,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal, cast
 
+#: Historical climate datasets the raw-climate path supports for comparison and
+#: as precipitation forcing. The one list; other modules import it.
+SUPPORTED_CLIMATE_SOURCES: tuple[str, ...] = ("era5", "chirps", "chirps_global")
+
 
 def resolve_climate_forcing(
     climate: Mapping[str, object], *, required: bool, notices: bool = True
@@ -65,19 +69,16 @@ def resolve_climate_forcing(
     if not isinstance(candidates, list):
         raise ValueError("climate.sources must be a list of unique source names")
     for candidate in candidates:
-        if not isinstance(candidate, str) or candidate not in {
-            "era5",
-            "chirps",
-            "chirps_global",
-        }:
+        if not isinstance(candidate, str) or candidate not in SUPPORTED_CLIMATE_SOURCES:
             raise ValueError(
-                f"climate.sources contains unsupported candidate {candidate!r}"
+                f"climate.forcings uses unsupported climate dataset {candidate!r}; "
+                f"supported: {', '.join(SUPPORTED_CLIMATE_SOURCES)}"
             )
     if len(set(candidates)) != len(candidates):
         raise ValueError("climate.sources contains duplicate candidates")
     wants_recipe = required or bool(fields)
     if wants_recipe and not candidates:
-        raise ValueError("climate.sources must contain at least one valid candidate")
+        raise ValueError("climate.forcings must declare at least one forcing set")
     if "precip_source" not in fields and wants_recipe:
         if len(candidates) != 1:
             raise ValueError(
@@ -352,9 +353,12 @@ def normalize_forcing_recipe(
     types, mode conflicts or an alternate companion without explicit orography.
     This function performs no I/O and does not admit the mapping into composition.
     """
-    precip_source = _source(precip_source, "climate.selected")
-    if precip_source not in {"era5", "chirps", "chirps_global"}:
-        raise ValueError("climate.selected must be era5, chirps or chirps_global")
+    precip_source = _source(precip_source, "climate.forcings precip_source")
+    if precip_source not in SUPPORTED_CLIMATE_SOURCES:
+        raise ValueError(
+            "climate.forcings precip_source must be one of "
+            f"{', '.join(SUPPORTED_CLIMATE_SOURCES)}"
+        )
     fields = _mapping(
         {} if forcing is None else forcing,
         {

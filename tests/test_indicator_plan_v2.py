@@ -896,7 +896,10 @@ def test_indicators_only_refuses_another_historical_recipe(experiment):
     project = yaml.safe_load(config.read_text(encoding="utf-8"))
     project["climate"] = {
         "water_year_start": "oct",
-        "forcings": {"era5": {"precip_source": "era5"}, "chirps": {}},
+        "forcings": {
+            "era5": {"precip_source": "era5"},
+            "chirps": {"precip_source": "chirps"},
+        },
         "default_forcing": "era5",
     }
     config.write_text(yaml.safe_dump(project), encoding="utf-8")

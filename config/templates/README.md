@@ -32,8 +32,8 @@ HydroMT generates the model's own TOML. Do not treat the reference copy as the c
 2. Resolve locations and obtain station IDs from `data/spatial/location_registry.csv`.
 3. Supply observed series only when available, using the required station IDs, dates and units.
    The comma-separated locations file and semicolon-separated observations have different purposes.
-4. Configure optional observations in the build-model file. A selected observed variable must also be
-   requested in `model.outvars`; missing observations do not establish model skill.
+4. Configure optional observations in the project file's `observations:` section. Observed discharge
+   also needs `river discharge` in `model.outvars`; missing observations do not establish model skill.
 
 The [input-format reference](../../docs/technical-manual/input-formats.md) owns the exact CSV schemas,
 matching rules, separators and provenance requirements. Keep local data with the case and record sources.

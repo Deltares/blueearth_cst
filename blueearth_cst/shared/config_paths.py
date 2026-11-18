@@ -87,6 +87,10 @@ def resolve_project_paths(document: Mapping[str, Any], source: str | Path) -> di
             "project.catalog",
             "project.reuse_data_from",
             "basin.output_locations",
+            "observations.river_discharge.path",
+            "observations.met_stations.stations_path",
+            "observations.met_stations.precip_path",
+            "observations.met_stations.temp_path",
         ),
         source,
     )
@@ -136,9 +140,16 @@ def resolve_workflow_paths(
             "rain_gauges.precip_path",
             "rain_gauges.temp_path",
         ),
-        "build_model": ("engine.build_config", "engine.waterbodies_config"),
-        "analyze_projections": ("catalog",),
-        "generate_scenarios": ("weathergen_config",),
+        # Authored (t037) and composed names: create_case resolves authored files,
+        # composition resolves after translating them to the internal names.
+        "build_model": (
+            "hydromt.build_config_path",
+            "hydromt.waterbodies_config_path",
+            "engine.build_config",
+            "engine.waterbodies_config",
+        ),
+        "analyze_projections": ("projections_catalog", "catalog"),
+        "generate_scenarios": ("generator_config_path", "weathergen_config"),
         "simulate_system": ("scenario_collection.manifest_path",),
     }
     _resolve_fields(result, fields.get(workflow, ()), source)
@@ -153,4 +164,12 @@ def resolve_workflow_paths(
                 definition["config_path"] = resolve_path(
                     definition["config_path"], source
                 )
+        indicators = result.get("indicators")
+        if isinstance(indicators, dict) and isinstance(
+            indicators.get("custom_sets"), dict
+        ):
+            custom = indicators["custom_sets"]
+            for name, value in custom.items():
+                if isinstance(value, str):
+                    custom[name] = resolve_path(value, source)
     return result

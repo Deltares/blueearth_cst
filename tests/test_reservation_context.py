@@ -90,7 +90,7 @@ def configuration(base, *, retained=None):
     write_yaml(simulation, settings)
     write_yaml(
         base / "build_model.yml",
-        {"simulation_window": {"start": 2000, "end": 2016}},
+        {"run_period": {"start": 2000, "end": 2016}},
     )
     workflows = {
         name: {"enabled": False} for name in ("analyze_climate", "analyze_projections")
@@ -110,7 +110,10 @@ def configuration(base, *, retained=None):
             "schema_version": 2,
             "project": {"project_dir": str(project), "catalog": [str(catalog)]},
             "basin": {"region": "{'subbasin': [9.666, 0.4476]}", "resolution": 0.00833},
-            "climate": {"selected": "era5", "window": {"start": 2000, "end": 2016}},
+            "climate": {
+                "forcings": {"era5": {"precip_source": "era5"}},
+                "window": {"start": 2000, "end": 2016},
+            },
             "model": {"outvars": ["groundwater recharge"]},
             "workflows": workflows,
         },

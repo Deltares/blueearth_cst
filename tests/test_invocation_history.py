@@ -70,7 +70,7 @@ def test_parent_capture_failure_records_no_fabricated_child(
     root = tmp_path / "project"
     config.write_text(
         f"schema_version: 3\nproject:\n  project_dir: {root}\n"
-        "climate:\n  sources: [era5]\nworkflows:\n"
+        "climate:\n  forcings: {era5: {precip_source: era5}}\nworkflows:\n"
         + "".join(
             f"  {name}:\n    enabled: {'true' if name == 'analyze_climate' else 'false'}\n"
             for name in run_workflows.WORKFLOW_ORDER
@@ -136,7 +136,7 @@ def reporting_run(tmp_path, monkeypatch):
             {
                 "schema_version": 3,
                 "project": {"project_dir": str(root)},
-                "climate": {"sources": ["era5"]},
+                "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
                 "workflows": {
                     name: {"enabled": name in run_workflows.WORKFLOW_ORDER[:3]}
                     for name in run_workflows.WORKFLOW_ORDER

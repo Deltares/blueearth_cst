@@ -13,6 +13,7 @@ from blueearth_cst.shared.config_paths import (
     resolve_project_paths,
     resolve_workflow_paths,
 )
+from blueearth_cst.shared.project_workflows import normalize_project_workflows
 from blueearth_cst.shared.workflow_archive_launch import (
     CONTEXT_ENV,
     prepare_workflow,
@@ -33,20 +34,17 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_execution_yaml_uses_public_forcing_keys(tmp_path, schema_version, legacy):
     from blueearth_cst.shared.config_composition import load_composed_config
     from blueearth_cst.shared.forcing_recipe import resolve_climate_forcing
+    from blueearth_cst.shared.named_forcings import internal_climate
 
-    climate = {
-        "sources": ["era5"],
-        "forcing": {
-            "temp_correction": False,
-            "press_correction": False,
-            "pet": {"mode": "computed", "method": "makkink"},
-        },
+    recipe = {
+        "precip_source": "era5",
+        "temp_correction": False,
+        "press_correction": False,
+        "pet": {"mode": "computed", "method": "makkink"},
     }
-    if legacy:
-        climate["selected"] = "era5"
-        climate["forcing"]["temp_pet_source"] = "era5"
-    else:
-        climate["forcing"].update(precip_source="era5", temp_source="era5")
+    # The deprecated companion spelling is still accepted inside a forcing set.
+    recipe["temp_pet_source" if legacy else "temp_source"] = "era5"
+    climate = {"forcings": {"era5": recipe}}
     root = tmp_path / "output"
     project = {
         "schema_version": schema_version,
@@ -70,18 +68,20 @@ def test_execution_yaml_uses_public_forcing_keys(tmp_path, schema_version, legac
             targets=["all"],
         )
     migrations = [item for item in initial if issubclass(item.category, FutureWarning)]
-    # Genuine legacy source settings warn once each; modern sources never warn.
-    assert len(migrations) == (2 if legacy else 0)
+    # The legacy companion spelling warns once; modern sources never warn.
+    assert len(migrations) == (1 if legacy else 0)
     staged = yaml.safe_load(execution.read_bytes())["climate"]
-    assert "selected" not in staged
-    assert "temp_pet_source" not in staged["forcing"]
-    assert staged["forcing"]["precip_source"] == "era5"
-    assert staged["forcing"]["temp_source"] == "era5"
+    staged_recipe = staged["forcings"]["era5"]
+    assert "temp_pet_source" not in staged_recipe
+    assert staged_recipe["precip_source"] == "era5"
+    assert staged_recipe["temp_source"] == "era5"
     with warnings.catch_warnings(record=True) as reparsed:
         warnings.simplefilter("always", FutureWarning)
         loaded = load_composed_config(execution, entry="build_model")
     assert not [item for item in reparsed if issubclass(item.category, FutureWarning)]
-    expected, _ = resolve_climate_forcing(climate, required=True, notices=False)
+    expected, _ = resolve_climate_forcing(
+        internal_climate(climate), required=True, notices=False
+    )
     assert loaded["climate"] == expected
     assert source.read_bytes() == original
     record = read_archive(root, "build_model", "config/build_model")
@@ -98,7 +98,9 @@ def test_execution_inputs_ignore_source_locations_and_other_enable_flags(
     tmp_path, workflow_name
 ):
     project = resolve_project_paths(
-        yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text()),
+        normalize_project_workflows(
+            yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text())
+        ),
         ROOT / "test_case/project_config_rapid.yml",
     )
     project_root = tmp_path / "output"
@@ -189,7 +191,9 @@ def test_execution_inputs_ignore_source_locations_and_other_enable_flags(
 
 def test_preparse_capture_survives_source_edit(tmp_path, capsys):
     project = resolve_project_paths(
-        yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text()),
+        normalize_project_workflows(
+            yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text())
+        ),
         ROOT / "test_case/project_config_rapid.yml",
     )
     source_workflow = ROOT / "test_case/project_config_rapid_analyze_climate.yml"
@@ -247,7 +251,9 @@ def test_shared_dependency_stages_once_across_workflows(tmp_path):
     ran, even with nothing to redo.
     """
     project = resolve_project_paths(
-        yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text()),
+        normalize_project_workflows(
+            yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text())
+        ),
         ROOT / "test_case/project_config_rapid.yml",
     )
     project_root = tmp_path / "output"
@@ -306,7 +312,9 @@ def test_execution_config_schema_moves_immutable_bundle_directory(
 ):
     """A staging-format change gets a new bundle path for unchanged sources."""
     project = resolve_project_paths(
-        yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text()),
+        normalize_project_workflows(
+            yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text())
+        ),
         ROOT / "test_case/project_config_rapid.yml",
     )
     project_root = tmp_path / "output"
@@ -357,7 +365,9 @@ def test_projection_catalog_and_store_index_stage_as_siblings(tmp_path):
     store from.
     """
     project = resolve_project_paths(
-        yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text()),
+        normalize_project_workflows(
+            yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text())
+        ),
         ROOT / "test_case/project_config_rapid.yml",
     )
     project_root = tmp_path / "output"
@@ -376,7 +386,7 @@ def test_projection_catalog_and_store_index_stage_as_siblings(tmp_path):
     workflow_config = yaml.safe_load(
         (ROOT / "test_case" / stanza["config_path"]).read_text()
     )
-    workflow_config["catalog"] = str(catalog)
+    workflow_config["projections_catalog"] = str(catalog)
     workflow_file = tmp_path / "project_config_rapid_analyze_projections.yml"
     workflow_file.write_text(yaml.safe_dump(workflow_config), encoding="utf-8")
     stanza["config_path"] = str(workflow_file)
@@ -397,7 +407,7 @@ def test_projection_catalog_and_store_index_stage_as_siblings(tmp_path):
             ]
         ).read_bytes()
     )
-    staged_catalog = Path(execution_workflow["catalog"])
+    staged_catalog = Path(execution_workflow["projections_catalog"])
     staged_index = staged_catalog.parent / "cmip6_store_index.json"
     assert staged_index.is_file()
     assert staged_index.read_text(encoding="utf-8") == index.read_text(encoding="utf-8")
@@ -422,7 +432,9 @@ def test_config_overrides_are_captured_before_forwarding():
 
 def test_all_workflow_wrapper_routes_wf0_through_capture(tmp_path, monkeypatch):
     project = resolve_project_paths(
-        yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text()),
+        normalize_project_workflows(
+            yaml.safe_load((ROOT / "test_case/project_config_rapid.yml").read_text())
+        ),
         ROOT / "test_case/project_config_rapid.yml",
     )
     output = tmp_path / "output"

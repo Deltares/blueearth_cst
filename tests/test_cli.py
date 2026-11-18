@@ -201,8 +201,7 @@ def test_the_linux_baseline_set_is_a_twin_of_the_windows_one():
     for doc in (windows, linux):
         doc["project"].pop("project_dir")
         doc["project"].pop("catalog")
-        for stanza in doc["workflows"].values():
-            stanza.pop("config_path", None)
+        doc.pop("workflow_configs", None)
     assert linux == windows, (
         "project_config_baseline_linux.yml has drifted from its twin; only "
         "project.project_dir, project.catalog and the config_path names may "
@@ -394,7 +393,7 @@ def test_eobs_config_fails_wf1_dry_run_at_parse_time(tmp_path):
     result = _dry_run("build_model.smk", cfg=str(cfg_path))
     combined = (result.stdout or "") + (result.stderr or "")
     assert result.returncode != 0, "eobs config must fail the wf1 dry-run"
-    assert "climate.sources contains unsupported candidate 'eobs'" in combined, combined
+    assert "climate.forcings uses unsupported climate dataset 'eobs'" in combined, combined
 
 
 @pytest.mark.parametrize(

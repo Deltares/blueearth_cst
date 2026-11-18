@@ -96,7 +96,7 @@ in the files below. Pass `project_config.yml` to the runner with `--config`.
 | `project_config_build_model.yml` | Historical model period, observations and build settings |
 | `project_config_analyze_projections.yml` | CMIP6 models, SSPs and reference/future periods |
 | `project_config_generate_scenarios.yml` | Weather realizations, perturbations, periods and seed |
-| `project_config_simulate_system.yml` | Experiment, operations, indicator sets and resources |
+| `project_config_simulate_system.yml` | Experiment, steps, indicator sets and resources |
 
 The commented case files and [technical reference](../technical-manual/configuration.md) cover
 settings beyond the key choices below.
@@ -114,24 +114,25 @@ Use `--catalog` during creation to select a different data catalog.
    Coordinates are longitude then latitude; grid spacing is in degrees. The `uparea` delineation
    threshold is in km², not a target catchment area. Finer grids do not add detail to source datasets.
    Check that `basin.sources` names exist in your catalog.
-3. **Historical forcing:** compare `climate.sources`, then choose `climate.forcing.precip_source`.
+3. **Historical forcing:** declare a set per dataset under `climate.forcings`, compare them, then set
+   `climate.default_forcing`.
    Selected forcing also conditions weather generation; the toolbox does no local calibration.
 4. **Historical period:** set `climate.window` using the
    [period guidance below](#keep-the-analysis-periods-consistent).
 5. **Model outputs:** choose `model.outvars` so later indicators have their required responses.
-6. **Workflow selection:** check each workflow's `config_path` and set `enabled: true` for those you need.
+6. **Workflow selection:** check each workflow's file under `workflow_configs` and set its `workflows`
+   switch to `true` for those you need.
    Use `false` to skip a workflow without deleting its results; check their suitability before reuse.
 
 For example, the workflow selection has this shape:
 
 ```yaml
 workflows:
-  analyze_climate:
-    enabled: true
-    config_path: project_config_analyze_climate.yml
-  build_model:
-    enabled: false
-    config_path: project_config_build_model.yml
+  analyze_climate: true
+  build_model: false
+workflow_configs:
+  analyze_climate: project_config_analyze_climate.yml
+  build_model: project_config_build_model.yml
 ```
 
 This is a fragment, not a complete case file. Use the maintained starter for all five workflow entries.
@@ -171,10 +172,10 @@ The historical climate record, model run, projection windows and generated scena
 purposes; they do not need identical dates.
 
 - `climate.window`: historical calendar years, with at least 16 years for weather generation.
-- Model building: `simulation_window` uses water years within the available historical forcing.
-- Projection analysis: `reference_window` and `future_windows` use calendar years;
+- Model building: `run_period` uses water years within the available historical forcing.
+- Projection analysis: `reference_period` and `future_periods` use calendar years;
   historical runs end in 2014.
-- Scenario generation: `simulation_window` sets the years of the scenario simulation.
+- Scenario generation: `future_period` sets the years of the scenario simulation.
 
 Align projection and scenario periods when making a like-period plausibility comparison.
 
@@ -195,8 +196,8 @@ your configured output directory.
 
 **Review the outputs:** inspect the basin boundary, river network, reporting locations and climate
 diagnostics using
-[Reading outputs](outputs.md#inspect-the-basin-and-historical-conditions). Then set `climate.forcing.precip_source`
-to your chosen forcing. You can stop here for a climate-only study.
+[Reading outputs](outputs.md#inspect-the-basin-and-historical-conditions). Then set `climate.default_forcing`
+to your chosen forcing set. You can stop here for a climate-only study.
 
 ## 5. Prepare the remaining workflows {#set-workflow-parameters}
 
@@ -206,21 +207,21 @@ Projections provide context; they do not set the scenario grid.
 
 ### Hydrological model
 
-Set `simulation_window` in
+Set `run_period` in
 `project_config_build_model.yml` to water years within the historical forcing record.
 Choose historical forcing and the model variables to save in the shared project file.
 
 ### Climate projections
 
 In `project_config_analyze_projections.yml`, choose `models` and `scenarios` for your ensemble,
-and `reference_window` and `future_windows` for the comparison. The small starter ensemble is
+and `reference_period` (default `climate.window`) and `future_periods` for the comparison. The small starter ensemble is
 illustrative. Model names use `Institution/Source`; scenarios use SSP identifiers such as `ssp245`.
 
 ### Climate scenarios
 
 In `project_config_generate_scenarios.yml`, choose:
 
-- `simulation_window` and `n_realizations`: years and weather realizations per grid point.
+- `future_period` and `n_realizations`: years and weather realizations per grid point.
 - `climate_perturbations`: monthly temperature changes (°C) and precipitation multipliers, with
   `min` and `max` values in January–December order; `0.7` means 30% less precipitation.
 - `n_levels` within each axis: two temperature and three precipitation levels give six combinations,
@@ -242,18 +243,19 @@ before simulation.
 - [Crop-water](../../blueearth_cst/indicators/sets/crop_water/README.md): seasonal water availability,
   dry spells and low flows. Use it for catchment screening, not crop-yield or damage estimates.
 
-In `project_config_simulate_system.yml`, select the operations and sets to calculate:
+In `project_config_simulate_system.yml`, select the steps and sets to calculate:
 
 ```yaml
-operations: [simulations, indicators]
-indicator_sets:
-  - set: default
-  - set: eflow-erfa
+steps:
+  simulations: true
+  indicators: true
+indicators:
+  sets: [default, eflow-erfa]
 include_unperturbed: true
 ```
 
 Keep `include_unperturbed: true` when your indicators require reference runs, and supply any required
-thresholds or observations. To calculate indicators from saved simulations, use `operations: [indicators]`;
+thresholds or observations. To calculate indicators from saved simulations, set `steps.simulations: false`;
 see [Recalculate indicators](running.md#calculate-different-indicators-from-existing-simulations).
 The [outputs guide](outputs.md#reading-an-indicator-set) explains the result tables and unavailable values.
 

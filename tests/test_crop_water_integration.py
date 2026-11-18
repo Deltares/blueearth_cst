@@ -197,10 +197,10 @@ def crop_water_experiment(tmp_path, monkeypatch):
         yaml.safe_dump(
             {
                 "experiment_name": experiment.root.name,
-                "operations": ["indicators"],
-                "indicator_sets": ["crop-water"],
-                "indicator_set_definitions": {
-                    "crop-water": {"config_path": source.path.name}
+                "steps": {"simulations": False},
+                "indicators": {
+                    "sets": ["crop-water"],
+                    "custom_sets": {"crop-water": source.path.name},
                 },
             }
         ),
@@ -242,16 +242,15 @@ def test_crop_water_cli_publication(crop_water_experiment, inline):
     if inline:
         workflow = experiment.config.parent / "simulate_system.yml"
         settings = yaml.safe_load(workflow.read_text())
-        settings.pop("indicator_set_definitions")
+        settings["indicators"].pop("custom_sets")
         overrides = yaml.safe_load(source.text)["selection"]["registry"]["overrides"]
-        settings["indicator_sets"] = [
-            {
-                "set": "crop-water",
+        settings["indicators"]["options"] = {
+            "crop-water": {
                 **overrides,
                 "winter_longest_dry_spell": {"enabled": False},
                 "summer_longest_dry_spell": {"dry_day_mm": 2.0},
             }
-        ]
+        }
         workflow.write_text(yaml.safe_dump(settings), encoding="utf-8")
     run = _run_indicators(experiment)
     assert run.returncode == 0, run.stdout + run.stderr

@@ -153,9 +153,9 @@ def parse_selection(settings: dict, workflow_path) -> Selection:
         if key in settings:
             raise IndicatorSetError(
                 f"simulate_system.{key} is the legacy interface and cannot be mixed "
-                "with operations/indicator_sets; replace operation with "
-                "operations: [simulations, indicators] and indicators with an explicit "
-                "indicator set"
+                "with steps/indicators; replace operation with "
+                "steps: {simulations: true, indicators: true} and the indicator list "
+                "with indicators: {sets: [...]}"
             )
     operations = settings.get("operations", list(OPERATIONS))
     operations = _string_list(operations, "operations", allow_empty=False)

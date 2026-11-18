@@ -162,15 +162,8 @@ julia_threads = DEFAULT_JULIA_THREADS  # C-54: no project override; advanced_set
 # any rule can put them in a shell body.
 wflow_julia = julia_prefix(julia_threads)
 
-# P3-2a bounded support (design ext2-3): the wf1 raw-climate path (rule 1.03 +
-# the model-parity plot re-source) supports era5, chirps and chirps_global
-# only. eobs fails here at DAG-parse time — before any rule executes — so the
-# rejection is early and loud on every run and dry-run.
-if clim_source == "eobs":
-    raise ValueError(
-        "clim_historical: eobs is not supported by the P3-2a wf1 raw-climate "
-        "path; supported sources: era5, chirps, chirps_global"
-    )
+# Composition (forcing_recipe.SUPPORTED_CLIMATE_SOURCES) already refused any
+# precipitation forcing the raw-climate path does not support.
 
 # SHARED, not workflow-owned (R13 D-9.7). WF3 reads this key too -- to derive
 # its indicator tables before the DAG is built -- and a key read by more than
@@ -202,17 +195,23 @@ output_locations = spatial_cfg.gauge_points_path
 #: verbatim and the loader compares them by string.
 OBSERVED_DISCHARGE_VAR = "river discharge"
 
-# C-56: `observations:` is a mapping KEYED BY VARIABLE (D-7.3), whose keys the
-# loader has already checked against `model.outvars` — so by the time it is read
-# here, every key names a variable the model was asked to output.
-#
-# Rule 1.15 is the only consumer and it plots discharge, so the discharge entry
-# is the one that becomes an `input:`. An observed series for any OTHER variable
-# parses, validates and is then read by nothing, which is a bounded coverage the
-# repo's rules say must be stated rather than left to be discovered: hence the
-# warning instead of a silent drop.
+# Composition writes the project file's `observations.river_discharge.path`
+# here as `{"river discharge": path}`; rule 1.15 plots discharge only.
 _observations = get_config(my_cfg, "observations", {}) or {}
 observations_timeseries = _observations.get(OBSERVED_DISCHARGE_VAR)
+# Project-file `observations.river_discharge.time_label`; rules 1.13b and 1.15
+# receive it only for interval-start files, so interval-end projects keep
+# their params (composition already validated the value).
+_discharge_time_label = (
+    ((config.get("observations") or {}).get("river_discharge") or {}).get(
+        "time_label", "interval_end"
+    )
+)
+_discharge_shift = (
+    {"observations_time_label": _discharge_time_label}
+    if _discharge_time_label == "interval_start"
+    else {}
+)
 from blueearth_cst.model.budyko import budyko_settings
 _budyko_evaluation = get_config(my_cfg, "evaluation", {})
 if not isinstance(_budyko_evaluation, dict):
@@ -222,22 +221,6 @@ from blueearth_cst.shared.workflow_plotting import workflow_plotting
 _plotting = workflow_plotting("build_model", my_cfg)
 _forcing_plots = _plotting["forcing"]
 _spatial_plots = _plotting["spatial"]
-_unconsumed_observations = sorted(
-    name
-    for name, source in _observations.items()
-    if name != OBSERVED_DISCHARGE_VAR and not is_unset(source)
-)
-if _unconsumed_observations:
-    # `defer_warning`, not `logger`: this is parse time, before the console
-    # style is installed, so a logger call prints in Snakemake's own style and
-    # a `warn_row` prints in ours but still above a header that has not been
-    # written. Held instead, and printed under the RUN block. See the same fix
-    # on WF2's resolution report.
-    defer_warning(
-        f"Observation variables not used: "
-        f"{listed(_unconsumed_observations)}. Rule 1.15 plots "
-        f"{OBSERVED_DISCHARGE_VAR} only; these entries will be ignored.", module="config"
-    )
 
 # The two OPTIONAL observation inputs, declared as real `input:` entries when
 # configured and omitted entirely when not. `output_locations` is the internal
@@ -1123,7 +1106,8 @@ if COMPARE_FORCINGS:
                     WATER_YEAR_START,
                 ),
                 "water_year_start": WATER_YEAR_START,
-                **({"observations_path": str(Path(observations_timeseries).resolve())}
+                **({"observations_path": str(Path(observations_timeseries).resolve()),
+                    **_discharge_shift}
                    if observations_timeseries else {}),
                 "output_dir": str(Path(f"{basin_dir}/historical/forcing_comparison").resolve()),
             },
@@ -1228,7 +1212,11 @@ _evaluation_cfg = get_config(my_cfg, "evaluation", {})
 if not isinstance(_evaluation_cfg, dict):
     raise ValueError("build_model.evaluation must be a mapping")
 _subbasin_plots = _plotting["location"]
-_station_plots = _plotting["location"]
+# `view: comparison` (default): with several forcing sets rule 1.13b redraws the
+# per-run discharge figures, so the per-run `stations/` set is dropped (t037).
+_station_plots = _plotting["location"] and not (
+    COMPARE_FORCINGS and _plotting.get("view", "comparison") == "comparison"
+)
 _WFLOW_OUTVARS_WITHOUT_BASAVG_PLOT = ("river discharge", "precipitation")
 _basavg_pngs = lambda key: [
     f"{_hp(key, 'evaluation_dir')}/plots/wflow_{BASAVG_FIGURE_STEMS[WFLOW_OUTPUT_CODES[var]]}_{kind}_basin_avg.png"
@@ -1427,6 +1415,7 @@ for _k in FORCING_KEYS:
             station_plots = _station_plots,
             toml_name = HistoricalLayout(_k).toml,
             evaluation_dir = _hp(_k, "evaluation_dir"),
+            **_discharge_shift,
         log:
             PLOT_MODEL_EVALUATION.log(_k),
         benchmark:

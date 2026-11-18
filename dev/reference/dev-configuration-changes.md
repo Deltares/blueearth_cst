@@ -10,9 +10,12 @@ Read the [naming conventions](dev-naming-conventions.md) before choosing a key n
 
 ## Choose the owning file
 
-- **Project file:** `project`, the shared `basin`, `climate`, `model` and `plotting` sections, and one
-  closed `{enabled, config_path}` stanza per workflow. A key read by more than one workflow belongs in
-  one of the shared sections, never in a workflow file.
+- **Project file:** `project`, the shared `basin`, `climate`, `model` and `plotting` sections, the
+  `workflows` switches and the `workflow_configs` file paths. A key read by more than one workflow belongs
+  in one of the shared sections, never in a workflow file. Code that reads a raw (uncomposed) project
+  mapping calls `normalize_project_workflows` in
+  [`project_workflows.py`](../../blueearth_cst/shared/project_workflows.py) first; it returns the legacy
+  `{enabled, config_path}` stanzas that composition, identity and snapshot code expect.
 - **Workflow file:** settings read by that workflow alone, reached through its stanza's `config_path`.
 - **`config/advanced_settings.yml`:** toolbox-wide `constraints`, `defaults` and `runtime` values read for
   every project by `snake_utils`. It is never a `--configfile` target.

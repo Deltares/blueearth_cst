@@ -149,7 +149,7 @@ def test_the_refusal_names_keys_a_user_can_actually_set():
         validate_julia_threads(0)
     message = str(error.value)
     assert "shared.julia_threads" not in message
-    assert "advanced_settings.runtime.julia_threads" in message
+    assert "advanced_settings.runtime.historical_julia_threads" in message
     assert "--set-threads" in message
 
 

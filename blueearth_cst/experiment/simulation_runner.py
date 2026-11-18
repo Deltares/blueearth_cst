@@ -11,7 +11,7 @@ import yaml
 def simulation_settings(config_path, *, validate_forcing=True):
     """Read the simulation file without opening generation or model files.
 
-    The named interface (``operations``/``indicator_sets``) is validated and
+    The named interface (authored ``steps``/``indicators``) is validated and
     normalized to the internal ``operation`` the Snakemake branches select on:
     ``indicators-only`` for indicators alone, otherwise ``simulate-and-indicators``.
     The all-workflow runner uses ``validate_forcing=False`` for structural
@@ -28,12 +28,15 @@ def simulation_selection(config_path, *, validate_forcing=True):
     from blueearth_cst.experiment import indicator_sets
 
     path = Path(config_path).resolve()
-    project = yaml.safe_load(path.read_text(encoding="utf-8"))
     from blueearth_cst.shared.config_paths import (
         resolve_project_paths,
         resolve_workflow_paths,
     )
+    from blueearth_cst.shared.project_workflows import normalize_project_workflows
 
+    project = normalize_project_workflows(
+        yaml.safe_load(path.read_text(encoding="utf-8")), path
+    )
     project = resolve_project_paths(project, path)
     workflows = project.get("workflows", {})
     if "run_stress_test" in workflows:
@@ -46,31 +49,41 @@ def simulation_selection(config_path, *, validate_forcing=True):
     if set(stanza) != {"enabled", "config_path"} or not isinstance(
         stanza["enabled"], bool
     ):
-        raise ValueError("simulate_system requires a closed enabled/config_path stanza")
+        raise ValueError(
+            "simulate_system requires workflows.simulate_system (true or false) "
+            "and workflow_configs.simulate_system"
+        )
     if stanza["enabled"] is False:
         raise ValueError(
             f"Workflow simulate_system is disabled in {path}. "
-            "Set workflows.simulate_system.enabled to true in that "
+            "Set workflows.simulate_system to true in that "
             "project configuration file, then rerun the command."
         )
     workflow_path = path.parent / stanza["config_path"]
     settings = (
         indicator_sets.load_unique_yaml(workflow_path.read_text(encoding="utf-8")) or {}
     )
-    from blueearth_cst.shared.config_composition import normalize_indicator_settings
+    from blueearth_cst.shared.config_composition import (
+        internal_simulation_settings,
+        normalize_indicator_settings,
+    )
 
+    settings = internal_simulation_settings(normalize_indicator_settings(settings))
     settings = resolve_workflow_paths(
         settings, workflow_path, "simulate_system", project.get("schema_version", 2)
     )
-    settings = normalize_indicator_settings(settings)
     from blueearth_cst.shared.forcing_recipe import (
         require_workflow_compatibility,
         resolve_climate_forcing,
     )
-    from blueearth_cst.shared.named_forcings import simulation_climate
+    from blueearth_cst.shared.named_forcings import (
+        internal_climate,
+        simulation_climate,
+    )
 
     # A named project runs WF4 on one recipe: the selection's legacy view.
-    declared = project.get("climate") or {}
+    declared = internal_climate(project.get("climate") or {})
+    project["climate"] = declared
     view, forcing_id = simulation_climate(declared, settings.get("historical_forcing"))
     if forcing_id is not None:
         project["climate"] = view
@@ -102,7 +115,7 @@ def simulation_selection(config_path, *, validate_forcing=True):
     if settings.get("operation") not in {"simulate-and-indicators", "indicators-only"}:
         raise ValueError(
             "simulate_system.operation must be simulate-and-indicators or indicators-only; "
-            "or use operations: [simulations, indicators]"
+            "or use steps: {simulations: true, indicators: true}"
         )
     return project, settings, indicator_sets.workflow_selection(settings, workflow_path)
 
@@ -192,8 +205,8 @@ def check_required_variables(
             + "; ".join(gap["text"] for gap in missing)
             + ". "
             + " ".join(remedies)
-            + " Alternatively exclude the indicator with indicator_selection, or set "
-            "indicator_evaluation: partial."
+            + " Alternatively leave the indicator out with indicators.subset, or set "
+            "indicators.evaluation: partial."
         )
     return missing
 
@@ -262,7 +275,7 @@ def simulation_indicator_sets(
                 "unperturbed reference runs: "
                 + ", ".join(dependent)
                 + ". Select an indicator set without these indicators, use "
-                "operations: [simulations], or set include_unperturbed: true."
+                "steps.indicators: false, or set include_unperturbed: true."
             )
     return sets
 
@@ -278,7 +291,7 @@ def resolve_targets(config_path, targets, *, prepare_baseline=True):
     if not selection.legacy:
         if current_targets(targets) != ["all"]:
             raise ValueError(
-                "UnsupportedOperationTarget: operations/indicator_sets infer the "
+                "UnsupportedOperationTarget: steps/indicators infer the "
                 "target; omit --target"
             )
         if selection.indicators:
@@ -663,7 +676,7 @@ def verify_selected_collection_source(project, selection, marker):
         if recipe != climate.get("default_forcing"):
             raise ValueError(
                 "delta collections record no forcing recipe; WF4 may select only "
-                "the default historical forcing for them (historical_forcing: default)"
+                "the default historical forcing for them (omit historical_forcing)"
             )
         return selected
     archive_path = resolve_file_reference(

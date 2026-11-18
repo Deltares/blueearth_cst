@@ -30,7 +30,9 @@ from blueearth_cst.shared.config_paths import (  # noqa: E402
     resolve_workflow_paths,
 )
 
-_INSTRUCTIONS_TEMPLATE = TOOLBOX_ROOT / "config" / "templates" / "case-instructions.md.tmpl"
+_INSTRUCTIONS_TEMPLATE = (
+    TOOLBOX_ROOT / "config" / "templates" / "case-instructions.md.tmpl"
+)
 
 _WORKFLOW_LABELS = {
     "analyze_climate": ("WF0", "Historical climate analysis"),
@@ -57,7 +59,8 @@ def _yaml_parameters(
             if isinstance(key, yaml.ScalarNode):
                 child = (*path, key.value)
                 yield child, key, value
-                yield from _yaml_parameters(value, child, seen)
+                if child != ("basin", "region"):  # a HydroMT value, not settings
+                    yield from _yaml_parameters(value, child, seen)
     elif isinstance(node, yaml.SequenceNode):
         for item in node.value:
             yield from _yaml_parameters(item, (*path, "*"), seen)
@@ -82,16 +85,19 @@ def _template_comments(path: Path) -> dict[tuple[str, ...], str]:
             if previous.startswith("# ") and re.search(
                 r"\b(Input|Options): ", previous
             ):
-                if len(keys) >= 2 and keys[0] in {
-                    "observations",
-                    "indicator_set_definitions",
-                    "indicator_selection",
+                if len(keys) >= 3 and keys[:2] in {
+                    ("indicators", "custom_sets"),
+                    ("indicators", "options"),
+                    ("indicators", "subset"),
                 }:
-                    keys = (keys[0], "*", *keys[2:])
+                    keys = (*keys[:2], "*", *keys[3:])
                 elif len(keys) >= 3 and keys[:2] == ("members", "overrides"):
                     keys = (*keys[:2], "*", *keys[3:])
-                elif keys[:2] == ("variables", "custom_variable"):
-                    keys = ("variables", "*", *keys[2:])
+                elif len(keys) >= 2 and keys[0] in {
+                    "variable_options",
+                    "future_periods",
+                }:
+                    keys = (keys[0], "*", *keys[2:])
                 comments[keys] = previous
     return comments
 
@@ -139,6 +145,11 @@ def _annotate_config(text: str, comments: dict[tuple[str, ...], str]) -> str:
     return "".join(
         "".join(additions.get(row, [])) + line for row, line in enumerate(lines)
     )
+
+
+def _without_template_preamble(text: str) -> str:
+    """Drop the starter's leading comment block; the case header replaces it."""
+    return re.sub(r"\A(?:#[^\r\n]*\r?\n)+(?:\r?\n)+", "", text, count=1)
 
 
 def _config_header(
@@ -431,20 +442,25 @@ def _prepare(
             raise ValueError("Catalog must be nonempty")
         config["project"]["catalog"] = args.catalog
     if not args.from_trial:
-        config["basin"]["region"] = str(
-            {**_region(config), "subbasin": region["subbasin"]}
+        located = {**_region(config), "subbasin": region["subbasin"]}
+        # Keep the authored form: a YAML mapping or a quoted mapping literal.
+        config["basin"]["region"] = (
+            str(located) if isinstance(config["basin"]["region"], str) else located
         )
         config["basin"]["output_locations"] = "../data/output_locations.csv"
-    workflows = config.get("workflows")
-    if not isinstance(workflows, dict) or not workflows:
-        raise ValueError("Project requires workflow stanzas")
+    from blueearth_cst.shared.project_workflows import (
+        legacy_workflow_stanzas,
+        set_workflow_config_path,
+    )
+
+    workflows = legacy_workflow_stanzas(config, config_file)
+    if not workflows:
+        raise ValueError("Project requires workflow switches")
     files: dict[Path, bytes] = {}
     dependencies: list[str] = []
     previous: dict[Path, bytes | None] = {}
     documents = {config_file: (Path(args.trial) / "project_config.yml", config, None)}
     for name, stanza in workflows.items():
-        if not isinstance(stanza, dict):
-            raise ValueError(f"Invalid workflow stanza: {name}")
         if not args.from_trial and stanza.get("enabled") is not (
             name == "analyze_climate"
         ):
@@ -458,7 +474,7 @@ def _prepare(
                 )
             relative = target.relative_to(source)
             documents[target] = (Path(args.trial) / relative, _mapping(target), name)
-            stanza["config_path"] = relative.as_posix()
+            set_workflow_config_path(config, name, relative.as_posix())
 
     def dependency(
         raw: str, resolved: str, owner: Path, target: Path, field: str
@@ -611,7 +627,9 @@ def _prepare(
         rewritten = _rewrite(text, desired)
         if not args.from_trial:
             comments = _template_comments(owner)
-            rewritten = _annotate_config(rewritten, comments)
+            rewritten = _annotate_config(
+                _without_template_preamble(rewritten), comments
+            )
         files[relative] = _config_header(
             rewritten, relative, args.case_slug, created, [workflow] if workflow else []
         ).encode("utf-8")

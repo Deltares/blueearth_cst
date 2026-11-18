@@ -51,7 +51,7 @@
       "revision": 1
     },
     "indicator-set": {
-      "closure_sha256": "bbe9135300df9cb9db46474625c4a0016e8318800ac3490b76faacfd38f93a2f",
+      "closure_sha256": "31abd381960f64bde26cdc0c165ca63b97924a6180ab3f8a30302849e6321b77",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -107,7 +107,7 @@
         },
         {
           "path": "blueearth_cst/experiment/indicator_plan.py",
-          "sha256": "8c8e7bd969c4314cc0018c37fbc963bc720c2ec00d6130c207447b3b40308fe8"
+          "sha256": "9149e3e4bef214ec9dc624ddabc9e1b683323f2d3477dce47ef39b2a33d04ece"
         },
         {
           "path": "blueearth_cst/experiment/indicator_registry.py",
@@ -115,7 +115,7 @@
         },
         {
           "path": "blueearth_cst/experiment/indicator_sets.py",
-          "sha256": "2562caf6b32267d1eee243dc5c5639cb1ddc4afdaf80bd9f66ba4d11a9924200"
+          "sha256": "9d44c92cfdbcf417a632dabfb30773aeb74add7b472ad9d0fa70a7c2b516fdac"
         },
         {
           "path": "blueearth_cst/experiment/legacy_indicator_names.py",
@@ -243,7 +243,7 @@
         },
         {
           "path": "blueearth_cst/shared/config_paths.py",
-          "sha256": "36d2e33292adadbe30230de23567aad067d03692449e5046b4272db6af955fdb"
+          "sha256": "c6aac8327a126d482c9ea80d1634f79e422fe14f15b0418c1a586f1f5e75b500"
         },
         {
           "path": "blueearth_cst/shared/csv_output.py",
@@ -271,11 +271,15 @@
         },
         {
           "path": "blueearth_cst/shared/named_forcings.py",
-          "sha256": "af693907cc07ed17721b43153e1bf6d5e8092ae4855bb43d92dfc9976c4d47f6"
+          "sha256": "e0ef74941f83243e5959f2a083d09473b635ba8e95471c61aa8cb5bfd9016714"
         },
         {
           "path": "blueearth_cst/shared/native_locations.py",
           "sha256": "b9487e3e9fafdeea02f0872f20b48d4ccf14a5a0a29fc1e1d80eb3f84a7c4136"
+        },
+        {
+          "path": "blueearth_cst/shared/project_workflows.py",
+          "sha256": "cb2438fc39992b3a3a7a14c47d59391f30132859980c39ae8bd140cb1ca7dcca"
         },
         {
           "path": "blueearth_cst/shared/provenance.py",
@@ -300,12 +304,12 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: legacy reservation provider check"
+        "reason": "t037: simulate_system steps/indicators keys compose to the former internal shapes; remedy messages name them"
       },
       "revision": 1
     },
     "stochastic-collection": {
-      "closure_sha256": "52f32f588e1e8cdcf546b9a6d1532ffbc07729988bf6dc1d1fd789c7923b940b",
+      "closure_sha256": "e7a8a2c772cab2b55815375d197f17247d4031ce26b3dd6baf7180943d157b06",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -333,7 +337,7 @@
         },
         {
           "path": "blueearth_cst/experiment/generation_plan.py",
-          "sha256": "8c36b9d311b2b6c48478ee728596da1992460e73c7734f20a066046ed6f00e5b"
+          "sha256": "52c93750c4a3c82cd4a125abd12678d3a3b153b54d5ce2d898eda93bc1e4070d"
         },
         {
           "path": "blueearth_cst/experiment/generation_sources.py",
@@ -369,7 +373,7 @@
         },
         {
           "path": "blueearth_cst/shared/forcing_recipe.py",
-          "sha256": "82d85ac9ad984678a87962483e014e86e91a575f5f527e76f617d70748a8a7fb"
+          "sha256": "ca23277f7b63cefc238dc26f2213fde8ed7baa63dfa7c010071b931cef962254"
         },
         {
           "path": "blueearth_cst/shared/wf3_science.py",
@@ -398,12 +402,12 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: legacy reservation provider check"
+        "reason": "t037: default generator settings file renamed to weathergenr_config.yml; parsed values identical"
       },
       "revision": 1
     },
     "wf4-simulation": {
-      "closure_sha256": "c9a2436e7e84cc6a037580db86ed0f71567850d10f77f01a415242e03996b3b6",
+      "closure_sha256": "2b5c8fa1961f973ebad24d7221d895e8da337c59fef2701be4c1109902112b12",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -511,7 +515,7 @@
         },
         {
           "path": "blueearth_cst/shared/forcing_recipe.py",
-          "sha256": "82d85ac9ad984678a87962483e014e86e91a575f5f527e76f617d70748a8a7fb"
+          "sha256": "ca23277f7b63cefc238dc26f2213fde8ed7baa63dfa7c010071b931cef962254"
         },
         {
           "path": "blueearth_cst/shared/grid_output.py",
@@ -552,7 +556,7 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t038: legacy reservation provider check"
+        "reason": "t037: named forcing sets are the only public climate form; one supported-dataset list"
       },
       "revision": 1
     }

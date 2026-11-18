@@ -59,15 +59,17 @@ def test_case_relocation_and_launch_directory(tmp_path, monkeypatch):
             ],
         },
         "basin": {"output_locations": "data/locations.csv"},
-        "climate": {"selected": "era5"},
+        "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
         "model": {"outvars": ["river discharge"]},
+        "observations": {"river_discharge": {"path": "data/observed.csv"}},
         "workflows": {
             "build_model": {"enabled": True, "config_path": "settings/model.yml"}
         },
     }
     model = {
-        "observations": {"river discharge": "../data/observed.csv"},
-        "engine": {"build_config": "toolbox:config/defaults/wflow_build_model.yml"},
+        "hydromt": {
+            "build_config_path": "toolbox:config/defaults/wflow_build_model.yml"
+        },
     }
     (original / "project.yml").write_text(yaml.safe_dump(project))
     (original / "settings/model.yml").write_text(yaml.safe_dump(model))
@@ -160,8 +162,8 @@ def test_each_workflow_path_and_geometry(tmp_path):
     for workflow, document, expected in [
         (
             "analyze_projections",
-            {"catalog": "../catalog.yml"},
-            {"catalog": (tmp_path / "catalog.yml").as_posix()},
+            {"projections_catalog": "../catalog.yml"},
+            {"projections_catalog": (tmp_path / "catalog.yml").as_posix()},
         ),
         (
             "generate_scenarios",
@@ -219,13 +221,18 @@ def test_schema3_archive_stages_original_relative_inputs(tmp_path, monkeypatch):
         "schema_version": 3,
         "project": {"project_dir": str(root), "catalog": "catalog.yml"},
         "basin": {"region": "{'subbasin': [1, 2]}"},
-        "climate": {"selected": "era5"},
+        "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
         "model": {"outvars": ["river discharge"]},
+        "observations": {"river_discharge": {"path": "data/observed.csv"}},
         "workflows": {
             "build_model": {"enabled": True, "config_path": "settings/model.yml"}
         },
     }
-    workflow = {"observations": {"river discharge": "../data/observed.csv"}}
+    workflow = {
+        "hydromt": {
+            "build_config_path": "toolbox:config/defaults/wflow_build_model.yml"
+        }
+    }
     path = source / "project.yml"
     path.write_text(yaml.safe_dump(project))
     (source / "settings/model.yml").write_text(yaml.safe_dump(workflow))
@@ -241,10 +248,7 @@ def test_schema3_archive_stages_original_relative_inputs(tmp_path, monkeypatch):
 
     execution = prepare(path)
     staged_climate = yaml.safe_load(execution.read_bytes())["climate"]
-    assert staged_climate == {
-        "sources": ["era5"],
-        "forcing": {"precip_source": "era5"},
-    }
+    assert staged_climate == {"forcings": {"era5": {"precip_source": "era5"}}}
     loaded = load_composed_config(execution)
     observed = Path(
         loaded["workflows"]["build_model"]["observations"]["river discharge"]

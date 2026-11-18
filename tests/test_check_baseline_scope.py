@@ -414,10 +414,10 @@ def test_projection_figure_targets_match_baseline_analysis_window():
     config = yaml.safe_load(
         (root / "test_case/project_config_baseline_analyze_projections.yml").read_text()
     )
-    horizon = config["future_windows"][0]
-    window = analysis_windows({horizon["name"]: (horizon["start"], horizon["end"])})[
-        horizon["name"]
-    ]["window_id"]
+    name, horizon = next(iter(config["future_periods"].items()))
+    window = analysis_windows({name: (horizon["start"], horizon["end"])})[name][
+        "window_id"
+    ]
     figures = {
         template
         for workflow, kind, template in cb.TARGETS

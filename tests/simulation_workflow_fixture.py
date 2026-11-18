@@ -75,14 +75,17 @@ def parse_simulation_workflow(
         + (
             "operation: simulate-and-indicators\n"
             if include_unperturbed
-            else "operations: [simulations]\ninclude_unperturbed: false\n"
+            else "steps: {indicators: false}\ninclude_unperturbed: false\n"
         )
         + (yaml.safe_dump({"compute": compute}) if compute else ""),
         encoding="utf-8",
     )
     document = config or {
         "schema_version": 2,
-        "climate": {"sources": ["era5"], "forcing": {"precip_source": "era5"}},
+        "climate": {
+            "forcings": {"era5": {"precip_source": "era5"}},
+            "default_forcing": "era5",
+        },
         "model": {"outvars": ["river discharge"]},
     }
     document["project"] = {"project_dir": project.as_posix()}

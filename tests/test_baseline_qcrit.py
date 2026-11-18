@@ -226,11 +226,11 @@ def test_direct_wf4_reports_missing_historical_prerequisite(
     workflow.write_text(
         yaml.safe_dump(
             {
-                "operations": ["simulations", "indicators"],
-                "indicator_sets": ["crop-water"],
-                "indicator_set_definitions": {"crop-water": {"config_path": path.name}},
-                "indicator_selection": {
-                    "crop-water": {"include": ["summer_low_flow_days"]}
+                "steps": {"simulations": True, "indicators": True},
+                "indicators": {
+                    "sets": ["crop-water"],
+                    "custom_sets": {"crop-water": path.name},
+                    "subset": {"crop-water": ["summer_low_flow_days"]},
                 },
             }
         ),
@@ -241,7 +241,7 @@ def test_direct_wf4_reports_missing_historical_prerequisite(
         yaml.safe_dump(
             {
                 "project": {"project_dir": str(path.parent / "run")},
-                "climate": {"sources": ["era5"]},
+                "climate": {"forcings": {"era5": {"precip_source": "era5"}}},
                 "model": {"outvars": ["river discharge"]},
                 "workflows": {
                     "simulate_system": {"enabled": True, "config_path": workflow.name}
@@ -255,13 +255,12 @@ def test_direct_wf4_reports_missing_historical_prerequisite(
         model.parent.mkdir(parents=True)
         (path.parent / "model").rename(model)
         settings = yaml.safe_load(workflow.read_text())
-        settings.pop("indicator_set_definitions")
-        settings["indicator_sets"] = [
-            {
-                "set": "crop-water",
-                "summer_low_flow_days": {"thresholds": {"baseline_quantile": {}}},
+        settings["indicators"].pop("custom_sets")
+        settings["indicators"]["options"] = {
+            "crop-water": {
+                "summer_low_flow_days": {"thresholds": {"baseline_quantile": {}}}
             }
-        ]
+        }
         workflow.write_text(yaml.safe_dump(settings), encoding="utf-8")
     with pytest.raises(SystemExit) as error:
         main(["--config", str(project), *extra])

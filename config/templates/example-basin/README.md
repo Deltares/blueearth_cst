@@ -22,9 +22,9 @@ In either case, review these replacements:
 3. Replace `data/output_locations.csv` with intended locations consistent with that drainage network.
 4. Check every selected catalog/source covers the basin and period.
    This starter expects `P:/wflow_global/hydromt`, `rivers: hydro_rivers_lin` and `lulc: globcover`.
-5. Review `climate.sources`, choose `climate.forcing.precip_source` after source comparison, and keep at least
+5. Review the `climate.forcings` sets, choose `climate.default_forcing` after comparing them, and keep at least
    16 years of historical record for weather generation. There is no local model calibration.
-6. Set the required historical model `simulation_window` in `project_config_build_model.yml` within
+6. Set the required historical model `run_period` in `project_config_build_model.yml` within
    the extracted record. Review outputs and optional observations before running.
 7. Review generator period, realizations, monthly perturbations, grid levels, trajectories and seed.
    Review projection selections/windows independently; projections never drive generation.
@@ -42,7 +42,7 @@ Disabling a workflow leaves earlier products in place; check whether they still 
 
 For optional station rainfall comparisons, prepare the two CSVs described in the
 [historical analysis reference](../../../docs/technical-manual/workflow-analyze-climate.md#rain-gauges).
-Then enable `rain_gauges` in `project_config_analyze_climate.yml`. The supplied rain-gauge CSVs are
+Then enable `observations.met_stations` in `project_config.yml`. The supplied rain-gauge CSVs are
 synthetic format examples; replace them before interpreting results. Rain gauges have no forcing role.
 
 Use the [running guide](../../../docs/guide/running.md) from the toolbox checkout for commands,

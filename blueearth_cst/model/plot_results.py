@@ -191,6 +191,7 @@ def analyse_wflow_historical(
     evaluation_dir: Union[Path, str, None] = None,
     station_plots: bool = False,
     budyko_summary: Union[Path, str, None] = None,
+    observations_time_label: str = "interval_end",
 ):
     """
     Analyse and plot wflow model performance for historical run.
@@ -300,6 +301,13 @@ def analyse_wflow_historical(
             observations_fn, name="Q", index_dim="wflow_id", sep=";"
         )
         qobs = da_ts_obs.rename({"wflow_id": "index"}).load()
+        if observations_time_label == "interval_start":
+            # Simulated daily values carry Wflow's interval-end labels.
+            qobs = qobs.assign_coords(time=qobs["time"] + np.timedelta64(1, "D"))
+        elif observations_time_label != "interval_end":
+            raise ValueError(
+                "observations time_label must be interval_start or interval_end"
+            )
 
     ### 3. Read the wflow model and results ###
     # Instantiate wflow model
@@ -474,6 +482,9 @@ if __name__ == "__main__":
                 toml_name=getattr(sm.params, "toml_name", "wflow_sbm.toml"),
                 evaluation_dir=getattr(sm.params, "evaluation_dir", None),
                 budyko_summary=getattr(sm.input, "budyko_summary", None),
+                observations_time_label=getattr(
+                    sm.params, "observations_time_label", "interval_end"
+                ),
                 # declared only on the chirps/chirps_global branch (ext2-1)
             )
     else:

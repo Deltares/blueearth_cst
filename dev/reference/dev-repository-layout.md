@@ -30,7 +30,7 @@ Project configuration files live beside their project, as the seeds do under `te
 There is no `config/workflows/` directory.
 
 **`defaults/` vs `templates/`:** rules read defaults, so changes to `wflow_build_model.yml`,
-`wflow_update_waterbodies.yml` or `weathergen_config.yml` change runs. Templates are scaffolds to copy.
+`wflow_update_waterbodies.yml` or `weathergenr_config.yml` change runs. Templates are scaffolds to copy.
 
 `<project_dir>/config/templates/` holds generated snapshots and is normally empty. It contains a file only
 when a project config points to its own copy; shipped defaults are recorded by Git blob ID instead.
@@ -51,8 +51,8 @@ Cartopy's first-use download and per-user cache differences; it does not set a p
 data. See [asset provenance and licence](../../config/basemap/README.md).
 
 **`advanced_settings.yml`** has `constraints:` (hard limits such as `min_historical_years`),
-`defaults:` (project-overridable values such as `julia_threads`) and `runtime:` (toolchain pins such
-as `julia_version`). The Julia pin must agree with `pixi.toml` and `Manifest.toml`; see
+`defaults:` (project-overridable values such as `seed`), `runtime:` (toolchain settings such as
+`julia_version`) and `batching:` (WF4 batched runs). The Julia pin must agree with `pixi.toml` and `Manifest.toml`; see
 `tests/test_julia_runtime.py`. `snake_utils` reads this file for every project; it is not a
 `--configfile` target. The [configuration change procedure](dev-configuration-changes.md) covers its
 closed schema.

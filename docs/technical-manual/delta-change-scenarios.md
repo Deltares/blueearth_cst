@@ -15,11 +15,13 @@ In `project_config_generate_scenarios.yml`, replace `method: stochastic` and its
 ```yaml
 method: delta_change
 delta_change:
-  schema_version: delta-change/3
-  projections:
-    ensemble: cmip6               # the analyze_projections ensemble
-    future_windows: [mid-century] # WF2 horizon names; default: every WF2 window
+  future_periods: [mid]           # analyze_projections future_periods labels; default: all
 ```
+
+The ensemble follows analyze_projections (CMIP6), and an omitted `schema_version` is `delta-change/3`.
+Since t037, `projections: {ensemble, future_windows}` and `pet: {mode: projection_ratio}` are refused in
+favour of `future_periods` and `scale_pet: true`; they compose to exactly the former settings, so
+existing identities are unchanged.
 
 The basin starter carries this block, commented, at the end of its generation file. Everything else is
 derived from the case:
@@ -38,7 +40,7 @@ Optional settings:
 |---|---|
 | `name` | Set folder name. Default `delta-<ensemble>-<window names>`. Never part of identity. |
 | `dry_reference` | `{policy: refuse}` (default) or `{policy: cap, max_change: <fraction>}`; see below. |
-| `pet` | `{mode: projection_ratio}`: scale PET by WF2's PET ratio; see below. |
+| `scale_pet` | `true` scales PET by WF2's PET ratio; see below. Default `false`. |
 | `unit_id_capacity` | Advanced. At least runs + 2; changes run-ID width and identity. |
 | `historical_override` | Advanced. `period: {start, end}` replaces the WF2 reference years (reported as a mismatch). `path` with `source`, `units` and `units_note` replaces the historical file with a supported source; `units` must list every variable with that source's effective units. |
 
@@ -87,7 +89,7 @@ With `policy: cap`, the ratio becomes future / reference limited to `1 ± max_ch
 missing future mean is still refused. Capped members and months are recorded in the set and in plot
 captions; the policy and threshold are part of identity.
 
-**PET.** With `pet: {mode: projection_ratio}`, daily PET is computed on the historical source grid with the
+**PET.** With `scale_pet: true`, daily PET is computed on the historical source grid with the
 case's PET formula (De Bruin or Makkink, HydroMT) from mean-sea-level pressure without elevation correction,
 then multiplied by WF2's monthly PET ratio. WF2's `variables.pet.method` must equal the case's formula.
 Members without a WF2 PET ratio are excluded and reported per window. Every run in the set, controls

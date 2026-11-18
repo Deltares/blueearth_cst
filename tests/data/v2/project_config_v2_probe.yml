@@ -26,8 +26,8 @@ basin:
 climate:
   # The full candidate set, with no privileged element (C-43). `selected` names
   # the one the model is built and run on (C-44).
-  sources: [era5]
-  selected: era5
+  forcings: {era5: {precip_source: era5}}
+  default_forcing: era5
   # INCLUSIVE water years (C-70). >= snake_utils.MIN_HISTORICAL_YEARS (16), or
   # every dry-run below reds at parse time. Nothing here asserts the window's
   # value, only that the DAG builds.

@@ -185,6 +185,9 @@ def composed_workflow_section(
     four, and the promise that one snapshot teaches you all five would be false
     exactly where a reader is least able to check it.
     """
+    from blueearth_cst.shared.project_workflows import normalize_project_workflows
+
+    project = normalize_project_workflows(project)
     stanzas = {
         name: {
             key: value for key, value in dict(stanza).items() if key != "config_path"

@@ -84,7 +84,7 @@ def _require_v2(root):
             f"No completed simulation is available for experiment {root.name!r}: "
             f"missing {root / '_engine/simulation.json'}. "
             "Indicators-only operations require retained simulation responses, "
-            "including for a dry run. Set operations: [simulations, indicators] "
+            "including for a dry run. Set steps.simulations: true "
             "to run a simulation first, or select the experiment_name of an "
             "existing completed simulation."
         )
@@ -128,12 +128,15 @@ def indicators_only_configuration(config_path, *, prepare_baseline=True):
     from blueearth_cst.shared.snake_utils import validate_experiment_name
 
     path = Path(config_path).resolve()
-    project = yaml.safe_load(path.read_text(encoding="utf-8"))
     from blueearth_cst.shared.config_paths import (
         resolve_project_paths,
         resolve_workflow_paths,
     )
+    from blueearth_cst.shared.project_workflows import normalize_project_workflows
 
+    project = normalize_project_workflows(
+        yaml.safe_load(path.read_text(encoding="utf-8")), path
+    )
     project = resolve_project_paths(project, path)
     descriptor = project["workflows"]["simulate_system"]
     if set(descriptor) != {"enabled", "config_path"} or not isinstance(
@@ -145,15 +148,18 @@ def indicators_only_configuration(config_path, *, prepare_baseline=True):
     workflow = load_unique_yaml(
         (path.parent / descriptor["config_path"]).read_text(encoding="utf-8")
     )
-    from blueearth_cst.shared.config_composition import normalize_indicator_settings
+    from blueearth_cst.shared.config_composition import (
+        internal_simulation_settings,
+        normalize_indicator_settings,
+    )
 
+    workflow = internal_simulation_settings(normalize_indicator_settings(workflow))
     workflow = resolve_workflow_paths(
         workflow,
         path.parent / descriptor["config_path"],
         "simulate_system",
         project.get("schema_version", 2),
     )
-    workflow = normalize_indicator_settings(workflow)
     project_root = Path(project["project"]["project_dir"]).resolve()
     from blueearth_cst.experiment.reservation_context import resolve_experiment_name
 
@@ -175,7 +181,11 @@ def indicators_only_configuration(config_path, *, prepare_baseline=True):
                     f"{field}: retained={retained[field]!r}; asserted={asserted[field]!r}"
                 )
     from blueearth_cst.shared.model_registry import recipe_key, reference_model_path
-    from blueearth_cst.shared.named_forcings import HistoricalLayout, simulation_climate
+    from blueearth_cst.shared.named_forcings import (
+        HistoricalLayout,
+        internal_climate,
+        simulation_climate,
+    )
 
     # Historical thresholds come from the model and recipe the experiment
     # simulated. The retained model always applies; a configured `model.name`
@@ -186,7 +196,8 @@ def indicators_only_configuration(config_path, *, prepare_baseline=True):
     model = {**configured_model, "name": Path(model_path).name}
     project = {**project, "model": model}
     climate, selected = simulation_climate(
-        project.get("climate") or {}, workflow.get("historical_forcing")
+        internal_climate(project.get("climate") or {}),
+        workflow.get("historical_forcing"),
     )
     selected = recipe_key(project_root / model_path, selected)
     frozen = HistoricalLayout.from_toml(reference["model_toml"]).forcing_id

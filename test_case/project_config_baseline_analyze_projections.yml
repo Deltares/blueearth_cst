@@ -1,6 +1,5 @@
 # analyze_projections (wf2) -- baseline set
 
-catalog: toolbox:config/catalogs/cmip6_data.yml
 ensemble: cmip6
 
 models:
@@ -12,12 +11,13 @@ members:
   preference:
   - r1i1p1f1
 
-variables:
+variables: [precip, temp]
+variable_options:
   precip: {source: precip, canonical: rate, units: mm/day, change: relative}
   temp: {source: temp, canonical: state, units: degC, change: absolute}
 
 # Ends 2014, where the CMIP6 historical runs stop.
-reference_window:
+reference_period:
   start: 2000
   end: 2014
 # Same years as the stress test's `simulation_window`, so the projections land
@@ -25,7 +25,5 @@ reference_window:
 # (`t2608222155`); the horizon was `far: 2070-2090` while the window was
 # 2070-2086. The alignment is computed independently of these keys, so a missed
 # edit here misaligns SILENTLY.
-future_windows:
-- start: 2046
-  end: 2054
-  name: mid
+future_periods:
+  mid: {start: 2046, end: 2054}
