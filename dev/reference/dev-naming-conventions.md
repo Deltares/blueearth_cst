@@ -1,6 +1,6 @@
 # Naming conventions
 
-Last updated: 2026-11-05
+Last updated: 2026-11-18
 
 Naming rules for new identifiers, rules and files in `blueearth_cst`. `MUST`, `SHOULD` and `MAY` have
 their usual normative weight.
@@ -192,6 +192,21 @@ its manifest figure paths resolve relative to the sibling `plots/` directory.
 
 This rule applies only to generated output names under `project_dir/`. `dev/` Markdown stays
 kebab-case, Python modules snake_case, and standard root files keep their established names.
+
+### Spatial grouping in output paths
+
+Name new spatial groupings by the feature each result represents. This lets readers tell a result for a polygon from a result reported at its outlet, even when both refer to the same part of the river network.
+
+| Name | Use for |
+| --- | --- |
+| `subbasins` | Results for the delineated, non-overlapping subbasin polygons, keyed by `subbasin_id`. |
+| `catchments` | Products representing the full upstream drainage polygons. |
+| `locations` | Results indexed by reporting or sampling points, including model outlets and comparisons that include both model locations and gauges. |
+| `stations` | Products specific to observation stations, such as a rain-gauge inventory. |
+
+The historical climate analysis uses `plots/subbasins/` and `tables/subbasins/` under each source for polygon summaries. Under `source_comparison/`, `plots/locations/` and `tables/locations/` report point comparisons, including native-cell climate samples at declared locations and gauge-only sites. See the [historical climate outputs](../../docs/technical-manual/workflow-analyze-climate.md) and [spatial identities](toolbox-spatial-foundation.md#spatial-identities-and-controls).
+
+Existing output paths follow their established contracts. In model evaluation, `plots/subbasins/` summarizes subbasin areas, while `plots/stations/` includes simulation-only reporting locations. The historical forcing comparison also uses `tables/stations.csv` for its reporting-location registry. Use `locations` for new products with this broader point scope. A change to these established paths needs a migration note and updates to affected readers and figure inventories.
 
 ## 8b. Rule naming — `<verb>_<noun>`, verb first, always
 
