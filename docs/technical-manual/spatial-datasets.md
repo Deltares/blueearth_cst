@@ -29,8 +29,8 @@ channels wider than 30 m; this threshold is not a grid resolution.
 ## Land cover and vegetation
 
 GlobCover supplies the default land-cover classes, while MODIS LAI provides seasonal vegetation information
-from Collection 6 observations extracted for 2003–2017. The base catalog also includes [Copernicus Global Land
-Cover][vito], a 100 m alternative for 2015.
+from Collection 6 observations extracted for 2003–2017. The base catalog also includes
+[Copernicus Global Land Cover][vito], a 100 m alternative for 2015.
 
 ## Soils
 
@@ -39,8 +39,8 @@ parameters. The prepared soil-thickness layer also uses the [European Soil Datab
 
 ## Waterbodies and glaciers
 
-HydroLAKES and GRanD describe lake and reservoir extent and storage; the prepared reservoir data also use [JRC
-Global Surface Water][jrc] at 30 m for 1984–2015. RGI provides static glacier outlines, and the build
+HydroLAKES and GRanD describe lake and reservoir extent and storage; the prepared reservoir data also use
+[JRC Global Surface Water][jrc] at 30 m for 1984–2015. RGI provides static glacier outlines, and the build
 configuration files apply area thresholds when selecting lakes, reservoirs and glaciers.
 
 ## Checks on the built model
