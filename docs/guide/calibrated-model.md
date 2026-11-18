@@ -23,7 +23,7 @@ below, replace `<project_dir>` with your [output directory](glossary.md#output-d
 **Check:** `pixi run python scripts/register_model.py list --project-dir <project_dir>` shows each model and
 whether it is unchanged since registration.
 
-## Run with it {#run-with-it}
+## Run the stress test {#run-with-it}
 
 Select the model in the [project file](glossary.md#project-file):
 

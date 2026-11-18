@@ -29,7 +29,7 @@ it needs, so that later you can run only the workflows your question requires. T
 basin boundary, subbasins, river network and [reporting locations](glossary.md#reporting-location) once and
 reuses them while their inputs are unchanged.
 
-| Workflow | What it gives you | Needs |
+| Workflow | Output | Needs |
 |---|---|---|
 | Historical climate analysis | Maps, seasonality and variability of the candidate historical climate datasets, to help you choose [historical forcing](glossary.md#historical-forcing) | Basin outline and historical climate data |
 | Model building | A distributed hydrological model built from global datasets, run with historical forcing so that you can check its setup and behavior | Basin outline, global spatial datasets and the chosen historical forcing |

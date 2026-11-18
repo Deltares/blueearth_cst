@@ -155,10 +155,9 @@ pixi run install
 
 `git pull` downloads the new toolbox files, and `pixi install` updates the Python and R packages to the
 versions the new files specify. `pixi run install` reinstalls the weather generator, `weathergenr`, and the
-Julia packages only when the update changed their pinned versions; otherwise it confirms them and finishes
-quickly. If you skip it after a weather-generator update, rerun `pixi run install-rdeps` before generating
-climate scenarios. If the Julia step reports a missing Julia version, install that version with
-`juliaup add` as in section 1.
+Julia packages only when the update changed their pinned versions; otherwise it confirms them. If you skip it
+after a weather-generator update, rerun `pixi run install-rdeps` before generating climate scenarios. If the
+Julia step reports a missing Julia version, install that version with `juliaup add` as in section 1.
 
 Then repeat the installation check in section 4.
 

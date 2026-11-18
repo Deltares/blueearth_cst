@@ -46,15 +46,9 @@ weather generator needs a separate Rtools installation.
 
 **Cause:** Windows Defender real-time scanning can lock files while Julia moves them into place.
 
-**Fix:** if your organization's security policy allows it, open PowerShell as Administrator and exclude the
-two Julia programs once, then repeat the installation:
-
-```powershell
-Add-MpPreference -ExclusionProcess "julia.exe"
-Add-MpPreference -ExclusionProcess "juliaup.exe"
-```
-
-Apply this only for this symptom, not as a routine installation step.
+**Fix:** see the diagnosed installation fixes in
+[environment maintenance](../../dev/scripts/environment-notes.md). Use those remedies for the diagnosed
+symptom, not as an automatic prerequisite for every installation.
 
 ## 3. The case folder is missing or already exists {#the-case-folder-is-missing-or-already-exists}
 

@@ -236,7 +236,7 @@ Each realization also includes an [unperturbed reference](glossary.md#unperturbe
 weather without imposed changes, not the historical record. Choose ranges and sample sizes for your question,
 rather than copying the demonstration settings.
 
-#### Designing the stress test {#designing-the-stress-test}
+#### Stress-test design {#designing-the-stress-test}
 
 **Number of simulations.** Each realization covers every point of the
 [perturbation grid](glossary.md#perturbation-grid) plus one unperturbed reference:
