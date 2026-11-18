@@ -66,6 +66,8 @@ Moving YAML files does not relocate retained outputs or datasets. Archives prese
 and resolved runtime locators. `config_paths.py` and `tests/test_config_paths.py` implement these rules.
 
 The case scaffolder creates `<case>/<trial>/project_config.yml`, defaulting to trial `default`.
+A first trial may have another name, but later creation then needs `--from-trial` until a default trial
+exists.
 It writes `project.project_dir: outputs` and a shared outlet reference `../data/output_locations.csv`.
 `--from-trial` requires schema 3, preserves scientific settings and workflow enablement, and copies
 referenced authored trial inputs. Shared case data stay shared; external inputs are reported.
