@@ -11,7 +11,7 @@ while climate projections provide context for interpreting the changes tested.
 The example uses a small catchment in Gabon, a limited temperature × precipitation grid and two weather
 [realizations](glossary.md#realization) to keep computation manageable. You will run the workflows, check
 their completion and explore the results. The short simulation period and small sample are intended for
-learning the toolbox; they are insufficient for estimating basin flood or drought return levels.
+learning the toolbox, not for a basin assessment.
 
 **Data access:** the example reads datasets on the Deltares P-drive and downloads CMIP6 data from the
 internet. Installing the software does not download these datasets. Without P-drive access the example
@@ -24,34 +24,18 @@ climate series and simulation outputs.
 
 ## 1. Understand what the example runs
 
-The toolbox has five workflows, each producing outputs you can inspect or use in later stages.
-The example runs all five; you can also run individual workflows to suit your question.
+The example runs all five [workflows](glossary.md#workflow). The table shows what each one gives you and what
+it needs, so that later you can run only the workflows your question requires. The toolbox prepares the shared
+basin boundary, subbasins, river network and [reporting locations](glossary.md#reporting-location) once and
+reuses them while their inputs are unchanged.
 
-Historical climate analysis, model building, projection analysis and scenario generation are separate
-entry points. You can compare climate sources, examine projections or generate scenarios without
-running a hydrological simulation.
-
-All workflows share a basin boundary and, where needed, subbasins, river networks and
-[reporting locations](glossary.md#reporting-location). The toolbox prepares these spatial data and reuses them
-when inputs are unchanged. Scenario generation does not need the river or subbasin layers. Hydrological
-simulations require a prepared model and generated scenarios.
-
-- **Extract and analyze historical climate data.** Extracts climate data for the catchment and
-  summarizes spatial patterns, seasonality and variability to help you select historical forcing.
-
-- **Build and verify hydrological models.** Builds a distributed hydrological model from global
-  datasets and runs it with historical forcing to examine the setup and hydrological behavior.
-
-- **Assess projected climate changes.** Summarizes relevant climate projections for the catchment
-  to help judge the plausibility of the tested climate changes, without determining the stress-test grid.
-
-- **Generate climate scenarios.** Generates weather realizations from historical climate data across a
-  temperature × precipitation grid and an [unperturbed reference](glossary.md#unperturbed-reference),
-  representing natural variability.
-
-- **Simulate hydrological responses and evaluate indicators.** Runs the prepared hydrological
-  model with generated climate series and calculates indicators to compare responses across climate
-  perturbations and against the unperturbed reference.
+| Workflow | What it gives you | Needs |
+|---|---|---|
+| Historical climate analysis | Maps, seasonality and variability of the candidate historical climate datasets, to help you choose [historical forcing](glossary.md#historical-forcing) | Basin outline and historical climate data |
+| Model building | A distributed hydrological model built from global datasets, run with historical forcing so that you can check its setup and behavior | Basin outline, global spatial datasets and the chosen historical forcing |
+| Projection analysis | Projected temperature and precipitation changes for the basin, to judge how plausible the tested changes are; they do not set the stress-test grid | Basin outline and internet access to CMIP6 data |
+| Scenario generation | Weather realizations across a temperature × precipitation grid and an [unperturbed reference](glossary.md#unperturbed-reference), representing natural variability | Basin outline and the chosen historical forcing; no model, river or subbasin layers |
+| Hydrological simulation and indicators | Simulated responses and indicators to compare climate perturbations with each other and with the unperturbed reference | A built model and generated scenarios |
 
 ![Overview: analyze historical climate; build hydrological models; assess climate projections; generate climate scenarios; simulate responses and calculate indicators.](assets/workflow-overview.png)
 
@@ -86,7 +70,8 @@ tasks first, append `-- --dry-run` to the command.
 **When it finishes:** open the `summary.md` linked in the closing console message. Check each workflow's
 outcome and any warnings; follow the log links if something needs investigation.
 
-Successful execution confirms that the example ran. Suitability for a real assessment needs further evaluation.
+Successful execution confirms that the example ran. Suitability for a real assessment needs further
+evaluation.
 
 ## 3. Explore the results
 
@@ -118,7 +103,8 @@ test_case/test_rapid/experiments/experiment_rapid/results/indicator_sets/default
    [group](glossary.md#group)'s climate perturbation and reference status.
 
 The output guide explains how to link these tables to their source runs and climate perturbations.
-Treat the rapid example's return levels as demonstrations of the calculation, not basin estimates.
+Treat the rapid example's flood and drought return levels as demonstrations of the calculation, not basin
+estimates.
 
 For setup errors or interrupted runs, see [Troubleshooting](troubleshooting.md).
 
