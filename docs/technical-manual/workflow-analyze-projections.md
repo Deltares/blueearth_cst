@@ -97,7 +97,7 @@ List `tdew` and/or `wind` in `variables` and set their `method` under `variable_
 
 ## Processing sequence {#rule-flow}
 
-![Main scientific processing steps and conditional paths described below.](assets/workflow-wf2.svg){width=100% fig-alt="Scientific processing from basin and climate inputs to the assessment products described in this section."}
+![Projection analysis: shared basin products, CMIP6 data for each resolved model, scenario and member, monthly basin averages, future climate changes, window diagnostics and figures.](assets/workflow-wf2.svg){width=100% fig-alt="Two-column flow diagram. Left column, top to bottom: define basin boundary; fetch CMIP6 slices for each resolved model, scenario and member; calculate monthly basin averages (basin climate series in NetCDF); calculate future climate changes (annual and monthly CSVs and a coverage report). Right column: map basin, rivers and locations; plot projected climate changes (available PNGs and captions); prepare projection analysis (window diagnostics and availability). A note says change factors provide plausibility context."}
 
 The workflow acquires available climate projections, calculates monthly basin averages and compares
 historical and future periods. It then prepares diagnostic tables and figures; historical series can

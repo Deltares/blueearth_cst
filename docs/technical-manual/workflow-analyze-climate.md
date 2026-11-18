@@ -180,7 +180,7 @@ gridded datasets. See [rain-gauge comparison](rain-gauge-comparison.md).
 
 ## Processing sequence {#rule-flow}
 
-![Main scientific processing steps and conditional paths described below.](assets/workflow-wf0.svg){width=100% fig-alt="Scientific processing from basin and climate inputs to the assessment products described in this section."}
+![Historical climate analysis: basin and spatial layers, then extraction, map preparation, diagnostics and figures for each climate source, with a common-period comparison when there are several sources.](assets/workflow-wf0.svg){width=100% fig-alt="Two-column flow diagram. Left column, top to bottom: define basin boundary; extract each climate source into native-grid historical stores; compute source diagnostics (coverage, indices and saved tables); plot historical climate (PNG figures, titles and captions). Right column: map basin, rivers and locations; prepare comparable climate maps with a common extent and scales; compare sources, when there are several, in common-period tables and figures. A note says the source branches repeat for each dataset."}
 
 The workflow prepares basin boundaries, extracts each dataset and calculates diagnostics. Maps keep
 each source's native grid with shared display scales. Multiple sources are compared over their common

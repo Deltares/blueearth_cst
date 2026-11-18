@@ -61,7 +61,7 @@ simulations does not remove the reference weather saved by scenario generation. 
 
 ## Processing sequence {#rule-flow}
 
-![Main scientific processing steps and conditional paths described below.](assets/workflow-wf4.svg){width=100% fig-alt="Scientific processing from basin and climate inputs to the assessment products described in this section."}
+![Hydrological simulation and indicators: scenario and calculation selection, Wflow runs in batches, saved daily time series and indicator calculations, with saved simulations reused for new indicator calculations.](assets/workflow-wf4.svg){width=100% fig-alt="Two-column flow diagram. Main column, top to bottom: select weather scenarios and calculations; check model and save simulation settings (model, selected scenarios and run period); prepare forcing and run Wflow batches (new simulations only); save simulated daily time series (Wflow CSV outputs and variable information); calculate assessment indicators (indicator tables and contributing realizations). Side boxes: saved simulation time series, reused for new indicator calculations; prepare named indicator results (tables, units and data availability). A note says dashed boxes mark preparation by the run command and that indicators can use saved simulations."}
 
 The workflow checks the model and selected scenarios, prepares forcing and runs Wflow. Each run starts
 from the selected [initial state](hydrological-simulation.md#initial-conditions-and-warm-up) and first

@@ -53,7 +53,7 @@ day later; forcing must cover that first update through the requested end date. 
 
 ## Processing sequence {#rule-flow}
 
-![Main scientific processing steps and conditional paths described below.](assets/workflow-wf1.svg){width=100% fig-alt="Scientific processing from basin and climate inputs to the assessment products described in this section."}
+![Model building: spatial units and land and soil maps, Wflow-SBM construction, historical forcing and the historical simulation, followed by exported tables, maps and evaluation.](assets/workflow-wf1.svg){width=100% fig-alt="Two-column flow diagram. Main column, top to bottom: define basin boundary and spatial units; prepare land and soil maps; build and configure Wflow-SBM (waterbodies, gauges and output variables); add historical climate forcing (model-grid forcing and completed model); run historical simulation (native daily Wflow response). Side boxes: extract climate and prepare maps (selected forcing and candidate map scales); export and review (tables, maps, forcing checks and evaluation). A note says review figures can branch earlier."}
 
 The workflow prepares basin and thematic data, builds the model and adds historical forcing on the
 model grid. It then runs the historical simulation, exports response tables and produces evaluation

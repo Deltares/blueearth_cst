@@ -53,7 +53,7 @@ perturbation methods and generator settings.
 
 ## Processing sequence {#rule-flow}
 
-![Main scientific processing steps and conditional paths described below.](assets/workflow-wf3.svg){width=100% fig-alt="Scientific processing from basin and climate inputs to the assessment products described in this section."}
+![Scenario generation: stochastic weather under reference conditions, monthly climate perturbations and checked daily series, with completed scenarios reused when they already exist.](assets/workflow-wf3.svg){width=100% fig-alt="Two-column flow diagram. Main column, top to bottom: prepare historical climate (region, historical climate and perturbation grid); save weather-generation settings; generate stochastic weather (variability under reference conditions); apply monthly climate perturbations (perturbed and unperturbed reference members); check completed weather scenarios (daily weather series in NetCDF). Side boxes: reuse completed weather scenarios, skipping generation and transformation; prepare scenario files for use (series, lookups and configuration). A note says dashed boxes mark preparation by the run command and that completed scenarios can be reused."}
 
 The workflow prepares historical data and the perturbation grid, then saves the generation inputs
 and settings. It generates unperturbed weather and transforms every delivered series, including the
