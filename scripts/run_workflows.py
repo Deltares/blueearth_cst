@@ -2505,7 +2505,7 @@ def main(argv: list[str] | None = None) -> int:
         nargs="+",
         default=["all"],
         help="explicit WF4 targets for a legacy operation config (indicators-only requires "
-        "indicators or one selected indicator-set file); operations/indicator_sets infer the target",
+        "indicators or one selected indicator-set file); steps/indicators infer the target",
     )
     ap.add_argument(
         "extra",

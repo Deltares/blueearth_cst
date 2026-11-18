@@ -291,7 +291,7 @@ def resolve_targets(config_path, targets, *, prepare_baseline=True):
     if not selection.legacy:
         if current_targets(targets) != ["all"]:
             raise ValueError(
-                "UnsupportedOperationTarget: operations/indicator_sets infer the "
+                "UnsupportedOperationTarget: steps/indicators infer the "
                 "target; omit --target"
             )
         if selection.indicators:

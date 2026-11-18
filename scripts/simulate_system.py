@@ -39,7 +39,7 @@ def main(argv=None):
         "--target",
         nargs="+",
         default=["all"],
-        help="legacy operation configs only; operations/indicator_sets infer the target",
+        help="legacy operation configs only; steps/indicators infer the target",
     )
     parser.add_argument("--cores", type=int, default=3)
     parser.add_argument("--dry-run", action="store_true")
