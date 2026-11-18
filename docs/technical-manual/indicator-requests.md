@@ -144,7 +144,7 @@ no calculable declarations can therefore have an empty `tables` inventory. This 
 partial mode. Calculated NaNs instead have `status: undefined`. Unexpected programming errors and
 configuration faults, such as a return period outside the qualified domain, are never converted into
 successful undefined/unavailable results. See
-[table statuses](retained-handoffs.md#indicator-tables-and-dictionary).
+[table statuses](saved-results.md#indicator-tables-and-dictionary).
 
 ### Recovery
 

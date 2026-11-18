@@ -66,6 +66,6 @@ climate perturbations and workflows to run.
 
 Use [run records](run-records.md) to establish what ran and which inputs were used.
 [Computation time and resource requirements](runtime-and-resources.md) explains the timing and resource
-reports. [Saved results](retained-handoffs.md) describes output structure and reuse, while
+reports. [Saved results](saved-results.md) describes output structure and reuse, while
 [transferring climate-projection results](results-transfer.md) explains how to move projection analysis
 products between projects.

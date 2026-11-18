@@ -81,7 +81,7 @@ unlocking the project does not make those inputs compatible.
 Indicator changes can use saved responses through `steps.simulations: false` when the completed
 experiment contains the required variables, locations and periods. Missing response variables require
 new simulations. Resource changes alone do not define a new scientific experiment.
-The [saved-results reference](retained-handoffs.md#identities-and-reuse) specifies reuse requirements;
+The [saved-results reference](saved-results.md#identities-and-reuse) specifies reuse requirements;
 [indicator settings](indicator-requests.md) covers selection and handling incomplete inputs.
 
 Use the User Guide to

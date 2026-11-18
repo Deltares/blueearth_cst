@@ -60,7 +60,7 @@ monthly temperature changes in °C and precipitation changes in percentages, alt
 uses precipitation multipliers. Lookups must belong to the experiment being interpreted: current
 exports under `scenarios/` can be replaced by later generation.
 
-See the [table reference](retained-handoffs.md) for column definitions and the
+See the [table reference](saved-results.md) for column definitions and the
 [User Guide example](../guide/results.md#link-a-value-to-its-climate-perturbation) for connecting
 indicator values to climate conditions.
 
@@ -127,7 +127,7 @@ See [inspection and numerical rechecking](indicator-requests.md#integrity-and-nu
 - **References.** Generated reference groups have `is_reference=true` and an empty `st_id`.
   They differ from historical simulations, which supply some thresholds such as crop-water preparation.
 
-See [table joins and reference groups](retained-handoffs.md#joins-and-reference-membership).
+See [table joins and reference groups](saved-results.md#joins-and-reference-membership).
 
 ### Missing, undefined and unavailable results
 

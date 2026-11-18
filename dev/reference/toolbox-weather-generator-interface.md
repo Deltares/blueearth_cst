@@ -19,7 +19,7 @@ publishes collections. A replacement generator must preserve scenario membership
 meaning, and the forcing identities, descriptors, and preparation inputs required by the collection reader.
 Its configuration and preparation adapter may differ. The [architecture reference](toolbox-architecture.md)
 explains workflow responsibilities; the
-[retained handoffs](../../docs/technical-manual/retained-handoffs.md) describe saved products and reuse.
+[saved results](../../docs/technical-manual/saved-results.md) describe saved products and reuse.
 For figure appearance, panel layout and export, see
 [styling weathergenr figures in CST](../../blueearth_cst/plotting/docs/weathergenr-style.md).
 

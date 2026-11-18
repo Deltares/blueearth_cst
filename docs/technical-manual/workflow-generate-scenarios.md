@@ -82,7 +82,7 @@ configured name, which is then listed as an alias. Names never affect a set's id
 - **Index (`scenarios/collections.csv`).** Every set in the project: `name, aliases, method, id,
   description, created, status`. It is rebuilt from the set records after each generation.
 
-See [saved results](retained-handoffs.md#scenario-exports-and-lookups) for lookup columns and
+See [saved results](saved-results.md#scenario-exports-and-lookups) for lookup columns and
 reuse requirements.
 
 ## Diagnostics and interpretation {#interpretation}

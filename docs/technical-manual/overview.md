@@ -57,9 +57,10 @@ This manual is the primary reference for methods, settings and interpretation:
 
 Detailed references provide the [configuration rules](configuration.md),
 [location matching and daily-response conventions](input-formats.md),
-[indicator selection](indicator-requests.md), [saved-result tables](retained-handoffs.md),
+[indicator selection](indicator-requests.md), [saved-result tables](saved-results.md),
 [run records](run-records.md), [resource measurements](runtime-and-resources.md),
-[projection-result transfer](results-transfer.md), [custom indicators](indicator-extension.md) and
+[projection-result transfer](results-transfer.md) and [custom indicators](indicator-extension.md). The
+appendices hold the [processing rule reference](workflow-rule-reference.md) and
 [changes and migration](changes-and-migration.md).
 
 For installation and a first run, start with the [user guide](../guide/quick-start.md).

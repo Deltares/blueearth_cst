@@ -27,7 +27,7 @@ it does not generate scenarios or rerun the model. The
 [single-workflow runner](../../scripts/run_workflow.py) and all-workflow runner dispatch owned WF3/WF4
 execution; WF4 also has a [direct runner](../../scripts/simulate_system.py). Their operation and
 target validation is part of the supported execution path; bare Snakemake does not provide it.
-The [retained handoffs](../../docs/site/toolbox-reference/retained-handoffs.qmd)
+The [saved results](../../docs/technical-manual/saved-results.md)
 describe the artifact interface. The [generator](toolbox-weather-generator-interface.md) and
 [hydrological-model](toolbox-hydrological-model-interface.md) references own replacement-engine
 requirements.
@@ -53,7 +53,7 @@ modules are `generation_plan.py`, `collection_index.py`, `simulation_record.py`,
 `named_export.py` (all in `blueearth_cst/experiment/`), with tests including
 `test_scenario_collection_v2.py`, `test_collection_index.py`, `test_response_inventory_v2.py`,
 `test_named_indicator_sets_workflow.py` and `test_partial_indicators.py`.
-The [retained-handoffs reference](../../docs/site/toolbox-reference/retained-handoffs.qmd) owns the
+The [saved-results reference](../../docs/technical-manual/saved-results.md) owns the
 product contract and recovery behavior.
 
 Store each file once: workflows, collections and experiments reference shared data, configuration and

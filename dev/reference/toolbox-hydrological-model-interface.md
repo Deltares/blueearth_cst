@@ -21,7 +21,7 @@ validation lives in `indicators/series.py` and `indicators/contract.py`, retaine
 `shared/response_tables.py`. A replacement adapter must prepare and run its own engine and satisfy an
 independent response request. [Model construction](wf1-model-construction.md) owns WF1 build and mutable
 model roots; [spatial foundation](toolbox-spatial-foundation.md) owns model-neutral regions and IDs. See
-[retained handoffs](../../docs/technical-manual/retained-handoffs.md) for publication and reuse.
+[saved results](../../docs/technical-manual/saved-results.md) for publication and reuse.
 
 ## HM-1 — static grid
 
@@ -96,7 +96,7 @@ checks. History: the HM-6b row of the interchange-contracts design (private-chec
 The indicator planner derives requested run and group coverage from retained responses and collection
 membership. Publication writes complete immutable tables and a ready inventory. Named exports are separate
 views of those sets, with committed pointers; see
-[retained handoffs](../../docs/technical-manual/retained-handoffs.md).
+[saved results](../../docs/technical-manual/saved-results.md).
 [`indicator_plan.py`](../../blueearth_cst/experiment/indicator_plan.py) owns set planning, reading, and
 publication; [`named_export.py`](../../blueearth_cst/experiment/named_export.py) owns named views and the
 dictionary columns (`DICTIONARY_COLUMNS`). The validator normalizes the run/group identity column to

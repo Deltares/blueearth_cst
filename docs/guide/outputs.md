@@ -72,7 +72,7 @@ model-building and simulation [workflow files](glossary.md#workflow-file). Histo
    that existing results need no updates. Successful completion alone does not mean new results were calculated.
 3. **Find the results:** confirm that the expected climate series, model responses or indicators exist for the
    selected experiment. If completion is uncertain, check its saved run information using the
-   [output reference](../technical-manual/retained-handoffs.md).
+   [output reference](../technical-manual/saved-results.md).
 4. **Check interpretation:** read indicator definitions, units and limitations before comparing values.
    A completed computation does not establish that its results are suitable for your assessment.
 

@@ -4,7 +4,7 @@ Last updated: 2026-11-17
 
 Use this reference before changing what identifies a scenario collection, a WF4 simulation or an indicator
 set, before editing code inside a producer's pinned closure, and when changing experiment reservation or
-WF4 batch sizing. The [retained-handoffs guide](../../docs/technical-manual/retained-handoffs.md) explains
+WF4 batch sizing. The [saved-results guide](../../docs/technical-manual/saved-results.md) explains
 saved products and reuse to users; the [architecture reference](toolbox-architecture.md) owns workflow
 boundaries. The modules named below own exact schemas and fields.
 

@@ -112,7 +112,7 @@ The [unperturbed reference](glossary.md#unperturbed-reference) has an empty `st_
 Run and group IDs such as `run_01` and `group_01` stay text when the CSV is opened. Import perturbation
 `st_id` values as text; in pandas, read lookup tables with `dtype=str` and `keep_default_na=False` to keep the
 empty reference `st_id`. See [identifier
-conventions](../technical-manual/retained-handoffs.md#joins-and-reference-membership).
+conventions](../technical-manual/saved-results.md#joins-and-reference-membership).
 
 ## Current limits {#what-the-tables-do-not-give-you-yet}
 

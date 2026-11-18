@@ -294,7 +294,7 @@ The following links explain the settings for each workflow.
 a custom base selects its own numbered family. Plain execution selects the highest allocation, irrespective
 of completion. `--new-experiment` advances it; an exact numbered name selects that experiment. Previewing with
 `scripts/suggest_experiment_name.py` reserves nothing. Changed scientific simulation inputs require a new
-experiment. See [retained identities](retained-handoffs.md#identities-and-reuse).
+experiment. See [retained identities](saved-results.md#identities-and-reuse).
 
 ## Scalar response precision {#csv-precision}
 

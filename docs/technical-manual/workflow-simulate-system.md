@@ -98,7 +98,7 @@ The main outputs are:
 
 Indicator tables use `<token>_run_indicators.csv` and/or `<token>_group_indicators.csv`. Each value
 identifies its indicator, location and run or group, with a status and reason where needed.
-See [saved results](retained-handoffs.md) for detailed schemas and reuse requirements.
+See [saved results](saved-results.md) for detailed schemas and reuse requirements.
 
 ## Diagnostics and interpretation {#interpretation}
 

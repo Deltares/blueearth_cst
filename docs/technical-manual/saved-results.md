@@ -1,6 +1,8 @@
 ---
 title: "Saved results and indicator table structure"
 format: html
+aliases:
+  - retained-handoffs.html
 ---
 
 Comparing indicator values requires knowing which model, climate scenarios and calculations produced

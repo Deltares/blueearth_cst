@@ -83,7 +83,7 @@ Use this lookup to reach the relevant topic owners; a workflow does not need its
 [generator]: toolbox-weather-generator-interface.md
 [simulator]: toolbox-hydrological-model-interface.md
 [identity]: toolbox-run-identity.md
-[handoffs]: ../../docs/site/toolbox-reference/retained-handoffs.qmd
+[handoffs]: ../../docs/technical-manual/saved-results.md
 [indicators]: toolbox-indicator-glossary.md
 [indicator-module]: ../../blueearth_cst/indicators/README.md
 [guide0]: ../../docs/site/toolbox-reference/workflow-analyze-climate.qmd

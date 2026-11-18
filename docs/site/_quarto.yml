@@ -97,7 +97,7 @@ website:
         - technical-manual/overview.qmd
         - section: "Models and tools"
           contents:
-            - text: "Overview"
+            - text: "Tool overview"
               href: technical-manual/modeling-and-analysis.qmd
             - technical-manual/model-preparation.qmd
             - technical-manual/hydrological-simulation.qmd
@@ -117,14 +117,14 @@ website:
               contents:
                 - section: "Data catalogs"
                   contents:
-                    - text: "Overview"
+                    - text: "Catalog overview"
                       href: technical-manual/data-catalogs-and-access.qmd
                     - technical-manual/catalog-deltares.qmd
                     - technical-manual/catalog-climate-projections.qmd
                 - technical-manual/data-formats-and-conventions.qmd
         - section: "Workflows"
           contents:
-            - text: "Overview"
+            - text: "Workflow overview"
               href: technical-manual/scientific-workflows.qmd
             - technical-manual/shared-configuration.qmd
             - technical-manual/workflow-analyze-climate.qmd
@@ -132,7 +132,6 @@ website:
             - technical-manual/workflow-analyze-projections.qmd
             - technical-manual/workflow-generate-scenarios.qmd
             - technical-manual/workflow-simulate-system.qmd
-            - technical-manual/workflow-rule-reference.qmd
         - section: "Optional analyses"
           contents:
             - technical-manual/rain-gauge-comparison.qmd
@@ -151,11 +150,14 @@ website:
             - technical-manual/configuration.qmd
             - technical-manual/input-formats.qmd
             - technical-manual/indicator-requests.qmd
-            - technical-manual/retained-handoffs.qmd
+            - technical-manual/saved-results.qmd
             - technical-manual/run-records.qmd
             - technical-manual/runtime-and-resources.qmd
             - technical-manual/results-transfer.qmd
             - technical-manual/indicator-extension.qmd
+        - section: "Appendices"
+          contents:
+            - technical-manual/workflow-rule-reference.qmd
             - technical-manual/changes-and-migration.qmd
   search:
     location: navbar
