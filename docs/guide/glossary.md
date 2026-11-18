@@ -70,7 +70,7 @@ unperturbed runs are marked as reference groups (`is_reference`).
 ## Historical forcing {#historical-forcing}
 
 The historical weather record chosen to drive the model and to condition the weather generator
-(`climate.forcing`, for example `precip_source: era5`).
+(a named set under `climate.forcings`, selected with `climate.default_forcing`).
 
 ## Indicator {#indicator}
 
@@ -190,5 +190,5 @@ generation, and hydrological simulation and indicators.
 
 ## Workflow file {#workflow-file}
 
-The settings file for one workflow, named by `config_path` in the project file. The starter names them
-`project_config_<workflow>.yml`. Replaces: workflow configuration.
+The settings file for one workflow, named under `workflow_configs` in the project file. The starter
+names them `project_config_<workflow>.yml`. Replaces: workflow configuration.
