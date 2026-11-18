@@ -26,7 +26,7 @@ Julia into Pixi or edit generated locks by hand. Use the [installation guide](..
 script specifies the installed weather-generator revision.
 
 Run supported commands with `pixi run`. netCDF carries gridded climate and
-forcing between languages. Hydrological simulation retains rounded per-variable CSV responses with explicit
+forcing between languages. Hydrological simulation saves rounded per-variable CSV responses with explicit
 interpretation metadata.
 
 ## Run commands
@@ -37,8 +37,8 @@ configuration, while `scripts/simulate_system.py` runs hydrological simulation d
 the required inputs, starts the requested processing and records its outcome. The
 [running guide](../guide/running.md) gives commands and examples.
 
-The runner's final verdict includes result publication. Progress or a completed simulation batch alone is
-not confirmation that every requested indicator set is current.
+The run command's final verdict includes writing the results. Progress or a completed simulation batch alone
+is not confirmation that every requested indicator set is current.
 
 ## Snakemake
 
@@ -53,8 +53,8 @@ Installing the runtime does not install the external forcing or model datasets. 
 access, storage and project write access are separate prerequisites. Successful runtime checks do not
 establish data coverage, scientific suitability or a qualified model.
 
-Configuration snapshots and collection/simulation/indicator records capture environment and source
-identities for each processing stage. These identities detect incompatible reuse; they do not recreate
+Configuration snapshots and collection/simulation/indicator records keep the environment and
+sources used at each processing stage. These records detect incompatible reuse; they do not recreate
 an environment on another machine. Projection analysis bundles likewise record lock hashes and toolbox
 revision without installing dependencies. See [execution records](run-records.md) and
 [results transfer](results-transfer.md).

@@ -23,7 +23,7 @@ representations should be inspected in regulated basins; they do not establish t
 abstractions or transfers are reproduced.
 
 The toolbox runs daily simulations. River discharge is reported at selected outlets or gauges;
-other selected variables, such as precipitation, evapotranspiration and recharge, are retained as
+other selected variables, such as precipitation, evapotranspiration and recharge, are saved as
 subcatchment means. These spatial supports matter when comparing a discharge record with an areal
 water-balance quantity or interpreting a result for a particular site.
 
@@ -64,8 +64,8 @@ Stress-test simulations set initialization through `simulate_system.initializati
 - **State.** `auto` (default) keeps a warm state configured in the model TOML; otherwise it starts every run
   from the historical simulation's end state (`historical/default/run/outstate/outstates.nc`). `historical`
   requires that end state and `cold` uses Wflow's cold initialization; either is refused when the model TOML
-  already configures a warm state. The end state's bytes are part of the simulation identity, so rerunning the
-  historical simulation requires a new experiment.
+  already configures a warm state. The end state is part of the simulation's record of inputs, so rerunning
+  the historical simulation requires a new experiment.
 - **Warm-up.** `warmup_years` (default 1) simulates that many years before the configured window by
   repeating the run's own first days, so stores adjust to the run's perturbed climate. Response reading
   discards these days. Responses therefore keep the configured calendar, and indicators never see the

@@ -24,8 +24,8 @@ conditions, without determining the scenarios or assigning them probabilities.
 
 </figure>
 
-Configuration files connect the assessment choices to the tools and datasets in the figure; runners
-and Snakemake coordinate processing and retain execution records for reproducibility.
+Configuration files connect the assessment choices to the tools and datasets in the figure; run commands
+and Snakemake coordinate processing and keep run records for reproducibility.
 
 Models are built from global data without local calibration, so their suitability requires evaluation
 against evidence relevant to the basin and intended use. Indicators support the analyst's assessment

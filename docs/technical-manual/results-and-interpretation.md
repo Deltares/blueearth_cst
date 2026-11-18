@@ -161,5 +161,5 @@ See [input evaluation](indicator-requests.md#inputs-evaluation-and-recovery).
   `data/climate/projections/<ensemble>/_engine/execution/production.json`; the newest log alone is
   insufficient. See [run records](run-records.md).
 - **Preservation.** Keep derived spreadsheets outside managed result folders, which may be refreshed.
-  Retain complete project outputs for later checks and use the
+  Keep complete project outputs for later checks and use the
   [projection transfer command](results-transfer.md) for supported transfers.

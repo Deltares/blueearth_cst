@@ -10,8 +10,8 @@ regular time step.
 
 | Dataset | Model contribution | Spatial representation | Time representation | Assessment sensitivity |
 |---|---|---|---|---|
-| [MERIT Hydro v1.0][merit] | Terrain and drainage | 3 arc-seconds (~90 m) | Static | Basin extent, upstream area, routing, and location identity can change with the hydrography or snapping rules |
-| [MERIT Hydro IHU v1.0][ihu] | Upscaled hydrography | 30 arc-seconds (~1 km) | Static | Basin extent, upstream area, routing, and location identity can change with the hydrography or snapping rules |
+| [MERIT Hydro v1.0][merit] | Terrain and drainage | 3 arc-seconds (~90 m) | Static | Basin extent, upstream area, routing, and location IDs can change with the hydrography or snapping rules |
+| [MERIT Hydro IHU v1.0][ihu] | Upscaled hydrography | 30 arc-seconds (~1 km) | Static | Basin extent, upstream area, routing, and location IDs can change with the hydrography or snapping rules |
 | [Lin river data v1][lin] | Channel geometry | River-reach polylines | Static; 2019 release | Flow travel time and channel response can change |
 | [GlobCover v2.3][globcover] | Land-cover parameters | 300 m raster | 2009 map | Interception, evapotranspiration, infiltration and runoff partitioning can change |
 | [MODIS MCD15A3H][modis] | Seasonal vegetation | 500 m native grid | 4-day composites | Evapotranspiration and interception behavior can change |

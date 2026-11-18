@@ -5,12 +5,12 @@ format: html
 
 ## Hydrological and impact indicators
 
-Indicators translate retained daily model responses into measures that can be compared across climate
-conditions. Select them according to the assessment question and retain the model variables they
+Indicators translate saved daily model responses into measures that can be compared across climate
+conditions. Select them according to the assessment question and save the model variables they
 require. The three supported sets have different purposes:
 
 - **Default** summarizes average conditions, high and low flows, seasonality and water-balance
-  components. Its selection depends on the variables retained by the simulation.
+  components. Its selection depends on the variables saved by the simulation.
 - **ERFA** describes flow magnitude, timing, variability and intermittency through 35 annual metrics,
   each summarized by its median and interquartile range. These measures support flow-regime comparison;
   they do not classify ecological risk or predict species responses.
@@ -57,7 +57,7 @@ The estimator has supporting checks over a bounded set of synthetic cases and pr
 It reports fitting information and refusals but provides no uncertainty intervals or basin-specific
 validation. Pooling generated years increases the number of simulated extremes, not the length of
 the independent historical record. For transient runs, the pooled sample also combines changing
-climate conditions. Treat these return levels as screening measures and examine the retained fit
+climate conditions. Treat these return levels as screening measures and examine the saved fit
 evidence before using them in a decision.
 
 ### Benchmark records and fitted parameters
@@ -83,7 +83,7 @@ missing data. Calculations using several variables require aligned dates, locati
 The implementation should include an independent expected-value check and appropriate diagnostics.
 
 Configuration selects installed calculations; a YAML file alone does not define a new formula.
-An indicators-only evaluation can reuse retained model responses when they contain all required
+An indicators-only evaluation can reuse saved model responses when they contain all required
 inputs. A measure requiring an unsaved model variable needs a new simulation. The
 [indicator module reference](../../blueearth_cst/indicators/README.md) describes the authoring interface;
 the [results chapter](results-and-interpretation.md) explains how indicators inform the assessment.
