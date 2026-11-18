@@ -117,21 +117,19 @@ no gridded index arrays, threshold arrays, event catalogues or daily contributin
 hashed directories.
 
 Changed inputs/settings recalculate from the daily source in memory. Products are staged before replacement;
-the record is written last. Readers verify code and product hashes. Legacy bundles remain readable and are
-preserved; this change does not delete existing case evidence.
+the record is written last. Readers verify code and product hashes.
 
 ### Index figures
 
 Figures under `plots/indices/` split annual and configured-season basin panels into dry/wet spells, heavy
 rainfall, rainfall amount and frequency, temperature extremes, and heatwaves. Only available indices and
-scopes are emitted, alongside complete wet-spell exceedance when available. Spatial index maps are no longer
-generated. Compact sheets share unit labels within compatible rows and year titles by column. Single-source
-plots omit empty boundary periods while preserving internal gaps.
+scopes are emitted, alongside complete wet-spell exceedance when available. Compact sheets share unit labels
+within compatible rows and year titles by column. Single-source plots omit empty boundary periods while
+preserving internal gaps.
 
 `figure_availability.json` lists emitted PNGs and omitted indices; the adjacent captions JSON records
 interpretation and evaluation identity. The workflow owns this directory as one availability-dependent
-rendering product. Previously inventoried index maps are retired after successful rendering; unrelated files
-are preserved. Comparison tables do not acquire new climate-index columns.
+rendering product. Comparison tables do not acquire new climate-index columns.
 
 The saved-source mode of `scripts/render_figures.py` also renders enabled index bundles into its separate
 output directory, preserving the original publication and its reference.

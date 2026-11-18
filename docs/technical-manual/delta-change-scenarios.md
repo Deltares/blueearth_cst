@@ -58,14 +58,13 @@ python scripts/run_workflows.py --config <case>/project_config.yml
 A dry run computes the factors and reports the set it would publish, or reports it as pending when projection
 analysis or the historical extract are produced by the same invocation. Delta generation accepts only the
 dry-run flags after `--`; other forwarded options and `--rebuild` are refused. Run an upstream workflow alone
-when it needs one, for example `-- --forcerun prepare_projection_analysis` to republish older
-projection-analysis gridded changes (inventory schema 1).
+when it needs one.
 
 Hydrological simulation finds the set from the current generation settings, as it does for stochastic sets; a
 set produced in the same invocation is bound after scenario generation publishes it. A missing or stale set
 stops with "run scenario generation". To pin a set explicitly, use
 `scenario_collection: {name: <set or alias>}` or `{id: <first 12 hex characters>}` in the simulation file
-(quote all-digit ids). `manifest_path` is deprecated. Hydrological simulation checks that its climate source
+(quote all-digit ids). Hydrological simulation checks that its climate source
 and named historical forcing match the set's.
 
 Hydrological simulation owns PET preparation, initialization, simulation and indicators. Without `pet`, it
@@ -159,17 +158,5 @@ dry-month ratios cannot be mapped there.
 
 ## Migrating from delta-change/1 and /2 {#migrating-from-delta-change1-and-2}
 
-Versions 1 and 2 (explicit historical and projection files, `reader`, `simulation_window`) are read-only:
-their retained collections under `scenarios/_engine/collections/` stay readable and selectable by
-`scenario_collection: {name: retained-<id>}`, `{id: ...}` or `manifest_path`, but new generation refuses
-them, and `scripts/generate_delta_scenarios.py` is retired. To regenerate:
-
-1. Run `analyze_projections` for the ensemble and horizons you used as projection files.
-2. Replace the settings with the `delta-change/3` block above. `historical_path`, `source_like`, `reader`,
-   `reference_period`, `future_period`, `members` and `factor_layout` are removed; `simulation_window`
-   becomes the projection-analysis reference period (or `historical_override.period`).
-3. Generate through the runner. Periods and members now follow projection analysis, so the new set differs
-   from the old one.
-
-Unreleased `delta-change/3` sets written with `projections.window_id` before this layout must be
-regenerated.
+Versions 1 and 2 are read-only. See [delta-change/1 and /2](changes-and-migration.md#delta-change-1-and-2) to
+regenerate a set with the current method.

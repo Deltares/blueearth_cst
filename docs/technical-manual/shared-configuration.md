@@ -45,7 +45,6 @@ For example, `hydromt: {build_config_path: hydromt/build.yml}` in `settings/buil
 
 Use `toolbox:config/...` for bundled resources or absolute paths for other locations.
 HydroMT catalogs follow their own internal path rules. Environment variables are not expanded.
-Schema 2 uses legacy path rules; changing the version alone does not convert paths.
 See the [configuration reference](configuration.md#how-paths-are-read) for the supported file fields.
 
 ## Key shared settings

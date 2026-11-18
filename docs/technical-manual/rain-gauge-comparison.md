@@ -17,8 +17,7 @@ observations:
 
 Omission or `null` disables observation input; gridded per-location comparison calculations still run when
 multiple candidates are selected. Their figures require `plotting.scales: [basin, locations]`. A populated
-mapping requires these three fields and accepts optional `temp_path`. Schema 3 resolves paths beside the
-project file; schema 2 keeps its existing invocation-relative base.
+mapping requires these three fields and accepts optional `temp_path`. Paths resolve beside the project file.
 
 ## Input files
 
@@ -78,10 +77,10 @@ data/climate/historical/source_comparison/
   _engine/
 ```
 
-The basin-average view compares gridded basin means. The location view replaces the former comparison
-`plots/subbasins/`: each dataset is sampled at the original coordinates of every declared spatial location and
-rainfall-gauge site. These are native-cell values, not subbasin averages. `plotting.scales` continues to
-control the optional area-average figures inside individual source stores.
+The basin-average view compares gridded basin means. In the location view, each dataset is sampled at the
+original coordinates of every declared spatial location and rainfall-gauge site. These are native-cell values,
+not subbasin averages. `plotting.scales` continues to control the optional area-average figures inside
+individual source stores.
 
 The location tables are long tables keyed by `location_id`; `annual` and `monthly` add a `variable` column
 (`precip` with `total_mm`, `temp` with `mean_degC`), and `agreement` a `scope` column (`daily`, `monthly`).
@@ -128,11 +127,7 @@ figure inventories live under `_engine/basin_average/`.
 ## Rerendering
 
 Rerender both views with `scripts/render_figures.py wf0-comparison --project <run> --out <review>`. The
-`rain-gauges` family renders the location view for new runs and continues reading legacy
-`source_comparison/stations/` (`comparison/stations/` before layout 3) or `historical/rain_gauges/` products.
-Older flat basin tables are readable by the comparison rerender command. Rerunning historical analysis writes
-the new layout; obsolete generated directories from earlier runs should be retired separately after verifying
-the replacement products.
+`rain-gauges` family renders the location view.
 
 ## Limits
 

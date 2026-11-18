@@ -30,9 +30,7 @@ For schema-3 projects, set `method: stochastic` and place the settings below und
 alternative `method: delta_change` takes an inline `delta_change:` section
 ([`delta-change/3`](delta-change-scenarios.md), driven by the gridded changes from projection analysis).
 Supply exactly the selected section; mixed methods, unknown methods and mixed flat/nested fields are refused.
-Legacy flat stochastic files remain supported under project schemas 2 and 3. Nested stochastic settings
-normalize to the same effective producer inputs. Relative paths remain anchored beside their declaring
-workflow YAML. Existing stochastic collection selection and reservation behavior are preserved.
+Relative paths remain anchored beside their declaring workflow YAML.
 
 | Setting | Purpose |
 |---|---|
@@ -84,8 +82,7 @@ configured name, which is then listed as an alias. Names never affect a set's id
 - **Index (`scenarios/collections.csv`).** Every set in the project: `name, aliases, method, id,
   description, created, status`. It is rebuilt from the set records after each generation.
 
-Sets from earlier versions stay where they are (`scenarios/_engine/data/<id>/`) and are listed in the index as
-`retained-<id>`. See [saved results](retained-handoffs.md#scenario-exports-and-lookups) for lookup columns and
+See [saved results](retained-handoffs.md#scenario-exports-and-lookups) for lookup columns and
 reuse requirements.
 
 ## Diagnostics and interpretation {#interpretation}

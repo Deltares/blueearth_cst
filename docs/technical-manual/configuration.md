@@ -44,9 +44,9 @@ versions. It is never a `--configfile` target. Only its listed keys are accepted
 
 ### Path bases
 
-`schema_version: 3` resolves enumerated file fields beside the YAML declaring them.
-`schema_version: 2` keeps invocation-relative file bases. `workflow_configs` paths are always relative to
-the project file, including schema 2. Supported schema numbers are integers 2 and 3; other values fail.
+`schema_version: 3` resolves enumerated file fields beside the YAML declaring them. `workflow_configs` paths
+are always relative to the project file. Supported schema numbers are integers 2 and 3; other values fail.
+For schema 2, see [schema 2 path rules](changes-and-migration.md#schema-2-path-rules).
 
 | Declaring file | File fields resolved by schema 3 |
 |---|---|
@@ -82,8 +82,7 @@ may have another name, but later creation then needs `--from-trial` until a defa
 `--from-trial` requires schema 3, preserves scientific settings and workflow enablement, and copies
 referenced authored trial inputs. Shared case data stay shared; external inputs are reported. References to
 saved products must be removed from a working source copy before scaffolding a fresh trial. `--catalog` uses
-destination-YAML-relative paths or `toolbox:` resources. Existing layouts and schema-2 execution are
-unchanged; see [case creation](../guide/new-case.md) and [changes and migration](changes-and-migration.md).
+destination-YAML-relative paths or `toolbox:` resources. See [case creation](../guide/new-case.md).
 
 ## Shared fields
 
@@ -183,8 +182,7 @@ set through `simulate_system.historical_forcing`.
 
 The earlier `climate.sources`, `climate.selected` and `climate.forcing` keys are refused;
 [renamed settings](changes-and-migration.md#renamed-configuration-settings) explains the conversion and its
-one-time reruns. `climate.forcings.<name>.temp_pet_source` remains accepted with a deprecation notice; do not
-supply both spellings. Archives and the saved forcing-set settings keep their original bytes and meaning.
+one-time reruns.
 
 #### Forcing-set keys
 
@@ -316,8 +314,7 @@ formatting and native NetCDF precision are independent. The CSV and NetCDF secti
 
 Native Wflow CSVs are temporary conversion inputs. Verified per-variable CSVs and their metadata are the
 retained format; there is no native-retention or compatibility option. Increasing precision after conversion
-requires another simulation. New simulation experiments freeze precision in their response request. Old
-native-only publications are not upgraded or rewritten: create new historical runs/experiments.
+requires another simulation. New simulation experiments freeze precision in their response request.
 
 ## Optional native model grids {#netcdf-grid}
 
@@ -376,7 +373,7 @@ Before they are written or reused on retry, grids must contain finite values on 
 support. Masked cells outside that support remain valid. Units, coordinates, CRS and layers are checked
 against expectations captured directly from the initialized Wflow model in `<run>.toml.grid.toml`, beside its
 run settings. The saved inventory embeds these expectations, so archived reads do not need Julia or the
-original model-input paths. Existing inventories keep their original checksum and reader semantics.
+original model-input paths.
 
 ## Plotting resources
 

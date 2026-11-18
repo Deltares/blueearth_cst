@@ -133,9 +133,7 @@ Results are saved under `data/climate/projections/<ensemble>/` in the output dir
 - Figures use the diagnostic tables, whose effective periods may differ from the change-factor tables.
 - By default, each window also includes annual spatial matrices with model rows and scenario columns, and
   twelve-month spatial sheets per model/scenario/variable.
-- Basin-average monthly changes are summarized by the existing box plots; individual
-  `cmip6_delta_monthly_*.png` curve sheets are no longer produced. Previously managed copies are removed when
-  their figure directory is regenerated.
+- Basin-average monthly changes are summarized by box plots.
 - Spatial sheets summarize members by cell-wise median and keep their counts in captions. Every available
   combination is shown, including ensembles smaller than ten models.
 - Maps use native GCM cells, clipped to the basin outline for display without interpolation. A small basin may
@@ -155,9 +153,7 @@ These are projection diagnostics, independent of stochastic or delta scenario ge
 scenario collection or Wflow model. Native-grid changes reuse local raw slices and the workflow's existing
 calculations.
 
-Figure rerendering uses saved gridded changes when available, checking recorded member hashes. For older runs
-without these products, it reconstructs spatial changes from their local raw slices and scalar run records in
-the review destination; those inputs must still be available. See
+Figure rerendering uses saved gridded changes when available, checking recorded member hashes. See
 [run records](run-records.md#wf2-product-attribution) for production records and
 [results transfer](results-transfer.md) for export and import.
 

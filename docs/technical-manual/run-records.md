@@ -47,8 +47,7 @@ Edit source YAML, never generated archives. Archives preserve exact source bytes
 relevant input references; recording them does not copy external datasets.
 
 Generated execution YAML uses the current public climate keys, including
-`climate.forcings.<name>.precip_source` and `climate.forcings.<name>.temp_source`. Legacy source files remain
-supported with migration notices, and archives keep their original bytes.
+`climate.forcings.<name>.precip_source` and `climate.forcings.<name>.temp_source`.
 
 ### Execution folder
 

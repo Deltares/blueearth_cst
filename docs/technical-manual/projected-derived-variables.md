@@ -77,9 +77,7 @@ Source units, paths, calendar, method/library and support are recorded with the 
 
 Changing method refreshes current derived products in place; use separate project roots to keep both analyses.
 Threshold-only edits do not reacquire raw inputs. Removing PET retires its previously managed figure paths
-while keeping source raw data. The generated catalog's additional adapter mappings can invalidate earlier raw
-identities, including P/T-only caches, under the existing catalog-integrity policy; unchanged output values do
-not imply unchanged cache keys across toolbox revisions.
+while keeping source raw data.
 
 ## Dew point and wind {#dew-point-and-wind}
 

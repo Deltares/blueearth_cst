@@ -115,10 +115,8 @@ plotting:
   Turning it on requests any missing products through the usual run command.
 
 Earlier keys are refused; see [renamed settings](changes-and-migration.md#renamed-configuration-settings).
-Shared `plotting.annotation` remains in the project YAML. Legacy `forcing_plots`,
-`evaluation.station_plots` and `evaluation.subbasin_plots` are accepted with deprecation warnings;
-both evaluation switches map to the `locations` scale. Conflicting declarations, unknown plotting keys
-and nonboolean switches are errors.
+Shared `plotting.annotation` remains in the project YAML. Unknown plotting keys and nonboolean switches
+are errors.
 
 ## Diagnostics and interpretation {#interpretation}
 
@@ -193,8 +191,8 @@ compression and container timestamps.
 
 ### Retired setting
 
-The former `historical_run` setting, which published named copies under `simulations/historical/`, is no
-longer used. It is accepted with a deprecation warning and ignored; remove it from the configuration.
+The `historical_run` setting is ignored; see
+[deprecated settings](changes-and-migration.md#deprecated-settings).
 
 ## Named forcing sets {#named-recipes}
 

@@ -71,13 +71,11 @@ temperature. Earlier keys in this file are refused; see
   figures selected for the current run.
 
 These switches belong under `plotting:` in this workflow's YAML; shared `plotting.annotation` stays in the
-project YAML. Old top-level `source_figures`, `location_figures` and `subbasin_figures` are still accepted
-with deprecation warnings (`view: both` and `locations`); conflicting declarations are errors. Unknown keys
-are rejected.
+project YAML. Unknown keys are rejected.
 
 Comparison filenames omit the `comparison_` prefix. Machine-readable figure inventories live under the
 dataset's `_engine/plots/`, with an `indices/` subfolder for index metadata; readable title/caption Markdown
-stays beside the figures. Older saved metadata remains readable in place.
+stays beside the figures.
 
 ### Result tables
 
@@ -94,7 +92,7 @@ kind of result:
 
 The comparison adds `agreement.csv`, which lists the common valid years. Data kept only to draw a figure
 (dry-spell exceedance, anomaly autocorrelation, P–T anomalies, trend sensitivity) is in
-`_engine/figure_data/`. Rerendering reads projects written before layout 3 from their per-table files.
+`_engine/figure_data/`.
 
 ### Map annual departures {#annual-spatial-anomalies}
 
@@ -169,9 +167,7 @@ Six chronological years fit in one multi-panel figure. Longer periods produce mu
 Run the usual historical analysis entry point. Saved-run rerendering through
 `scripts/render_figures.py wf0 --project <run> --out <review>` uses saved annual fields without daily source
 data. Disabling the option or shortening the comparison period retires only previously managed anomaly figures
-and their inventory entries, preserving unrelated files and saved data. Rerunning also retires previously
-managed PNGs from the older `plots/annual_anomalies/page_001/` layout after writing the replacement figures
-directly under `plots/`.
+and their inventory entries, preserving unrelated files and saved data.
 
 ### Compare daily rain gauges {#rain-gauges}
 
@@ -218,19 +214,8 @@ source. Two shared outputs support the analysis.
 
 ### Map preparation records
 
-Map preparation identities normalize Python source line endings to LF, so equivalent Windows checkouts share
-code hashes. Input data, catalogs and environment locks keep byte-exact hashes. After upgrading from
-byte-exact Python hashes, regenerate the prepared fields once. If historical climate analysis reports
-`stale preparation identity`:
-
-1. Run the single-workflow run command with your usual config and output directory, targeting
-   `--target produce_historical_map_reference` and forwarding
-   `-- --forcerun prepare_historical_map_fields_era5 prepare_historical_map_fields_chirps` (include only
-   sources declared in your project).
-2. Preview with `--dry-run`, then execute without it.
-3. Resume the normal workflow command.
-
-This rebuilds map fields and their reference without forcing climate extraction.
+If historical climate analysis reports `stale preparation identity`, follow
+[map preparation after an upgrade](changes-and-migration.md#map-preparation-after-an-upgrade).
 
 ### Map display and file names
 

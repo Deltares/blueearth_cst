@@ -37,7 +37,6 @@ variables and CPU settings. Also check which outputs were reused. A larger ensem
 startup costs over more simulations, so multiplying a small run's duration is only a rough estimate.
 
 Compilation and garbage collection are already included in wall time; do not add them again.
-Older records without measured elapsed seconds remain unavailable.
 
 ## Inspect simulation resource use
 
