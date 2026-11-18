@@ -67,7 +67,7 @@ tables in `tables/`, figures in `plots/` and the run record in `_engine/comparis
 | `tables/monthly.csv` | Monthly mean discharge and its day count, per station, support and series |
 | `tables/seasonal.csv` | Mean of the monthly means for each calendar month, per station, support and series |
 | `tables/flow_duration.csv` | Exceedance (%) and discharge per station, support and series |
-| `tables/stations.csv` | The first run's station registry, sorted by `wflow_id`; every run must have the same registry apart from `station_name` |
+| `tables/locations.csv` | The first run's reporting-location registry, sorted by `wflow_id`; every run must have the same registry apart from `station_name` |
 | `tables/supporting/support.csv` | Per-day support flags: every requested date with the warm-up, simulated-common and observation-paired masks, invalid-simulation count, observation validity and water year |
 
 Figures in `plots/` cover every station on each applicable support, using the shared CST preset, palette,

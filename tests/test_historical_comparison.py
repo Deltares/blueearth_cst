@@ -219,7 +219,13 @@ def test_recipe_comparison_expands_year_window_without_trimming(tmp_path, monkey
     # Layout 4: JSON in _engine/, the support check under tables/supporting/.
     assert (root / "_engine/comparison.json").is_file()
     assert (root / "tables/supporting/support.csv").is_file()
+    assert (root / "tables/locations.csv").is_file()
+    assert not (root / "tables/stations.csv").exists()
     metadata, tables = read_comparison(root)
+    assert metadata["table_hashes"]["locations.csv"] == file_sha256(
+        root / "tables/locations.csv"
+    )
+    assert tables["stations"].wflow_id.tolist() == ["1010", "1020"]
     assert metadata["requested_start"] == "2000-10-01"
     assert metadata["requested_end"] == "2002-09-30"
     assert metadata["warmup_exclusive_end"] == "2000-01-01"

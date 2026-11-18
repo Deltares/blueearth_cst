@@ -1,5 +1,6 @@
 """Location figures are optional while observation-based scores remain available."""
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -76,13 +77,13 @@ def test_station_plot_switch_preserves_performance_table(
     )
     pd.testing.assert_frame_equal(actual, scores)
     assert len(rendered) == int(enabled)
+    if enabled:
+        assert Path(rendered[0]["plot_dir"]) == evaluation / "plots/locations"
     assert previous.read_bytes() == b"retained"
 
 
 @pytest.mark.workflow_contract
 def test_csv_precision_is_wired_to_authoritative_export(tmp_path):
-    from pathlib import Path
-
     from blueearth_cst.shared.config_composition import load_composed_config
     from tests.conftest import parse_workflow, write_config
 

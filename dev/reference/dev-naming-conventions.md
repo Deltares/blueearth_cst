@@ -180,8 +180,8 @@ user-facing JSON data and provenance remain with their data products. The
 profiles. WF2's current names remain in `projection_figures.FIGURE_FILENAMES` until its profile is added.
 
 Machine figure inventories (`figure_titles.json`, `figure_captions.json`) live in the output unit's
-`_engine/plots/`, mirroring any family subfolder: `<unit>/plots/stations/` pairs with
-`<unit>/_engine/plots/stations/`. `plotting.figure_titles.figure_engine_dir` owns this mapping.
+`_engine/plots/`, mirroring any family subfolder: `<unit>/plots/locations/` pairs with
+`<unit>/_engine/plots/locations/`. `plotting.figure_titles.figure_engine_dir` owns this mapping.
 WF2 keeps `stage_b_settings.json` and `analysis_record.json` in `data/climate/projections/cmip6/_engine/`;
 its manifest figure paths resolve relative to the sibling `plots/` directory.
 
@@ -206,7 +206,7 @@ Name new spatial groupings by the feature each result represents. This lets read
 
 The historical climate analysis uses `plots/subbasins/` and `tables/subbasins/` under each source for polygon summaries. Under `source_comparison/`, `plots/locations/` and `tables/locations/` report point comparisons, including native-cell climate samples at declared locations and gauge-only sites. See the [historical climate outputs](../../docs/technical-manual/workflow-analyze-climate.md) and [spatial identities](toolbox-spatial-foundation.md#spatial-identities-and-controls).
 
-Existing output paths follow their established contracts. In model evaluation, `plots/subbasins/` summarizes subbasin areas, while `plots/stations/` includes simulation-only reporting locations. The historical forcing comparison also uses `tables/stations.csv` for its reporting-location registry. Use `locations` for new products with this broader point scope. A change to these established paths needs a migration note and updates to affected readers and figure inventories.
+In model evaluation, `plots/subbasins/` summarizes subbasin areas and `plots/locations/` reports discharge at model points. Historical hydrology comparisons write the reporting-location registry as `tables/locations.csv`. See the [migration notes](pre-release-migration.md#historical-model-evaluation-and-comparison) for earlier paths.
 
 ## 8b. Rule naming — `<verb>_<noun>`, verb first, always
 
