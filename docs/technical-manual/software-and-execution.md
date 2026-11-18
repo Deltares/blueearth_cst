@@ -22,12 +22,10 @@ Julia into Pixi or edit generated locks by hand. Use the [installation guide](..
 | Julia | Wflow execution | `Project.toml`, `Manifest.toml`, `config/advanced_settings.yml` |
 | Snakemake | Workflow scheduling | Five root `.smk` entry points and included rule files |
 
-`config/advanced_settings.yml` declares required software versions and default resources. Its closed schema
-is implemented in `blueearth_cst/shared/advanced_settings.py`. `tests/test_julia_runtime.py` checks Julia pin
-consistency. The installation script specifies the installed weather-generator revision.
+`config/advanced_settings.yml` declares required software versions and default resources. The installation
+script specifies the installed weather-generator revision.
 
-Run supported commands with `pixi run`. Snakemake Python steps read `snakemake.input`, `output` and `params`.
-R workflow scripts use `Rscript --vanilla` and positional arguments. netCDF carries gridded climate and
+Run supported commands with `pixi run`. netCDF carries gridded climate and
 forcing between languages. Hydrological simulation retains rounded per-variable CSV responses with explicit
 interpretation metadata.
 

@@ -13,14 +13,13 @@ The invocation JSON is authoritative when a report is missing or stale.
 
 ## Run records and saved configurations {#invocation-hierarchy-and-configuration-captures}
 
-`blueearth_cst/shared/invocation_history.py` defines the record format `invocation/1`.
+Each run command attempt writes a record to `<project>/config/_engine/invocations/<id>.json`.
 
-### Record identity
+### Record contents {#record-identity}
 
-Each record identifies `invocation_id`, optional `parent_invocation_id`, workflow, entry point, command,
-targets, working directory and `requested_workflows`. Parent and child linkage is explicit; a nearby
-timestamp is not enough to infer membership. All-workflow children share their parent's execution folder;
-standalone launches allocate their own. Name collisions add an invocation suffix.
+Each record names the workflow, entry point, command, targets and working directory. Workflow records from
+an all-workflow run link to their parent record. All-workflow children share their parent's execution folder;
+standalone launches allocate their own.
 
 ### Status fields
 
@@ -48,15 +47,13 @@ Edit source YAML, never generated archives. Archives preserve exact source bytes
 relevant input references; recording them does not copy external datasets.
 
 Generated execution YAML uses the current public climate keys, including
-`climate.forcings.<name>.precip_source` and `climate.forcings.<name>.temp_source`. Internal resolved fields
-such as `selected` and `temp_pet_source` remain in resolved records where needed; they are not written back
-as deprecated settings in execution YAML. Legacy source files remain supported with migration notices,
-and archives keep their original bytes.
+`climate.forcings.<name>.precip_source` and `climate.forcings.<name>.temp_source`. Legacy source files remain
+supported with migration notices, and archives keep their original bytes.
 
 ### Execution folder
 
-`execution_outputs.py` organizes the execution directory and `_parts/wfN-<child-id>/` job diagnostics.
-The folder contains `summary.md`, `console.log`, `wfN.log`, `wfN-benchmarks.md` and `.tsv` where available.
+The folder contains `summary.md`, `console.log`, `wfN.log`, `wfN-benchmarks.md` and `.tsv` where available,
+with job diagnostics in `_parts/wfN-<child-id>/`.
 Hydrological simulation adds `wf4-indicators.log`. Console counters and final verdicts aid monitoring;
 invocation and ready product records answer different questions about execution and product validity.
 
@@ -88,7 +85,7 @@ generation enabled. Named hydrological simulation requests infer the target from
 
 The all-workflow runner executes enabled workflows in fixed order and stops at the first workflow failure.
 Hydrological simulation can continue independent sets/batches internally. Forwarded hydrological simulation
-execution flags have an allowlist in `experiment/simulation_runner.py`; arbitrary config or target overrides
+execution flags are limited to an allowlist; arbitrary config or target overrides
 are rejected. Use `--help` to inspect supported flags rather than assuming every Snakemake flag can be
 forwarded.
 
@@ -103,20 +100,17 @@ forwarded.
 
 ### After a failure
 
-After a failed or interrupted attempt, existing files remain evidence rather than proof of readiness.
-An identity mismatch calls for a separate experiment; forced scheduling never makes incompatible inputs
-equivalent. Reservation recovery is checked by `experiment/reservation.py` and `reservation_context.py`;
-it is not a general overwrite switch, nor a repair tool for partial weather generation or damaged
-model-response files.
+After a failed or interrupted attempt, existing files remain evidence rather than proof of readiness. An
+identity mismatch calls for a separate experiment; forced scheduling never makes incompatible inputs
+equivalent. Reservation recovery is guarded; it is not a general overwrite switch, nor a repair tool for
+partial weather generation or damaged model-response files.
 
 ## Run status and elapsed time {#timing-and-attempt-lifecycle}
 
 The source is `<project>/config/_engine/invocations/<id>.json`, not console output or
-per-rule benchmark tables. Records retain numeric `elapsed_seconds` measured with a monotonic
-clock, alongside UTC timestamps for chronology. The timer belongs to the launcher process;
-a supervisor may supply an observed child duration, including preparation before child-record creation.
-The total covers the recorded launcher attempt and is not the sum of parallel job durations.
-No raw monotonic clock origin is stored. Time before invocation-record creation is not measured.
+per-rule benchmark tables. Records retain numeric `elapsed_seconds` alongside UTC timestamps for
+chronology. The total covers the recorded launcher attempt and is not the sum of parallel job durations.
+Time before invocation-record creation is not measured.
 
 Reports distinguish execution from dry runs, disabled workflows, workflows not invoked, launch
 failures and unfinished attempts. Warning counts appear only when recorded. Exit zero does not prove
@@ -243,7 +237,3 @@ a product record refers to.
 - Rules 2.01–2.02 run inside projection analysis but write the shared `data/spatial/geoms/`. They appear in
   the copied
   log and are listed as `shared_steps`; their files are not product files.
-
-Implementation references: `shared/invocation_history.py`, `invocation_summary.py`, `execution_outputs.py`,
-`merge_benchmarks.py`, `resource_tracking.py`, `resource_timing.jl` and `product_record.py`.
-Tests include `tests/test_execution_outputs.py`, `test_merge_benchmarks.py` and `test_product_record.py`.

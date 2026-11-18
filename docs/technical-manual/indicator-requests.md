@@ -180,7 +180,3 @@ dependencies. It invokes independent current checkers and writes a new attribute
 changes are allowed and receive fresh attribution. Missing/changed inputs block rechecking but preserve
 artifact inspection. A requested unavailable or failed recheck exits nonzero. `--traceback` exposes causes.
 Inspection never relaxes production reuse guards.
-
-Evidence owners: `experiment/indicator_sets.py`, `indicator_registry.py`, `indicator_artifacts.py`,
-`indicator_inspection.py`, `indicator_export.py` and `named_export.py`;
-`tests/test_indicator_sets.py`, `test_partial_indicators.py` and `test_indicator_inspection.py`.

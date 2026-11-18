@@ -5,7 +5,7 @@ format: html
 
 `scripts/transfer_results.py` exports a completed projection analysis product as one ZIP, or imports one into
 another
-project. It prints a JSON report and exits zero on success. A `BundleError` prints `Refused: ...` on stderr
+project. It prints a JSON report and exits zero on success. A refused transfer prints `Refused: ...` on stderr
 and returns 2. The following commands use placeholders for project roots:
 
 ```console
@@ -65,8 +65,6 @@ be enabled to read them.
 The bundle records toolbox commit, dirty state and lock hashes so the results can be traced to their run;
 these records do not recreate the source environment.
 
-The transfer implementation is `blueearth_cst/shared/result_bundle.py`; command-line options are defined in
-`scripts/transfer_results.py`. `tests/test_result_bundle.py` covers integrity, destination comparison,
-publication and preservation/refusal cases. [Product
+Command-line options are defined in `scripts/transfer_results.py`. [Product
 attribution](run-records.md#wf2-product-attribution)
 explains the production record carried in a bundle.

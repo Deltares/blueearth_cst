@@ -11,8 +11,6 @@ configuration files and generator settings read during execution.
 
 ## How configuration settings are combined {#composition-and-precedence}
 
-`blueearth_cst/shared/config_composition.py` combines the configuration files.
-
 ### Project and workflow files
 
 The project top level accepts only `schema_version`, `project`, `basin`, `climate`, `model`, `plotting`,
@@ -40,8 +38,7 @@ inputs or bypass configuration capture and input checks.
 
 `config/advanced_settings.yml` is loaded for every project. Its `constraints` are hard limits, `defaults`
 provide values that supported project settings may override, and `runtime` specifies required software
-versions. It is never a `--configfile` target. Exact keys are closed by `_ADVANCED_SETTINGS_SCHEMA` in
-`blueearth_cst/shared/advanced_settings.py`.
+versions. It is never a `--configfile` target. Only its listed keys are accepted.
 
 ## How paths are read
 
@@ -74,8 +71,7 @@ the project file, including schema 2. Supported schema numbers are integers 2 an
 `hydromt: {build_config_path: hydromt/build.yml}` in `settings/build-model.yml` reads
 `settings/hydromt/build.yml`. A bundled build configuration file can be
 `toolbox:config/defaults/wflow_build_model.yml`. Moving YAML files does not relocate saved outputs or
-datasets. Archives preserve exact source bytes and resolved runtime locators. `config_paths.py` and
-`tests/test_config_paths.py` implement these rules.
+datasets. Archives preserve exact source bytes and resolved runtime locators.
 
 ### Case scaffolder
 
@@ -113,11 +109,11 @@ unchanged; see [case creation](../guide/new-case.md) and [changes and migration]
 | `model.outvars` | Retained model variables; declarations must use supported Wflow display names |
 | `plotting.annotation` | `none` (default), `caption` or `title` on ordinary PNG paths |
 
-The historical-window parser is `historical_window_bounds` in `shared/wf3_science.py`.
-`snake_utils.validate_historical_window` enforces the configured 16-year minimum. Extraction uses the
-available overlap, warns on narrowing, and refuses no overlap or insufficient selected-source coverage.
-CHIRPS selection requires overlap with its companion variables (ERA5 by default). Model building checks forcing
-coverage for its declared simulation window, including Wflow's initial-state time convention.
+The climate window must span at least the 16 years set by `constraints.min_historical_years` in
+`config/advanced_settings.yml`. Extraction uses the available overlap, warns on narrowing, and refuses no
+overlap or insufficient selected-source coverage. CHIRPS selection requires overlap with its companion
+variables (ERA5 by default). Model building checks forcing coverage for its declared simulation window,
+including Wflow's initial-state time convention.
 
 `climate.map_reference` accepts only `max_missing_days_month` (integer 0–27) and
 `max_missing_days_year` (nonnegative integer). Booleans and fractions fail. Historical climate analysis
@@ -180,8 +176,8 @@ empty names are errors. Entry-point summaries show resolved choices before execu
 Names match `[a-z][a-z0-9_]{0,31}`; `default` is reserved, and two names may not describe the same forcing
 set. With one set, model outputs use the single-set layout (`historical/default/`, `wflow_sbm.toml`). With
 several, model building simulates `build_model.historical_forcings` (default: the default set) in the per-set
-layout described in [forcing-set comparison](forcing-comparison.md#named-recipes), and simulation selects one set
-through `simulate_system.historical_forcing`.
+layout described in [forcing-set comparison](forcing-comparison.md#named-recipes), and simulation selects one
+set through `simulate_system.historical_forcing`.
 
 #### Earlier keys
 
@@ -391,6 +387,3 @@ Appearance changes schedule affected plots without changing scenario/simulation 
 combined
 evaluation job also refreshes its indicators. R generator figures retain their own settings.
 Changing colors does not change normalization, classification or scientific missingness rules.
-
-Tests: `tests/test_config_composition.py`, `tests/test_config_paths.py` and
-`tests/test_v2_config_shape.py` cover composition/path and shared-setting boundaries.

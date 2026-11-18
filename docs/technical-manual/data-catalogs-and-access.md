@@ -27,9 +27,8 @@ project paths resolve beside the YAML that declares them; `toolbox:` refers to t
 Dataset paths inside a catalog follow HydroMT's catalog-root rules.
 
 Check source names, coverage, units and time conventions before substituting data. Raw provider files
-may differ from the prepared daily archives expected by the toolbox. Historical forcing checks raise
-`UnverifiedForcingUnits` if conversion rules differ from those reviewed in the
-[forcing adapter](../../blueearth_cst/climate_analysis/prepare_climate_data_catalog.py).
+may differ from the prepared daily archives expected by the toolbox. Historical forcing checks stop with an
+`UnverifiedForcingUnits` message if a source's conversion rules differ from the reviewed ones.
 
 ## Choosing, replacing, and recording sources {#choosing-replacing-and-recording-sources}
 

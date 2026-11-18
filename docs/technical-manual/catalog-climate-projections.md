@@ -34,6 +34,6 @@ and grid/version locations. Listed members have both monthly precipitation (`pr`
 air temperature (`tas`); other variables are not guaranteed. Check coverage for the selected models
 and periods rather than assuming every combination is available.
 
-Both files must describe the same crawl of the archive. Regenerate them together using
-`dev/scripts/generate_cmip6_catalog.py`; do not edit either file by hand. See
+Both files must describe the same crawl of the archive; they are generated together, and neither is
+edited by hand. See
 [projection analysis](workflow-analyze-projections.md) for selection and calculation details.

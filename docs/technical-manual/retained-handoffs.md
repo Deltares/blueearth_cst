@@ -18,38 +18,27 @@ Relative paths below start at `project_dir`, unless an experiment folder is name
 | Indicator set | Experiment `_engine/indicator_sets/<id>/indicators.json` (hashes); its tables only in `results/indicator_sets/<set-id>/` |
 | Named indicator view | Experiment `results/indicator_sets/<set-id>/`; committed by `_engine/indicator_sets/names/<set-id>/current.json` |
 
-Collection identity covers generation settings, resolved seed, scientific sources, the generator's method
-revision and its key numerical packages. Simulation identity binds selected collection/runs, model,
-simulation settings, the simulation method revision and key packages. Indicator identity binds saved model
-time series, declarations, water year, the indicator method revision and key packages. A toolbox update that
-does not change a method revision or key package keeps every saved result reusable; the code and full
-environment that produced a result stay recorded with it.
+Each saved result records the settings, inputs, method revision and key numerical packages that produced
+it. A toolbox update that does not change a method revision or key package keeps every saved result reusable;
+the code and full environment that produced a result stay recorded with it.
 
 Changing the model, collection or frozen simulation inputs requires a new experiment. Changing a compatible
 indicator request can create another immutable set without rerunning Wflow. A missing saved variable requires
 a new simulation. Different simulations are never combined within one indicator set.
 
 Ready markers are written after validation. A folder or CSV alone is not a validated result ready for use.
-`scenario_collection_v2.read_collection_v2` verifies the marker, collection/revision identity, data root,
-lookups and series descriptors. `response_inventory.py` verifies complete rounded-response coverage.
-`indicator_artifacts.py` validates saved indicator schemas, hashes, tables and exact result keys.
 Do not edit immutable data or marker bytes to make reuse succeed.
 
 ## Startup input checks
 
 When hydrological simulation is enabled, `scripts/run_workflows.py` checks the experiment request before
-upstream launches and
-rechecks inputs before passing inputs to each enabled workflow. Checks include configuration, templates, local
-input hashes
-and scientific source identity. Catalog context includes parsed YAML and root selection: explicit
-`meta.root`, the first existing `meta.roots` candidate, or the catalog directory.
-A newly available preferred root can therefore invalidate a request without changing YAML bytes.
+upstream launches and rechecks inputs before passing them to each enabled workflow. Checks include
+configuration, templates, local input hashes, scientific sources and the catalog root in use, so a newly
+available preferred root (`meta.roots`) can invalidate a request without changing YAML bytes.
 
-The initial input check does not load HydroMT or validate every adapter and unit conversion. Those checks
-occur in the
-workflow using those inputs. Different catalog roots or scientific sources are rejected rather than rewritten
-to
-fit a saved experiment. Records and existing results remain available for inspection.
+Different catalog roots or scientific sources are rejected rather than rewritten to fit a saved experiment.
+The refusal names the setting that differs; use the saved inputs again, or start a new experiment with
+`--new-experiment`. Records and existing results remain available for inspection.
 
 ## Scenario exports and lookups
 
@@ -94,8 +83,7 @@ with changed code or model inputs.
 ## Indicator tables and dictionary
 
 New sets use `indicator-set/6`. On disk, immutable `data/` and named exports use the same split run/group
-table headers below. The validator normalizes their identity column to `run_group_id` internally;
-that internal key is not an additional CSV column. Named exports copy the immutable tables and add a
+table headers below. Named exports copy the immutable tables and add a
 dictionary derived from declarations and coverage evidence.
 
 | File | Columns or contents |
@@ -106,9 +94,9 @@ dictionary derived from declarations and coverage evidence.
 | `group_metadata.csv` | `group_id,st_id,is_reference` |
 | `indicators.csv` | Definitions, units, method/parameters, grain, group policy, temporal rules and availability |
 
-Use `indicators.csv` for output units rather than inferring them from `<token>`. Its exact columns are
-`named_export.DICTIONARY_COLUMNS`. `availability` is `available`, `partial` or `unavailable` across requested
-locations; `unavailable_reason` explains missing inputs. It is distinct from each value row's `status`.
+Use `indicators.csv` for output units rather than inferring them from `<token>`. `availability` is
+`available`, `partial` or `unavailable` across requested locations; `unavailable_reason` explains missing
+inputs. It is distinct from each value row's `status`.
 
 | Row status | Value cell | Reason cell |
 |---|---|---|
@@ -164,9 +152,3 @@ See [inspection and rechecking](indicator-requests.md#integrity-and-numerical-re
 When interpreting indicator tables or constructing response surfaces, preserve reference membership,
 units and the configured monthly perturbation trajectories. State how those monthly perturbations are
 represented on each axis so that readers can relate a plotted response to its climate inputs.
-
-Implementation references: `experiment/generation_plan.py`, `scenario_collection_v2.py`,
-`collection_index.py`, `simulation_record.py`, `response_inventory.py`, `indicator_plan.py`,
-`indicator_artifacts.py` and `named_export.py`. Relevant tests include `test_scenario_collection_v2.py`,
-`test_collection_index.py`, `test_response_inventory_v2.py`, `test_named_indicator_sets_workflow.py` and
-`test_partial_indicators.py`.

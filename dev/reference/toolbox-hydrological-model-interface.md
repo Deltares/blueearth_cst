@@ -14,7 +14,11 @@ preparation, and execution.
 [`wflow_response_reader.py`](../../blueearth_cst/experiment/wflow_response_reader.py)
 maps native output to neutral response series;
 [`response_inventory.py`](../../blueearth_cst/experiment/response_inventory.py)
-owns their retained inventory. A replacement adapter must prepare and run its own engine and satisfy an
+owns their retained inventory. [`native_locations.py`](../../blueearth_cst/shared/native_locations.py)
+labels native output columns with the registry's `wflow_id`; response tokens and native units are fixed by
+`shared/indicator_tables.py` and `experiment/wflow_response_reader.NATIVE_VARIABLES`. Indicator series
+validation lives in `indicators/series.py` and `indicators/contract.py`, retained-table interpretation in
+`shared/response_tables.py`. A replacement adapter must prepare and run its own engine and satisfy an
 independent response request. [Model construction](wf1-model-construction.md) owns WF1 build and mutable
 model roots; [spatial foundation](toolbox-spatial-foundation.md) owns model-neutral regions and IDs. See
 [retained handoffs](../../docs/technical-manual/retained-handoffs.md) for publication and reuse.
@@ -94,7 +98,12 @@ membership. Publication writes complete immutable tables and a ready inventory. 
 views of those sets, with committed pointers; see
 [retained handoffs](../../docs/technical-manual/retained-handoffs.md).
 [`indicator_plan.py`](../../blueearth_cst/experiment/indicator_plan.py) owns set planning, reading, and
-publication; [`named_export.py`](../../blueearth_cst/experiment/named_export.py) owns named views.
+publication; [`named_export.py`](../../blueearth_cst/experiment/named_export.py) owns named views and the
+dictionary columns (`DICTIONARY_COLUMNS`). The validator normalizes the run/group identity column to
+`run_group_id` internally; that key is not an additional CSV column. Named indicator sets are selected in
+`indicator_sets.py`, published by `indicator_export.py` and inspected by `indicator_inspection.py`, with
+`indicator_registry.py` and `indicator_artifacts.py` (all in `blueearth_cst/experiment/`); tests include
+`test_indicator_sets.py`, `test_partial_indicators.py` and `test_indicator_inspection.py`.
 
 `validate_hm7_v2` checks supplied markers, tables, and group membership against independently supplied
 response series and collection runs. Its implementation owns accepted schema versions and exact headers.
@@ -109,6 +118,9 @@ The interchange validators inspect parsed objects and return differences. They d
 run automatically at every boundary. Adapter and retained-reader checks provide additional admission.
 Use [`test_interchange_contracts.py`](../../tests/test_interchange_contracts.py),
 [`test_wflow_response_reader.py`](../../tests/test_wflow_response_reader.py),
+[`test_response_series.py`](../../tests/test_response_series.py),
+[`test_response_tables.py`](../../tests/test_response_tables.py),
+[`test_native_locations.py`](../../tests/test_native_locations.py),
 [`test_response_inventory_v2.py`](../../tests/test_response_inventory_v2.py), and
 [`test_hm7_v2.py`](../../tests/test_hm7_v2.py) for affected behavior. A fixture-dependent skip is
 unavailable coverage. Replacing an engine requires adapter, response translation, and producer/consumer
