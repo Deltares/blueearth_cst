@@ -58,7 +58,7 @@ establish data coverage, scientific suitability or a qualified model.
 Configuration snapshots and collection/simulation/indicator records capture environment and source
 identities for each processing stage. These identities detect incompatible reuse; they do not recreate
 an environment on another machine. Projection analysis bundles likewise record lock hashes and toolbox
-revision without installing dependencies. See [execution records](execution-and-provenance.md) and
+revision without installing dependencies. See [execution records](run-records.md) and
 [results transfer](results-transfer.md).
 
 ## Configuration and run management
@@ -66,7 +66,7 @@ revision without installing dependencies. See [execution records](execution-and-
 The [project configuration](configuration.md) specifies the basin, data sources, analysis periods,
 climate perturbations and workflows to run.
 
-Use [run records](execution-and-provenance.md) to establish what ran and which inputs were used.
+Use [run records](run-records.md) to establish what ran and which inputs were used.
 [Computation time and resource requirements](runtime-and-resources.md) explains the timing and resource
 reports. [Saved results](retained-handoffs.md) describes output structure and reuse, while
 [transferring climate-projection results](results-transfer.md) explains how to move projection analysis

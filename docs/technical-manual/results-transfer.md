@@ -68,5 +68,5 @@ these records do not recreate the source environment.
 The transfer implementation is `blueearth_cst/shared/result_bundle.py`; command-line options are defined in
 `scripts/transfer_results.py`. `tests/test_result_bundle.py` covers integrity, destination comparison,
 publication and preservation/refusal cases. [Product
-attribution](execution-and-provenance.md#wf2-product-attribution)
+attribution](run-records.md#wf2-product-attribution)
 explains the production record carried in a bundle.

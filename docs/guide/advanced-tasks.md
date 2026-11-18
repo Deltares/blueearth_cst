@@ -54,7 +54,7 @@ outputs and deleted. Models the toolbox built and cross-model comparisons are de
 Only enabled workflows run afterwards. To rebuild hydrological simulations, also enable model building and
 scenario generation and set `steps.simulations: true`, because their results were deleted. To keep previous
 experiments, use `--new-experiment` instead. See the
-[reset boundaries](../technical-manual/execution-and-provenance.md#launcher-arguments-and-safety-boundaries).
+[reset boundaries](../technical-manual/run-records.md#launcher-arguments-and-safety-boundaries).
 
 ## Transfer climate-projection results
 

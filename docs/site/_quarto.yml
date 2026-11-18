@@ -144,7 +144,7 @@ website:
             - technical-manual/input-formats.qmd
             - technical-manual/indicator-requests.qmd
             - technical-manual/retained-handoffs.qmd
-            - technical-manual/execution-and-provenance.qmd
+            - technical-manual/run-records.qmd
             - technical-manual/runtime-and-resources.qmd
             - technical-manual/results-transfer.qmd
             - technical-manual/indicator-extension.qmd

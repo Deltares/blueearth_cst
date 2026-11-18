@@ -1,6 +1,8 @@
 ---
 title: "Run records and reproducibility"
 format: html
+aliases:
+  - execution-and-provenance.html
 ---
 
 Every supported workflow launcher writes a readable summary at

@@ -93,7 +93,7 @@ Keep the configuration unchanged and rerun the same command. If the run command 
 stale lock, follow
 [A project is locked or a run was interrupted](troubleshooting.md#a-project-is-locked-or-a-run-was-interrupted).
 If it reports an interrupted experiment number allocation and suggests `--recover-reservation`, read
-[Run records](../technical-manual/execution-and-provenance.md#launcher-arguments-and-safety-boundaries)
+[Run records](../technical-manual/run-records.md#launcher-arguments-and-safety-boundaries)
 before using that option.
 
 ### Changed inputs {#start-a-new-experiment-after-changing-inputs}

@@ -11,6 +11,6 @@ lives in [config/templates](../templates/README.md).
 
 Changing selected generator settings changes its plan and can require a new collection/experiment.
 Use the [configuration reference](../../docs/technical-manual/configuration.md) for selection and
-[execution provenance](../../docs/technical-manual/execution-and-provenance.md) for generated captures.
+[run records](../../docs/technical-manual/run-records.md) for generated captures.
 Edit the source configuration, not the output archive. Shared appearance defaults live in
 [config/plotting](../plotting/README.md).

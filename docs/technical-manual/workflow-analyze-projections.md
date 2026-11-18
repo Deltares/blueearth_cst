@@ -228,7 +228,7 @@ scalar run records in the review destination; those inputs must still be availab
 Temperature and precipitation map ramps follow UNESCO draft report Figure 13, with explicit signed scales
 and zero ticks. Maps share a scale across models/scenarios for each variable, window and temporal scope.
 Project `plotting.annotation` selects a title, caption or neither. See
-[execution records](execution-and-provenance.md#wf2-product-attribution) for production records and
+[execution records](run-records.md#wf2-product-attribution) for production records and
 [results transfer](results-transfer.md) for export and import.
 
 ### Analysis failures and retries

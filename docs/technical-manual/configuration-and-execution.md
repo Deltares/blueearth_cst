@@ -37,7 +37,7 @@ routine requests need no target override.
 
 A dry run does not generate missing inputs. Some downstream checks remain pending until earlier
 products exist, so a successful preview does not establish that every later calculation can succeed.
-The [command reference](execution-and-provenance.md#launcher-arguments-and-safety-boundaries)
+The [command reference](run-records.md#launcher-arguments-and-safety-boundaries)
 describes supported options and forwarding restrictions.
 
 ## Computation time and resource requirements
@@ -104,7 +104,7 @@ copies document previous runs. Changes belong in the source YAML rather than the
 
 Run summaries link attempts and timings; product records identify which attempt produced a result.
 The newest log alone need not describe every file after a partial rerun.
-[Run records and reproducibility](execution-and-provenance.md) documents configuration history,
+[Run records and reproducibility](run-records.md) documents configuration history,
 product attribution and simulation resource measurements.
 
 ## Portability and results transfer {#saving-and-transferring-assessment-results}

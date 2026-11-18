@@ -67,4 +67,4 @@ These reports measure execution, not scientific adequacy. Use the model and indi
 [Reading the outputs](../guide/outputs.md) before interpreting the results.
 
 For exact file names, fields and collection limits, see the
-[execution reference](execution-and-provenance.md).
+[execution reference](run-records.md).
