@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 import types
 from pathlib import Path
 
@@ -9,6 +8,8 @@ import numpy as np
 import pyogrio
 import pytest
 from shapely.geometry import Point
+
+from dev.scripts.staging import stage_data
 
 # NO `sys.modules.setdefault` STUBS HERE, and none may be re-added. This module
 # used to install fake `geopandas`, `rasterio`, `rasterio.windows` and `xarray`
@@ -19,8 +20,6 @@ from shapely.geometry import Point
 # made three of test_stage_cmip6's tests fail against the fakes -- a false
 # failure in exactly the subset run someone iterating on staging makes.
 # stage_data imports fine without them (t2608191420).
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "dev" / "scripts"))
-import stage_data  # noqa: E402
 
 
 class _FakeArray:

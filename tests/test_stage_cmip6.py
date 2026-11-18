@@ -1,4 +1,4 @@
-"""Contract tests for `dev/scripts/stage_cmip6.py`.
+"""Contract tests for `dev/scripts/staging/stage_cmip6.py`.
 
 The tool's whole claim is that its slices are WF2-cache-compatible — drop one
 into a project's ``raw/`` and the pipeline accepts it instead of re-opening the
@@ -22,22 +22,16 @@ Two layers, deliberately:
 from __future__ import annotations
 
 import io
-import os
-import sys
 from pathlib import Path
 
 import pytest
 
+import blueearth_cst.shared.snake_utils as su
+from blueearth_cst.projections import series_identity as _si
+from blueearth_cst.shared.snake_utils import log_row
+from dev.scripts.staging import stage_cmip6 as sc
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(_REPO_ROOT))
-sys.path.insert(0, os.path.join(str(_REPO_ROOT), "dev", "scripts"))
-
-import stage_cmip6 as sc  # noqa: E402
-
-import blueearth_cst.shared.snake_utils as su  # noqa: E402
-from blueearth_cst.projections import series_identity as _si  # noqa: E402
-from blueearth_cst.shared.snake_utils import log_row  # noqa: E402
-
 FIXTURE = _REPO_ROOT / "test_case" / "test_local"
 RAW_DIR = FIXTURE / "data" / "climate" / "projections" / "cmip6" / "raw"
 REGION = FIXTURE / "data" / "spatial" / "geoms" / "region.geojson"

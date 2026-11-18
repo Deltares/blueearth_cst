@@ -145,13 +145,13 @@ Datasets covered:
 ### Run it
 
 The staging script reads its inputs (source root, destination root, bbox,
-list of datasets) from `dev/scripts/stage_data.yml`. Edit that file to add or
+list of datasets) from `dev/scripts/staging/stage_data.yml`. Edit that file to add or
 remove datasets, change paths, or shift the bbox.
 
 ```powershell
-pixi run python dev/scripts/stage_data.py                    # uses dev/scripts/stage_data.yml
-pixi run python dev/scripts/stage_data.py --config <path>    # alternate config
-pixi run python dev/scripts/stage_data.py --bbox 8 -1 12 2   # one-off bbox override
+pixi run python dev/scripts/staging/stage_data.py                    # uses dev/scripts/staging/stage_data.yml
+pixi run python dev/scripts/staging/stage_data.py --config <path>    # alternate config
+pixi run python dev/scripts/staging/stage_data.py --bbox 8 -1 12 2   # one-off bbox override
 ```
 
 Supported dataset `type` values:

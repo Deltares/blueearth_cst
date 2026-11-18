@@ -1,6 +1,6 @@
 """Seal and verify source-only inputs for the rapid all-workflow E2E gate.
 
-Stage the hydromt mirror with ``stage_data.py --config dev/scripts/local_e2e_data.yml``
+Stage the hydromt mirror with ``dev/scripts/staging/stage_data.py --config dev/scripts/local_e2e_data.yml``
 and copy the four pinned CMIP6 raw slices into ``<bundle>/cmip6/raw`` first.
 ``seal`` checks coverage and writes the file inventory; ``verify`` refuses missing,
 changed, or unexpected files and changed catalog/config contracts.
@@ -37,9 +37,9 @@ def _sha256(path: Path) -> str:
 def _contract_files() -> list[Path]:
     return [
         REPO / "dev/scripts/local_e2e_data.yml",
-        REPO / "dev/scripts/stage_data.py",
-        REPO / "dev/scripts/stage_cmip6.yml",
-        REPO / "dev/scripts/stage_cmip6.py",
+        REPO / "dev/scripts/staging/stage_data.py",
+        REPO / "dev/scripts/staging/stage_cmip6.yml",
+        REPO / "dev/scripts/staging/stage_cmip6.py",
         REPO / "config/catalogs/deltares_data_pdrive.yml",
         REPO / "config/catalogs/deltares_era5_daily_zarr.yml",
         REPO / "config/catalogs/cmip6_data.yml",

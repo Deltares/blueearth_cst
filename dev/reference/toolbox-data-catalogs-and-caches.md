@@ -40,16 +40,16 @@ therefore refuse an existing experiment without any YAML change.
 
 ## Staging
 
-Staging tools are repository maintenance under `dev/scripts/`; no run depends on them.
+Staging tools are developer commands under `dev/scripts/staging/`. Use them to prepare inputs before running a workflow.
 
-- [`stage_data.py`](../../dev/scripts/stage_data.py) mirrors a bounding-box subset of a remote HydroMT root
+- [`stage_data.py`](../../dev/scripts/staging/stage_data.py) mirrors a bounding-box subset of a remote HydroMT root
   to a local root with the same relative paths, configured by `stage_data.yml`. It skips files already
   present and removes a failed partial output.
-- [`write_staged_catalog.py`](../../dev/scripts/write_staged_catalog.py) regenerates
+- [`write_staged_catalog.py`](../../dev/scripts/staging/write_staged_catalog.py) regenerates
   `deltares_data_staged.yml` from the vendored catalog and `stage_data.yml`: staged entries, with the local
   mirror as the first root and the P drive as fallback. Run it after changing either input;
   [`test_staged_catalog.py`](../../tests/test_staged_catalog.py) fails when the committed overlay is stale.
-- [`stage_cmip6.py`](../../dev/scripts/stage_cmip6.py) writes CMIP6 slices for one region through WF2's own
+- [`stage_cmip6.py`](../../dev/scripts/staging/stage_cmip6.py) writes CMIP6 slices for one region through WF2's own
   `fetch_gcm_raw.fetch_raw_slice`, stamped with the same raw digest. Placed in a project's WF2 `raw/`
   directory, they are cache hits only when the region polygon matches the project's.
 

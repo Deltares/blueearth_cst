@@ -546,7 +546,7 @@ _WINDOWS_REPLACE_RETRY = os.name == "nt"
 #: Bounded retry budget for a Windows-only transient rename failure (WinError 5)
 #: seen when an antivirus/indexer briefly holds a handle open on a just-written
 #: file or directory -- the identical pattern already handled in
-#: dev/scripts/stage_data.py's `_write_zarr` for zarr's own metadata rename.
+#: dev/scripts/staging/stage_data.py's `_write_zarr` for zarr's own metadata rename.
 #: 10 attempts at a flat 20ms (0.2s total) turned out too short for a live run:
 #: t2609231529 hit WinError 5 renaming a whole directory (`config/<workflow>`,
 #: whose scan window plausibly outlasts a single file's). Exponential backoff,

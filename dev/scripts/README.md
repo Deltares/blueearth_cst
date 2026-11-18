@@ -88,6 +88,8 @@ removal with non-recursive `cmd /c rmdir`, never `git clean`.
 
 ## Data staging and catalogs
 
+The [staging commands and their default configurations](staging/) live together under `staging/`.
+
 `inspect_era5_zarr_geometry.py` reports ERA5 Zarr-v2 metadata, bounded chunk samples, and modeled read
 costs for fixed representative envelopes. It preserves the original probe's sampling and reports its
 limits; candidate compression is modeled, not measured in a rechunked store.
@@ -103,10 +105,10 @@ probes remain historical measurement evidence, described by the retained migrati
 
 | Script | What it does |
 |---|---|
-| [`stage_data.py`](stage_data.py) + [`stage_data.yml`](stage_data.yml) | Mirror a bbox subset of a remote data root to local disk. |
-| [`stage_cmip6.py`](stage_cmip6.py) + [`stage_cmip6.yml`](stage_cmip6.yml) | Stage CMIP6 slices for one region, digest-stamped so WF2's rule 2.04 hits its cache. |
+| [`stage_data.py`](staging/stage_data.py) + [`stage_data.yml`](staging/stage_data.yml) | Mirror a bbox subset of a remote data root to local disk. |
+| [`stage_cmip6.py`](staging/stage_cmip6.py) + [`stage_cmip6.yml`](staging/stage_cmip6.yml) | Stage CMIP6 slices for one region, digest-stamped so WF2's rule 2.04 hits its cache. |
 | [`generate_cmip6_catalog.py`](generate_cmip6_catalog.py) | Regenerate `config/catalogs/cmip6_data.yml` from a live crawl of gs://cmip6. |
-| [`write_staged_catalog.py`](write_staged_catalog.py) | Regenerate the catalog for the local data mirror. |
+| [`write_staged_catalog.py`](staging/write_staged_catalog.py) | Regenerate the catalog for the local data mirror. |
 | [`probe_cmip6_grids.py`](probe_cmip6_grids.py) | Which CMIP6 models hydromt's raster accessor refuses (non-uniform grids). |
 
 ## Project inspection and cleanup

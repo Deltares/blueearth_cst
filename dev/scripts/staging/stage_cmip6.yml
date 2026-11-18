@@ -1,4 +1,4 @@
-# Config for dev/scripts/stage_cmip6.py — stage CMIP6 slices for one region,
+# Config for dev/scripts/staging/stage_cmip6.py — stage CMIP6 slices for one region,
 # outside any project, as files WF2 will accept as its own raw/ cache.
 #
 # The slices are keyed on the REGION POLYGON, not on a bbox: the digest covers

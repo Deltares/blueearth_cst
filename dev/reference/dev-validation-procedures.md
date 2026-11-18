@@ -125,14 +125,14 @@ all required tests ran. Retain human numerical-difference and visual assessments
   HydroMT catalogs at a local source mirror, and regenerates extracts, model, change factors,
   scenarios and simulations. Missing/stale bundles fail; CMIP6 cache misses fail before network
   access. Copied catalogs have no P-drive fallback roots.
-- Stage spatial sources through the tracked `dev/scripts/stage_data.py` using
+- Stage spatial sources through the tracked `dev/scripts/staging/stage_data.py` using
   `dev/scripts/local_e2e_data.yml`; place the four raw CMIP6 slices from `stage_cmip6.py` under
   `<bundle>/cmip6/raw`, preserving bytes, attributes, acquisition digests, units and calendars.
   [Environment maintenance](../scripts/environment-notes.md#local-data-staging-p-drive-bypass)
   explains ordinary staging. Seal and verify the bundle outside Git:
 
 ```powershell
-pixi run python dev/scripts/stage_data.py --config dev/scripts/local_e2e_data.yml --dst <bundle>/hydromt
+pixi run python dev/scripts/staging/stage_data.py --config dev/scripts/local_e2e_data.yml --dst <bundle>/hydromt
 pixi run python dev/scripts/local_e2e_bundle.py seal <bundle>
 pixi run python dev/scripts/local_e2e_bundle.py verify <bundle>
 $env:BLUEEARTH_CST_E2E_BUNDLE = '<absolute-bundle-path>'
@@ -144,6 +144,7 @@ pixi run test-e2e-local
   file's SHA-256 plus rapid config/catalog hashes; any added or changed byte needs a new seal. The
   first local run must match its freshly delineated polygon to the slices' digest, not substitute
   an old region.
+- Bundles sealed before the move to `dev/scripts/staging/` need a fresh seal. You can reseal the existing source files in place.
 - Unit tests cannot establish remote availability or every upstream format change. Neither E2E gate
   writes under `test_case/`; both use fresh roots. Live `test-e2e` invokes `scripts/run_workflows.py`
   with rapid config and needs the data mirror, juliaup Julia, `weathergenr` and WF2 network access.
