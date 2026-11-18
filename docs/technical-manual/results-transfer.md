@@ -22,7 +22,7 @@ Source paths inside copied configuration are history, listed under `historical_p
 Use `--ensemble <name>` when the project has no captured projection analysis configuration naming the product.
 
 Export refuses an `incomplete` product, missing required files, a `region.geojson` whose polygon differs
-from the one recorded in `_engine/provenance.json`, and provenance that matches no retained
+from the one recorded in `_engine/provenance.json`, and a run record that matches no retained
 configuration snapshot. Files whose bytes no longer match the production record are exported with
 `producer: null`. Products without production records export as `legacy-unattributed`; their
 configuration snapshot is the one whose digests match `_engine/provenance.json`.
@@ -62,8 +62,8 @@ the configuration snapshots and region. It does not write the destination's `con
 Imported results are for reading and interpretation. The runner has no record of producing them, so a
 later projection analysis run in the destination may recompute them, and projection analysis does not need to
 be enabled to read them.
-The bundle records toolbox commit, dirty state and lock hashes as provenance; they do not recreate the
-source environment.
+The bundle records toolbox commit, dirty state and lock hashes so the results can be traced to their run;
+these records do not recreate the source environment.
 
 The transfer implementation is `blueearth_cst/shared/result_bundle.py`; command-line options are defined in
 `scripts/transfer_results.py`. `tests/test_result_bundle.py` covers integrity, destination comparison,

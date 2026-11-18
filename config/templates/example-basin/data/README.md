@@ -1,6 +1,6 @@
 # Case data
 
-Keep basin-specific sidecars here and record their provenance beside them.
+Keep basin-specific sidecars here and record their sources beside them.
 
 `rain_gauge_stations.csv` and `rain_gauge_precip.csv` are **synthetic format examples** for optional
 historical climate station comparisons. Replace both before enabling `observations.met_stations` in

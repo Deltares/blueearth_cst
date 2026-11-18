@@ -151,7 +151,7 @@ for each set after a multi-set failure.
 ## Set-specific preparation and conventions
 
 The [crop-water README](../../blueearth_cst/indicators/sets/crop_water/README.md) is the complete owner of
-Qcrit syntax, historical prerequisites, preparation timing, dry-run behavior, provenance and compatibility.
+Qcrit syntax, historical prerequisites, preparation timing, dry-run behavior, run records and compatibility.
 Its baseline-quantile preparation uses model building historical model discharge; neither synthetic
 observations nor
 scenario discharge supplies the reference. A minimal selection above does not bypass those prerequisites.

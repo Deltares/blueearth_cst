@@ -141,7 +141,8 @@ Omitted, null or false disables the diagnostic. Enabling it asserts that the dis
 mean m³/s over midnight-to-midnight UTC days. Naive timestamps are asserted
 UTC; aware timestamps normalize to UTC and must land at midnight. Start labels shift one day in a derived
 series; the input CSV and ordinary model evaluation retain their labels. The toolbox checks structure
-and records the declaration as user-supplied support; it cannot establish measurement provenance from values.
+and records the declaration as user-supplied support; it cannot establish from the values where the
+measurements came from.
 
 The diagnostic uses original snapped upstream catchments and hydrography cell areas. Prepared model
 forcing is sampled at those cell centres using nearest cells, then area-weighted. The same contributing
@@ -203,7 +204,7 @@ longer used. It is accepted with a deprecation warning and ignored; remove it fr
 The model identity recorded with each comparison covers scientific TOML settings and referenced static,
 cyclic, waterbody and initial-state inputs, including forcing variable bindings, scales and offsets. It
 excludes the forcing file contents and pointer, simulation dates, output configuration and logging paths,
-which have separate provenance and compatibility checks. NetCDF inputs use content hashes independent of
+which have separate source and compatibility checks. NetCDF inputs use content hashes independent of
 compression and container timestamps.
 ## Named historical recipes {#named-recipes}
 
@@ -227,7 +228,7 @@ year is never complete. Every input (TOMLs, forcing records, response tables, re
 hashed before and after the comparison, so a run that changes meanwhile is refused. The requested dates must
 all exist in every run. The comparison requires identical fixed-model identity, simulation dates, timestep,
 initialization and station identity; only daily Gregorian responses are supported. The inventory records each
-recipe and its provenance. The window expands inclusive integer reporting-year labels using
+recipe and its run record. The window expands inclusive integer reporting-year labels using
 `water_year_start`; no water-year trimming or endpoint shortening occurs. Water-year labels use their starting
 year and seasonal months start at `water_year_start`. Exact requested and warm-up boundaries are recorded in
 `_engine/comparison.json`.

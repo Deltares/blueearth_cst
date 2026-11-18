@@ -36,5 +36,5 @@ HydroMT generates the model's own TOML. Do not treat the reference copy as the c
    also needs `river discharge` in `model.outvars`; missing observations do not establish model skill.
 
 The [input-format reference](../../docs/technical-manual/input-formats.md) owns the exact CSV schemas,
-matching rules, separators and provenance requirements. Keep local data with the case and record sources.
+matching rules, separators and source requirements. Keep local data with the case and record sources.
 Unmaintained examples in `archive/` are outside the supported starting route.

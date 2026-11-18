@@ -31,7 +31,7 @@ snapshots live in `config/_engine/snapshots/<workflow>/`. A snapshot of the curr
 holds only its `run_record.yml`, because the readable copy holds its sources; a superseded
 generation's snapshot holds its sources, which are then their only copy. Scenario generation and
 hydrological simulation captures belong to their collection/experiment. Edit source YAML, never generated archives. Archives preserve exact source bytes,
-resolved locators and relevant input references; provenance does not mean all external datasets are copied.
+resolved locators and relevant input references; recording them does not copy external datasets.
 
 Generated execution YAML uses the current public climate keys, including
 `climate.forcings.<name>.precip_source` and `climate.forcings.<name>.temp_source`. Internal resolved fields

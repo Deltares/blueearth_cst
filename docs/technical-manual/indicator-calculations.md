@@ -38,7 +38,7 @@ treated as zero. Return levels use a separate pooled-extremes calculation.
 Reference definitions also matter. Default reference-month indicators use the recorded unperturbed
 simulations. ERFA pulse thresholds are estimated separately from each supplied series. The Crop-water
 low-flow calculation instead uses a fixed location-specific threshold, which can be derived from
-historical simulated discharge or supplied with its provenance. These measures answer different questions
+historical simulated discharge or supplied with its source. These measures answer different questions
 even when they all describe low-flow change.
 
 ## Return-level estimation and supporting evidence

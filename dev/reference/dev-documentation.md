@@ -41,8 +41,9 @@ its preferred terms. Replace these toolbox-specific terms:
 | historical period (extraction years) | climate window |
 | reservation (experiment) | experiment number allocation |
 | forcing recipe, recipe | forcing set; for a HydroMT build YAML, build configuration file |
+| provenance | run record (results); source or data source (datasets) |
 
-In user-facing pages, replace general software terms (retained, identity, provenance, locator, sidecar,
+In user-facing pages, replace general software terms (retained, identity, locator, sidecar,
 invocation, scaffold, publish) with plain words. Keep configuration keys, file names, flags and quoted
 console messages verbatim. "Output" and similar common words (data, results, settings) are established
 terminology and need no plain-language replacement. Keep labels, list lead-ins, table headers and headings
@@ -66,7 +67,7 @@ from:".
   explain CST choices locally. Check current runners, seed configurations and contracts before
   treating older technical material as supported behavior.
 - Use Quarto citations and a maintained bibliography for scientific claims. Numerical examples need
-  source provenance, configuration and relevant retained run IDs.
+  data sources, configuration and relevant retained run IDs.
 - Public pages must be usable from the public repository. Cite tracked sources or published references;
   do not depend on private records, ignored instructions or machine-specific paths.
 
@@ -96,7 +97,7 @@ Preserve these scientific distinctions:
   Add a path only to distinguish files; do not repeat the filename in the heading.
 - Show directory trees in fenced `text` blocks with aligned `├──`, `│` and `└──` branches and
   four-space nesting. In the quick start, give a compact folder overview and the exact result path;
-  link to the output guide for schemas and provenance. Preserve prerequisites and unavailable values.
+  link to the output guide for schemas and run records. Preserve prerequisites and unavailable values.
 - Use substantial-task headings. Fold brief prerequisites into the introduction when useful; short
   cues such as **While it runs** and **When it finishes** can organize a task. Keep commands, paths
   and success checks visible, with a link to the full execution guide.

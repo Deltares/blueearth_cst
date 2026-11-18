@@ -281,7 +281,7 @@ for each source. The main outputs are:
   observations when available; `locations.csv` indexes every site.
 - **Subbasin results (`tables/subbasins/` and `plots/subbasins/`).** Tables always; figures when
   `plotting.scales` includes `locations`. Basin maps show subbasin outlines regardless of this setting.
-- **Diagnostic record (`_engine/diagnostics.json`).** Methods, data availability and provenance.
+- **Diagnostic record (`_engine/diagnostics.json`).** Methods, data availability and data sources.
 
 Two shared outputs support the analysis:
 

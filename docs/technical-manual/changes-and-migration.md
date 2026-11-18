@@ -42,7 +42,7 @@ Migration is a separate, non-destructive operation:
 5. Add the minimal README trial row and output ignore rule. Review and archive evidence separately;
    do not move or rewrite immutable product records as part of configuration migration.
 
-An evidence archive preserves results, checks, configuration snapshots and provenance. A rerunnable
+An evidence archive preserves results, checks, configuration snapshots and run records. A rerunnable
 archive additionally requires the referenced datasets, catalogs and software environment. Record missing
 external dependencies. Git ignore rules are not backups, and moving YAML alone does not relocate runtime
 locators embedded in historical outputs.

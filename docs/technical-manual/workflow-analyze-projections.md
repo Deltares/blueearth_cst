@@ -224,7 +224,7 @@ scenario collection or Wflow model. Native-grid changes reuse local raw slices a
 calculations.
 Figure rerendering uses retained gridded changes when available, checking recorded member hashes.
 For older runs without these products, it reconstructs spatial changes from their local raw slices and
-scalar provenance in the review destination; those inputs must still be available.
+scalar run records in the review destination; those inputs must still be available.
 Temperature and precipitation map ramps follow UNESCO draft report Figure 13, with explicit signed scales
 and zero ticks. Maps share a scale across models/scenarios for each variable, window and temporal scope.
 Project `plotting.annotation` selects a title, caption or neither. See
