@@ -5,7 +5,7 @@ It separates software installation, environment checks and external-data require
 
 ## Session runtimes
 
-Developer runtime borrowing and isolation recipes are in
+Developer runtime borrowing and isolation procedures are in
 [Environment maintenance](../../../dev/scripts/environment-notes.md#session-runtimes).
 
 ## Troubleshooting

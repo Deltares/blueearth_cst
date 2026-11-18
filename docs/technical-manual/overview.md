@@ -24,8 +24,8 @@ conditions, without determining the scenarios or assigning them probabilities.
 
 </figure>
 
-Configuration files connect the assessment choices to the tools and datasets in the figure; runners
-and Snakemake coordinate processing and retain execution records for reproducibility.
+Configuration files connect the assessment choices to the tools and datasets in the figure; run commands
+and Snakemake coordinate processing and keep run records for reproducibility.
 
 Models are built from global data without local calibration, so their suitability requires evaluation
 against evidence relevant to the basin and intended use. Indicators support the analyst's assessment
@@ -35,7 +35,7 @@ needed, additional local evidence.
 The toolbox produces climate diagnostics, simulated hydrological responses and indicator tables.
 Constructing response surfaces, applying acceptability thresholds and comparing adaptation options
 require further analysis of those results. The current User Guide explains
-[how to connect indicators to climate conditions](../guide/outputs.md#join-an-indicator-to-its-climate-settings);
+[how to connect indicators to climate conditions](../guide/results.md#link-a-value-to-its-climate-perturbation);
 it does not yet provide a supported response-surface construction walkthrough. The
 [Methodology](../site/scientific-approach/overview.qmd) places these calculations within the wider
 assessment of water-system vulnerability and robustness.
@@ -49,15 +49,17 @@ This manual is the primary reference for methods, settings and interpretation:
 - [Data](data-requirements.md): datasets, access and input requirements.
 - [Workflows](scientific-workflows.md): project structure and processing steps, with
   [shared configuration](shared-configuration.md) introducing common settings.
+- [Optional analyses](rain-gauge-comparison.md): rain-gauge comparison, daily climate indices, projected PET,
+  dew point and wind, observed catchment water balance, forcing-set comparison and delta-change scenarios.
 - [Execution and run management](configuration-and-execution.md): running, monitoring and reusing analyses,
   after the [software and execution](software-and-execution.md) overview.
 - [Results, evaluation and interpretation](results-and-interpretation.md): outputs and their meaning.
 
 Detailed references provide the [configuration rules](configuration.md),
 [location matching and daily-response conventions](input-formats.md),
-[indicator selection](indicator-requests.md), [saved-result tables](retained-handoffs.md),
-[run records](execution-and-provenance.md), [resource measurements](runtime-and-resources.md),
-[projection-result transfer](results-transfer.md), [custom indicators](indicator-extension.md) and
-[changes and migration](changes-and-migration.md).
+[indicator selection](indicator-requests.md), [saved-result tables](saved-results.md),
+[run records](run-records.md), [resource measurements](runtime-and-resources.md),
+[projection-result transfer](results-transfer.md) and [custom indicators](indicator-extension.md). The
+Appendices section holds the [processing rule reference](workflow-rule-reference.md).
 
 For installation and a first run, start with the [user guide](../guide/quick-start.md).

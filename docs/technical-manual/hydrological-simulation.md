@@ -16,23 +16,23 @@ evapotranspiration and routed flow. It provides a conceptual guide to the model'
 
 ![Hydrological stores and fluxes represented by Wflow-SBM. Rainfall and snowmelt feed surface and soil stores; evapotranspiration returns water to the atmosphere, while runoff and subsurface flow feed the river network. Glacier and waterbody contributions depend on the configured model features.](assets/wflow-sbm-processes.png){width=100% fig-alt="Wflow-SBM process diagram showing interception, snow and glacier melt, evaporation, transpiration, infiltration, unsaturated and saturated soil stores, capillary rise, overland flow, subsurface flow and river routing." style="background-color: white;"}
 
-Snow accumulation and melt influence the seasonal water balance where temperatures cross the snow
-thresholds. Glacier and waterbody processes contribute where the model contains those features.
-The supplied waterbody recipe distinguishes reservoirs with simple control from waterbodies without
-that control. These representations should be inspected in regulated basins; they do not establish
-that actual operating rules, abstractions or transfers are reproduced.
+Snow accumulation and melt influence the seasonal water balance where temperatures cross the snow thresholds.
+Glacier and waterbody processes contribute where the model contains those features. The supplied waterbody
+configuration file distinguishes reservoirs with simple control from waterbodies without that control. These
+representations should be inspected in regulated basins; they do not establish that actual operating rules,
+abstractions or transfers are reproduced.
 
 The toolbox runs daily simulations. River discharge is reported at selected outlets or gauges;
-other selected variables, such as precipitation, evapotranspiration and recharge, are retained as
+other selected variables, such as precipitation, evapotranspiration and recharge, are saved as
 subcatchment means. These spatial supports matter when comparing a discharge record with an areal
 water-balance quantity or interpreting a result for a particular site.
 
 ## Parameters and spatial discretization
 
-The model grid determines the spatial units over which processes are calculated. Topography and
-hydrography determine drainage connections, while soil and land-cover information provide spatially
-varying properties. The recipe also fixes parameters such as snow thresholds and melt coefficients,
-infiltration controls and the ratio of horizontal to vertical saturated hydraulic conductivity.
+The model grid determines the spatial units over which processes are calculated. Topography and hydrography
+determine drainage connections, while soil and land-cover information provide spatially varying properties.
+The build configuration file also fixes parameters such as snow thresholds and melt coefficients, infiltration
+controls and the ratio of horizontal to vertical saturated hydraulic conductivity.
 
 Choosing a finer grid increases the number of cells and computational demand. It can improve the
 representation of basin geometry where the source data support it, but it does not add information
@@ -50,28 +50,35 @@ a simulation. Wflow supports a cold start using its initialization settings or a
 model states. The active model configuration determines which is used; the presence of a state-file
 path alone does not mean that the states are read.
 
-For historical evaluation, the toolbox excludes the first simulation year from its hydrological
-summaries when the record contains more than 365 time steps. Shorter records retain the initial period
-and are reported as such. This is an evaluation convention, not evidence that every basin has reached
-an adequate initial state after one year.
+### Historical evaluation
+
+For historical evaluation, the toolbox excludes the first simulation year from its hydrological summaries when
+the record contains more than 365 time steps. Shorter records keep the initial period and are reported as
+such. This is an evaluation convention, not evidence that every basin has reached an adequate initial state
+after one year.
+
+### Stress-test initialization
 
 Stress-test simulations set initialization through `simulate_system.initialization`:
 
 - **State.** `auto` (default) keeps a warm state configured in the model TOML; otherwise it starts every run
   from the historical simulation's end state (`historical/default/run/outstate/outstates.nc`). `historical`
   requires that end state and `cold` uses Wflow's cold initialization; either is refused when the model TOML
-  already configures a warm state. The end state's bytes are part of the simulation identity, so rerunning the
-  historical simulation requires a new experiment.
+  already configures a warm state. The end state is part of the simulation's record of inputs, so rerunning
+  the historical simulation requires a new experiment.
 - **Warm-up.** `warmup_years` (default 1) simulates that many years before the configured window by
   repeating the run's own first days, so stores adjust to the run's perturbed climate. Response reading
   discards these days. Responses therefore keep the configured calendar, and indicators never see the
   warm-up. Leap days can shift the repeated block's seasonal alignment by at most one day per year.
 
+### Starting-state quality
+
 The state's date need not match the stress-test calendar. Its quality depends on the historical simulation: a
-short historical run that itself started cold yields a near-cold end state. In one arid test basin, cold
-starts drained for about seven years and a -40% rainfall response ranged from -10% to -82% depending on the
-first analysed year. Starting from the historical end state made it -82% to -83%. Wet perturbations still
-filled stores for about a year, which the default warm-up covers.
+short historical run that itself started cold yields a near-cold end state.
+
+In one arid test basin, cold starts drained for about seven years and a -40% rainfall response ranged from
+-10% to -82% depending on the first analysed year. Starting from the historical end state made it -82% to
+-83%. Wet perturbations still filled stores for about a year, which the default warm-up covers.
 
 Slowly responding stores, typically groundwater, can keep adjusting to a perturbed climate after the warm-up;
 in one arid test basin, recharge still drifted by 1-2 mm/yr after 20 years. This drift is part of the

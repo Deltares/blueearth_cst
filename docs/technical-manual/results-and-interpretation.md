@@ -60,8 +60,8 @@ monthly temperature changes in °C and precipitation changes in percentages, alt
 uses precipitation multipliers. Lookups must belong to the experiment being interpreted: current
 exports under `scenarios/` can be replaced by later generation.
 
-See the [table reference](retained-handoffs.md) for column definitions and the
-[User Guide example](../guide/outputs.md#join-an-indicator-to-its-climate-settings) for connecting
+See the [table reference](saved-results.md) for column definitions and the
+[User Guide example](../guide/results.md#link-a-value-to-its-climate-perturbation) for connecting
 indicator values to climate conditions.
 
 ## Evaluation and diagnostic products
@@ -89,10 +89,10 @@ See [model building](workflow-build-model.md) and
 
 ### Weather-generator products and checks
 
-Generated weather should represent the seasonality, variability and wet- and dry-spell behaviour
-relevant to the assessment. The [weather-generation chapter](weather-generation.md#assumptions-and-applicability)
-explains these checks and their limits. Available diagnostics depend on the generator recipe;
-historical climate diagnostics are not automatically calculated for every scenario.
+Generated weather should represent the seasonality, variability and wet- and dry-spell behaviour relevant to
+the assessment. The [weather-generation chapter](weather-generation.md#assumptions-and-applicability) explains
+these checks and their limits. Available diagnostics depend on the generator settings; historical climate
+diagnostics are not automatically calculated for every scenario.
 
 Matching the requested realization counts, dates and variables confirms that the expected weather
 series are present. It does not establish that those series adequately represent basin climate.
@@ -127,7 +127,7 @@ See [inspection and numerical rechecking](indicator-requests.md#integrity-and-nu
 - **References.** Generated reference groups have `is_reference=true` and an empty `st_id`.
   They differ from historical simulations, which supply some thresholds such as crop-water preparation.
 
-See [table joins and reference groups](retained-handoffs.md#joins-and-reference-membership).
+See [table joins and reference groups](saved-results.md#joins-and-reference-membership).
 
 ### Missing, undefined and unavailable results
 
@@ -159,7 +159,7 @@ See [input evaluation](indicator-requests.md#inputs-evaluation-and-recovery).
   Execution summaries and saved set records identify the calculation behind each table.
 - **Projections.** Partial reruns can also leave mixed results. Attribution is recorded in
   `data/climate/projections/<ensemble>/_engine/execution/production.json`; the newest log alone is
-  insufficient. See [run records](execution-and-provenance.md).
+  insufficient. See [run records](run-records.md).
 - **Preservation.** Keep derived spreadsheets outside managed result folders, which may be refreshed.
-  Retain complete project outputs for later checks and use the
+  Keep complete project outputs for later checks and use the
   [projection transfer command](results-transfer.md) for supported transfers.

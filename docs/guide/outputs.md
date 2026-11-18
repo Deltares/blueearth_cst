@@ -7,7 +7,8 @@ Start with the [run summary](glossary.md#run-summary), inspect the basin and cli
 indicators relevant to your question. This guide helps you locate results, check their status and connect them
 to climate conditions.
 
-Figures illustrate output formats. In the website chapter, select an image to inspect the full-size
+Figures illustrate output formats. They come from an arid test basin, not from the quick-start catchment in
+Gabon, so your values and maps will differ. In the website chapter, select an image to inspect the full-size
 version. The complete HTML manual embeds the images directly; use browser zoom to enlarge them.
 
 All paths below are relative to the [output directory](glossary.md#output-directory) set by
@@ -29,8 +30,8 @@ external case example, this is `C:/cst-cases/my-basin/default/outputs/`.
 │   └── hydrology/
 │       └── wflow/                       one model: static maps, TOMLs, _engine/
 │           └── historical/
-│               ├── <recipe>/            forcing, run, plots and tables per forcing recipe
-│               └── forcing_comparison/  comparison of two or more recipes
+│               ├── <forcing-set>/       forcing, run, plots and tables per forcing set
+│               └── forcing_comparison/  comparison of two or more forcing sets
 ├── scenarios/
 │   └── <name>/                          one scenario set: series, lookups, settings
 ├── experiments/
@@ -44,25 +45,18 @@ external case example, this is `C:/cst-cases/my-basin/default/outputs/`.
 └── config/                              the settings each workflow ran with
 ```
 
-Folders named `_engine/` hold the toolbox's own records: hashes, markers, run settings and logs it
-needs to check and reuse work. Everything you read (tables, figures, settings copies, reports) sits
-outside them, and each file is stored once.
+Folders named `_engine/` hold the toolbox's own records; you do not need to open them. Everything you read
+(tables, figures, settings copies, reports) sits outside them.
 
-Historical simulations live with their model. Each [forcing recipe](glossary.md#forcing-recipe) has
-`models/hydrology/<model>/historical/<recipe>/` (`default` for a single recipe) with its forcing, run and
-evaluation; with two or more recipes, `historical/forcing_comparison/` beside them compares the runs. The
-default model is `wflow`; further models, such as a registered calibration, are sibling folders, and
-`models/hydrology/comparisons/<name>/` compares runs of different models. A model's runs change only when it
-is rerun with the same model settings: different settings belong in a new model folder. Stress-test
-simulations belong to their [experiment](glossary.md#experiment). See
-[one model per folder](../technical-manual/workflow-build-model.md#model-versions).
+Each [forcing set](glossary.md#forcing-set)'s historical simulation is in
+`models/hydrology/<model>/historical/<forcing-set>/` (`default` for a single forcing set); with two or more
+forcing sets, `historical/forcing_comparison/` compares them. The default model is `wflow`. A further model,
+such as a registered calibration, has its own folder beside it, and `models/hydrology/comparisons/<name>/`
+compares models. See [one model per folder](../technical-manual/workflow-build-model.md#model-versions).
 
-An output directory written by an older toolbox version may be refused; see
-[layout versions](../technical-manual/changes-and-migration.md#output-directory-layout-versions).
-
-Keep the complete output directory when archiving an assessment. Indicator CSVs alone do not preserve
-the model, climate conditions or calculation settings needed to understand a result. Edit the source
-case files when changing settings; the configuration copies in the output directory document past runs.
+To archive an assessment, keep the whole output directory: indicator tables alone do not record the model,
+climate conditions or settings behind them. Change settings in the case files; the copies under `config/`
+record past runs.
 
 ## Native model grids {#native-grids}
 
@@ -78,7 +72,7 @@ model-building and simulation [workflow files](glossary.md#workflow-file). Histo
    that existing results need no updates. Successful completion alone does not mean new results were calculated.
 3. **Find the results:** confirm that the expected climate series, model responses or indicators exist for the
    selected experiment. If completion is uncertain, check its saved run information using the
-   [output reference](../technical-manual/retained-handoffs.md).
+   [output reference](../technical-manual/saved-results.md).
 4. **Check interpretation:** read indicator definitions, units and limitations before comparing values.
    A completed computation does not establish that its results are suitable for your assessment.
 
@@ -197,18 +191,24 @@ the experiment used before linking its indicators to these tables.
 
 ## Reading projection diagnostics
 
+### Tables and coverage
+
 Look in `data/climate/projections/<ensemble>/summary/` for change-factor tables and their data sources. The
 `analysis/` tables identify coverage and availability; check whether models, periods or variables were
 excluded before comparing the ensemble. Figure captions explain the period and spatial coverage behind each
 figure. Use projected changes to interpret the climate conditions in your stress test. Ensemble spread does
 not assign probabilities to its hydrological outcomes.
 
+### Derived variables
+
 Figures cover precipitation and temperature only; calculated PET, dew point and wind add rows to the same
-tables. See [dew point and wind](../technical-manual/workflow-analyze-projections.md#optional-projected-dew-point-and-wind)
+tables. See [dew point and wind](../technical-manual/projected-derived-variables.md#dew-point-and-wind)
 for their methods, spatial averaging and records.
 
-See [projected PET](../technical-manual/workflow-analyze-projections.md#optional-projected-pet)
+See [projected PET](../technical-manual/projected-derived-variables.md#pet)
 for configuration, source requirements and qualification limits. PET does not add a stress-test axis.
+
+### Paired changes
 
 <figure class="guide-illustration" style="max-width:440px">
 
@@ -220,6 +220,8 @@ to 1985–2004, with one point per model and scenario after member averaging.</f
 
 Point density does not represent probability.
 
+### Temperature trajectories
+
 <figure class="guide-illustration" style="max-width:520px">
 
 [![](assets/illustrations/cmip6-temperature.png){fig-alt="Example annual CMIP6 temperature trajectories with scenario medians and ensemble ranges." width=100%}](assets/illustrations/cmip6-temperature.png)
@@ -230,6 +232,8 @@ Shading marks the future comparison period.</figcaption>
 
 Members are averaged within each model before summarizing across models. The ribbons show the model
 range, not a confidence interval.
+
+### Seasonal precipitation
 
 <figure class="guide-illustration" style="max-width:560px">
 
@@ -245,6 +249,8 @@ variability, assuming independent years. Hatching flags a dry season with too fe
 a representative summary. SSP4-6.0 is omitted here because only four models contribute. DJF, MAM, JJA
 and SON denote the four three-month seasons.
 
+### Model agreement
+
 <figure class="guide-illustration" style="max-width:560px">
 
 [![](assets/illustrations/cmip6-agreement.png){fig-alt="Annual and seasonal model agreement on temperature and precipitation change, with signs and percentage classes; hatching marks excluded results." width=100%}](assets/illustrations/cmip6-agreement.png)
@@ -257,113 +263,22 @@ Read the signs and agreement classes together; consult the accompanying tables f
 Hatching identifies excluded results with too few eligible models. Agreement describes direction,
 not magnitude, probability or statistical significance.
 
+### Transfer to another project
+
 []{#moving-projection-results-to-another-project}
 
 To share these results with another project, follow
 [Transfer climate-projection results](advanced-tasks.md#transfer-climate-projection-results).
 
-## Reading an indicator set
+## Stress-test results {#stress-test-results}
 
-For post-processing, open the CSVs in `experiments/<name>/results/indicator_sets/<set-id>/`. There is one
-folder per selected [indicator set](glossary.md#indicator-set): `default` unless
-`project_config_simulate_system.yml` selects others.
+[]{#reading-an-indicator-set}
+[]{#join-an-indicator-to-its-climate-settings}
+[]{#opening-an-indicator-table-in-excel}
 
-For example, a `default` set containing river discharge indicators looks like this:
-
-```text
-experiments/stress_test_01/results/indicator_sets/default/
-├── indicators.csv          # Indicator definitions, units and coverage
-├── group_members.csv       # Runs included in each group
-├── group_metadata.csv      # Climate perturbation and reference status of each group
-├── q_run_indicators.csv    # Indicator values for each run and location
-└── q_group_indicators.csv  # Indicator values for each group and location
-```
-
-Here, `q` means river discharge. Other selected variables have their own run and group tables.
-
-**Start with `indicators.csv`.** Read the definition, units, reporting period and coverage for your
-chosen indicator: what does the value measure, over which period, and from how much usable data?
-The manual explains [what each table contains](../technical-manual/results-and-interpretation.md#indicator-table-structure).
-
-For annual totals such as precipitation or evapotranspiration, check `block_coverage` for missing days
-and incomplete years. With the default set, totals in mm represent mean annual depth in mm/yr only
-when all contributing years are complete and contain no missing values.
-See the [default conventions](../../blueearth_cst/indicators/sets/default/README.md).
-
-**Check `status` and `reason` before reading a value:**
-
-- `available`: a value was calculated.
-- `undefined`: the calculation is undefined under the set's conventions.
-- `unavailable`: no value could be calculated. The reason names a missing parameter, or a data
-  limit such as `5 annual blocks; 10 required` for a return level from too-short runs.
-
-If a required response variable is absent, the calculation is omitted from the value tables.
-Check its declaration and explanation in the dictionary
-and `indicators.json` manifest instead.
-Read these alongside the dictionary and selected [set conventions](new-case.md#choose-indicators).
-Do not compare a missing value as if it were zero.
-For return levels, consult the Technical manual's
-[estimation methods and limits](../technical-manual/indicator-calculations.md#return-level-estimation-and-supporting-evidence).
-For advanced details, see [input evaluation and recovery](../technical-manual/indicator-requests.md#inputs-evaluation-and-recovery).
-
-## Join an indicator to its climate settings
-
-To interpret an indicator, identify the climate conditions it represents. Results for individual simulations
-and [groups](glossary.md#group) of simulations connect to climate settings in different ways, as shown below.
-
-Use the scenario tables associated with your experiment. The same run or group label in another
-experiment may refer to different simulations.
-
-The examples below read tables only. Replace `run_root`, `experiment` and `set_id` for your results.
-
-```python
-from pathlib import Path
-import pandas as pd
-
-run_root = Path("C:/path/to/case-output")
-experiment = "stress_test_01"
-set_id = "default"
-collection = run_root / "scenarios/stochastic-2040-2060"  # name listed in scenarios/collections.csv
-results = run_root / "experiments" / experiment / "results/indicator_sets" / set_id
-scenarios = pd.read_csv(
-    collection / "scenario_run_lookup.csv", dtype=str, keep_default_na=False
-)
-perturbations = pd.read_csv(
-    collection / "perturbation_lookup.csv", dtype={"st_id": str}, keep_default_na=False
-)
-```
-
-First check that the scenario tables describe the climate scenarios used by your experiment.
-If newer scenarios have replaced them, use the preserved tables at the paths recorded for that experiment.
-
-1. Connect each simulation's indicators to its climate scenario using `run_id`:
-
-   ```python
-   runs = pd.read_csv(results / "q_run_indicators.csv", dtype={"run_id": str, "location": str})
-   run_settings = runs.merge(scenarios, on="run_id", how="left", validate="many_to_one")
-   ```
-
-2. Connect each group's indicators to its climate settings using `group_id`:
-
-   ```python
-   groups = pd.read_csv(results / "q_group_indicators.csv", dtype={"group_id": str, "location": str})
-   coordinates = pd.read_csv(results / "group_metadata.csv", dtype=str, keep_default_na=False)
-   group_settings = groups.merge(coordinates, on="group_id", how="left", validate="many_to_one")
-   ```
-
-For either table, `st_id` then joins to `perturbation_lookup.csv` for monthly changes. That lookup has twelve
-rows per perturbed point, so this further join expands rows; it is not a one-row-per-indicator table. The
-[unperturbed reference](glossary.md#unperturbed-reference) has empty `st_id` and `is_reference=true` in group
-metadata. Keep it explicitly: an inner perturbation join would drop it. Use `group_members.csv` to inspect
-contributing runs, including singleton groups. These joins identify which climate conditions belong to each
-value. They do not construct a response surface; that requires a separate analysis of the selected indicators
-and their scenario coverage.
-
-### Opening an indicator table in Excel
-
-Run and group IDs such as `run_01` and `group_01` stay text when the CSV is opened. Import perturbation `st_id`
-values as text; in pandas, read lookup tables with `dtype=str` and `keep_default_na=False` to keep the empty
-reference `st_id`. See [identifier conventions](../technical-manual/retained-handoffs.md#joins-and-reference-membership).
+Indicator tables are in `experiments/<name>/results/indicator_sets/<set-id>/`.
+[Stress-test results](results.md) explains what each table holds, how to check a value's status and how to
+link it to its climate perturbation.
 
 ## Are these outputs current?
 
@@ -371,14 +286,8 @@ reference `st_id`. See [identifier conventions](../technical-manual/retained-han
 <span id="which-run-produced-these-files"></span>
 ```
 
-A partial rerun can leave files produced at different times. Check the run summary and saved information
-for each output; the newest log folder alone is not enough. The manual explains
+A partial rerun can leave files from different runs side by side, and each indicator set is updated
+separately, so a failed set may leave its previous tables in place. Check the run summary and the saved
+records for each output to see which sets were updated; the newest log folder alone is not enough. Keep your
+own analysis files outside the generated folders, which the toolbox may replace on rerun. The manual explains
 [how to identify the source run](../technical-manual/results-and-interpretation.md#checking-which-results-are-current).
-
-Check the saved information about the simulations and indicator calculations, along with the run summary.
-Changing scientific simulation inputs requires a new experiment. Changing indicator choices can produce
-new tables from completed simulations, provided the required model variables were saved.
-See [recalculation](running.md#calculate-different-indicators-from-existing-simulations).
-Read the result tables after the command finishes. Each indicator set is updated separately; if one fails,
-its previous results may remain in place. Check the summary to see which sets were updated successfully.
-Keep your own analysis files separate from generated outputs, which the toolbox may replace on rerun.

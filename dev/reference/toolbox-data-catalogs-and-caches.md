@@ -59,7 +59,9 @@ Two caches persist inside a project and are reused across workflows and runs. Ne
 stale content into a product, so pruning them is disk hygiene and an explicit owner action.
 
 **Historical climate store** — `data/climate/historical/<source>_<start>_<end>/`.
-`climate_store_rule` in [`wf3_science.py`](../../blueearth_cst/shared/wf3_science.py) is the single producer
+`historical_window_bounds` in [`wf3_science.py`](../../blueearth_cst/shared/wf3_science.py) parses the
+climate window, and `snake_utils.validate_historical_window` enforces `constraints.min_historical_years`.
+`climate_store_rule` in the same module is the single producer
 contract, declared by WF1 and WF3 and generated per candidate source by WF0, so whichever workflow runs
 first extracts and the others reuse the store. The directory name is a cache key from source and window;
 changing either creates a new store and strands the old one. Inputs are exactly the catalog file and the

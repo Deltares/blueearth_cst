@@ -1,12 +1,12 @@
 # Case data
 
-Keep basin-specific sidecars here and record their provenance beside them.
+Keep basin-specific sidecars here and record their sources beside them.
 
 `rain_gauge_stations.csv` and `rain_gauge_precip.csv` are **synthetic format examples** for optional
 historical climate station comparisons. Replace both before enabling `observations.met_stations` in
 `project_config.yml`. IDs are literal strings; coordinates are WGS84 degrees. Precipitation is mm per
 midnight UTC daily interval; blanks represent missing values and zero is dry weather. See the local
-toolbox's `docs/technical-manual/workflow-analyze-climate.md#rain-gauges` for the full contract.
+toolbox's `docs/technical-manual/rain-gauge-comparison.md` for the full contract.
 
 1. Replace the example row in `output_locations.csv` with your intended location.
    Columns `station_name`, `x` and `y` use longitude/latitude in decimal degrees.

@@ -71,8 +71,8 @@ its assessed probability range. It provides no uncertainty intervals and does no
 accuracy for your basin. Treat the results as screening indicators, not design estimates,
 especially for short records or long return periods.
 
-Read the recorded return-level assessment and keep it with the indicator tables when sharing
-results. See [return levels and their limits](../../../../docs/guide/outputs.md#return-levels-and-their-limits)
+Read the recorded return-level assessment and keep it with the indicator tables when sharing results. See
+[return-level estimation](../../../../docs/technical-manual/indicator-calculations.md#return-level-estimation-and-supporting-evidence)
 for the fitted parameters and interpretation checks.
 
 ## Select and read this set

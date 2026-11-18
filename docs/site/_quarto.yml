@@ -70,12 +70,13 @@ website:
               href: guide/running.qmd
             - text: "Reading outputs"
               href: guide/outputs.qmd
+            - text: "Stress-test results"
+              href: guide/results.qmd
             - guide/troubleshooting.qmd
         - section: "Advanced tasks"
           contents:
             - guide/calibrated-model.qmd
             - guide/advanced-tasks.qmd
-            - guide/notebooks.qmd
         - section: "Reference"
           contents:
             - guide/glossary.qmd
@@ -96,7 +97,7 @@ website:
         - technical-manual/overview.qmd
         - section: "Models and tools"
           contents:
-            - text: "Overview"
+            - text: "Tool overview"
               href: technical-manual/modeling-and-analysis.qmd
             - technical-manual/model-preparation.qmd
             - technical-manual/hydrological-simulation.qmd
@@ -116,14 +117,14 @@ website:
               contents:
                 - section: "Data catalogs"
                   contents:
-                    - text: "Overview"
+                    - text: "Catalog overview"
                       href: technical-manual/data-catalogs-and-access.qmd
                     - technical-manual/catalog-deltares.qmd
                     - technical-manual/catalog-climate-projections.qmd
                 - technical-manual/data-formats-and-conventions.qmd
         - section: "Workflows"
           contents:
-            - text: "Overview"
+            - text: "Workflow overview"
               href: technical-manual/scientific-workflows.qmd
             - technical-manual/shared-configuration.qmd
             - technical-manual/workflow-analyze-climate.qmd
@@ -131,7 +132,14 @@ website:
             - technical-manual/workflow-analyze-projections.qmd
             - technical-manual/workflow-generate-scenarios.qmd
             - technical-manual/workflow-simulate-system.qmd
-            - technical-manual/workflow-rule-reference.qmd
+        - section: "Optional analyses"
+          contents:
+            - technical-manual/rain-gauge-comparison.qmd
+            - technical-manual/climate-indices.qmd
+            - technical-manual/projected-derived-variables.qmd
+            - technical-manual/catchment-water-balance.qmd
+            - technical-manual/forcing-comparison.qmd
+            - technical-manual/delta-change-scenarios.qmd
         - section: "Execution and results"
           contents:
             - technical-manual/software-and-execution.qmd
@@ -142,12 +150,14 @@ website:
             - technical-manual/configuration.qmd
             - technical-manual/input-formats.qmd
             - technical-manual/indicator-requests.qmd
-            - technical-manual/retained-handoffs.qmd
-            - technical-manual/execution-and-provenance.qmd
+            - technical-manual/saved-results.qmd
+            - technical-manual/run-records.qmd
             - technical-manual/runtime-and-resources.qmd
             - technical-manual/results-transfer.qmd
             - technical-manual/indicator-extension.qmd
-            - technical-manual/changes-and-migration.qmd
+        - section: "Appendices"
+          contents:
+            - technical-manual/workflow-rule-reference.qmd
   search:
     location: navbar
     type: textbox
@@ -161,15 +171,19 @@ format:
       dark: [cosmo, styles/theme.scss, styles/theme-dark.scss]
     toc: true
     toc-depth: 3
-    number-sections: false
+    # Numbers come from the renderer; never type them into headings. Pages opt out in their
+    # front matter or a folder `_metadata.yml`.
+    number-sections: true
+    number-depth: 2
     code-copy: true
     code-overflow: wrap
 
 language:
   search-text-placeholder: Search
 
-# Website prose refers directly to nearby illustrations instead of numbered floats.
-crossref: false
+# Website prose refers directly to nearby illustrations instead of numbered floats: give figures
+# and tables no `fig-`/`tbl-` ids. `crossref: false` is not set because Quarto 1.9 then prints
+# every section number twice.
 
 filters:
   - ../../dev/scripts/publication_links.lua

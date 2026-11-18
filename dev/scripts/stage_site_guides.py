@@ -13,6 +13,7 @@ GUIDES = (
     "new-case",
     "running",
     "outputs",
+    "results",
     "troubleshooting",
     "calibrated-model",
     "advanced-tasks",

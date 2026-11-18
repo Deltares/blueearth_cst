@@ -27,7 +27,7 @@ it does not generate scenarios or rerun the model. The
 [single-workflow runner](../../scripts/run_workflow.py) and all-workflow runner dispatch owned WF3/WF4
 execution; WF4 also has a [direct runner](../../scripts/simulate_system.py). Their operation and
 target validation is part of the supported execution path; bare Snakemake does not provide it.
-The [retained handoffs](../../docs/site/toolbox-reference/retained-handoffs.qmd)
+The [saved results](../../docs/technical-manual/saved-results.md)
 describe the artifact interface. The [generator](toolbox-weather-generator-interface.md) and
 [hydrological-model](toolbox-hydrological-model-interface.md) references own replacement-engine
 requirements.
@@ -46,7 +46,14 @@ how to add, rename or retire one.
 WF3 stores identified scenario collections; WF4 stores identified simulations, complete response
 inventories and indicator sets. Retained readers validate content and identity, not just path
 existence. Indicator recalculation uses the retained responses and does not cause a new simulation.
-The [retained-handoffs reference](../../docs/site/toolbox-reference/retained-handoffs.qmd) owns the
+`scenario_collection_v2.read_collection_v2` verifies the marker, collection/revision identity, data root,
+lookups and series descriptors; `response_inventory.py` verifies complete rounded-response coverage;
+`indicator_artifacts.py` validates saved indicator schemas, hashes, tables and exact result keys. Related
+modules are `generation_plan.py`, `collection_index.py`, `simulation_record.py`, `indicator_plan.py` and
+`named_export.py` (all in `blueearth_cst/experiment/`), with tests including
+`test_scenario_collection_v2.py`, `test_collection_index.py`, `test_response_inventory_v2.py`,
+`test_named_indicator_sets_workflow.py` and `test_partial_indicators.py`.
+The [saved-results reference](../../docs/technical-manual/saved-results.md) owns the
 product contract and recovery behavior.
 
 Store each file once: workflows, collections and experiments reference shared data, configuration and
@@ -75,6 +82,22 @@ The supported runners write separate invocation outcomes through
 supported launcher attempts; they do not establish resume or fencing guarantees for arbitrary raw
 Snakemake launches. WF3 and WF4 retain configuration snapshots within their identified collection
 or experiment rather than in one project-wide slot.
+
+Each invocation record (`invocation/1`) identifies `invocation_id`, optional `parent_invocation_id`,
+workflow, entry point, command, targets, working directory and `requested_workflows`. Parent and child
+linkage is explicit; a nearby timestamp is not enough to infer membership. Name collisions add an
+invocation suffix. `elapsed_seconds` is measured with a monotonic clock owned by the launcher process; a
+supervisor may supply an observed child duration, including preparation before child-record creation. No
+raw monotonic clock origin is stored. Internal resolved fields such as `selected` and `temp_pet_source`
+remain in resolved records where needed; they are not written back as deprecated settings in generated
+execution YAML. [`execution_outputs.py`](../../blueearth_cst/shared/execution_outputs.py) organizes the
+execution directory and `_parts/wfN-<child-id>/` job diagnostics; `invocation_summary.py` renders readable
+summaries, `merge_benchmarks.py` the benchmark reports, `resource_tracking.py` and `resource_timing.jl` the
+WF4 resource diagnostics, and `product_record.py` the WF2 production records (all in `blueearth_cst/shared/`).
+Tests: `test_execution_outputs.py`, `test_merge_benchmarks.py` and `test_product_record.py`.
+`result_bundle.py` exports and imports WF2 result bundles behind `scripts/transfer_results.py`;
+`test_result_bundle.py` covers integrity, destination comparison, publication and preservation/refusal
+cases.
 
 Supported launchers start Snakemake and other project children through `run_project_child` in
 [`windows_job.py`](../../blueearth_cst/shared/windows_job.py). The parent holds the project lock. On

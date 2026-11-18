@@ -6,7 +6,7 @@ format: html
 Use the [indicator module reference](../../blueearth_cst/indicators/README.md) to implement a custom
 calculation in Python. It describes input and result objects, accepted parameters, paired variables,
 diagnostic tables, independent numerical checks and the records used to identify a calculation.
-Hydrological simulation handles input selection, warm-up handling, file publication and reuse guards.
+Hydrological simulation handles input selection, warm-up handling, writing files and reuse checks.
 
 ## Calculation references {#canonical-sources}
 
@@ -35,7 +35,7 @@ or flood-risk qualification. Source checks and software tests do not establish b
 ## Requirements for custom calculations {#extension-boundary}
 
 Add installed trusted code using the module README's instructions. YAML chooses it; YAML cannot import a path.
-An unrelated set change does not enter a selected calculation's identity, while shared contributing source
-changes do. Check each new calculation against independently derived expected values. Review how results
-are combined across realizations before introducing a new aggregation method. The
+An unrelated set change does not enter a selected calculation's record of inputs, while shared contributing
+source changes do. Check each new calculation against independently derived expected values. Review how
+results are combined across realizations before introducing a new aggregation method. The
 [scientific approach](../site/scientific-approach/overview.qmd) explains the assessment methodology.

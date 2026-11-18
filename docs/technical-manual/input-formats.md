@@ -25,10 +25,6 @@ Preparation writes `data/spatial/location_registry.csv`. IDs follow
 If IDs are unknown, omit the pinned column and read the generated registry. A pinned mismatch fails with
 the old-to-resolved crosswalk. Reconcile the observation headers after any spatial rebuild.
 
-The spatial producer is `blueearth_cst/spatial/delineate_spatial_units.py`; model preparation validates its
-registry
-in `blueearth_cst/model/build_wflow_model.py`. The native response adapter uses
-`blueearth_cst/shared/native_locations.py` to resolve output labels against model maps.
 Native Wflow CSVs remain unchanged; derived table locations use resolved `wflow_id` labels where available.
 
 ## Observed time series
@@ -40,28 +36,27 @@ Locations must exist when observations are supplied. The
 delimiter, timestamps, station columns and units. Every user-supplied control and observation location
 needs one series; automatic outlets may have one but do not require it.
 
-`model/observation_validation.py` rejects empty, duplicate, noninteger and unknown station headers, and
-missing required station columns. `model/plot_results.py` reads observations with `sep=";"` and compares
-finite, nonnegative concurrent discharge pairs. An absent observation file means no observed performance
-claim; simulation-only figures describe simulated behavior.
-`tests/test_observation_validation.py` and `tests/test_native_locations.py` cover header and label checks.
+Empty, duplicate, noninteger and unknown station headers are rejected, as are missing required station
+columns. Model evaluation reads observations with `;` as separator and compares finite, nonnegative
+concurrent discharge pairs. An absent observation file means no observed performance claim; simulation-only
+figures describe simulated behavior.
 
 ## Cataloged climate and spatial inputs
 
-Catalogs retain upstream HydroMT schema, driver and adapter semantics. Supply the variables, units,
-geometry and dates expected by the consuming recipe. Register source names rather than embedding dataset
-paths in workflow rules. See [data requirements](data-requirements.md) and the configured engine recipes.
-Catalog presence alone does not establish readable data, sufficient coverage or valid forcing units.
+Catalogs keep upstream HydroMT schema, driver and adapter semantics. Supply the variables, units, geometry
+and dates expected by the consuming build configuration file. Register source names rather than embedding
+dataset paths in workflow rules. See [data requirements](data-requirements.md) and the configured build
+configuration files. Catalog presence alone does not establish readable data, sufficient coverage or valid
+forcing units.
 
-Historical stores retain a rectangular basin extent with one native source-grid cell on each side.
+Historical stores keep a rectangular basin extent with one native source-grid cell on each side.
 `basin_cells.csv` identifies intersecting cells; equal weights over those cells determine the generator's
 resampled dates. The full buffered rectangle remains available for forcing reprojection. This buffer does
 not enlarge the modeled basin.
 
-## Retained daily responses
+## Saved daily responses {#retained-daily-responses}
 
-`model.outvars` uses these display names; response/table tokens and native units are fixed by
-`shared/indicator_tables.py` and `experiment/wflow_response_reader.NATIVE_VARIABLES`.
+`model.outvars` uses these display names; the toolbox fixes their response tokens and native units.
 
 | Display name | Token | Native units |
 |---|---|---|
@@ -80,17 +75,12 @@ Discharge is a gauge/outlet series; other configured outputs are subcatchment me
 recharge, and snow is snowpack liquid-water depth. A token alone does not establish agricultural or aquifer
 support. The local set READMEs explain method-specific aggregation and limitations.
 
-The independent module accepts `ResponseSeries` with explicit run, variable, location and ordinal, daily
+Indicator calculations accept daily series with explicit run, variable, location and ordinal, daily
 time coordinate, calendar, timestep, time label, units, numeric values and a Boolean missing mask.
 The mask must equal native NaN positions. Infinity is rejected. Duplicate keys, irregular/omitted dates,
 ambiguous location order and incompatible paired series fail before reduction. Missing days belong on the
 daily grid as NaNs. Supported calendars are `standard`, `gregorian` and `proleptic_gregorian`.
 
-Hydrological simulation supplies daily interval-end series and handles simulation selection and warm-up
-handling.
-The neutral module does not infer them from filenames or remove additional warm-up.
+Hydrological simulation supplies daily interval-end series and handles simulation selection and warm-up.
+Indicator calculations do not infer them from filenames or remove additional warm-up.
 The [custom-indicator reference](indicator-extension.md) links the module documentation and calculation sets.
-`indicators/series.py`, `indicators/contract.py` and `shared/response_tables.py` implement validation and
-retained-table interpretation. `experiment/wflow_response_reader.py` binds temporary native outputs
-during conversion; `tests/test_response_series.py`, `tests/test_response_tables.py` and
-`tests/test_wflow_response_reader.py` cover these boundaries.

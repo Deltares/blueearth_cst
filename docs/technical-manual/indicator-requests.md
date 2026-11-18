@@ -3,10 +3,10 @@ title: "Indicator selection and calculation settings"
 format: html
 ---
 
-Indicator settings specify which measures to calculate from simulated hydrological responses and
-which thresholds or other parameters they require. This reference describes the selection syntax and
-input requirements. The [indicator module chapter](indicator-calculations.md) explains the measures
-and their interpretation; the [User Guide](../guide/running.md#calculate-different-indicators-from-existing-simulations)
+Indicator settings specify which measures to calculate from simulated hydrological responses and which
+thresholds or other parameters they require. This reference describes the selection syntax and input
+requirements. The [indicator module chapter](indicator-calculations.md) explains the measures and their
+interpretation; the [User Guide](../guide/running.md#calculate-different-indicators-from-existing-simulations)
 shows how to recalculate indicators from saved simulations.
 
 YAML selects installed calculations and their permitted parameters. It does not define new formulas
@@ -16,10 +16,7 @@ or change their units, calendars, missing-data rules or aggregation methods.
 
 In the hydrological simulation file, `steps: {simulations, indicators}` switches each step on or off.
 Each defaults to `true`; setting both to `false` fails.
-Since t037 the former `operations` list and `indicator_sets`, `indicator_set_definitions`,
-`indicator_selection` and `indicator_evaluation` keys are refused; their settings moved under
-`indicators:` as shown below and compose to the same request, so identities are unchanged.
-Simulations alone validate request structure without opening set files. Indicators alone require retained
+Simulations alone validate request structure without opening set files. Indicators alone require saved
 responses and do not launch Wflow.
 
 `indicators.sets` defaults to `[default]` and lists set IDs. IDs start with a
@@ -36,11 +33,10 @@ indicators:
     example_subset: indicator_sets/example_subset.yml
 ```
 
-A `custom_sets` path is absolute or relative to the declaring hydrological simulation YAML. Selected sources are
-read once per
-invocation and captured. Installed bundled IDs resolve against the toolbox, never the current directory.
-The default preset follows configured output variables for simulation requests and retained variables for
-indicators-only requests. A selection cannot recover a variable the simulation did not retain.
+A `custom_sets` path is absolute or relative to the declaring hydrological simulation YAML. Selected sources
+are read once per run and recorded. Installed bundled IDs resolve against the toolbox, never the
+current directory. The default preset follows configured output variables for simulation requests and saved
+variables for indicators-only requests. A selection cannot recover a variable the simulation did not save.
 
 ## Selecting indicators and setting parameters {#inline-parameters-and-selection}
 
@@ -68,8 +64,8 @@ Parameters encoded in a registered name cannot contradict that name. A set with 
 a `custom_sets` file. Standalone flat files add `schema_version: 1` to this structure.
 
 `indicators.subset` further narrows a selected set: a nonempty list keeps only those indicators, and
-`{exclude: [...]}` drops them instead. Names are published indicator keys and retain set order. It cannot
-re-enable an indicator disabled in `options`.
+`{exclude: [...]}` drops them instead. Names are the indicator keys written to the tables and keep set order.
+It cannot re-enable an indicator disabled in `options`.
 
 ```yaml
 indicators:
@@ -78,7 +74,7 @@ indicators:
     crop-water: {exclude: [summer_low_flow_days]}
 ```
 
-A deselected indicator is neither evaluated nor published nor checked for required inputs.
+A deselected indicator is neither evaluated nor written nor checked for required inputs.
 Unknown names, an unselected set, both list modes, duplicates or an empty final selection fail.
 Duplicate YAML mapping keys also fail. Remove an entire set entry rather than requesting an empty set.
 
@@ -116,43 +112,49 @@ limits.
 
 ## Required inputs and handling incomplete results {#inputs-evaluation-and-recovery}
 
-Before simulation, selected requirements are checked against `model.outvars`. Indicators-only requests
-check retained variables and locations. Paired methods require aligned inputs. Supplied malformed
-parameters always fail. `indicators.evaluation` is `partial` by default; set `strict` to refuse any gap.
+Before simulation, selected requirements are checked against `model.outvars`. Indicators-only requests check
+saved variables and locations. Paired methods require aligned inputs. Supplied malformed parameters always
+fail. `indicators.evaluation` is `partial` by default; set `strict` to refuse any gap.
 
 | Mode/input | Result |
 |---|---|
 | `strict`: any missing input | Refuses; names the affected calculation and input |
 | `partial`: absent response | Omits the calculation from value tables; records its reason in dictionary/manifest |
-| `partial`: missing location parameter | Publishes unavailable rows for affected locations |
-| Either mode: data refuse a calculation | Publishes unavailable rows for that group and location |
+| `partial`: missing location parameter | Writes unavailable rows for affected locations |
+| Either mode: data refuse a calculation | Writes unavailable rows for that group and location |
 
-An absent response drops the whole affected calculation into manifest `unavailable_calculations`, with a
-reason such as `missing_response:pet`; no value rows are invented for that calculation. A set-declared
-missing parameter at retained locations instead produces blank value rows with `status: unavailable` and
-a reason such as `missing_parameter:thresholds`, recorded in `unavailable_results`.
-A calculation can also refuse one group's data at one location while the other groups, locations and
-indicators complete. Return levels do so with too few annual blocks (`5 annual blocks; 10 required`) or a
-refused fit (`estimator refused: invalid_range`). These blank rows are recorded in manifest
-`refused_results` (`indicator-set/7`), and their full screening evidence in `return_level_evidence.json`.
-Publication then follows the mode: `partial` warns and publishes; `strict` keeps the computed set but
-refuses to publish it.
-The dictionary retains unavailable declarations and reports `partial` or `unavailable` coverage.
-A request with no calculable declarations can therefore have an empty `tables` inventory.
-This is successful only under partial mode. Calculated NaNs instead have `status: undefined`.
-Unexpected programming errors and configuration faults, such as a return period outside the qualified
-domain, are never converted into successful undefined/unavailable results.
-See [table statuses](retained-handoffs.md#indicator-tables-and-dictionary).
+### Unavailable and refused results
 
-Providing a missing parameter or selecting another calculation can create a new immutable set over
-unchanged saved model time series. Earlier sets remain unchanged. A missing response requires a new experiment
-with that variable retained. Named sets publish independently, so inspect the verdict and committed pointer
-for each set after a multi-set failure.
+- **Absent response.** The whole affected calculation goes into manifest `unavailable_calculations`, with a
+  reason such as `missing_response:pet`; no value rows are invented for that calculation.
+- **Missing parameter.** A set-declared missing parameter at saved locations instead produces blank value
+  rows with `status: unavailable` and a reason such as `missing_parameter:thresholds`, recorded in
+  `unavailable_results`.
+- **Refused data.** A calculation can also refuse one group's data at one location while the other groups,
+  locations and indicators complete. Return levels do so with too few annual blocks
+  (`5 annual blocks; 10 required`) or a refused fit (`estimator refused: invalid_range`). These blank rows
+  are recorded in manifest `refused_results` (`indicator-set/7`), and their full screening evidence in
+  `return_level_evidence.json`. Writing then follows the mode: `partial` warns and writes the set; `strict`
+  keeps the computed set but refuses to write it.
+
+The dictionary keeps unavailable declarations and reports `partial` or `unavailable` coverage. A request with
+no calculable declarations can therefore have an empty `tables` inventory. This is successful only under
+partial mode. Calculated NaNs instead have `status: undefined`. Unexpected programming errors and
+configuration faults, such as a return period outside the qualified domain, are never converted into
+successful undefined/unavailable results. See
+[table statuses](saved-results.md#indicator-tables-and-dictionary).
+
+### Recovery
+
+Providing a missing parameter or selecting another calculation can create a new immutable set over unchanged
+saved model time series. Earlier sets remain unchanged. A missing response requires a new experiment with that
+variable saved. Named sets are written independently, so inspect the verdict and committed pointer for each
+set after a multi-set failure.
 
 ## Set-specific preparation and conventions
 
 The [crop-water README](../../blueearth_cst/indicators/sets/crop_water/README.md) is the complete owner of
-Qcrit syntax, historical prerequisites, preparation timing, dry-run behavior, provenance and compatibility.
+Qcrit syntax, historical prerequisites, preparation timing, dry-run behavior, run records and compatibility.
 Its baseline-quantile preparation uses model building historical model discharge; neither synthetic
 observations nor
 scenario discharge supplies the reference. A minimal selection above does not bypass those prerequisites.
@@ -167,16 +169,12 @@ pixi run python scripts/inspect_indicators.py --experiment <experiment-root> --m
 pixi run python scripts/inspect_indicators.py --experiment <experiment-root> --manifest <indicators.json> --recheck
 ```
 
-Default inspection checks saved hashes, completion identity and structure without the current registry or
+Default inspection checks saved hashes, the completion record and structure without the current registry or
 original response input. Matching saved check receipts are historical evidence. Coordinated changes to data
 and manifests cannot be excluded by hash consistency alone.
 
-`--recheck` requires matching execution sources, definitions, original input identity and recorded
+`--recheck` requires matching execution sources, definitions, the original recorded inputs and recorded
 dependencies. It invokes independent current checkers and writes a new attributed receipt. Checker-only
 changes are allowed and receive fresh attribution. Missing/changed inputs block rechecking but preserve
 artifact inspection. A requested unavailable or failed recheck exits nonzero. `--traceback` exposes causes.
 Inspection never relaxes production reuse guards.
-
-Evidence owners: `experiment/indicator_sets.py`, `indicator_registry.py`, `indicator_artifacts.py`,
-`indicator_inspection.py`, `indicator_export.py` and `named_export.py`;
-`tests/test_indicator_sets.py`, `test_partial_indicators.py` and `test_indicator_inspection.py`.

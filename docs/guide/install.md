@@ -9,7 +9,7 @@ download the toolbox and check that its commands are available.
 Input datasets are obtained separately. Running the supplied example also requires access to the
 Deltares P-drive or suitable alternative data.
 
-## 1. Install the required software
+## Install the required software
 
 Run the commands below in **PowerShell**, which you can open from the Windows Start menu.
 
@@ -56,7 +56,7 @@ julia +1.11.7 --version
 The last command should report `julia version 1.11.7`. Use this version to remain consistent
 with the toolbox's dependencies.
 
-## 2. Download the toolbox
+## Download the toolbox
 
 In PowerShell, move to the folder where you want to keep the toolbox. Then run:
 
@@ -68,7 +68,7 @@ cd blueearth_cst
 The first command downloads the toolbox into a folder named `blueearth_cst`; the second opens
 that folder in PowerShell. Run the remaining commands from this folder.
 
-## 3. Install the toolbox packages
+## Install the toolbox packages
 
 The toolbox also uses Python and R. Install both, along with their required packages, into
 the Pixi environment with a single command:
@@ -88,13 +88,10 @@ The prefix `pixi run` runs a command using the toolbox's software environment.
 This installation includes the R weather generator, `weathergenr`, and the Julia packages
 needed for Wflow. Downloads may take some time.
 
-The weather-generator installer verifies both package version and source commit. After a toolbox
-update that changes this pin, rerun `pixi run install-rdeps` before generating climate scenarios.
-
 If either command stops with an error, consult the [troubleshooting guide](troubleshooting.md)
 before continuing.
 
-## 4. Check the installation
+## Check the installation
 
 Run the installation check:
 
@@ -109,7 +106,7 @@ before proceeding.
 This check does not run a basin simulation or assess model accuracy. You will run the example
 in the next guide.
 
-## 5. Check access to input data
+## Check access to input data
 
 Installing the toolbox does not download the climate and model input datasets.
 
@@ -144,3 +141,23 @@ installed here.
 
 For help, see [Troubleshooting](troubleshooting.md). To configure another basin, see
 [Creating a project](new-case.md).
+
+## Update the toolbox
+
+To move to a newer toolbox version, run these commands from the [toolbox folder](glossary.md#toolbox-folder),
+`blueearth_cst`:
+
+```powershell
+git pull
+pixi install
+pixi run install
+```
+
+`git pull` downloads the new toolbox files, and `pixi install` updates the Python and R packages to the
+versions the new files specify. `pixi run install` reinstalls the weather generator, `weathergenr`, and the
+Julia packages only when the update changed their pinned versions; otherwise it confirms them. If you skip it
+after a weather-generator update, rerun `pixi run install-rdeps` before generating climate scenarios. If the
+Julia step reports a missing Julia version, install that version with `juliaup add` as in
+[Install the required software](#install-the-required-software).
+
+Then repeat the installation check in [Check the installation](#check-the-installation).

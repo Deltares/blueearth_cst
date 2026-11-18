@@ -40,12 +40,11 @@ a workflow does not delete its existing products.
 ### How paths are read
 
 With `schema_version: 3`, supported file paths resolve beside the YAML that declares them.
-For example, `hydromt: {build_config_path: recipes/build.yml}` in `settings/build-model.yml` reads
-`settings/recipes/build.yml`. A `workflow_configs` path resolves beside the project file.
+For example, `hydromt: {build_config_path: hydromt/build.yml}` in `settings/build-model.yml` reads
+`settings/hydromt/build.yml`. A `workflow_configs` path resolves beside the project file.
 
 Use `toolbox:config/...` for bundled resources or absolute paths for other locations.
 HydroMT catalogs follow their own internal path rules. Environment variables are not expanded.
-Schema 2 uses legacy path rules; changing the version alone does not convert paths.
 See the [configuration reference](configuration.md#how-paths-are-read) for the supported file fields.
 
 ## Key shared settings
@@ -77,6 +76,6 @@ These settings do not apply to R/weathergenr plots.
 
 Most assessment choices belong in your case files. Resources inside the toolbox can affect all cases
 using that installation: `config/catalogs/` describes data access; `config/defaults/` contains live
-model and generator recipes; `config/plotting/` controls Python appearance.
+build configuration files and generator settings; `config/plotting/` controls Python appearance.
 `config/templates/` contains copyable starters. Normally leave `config/advanced_settings.yml` as supplied.
 Pass the project file to the command, never the advanced-settings file.

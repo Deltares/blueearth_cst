@@ -40,7 +40,7 @@ plausible.
 |---|---|
 | ERA5 daily forcing | Coverage over the basin and time window, variable units, precipitation magnitude and seasonality, temperature, and missing values |
 | CHIRPS precipitation | Geographic coverage, rainfall seasonality and extremes, and consistency with the other forcing variables needed by the model and generator |
-| Local observed discharge | Gauge identity, dates, units and known regulation |
+| Local observed discharge | Gauge IDs, dates, units and known regulation |
 
 [era5]: https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=overview
 [chirps]: https://www.chc.ucsb.edu/data/chirps

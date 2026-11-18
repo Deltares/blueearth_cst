@@ -5,7 +5,7 @@ format: html
 
 `scripts/transfer_results.py` exports a completed projection analysis product as one ZIP, or imports one into
 another
-project. It prints a JSON report and exits zero on success. A `BundleError` prints `Refused: ...` on stderr
+project. It prints a JSON report and exits zero on success. A refused transfer prints `Refused: ...` on stderr
 and returns 2. The following commands use placeholders for project roots:
 
 ```console
@@ -22,10 +22,10 @@ Source paths inside copied configuration are history, listed under `historical_p
 Use `--ensemble <name>` when the project has no captured projection analysis configuration naming the product.
 
 Export refuses an `incomplete` product, missing required files, a `region.geojson` whose polygon differs
-from the one recorded in `_engine/provenance.json`, and provenance that matches no retained
+from the one recorded in `_engine/provenance.json`, and a run record that matches no saved
 configuration snapshot. Files whose bytes no longer match the production record are exported with
 `producer: null`. Products without production records export as `legacy-unattributed`; their
-configuration snapshot is the one whose digests match `_engine/provenance.json`.
+configuration snapshot is the one whose hashes match `_engine/provenance.json`.
 
 The manifest schema is `cst-result-bundle/1`. Required product files include `report.md`,
 `_engine/provenance.json`, `summary/composition.csv` and `_engine/analysis_record.json`.
@@ -33,7 +33,7 @@ Linked export paths are rejected. Export writes a new ZIP rather than replacing 
 
 ## Destination checks and import
 
-Import checks the whole bundle before writing: member names, sizes, checksums, the manifest's identity,
+Import checks the whole bundle before writing: member names, sizes, checksums, the manifest's bundle ID,
 schema version and required files. It then compares the destination:
 
 | Destination check | On mismatch |
@@ -54,19 +54,17 @@ The product is staged in a hidden `.<ensemble>.import-*.staged` sibling and appe
 verification, with one rename. A staged folder left by an interruption is never a result; the next
 import removes it. Import adds `_engine/imported/<bundle id>/` with the manifest, `import_record.json`,
 the configuration snapshots and region. It does not write the destination's `config/` archives,
-`data/spatial/`, invocation records or logs; it only holds the project's execution lock under
+`data/spatial/`, run records or logs; it only holds the project's execution lock under
 `config/_engine/archive_transactions/`.
 
 ## Using imported results {#post-import-limits}
 
-Imported results are for reading and interpretation. The runner has no record of producing them, so a
+Imported results are for reading and interpretation. The run command has no record of producing them, so a
 later projection analysis run in the destination may recompute them, and projection analysis does not need to
 be enabled to read them.
-The bundle records toolbox commit, dirty state and lock hashes as provenance; they do not recreate the
-source environment.
+The bundle records toolbox commit, dirty state and lock hashes so the results can be traced to their run;
+these records do not recreate the source environment.
 
-The transfer implementation is `blueearth_cst/shared/result_bundle.py`; command-line options are defined in
-`scripts/transfer_results.py`. `tests/test_result_bundle.py` covers integrity, destination comparison,
-publication and preservation/refusal cases. [Product
-attribution](execution-and-provenance.md#wf2-product-attribution)
+Command-line options are defined in `scripts/transfer_results.py`. [Product
+attribution](run-records.md#wf2-product-attribution)
 explains the production record carried in a bundle.

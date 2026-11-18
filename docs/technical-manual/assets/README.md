@@ -40,6 +40,6 @@ Source document SHA-256: `52373ccabfd542da013d14bd9dbfd8bed914ce91401e701c0fbd6a
 | `wflow-sbm-processes.png` | `word/media/image5.png` | Figure 2-3, Wflow-SBM hydrological processes |
 
 The modeling chapter supplies captions and alternative text. The HydroMT diagram retains its original
-INI label; the caption explains that current CST model-build recipes use YAML. The Wflow diagram is
+INI label; the caption explains that current CST build configuration files use YAML. The Wflow diagram is
 conceptual, with feature activation determined by the model setup. Preserve the original image bytes
 and transparency; display against a white background so labels remain readable in dark-mode HTML.

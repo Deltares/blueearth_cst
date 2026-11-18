@@ -8,6 +8,7 @@ Use this map to place code, configuration, documentation and outputs. The
 ## blueearth_cst/
 
 Modules are invoked by Snakemake `script:` (Python) or `Rscript --vanilla` `shell:` (R), not as CLIs.
+Python `script:` modules read `snakemake.input`, `output` and `params`; R scripts take positional arguments.
 
 Stages include `model/`, `projections/`, `climate_analysis/` and `experiment/`. `weathergen/` holds
 the R weather generator; `shared/` holds cross-workflow helpers:

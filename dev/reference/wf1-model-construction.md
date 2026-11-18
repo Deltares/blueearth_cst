@@ -69,7 +69,9 @@ When observations are configured,
 [`observation_validation.py`](../../blueearth_cst/model/observation_validation.py) checks station
 headers against the registry before HydroMT reads the table. User control and observation locations
 need one series each; automatic outlets may have a series but do not require one. Duplicate or
-unrecognized IDs fail. The baseline discharge reader uses the outlet index to select a deterministic
+unrecognized IDs fail; [`test_observation_validation.py`](../../tests/test_observation_validation.py)
+covers these checks. [`plot_results.py`](../../blueearth_cst/model/plot_results.py) reads observations with
+`sep=";"` for evaluation. The baseline discharge reader uses the outlet index to select a deterministic
 outlet when the model has multiple discharge columns.
 
 WF1 converts temporary `historical/default/run/output.csv` into per-variable rounded response tables and

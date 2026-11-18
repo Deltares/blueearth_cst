@@ -120,18 +120,14 @@ class DeltaGeneration:
         }
 
 
-MIGRATION = (
-    "docs/technical-manual/delta-change-scenarios.md#migrating-from-delta-change1-and-2"
-)
-
-
 def refuse_retired_schema(settings: dict) -> None:
     """delta-change/1 and /2 are read-only: retained sets stay readable."""
     version = settings.get("schema_version")
     if version in {"delta-change/1", "delta-change/2"}:
         raise ValueError(
             f"{version} is read-only: retained collections stay readable, but new "
-            "delta generation uses delta-change/3 (WF2 projections). See " + MIGRATION
+            "delta generation uses delta-change/3 (WF2 projections). "
+            "See docs/technical-manual/delta-change-scenarios.md"
         )
 
 

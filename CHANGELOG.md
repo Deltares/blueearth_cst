@@ -9,6 +9,14 @@ Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
 
+- **Documentation revised (t036).** The User Guide is rewritten page by page with a new stress-test results
+  page; the Technical Manual gives the optional analyses their own pages, moves developer reference to
+  `dev/reference/` and describes current behaviour only (pre-release migration notes are now
+  `dev/reference/pre-release-migration.md`). Plain terms replace jargon: forcing set, run record, saved
+  results. Pages renamed with redirects: `execution-and-provenance` to `run-records`, `retained-handoffs` to
+  `saved-results`. Sections are numbered by the renderer (1., 1.1.) on the site and in the complete manuals.
+  The retired delta-change schema refusal now points at the delta-change page.
+
 - **Breaking: simpler project configuration (t037).** Retired keys are refused by name with their
   replacement. Plain renames compose to the former settings, so retained identities are unchanged unless
   noted below.

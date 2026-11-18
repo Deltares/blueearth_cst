@@ -12,7 +12,7 @@ This chapter explains scheduling, reuse and run records. For commands, follow
 
 ## Supported entry points {#running-the-assessment}
 
-The runners prepare inputs and check results as well as schedule Snakemake rules.
+The run commands prepare inputs and check results as well as schedule Snakemake rules.
 
 | Entry point | Scope |
 |---|---|
@@ -20,16 +20,16 @@ The runners prepare inputs and check results as well as schedule Snakemake rules
 | `scripts/run_workflow.py` | One explicitly named workflow; accepts all five workflow names. |
 | `scripts/simulate_system.py` | Hydrological simulations and/or indicators for a selected experiment. |
 
-The all-workflow runner follows a fixed order: historical climate analysis, model building, projection
+The all-workflow run command follows a fixed order: historical climate analysis, model building, projection
 analysis, scenario generation and hydrological simulation. It skips disabled workflows and stops at
 the first workflow failure. Disabled workflows do not supply missing prerequisites, although their
 compatible existing products can be reused. Model building and scenario generation supply the model
 and weather required for simulation; projections do not determine the generated scenarios.
 
-For ordinary use, the User Guide recommends the all-workflow runner, with only the required workflows
+For ordinary use, the User Guide recommends the all-workflow run command, with only the required workflows
 enabled. It also documents the dedicated hydrological simulation command. The single-workflow script
 accepts all five names; for `generate_scenarios` and `simulate_system`, it delegates to their dedicated
-runners rather than launching Snakemake directly.
+run commands rather than launching Snakemake directly.
 
 Bare Snakemake execution omits required preparation and is not supported for scenario generation or
 hydrological simulation. Simulation targets are inferred from `steps` and indicator selection;
@@ -37,7 +37,7 @@ routine requests need no target override.
 
 A dry run does not generate missing inputs. Some downstream checks remain pending until earlier
 products exist, so a successful preview does not establish that every later calculation can succeed.
-The [command reference](execution-and-provenance.md#launcher-arguments-and-safety-boundaries)
+The [command reference](run-records.md#launcher-arguments-and-safety-boundaries)
 describes supported options and forwarding restrictions.
 
 ## Computation time and resource requirements
@@ -81,7 +81,7 @@ unlocking the project does not make those inputs compatible.
 Indicator changes can use saved responses through `steps.simulations: false` when the completed
 experiment contains the required variables, locations and periods. Missing response variables require
 new simulations. Resource changes alone do not define a new scientific experiment.
-The [saved-results reference](retained-handoffs.md#identities-and-reuse) specifies reuse requirements;
+The [saved-results reference](saved-results.md#identities-and-reuse) specifies reuse requirements;
 [indicator settings](indicator-requests.md) covers selection and handling incomplete inputs.
 
 Use the User Guide to
@@ -104,7 +104,7 @@ copies document previous runs. Changes belong in the source YAML rather than the
 
 Run summaries link attempts and timings; product records identify which attempt produced a result.
 The newest log alone need not describe every file after a partial rerun.
-[Run records and reproducibility](execution-and-provenance.md) documents configuration history,
+[Run records and reproducibility](run-records.md) documents configuration history,
 product attribution and simulation resource measurements.
 
 ## Portability and results transfer {#saving-and-transferring-assessment-results}

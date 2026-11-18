@@ -1,6 +1,6 @@
 # CST documentation guidelines
 
-Last updated: 2026-11-17
+Last updated: 2026-11-18
 
 Use this guide for CST user guides, scientific explanations, toolbox reference and technical notes.
 It owns CST content and presentation conventions; the [validation ladder](dev-validation.md) owns
@@ -40,13 +40,20 @@ its preferred terms. Replace these toolbox-specific terms:
 | reference, baseline (generated weather) | unperturbed reference |
 | historical period (extraction years) | climate window |
 | reservation (experiment) | experiment number allocation |
+| forcing recipe, recipe | forcing set; for a HydroMT build YAML, build configuration file |
+| provenance | run record (results); source or data source (datasets) |
 
-In user-facing pages, replace general software terms (retained, identity, provenance, locator, sidecar,
+In user-facing pages, replace general software terms (retained, identity, locator, sidecar,
 invocation, scaffold, publish) with plain words. Keep configuration keys, file names, flags and quoted
-console messages verbatim.
+console messages verbatim. "Output" and similar common words (data, results, settings) are established
+terminology and need no plain-language replacement. Keep labels, list lead-ins, table headers and headings
+short: prefer "Output and data:" to an explanatory phrase such as "Where results go and where data come
+from:".
 
 ## Content and sources
 
+- Public pages describe current behaviour only. Pre-release migration, renamed-setting and deprecation
+  notes live in [pre-release migration notes](pre-release-migration.md).
 - Keep the homepage focused on purpose and navigation. Introduce climate vulnerability and
   water-system robustness before software or datasets. Put the five workflows' responsibilities,
   dependencies and execution order in the User Guide. Do not add a homepage Downloads button or PDF
@@ -62,7 +69,7 @@ console messages verbatim.
   explain CST choices locally. Check current runners, seed configurations and contracts before
   treating older technical material as supported behavior.
 - Use Quarto citations and a maintained bibliography for scientific claims. Numerical examples need
-  source provenance, configuration and relevant retained run IDs.
+  data sources, configuration and relevant retained run IDs.
 - Public pages must be usable from the public repository. Cite tracked sources or published references;
   do not depend on private records, ignored instructions or machine-specific paths.
 
@@ -83,6 +90,11 @@ Preserve these scientific distinctions:
 
 ## Presentation
 
+- Section numbers come from the renderer (`number-sections` in `docs/site/_quarto.yml` and
+  `docs/publication/format.yml`). Never type a number into a heading, and cite a section by its name as
+  a link, not by its number. Numbers end with a dot in every output (1., 1.1.). A page opts out in its
+  front matter (the glossary) or a folder `_metadata.yml`. Give figures and tables no `fig-`/`tbl-` ids:
+  the site keeps them unnumbered.
 - Keep website figures unnumbered; use direct references such as “the diagram below”. Retain useful
   captions; the top-down/bottom-up comparison has none. PDF numbering is separate. Scientific figures
   follow [CST style](../../blueearth_cst/plotting/docs/cst-style.md).
@@ -92,7 +104,7 @@ Preserve these scientific distinctions:
   Add a path only to distinguish files; do not repeat the filename in the heading.
 - Show directory trees in fenced `text` blocks with aligned `├──`, `│` and `└──` branches and
   four-space nesting. In the quick start, give a compact folder overview and the exact result path;
-  link to the output guide for schemas and provenance. Preserve prerequisites and unavailable values.
+  link to the output guide for schemas and run records. Preserve prerequisites and unavailable values.
 - Use substantial-task headings. Fold brief prerequisites into the introduction when useful; short
   cues such as **While it runs** and **When it finishes** can organize a task. Keep commands, paths
   and success checks visible, with a link to the full execution guide.

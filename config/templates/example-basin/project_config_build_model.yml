@@ -35,7 +35,7 @@ plotting:
   # Screen the observed water balance. Options: true | false.
 #  budyko: true
 
-# HydroMT build recipes; defaults shown. Point at your own copies to change the build.
+# HydroMT build configuration files; defaults shown. Point at your own copies to change the build.
 # Model construction settings. Input: mapping of configuration paths.
 #hydromt:
   # Configure initial model construction. Input: HydroMT YAML file path.

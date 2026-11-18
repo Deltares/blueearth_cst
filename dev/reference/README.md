@@ -19,6 +19,7 @@ owning reference when behavior changes; executable sources retain exact schemas,
 | Git branch, tag or commit conventions | [dev-git-conventions.md](dev-git-conventions.md) |
 | Release/version decisions | [dev-versioning.md](dev-versioning.md) |
 | CST documentation content, presentation and publishing | [dev-documentation.md](dev-documentation.md) |
+| Cases, settings and outputs from pre-release versions | [pre-release-migration.md](pre-release-migration.md) |
 
 ## Architecture and implementation
 
@@ -83,7 +84,7 @@ Use this lookup to reach the relevant topic owners; a workflow does not need its
 [generator]: toolbox-weather-generator-interface.md
 [simulator]: toolbox-hydrological-model-interface.md
 [identity]: toolbox-run-identity.md
-[handoffs]: ../../docs/site/toolbox-reference/retained-handoffs.qmd
+[handoffs]: ../../docs/technical-manual/saved-results.md
 [indicators]: toolbox-indicator-glossary.md
 [indicator-module]: ../../blueearth_cst/indicators/README.md
 [guide0]: ../../docs/site/toolbox-reference/workflow-analyze-climate.qmd

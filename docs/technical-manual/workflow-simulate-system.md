@@ -11,8 +11,8 @@ Compatible indicator calculations can also use saved simulations without rerunni
 
 - **Prepared basin model.** Completed Wflow-SBM model and the information needed to prepare its forcing.
 - **Historical end state.** Model building's `historical/default/run/outstate/outstates.nc`
-  (`historical/<id>/run/` for a named recipe), the default initial state for every run unless the model TOML
-  configures its own warm state.
+  (`historical/<id>/run/` for a named forcing set), the default initial state for every run unless the model
+  TOML configures its own warm state.
 - **Generated weather.** Climate NetCDFs for selected runs, including pressure and radiation alongside
   perturbed rainfall and temperature.
 - **Saved responses for indicators-only calculations.** Rounded per-variable CSVs and records of available
@@ -35,23 +35,24 @@ simulations. Climate projections are not simulation inputs.
 | Setting | Purpose |
 |---|---|
 | `steps` | `simulations` and `indicators` switches; each defaults to true. |
-| `indicators` | `sets`, `custom_sets`, per-set `options`, an optional `subset`, and `evaluation`: `partial` (default) publishes gaps as unavailable with a warning; `strict` refuses. |
+| `indicators` | `sets`, `custom_sets`, per-set `options`, an optional `subset`, and `evaluation`: `partial` (default) writes gaps as unavailable with a warning; `strict` refuses. |
 | `include_unperturbed` | Include reference simulations required by reference-based indicators. |
 | `initialization` | Initial state (`auto`, `historical`, `cold`) and discarded `warmup_years` (default 1). |
 | `experiment_name` | Name of the saved experiment. |
 | `scenario_collection` | Advanced selection of a saved weather experiment. |
 | `compute` | Julia threads, concurrent batches, batch size and reserved disk space. |
 | `output.netcdf_grid` | Optional native grids for every selected run; independent of historical output. |
-| `output.csv.decimal_places` | Retained daily scalar precision, default 5; see [precision](configuration.md#csv-precision). |
-| `historical_forcing` | `default` (or omitted) or a named recipe; see below. |
+| `output.csv.decimal_places` | Saved daily scalar precision, default 5; see [precision](configuration.md#csv-precision). |
+| `historical_forcing` | `default` (or omitted) or a named forcing set; see below. |
 
-**Historical forcing selection.** With [named recipes](configuration.md#named-historical-forcing-recipes),
-`historical_forcing` chooses the recipe whose `wflow_sbm_<id>.toml`, model fingerprint, forcing preparation,
-end state and historical Qcrit discharge the experiment uses. Single-recipe projects accept only `default`.
-Hydrological simulation refuses a recipe that model building has not simulated, a scenario collection whose
-forcing extraction differs from the recipe, and any non-default recipe for delta-change collections, which
-record no recipe. An existing experiment keeps the recipe it was created with: changing the selection requires
-`--new-experiment`, and indicators-only recalculation refuses a different selection.
+**Historical forcing selection.** With
+[several forcing sets](configuration.md#named-historical-forcing-recipes), `historical_forcing` chooses the
+forcing set whose `wflow_sbm_<id>.toml`, model record, forcing preparation, end state and historical
+Qcrit discharge the experiment uses. Projects with one forcing set accept only `default`. Hydrological
+simulation refuses a forcing set that model building has not simulated, a scenario collection whose forcing
+extraction differs from the forcing set, and any non-default forcing set for delta-change collections, which
+record no forcing set. An existing experiment keeps the forcing set it was created with: changing the
+selection requires `--new-experiment`, and indicators-only recalculation refuses a different selection.
 
 Scenario selection normally follows the project's scenario-generation settings. Omitting unperturbed
 simulations does not remove the reference weather saved by scenario generation. See
@@ -60,7 +61,7 @@ simulations does not remove the reference weather saved by scenario generation. 
 
 ## Processing sequence {#rule-flow}
 
-![Main scientific processing steps and conditional paths described below.](assets/workflow-wf4.svg){width=100% fig-alt="Scientific processing from basin and climate inputs to the assessment products described in this section."}
+![Hydrological simulation and indicators: scenario and calculation selection, Wflow runs in batches, saved daily time series and indicator calculations, with saved simulations reused for new indicator calculations.](assets/workflow-wf4.svg){width=100% fig-alt="Two-column flow diagram. Main column, top to bottom: select weather scenarios and calculations; check model and save simulation settings (model, selected scenarios and run period); prepare forcing and run Wflow batches (new simulations only); save simulated daily time series (Wflow CSV outputs and variable information); calculate assessment indicators (indicator tables and contributing realizations). Side boxes: saved simulation time series, reused for new indicator calculations; prepare named indicator results (tables, units and data availability). A note says dashed boxes mark preparation by the run command and that indicators can use saved simulations."}
 
 The workflow checks the model and selected scenarios, prepares forcing and runs Wflow. Each run starts
 from the selected [initial state](hydrological-simulation.md#initial-conditions-and-warm-up) and first
@@ -79,11 +80,11 @@ The main outputs are:
 
 - **Daily responses (`simulations/<run_id>/output_<code>.csv`).** Rounded per-variable time series;
   their record is `_engine/simulations/<run_id>/response_tables.json`. Warm-up days are discarded before
-  retention. Native scalar CSVs (`_engine/wflow_runs/`) and forcing NetCDFs (`_engine/forcing/`) are
-  temporary; indicators read the retained tables.
+  saving. Native scalar CSVs (`_engine/wflow_runs/`) and forcing NetCDFs (`_engine/forcing/`) are
+  temporary; indicators read the saved tables.
 - **Model settings (`_engine/run_settings/<run_id>.toml`).** Settings associated with each run; Wflow's
   own logs are in `_engine/wflow_logs/`.
-- **Optional native grids (`simulations/<run_id>/output_grid.nc`).** One retained file per run,
+- **Optional native grids (`simulations/<run_id>/output_grid.nc`).** One saved file per run,
   containing all requested variables and native layers over the full native clock, warm-up included.
   See [grid settings](configuration.md#netcdf-grid).
 - **Simulation records (`_engine/simulation.json` and `_engine/response_inventory.json`).** The model
@@ -97,7 +98,7 @@ The main outputs are:
 
 Indicator tables use `<token>_run_indicators.csv` and/or `<token>_group_indicators.csv`. Each value
 identifies its indicator, location and run or group, with a status and reason where needed.
-See [saved results](retained-handoffs.md) for detailed schemas and reuse requirements.
+See [saved results](saved-results.md) for detailed schemas and reuse requirements.
 
 ## Diagnostics and interpretation {#interpretation}
 

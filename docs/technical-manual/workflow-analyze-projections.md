@@ -27,15 +27,21 @@ Missing period coverage is reported for each combination, and usable combination
 If none are usable, change-factor tables contain headers only; corrupt data and incompatible
 calendars remain errors.
 
-Climate-projection analysis excludes CMIP6 `THU/CIESM` completely, across all variables, experiments and members, because its
-published precipitation has an invalid scale. Excluding the whole model keeps the ensemble consistent
-across variables; it does not establish a defect in temperature. Requested CIESM combinations remain in
-coverage and composition records as `source_quality_excluded`, with the reason and counts, but create no
-acquisition jobs and contribute to no analysis or change-factor products. Member overrides cannot restore
-the model. Existing source caches are preserved; rerunning projection analysis rebuilds affected derived products using
-the reduced ensemble. No speculative rescaling is applied. See
+### Excluded model
+
+Climate-projection analysis excludes CMIP6 `THU/CIESM` completely, across all variables, experiments and
+members, because its published precipitation has an invalid scale. Excluding the whole model keeps the
+ensemble consistent across variables; it does not establish a defect in temperature. See
 [Monerie (2026), section 4](https://doi.org/10.1088/2515-7620/ae661c) for independent evidence of the
-precipitation problem. A request containing only excluded models fails with no resolved combinations.
+precipitation problem.
+
+- Requested CIESM combinations remain in coverage and composition records as `source_quality_excluded`, with
+  the reason and counts, but create no acquisition jobs and contribute to no analysis or change-factor
+  products.
+- Member overrides cannot restore the model. No speculative rescaling is applied.
+- Existing source caches are preserved; rerunning projection analysis rebuilds affected derived products using
+  the reduced ensemble.
+- A request containing only excluded models fails with no resolved combinations.
 
 ## Configuration {#configuration}
 
@@ -60,9 +66,7 @@ precipitation problem. A request containing only excluded models fails with no r
 Each projection is compared with its own modeled historical reference, independently of the observed
 record used for model building. Temperature changes are additive in °C; precipitation changes are
 relative. Seasonal results use DJF, MAM, JJA and SON; `climate.seasons` does not apply here yet.
-Since t037, `catalog`, `reference_window` and `future_windows` are refused with their new names, and
-`variables` is a list. See [execution and run management](configuration-and-execution.md) for running
-the workflow.
+See [execution and run management](configuration-and-execution.md) for running the workflow.
 
 A custom variable is listed in `variables` and declared under `variable_options` with `source` (the
 catalog's renamed variable), `canonical` (`rate` or `state`), `units` and `change` (`relative` or
@@ -76,108 +80,23 @@ variable_options:
 
 ### Optional projected PET
 
-List `pet` in `variables` and set `variable_options.pet: {method: makkink}` to estimate PET.
-Use `method: debruin` for de Bruin. The method is explicit and applies to every model, member and period;
-omitting `pet` preserves the existing output selection. A full supplied-variable declaration with
-`source`, `canonical`, `units` and `change` remains supported and does not calculate PET. Bare `pet:`
-and mixing `method` with `source` are rejected.
+[]{#selecting-pet}[]{#required-inputs}[]{#calculation}[]{#spatial-averaging}[]{#change-reporting}
+[]{#saved-products}[]{#reruns}
 
-Both methods require matching monthly CMIP6 `tas` (K), `ps` (Pa) and `rsds` (W m-2); de Bruin additionally
-requires `rsdt` (incident TOA shortwave radiation, W m-2). HydroMT catalog adapters convert temperature
-to °C and surface pressure to hPa after source-unit and monthly-mean metadata admission. Sea-level
-pressure (`psl`) is not substituted. No elevation, temperature or pressure correction is applied.
-Inputs must agree in model, member, experiment, calendar, grid and monthly coordinates. Missing inputs
-for a resolved member fail with the affected source; they do not silently reduce the PET ensemble or
-select a different method. Deliberately revise the ensemble settings or supply matching inputs to recover.
-The catalog currently certifies precipitation and temperature only. PET mechanism checks on controlled
-fixtures do not qualify real CMIP6 dependency availability, transport or basin applicability.
+List `pet` in `variables` and set `variable_options.pet: {method: makkink}` to estimate PET. See
+[projected PET](projected-derived-variables.md#pet).
 
-HydroMT's `pet_makkink` or `pet_debruin` calculates an estimated mean daily rate for each native cell
-from monthly mean meteorology, before spatial averaging. This approximation is not the monthly mean
-of daily-derived PET: within-month nonlinear effects and meteorological covariances are unavailable.
-The estimates describe atmospheric evaporative demand, not actual evapotranspiration or a full
-aerodynamic/vegetation response. See the [HydroMT implementation](https://github.com/Deltares/hydromt/blob/v1.3.1/hydromt/model/processes/meteo.py).
+### Optional projected dew point and wind
 
-PET, precipitation and temperature use the same buffered bounding box with spherical cell-area weights
-from native coordinate midpoint edges, including irregular rectilinear grids. Cells outside the basin
-polygon but inside that box contribute. This is a spatial approximation, not a polygon integral; the
-`basin` location token in figure names does not imply polygon weighting. Every PET dependency must be finite across the
-entire selected box and all months. Missing inputs cannot become zero PET or change the represented area.
+[]{#selecting-the-variables}[]{#dew-point}[]{#wind-speed}[]{#spatial-averaging-and-support}
+[]{#saved-products-and-records}[]{#reruns-and-qualification}
 
-Calculated PET has fixed `canonical: rate` and `units: mm/day`. Its default `change: relative` reports
-percent changes and uses `min_denominator: 0.1` mm/day, a reporting safeguard rather than a physical
-calibration. A finite positive override is accepted. Rates strictly below that threshold suppress
-relative changes while retaining absolute differences; equality is admitted. The same daily-rate
-threshold screens monthly, seasonal and annual references, never an unconverted period total.
-With `change: absolute`, omit `min_denominator`. Annual and seasonal diagnostic changes integrate
-the rates with native-calendar day counts and report mm; monthly changes retain mm/day.
-
-PET adds analysis tables but no figures; its method (Makkink or de Bruin) and the approximation from monthly
-mean inputs are recorded in `_engine/analysis_record.json`.
-The figure suite covers precipitation and temperature only. It remains
-an analytical output: precipitation–temperature clouds and stress-test axes are unchanged.
-Raw meteorological grids remain in `raw/`; member-resolved annual/monthly diagnostic changes are
-retained in `analysis/gridded_changes/`, including calculated PET when configured. Monthly PET
-series share `scalar/`, tidy tables share `analysis/`, and the existing summary CSVs include PET rows.
-Source units, paths, calendar, method/library and support are recorded with the series and in
-`_engine/analysis_record.json`. Changing method refreshes current derived products in place; use
-separate project roots to retain both analyses. Threshold-only edits do not reacquire raw inputs.
-Removing PET retires its previously managed figure paths while retaining source raw data.
-The generated catalog's additional adapter mappings can invalidate earlier raw identities, including
-P/T-only caches, under the existing catalog-integrity policy; unchanged output values do not imply
-unchanged cache keys across toolbox revisions.
-
-## Optional projected dew point and wind
-
-In the projection workflow configuration, list `tdew` and/or `wind` in `variables` and set
-`tdew: {method: specific_humidity}` or `wind: {method: sfcwind}` under `variable_options`. Omission produces no corresponding derived result.
-These calculated forms accept only `method` and optional `change: absolute`; Celsius percentages
-and relative wind changes are unsupported. Full supplied-variable declarations remain readable.
-
-Dew point requires monthly `huss` (specific humidity, mass fraction) and `ps` (surface pressure).
-For specific humidity q and pressure p in hPa, vapour pressure is
-`e = q*p / (0.622 + 0.378*q)`. With `L = log10(e/6.11)`, dew point is
-`Td = 237.3*L/(7.5-L)` in degC, inverting the
-[NWS liquid-water relation](https://www.weather.gov/media/epz/wxcalc/vaporPressure.pdf).
-This is liquid-water dew point even below freezing, distinct from frost point. Surface pressure
-approximates pressure at humidity height. Inverting monthly inputs does not recover the monthly mean
-of subdaily dew points. There is no relative-humidity fallback: CMIP6 `hurs` changes its saturation
-reference to ice below zero and requires a separately specified conversion.
-
-The default explicit wind method `sfcwind` requests `sfcWind`, the monthly mean of wind-speed
-magnitude. Alternatively, `wind: {method: components}` requests `uas` and `vas` and calculates
-`sqrt(u_mean^2 + v_mean^2)`: the magnitude of the monthly mean vector, a different statistic that
-can be smaller due to directional cancellation. Methods are never silently substituted across models.
-All wind inputs require documented 10 m height before source harmonisation. No 2 m conversion is applied.
-When separately read variables are merged, scalar height coordinates retain their source names as
-prefixes (for example, `tas_height` and `sfcWind_height`), preserving values and coordinate metadata.
-Different measurement heights do not relax the matching grid, time, calendar or CRS requirements.
-See the [CMIP6 Amon definitions](https://raw.githubusercontent.com/PCMDI/cmip6-cmor-tables/main/Tables/CMIP6_Amon.json)
-for native units, dimensions and temporal statistics.
-
-Both derivations run per native cell/month before spherical area weighting over the entire selected
-buffered bounding box, including cells outside the basin polygon. Annual and seasonal results use
-duration-weighted state means, with absolute changes in degC or m/s. Required support is fixed and
-complete: invalid humidity, nonpositive pressure, negative scalar speed, nonfinite values, incompatible
-grids/calendars/source identities or unqualified units/heights fail explicitly. Calm component wind is valid.
-No clipping, filling, regridding or member fallback is performed.
-
-Dependencies share `raw/`, selected monthly results share `scalar/`, and additional selected-variable
-rows share `analysis/` and `summary/`. Method, statistic, height and source metadata remain in scalar
-attributes and `_engine/analysis_record.json`; no figures are drawn for these variables. Analysis
-tables also carry `method`, `definition` and `height_m`; these fields distinguish the two wind
-statistics when tables circulate independently.
-Concise captions give quantity, periods and counts; the suite note in `figure_captions.md` and the
-analysis record carry methods and approximations. Derived annual/monthly native-grid
-changes are retained with the spatial diagnostics; full derived monthly meteorological series remain
-basin averages in `scalar/`. A rerender retires PNGs the previous caption manifest owned and the new one
-does not (renamed or removed products and removed horizons); unlisted files are kept. Scientific choices refresh derived identities; presentation changes do not reacquire
-inputs. Separate project roots retain alternative analyses. The P/T cloud and stressor axes are unchanged.
-Controlled fixtures exercise these methods; matching live input availability remains unqualified.
+List `tdew` and/or `wind` in `variables` and set their `method` under `variable_options`. See
+[projected dew point and wind](projected-derived-variables.md#dew-point-and-wind).
 
 ## Processing sequence {#rule-flow}
 
-![Main scientific processing steps and conditional paths described below.](assets/workflow-wf2.svg){width=100% fig-alt="Scientific processing from basin and climate inputs to the assessment products described in this section."}
+![Projection analysis: shared basin products, CMIP6 data for each resolved model, scenario and member, monthly basin averages, future climate changes, window diagnostics and figures.](assets/workflow-wf2.svg){width=100% fig-alt="Two-column flow diagram. Left column, top to bottom: define basin boundary; fetch CMIP6 slices for each resolved model, scenario and member; calculate monthly basin averages (basin climate series in NetCDF); calculate future climate changes (annual and monthly CSVs and a coverage report). Right column: map basin, rivers and locations; plot projected climate changes (available PNGs and captions); prepare projection analysis (window diagnostics and availability). A note says change factors provide plausibility context."}
 
 The workflow acquires available climate projections, calculates monthly basin averages and compares
 historical and future periods. It then prepares diagnostic tables and figures; historical series can
@@ -185,8 +104,9 @@ serve several future scenarios. Data availability determines which comparisons c
 
 ## Outputs {#outputs}
 
-Results are saved under `data/climate/projections/<ensemble>/`, relative to `project_dir`.
-The main outputs are:
+Results are saved under `data/climate/projections/<ensemble>/` in the output directory.
+
+### Main outputs
 
 - **Climate data (`raw/` and `scalar/`).** Downloaded NetCDF grids and monthly basin-average series.
 - **Change factors (`summary/`).** Annual and monthly changes in
@@ -207,42 +127,46 @@ The main outputs are:
   produced and unavailable figures; title inventories accompany them. Filenames follow the
   [projection-analysis naming profile](../../blueearth_cst/plotting/docs/figure-naming.md#cmip6-projections-wf2).
 
-Figures use the diagnostic tables, whose effective periods may differ from the change-factor tables.
-By default, each window also includes annual spatial matrices with model rows and scenario columns, and
-twelve-month spatial sheets per model/scenario/variable. Basin-average monthly changes are summarized by
-the existing box plots; individual `cmip6_delta_monthly_*.png` curve sheets are no longer produced.
-Previously managed copies are removed when their figure directory is regenerated.
-Spatial sheets summarize members by cell-wise median and retain
-their counts in captions. Every available combination is shown, including ensembles smaller than ten models.
-Maps use native GCM cells, clipped to the basin outline for display without interpolation. A small basin may
-fall entirely inside one coarse cell. Annual temperature changes use day-weighted means; annual precipitation
-changes compare duration integrals, rather than averaging monthly percentages. Monthly precipitation factors
-are retained as future/reference ratios; display changes are `100 × (factor − 1)`. Each cell must have all
-monthly inputs in both complete analysis windows; dry or incomplete cells remain unavailable.
+### Figures and maps
+
+- Figures use the diagnostic tables, whose effective periods may differ from the change-factor tables.
+- By default, each window also includes annual spatial matrices with model rows and scenario columns, and
+  twelve-month spatial sheets per model/scenario/variable.
+- Basin-average monthly changes are summarized by box plots.
+- Spatial sheets summarize members by cell-wise median and keep their counts in captions. Every available
+  combination is shown, including ensembles smaller than ten models.
+- Maps use native GCM cells, clipped to the basin outline for display without interpolation. A small basin may
+  fall entirely inside one coarse cell.
+- Annual temperature changes use day-weighted means; annual precipitation changes compare duration integrals,
+  rather than averaging monthly percentages. Monthly precipitation factors are kept as future/reference
+  ratios; display changes are `100 × (factor − 1)`.
+- Each cell must have all monthly inputs in both complete analysis windows; dry or incomplete cells remain
+  unavailable.
+- Temperature and precipitation map ramps follow UNESCO draft report Figure 13, with explicit signed scales
+  and zero ticks. Maps share a scale across models/scenarios for each variable, window and temporal scope.
+  Project `plotting.annotation` selects a title, caption or neither.
+
+### Rerendering and records
 
 These are projection diagnostics, independent of stochastic or delta scenario generation and requiring no
 scenario collection or Wflow model. Native-grid changes reuse local raw slices and the workflow's existing
 calculations.
-Figure rerendering uses retained gridded changes when available, checking recorded member hashes.
-For older runs without these products, it reconstructs spatial changes from their local raw slices and
-scalar provenance in the review destination; those inputs must still be available.
-Temperature and precipitation map ramps follow UNESCO draft report Figure 13, with explicit signed scales
-and zero ticks. Maps share a scale across models/scenarios for each variable, window and temporal scope.
-Project `plotting.annotation` selects a title, caption or neither. See
-[execution records](execution-and-provenance.md#wf2-product-attribution) for production records and
+
+Figure rerendering uses saved gridded changes when available, checking recorded member hashes. See
+[run records](run-records.md#wf2-product-attribution) for production records and
 [results transfer](results-transfer.md) for export and import.
 
 ### Analysis failures and retries
 
 Analysis checks its declared scalar/raw input sets before calculating tables. It checks record metadata for
-JSON serialization before spatial diagnostics, then serializes the complete record before publishing CSVs.
+JSON serialization before spatial diagnostics, then serializes the complete record before writing CSVs.
 The record is written last. Metadata or spatial-preparation failures therefore stop before new CSVs or the
 record are written by the analysis script.
 
-This ordering does not provide an atomic bundle or preserve a previous publication across workflow failure.
+This ordering does not provide an atomic bundle or preserve previous results across workflow failure.
 Snakemake can remove declared products before execution and during failed-job cleanup; spatial diagnostics
 can also be partially written before a failure. Correct the reported problem and rerun the workflow, reusing
-compatible retained raw slices and scalar series. Individual remaining analysis files do not establish that
+compatible saved raw slices and scalar series. Individual remaining analysis files do not establish that
 analysis finished successfully.
 
 ## Diagnostics and interpretation {#interpretation}
@@ -255,7 +179,7 @@ analysis finished successfully.
   precipitation change is 100 × (future mean / reference mean − 1). Monthly averages account for
   month length in the model calendar; seasonal change diagnostics use precipitation rates, while
   seasonal totals are shown in mm.
-- **Coverage.** Analysis retains complete water years within the calendar bounds, labeled by their
+- **Coverage.** Analysis keeps complete water years within the calendar bounds, labeled by their
   starting year. Seasonal diagnostics require at least 90% of the window's water years, rounded up,
   and at least three complete seasons; each season requires three finite months.
 - **Ensemble spread.** Change summaries average members within each model and then weight models

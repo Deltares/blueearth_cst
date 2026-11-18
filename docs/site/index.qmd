@@ -1,7 +1,7 @@
 ---
 title: "Climate Stress Testing (CST) Toolbox"
 format: html
-subtitle: "Automated bottom-up climate vulnerability assessments at basin-level"
+subtitle: "Automated climate vulnerability assessments at basin-level"
 toc: false
 number-sections: false
 ---
@@ -19,6 +19,10 @@ vulnerabilities, explore adaptation needs and prioritize further investigation.
 2. [Run the example](guide/quick-start.md) and find its output tables.
 3. Follow [Creating a project](guide/new-case.qmd) to set up your own assessment.
 4. [Run or resume workflows](guide/running.md) and [interpret the outputs](guide/outputs.md).
+
+**Data access:** the example and the default data catalog read datasets on the Deltares P-drive, and
+projection analysis downloads CMIP6 data from the internet. Without P-drive access, configure datasets
+available to you as described in [Creating a project](guide/new-case.qmd).
 
 The [User Guide](guide/quick-start.qmd) explains how to run an assessment and inspect its results.
 The [Technical Manual](technical-manual/overview.qmd) describes the methods, data, configuration and

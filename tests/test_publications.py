@@ -27,6 +27,7 @@ def publication_source(tmp_path: Path) -> Path:
         "docs/guide/assets/shape-of-a-run.html",
         "docs/guide/outputs.md",
         "docs/guide/new-case.md",
+        "docs/technical-manual/indicator-calculations.md",
         "blueearth_cst/indicators/climate/README.md",
     ]
     paths += [entry["path"] for entry in appendix["external_evidence"]]
@@ -115,6 +116,23 @@ def test_static_illustrations_are_bundled_for_site_and_manual(publication_source
     assert generated["manuals/assets/workflow-overview.png"] == asset.read_bytes()
     assert b'src="assets/workflow-overview.png"' in generated["guide/quick-start.qmd"]
     assert manifest["asset"] in hashes
+
+
+def test_old_address_anchors_stay_on_site_pages_only(publication_source: Path):
+    chapter = publication_source / "docs/guide/quick-start.md"
+    chapter.write_text(
+        "---\ntitle: Start\n---\n\n## Reading\n\n"
+        "## Forcing set {#forcing-set}\n[]{#forcing-recipe}\n\n"
+        "Text with `[]{#kept}`.\n",
+        encoding="utf-8",
+    )
+    generated, _ = build_publications.prepare_publications(publication_source)
+    site = generated["guide/quick-start.qmd"]
+    manual = generated["manuals/user-guide.qmd"]
+    assert b"{#forcing-set}\n[]{#forcing-recipe}\n" in site
+    assert b"## Forcing set {#guide-quick-start--forcing-set}\n\nText" in manual
+    assert b"[]{#forcing-recipe}" not in manual
+    assert b"`[]{#kept}`" in manual
 
 
 def test_manual_illustrations_are_bundled_offline(publication_source: Path) -> None:

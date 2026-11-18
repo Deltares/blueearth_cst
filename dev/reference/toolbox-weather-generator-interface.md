@@ -19,7 +19,7 @@ publishes collections. A replacement generator must preserve scenario membership
 meaning, and the forcing identities, descriptors, and preparation inputs required by the collection reader.
 Its configuration and preparation adapter may differ. The [architecture reference](toolbox-architecture.md)
 explains workflow responsibilities; the
-[retained handoffs](../../docs/technical-manual/retained-handoffs.md) describe saved products and reuse.
+[saved results](../../docs/technical-manual/saved-results.md) describe saved products and reuse.
 For figure appearance, panel layout and export, see
 [styling weathergenr figures in CST](../../blueearth_cst/plotting/docs/weathergenr-style.md).
 
@@ -136,7 +136,7 @@ Contracts shared with the stochastic path:
 WF4 reserves a pending delta selection in `delta-generation` mode with the authored settings and historical
 location only, then binds the published set. It checks that the set's climate source and historical
 forcing recipe match the WF4 configuration (`simulation_runner.py`). Collection identity and reuse follow
-the [run identity reference](toolbox-run-identity.md#three-identities); the delta producer hashes its own
+the [run identity reference](toolbox-run-identity.md#four-identities); the delta producer hashes its own
 file rather than an import closure. Tests: [`test_delta_scenarios.py`](../../tests/test_delta_scenarios.py),
 [`test_delta_wf2.py`](../../tests/test_delta_wf2.py),
 [`test_delta_annual.py`](../../tests/test_delta_annual.py) and

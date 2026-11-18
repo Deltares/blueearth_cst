@@ -4,7 +4,7 @@ Last updated: 2026-11-17
 
 Use this reference before changing what identifies a scenario collection, a WF4 simulation or an indicator
 set, before editing code inside a producer's pinned closure, and when changing experiment reservation or
-WF4 batch sizing. The [retained-handoffs guide](../../docs/technical-manual/retained-handoffs.md) explains
+WF4 batch sizing. The [saved-results guide](../../docs/technical-manual/saved-results.md) explains
 saved products and reuse to users; the [architecture reference](toolbox-architecture.md) owns workflow
 boundaries. The modules named below own exact schemas and fields.
 
@@ -122,6 +122,9 @@ publication, and indicators-only never allocates. Exact legacy names are admitte
 [`reservation_request.py`][reservation-request] captures the experiment request before producers run:
 selection mode (`project-generation`, `explicit-manifest` or `delta-generation`), catalogs with their root
 context, the generation request (including the generator method revision) and the simulation request.
+Catalog root selection is explicit `meta.root`, the first existing `meta.roots` candidate, or the catalog
+directory. The capture does not load HydroMT or validate every adapter and unit conversion; the workflow
+using those inputs performs those checks.
 `compare_request` refuses the first changed field and names it, suggesting the retained inputs or
 `--new-experiment`. Unclassified `simulate_system`, `compute` and `build_model` fields are refused, so a new
 key must be classified there; see [configuration changes](dev-configuration-changes.md).

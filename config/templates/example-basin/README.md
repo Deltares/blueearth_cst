@@ -41,7 +41,7 @@ climate series. WF2 is optional plausibility context. WF4 requires the model and
 Disabling a workflow leaves earlier products in place; check whether they still match your intended inputs.
 
 For optional station rainfall comparisons, prepare the two CSVs described in the
-[historical analysis reference](../../../docs/technical-manual/workflow-analyze-climate.md#rain-gauges).
+[rain-gauge comparison reference](../../../docs/technical-manual/rain-gauge-comparison.md).
 Then enable `observations.met_stations` in `project_config.yml`. The supplied rain-gauge CSVs are
 synthetic format examples; replace them before interpreting results. Rain gauges have no forcing role.
 
@@ -55,7 +55,7 @@ required variables.
 - `project_config.yml`: shared case settings and workflow enablement.
 - `project_config_<workflow>.yml`: one workflow's settings.
 - `historical-comparison.yml`: optional retained-run comparison; review both directory paths and run names.
-  See [historical hydrology](../../../docs/technical-manual/workflow-build-model.md#compare-retained-historical-runs).
+  See [forcing-set comparison](../../../docs/technical-manual/forcing-comparison.md#compare-recipes).
 - The GCM delta-change alternative is a commented block at the end of
   `project_config_generate_scenarios.yml`; see the
   [delta-change guide](../../../docs/technical-manual/delta-change-scenarios.md).

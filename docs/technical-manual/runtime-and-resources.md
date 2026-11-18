@@ -32,18 +32,16 @@ The reports describe several different quantities:
 | Julia loading and first-member time | Includes startup and compilation that later members may avoid |
 | Allocated bytes | Total allocation activity, not memory retained or peak RAM |
 
-When comparing runs, note the basin size, grid resolution, period, scenario count, retained model
+When comparing runs, note the basin size, grid resolution, period, scenario count, saved model
 variables and CPU settings. Also check which outputs were reused. A larger ensemble may spread
 startup costs over more simulations, so multiplying a small run's duration is only a rough estimate.
 
 Compilation and garbage collection are already included in wall time; do not add them again.
-Older records without measured elapsed seconds remain unavailable.
 
 ## Inspect simulation resource use
 
-Workflow (WF) 4 records resource diagnostics during execution. Dry runs do not collect them.
-Find the hydrological simulation child invocation's `resources` links and read the traces alongside its logs
-to
+Hydrological simulation records resource diagnostics during execution. Dry runs do not collect them.
+Find the hydrological simulation child record's `resources` links and read the traces alongside its logs to
 distinguish forcing preparation, hydrological simulation and indicator evaluation.
 
 Use these measurements to identify likely pressure on CPU, memory or storage. They are sampled
@@ -59,7 +57,7 @@ the optional `compute` settings in `project_config_simulate_system.yml`: batch s
 batches, Julia threads and disk headroom. Start with automatic allocation and change settings
 in response to measured constraints.
 
-Larger basins, longer periods, more realizations and additional retained variables all affect
+Larger basins, longer periods, more realizations and additional saved variables all affect
 resource requirements. Test a manageable configuration before expanding the assessment, then
 inspect the new summary to see whether the adjustment helped.
 
@@ -67,4 +65,4 @@ These reports measure execution, not scientific adequacy. Use the model and indi
 [Reading the outputs](../guide/outputs.md) before interpreting the results.
 
 For exact file names, fields and collection limits, see the
-[execution reference](execution-and-provenance.md).
+[execution reference](run-records.md).

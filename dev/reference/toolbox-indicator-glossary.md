@@ -174,7 +174,7 @@ indicators with equal weight and NaN propagation; return levels pool member-loca
 An empty `value` with `undefined` is a calculated NaN; an empty `value` with `unavailable` names a
 missing input or a data refusal (such as too few annual blocks) in `reason`. Neither is zero. A missing response can also exclude a calculation from value
 tables while retaining its declaration and reason in the manifest and named dictionary. See
-[retained handoffs](../../docs/technical-manual/retained-handoffs.md) for current table and reuse rules.
+[saved results](../../docs/technical-manual/saved-results.md) for current table and reuse rules.
 
 Axis columns are derived at reporting time rather than stored in indicator tables. `precip_change`
 in the perturbation lookup is a percent.

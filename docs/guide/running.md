@@ -24,9 +24,9 @@ $project_dir = 'C:/cst-cases/my-basin/default/outputs'
 pixi run python scripts/run_workflows.py --config $config --cores 3
 ```
 
-The [run command](glossary.md#run-command) executes workflows set to `true` under `workflows:` in this order: historical
-climate analysis, model building, projection analysis, scenario generation, then hydrological simulations and
-indicators.
+The [run command](glossary.md#run-command) executes workflows set to `true` under `workflows:` in this order:
+historical climate analysis, model building, projection analysis, scenario generation, then hydrological
+simulations and indicators.
 
 **Check the opening summary:** confirm the configuration and output directory (`project.project_dir`).
 The command uses up to three CPU cores; increasing `--cores` can also increase memory use.
@@ -34,12 +34,9 @@ The command uses up to three CPU cores; increasing `--cores` can also increase m
 Append `-- --dry-run` for a preview (dry run) of the planned tasks without executing them. On a first run,
 some later tasks cannot be fully planned until earlier workflows have produced their inputs.
 
-Run only the workflows you need. Hydrological simulations require a prepared model and generated
-scenarios. Projections provide context without driving scenario generation. Historical climate analysis
-can run on its own to help you choose forcing.
-
-Disabling a workflow leaves its existing results in place. Before reusing them, check that they
-represent the basin, forcing and model you intend to assess.
+Run only the workflows you need; the [quick start](quick-start.md#understand-what-the-example-runs) lists
+what each workflow needs. A disabled workflow keeps its existing results; check that they still match your
+basin, forcing and model before reusing them.
 
 ## Run one workflow
 
@@ -80,41 +77,44 @@ included; only the latest preview of each scope is kept. To remove old log folde
 
 ## Select, resume or create an experiment
 
-An [experiment](glossary.md#experiment) groups hydrological simulations made with a particular model, set of
-climate scenarios and scientific simulation settings. Its results are stored under `experiments/<name>/`.
+An [experiment](glossary.md#experiment) groups hydrological simulations made with one model, one
+[scenario set](glossary.md#scenario-set) and one set of scientific simulation settings. Its results are stored
+under `experiments/<name>/`.
 
-**First experiment:** leave `experiment_name` unset in `project_config_simulate_system.yml`;
-the toolbox starts with `stress_test_01`. Running the same command again selects the highest
-experiment number already assigned and reuses completed work when its inputs still match.
+### First experiment {#run-your-first-experiment}
 
-**Interrupted run:** keep its configuration and rerun the command. Use the
-[interruption and lock guidance](troubleshooting.md#a-project-is-locked-or-a-run-was-interrupted) if the run
-command reports incomplete jobs or a stale lock.
+Leave `experiment_name` unset in `project_config_simulate_system.yml` and run the command above. The toolbox
+names the experiment `stress_test_01`. Running the same command again selects the highest experiment number
+already assigned and reuses completed work while its inputs still match.
 
-**Changed inputs:** start a new experiment when you change the model, climate scenarios or scientific
-simulation settings, so previous results remain available:
+### Interrupted run {#continue-after-an-interruption}
+
+Keep the configuration unchanged and rerun the same command. If the run command reports incomplete jobs or a
+stale lock, follow
+[A project is locked or a run was interrupted](troubleshooting.md#a-project-is-locked-or-a-run-was-interrupted).
+If it reports an interrupted experiment number allocation and suggests `--recover-reservation`, read
+[Run records](../technical-manual/run-records.md#launcher-arguments-and-safety-boundaries)
+before using that option.
+
+### Changed inputs {#start-a-new-experiment-after-changing-inputs}
+
+Start a new experiment when you change the model, the climate scenarios or a scientific simulation setting,
+including `include_unperturbed`. Previous results stay available:
 
 ```powershell
 pixi run python scripts/run_workflows.py --config $config --cores 3 --new-experiment --note "revised perturbation grid"
 ```
 
-The run command refuses incompatible changes to an existing experiment. Forcing jobs to rerun does not resolve
-that mismatch. Changing indicator choices or resource settings alone does not require a new scientific
-experiment.
+If you rerun without `--new-experiment` after such a change, the run command refuses because the inputs no
+longer match the experiment. Changing only the indicator choices or resource settings does not need a new
+experiment. A new experiment reuses previously generated climate scenarios when they are complete and
+unchanged, so it does not necessarily regenerate weather.
 
-To use a different naming family, set `experiment_name: drought`; its experiments are numbered
-`drought_01`, `drought_02`, and so on. An exact numbered name selects that experiment and cannot
-be combined with `--new-experiment`. A new experiment can reuse previously generated climate scenarios
-if they are complete and unchanged; it does not necessarily regenerate weather.
+### Experiment names {#name-experiments}
 
-Keep `include_unperturbed: true` when your indicators need an
-[unperturbed reference](glossary.md#unperturbed-reference) simulation. Setting it to `false` omits those
-simulations, and changing this choice requires a new experiment. All generated climate scenarios remain
-available.
-
-For an interrupted experiment number allocation, consult the
-[execution reference](../technical-manual/execution-and-provenance.md) before using `--recover-reservation`.
-That option is not a repair tool for partial weather generation or damaged model-response files.
+To use your own naming family, set `experiment_name: drought` in `project_config_simulate_system.yml`; its
+experiments are numbered `drought_01`, `drought_02`, and so on. To return to one experiment, set its exact
+numbered name, such as `experiment_name: drought_01`, and run without `--new-experiment`.
 
 ## Use a calibrated model
 
@@ -127,7 +127,7 @@ You can calculate additional indicators without rerunning the hydrological model
 experiment saved all required model variables. In `project_config_simulate_system.yml`, select the
 existing experiment and request indicators only:
 
-```yaml
+```{.yaml filename="project_config_simulate_system.yml (excerpt)"}
 experiment_name: stress_test_01
 steps:
   simulations: false
@@ -156,5 +156,6 @@ folders, see [Advanced tasks](advanced-tasks.md).
 
 ## Next
 
-- [Read the outputs](outputs.md) to connect indicators with their climate conditions.
+- [Read the outputs](outputs.md) to check maps and diagnostics, and the
+  [stress-test results](results.md) to connect indicators with their climate conditions.
 - [Troubleshoot a failed run](troubleshooting.md) using its summary and logs.

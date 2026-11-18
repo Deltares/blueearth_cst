@@ -10,8 +10,8 @@ regular time step.
 
 | Dataset | Model contribution | Spatial representation | Time representation | Assessment sensitivity |
 |---|---|---|---|---|
-| [MERIT Hydro v1.0][merit] | Terrain and drainage | 3 arc-seconds (~90 m) | Static | Basin extent, upstream area, routing, and location identity can change with the hydrography or snapping rules |
-| [MERIT Hydro IHU v1.0][ihu] | Upscaled hydrography | 30 arc-seconds (~1 km) | Static | Basin extent, upstream area, routing, and location identity can change with the hydrography or snapping rules |
+| [MERIT Hydro v1.0][merit] | Terrain and drainage | 3 arc-seconds (~90 m) | Static | Basin extent, upstream area, routing, and location IDs can change with the hydrography or snapping rules |
+| [MERIT Hydro IHU v1.0][ihu] | Upscaled hydrography | 30 arc-seconds (~1 km) | Static | Basin extent, upstream area, routing, and location IDs can change with the hydrography or snapping rules |
 | [Lin river data v1][lin] | Channel geometry | River-reach polylines | Static; 2019 release | Flow travel time and channel response can change |
 | [GlobCover v2.3][globcover] | Land-cover parameters | 300 m raster | 2009 map | Interception, evapotranspiration, infiltration and runoff partitioning can change |
 | [MODIS MCD15A3H][modis] | Seasonal vegetation | 500 m native grid | 4-day composites | Evapotranspiration and interception behavior can change |
@@ -20,28 +20,38 @@ regular time step.
 | [GRanD v1.1][grand] | Reservoir attributes | Dam points and polygons | Static inventory | Storage and routed flows can change, especially in regulated basins |
 | [RGI v6.0][rgi] | Glacier extent | Glacier polygons | Static; 2017 release | Snow and ice contributions to seasonal flow can change |
 
-**Hydrography.** MERIT Hydro supplies terrain and drainage information for basin delineation, with
-the configured IHU entry using the coarser 30 arc-second product. Lin's river data add width and
-bankfull discharge estimates for channels wider than 30 m; this threshold is not a grid resolution.
+## Hydrography
 
-**Land cover and vegetation.** GlobCover supplies the default land-cover classes, while MODIS LAI
-provides seasonal vegetation information from Collection 6 observations extracted for 2003–2017.
-The base catalog also includes [Copernicus Global Land Cover][vito], a 100 m alternative for 2015.
+MERIT Hydro supplies terrain and drainage information for basin delineation, with the configured IHU entry
+using the coarser 30 arc-second product. Lin's river data add width and bankfull discharge estimates for
+channels wider than 30 m; this threshold is not a grid resolution.
 
-**Soils.** SoilGrids 2017 provides properties at seven depths from 0 to 200 cm for estimating soil
-storage and hydraulic parameters. The prepared soil-thickness layer also uses the
-[European Soil Database v2.0][esdac] for Eurasia.
+## Land cover and vegetation
 
-**Waterbodies and glaciers.** HydroLAKES and GRanD describe lake and reservoir extent and storage;
-the prepared reservoir data also use [JRC Global Surface Water][jrc] at 30 m for 1984–2015.
-RGI provides static glacier outlines, and the model recipes apply area thresholds when selecting
-lakes, reservoirs and glaciers.
+GlobCover supplies the default land-cover classes, while MODIS LAI provides seasonal vegetation information
+from Collection 6 observations extracted for 2003–2017. The base catalog also includes
+[Copernicus Global Land Cover][vito], a 100 m alternative for 2015.
+
+## Soils
+
+SoilGrids 2017 provides properties at seven depths from 0 to 200 cm for estimating soil storage and hydraulic
+parameters. The prepared soil-thickness layer also uses the [European Soil Database v2.0][esdac] for Eurasia.
+
+## Waterbodies and glaciers
+
+HydroLAKES and GRanD describe lake and reservoir extent and storage; the prepared reservoir data also use
+[JRC Global Surface Water][jrc] at 30 m for 1984–2015. RGI provides static glacier outlines, and the build
+configuration files apply area thresholds when selecting lakes, reservoirs and glaciers.
+
+## Checks on the built model
 
 Check the resulting drainage network, basin boundaries and major waterbodies against local information,
 especially where a small spatial error could move an outlet or change upstream area.
 Resampling these sources to the model grid does not improve their underlying resolution or accuracy.
 The model grid resolution is therefore a computational choice, not a statement of the effective resolution
 of soil, land-cover, or river parameters.
+
+## Locator map
 
 `config/basemap/natural_earth_50m.gpkg` is a vendored locator-map asset, not basin forcing or model data.
 Its [local README](../../config/basemap/README.md) describes the map source and preparation.

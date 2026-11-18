@@ -9,44 +9,52 @@ If no summary was produced, read the PowerShell output or `console.log`.
 Find the matching symptom below. Keep the configuration and logs while diagnosing the problem;
 deleting outputs can remove evidence and force unnecessary reruns.
 
-1. [Python or shell command is unavailable](#python-or-shell-command-is-unavailable)
-2. [Julia or weathergenr is unavailable](#julia-or-weathergenr-is-unavailable)
-3. [The case folder is missing or already exists](#the-case-folder-is-missing-or-already-exists)
-4. [The delineated basin is unexpected](#the-delineated-basin-is-unexpected)
-5. [A catalog root is missing](#a-catalog-root-is-missing)
-6. [CMIP6 data cannot be downloaded](#cmip6-data-cannot-be-downloaded)
-7. [A project is locked or a run was interrupted](#a-project-is-locked-or-a-run-was-interrupted)
-8. [An experiment refuses changed inputs](#an-experiment-refuses-changed-inputs)
-9. [The preview is partial or an indicator value is missing](#the-preview-is-partial-or-an-indicator-value-is-missing)
-10. [Memory or performance is a concern](#memory-or-performance-is-a-concern)
-11. [If you need further help](#if-you-need-further-help)
+- [Python or shell command is unavailable](#python-or-shell-command-is-unavailable)
+- [Julia or weathergenr is unavailable](#julia-or-weathergenr-is-unavailable)
+- [The case folder is missing or already exists](#the-case-folder-is-missing-or-already-exists)
+- [The delineated basin is unexpected](#the-delineated-basin-is-unexpected)
+- [A catalog root is missing](#a-catalog-root-is-missing)
+- [CMIP6 data cannot be downloaded](#cmip6-data-cannot-be-downloaded)
+- [A project is locked or a run was interrupted](#a-project-is-locked-or-a-run-was-interrupted)
+- [An experiment refuses changed inputs](#an-experiment-refuses-changed-inputs)
+- [The preview is partial or an indicator value is missing](#the-preview-is-partial-or-an-indicator-value-is-missing)
+- [Memory or performance is a concern](#memory-or-performance-is-a-concern)
+- [If you need further help](#if-you-need-further-help)
 
-## 1. Python or shell command is unavailable {#python-or-shell-command-is-unavailable}
+## Python or shell command is unavailable {#python-or-shell-command-is-unavailable}
 
 If PowerShell reports `Python was not found`, run the command with `pixi run` from the `blueearth_cst` folder.
 If entering `pixi shell` is blocked by script policy, use `pixi run` directly; it does not require
 changing PowerShell execution policy. Confirm installation with the [setup checks](install.md).
 
-## 2. Julia or weathergenr is unavailable {#julia-or-weathergenr-is-unavailable}
+## Julia or weathergenr is unavailable {#julia-or-weathergenr-is-unavailable}
 
-1. Check `julia +1.11.7 --version`. Install that version with `juliaup add 1.11.7` if it is missing.
-   Julia must be on `PATH`; it is not installed inside Pixi. Reopen PowerShell after installation
-   so it picks up the updated environment.
-2. Run `pixi run install` to complete the pinned R/Julia layers.
-   The project uses its own R library, not a separately installed personal R library.
-3. Repeat the failed command after installation. If installation itself fails, read the specific
-   error before adding other tools: an Rtools message alone does not mean that the weather-generator
-   package requires a separate Rtools installation.
+**Symptom:** scenario generation stops with `there is no package called 'weathergenr'`, or a model run cannot
+find Julia or Wflow.
 
-For Julia `Access is denied` or `directory not empty` errors, see the diagnosed installation fixes in
-[environment maintenance](../../dev/scripts/environment-notes.md).
-Use those remedies for the diagnosed symptom, not as an automatic prerequisite for every installation.
+**Cause:** the weather generator and the Julia packages for Wflow are installed by `pixi run install`, not by
+`pixi install`. Julia itself comes from juliaup and must be on `PATH`, outside Pixi.
 
-## 3. The case folder is missing or already exists {#the-case-folder-is-missing-or-already-exists}
+**Fix:** check `julia +1.11.7 --version` and, if it fails, run `juliaup add 1.11.7` and reopen PowerShell.
+Then run `pixi run install` and repeat the failed command. The toolbox uses its own R library, not a personal
+one. If the installation itself fails, read its specific error: an Rtools message alone does not mean the
+weather generator needs a separate Rtools installation.
 
-[Case](glossary.md#case) creation stops with `Cannot create trial:` followed by the reason. It writes no files
-when it refuses. Find the reason below, then follow [Creating a project](new-case.md#create-the-case-files)
-for the complete command. Append `--dry-run` to check a corrected command without writing.
+### Julia installation file locks {#julia-installation-reports-access-is-denied}
+
+**Symptom:** installing Julia or its packages fails with `Access is denied` or `directory not empty`.
+
+**Cause:** Windows Defender real-time scanning can lock files while Julia moves them into place.
+
+**Fix:** see the diagnosed installation fixes in
+[environment maintenance](../../dev/scripts/environment-notes.md). Use those remedies for the diagnosed
+symptom, not as an automatic prerequisite for every installation.
+
+## The case folder is missing or already exists {#the-case-folder-is-missing-or-already-exists}
+
+[Case](glossary.md#case) creation stops with `Cannot create trial:` followed by the reason, and writes no
+files. Find the reason below and correct the [command](new-case.md#create-the-case-files); append `--dry-run`
+to check it without writing.
 
 - **`--cases-root must name an existing absolute directory`.** The cases folder does not exist, or the path is
   relative. Create the folder, then pass its full path, such as `C:/cst-cases`:
@@ -62,29 +70,25 @@ for the complete command. Append `--dry-run` to check a corrected command withou
   hyphens, such as `my-basin` or `v2`. Names the toolbox uses for its own folders (`data`, `outputs`, `logs`,
   `cache`, `applications`, `runs`, `trials`, `templates`) and Windows device names such as `con` or `nul` are
   refused.
-- **`Legacy split-layout case exists`** or **`Legacy flat case detected`.** A case with this name already
-  exists in an older layout: under `applications/` or `runs/` in the cases folder, or with
-  `project_config.yml` directly in the case folder. Choose a new case name, or first copy the old case into a
-  named trial, following
-  [Copy and verify an existing case](../technical-manual/changes-and-migration.md#copy-and-verify-an-existing-case).
 - **`A new case requires --longitude and --latitude`.** Supply both coordinates when creating the first trial
   of a case. For a later trial, omit them or repeat the case's own values; different coordinates are refused.
 
-## 4. The delineated basin is unexpected {#the-delineated-basin-is-unexpected}
+## The delineated basin is unexpected {#the-delineated-basin-is-unexpected}
 
-Review the outlet coordinates and `basin.region` upstream-area threshold. Coordinates are longitude followed
-by latitude; the `uparea` threshold is not a prescribed catchment area. Check the resulting boundary, river
-network and [reporting locations](glossary.md#reporting-location), especially near a confluence, before
-continuing.
+**Symptom:** the basin boundary, river network or [reporting locations](glossary.md#reporting-location) do not
+match the catchment you expect.
 
-If the point falls on an isolated drainage cell, search for an outlet within an area as described below.
+**Cause:** usually the outlet coordinates (longitude comes before latitude) or the `uparea` threshold in
+`basin.region`, which is a minimum upstream area, not the catchment area.
+
+**Fix:** correct them and check the new boundary, especially near a confluence, before continuing. If the
+outlet falls on an isolated drainage cell, search for an outlet within an area as described below.
 
 ### Search for an outlet within an area {#search-for-an-outlet-within-an-area}
 
-If an approximate outlet falls on an isolated drainage cell, use a `subbasin` search box.
-HydroMT expects coordinates in west, south, east, north order:
+Use a `subbasin` search box instead of a point. HydroMT expects coordinates in west, south, east, north order:
 
-```yaml
+```{.yaml filename="project_config.yml (excerpt)"}
 basin:
   region: "{'subbasin': [29.81375, 31.12208, 29.87375, 31.18208], 'uparea': 100}"
   sources:
@@ -92,41 +96,38 @@ basin:
     basin_index: merit_hydro_ihu_index
 ```
 
-Use a matching hydrography/index available in your catalog.
-The box searches for outlets; upstream catchments can extend outside it and several rivers can select
-several basins. It is distinct from the `bounds` argument limiting available hydrography.
-Inspect the result before downstream runs. This search does not revise your output-location CSV.
-Record any manual coordinate correction in case notes.
+Use a hydrography and index pair available in your catalog. The box searches for outlets: upstream catchments
+can extend outside it, and several rivers can select several basins. It is distinct from the `bounds` argument
+that limits available hydrography. It does not change your reporting-location file. Inspect the result before
+running further workflows, and record any manual coordinate correction in the case notes.
 
-## 5. A catalog root is missing {#a-catalog-root-is-missing}
+## A catalog root is missing {#a-catalog-root-is-missing}
 
-For `None of the specified roots were found`, inspect the catalogs named by `project.catalog`.
-For the supplied P-drive catalog:
+**Symptom:** `None of the specified roots were found`, or a named dataset cannot be found.
 
-```powershell
-Test-Path 'P:\wflow_global\hydromt'
-```
+**Cause:** the data folders named by `project.catalog` are not reachable, or a source name or coverage does
+not match the catalog. Installing the toolbox does not install datasets.
 
-Mount the drive or choose a catalog that points to available data, then check source names and coverage.
-Installing software does not install those datasets. A different catalog is not automatically equivalent
-scientific input; review the source choice before reusing results.
+**Fix:** for the supplied P-drive catalog, check access with `Test-Path 'P:\wflow_global\hydromt'` and mount
+the drive, or choose a catalog that points to data you can reach. Then check that the names under
+`basin.sources` and `climate.forcings` in the [project file](glossary.md#project-file) match catalog entries
+that cover your basin and period; see
+[Define the catchment and data sources](new-case.md#define-the-catchment-and-data-sources). Another catalog is
+not automatically equivalent scientific input: review the source choice before reusing results.
 
-If the catalog is accessible but a dataset cannot be found, check that the configured source name matches an
-entry in the catalog and that the dataset covers the basin and analysis period. Review `basin.sources` and
-`climate.forcings` in the [project file](glossary.md#project-file); see
-[Define the catchment and data sources](new-case.md#define-the-catchment-and-data-sources).
+## CMIP6 data cannot be downloaded {#cmip6-data-cannot-be-downloaded}
 
-## 6. CMIP6 data cannot be downloaded {#cmip6-data-cannot-be-downloaded}
+**Symptom:** projection analysis fails while fetching CMIP6 data.
 
-Repeat the CMIP6 access check in the [installation guide](install.md). If access fails, check your
-internet connection and any network restrictions. If access succeeds but the workflow still fails,
-inspect its projection log for the model, experiment, variable and period involved.
+**Cause:** no internet access to the data source, or a requested model, experiment, variable or period that
+the configured catalog does not provide.
 
-Check that the requested combination is available in the configured catalog. Do not interpret an
-excluded model or missing period as zero climate change. After resolving access or selection issues,
-rerun the workflow and check the reported coverage.
+**Fix:** repeat the CMIP6 access check in the [installation guide](install.md); if it fails, check your
+connection and network restrictions. If it succeeds, read the projection log for the combination involved and
+check it against the catalog, then rerun and check the reported coverage. An excluded model or missing period
+is not zero climate change.
 
-## 7. A project is locked or a run was interrupted {#a-project-is-locked-or-a-run-was-interrupted}
+## A project is locked or a run was interrupted {#a-project-is-locked-or-a-run-was-interrupted}
 
 1. Confirm that the previous run has stopped and no other process is writing to the same project.
 2. Use the same toolbox folder and case configuration. Replace the example path below with your own;
@@ -148,38 +149,46 @@ rerun the workflow and check the reported coverage.
    model-response files, keep the logs for diagnosis; [experiment](glossary.md#experiment) number recovery
    does not repair them.
 
-Use [experiment recovery](running.md#select-resume-or-create-an-experiment) for an interrupted experiment
+Use [experiment recovery](running.md#continue-after-an-interruption) for an interrupted experiment
 number allocation. Do not recycle allocated experiment numbers or delete locks while a run is active.
 
 ### Windows stops advancing after successful climate-projection writes
 
-If fetch logs report successful CMIP6 writes but Snakemake stops reporting completed jobs, keep the console
-log before stopping the run. After the old process has stopped, use the incomplete-job resume command above
-with the same configuration. Preserve the CMIP6 cache and completed outputs; do not use `--rebuild` for this
-symptom. For diagnosis, see the socket-pair notes in
+**Symptom:** fetch logs report successful CMIP6 writes, but the workflow engine stops reporting completed
+jobs, or the run command reports `Windows socket-pair setup timed out after 3 attempts`.
+
+**Fix:** keep the console log, stop the run, then resume with the incomplete-job command above and the same
+configuration. Keep the CMIP6 cache and completed outputs; do not use `--rebuild` for this symptom. For
+diagnosis, see the socket-pair notes in
 [environment maintenance](../../dev/scripts/environment-notes.md#windows-socket-pair-stalls-after-climate-projection-writes).
 
-## 8. An experiment refuses changed inputs {#an-experiment-refuses-changed-inputs}
+## An experiment refuses changed inputs {#an-experiment-refuses-changed-inputs}
 
-Review changes to the model, climate scenarios and simulation settings.
-Use `--new-experiment` when scientific inputs changed. Keep previous results for comparison and traceability.
-For different indicators over intact completed responses, use the
-[indicators-only procedure](running.md#calculate-different-indicators-from-existing-simulations).
-It does not supply missing model outputs. Check [indicator inputs](outputs.md#reading-an-indicator-set).
+**Symptom:** the run command refuses to continue an existing [experiment](glossary.md#experiment).
 
-## 9. The preview is partial or an indicator value is missing {#the-preview-is-partial-or-an-indicator-value-is-missing}
+**Cause:** the model, climate scenarios or scientific simulation settings changed since the experiment
+started.
+
+**Fix:** start a new experiment with `--new-experiment`, keeping the previous results for comparison; see
+[Changed inputs](running.md#start-a-new-experiment-after-changing-inputs). For different indicators
+over completed simulations, use the
+[indicators-only procedure](running.md#calculate-different-indicators-from-existing-simulations); it does not
+supply missing model outputs. Check [indicator inputs](results.md#check-status-before-value).
+
+## The preview is partial or an indicator value is missing {#the-preview-is-partial-or-an-indicator-value-is-missing}
 
 **Partial preview:** some tasks need files produced by earlier workflows before they can be planned.
 On a first run, a preview may report pending inputs rather than show the entire downstream plan.
 Check whether the message describes an expected dependency or a configuration error that stops the command.
 
-**Missing indicator value:** read `status` and `reason` in the result tables, then check whether the required
-response variable, threshold and [unperturbed reference](glossary.md#unperturbed-reference) run were supplied.
+**Missing indicator value:** read [`status` and `reason`](results.md#check-status-before-value) in the result
+tables, then check whether the required response variable, threshold and
+[unperturbed reference](glossary.md#unperturbed-reference) run were supplied.
 For historical flow-threshold preparation, read the
 [crop-water requirements](../../blueearth_cst/indicators/sets/crop_water/README.md). Distinguish `undefined`
 from `unavailable` using the result's status/reason and set conventions.
 
-## 10. Memory or performance is a concern {#memory-or-performance-is-a-concern}
+## Memory or performance is a concern {#memory-or-performance-is-a-concern}
 
 Lower `--cores` if several jobs compete for memory. Basin size, saved model variables, simulation period
 and scenario count all affect memory and disk needs.
@@ -187,7 +196,7 @@ and scenario count all affect memory and disk needs.
 For hydrological simulations, review `compute` settings before increasing concurrent simulation batches.
 Use [runtime and resource measurements](../technical-manual/runtime-and-resources.md) to guide adjustments.
 
-## 11. If you need further help {#if-you-need-further-help}
+## If you need further help {#if-you-need-further-help}
 
 Share the following, with credentials and private paths removed:
 

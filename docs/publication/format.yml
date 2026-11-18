@@ -4,19 +4,30 @@ execute:
 engine: markdown
 toc: true
 toc-depth: 3
-number-sections: false
+number-sections: true
+number-depth: 3
 format:
   html:
     theme: cosmo
     embed-resources: true
     code-copy: true
     code-overflow: wrap
+    # Section numbers end with a dot (1., 1.1.), as on the website.
+    include-in-header:
+      - text: |
+          <style>.header-section-number::after { content: "."; }</style>
   typst:
+    # Typst ignores number-depth and defaults to 1.1.a: use digits ending with a dot, and number three
+    # levels only (the show rules below).
+    section-numbering: "1.1.1."
     toc-indent: 0em
     include-before-body:
       - text: |
           #set par(justify: false)
           #set align(left)
+          #show heading.where(level: 4): set heading(numbering: none)
+          #show heading.where(level: 5): set heading(numbering: none)
+          #show heading.where(level: 6): set heading(numbering: none)
     papersize: a4
     fontsize: 11pt
     margin:
