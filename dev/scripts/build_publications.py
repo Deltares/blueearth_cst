@@ -39,6 +39,19 @@ def _prose(text: str, transform: Callable[[str], str]) -> str:
     return "".join(part if i % 2 else transform(part) for i, part in enumerate(parts))
 
 
+def _drop_empty_anchors(text: str) -> str:
+    """Remove empty anchor spans ``[]{#id}`` from prose; span-only lines go whole."""
+    span = r"\[\]\{#[^}\s]+\}"
+
+    def prose(part: str) -> str:
+        part = re.sub(
+            rf"^[ \t]*(?:{span}[ \t]*)+(?:\n|\Z)", "", part, flags=re.MULTILINE
+        )
+        return re.sub(span, "", part)
+
+    return _prose(text, prose)
+
+
 def _links(text: str, replace: Callable[[str], str]) -> str:
     """Rewrite inline/reference Markdown links and literal HTML href/src values."""
 
@@ -392,7 +405,9 @@ def prepare_publications(source_root: Path) -> tuple[dict[str, bytes], dict[str,
         parts = []
         for path in volumes[name]:
             chapter = sources[path]
-            body = chapter["combined"]
+            # Old-address anchors serve only the website; in Typst a bare label
+            # replaces the preceding heading's label and breaks links to it.
+            body = _drop_empty_anchors(chapter["combined"])
             # README H1 is the chapter title; preserve it once, with its namespaced ID.
             if body.startswith("# "):
                 body = re.sub(r"^# [^\n]+\n", "", body, count=1).lstrip("\n")
