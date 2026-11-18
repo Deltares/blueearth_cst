@@ -17,7 +17,7 @@ def observation_parser(
 ) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=description)
     parser.epilog = (
-        f"Example: pixi run python dev/scripts/{parser.prog} "
+        f"Example: pixi run python dev/scripts/fixtures/{parser.prog} "
         "--locations location_registry.csv --start 2000-01-02 --end 2001-01-01 "
         "--seed 42 --out synthetic-fixture"
     )

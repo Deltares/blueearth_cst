@@ -12,7 +12,7 @@ from blueearth_cst.climate_analysis.rain_gauges import read_precip, read_station
 from blueearth_cst.model.historical_comparison import read_observations
 from blueearth_cst.model.observation_validation import validate_observation_station_ids
 
-SCRIPTS = Path(__file__).resolve().parents[1] / "dev/scripts"
+SCRIPTS = Path(__file__).resolve().parents[1] / "dev/scripts/fixtures"
 
 
 def test_synthetic_generators_round_trip_through_observation_readers(tmp_path):
