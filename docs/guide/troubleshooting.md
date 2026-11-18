@@ -166,11 +166,12 @@ number allocation. Do not recycle allocated experiment numbers or delete locks w
 ### Windows stops advancing after successful climate-projection writes
 
 **Symptom:** fetch logs report successful CMIP6 writes, but the workflow engine stops reporting completed
-jobs.
+jobs, or the run command reports `Windows socket-pair setup timed out after 3 attempts`.
 
 **Fix:** keep the console log, stop the run, then resume with the incomplete-job command above and the same
-configuration. Keep the CMIP6 cache and completed outputs; do not use `--rebuild` for this symptom. If the
-stall recurs, report it with the details in [section 11](#if-you-need-further-help).
+configuration. Keep the CMIP6 cache and completed outputs; do not use `--rebuild` for this symptom. For
+diagnosis, see the socket-pair notes in
+[environment maintenance](../../dev/scripts/environment-notes.md#windows-socket-pair-stalls-after-climate-projection-writes).
 
 ## 8. An experiment refuses changed inputs {#an-experiment-refuses-changed-inputs}
 
