@@ -46,13 +46,13 @@ separately for each
 generated scenario. For ERA5 and CHIRPS, HydroMT-Wflow calculates PET with the De Bruin method.
 When CHIRPS supplies precipitation, ERA5 supplies the accompanying temperature, pressure and radiation.
 
-**Carrying weather variables together.** scenario generation selects historical days to construct each
-realization.
-It applies the same day sequence to every variable and every cell of the extracted climate grid,
-including the surrounding cells needed for regridding. Pressure and radiation therefore vary from
-day to day and between realizations. They are resampled historical values, not fixed monthly averages
-or independently generated weather. The subsequent perturbation changes precipitation and temperature
-while leaving the associated pressure and radiation values unchanged.
+### Shared day sequence
+
+Scenario generation selects historical days to construct each realization. It applies the same day sequence to
+every variable and every cell of the extracted climate grid, including the surrounding cells needed for
+regridding. Pressure and radiation therefore vary from day to day and between realizations. They are resampled
+historical values, not fixed monthly averages or independently generated weather. The subsequent perturbation
+changes precipitation and temperature while leaving the associated pressure and radiation values unchanged.
 
 | Quantity | Treatment in the supplied stress-test pathway |
 |---|---|
@@ -65,28 +65,33 @@ while leaving the associated pressure and radiation values unchanged.
 See [Weathergenr](weather-generation.md#climate-perturbations-and-temporal-trajectories) for the
 perturbation settings and their default variance behavior.
 
-**Preparing the model grid.** HydroMT-Wflow reprojects precipitation and temperature, corrects
-temperature for differences between forcing-grid and model-grid elevation, and adjusts sea-level
-pressure to model elevation. Hydrological simulation enables both temperature and pressure corrections and
-supplies the
-forcing source's elevation grid. HydroMT then computes PET from the adjusted temperature and pressure
-and the resampled radiation. Wflow reads the resulting precipitation, temperature and PET fields.
-The supplied generator settings set `compute_pet: false`; its Hargreaves option does not determine
-the PET used by Wflow.
+### Model-grid preparation
 
-**What warming changes.** De Bruin PET depends on temperature through the saturation-vapour-pressure
-curve, latent heat of vaporization and the psychrometric term, as well as on pressure and radiation.
-PET is therefore recalculated after warming; it is not held fixed or multiplied by a prescribed
-percentage. Precipitation is not a direct input to this PET calculation. For two scenarios using the
-same realization and temperature settings, changing precipitation alone leaves PET unchanged, while
-Wflow's actual evapotranspiration can change through water availability.
+HydroMT-Wflow reprojects precipitation and temperature, corrects temperature for differences between
+forcing-grid and model-grid elevation, and adjusts sea-level pressure to model elevation. Hydrological
+simulation enables both temperature and pressure corrections and supplies the forcing source's elevation grid.
+HydroMT then computes PET from the adjusted temperature and pressure and the resampled radiation. Wflow reads
+the resulting precipitation, temperature and PET fields. The supplied generator settings set `compute_pet:
+false`; its Hargreaves option does not determine the PET used by Wflow.
 
-This experiment retains resampled historical radiation and pressure while imposing temperature and
-rainfall changes. It does not prescribe future cloudiness or pressure changes, or explicitly represent
-humidity and wind changes in the De Bruin calculation. The original same-day relationships are
-retained during resampling but need not remain physically representative after large perturbations.
-Review the simulated water balance with this assumption in mind. Enable `plotting.forcing_figures: true` in the
-model-building YAML when model-grid forcing figures are needed alongside historical climate diagnostics.
+### Effect of warming
+
+De Bruin PET depends on temperature through the saturation-vapour-pressure curve, latent heat of vaporization
+and the psychrometric term, as well as on pressure and radiation. PET is therefore recalculated after warming;
+it is not held fixed or multiplied by a prescribed percentage. Precipitation is not a direct input to this PET
+calculation. For two scenarios using the same realization and temperature settings, changing precipitation
+alone leaves PET unchanged, while Wflow's actual evapotranspiration can change through water availability.
+
+### Fixed radiation and pressure
+
+This experiment keeps resampled historical radiation and pressure while imposing temperature and rainfall
+changes. It does not prescribe future cloudiness or pressure changes, or explicitly represent humidity and
+wind changes in the De Bruin calculation. The original same-day relationships are kept during resampling but
+need not remain physically representative after large perturbations. Review the simulated water balance with
+this assumption in mind.
+
+Enable `plotting.forcing_figures: true` in the model-building YAML when model-grid forcing figures are needed
+alongside historical climate diagnostics.
 
 ## Assumptions and limitations
 

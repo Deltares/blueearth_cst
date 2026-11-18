@@ -46,6 +46,8 @@ including both bounds. The same level index selects all twelve months, so a leve
 pattern, not twelve independent choices. Every temperature level is paired with every precipitation
 level. With one level, the minimum is used.
 
+### Temperature and precipitation adjustment
+
 Temperature offsets are added equally to daily mean, minimum and maximum temperature; the supplied
 settings therefore leave the daily temperature range unchanged. Precipitation is adjusted through
 Gamma quantile mapping of positive daily amounts, fitted using the method of moments. The supplied
@@ -54,20 +56,23 @@ precipitation cap or floor. Its intensity threshold is zero; this differs from h
 default 1 mm/day
 threshold for reporting wet days.
 
-**Variance control.** In the supplied generator settings, `scale_var_with_mean: true` sets the target wet-day
-variance factor to the square of the precipitation mean factor. For a constant mean factor of 1.2,
-the variance factor is 1.44. Separate `precip.variance.min/max` values are passed to the generator but
-ignored under this setting. To use those bounds, set `scale_var_with_mean: false` in the generator
-settings. Their levels follow the precipitation level index; they do not add a third grid axis.
-These are distributional targets, not guarantees that a finite generated sample has exactly the
-specified variance.
+### Variance control
 
-**Constant and transient changes.** A constant trajectory applies the selected offset or factor throughout the
-run. In the pinned weathergenr version, a transient temperature offset ramps linearly from zero to twice the
-selected offset across the calendar years represented in the generated dates. A precipitation factor ramps
-from 1 to twice the selected factor minus 1. Thus, the selected values describe the arithmetic mean of the
-annual imposed settings, not their final values or a guaranteed change in the realized whole-period climate.
-Changes are constant within each calendar year for a given month; they are not interpolated daily.
+In the supplied generator settings, `scale_var_with_mean: true` sets the target wet-day variance factor to the
+square of the precipitation mean factor. For a constant mean factor of 1.2, the variance factor is 1.44.
+Separate `precip.variance.min/max` values are passed to the generator but ignored under this setting. To use
+those bounds, set `scale_var_with_mean: false` in the generator settings. Their levels follow the
+precipitation level index; they do not add a third grid axis. These are distributional targets, not guarantees
+that a finite generated sample has exactly the specified variance.
+
+### Constant and transient changes
+
+A constant trajectory applies the selected offset or factor throughout the run. In the pinned weathergenr
+version, a transient temperature offset ramps linearly from zero to twice the selected offset across the
+calendar years represented in the generated dates. A precipitation factor ramps from 1 to twice the selected
+factor minus 1. Thus, the selected values describe the arithmetic mean of the annual imposed settings, not
+their final values or a guaranteed change in the realized whole-period climate. Changes are constant within
+each calendar year for a given month; they are not interpolated daily.
 
 The variance factor is ramped separately: with default mean-linked variance, its endpoint is twice
 the squared mean factor minus 1. The generator floors precipitation mean and variance factors at
@@ -93,20 +98,24 @@ Its default variance factors run from 1 to 1.88, rather than being the square of
 factor. The lookup still records the selected +1 °C and +20% settings, so read it together with
 the saved trajectory and generator settings.
 
-`perturbation_lookup.csv` contains twelve monthly rows per design point and expresses precipitation
-mean and variance settings as percentage changes. `scenario_run_lookup.csv` links each daily NetCDF
-series to its design point and realization. Two realizations in this example produce eighteen grid
-series plus two generated reference series. A grid point with unchanged factors remains distinct
-from the separately retained reference. See [scenario generation outputs](workflow-generate-scenarios.md#outputs).
+`perturbation_lookup.csv` contains twelve monthly rows per design point and expresses precipitation mean and
+variance settings as percentage changes. `scenario_run_lookup.csv` links each daily NetCDF series to its
+design point and realization. Two realizations in this example produce eighteen grid series plus two generated
+reference series. A grid point with unchanged factors remains distinct from the separately saved reference.
+See [scenario generation outputs](workflow-generate-scenarios.md#outputs).
+
+### Spell lengths
 
 Optional monthly dry- and wet-spell factors modify mean spell lengths. They apply to weather generation
 without adding another grid dimension. Unchanged factors are one. Precipitation distribution
 adjustments and spell controls have different purposes: the same mean rainfall can accompany
 different event intensities or persistence, with different hydrological consequences.
 
-The unperturbed realization is retained alongside the perturbed scenarios. The random seed and
-generation settings are recorded so the weather experiment can be identified and reused. Neither
-CMIP6 model selection nor emissions-scenario selection defines these perturbations.
+### Unperturbed realization and seed
+
+The unperturbed realization is kept alongside the perturbed scenarios. The random seed and generation settings
+are recorded so the weather experiment can be identified and reused. Neither CMIP6 model selection nor
+emissions-scenario selection defines these perturbations.
 
 ## Assumptions and applicability
 

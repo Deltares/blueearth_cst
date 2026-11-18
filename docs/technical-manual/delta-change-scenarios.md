@@ -75,6 +75,8 @@ simulates projection runs only.
 
 ## Transformations
 
+### Monthly factors
+
 For calendar month *m* and each historical grid cell, WF2's monthly kernel supplies the temperature offset
 (future minus reference mean) and the precipitation ratio (future divided by reference mean); both are
 mapped to the historical forcing grid by HydroMT nearest neighbour. The offset is added to mean, minimum
@@ -82,20 +84,26 @@ and maximum temperature; the ratio multiplies precipitation. Outside the active 
 factors are neutral. Dates, leap days, event order and missing-value masks are preserved; the method adds
 no subgrid climate information, never changes rain-day frequency and never creates rain on dry days.
 
-**Dry reference months.** WF2 withholds the ratio where the reference monthly mean is below its
-`min_denominator`. With `policy: refuse` (default) generation stops, naming member, window and months.
-With `policy: cap`, the ratio becomes future / reference limited to `1 ± max_change`; a zero reference or a
-missing future mean is still refused. Capped members and months are recorded in the set and in plot
-captions; the policy and threshold are part of identity.
+### Dry reference months
 
-**PET.** With `scale_pet: true`, daily PET is computed on the historical source grid with the
-case's PET formula (De Bruin or Makkink, HydroMT) from mean-sea-level pressure without elevation correction,
-then multiplied by WF2's monthly PET ratio. WF2's `variables.pet.method` must equal the case's formula.
-Members without a WF2 PET ratio are excluded and reported per window. Every run in the set, controls
-included, uses this PET, which WF4 takes as provided PET instead of recomputing it. Because it skips the
-orographic temperature correction of WF4's model-grid PET, the set's historical control can differ slightly
-from WF1's historical PET; differences between runs carry the WF2 PET signal only. Offline PET formulas
-differ in how strongly they respond to warming; treat the formula choice as part of the scenario.
+WF2 withholds the ratio where the reference monthly mean is below its `min_denominator`. With `policy: refuse`
+(default) generation stops, naming member, window and months. With `policy: cap`, the ratio becomes future /
+reference limited to `1 ± max_change`; a zero reference or a missing future mean is still refused. Capped
+members and months are recorded in the set and in plot captions; the policy and threshold are part of
+identity.
+
+### PET
+
+With `scale_pet: true`, daily PET is computed on the historical source grid with the case's PET formula (De
+Bruin or Makkink, HydroMT) from mean-sea-level pressure without elevation correction, then multiplied by WF2's
+monthly PET ratio. WF2's `variables.pet.method` must equal the case's formula. Members without a WF2 PET ratio
+are excluded and reported per window.
+
+Every run in the set, controls included, uses this PET, which WF4 takes as provided PET instead of recomputing
+it. Because it skips the orographic temperature correction of WF4's model-grid PET, the set's historical
+control can differ slightly from WF1's historical PET; differences between runs carry the WF2 PET signal only.
+Offline PET formulas differ in how strongly they respond to warming; treat the formula choice as part of the
+scenario.
 
 ## Results and interpretation
 

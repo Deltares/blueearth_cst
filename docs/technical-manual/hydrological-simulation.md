@@ -50,10 +50,14 @@ a simulation. Wflow supports a cold start using its initialization settings or a
 model states. The active model configuration determines which is used; the presence of a state-file
 path alone does not mean that the states are read.
 
-For historical evaluation, the toolbox excludes the first simulation year from its hydrological
-summaries when the record contains more than 365 time steps. Shorter records retain the initial period
-and are reported as such. This is an evaluation convention, not evidence that every basin has reached
-an adequate initial state after one year.
+### Historical evaluation
+
+For historical evaluation, the toolbox excludes the first simulation year from its hydrological summaries when
+the record contains more than 365 time steps. Shorter records keep the initial period and are reported as
+such. This is an evaluation convention, not evidence that every basin has reached an adequate initial state
+after one year.
+
+### Stress-test initialization
 
 Stress-test simulations set initialization through `simulate_system.initialization`:
 
@@ -66,6 +70,8 @@ Stress-test simulations set initialization through `simulate_system.initializati
   repeating the run's own first days, so stores adjust to the run's perturbed climate. Response reading
   discards these days. Responses therefore keep the configured calendar, and indicators never see the
   warm-up. Leap days can shift the repeated block's seasonal alignment by at most one day per year.
+
+### Starting-state quality
 
 The state's date need not match the stress-test calendar. Its quality depends on the historical simulation: a
 short historical run that itself started cold yields a near-cold end state. In one arid test basin, cold

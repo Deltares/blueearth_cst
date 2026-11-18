@@ -24,9 +24,10 @@ simulation settings, the simulation method revision and key packages. Indicator 
 time series, declarations, water year, the indicator method revision and key packages. A toolbox update that
 does not change a method revision or key package keeps every saved result reusable; the code and full
 environment that produced a result stay recorded with it.
+
 Changing the model, collection or frozen simulation inputs requires a new experiment. Changing a compatible
-indicator request can create another immutable set without rerunning Wflow. A missing retained variable
-requires a new simulation. Different simulations are never combined within one indicator set.
+indicator request can create another immutable set without rerunning Wflow. A missing saved variable requires
+a new simulation. Different simulations are never combined within one indicator set.
 
 Ready markers are written after validation. A folder or CSV alone is not a validated result ready for use.
 `scenario_collection_v2.read_collection_v2` verifies the marker, collection/revision identity, data root,
@@ -57,8 +58,9 @@ Each set is read in place from `scenarios/<name>/`; nothing is copied to the top
 The historical climate extract and basin cells are referenced in place by path and hash; generation refuses to
 publish if they change mid-run, and a later rebuild does not affect sets already published (their series are
 self-contained, but exact regeneration is no longer possible). The small generator template and catalog inputs
-keep content-addressed copies in `scenarios/_engine/generation_inputs/<hash>/`. Projects generated before this layout may still hold top-level copies and
-`scenarios/_engine/current.json`; these are no longer refreshed and can be deleted.
+keep content-addressed copies in `scenarios/_engine/generation_inputs/<hash>/`. Projects generated before this
+layout may still hold top-level copies and `scenarios/_engine/current.json`; these are no longer refreshed and
+can be deleted.
 
 | Lookup | Exact columns and meaning |
 |---|---|
@@ -163,7 +165,8 @@ When interpreting indicator tables or constructing response surfaces, preserve r
 units and the configured monthly perturbation trajectories. State how those monthly perturbations are
 represented on each axis so that readers can relate a plotted response to its climate inputs.
 
-Implementation references: `experiment/generation_plan.py`, `scenario_collection_v2.py`, `collection_index.py`,
-`simulation_record.py`, `response_inventory.py`, `indicator_plan.py`, `indicator_artifacts.py` and
-`named_export.py`. Relevant tests include `test_scenario_collection_v2.py`, `test_collection_index.py`,
-`test_response_inventory_v2.py`, `test_named_indicator_sets_workflow.py` and `test_partial_indicators.py`.
+Implementation references: `experiment/generation_plan.py`, `scenario_collection_v2.py`,
+`collection_index.py`, `simulation_record.py`, `response_inventory.py`, `indicator_plan.py`,
+`indicator_artifacts.py` and `named_export.py`. Relevant tests include `test_scenario_collection_v2.py`,
+`test_collection_index.py`, `test_response_inventory_v2.py`, `test_named_indicator_sets_workflow.py` and
+`test_partial_indicators.py`.
