@@ -309,7 +309,7 @@
       "revision": 1
     },
     "stochastic-collection": {
-      "closure_sha256": "e7a8a2c772cab2b55815375d197f17247d4031ce26b3dd6baf7180943d157b06",
+      "closure_sha256": "40351dd9f17dd72ca83778c6faa67ed01a62fe8abda620b03502f2ad3f9719de",
       "files": [
         {
           "path": "blueearth_cst/__init__.py",
@@ -337,7 +337,7 @@
         },
         {
           "path": "blueearth_cst/experiment/generation_plan.py",
-          "sha256": "52c93750c4a3c82cd4a125abd12678d3a3b153b54d5ce2d898eda93bc1e4070d"
+          "sha256": "9e6b3d4569b9d11a164ecb86dab5040b30881db5627e5edd31af4cca8eab23b7"
         },
         {
           "path": "blueearth_cst/experiment/generation_sources.py",
@@ -402,7 +402,7 @@
       ],
       "last_record": {
         "kind": "no-numerical-change",
-        "reason": "t037: default generator settings file renamed to weathergenr_config.yml; parsed values identical"
+        "reason": "Resolve the same bundled generator template from launcher and Snakemake directories"
       },
       "revision": 1
     },

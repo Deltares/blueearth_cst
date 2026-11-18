@@ -10,7 +10,23 @@ import yaml
 from blueearth_cst.experiment import generation_plan
 from blueearth_cst.experiment.forcing_descriptor import UnitInterpretation
 from blueearth_cst.experiment.scenario_collection_v2 import _profile
+from blueearth_cst.shared.config_composition import load_composed_config
 from tests._v2_experiment import KEY_PACKAGES
+
+
+def test_default_generator_template_is_independent_of_working_directory(
+    tmp_path, monkeypatch
+):
+    root = Path(__file__).resolve().parents[1]
+    config = load_composed_config(
+        root / "test_case/project_config_rapid.yml", entry="generate_scenarios"
+    )
+    monkeypatch.chdir(root)
+    launcher = generation_plan.generation_configuration(config, root, stage=False)
+    monkeypatch.chdir(tmp_path)
+    workflow = generation_plan.generation_configuration(config, root, stage=False)
+    assert workflow["request_path"] == launcher["request_path"]
+    assert Path(workflow["template"]).is_file()
 
 
 def test_candidate_intent_uses_wf3_only_seed_projection(tmp_path, monkeypatch):
