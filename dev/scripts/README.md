@@ -40,7 +40,6 @@ both legs, so an import-time error fails the suite.
 | Script | What it finds |
 |---|---|
 | [`sweep_unread_config_keys.py`](sweep_unread_config_keys.py) | Declared config keys no reader reads. |
-| [`scan_console_encoding.py`](scan_console_encoding.py) | Non-ASCII in strings that reach a console (cp1252). |
 
 ## Environment
 
@@ -125,7 +124,7 @@ Set `time_label: interval_end` for either output. A reference must cover every r
 | Script | What it does |
 |---|---|
 | [`capture_page.py`](capture_page.py) | Headless screenshots of a figure-review page at chosen widths; fails on console, HTTP or image errors. |
-| [`preview_plots.py`](preview_plots.py) | Render the toolbox's figure families from a project tree without running a workflow. Being superseded by `scripts/render_figures.py`, which already owns WF0 and WF1 forcing figures. |
+| [`render_figures.py`](../../scripts/render_figures.py) | Re-render saved project figures, including a single-run simulated hydrograph, into a separate directory. |
 | [`plotting_standalone_demo.py`](plotting_standalone_demo.py) | Prove the plotting core's portable boundary: render WF0 results under `python -I` from a copy of `blueearth_cst/plotting/` with only numpy and matplotlib. |
 | [`export_svg.py`](export_svg.py) | Lift an inline `<svg>` out of an HTML page into a standalone file. |
 | [`render_console_sample.py`](render_console_sample.py) + [`console_sample_specs.py`](console_sample_specs.py) | A console transcript per workflow through the real handler. |

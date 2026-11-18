@@ -20,13 +20,35 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit
+from xml.etree import ElementTree
 
 import yaml
 
-try:
-    from dev.scripts.build_docs_pilot import diagram_fallback
-except ModuleNotFoundError:  # Direct execution from dev/scripts, as in the site hook.
-    from build_docs_pilot import diagram_fallback
+
+def diagram_fallback(asset: str) -> tuple[str, str]:
+    """Derive styled SVG and all five explanations from the interactive source."""
+    svgs = re.findall(r"<svg\b.*?</svg>", asset, re.DOTALL)
+    objects = re.findall(r"const details = \{(.*?)\n  \};", asset, re.DOTALL)
+    styles = re.findall(r"<style>(.*?)</style>", asset, re.DOTALL)
+    if len(svgs) != 1 or len(objects) != 1 or len(styles) != 1:
+        raise ValueError("Expected one SVG, details object and stylesheet in diagram")
+    details = json.loads("{" + re.sub(r"\b(wf\d+):", r'"\1":', objects[0]) + "}")
+    svg = svgs[0].replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ', 1)
+    # Standalone SVG renderers do not inherit the host HTML's CSS variables.
+    variables = dict(re.findall(r"--([\w-]+):\s*([^;]+);", styles[0]))
+    css = styles[0]
+    for name, value in variables.items():
+        css = css.replace(f"var(--{name})", value)
+    svg = svg.replace(">", f"><style>{css}</style>", 1)
+    root = ElementTree.fromstring(svg)
+    node_ids = [n.attrib["data-id"] for n in root.iter() if "data-id" in n.attrib]
+    if list(details) != node_ids or len(node_ids) != 5:
+        raise ValueError("Diagram details must cover all five SVG workflows in order")
+    legend = " ".join((n.text or "") for n in root.iter() if n.tag.endswith("desc"))
+    explanations = "\n\n".join(
+        f"### {label}: {title}\n\n{body}" for label, title, body in details.values()
+    )
+    return svg, f"{legend}\n\n{explanations}"
 
 
 def _prose(text: str, transform: Callable[[str], str]) -> str:

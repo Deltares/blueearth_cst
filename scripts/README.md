@@ -25,6 +25,7 @@ repository inspection and maintenance tools live in `dev/scripts/` and are never
 | [`maintain_config_archives.py`](maintain_config_archives.py) | Inspect generated configuration history; `--apply` retains snapshots and removes completed launch bookkeeping. |
 | [`transfer_results.py`](transfer_results.py) | Export a WF2 product with its configuration and provenance as one bundle, or import a bundle into another project. |
 
+To preview the simulated hydrograph for the first discharge location in the saved response record, use `render_figures.py hydrograph --project <project_dir> --out <review_dir>`. Add `--forcing-id <id>` for a named forcing set. The PNG is written under `<review_dir>/plots/`.
 
 ## Procedures and result inspection
 
