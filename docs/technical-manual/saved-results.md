@@ -78,7 +78,7 @@ fails readiness, including the indicators-only start-up check. Indicators-only n
 
 Changing a frozen output request requires `--new-experiment`. Checks of the recorded sources and model still
 apply across toolbox revisions; the ability to read old responses does not authorize re-simulation
-with changed code or model inputs.
+with a changed method revision, key numerical package or model inputs.
 
 ## Indicator tables and dictionary
 

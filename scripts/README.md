@@ -29,7 +29,7 @@ repository inspection and maintenance tools live in `dev/scripts/` and are never
 ## Procedures and result inspection
 
 Start with [running](../docs/guide/running.md), [new cases](../docs/guide/new-case.md) or
-[indicator selection](../docs/guide/indicators.md); this file is an entry-point index, not a flag reference.
-Use `inspect_indicators.py` for saved-set integrity inspection and optional numerical rechecking;
-the [technical request reference](../docs/technical-manual/indicator-requests.md) explains their different
-requirements and limits. Inspection alone does not make stale outputs reusable.
+[indicator selection](../docs/guide/new-case.md#choose-indicators); this file is an entry-point index, not a
+flag reference. Use `inspect_indicators.py` for saved-set integrity inspection and optional numerical
+rechecking; the [technical request reference](../docs/technical-manual/indicator-requests.md) explains their
+different requirements and limits. Inspection alone does not make stale outputs reusable.

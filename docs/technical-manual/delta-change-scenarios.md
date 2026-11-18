@@ -135,11 +135,14 @@ Each set lives in `scenarios/<name>/` and is listed in `scenarios/collections.cs
 
 The climate-store extract and projection-analysis grids are referenced in place by path and hash; a historical
 override file outside the project is copied once into `scenarios/_engine/generation_inputs/`. The set's record
-of inputs covers the resolved settings (without `name`), input hashes, factor values, generating code and
-numerical package versions. An identical rerun reuses the set; a renamed rerun adds an alias; new content
-under a used name gets `-2`, `-3`. Reading a set checks its factor files and series, never the referenced
-inputs, so a rebuilt climate store leaves it readable. Folders without a ready marker are listed as incomplete
-and never adopted or removed automatically.
+of inputs covers the resolved settings (without `name`), input hashes, factor values, the
+[method revision](saved-results.md#identities-and-reuse) and numerical package versions; the copied generating
+code is recorded with the set but does not decide reuse.
+
+An identical rerun reuses the set; a renamed rerun adds an alias; new content under a used name gets `-2`,
+`-3`. Reading a set checks its factor files and series, never the referenced inputs, so a rebuilt climate
+store leaves it readable. Folders without a ready marker are listed as incomplete and never adopted or removed
+automatically.
 
 ## Plots
 

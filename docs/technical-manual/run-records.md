@@ -210,11 +210,11 @@ Treat these measurements as diagnostic evidence with explicit limits:
 
 ### Effect on the run
 
-The summary records sampler collection time so its cost can be inspected. Diagnostic failures emit
-a warning and do not change the workflow result. Records belong to the run and do not modify
-saved model time series or indicator outputs. Existing runs cannot acquire historical resource evidence
-retroactively. Instrumented simulation code remains subject to the normal check of the recorded code; use
-a new experiment when rerunning simulations after a code change.
+The summary records sampler collection time so its cost can be inspected. Diagnostic failures emit a warning
+and do not change the workflow result. Records belong to the run and do not modify saved model time series or
+indicator outputs. Existing runs cannot acquire historical resource evidence retroactively. Resource sampling
+does not change what decides simulation reuse: a code change alone does not require a new experiment, but a
+changed [method revision](saved-results.md#identities-and-reuse) or key numerical package does.
 
 ## Tracing climate-projection results to their source run {#wf2-product-attribution}
 

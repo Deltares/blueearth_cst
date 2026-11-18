@@ -242,8 +242,9 @@ same-source elevation/lapse settings, do not change that store or the generator'
 
 Scenario simulation compares extraction settings with the selected collection's archived creator settings and
 applies the current preparation settings. Non-default preparation records use version 3; saved version-2
-records keep their original correction settings. The generating code remains part of the scenario set's record
-of inputs. Numerical backward comparisons therefore use equivalent fixed inputs and seeds.
+records keep their original correction settings. A scenario set's record of inputs includes the
+generator's [method revision](saved-results.md#identities-and-reuse) and key numerical packages, not its code.
+Numerical backward comparisons use equivalent fixed inputs and seeds.
 
 #### CHIRPS diagnostics
 

@@ -101,8 +101,9 @@ These settings are still accepted; replace or remove them.
 - **Model building `historical_run`.** The former `historical_run` setting, which saved named copies under
   `simulations/historical/`, is no longer used. It is accepted with a deprecation warning and ignored; remove
   it from the configuration.
-- **Forcing sets.** `climate.forcings.<name>.temp_pet_source` remains accepted with a deprecation notice; do
-  not supply both spellings.
+- **Forcing sets.** `climate.forcings.<name>.temp_pet_source` is still read as `temp_source`; supplying both
+  spellings is refused. With one forcing set, reading the configuration warns `temp_pet_source is deprecated;
+  use climate.forcing.temp_source`; with several forcing sets it is accepted without a warning.
 - **Scenario-set selection.** `scenario_collection.manifest_path` in the simulation file is deprecated.
 
 ## Schema 2 and earlier file forms {#schema-2-path-rules}
