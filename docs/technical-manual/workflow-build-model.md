@@ -126,7 +126,7 @@ are errors.
   Per-variable exports complement the native Wflow output and do not replace it.
 - **Observation comparisons.** Available observations support evaluation of simulated behavior at
   matching locations. Without observations, response figures describe the simulation but do not
-  establish model skill; a successful run alone does not establish predictive adequacy.
+  establish model skill; see [limitations](limitations.md).
 
 See the [processing rule reference](workflow-rule-reference.md#build-model) for individual steps.
 
@@ -151,7 +151,7 @@ whose model-building settings changed and names the setting that differs.
 
 ### Model record
 
-Every model records itself in `_engine/model.json`: its origin, parent, notes and the identity of its
+Every model records itself in `_engine/model.json`: its origin, parent, notes and a record of its
 static inputs (the `wflow_sbm.toml` pointer graph plus `staticgeoms/`, excluding everything the toolbox
 writes per forcing set). The `write_model_record` rule writes this record for a model the toolbox builds
 (`origin: built`) after every build.
@@ -173,17 +173,17 @@ A model prepared outside the toolbox is registered with `scripts/register_model.
 
 Hydrological simulation uses `model.name`; with several models and no name it stops and lists them. It refuses
 a registered model that changed since registration, and a saved experiment refuses a different model
-(`--new-experiment`). Each experiment's `_engine/model_reference.yml` records the model folder and the digest
+(`--new-experiment`). Each experiment's `_engine/model_reference.yml` records the model folder and a hash
 of its forcing-set inputs.
 
-### Comparisons and model identity
+### Comparisons and model record {#comparisons-and-model-identity}
 
 Comparisons across models (`scripts/register_model.py compare`) are written to
 `models/hydrology/comparisons/<name>/` with the same tables and figures as a model's own
 `historical/forcing_comparison/`. The runs must cover the same simulation period and initialization; the
 evaluation window is every complete reporting year they share.
 
-The model identity recorded with each comparison covers scientific TOML settings and referenced static,
+The model record kept with each comparison covers scientific TOML settings and referenced static,
 cyclic, waterbody and initial-state inputs, including forcing variable bindings, scales and offsets. It
 excludes the forcing file contents and pointer, simulation dates, output configuration and logging paths,
 which have separate source and compatibility checks. NetCDF inputs use content hashes independent of

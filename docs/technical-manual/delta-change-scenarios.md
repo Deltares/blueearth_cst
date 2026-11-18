@@ -37,16 +37,16 @@ Optional settings:
 
 | Key | Meaning |
 |---|---|
-| `name` | Set folder name. Default `delta-<ensemble>-<window names>`. Never part of identity. |
+| `name` | Set folder name. Default `delta-<ensemble>-<window names>`. Not part of the set's record of inputs and settings. |
 | `dry_reference` | `{policy: refuse}` (default) or `{policy: cap, max_change: <fraction>}`; see below. |
 | `scale_pet` | `true` scales PET by the projection analysis PET ratio; see below. Default `false`. |
-| `unit_id_capacity` | Advanced. At least runs + 2; changes run-ID width and identity. |
+| `unit_id_capacity` | Advanced. At least runs + 2; changes run-ID width and the set's record of inputs. |
 | `historical_override` | Advanced. `period: {start, end}` replaces the projection-analysis reference years (reported as a mismatch). `path` with `source`, `units` and `units_note` replaces the historical file with a supported source; `units` must list every variable with that source's effective units. |
 
 Unknown keys are refused. `analyze_projections` must use the same `ensemble`. In the owned runner projection
 analysis runs before scenario generation; with projection analysis disabled its products must already exist. A
-missing historical extract is admitted when historical climate analysis or model building runs earlier in the
-same invocation, and refused otherwise with the expected path.
+missing historical extract is accepted when historical climate analysis or model building runs earlier in the
+same command, and refused otherwise with the expected path.
 
 ## Generate and simulate
 
@@ -55,13 +55,13 @@ python scripts/run_workflows.py --config <case>/project_config.yml -- --dry-run
 python scripts/run_workflows.py --config <case>/project_config.yml
 ```
 
-A dry run computes the factors and reports the set it would publish, or reports it as pending when projection
-analysis or the historical extract are produced by the same invocation. Delta generation accepts only the
+A dry run computes the factors and reports the set it would write, or reports it as pending when projection
+analysis or the historical extract are produced by the same command. Delta generation accepts only the
 dry-run flags after `--`; other forwarded options and `--rebuild` are refused. Run an upstream workflow alone
 when it needs one.
 
 Hydrological simulation finds the set from the current generation settings, as it does for stochastic sets; a
-set produced in the same invocation is bound after scenario generation publishes it. A missing or stale set
+set produced in the same command is bound after scenario generation writes it. A missing or stale set
 stops with "run scenario generation". To pin a set explicitly, use
 `scenario_collection: {name: <set or alias>}` or `{id: <first 12 hex characters>}` in the simulation file
 (quote all-digit ids). Hydrological simulation checks that its climate source
@@ -93,7 +93,7 @@ Projection analysis withholds the ratio where the reference monthly mean is belo
 `policy: refuse` (default) generation stops, naming member, window and months. With `policy: cap`, the ratio
 becomes future / reference limited to `1 ± max_change`; a zero reference or a missing future mean is still
 refused. Capped members and months are recorded in the set and in plot captions; the policy and threshold are
-part of identity.
+part of the set's record of inputs.
 
 ### PET
 
@@ -131,15 +131,15 @@ Each set lives in `scenarios/<name>/` and is listed in `scenarios/collections.cs
 | `delta/factors/<run_id>.nc` | Monthly offsets and ratios (and PET ratios) on the historical grid |
 | `factor_lookup.csv`, `scenario_run_lookup.csv` | Run ↔ factor file, member and window |
 | `config/` | Copies of the authored project and generation YAML (display only) |
-| `_engine/` | Marker `delta-scenario-collection/2`, intent and producer snapshot |
+| `_engine/` | Marker `delta-scenario-collection/2`, intent and a copy of the generating code |
 
 The climate-store extract and projection-analysis grids are referenced in place by path and hash; a historical
-override file outside the project is copied once into `scenarios/_engine/generation_inputs/`. Identity covers
-the resolved settings (without `name`), input hashes, factor values, producer code and numerical package
-versions. An identical rerun reuses the set; a renamed rerun adds an alias; new content under a used name gets
-`-2`, `-3`. Reading a set checks its factor files and series, never the referenced inputs, so a rebuilt
-climate store leaves it readable. Folders without a ready marker are listed as incomplete and never adopted or
-removed automatically.
+override file outside the project is copied once into `scenarios/_engine/generation_inputs/`. The set's record
+of inputs covers the resolved settings (without `name`), input hashes, factor values, generating code and
+numerical package versions. An identical rerun reuses the set; a renamed rerun adds an alias; new content
+under a used name gets `-2`, `-3`. Reading a set checks its factor files and series, never the referenced
+inputs, so a rebuilt climate store leaves it readable. Folders without a ready marker are listed as incomplete
+and never adopted or removed automatically.
 
 ## Plots
 

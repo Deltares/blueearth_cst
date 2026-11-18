@@ -65,10 +65,10 @@ Running through `scripts/run_workflows.py` completes both phases, as described i
 
 ## Outputs {#outputs}
 
-Paths below are relative to `project_dir`. Each scenario set has one folder, `scenarios/<name>/`.
-The name defaults to `stochastic-<start>-<end>`; set `name` in the generation settings to choose another.
-A set with new content under a used name gets `-2`, `-3`; an unchanged rerun reuses its set whatever the
-configured name, which is then listed as an alias. Names never affect a set's identity.
+Paths below are relative to `project_dir`. Each scenario set has one folder, `scenarios/<name>/`. The name
+defaults to `stochastic-<start>-<end>`; set `name` in the generation settings to choose another. A set with
+new content under a used name gets `-2`, `-3`; an unchanged rerun reuses its set whatever the configured name,
+which is then listed as an alias. Names are not part of a set's record of inputs and settings.
 
 - **Daily weather (`series/<run_id>.nc`).** One NetCDF series per unperturbed or perturbed run.
 - **Scenario lookup (`scenario_run_lookup.csv`).** Links run identifiers to realizations and
@@ -77,8 +77,8 @@ configured name, which is then listed as an alias. Names never affect a set's id
   precipitation changes for each grid point.
 - **Generation settings (`config/` and `weathergenr/`).** Configuration, weather-generator settings and
   generation products.
-- **Set record (`_engine/collection.json`).** Completion, identity and the checked file inventory used by
-  hydrological simulation.
+- **Set record (`_engine/collection.json`).** Completion, the record of inputs and settings, and the checked
+  file inventory used by hydrological simulation.
 - **Index (`scenarios/collections.csv`).** Every set in the project: `name, aliases, method, id,
   description, created, status`. It is rebuilt from the set records after each generation.
 

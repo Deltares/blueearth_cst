@@ -35,19 +35,19 @@ simulations. Climate projections are not simulation inputs.
 | Setting | Purpose |
 |---|---|
 | `steps` | `simulations` and `indicators` switches; each defaults to true. |
-| `indicators` | `sets`, `custom_sets`, per-set `options`, an optional `subset`, and `evaluation`: `partial` (default) publishes gaps as unavailable with a warning; `strict` refuses. |
+| `indicators` | `sets`, `custom_sets`, per-set `options`, an optional `subset`, and `evaluation`: `partial` (default) writes gaps as unavailable with a warning; `strict` refuses. |
 | `include_unperturbed` | Include reference simulations required by reference-based indicators. |
 | `initialization` | Initial state (`auto`, `historical`, `cold`) and discarded `warmup_years` (default 1). |
 | `experiment_name` | Name of the saved experiment. |
 | `scenario_collection` | Advanced selection of a saved weather experiment. |
 | `compute` | Julia threads, concurrent batches, batch size and reserved disk space. |
 | `output.netcdf_grid` | Optional native grids for every selected run; independent of historical output. |
-| `output.csv.decimal_places` | Retained daily scalar precision, default 5; see [precision](configuration.md#csv-precision). |
+| `output.csv.decimal_places` | Saved daily scalar precision, default 5; see [precision](configuration.md#csv-precision). |
 | `historical_forcing` | `default` (or omitted) or a named forcing set; see below. |
 
 **Historical forcing selection.** With
 [several forcing sets](configuration.md#named-historical-forcing-recipes), `historical_forcing` chooses the
-forcing set whose `wflow_sbm_<id>.toml`, model fingerprint, forcing preparation, end state and historical
+forcing set whose `wflow_sbm_<id>.toml`, model record, forcing preparation, end state and historical
 Qcrit discharge the experiment uses. Projects with one forcing set accept only `default`. Hydrological
 simulation refuses a forcing set that model building has not simulated, a scenario collection whose forcing
 extraction differs from the forcing set, and any non-default forcing set for delta-change collections, which
@@ -80,11 +80,11 @@ The main outputs are:
 
 - **Daily responses (`simulations/<run_id>/output_<code>.csv`).** Rounded per-variable time series;
   their record is `_engine/simulations/<run_id>/response_tables.json`. Warm-up days are discarded before
-  retention. Native scalar CSVs (`_engine/wflow_runs/`) and forcing NetCDFs (`_engine/forcing/`) are
-  temporary; indicators read the retained tables.
+  saving. Native scalar CSVs (`_engine/wflow_runs/`) and forcing NetCDFs (`_engine/forcing/`) are
+  temporary; indicators read the saved tables.
 - **Model settings (`_engine/run_settings/<run_id>.toml`).** Settings associated with each run; Wflow's
   own logs are in `_engine/wflow_logs/`.
-- **Optional native grids (`simulations/<run_id>/output_grid.nc`).** One retained file per run,
+- **Optional native grids (`simulations/<run_id>/output_grid.nc`).** One saved file per run,
   containing all requested variables and native layers over the full native clock, warm-up included.
   See [grid settings](configuration.md#netcdf-grid).
 - **Simulation records (`_engine/simulation.json` and `_engine/response_inventory.json`).** The model

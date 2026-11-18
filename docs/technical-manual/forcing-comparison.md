@@ -8,7 +8,7 @@ format: html
 With [several forcing sets](configuration.md#named-historical-forcing-recipes), the workflow builds the model
 once and simulates each set in `build_model.historical_forcings` separately. Each set owns one folder,
 `historical/<id>/`, holding `forcing/inmaps_historical.nc`, `run/`, the evaluation `plots/` and `tables/`, and
-`_engine/` (its build YAML, store catalog, forcing record and evaluation sidecars), plus its TOML
+`_engine/` (its build YAML, store catalog, forcing record and accompanying evaluation files), plus its TOML
 `wflow_sbm_<id>.toml` at the model root. A single forcing set uses `historical/default/` and the model's own
 `wflow_sbm.toml`. TOMLs stay at the model root because HydroMT-Wflow resolves model inputs from there. The
 shared `wflow_sbm.toml`, `staticmaps.nc` and geometries are never rewritten per forcing set, and rerunning
@@ -23,8 +23,8 @@ tables in `tables/`, figures in `plots/` and the run record in `_engine/comparis
 
 ### Requirements
 
-- The runs must have identical fixed-model identity, simulation dates, timestep, initialization and station
-  identity. The requested dates must all exist in every run.
+- The runs must have the same fixed-model record, simulation dates, timestep, initialization and
+  stations. The requested dates must all exist in every run.
 - Only daily Gregorian responses are supported.
 - Every input (TOMLs, forcing records, response tables, registry, observations) is hashed before and after
   the comparison, so a run that changes meanwhile is refused.

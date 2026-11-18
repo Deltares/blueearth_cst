@@ -32,7 +32,7 @@ optional subbasin figures. The annotated template is
 |---|---|
 | `basin.region`, `basin.resolution` | Basin extent and analysis resolution. |
 | `climate.forcings` | Forcing sets; each dataset they use is analyzed once per variable. |
-| `climate.default_forcing` | Used by downstream forcing consumers; not required for comparisons. |
+| `climate.default_forcing` | Used by the workflows that read the forcing; not required for comparisons. |
 | `climate.window` | Requested historical period. |
 | `climate.water_year_start` | Month that begins the reporting year. |
 | `climate.seasons` | Seasons for climate indices; default DJF, MAM, JJA, SON; `{}` for annual only. |
@@ -155,7 +155,7 @@ descriptive departures, not trends or significance estimates.
 | File | Contents |
 |---|---|
 | `tables/annual_spatial_anomalies.nc` | Native annual values, anomalies, reference means/counts and validity masks, per source store |
-| `_engine/annual_spatial_anomalies.json` | Settings, source/input identity, requested/eligible/excluded years, exact dates, availability and page inventory |
+| `_engine/annual_spatial_anomalies.json` | Settings, sources and inputs used, requested/eligible/excluded years, exact dates, availability and page inventory |
 | `plots/<source>_<variable>_annual_anomaly_map_basin.png` | Figures, directly under `plots/` |
 
 Six chronological years fit in one multi-panel figure. Longer periods produce multiple figures with suffixes
@@ -182,7 +182,7 @@ gridded datasets. See [rain-gauge comparison](rain-gauge-comparison.md).
 
 ![Main scientific processing steps and conditional paths described below.](assets/workflow-wf0.svg){width=100% fig-alt="Scientific processing from basin and climate inputs to the assessment products described in this section."}
 
-The workflow prepares basin boundaries, extracts each dataset and calculates diagnostics. Maps retain
+The workflow prepares basin boundaries, extracts each dataset and calculates diagnostics. Maps keep
 each source's native grid with shared display scales. Multiple sources are compared over their common
 available period; subbasin results follow the same processing steps when enabled.
 
@@ -248,7 +248,7 @@ title, caption or neither.
   Theil–Sen slopes estimate change per decade, and start-year sensitivity tests how strongly that
   estimate depends on the selected period.
 
-SPI distribution-fit diagnostics remain available in the retained `spi_fit_checks` table; the workflow does
+SPI distribution-fit diagnostics remain available in the saved `spi_fit_checks` table; the workflow does
 not emit a separate reference-period normality-check figure.
 
 See the [processing rule reference](workflow-rule-reference.md#analyze-climate) for individual steps.

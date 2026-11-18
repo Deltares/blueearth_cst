@@ -18,7 +18,7 @@ remains supported and does not calculate PET. Bare `pet:` and mixing `method` wi
 
 Both methods require matching monthly CMIP6 `tas` (K), `ps` (Pa) and `rsds` (W m-2); de Bruin additionally
 requires `rsdt` (incident TOA shortwave radiation, W m-2). HydroMT catalog adapters convert temperature
-to °C and surface pressure to hPa after source-unit and monthly-mean metadata admission. Sea-level
+to °C and surface pressure to hPa after source-unit and monthly-mean metadata checks. Sea-level
 pressure (`psl`) is not substituted. No elevation, temperature or pressure correction is applied.
 
 Inputs must agree in model, member, experiment, calendar, grid and monthly coordinates. Missing inputs
@@ -50,7 +50,7 @@ area.
 - Its default `change: relative` reports percent changes and uses `min_denominator: 0.1` mm/day, a reporting
   safeguard rather than a physical calibration. A finite positive override is accepted.
 - Rates strictly below that threshold suppress relative changes while keeping absolute differences; equality
-  is admitted. The same daily-rate threshold screens monthly, seasonal and annual references, never an
+  is accepted. The same daily-rate threshold screens monthly, seasonal and annual references, never an
   unconverted period total.
 - With `change: absolute`, omit `min_denominator`.
 - Annual and seasonal diagnostic changes integrate the rates with native-calendar day counts and report mm;
@@ -124,7 +124,7 @@ Both derivations run per native cell/month before spherical area weighting over 
 buffered bounding box, including cells outside the basin polygon. Annual and seasonal results use
 duration-weighted state means, with absolute changes in degC or m/s. Required support is fixed and
 complete: invalid humidity, nonpositive pressure, negative scalar speed, nonfinite values, incompatible
-grids/calendars/source identities or unqualified units/heights fail explicitly. Calm component wind is valid.
+grids/calendars/sources or unqualified units/heights fail explicitly. Calm component wind is valid.
 No clipping, filling, regridding or member fallback is performed.
 
 ### Saved products and records
@@ -142,7 +142,7 @@ diagnostics; full derived monthly meteorological series remain basin averages in
 ### Reruns and qualification
 
 A rerender retires PNGs the previous caption manifest owned and the new one does not (renamed or removed
-products and removed horizons); unlisted files are kept. Scientific choices refresh derived identities;
-presentation changes do not reacquire inputs. Separate project roots keep alternative analyses. The P/T cloud
-and stressor axes are unchanged. Controlled fixtures exercise these methods; matching live input availability
-remains unqualified.
+products and removed horizons); unlisted files are kept. Scientific choices refresh the records of derived
+products; presentation changes do not reacquire inputs. Separate project roots keep alternative analyses. The
+P/T cloud and stressor axes are unchanged. Controlled fixtures exercise these methods; matching live input
+availability remains unqualified.

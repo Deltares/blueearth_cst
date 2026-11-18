@@ -160,14 +160,14 @@ Figure rerendering uses saved gridded changes when available, checking recorded 
 ### Analysis failures and retries
 
 Analysis checks its declared scalar/raw input sets before calculating tables. It checks record metadata for
-JSON serialization before spatial diagnostics, then serializes the complete record before publishing CSVs.
+JSON serialization before spatial diagnostics, then serializes the complete record before writing CSVs.
 The record is written last. Metadata or spatial-preparation failures therefore stop before new CSVs or the
 record are written by the analysis script.
 
-This ordering does not provide an atomic bundle or preserve a previous publication across workflow failure.
+This ordering does not provide an atomic bundle or preserve previous results across workflow failure.
 Snakemake can remove declared products before execution and during failed-job cleanup; spatial diagnostics
 can also be partially written before a failure. Correct the reported problem and rerun the workflow, reusing
-compatible retained raw slices and scalar series. Individual remaining analysis files do not establish that
+compatible saved raw slices and scalar series. Individual remaining analysis files do not establish that
 analysis finished successfully.
 
 ## Diagnostics and interpretation {#interpretation}
@@ -180,7 +180,7 @@ analysis finished successfully.
   precipitation change is 100 × (future mean / reference mean − 1). Monthly averages account for
   month length in the model calendar; seasonal change diagnostics use precipitation rates, while
   seasonal totals are shown in mm.
-- **Coverage.** Analysis retains complete water years within the calendar bounds, labeled by their
+- **Coverage.** Analysis keeps complete water years within the calendar bounds, labeled by their
   starting year. Seasonal diagnostics require at least 90% of the window's water years, rounded up,
   and at least three complete seasons; each season requires three finite months.
 - **Ensemble spread.** Change summaries average members within each model and then weight models

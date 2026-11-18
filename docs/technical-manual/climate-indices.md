@@ -48,8 +48,8 @@ days, maximum-temperature summer days or heatwave events.
 
 They count observed qualifying days without missing-day scaling, use the same period-eligibility rules as
 other absolute indices, and need no percentile reference support or bootstrap. The boundary is kept in NetCDF
-attributes, publication identity, captions and figure labels. Both annual and configured-season results are
-produced.
+attributes, the saved record of settings, captions and figure labels. Both annual and configured-season
+results are produced.
 
 ### Percentile thresholds
 
@@ -79,7 +79,7 @@ include thresholds, sample support, contributing temperature years and the tempe
 
 ## Missingness, events and spatial meaning
 
-Missing days break runs and never become dry days. Events are detected on the continuous retained record
+Missing days break runs and never become dry days. Events are detected on the continuous extracted record
 before periods are sliced. The catalogue stores inclusive start/end dates, full observed duration,
 censoring and heat-event mean/peak temperature. Period day totals use overlap; event counts use starts.
 Unknown observations or an overlapping censored heatwave make the physical event count unavailable.
@@ -88,13 +88,13 @@ can therefore be biased toward shorter events. No complete wet spells gives unde
 
 Period eligibility uses the existing monthly and yearly missing-day tolerances (the yearly tolerance
 also applies to a configured season). Absent period edges count as missing. Eligible periods use observed
-values without infilling. Reference support is assessed separately. NetCDFs retain valid/expected days
+values without infilling. Reference support is assessed separately. NetCDFs keep valid/expected days
 and eligibility per variable; unavailable or undefined values are NaN. Exact threshold equality never
 counts as percentile exceedance. The event catalogue spans the full extracted record, including portions
 outside the requested reporting periods.
 
 Basin series are equal-weight means of available basin cells each day; contributing-cell counts are
-retained. Their indices differ from spatial means of cellwise indices. Basin and upstream-subbasin
+kept. Their indices differ from spatial means of cellwise indices. Basin and upstream-subbasin
 indices use daily equal-weight means of available native cells before index calculation. Locations
 sample the native cell containing their original coordinates. These are meteorological pressures, not flood
 impacts or hydrological drought measurements.
@@ -111,7 +111,7 @@ inputs. Existing diagnostic tables keep their previous formulas and precipitatio
 
 ### Supporting records
 
-Only `_engine/climate_indices.json` (settings, input/code fingerprints and product hashes) and
+Only `_engine/climate_indices.json` (settings and hashes of inputs, code and products) and
 `_engine/figure_data/wet_spell_exceedance.csv` (basin plotting data) support this CSV. New calculations save
 no gridded index arrays, threshold arrays, event catalogues or daily contributing-cell counts, and create no
 hashed directories.
@@ -128,11 +128,11 @@ within compatible rows and year titles by column. Single-source plots omit empty
 preserving internal gaps.
 
 `figure_availability.json` lists emitted PNGs and omitted indices; the adjacent captions JSON records
-interpretation and evaluation identity. The workflow owns this directory as one availability-dependent
-rendering product. Comparison tables do not acquire new climate-index columns.
+interpretation and the evaluation settings used. The workflow owns this directory as one
+availability-dependent rendering product. Comparison tables do not acquire new climate-index columns.
 
 The saved-source mode of `scripts/render_figures.py` also renders enabled index bundles into its separate
-output directory, preserving the original publication and its reference.
+output directory, preserving the original results and their reference.
 
 ### Failures and compute
 
