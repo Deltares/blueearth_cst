@@ -29,7 +29,7 @@ from blueearth_cst.shared import execution_outputs, invocation_history, product_
 from blueearth_cst.shared.config_composition import (
     capture_configuration_sources,
     compose_captured_config,
-    compose_config,
+    load_composed_config,
     public_workflow_section,
 )
 from blueearth_cst.shared.config_paths import TOOLBOX_ROOT
@@ -487,9 +487,8 @@ def prepare_workflow(
         yaml.safe_dump(project_document, sort_keys=True).encode("utf-8"),
     )
     generated_paths.append(("execution_project_config", execution_project))
-    loaded, _ = compose_config(
-        project_document, execution_project, workflow, projection
-    )
+    # Derive settings from the same serialized key order Snakemake reads.
+    loaded = load_composed_config(execution_project, workflow, projection)
     references = [
         {
             "id": source.id,

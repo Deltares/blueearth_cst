@@ -9,6 +9,7 @@ import pytest
 import yaml
 
 from blueearth_cst.shared import workflow_archive_launch as launch
+from blueearth_cst.shared.config_composition import load_composed_config
 from blueearth_cst.shared.config_paths import (
     resolve_project_paths,
     resolve_workflow_paths,
@@ -125,7 +126,7 @@ def test_execution_inputs_ignore_source_locations_and_other_enable_flags(
     )
     stanza["config_path"] = str(workflow_file)
     project_file = tmp_path / "project.yml"
-    project_file.write_text(yaml.safe_dump(project), encoding="utf-8")
+    project_file.write_text(yaml.safe_dump(project, sort_keys=False), encoding="utf-8")
 
     def prepare(path):
         return prepare_workflow(
@@ -148,7 +149,7 @@ def test_execution_inputs_ignore_source_locations_and_other_enable_flags(
         project["workflows"][name]["enabled"] = not project["workflows"][name][
             "enabled"
         ]
-    project_file.write_text(yaml.safe_dump(project), encoding="utf-8")
+    project_file.write_text(yaml.safe_dump(project, sort_keys=False), encoding="utf-8")
     assert prepare(project_file) == original
 
     relocated = tmp_path / "relocated"
@@ -160,18 +161,21 @@ def test_execution_inputs_ignore_source_locations_and_other_enable_flags(
     stanza["config_path"] = moved_workflow.name
     project["project"]["catalog"] = [str(moved_catalog)]
     moved_project = relocated / "renamed-project.yml"
-    moved_project.write_text(yaml.safe_dump(project), encoding="utf-8")
+    moved_project.write_text(yaml.safe_dump(project, sort_keys=False), encoding="utf-8")
     assert prepare(moved_project) == original
     assert original.read_bytes() == original_bytes
     assert original.stat().st_mtime_ns == original_mtime
     record = read_archive(project_root, workflow_name, f"config/{workflow_name}")
+    assert record["loaded_config"] == load_composed_config(
+        original, entry=workflow_name
+    )
     archived_project = next(
         item for item in record["source_files"] if item["role"] == "project_config"
     )
     assert archived_project["original_path"] == str(moved_project)
 
     project["basin"]["resolution"] *= 2
-    moved_project.write_text(yaml.safe_dump(project), encoding="utf-8")
+    moved_project.write_text(yaml.safe_dump(project, sort_keys=False), encoding="utf-8")
     changed = prepare(moved_project)
     assert changed != original
     moved_catalog.write_bytes(moved_catalog.read_bytes() + b"\n# dependency changed\n")

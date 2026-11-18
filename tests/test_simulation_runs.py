@@ -49,9 +49,7 @@ def test_reference_indicators_refused_before_simulation(monkeypatch):
             SimpleNamespace(set_id="seasonal", indicators=[indicator])
         ],
     )
-    with pytest.raises(
-        ValueError, match=r"seasonal:q_wet.*steps.indicators: false"
-    ):
+    with pytest.raises(ValueError, match=r"seasonal:q_wet.*steps.indicators: false"):
         simulation_runner.simulation_indicator_sets(
             {}, {"include_unperturbed": False}, SimpleNamespace(legacy=True)
         )

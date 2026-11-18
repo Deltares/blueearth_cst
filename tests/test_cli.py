@@ -393,7 +393,9 @@ def test_eobs_config_fails_wf1_dry_run_at_parse_time(tmp_path):
     result = _dry_run("build_model.smk", cfg=str(cfg_path))
     combined = (result.stdout or "") + (result.stderr or "")
     assert result.returncode != 0, "eobs config must fail the wf1 dry-run"
-    assert "climate.forcings uses unsupported climate dataset 'eobs'" in combined, combined
+    assert "climate.forcings uses unsupported climate dataset 'eobs'" in combined, (
+        combined
+    )
 
 
 @pytest.mark.parametrize(
