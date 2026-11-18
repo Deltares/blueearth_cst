@@ -8,6 +8,7 @@ import hydromt  # noqa: F401 -- registers the raster accessor
 import numpy as np
 import pandas as pd
 import xarray as xr
+from pyproj import Geod
 
 from blueearth_cst.climate_analysis.diagnostic_settings import carries_temp
 from blueearth_cst.climate_analysis.diagnostic_tables import verified_temperature
@@ -24,6 +25,8 @@ from blueearth_cst.shared.provenance import file_sha256, toolbox_identity
 
 #: Long tables under ``source_comparison/tables/locations/`` (layout 3, R15).
 LOCATION_TABLES = ("annual", "monthly", "coverage", "agreement", "native_cells")
+# Allow rounding to six decimal places in longitude and latitude.
+GAUGE_MATCH_TOLERANCE_M = 0.1
 
 
 def location_index(
@@ -70,13 +73,15 @@ def location_index(
     if registry.id.duplicated().any():
         raise ValueError("Spatial comparison location IDs must be unique")
     if gauges:
+        geod = Geod(ellps="WGS84")
+        original_coordinates = list(zip(registry.x, registry.y, strict=True))
         for row in read_stations(gauges["stations_path"]).itertuples():
-            matches = registry.index[
-                np.isclose(registry.x.astype(float), row.x, rtol=0, atol=1e-8)
-                & np.isclose(registry.y.astype(float), row.y, rtol=0, atol=1e-8)
-                & registry.gauge_id.eq("")
+            matches = [
+                index
+                for index, (x, y) in enumerate(original_coordinates)
+                if geod.inv(x, y, row.x, row.y)[2] <= GAUGE_MATCH_TOLERANCE_M
             ]
-            if len(matches) == 1:
+            if len(matches) == 1 and registry.at[matches[0], "gauge_id"] == "":
                 registry.loc[matches[0], "gauge_id"] = row.id
                 registry.loc[matches[0], ["x", "y"]] = [row.x, row.y]
                 continue
@@ -477,7 +482,10 @@ def evaluate(
         "sampling": "HydroMT raster.sample(wdw=0); native containing cell at original coordinates",
         "calendar_attribution": "midnight UTC interval end minus one day",
         "gap_policy": "no infill; complete matched months and reporting years within each location and variable",
-        "observation_mapping": "unique coincident original coordinates within 1e-8 degrees; otherwise separate station ID",
+        "observation_mapping": (
+            f"unique unassigned location within {GAUGE_MATCH_TOLERANCE_M:g} m "
+            "between original coordinates (WGS84 geodesic), otherwise separate station ID"
+        ),
         "software": toolbox_identity(),
         "implementation_sha256": {
             name: file_sha256(Path(__file__).with_name(name))

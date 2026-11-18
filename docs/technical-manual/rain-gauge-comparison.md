@@ -93,8 +93,7 @@ ID, associated subbasin and available observation columns.
 
 - Declared locations use `location_<wflow_id>`; gauge-only sites use `station_<safe-token>`, preserving
   literal gauge IDs in `gauge_id`.
-- A gauge joins an existing location only when its original coordinates coincide uniquely within 1e-8
-  degrees; otherwise it keeps a separate site. Gauges are never snapped to rivers for this comparison.
+- A gauge joins an existing location when exactly one declared location is within 0.1 m of its original coordinates, measured on the WGS84 ellipsoid, and that location has no gauge assigned. Ambiguous or unmatched gauges keep separate site IDs. Climate sampling uses the gauge's original coordinates.
 - Outside-basin and outside-grid sites remain indexed with explicit exclusions.
 - An alternate temperature companion keeps its true source label and its configured preparation; its figures
   identify the saved extraction grid instead of claiming the original companion grid.
