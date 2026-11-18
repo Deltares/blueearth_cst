@@ -11,10 +11,10 @@ how to [create a case and add a trial](../guide/new-case.md#create-the-case-file
 ## Copying a trial
 
 [Trial](../guide/glossary.md#trial) copying with `--from-trial` refuses inputs it cannot carry over safely.
-Missing inputs, links, cross-trial inputs outside shared `data/`, retained-product references and schema-2
+Missing inputs, links, cross-trial inputs outside shared `data/`, references to saved products and schema-2
 sources are refused with guidance. Migrate a schema-2 copy explicitly before using it as a source.
 Review catalog-internal dataset paths and access separately; catalogs do not bundle their datasets.
-Keep catalogs with relative dataset locators together with their datasets in shared case `data/`.
+Keep catalogs with relative dataset paths together with their datasets in shared case `data/`.
 Copying a trial-local catalog with relative dataset dependencies is refused, rather than rewriting
 HydroMT's catalog semantics or silently leaving datasets behind.
 
@@ -28,25 +28,25 @@ each trial.
 
 ## Copy and verify an existing case
 
-Existing schema-2 and schema-3 split layouts remain runnable. The scaffold refuses a new case name
+Existing schema-2 and schema-3 split layouts remain runnable. Case creation refuses a new case name
 already present under `applications/` or `runs/` to avoid creating an ambiguous second case.
 Migration is a separate, non-destructive operation:
 
-1. Copy authored configurations and sidecars into a new case directory with a `default/` trial.
+1. Copy authored configurations and accompanying files into a new case directory with a `default/` trial.
    Preserve the original configurations and results until verification is complete.
 2. For schema 2, resolve each file path using its original base before explicitly changing the copy
    to schema 3. Review the [path reference](configuration.md#how-paths-are-read).
 3. Set the copied trial's output root to `outputs`, and update copied YAML-relative input references.
-   Keep shared inputs in case `data/`, with distinct inputs under the trial. Retain `toolbox:` locators.
-4. Compose every workflow, inspect resolved input paths, and preview with the owned runner from a
-   different invocation directory. Run a bounded workflow to check downstream execution paths.
+   Keep shared inputs in case `data/`, with distinct inputs under the trial. Keep `toolbox:` paths.
+4. Combine every workflow's settings, inspect resolved input paths, and preview with the all-workflow run
+   command from a different working directory. Run a bounded workflow to check downstream execution paths.
 5. Add the minimal README trial row and output ignore rule. Review and archive evidence separately;
    do not move or rewrite immutable product records as part of configuration migration.
 
 An evidence archive preserves results, checks, configuration snapshots and run records. A rerunnable
 archive additionally requires the referenced datasets, catalogs and software environment. Record missing
 external dependencies. Git ignore rules are not backups, and moving YAML alone does not relocate runtime
-locators embedded in historical outputs.
+paths embedded in historical outputs.
 
 ## Renamed configuration settings {#renamed-configuration-settings}
 
@@ -98,7 +98,7 @@ These settings are still accepted; replace or remove them.
 - **Model building plots.** Legacy `forcing_plots`, `evaluation.station_plots` and `evaluation.subbasin_plots`
   are accepted with deprecation warnings; both evaluation switches map to the `locations` scale. Conflicting
   declarations are errors.
-- **Model building `historical_run`.** The former `historical_run` setting, which published named copies under
+- **Model building `historical_run`.** The former `historical_run` setting, which saved named copies under
   `simulations/historical/`, is no longer used. It is accepted with a deprecation warning and ignored; remove
   it from the configuration.
 - **Forcing sets.** `climate.forcings.<name>.temp_pet_source` remains accepted with a deprecation notice; do
@@ -107,12 +107,12 @@ These settings are still accepted; replace or remove them.
 
 ## Schema 2 and earlier file forms {#schema-2-path-rules}
 
-- `schema_version: 2` keeps invocation-relative file bases. `workflow_configs` paths are always relative to
-  the project file, including schema 2. Rain-gauge files under `observations.met_stations` also keep that
-  base.
+- `schema_version: 2` keeps file bases relative to the directory the command runs from. `workflow_configs`
+  paths are always relative to the project file, including schema 2. Rain-gauge files under
+  `observations.met_stations` also keep that base.
 - Schema 2 uses these legacy path rules; changing the version alone does not convert paths.
 - Legacy flat stochastic files remain supported under project schemas 2 and 3. Nested stochastic settings
-  normalize to the same effective producer inputs. Existing stochastic collection selection and reservation
+  normalize to the same effective generation inputs. Existing stochastic collection selection and reservation
   behavior are preserved.
 - Legacy source files remain supported with migration notices, and run-record archives keep their original
   bytes.
@@ -136,8 +136,8 @@ These settings are still accepted; replace or remove them.
 
 ### Map preparation after an upgrade {#map-preparation-after-an-upgrade}
 
-Map preparation identities normalize Python source line endings to LF, so equivalent Windows checkouts share
-code hashes. Input data, catalogs and environment locks keep byte-exact hashes. After upgrading from
+Map preparation records normalize Python source line endings to LF, so equivalent toolbox folders on Windows
+share code hashes. Input data, catalogs and environment locks keep byte-exact hashes. After upgrading from
 byte-exact Python hashes, regenerate the prepared fields once. If historical climate analysis reports
 `stale preparation identity`:
 
@@ -157,10 +157,10 @@ This rebuilds map fields and their reference without forcing climate extraction.
 - For older runs without saved gridded changes, figure rerendering reconstructs spatial changes from their
   local raw slices and scalar run records in the review destination; those inputs must still be available.
 - The catalog adapter mappings added for projected PET can invalidate
-  earlier raw identities, including P/T-only caches, under the existing catalog-integrity policy; unchanged
+  earlier raw-slice records, including P/T-only caches, under the existing catalog-integrity policy; unchanged
   output values do not imply unchanged cache keys across toolbox revisions.
 - Delta-change generation needs gridded changes of inventory schema 2 or later. Run projection analysis alone
-  with `-- --forcerun prepare_projection_analysis` to republish older gridded changes (inventory schema 1).
+  with `-- --forcerun prepare_projection_analysis` to rewrite older gridded changes (inventory schema 1).
 
 ### Scenario sets {#earlier-scenario-sets}
 
@@ -171,14 +171,14 @@ This rebuilds map fields and their reference without forcing climate extraction.
 
 ### Hydrological simulation {#earlier-simulation-outputs}
 
-- Old native-only publications are not upgraded or rewritten: create new historical runs/experiments.
+- Old native-only results are not upgraded or rewritten: create new historical runs/experiments.
 - Existing native-grid inventories keep their original checksum and reader semantics.
 - Older run records without measured elapsed seconds remain unavailable.
 
 ## Delta-change/1 and /2 {#delta-change-1-and-2}
 
 Versions 1 and 2 (explicit historical and projection files, `reader`, `simulation_window`) are read-only:
-their retained collections under `scenarios/_engine/collections/` stay readable and selectable by
+their saved collections under `scenarios/_engine/collections/` stay readable and selectable by
 `scenario_collection: {name: retained-<id>}`, `{id: ...}` or `manifest_path`, but new generation refuses
 them, and `scripts/generate_delta_scenarios.py` is retired. To regenerate:
 
@@ -187,8 +187,8 @@ them, and `scripts/generate_delta_scenarios.py` is retired. To regenerate:
    [delta-change scenarios](delta-change-scenarios.md#configure). `historical_path`, `source_like`, `reader`,
    `reference_period`, `future_period`, `members` and `factor_layout` are removed; `simulation_window`
    becomes the projection-analysis reference period (or `historical_override.period`).
-3. Generate through the runner. Periods and members now follow projection analysis, so the new set differs
-   from the old one.
+3. Generate through the run command. Periods and members now follow projection analysis, so the new set
+   differs from the old one.
 
 Unreleased `delta-change/3` sets written with `projections.window_id` before this layout must be
 regenerated.

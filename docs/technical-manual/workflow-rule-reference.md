@@ -14,7 +14,7 @@ Each workflow is defined in its own Snakemake entry point:
 | [model building](workflow-build-model.md) | `build_model.smk` | Completed model and historical simulation/evaluation |
 | [projection analysis](workflow-analyze-projections.md) | `analyze_projections.smk` | Basin change factors and projection diagnostics |
 | [scenario generation](workflow-generate-scenarios.md) | `generate_scenarios.smk` | Ready scenario collection |
-| [hydrological simulation](workflow-simulate-system.md) | `simulate_system.smk` | Retained responses and named indicator sets |
+| [hydrological simulation](workflow-simulate-system.md) | `simulate_system.smk` | Saved responses and named indicator sets |
 
 ## Historical climate analysis {#analyze-climate}
 
@@ -28,7 +28,7 @@ See [historical climate analysis](workflow-analyze-climate.md) for inputs, setti
 | `produce_historical_map_reference` | Prepare the shared map extent and color classes. |
 | `prepare_historical_map_fields_<source>` | Prepare native-grid map fields for each source. |
 | `compute_climate_diagnostics_<source>` | Calculate and save temporal diagnostics. |
-| `prepare_annual_spatial_anomalies_<source>` | Retain optional native annual P/T anomalies. |
+| `prepare_annual_spatial_anomalies_<source>` | Save optional native annual P/T anomalies. |
 | `plot_climate_diagnostics_<source>` | Produce source figures and captions. |
 | `plot_climate_comparison` | Calculate and plot the common-period comparison. |
 | `prepare_location_comparisons` | Sample cells at locations and gauge sites; save matched summaries. |
@@ -53,7 +53,7 @@ See [hydrological model building](workflow-build-model.md) for inputs, settings 
 | `finalize_model_root` | With named forcing sets, mark the built model ready for them. |
 | `publish_registered_model` | Registered model: check it is unchanged, mark it ready (no build rules). |
 | `add_climate_forcing` | Add model forcing and complete the model. |
-| `write_model_record` | Record a built model's origin and static-input identity in `_engine/model.json`. |
+| `write_model_record` | Record a built model's origin and static-input record in `_engine/model.json`. |
 | `write_gauge_index` | Map Wflow IDs to named stations. |
 | `plot_basin_map` | Plot basin and thematic maps. |
 | `plot_model_forcing` | Optionally plot the model forcing grid (`plotting.forcing_figures: true`). |
@@ -61,7 +61,7 @@ See [hydrological model building](workflow-build-model.md) for inputs, settings 
 | `run_historical_simulation` | Run Wflow on the historical window. |
 | `export_simulation_tables` | Export per-variable response tables. |
 | `plot_model_evaluation` | Compute scores and basin figures; optionally render station/subbasin figures. |
-| `write_run_metadata` | Record run identity and staleness metadata. |
+| `write_run_metadata` | Record the run's inputs and staleness metadata. |
 
 ## Climate-projection analysis {#analyze-projections}
 
