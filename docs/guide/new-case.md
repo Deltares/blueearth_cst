@@ -238,8 +238,10 @@ rather than copying the demonstration settings.
 
 #### Stress-test design {#designing-the-stress-test}
 
-**Number of simulations.** Each realization covers every point of the
-[perturbation grid](glossary.md#perturbation-grid) plus one unperturbed reference:
+##### Number of simulations
+
+Each realization covers every point of the [perturbation grid](glossary.md#perturbation-grid) plus one
+unperturbed reference:
 
 ```text
 simulations = n_realizations × (temperature n_levels × precipitation n_levels + 1)
@@ -252,17 +254,20 @@ need more computing time; see [Computation time](../technical-manual/runtime-and
 your own runs. `include_unperturbed: false` skips the reference simulations; see
 [Simulations and indicators](#choose-indicators).
 
-**Return-level indicators.** Flood and low-flow return levels are fitted to annual extremes pooled across
-realizations, so each grid point has about `future_period` years × `n_realizations` annual values. The fit
-needs at least ten values, or the return period in years if that is larger. The rapid example's 9 years × 2
-realizations give 18 values: enough to run the fit, which is an operational minimum, not a reliability
-guarantee. More realizations sample more generated weather but add no independent evidence about extremes
-beyond the historical record, and with `trajectory: transient` the pooled years mix changing climate
-conditions. See
+##### Return-level indicators
+
+Flood and low-flow return levels are fitted to annual extremes pooled across realizations, so each grid point
+has about `future_period` years × `n_realizations` annual values. The fit needs at least ten values, or the
+return period in years if that is larger. The rapid example's 9 years × 2 realizations give 18 values: enough
+to run the fit, which is an operational minimum, not a reliability guarantee.
+
+More realizations sample more generated weather but add no independent evidence about extremes beyond the
+historical record, and with `trajectory: transient` the pooled years mix changing climate conditions. See
 [Return-level estimation](../technical-manual/indicator-calculations.md#return-level-estimation-and-supporting-evidence).
 
-**Ranges and projections.** Set the temperature and precipitation ranges over a span you can justify for the
-basin and your question; see
+##### Ranges and projections
+
+Set the temperature and precipitation ranges over a span you can justify for the basin and your question; see
 [From climate stresses to system vulnerabilities](../site/scientific-approach/system-vulnerabilities.qmd).
 Projection analysis then shows where projected changes for the basin fall relative to the grid, as context for
 judging plausibility. It does not set the grid, and the grid may deliberately extend beyond the projections.

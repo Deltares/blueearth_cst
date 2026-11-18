@@ -191,11 +191,15 @@ the experiment used before linking its indicators to these tables.
 
 ## Reading projection diagnostics
 
+### Tables and coverage
+
 Look in `data/climate/projections/<ensemble>/summary/` for change-factor tables and their data sources. The
 `analysis/` tables identify coverage and availability; check whether models, periods or variables were
 excluded before comparing the ensemble. Figure captions explain the period and spatial coverage behind each
 figure. Use projected changes to interpret the climate conditions in your stress test. Ensemble spread does
 not assign probabilities to its hydrological outcomes.
+
+### Derived variables
 
 Figures cover precipitation and temperature only; calculated PET, dew point and wind add rows to the same
 tables. See [dew point and wind](../technical-manual/workflow-analyze-projections.md#optional-projected-dew-point-and-wind)
@@ -203,6 +207,8 @@ for their methods, spatial averaging and records.
 
 See [projected PET](../technical-manual/workflow-analyze-projections.md#optional-projected-pet)
 for configuration, source requirements and qualification limits. PET does not add a stress-test axis.
+
+### Paired changes
 
 <figure class="guide-illustration" style="max-width:440px">
 
@@ -214,6 +220,8 @@ to 1985–2004, with one point per model and scenario after member averaging.</f
 
 Point density does not represent probability.
 
+### Temperature trajectories
+
 <figure class="guide-illustration" style="max-width:520px">
 
 [![](assets/illustrations/cmip6-temperature.png){fig-alt="Example annual CMIP6 temperature trajectories with scenario medians and ensemble ranges." width=100%}](assets/illustrations/cmip6-temperature.png)
@@ -224,6 +232,8 @@ Shading marks the future comparison period.</figcaption>
 
 Members are averaged within each model before summarizing across models. The ribbons show the model
 range, not a confidence interval.
+
+### Seasonal precipitation
 
 <figure class="guide-illustration" style="max-width:560px">
 
@@ -239,6 +249,8 @@ variability, assuming independent years. Hatching flags a dry season with too fe
 a representative summary. SSP4-6.0 is omitted here because only four models contribute. DJF, MAM, JJA
 and SON denote the four three-month seasons.
 
+### Model agreement
+
 <figure class="guide-illustration" style="max-width:560px">
 
 [![](assets/illustrations/cmip6-agreement.png){fig-alt="Annual and seasonal model agreement on temperature and precipitation change, with signs and percentage classes; hatching marks excluded results." width=100%}](assets/illustrations/cmip6-agreement.png)
@@ -250,6 +262,8 @@ direction of change for 2040–2060 relative to 1985–2004.</figcaption>
 Read the signs and agreement classes together; consult the accompanying tables for model counts.
 Hatching identifies excluded results with too few eligible models. Agreement describes direction,
 not magnitude, probability or statistical significance.
+
+### Transfer to another project
 
 []{#moving-projection-results-to-another-project}
 
