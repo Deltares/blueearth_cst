@@ -248,6 +248,48 @@ def test_dry_run_has_plan_without_execution_rows(presentation, monkeypatch, flag
     assert " - RUN " not in output
 
 
+@pytest.mark.parametrize("width", [50, 80, 120])
+@pytest.mark.parametrize("noop", [False, True])
+def test_forcing_settings_belong_to_consumer_header(
+    presentation, monkeypatch, width, noop
+):
+    handler, sink = presentation
+    monkeypatch.setattr(cs, "_RUN_HEADER", ("wf1 build_model", "/project", None, {}))
+    monkeypatch.setenv(
+        cs.HISTORICAL_FORCING_ENV,
+        json.dumps(
+            [
+                "Rainfall dataset: ERA5 (configured)",
+                "Temperature and PET dataset: ERA5 (configured)",
+                "Required inputs: rainfall; mean/min/max temperature; sea-level pressure",
+            ]
+        ),
+    )
+    monkeypatch.setenv("COLUMNS", str(width))
+    if noop:
+        emit(
+            handler,
+            "Nothing to be done (all requested files are present and up to date).",
+        )
+    else:
+        emit(handler, "Job stats:\nanalysis 1\nall 1\ntotal 2", "run_info")
+    output = sink.getvalue()
+    title = "Historical forcing settings"
+    end = "Up to date" if noop else "Work plan"
+    assert output.index("wf1 build_model") < output.index("Snakemake command")
+    assert output.index("Snakemake command") < output.index(title) < output.index(end)
+    assert output.count(title) == 1
+    section = output[output.index(title) : output.index(end)]
+    assert not any(line.startswith(">") for line in section.splitlines())
+    assert max(map(len, section.splitlines())) < min(width, 102)
+    if width == 50:
+        assert "Rainfall dataset\n  ERA5 (configured)" in section
+    else:
+        assert re.search(
+            r"^Rainfall dataset +ERA5 \(configured\)$", section, re.MULTILINE
+        )
+
+
 def test_noop_is_compact_and_suppresses_acquisition_check(presentation):
     handler, sink = presentation
     cs.defer_input_check("fetch", "must not show", [])

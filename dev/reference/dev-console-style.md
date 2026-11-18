@@ -12,7 +12,7 @@ Rule implementations retain their compact `log_row` output. Vendored `dev/script
 Each workflow opens with a heavy full-width band carrying its identity (`━━ wf1 build_model ━━…`, bold
 cyan) and closes with a light band carrying its verdict (`── wf1 build_model completed in 0:03:02  |
 5 warnings ──…`, green, or red on failure), so workflow boundaries stand out in a batch. Bands span the
-terminal up to 100 columns. The opening order is the band, **Snakemake command**, applicable
+terminal up to 100 columns. The opening order is the band, **Snakemake command**, applicable **Historical forcing settings** and
 **Input checks**, **Work plan**, **Run settings**, **Paths**, then the labelled **Execution log**
 boundary, which the first job row follows directly. Section headings are cyan; scheduled plan rows are
 green, reused rows gray, and attention notices amber. Explicit labels preserve meaning without color.
@@ -41,6 +41,8 @@ early; `simulation_phases` tags each pass (`CST_SIMULATION_PHASE`) and the conso
 first pass plans 4.07/4.08 and hides its `simulations_only` target lines. The second prints no opening block
 and continues the `[n/N]` counter through the `CST_SIMULATION_PROGRESS` handoff file.
 
+WF4 rule rows show canonical run IDs directly, for example `[run_02]`. The **parallel simulations** setting shows the concurrency limit and Julia threads per simulation. Model cell counts and raw grid estimates feed batch sizing.
+
 The summary line counts jobs, then rules by status (`12 jobs  |  3 scheduled  |  3 up to date  |  1 off  |
 3 completed`). It excludes target collectors such as `all`; unknown or unlisted work is reported rather than
 silently counted as reused.
@@ -50,7 +52,7 @@ silently counted as reused.
 A dry run prominently states **DRY RUN — no jobs will execute** before its plan and ends the header with
 **Planning complete**. It emits no live RUN rows or Execution log boundary. Scheduling a fetch during a dry
 run does not prove remote availability. A no-op prints only the workflow's opening band, the actual command
-and **Up to date — no jobs scheduled**, plus any independently relevant warnings.
+and **Up to date — no jobs scheduled**, with forcing settings when this is the batch's first forcing consumer and any independently relevant warnings.
 
 The batch runner opens with the same flat sections: **Run settings** (project, cores per workflow, basin,
 experiment when known, toolbox), **Paths** (`config`, `<project>`, `repository`) and **Workflow sequence**.
@@ -73,13 +75,11 @@ Experiment admission also waits until that consumer boundary, before any model o
 writes. An indicators-only simulation needs experiment admission but no forcing selection or settings
 block. Destructive rebuilds retain their full validation before erasing outputs.
 
-The forcing settings have no timestamp or subsystem prefix and appear once per invocation.
-The block uses a bold gray title followed immediately by flush-left `>` items in gray. Redirected
-output and terminals with color disabled retain the same layout without styling codes.
-This styling is limited to Historical forcing settings, whose lines fit 80 columns or the narrower
-terminal width. Settings, workflow sequence, handoffs, commands, summaries and rebuild previews keep
-their existing formatting. Command options and paths retain indented continuations without `>` markers.
-The preparation progress line is left aligned in the terminal's normal color.
+The forcing settings appear once per invocation within the first consumer's opening block, after
+**Snakemake command** and before the work plan. The section uses the same cyan heading and aligned
+label–value rows as the other workflow sections. Narrow terminals stack the values under the labels.
+When WF3 reuses an existing collection without launching a generation pass, it prints the section
+before the reuse verdict. The preparation progress line stays at the admission boundary.
 Timestamped subsystem rows report processing within a workflow; repeated configuration reads do
 not print another summary. The summary names rainfall and temperature datasets, the potential
 PET method and planned elevation adjustments, distinguishing project settings

@@ -1987,7 +1987,7 @@ def test_only_historical_climate_inputs_receive_list_styling(tmp_path):
         flags={name: name == "analyze_climate" for name in rw.WORKFLOW_ORDER},
         toolbox={},
     )
-    assert "historical forcing settings" not in block
+    assert "Historical forcing settings" not in block
     assert "\033" not in block
     assert "\nRun settings\nproject" in block
     painted = rw._opening_block(
@@ -2003,13 +2003,6 @@ def test_only_historical_climate_inputs_receive_list_styling(tmp_path):
     for heading in ("Run settings", "Paths", "Workflow sequence"):
         assert f"\033[1;36m{heading}\033[0m" in painted
     assert not any(line.startswith("> ") for line in block.splitlines())
-    climate = rw._climate_input_block(
-        ("> Rainfall dataset: ERA5 (configured)",), colour=True
-    )
-    assert climate.startswith(
-        f"\033[1;{rw._ANSI_DIM}mhistorical forcing settings\033[0m\n"
-    )
-    assert f"\033[{rw._ANSI_DIM}m> Rainfall dataset:" in climate
 
 
 def test_reuse_data_from_reaches_child_environment(tmp_path, monkeypatch):

@@ -88,7 +88,6 @@ from blueearth_cst.shared.run_log_core import (  # noqa: E402
     _line_reset,
 )
 from blueearth_cst.shared.snake_utils import (  # noqa: E402
-    _ANSI_DIM,
     _ANSI_FAIL,
     ADVANCED_SETTINGS,
     _ansi,
@@ -364,9 +363,6 @@ def build_command(
 # of the four were going to run, or how long any of it took. Each Snakefile
 # already opens with `run_header` and closes with `run_summary`; the runner
 # ABOVE them said less about the run than any one of them.
-#
-# The historical climate inputs block alone uses a gray flush-left list.
-# Existing settings, sequence, command and summary layouts are preserved.
 #
 # **What the wrapper does NOT share with them is how it is FRAMED**, and that is
 # the point. Nested one inside the other, the two blocks were indistinguishable:
@@ -929,20 +925,6 @@ def _opening_block(
     return ("DRY RUN — no jobs will execute\n\n" if dry_run else "") + block
 
 
-def _climate_input_block(rows: tuple[str, ...], *, colour: bool = False) -> str:
-    """Show the checked historical forcing settings at the consumer boundary."""
-    title = "historical forcing settings"
-    lines = [
-        line
-        for row in rows
-        for line in _wrap_console(row, width=min(80, _console_width()))
-    ]
-    if colour:
-        title = _ansi(title, f"1;{_ANSI_DIM}")
-        lines = [_ansi(line, _ANSI_DIM) for line in lines]
-    return "\n".join([title, *lines])
-
-
 def _consumer_forcing_rows(config_path: str, workflow_name: str) -> tuple[str, ...]:
     """Validate forcing only when an enabled forcing consumer is reached."""
     from blueearth_cst.shared.forcing_recipe import climate_forcing_summary
@@ -978,9 +960,7 @@ def _consumer_forcing_rows(config_path: str, workflow_name: str) -> tuple[str, .
         )
         rows = (f"Historical forcing: {forcing_id} ({role})",)
         climate = legacy_view(climate, forcing_id)
-    return tuple(
-        f"> {row}" for row in (*rows, *climate_forcing_summary(climate, required=True))
-    )
+    return (*rows, *climate_forcing_summary(climate, required=True))
 
 
 def _closing_block(
@@ -1740,15 +1720,6 @@ def _run_owned(
                 reservation_context.recheck()
             if delta_operation is not None:
                 delta_operation.recheck()
-            if forcing_rows and not forcing_shown:
-                print(
-                    "\n"
-                    + _climate_input_block(
-                        forcing_rows, colour=_console_colour(sys.stdout)
-                    ),
-                    flush=True,
-                )
-                forcing_shown = True
             position += 1
             tag = f"[{position}/{total}]  {_handoff_label(name)}"
             cmd = build_command(name, config_path, cores, extra)
@@ -1791,6 +1762,12 @@ def _run_owned(
                         flush=True,
                     )
                     continue
+            forcing_env = {
+                console_style.HISTORICAL_FORCING_ENV: json.dumps(
+                    forcing_rows if not forcing_shown else ()
+                )
+            }
+            forcing_shown |= bool(forcing_rows)
             workflow["command"] = sanitize_argv(cmd)
             workflow["status"] = "running"
             # Each child owns its identity and finalized engine command.
@@ -1915,6 +1892,7 @@ def _run_owned(
                                     writing=not preview,
                                     env={
                                         **phase_environment,
+                                        **forcing_env,
                                         **execution_outputs.environment(
                                             child_path, child_record
                                         ),
@@ -1969,6 +1947,7 @@ def _run_owned(
                 else:
                     env_for_child = {
                         **child_env,
+                        **forcing_env,
                         RUN_WARNING_TALLY_ENV: str(warning_path),
                     }
                     if name == "generate_scenarios":
