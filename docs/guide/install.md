@@ -88,9 +88,6 @@ The prefix `pixi run` runs a command using the toolbox's software environment.
 This installation includes the R weather generator, `weathergenr`, and the Julia packages
 needed for Wflow. Downloads may take some time.
 
-The weather-generator installer verifies both package version and source commit. After a toolbox
-update that changes this pin, rerun `pixi run install-rdeps` before generating climate scenarios.
-
 If either command stops with an error, consult the [troubleshooting guide](troubleshooting.md)
 before continuing.
 
@@ -144,3 +141,28 @@ installed here.
 
 For help, see [Troubleshooting](troubleshooting.md). To configure another basin, see
 [Creating a project](new-case.md).
+
+## Update the toolbox
+
+To move to a newer toolbox version, run these commands from the [toolbox folder](glossary.md#toolbox-folder),
+`blueearth_cst`:
+
+```powershell
+git pull
+pixi install
+pixi run install
+```
+
+`git pull` downloads the new toolbox files, and `pixi install` updates the Python and R packages to the
+versions the new files specify. `pixi run install` reinstalls the weather generator, `weathergenr`, and the
+Julia packages only when the update changed their pinned versions; otherwise it confirms them and finishes
+quickly. If you skip it after a weather-generator update, rerun `pixi run install-rdeps` before generating
+climate scenarios. If the Julia step reports a missing Julia version, install that version with
+`juliaup add` as in section 1.
+
+Then repeat the installation check in section 4.
+
+The [run commands](glossary.md#run-command) may refuse an [output directory](glossary.md#output-directory)
+written by an older toolbox version; see
+[Changes and migration](../technical-manual/changes-and-migration.md#output-directory-layout-versions) for
+what to do.
