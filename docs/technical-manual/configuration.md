@@ -15,9 +15,9 @@ read during execution.
 only
 `schema_version`, `project`, `basin`, `climate`, `model`, `plotting`, `workflows` and
 `workflow_configs`. `workflows.<name>` is a YAML boolean that selects the workflow;
-`workflow_configs.<name>` is the optional path of its settings file. The legacy stanza
-`workflows.<name>: {enabled, config_path}` is still accepted but cannot be mixed with the new form.
-Keep declared files readable even when their workflow is disabled.
+`workflow_configs.<name>` is the optional path of its settings file. Keep declared files readable even
+when their workflow is disabled. For the earlier form, see
+[renamed settings](changes-and-migration.md#renamed-configuration-settings).
 Omitting the file composes an empty settings mapping; workflow-required fields still apply when enabled.
 
 Workflow files hold that workflow's settings. Shared section names and shared leaf names cannot be placed
@@ -71,7 +71,8 @@ It writes `project.project_dir: outputs` and a shared outlet reference `../data/
 referenced authored trial inputs. Shared case data stay shared; external inputs are reported.
 Retained-product references must be removed from a working source copy before scaffolding a fresh trial.
 `--catalog` uses destination-YAML-relative paths or `toolbox:` resources. Existing layouts and schema-2
-execution are unchanged; see [case creation and migration](../guide/new-case.md).
+execution are unchanged; see [case creation](../guide/new-case.md) and
+[changes and migration](changes-and-migration.md).
 
 ## Shared fields
 
@@ -127,10 +128,8 @@ Discharge is daily mean m³/s over midnight-to-midnight UTC days, one column per
 ([format](input-formats.md)); `interval_start` labels are shifted one day before the model evaluation,
 historical forcing comparison and Budyko screening read them. Discharge evaluation needs
 `river discharge` in `model.outvars`. Unknown entries and keys are refused.
-Since t037 these entries replace `build_model` `observations: {river discharge: <path>}`, the
-`analyze_climate` `rain_gauges` block and the `evaluation.budyko` declaration (now a `true`/`false`
-switch; `discharge_statistic` is retired). Workflow files that still declare them are refused with
-the new location.
+Earlier locations of these settings are refused; see
+[renamed settings](changes-and-migration.md#renamed-configuration-settings).
 
 ### Historical forcing sets {#historical-forcing-recipe}
 
@@ -169,10 +168,9 @@ several, model building simulates `build_model.historical_forcings` (default: th
 per-set layout described in [model building](workflow-build-model.md#named-recipes), and simulation selects
 one set through `simulate_system.historical_forcing`.
 
-`climate.sources`, `climate.selected` and `climate.forcing` are retired and refused by name: move the recipe
-under `climate.forcings.<name>`, add a set for each further dataset to compare, and name the default. A
-project that compared several datasets but forced one now declares several sets, so its model run moves to the
-per-set layout: rerun model building once and start a new simulation experiment.
+The earlier `climate.sources`, `climate.selected` and `climate.forcing` keys are refused;
+[renamed settings](changes-and-migration.md#renamed-configuration-settings) explains the conversion and its
+one-time reruns.
 `climate.forcings.<name>.temp_pet_source` remains accepted with a deprecation notice; do not supply both
 spellings. Archives and scientific recipe serialization retain their original bytes and meaning.
 

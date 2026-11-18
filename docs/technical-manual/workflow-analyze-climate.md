@@ -47,10 +47,10 @@ extraction requires overlap between the source record and that period.
 | `plotting.annual_anomaly_maps` | Native-grid annual P/T departure panels; default `false`. |
 
 The reference period defaults to the climate window, and the comparison period defaults to the
-reference period. Since t037 the missing-day tolerances come from `climate.map_reference`, seasons from
-`climate.seasons`, and the precipitation–temperature diagnostics always use ERA5 temperature;
-`max_missing_days_*`, `climate_indices.seasons`, `climate_indices.reference_period` and
-`pt_temperature_source` in this file are refused.
+reference period. Missing-day tolerances come from `climate.map_reference` and seasons from
+`climate.seasons` in the project file; the precipitation–temperature diagnostics always use ERA5
+temperature. Earlier keys in this file are refused; see
+[renamed settings](changes-and-migration.md#renamed-configuration-settings).
 See [execution and run management](configuration-and-execution.md) for running the workflow.
 
 Basin-average comparison figures and unique source maps remain on by default. With multiple sources,
@@ -62,9 +62,7 @@ basin diagnostics remain on. Set `view: both` to add individual-source copies of
 Location and upstream-subbasin figures need `locations` in `plotting.scales`. Comparison data and numerical
 tables, including subbasin tables, are computed either way. Basin-scale figures always render, so
 `scales` must include `basin`. Changing these settings leaves existing disabled PNGs untouched; title
-and caption inventories describe the figures selected for the current run. Since t037,
-`plotting.comparison`, `.source` and `.location` and `diagnostics.annual_spatial_anomalies` are refused
-with their replacements.
+and caption inventories describe the figures selected for the current run.
 
 These switches belong under `plotting:` in this workflow's YAML; shared `plotting.annotation` stays in
 the project YAML. Old top-level `source_figures`, `location_figures` and `subbasin_figures` are still accepted with

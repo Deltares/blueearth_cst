@@ -104,9 +104,10 @@ These switches affect figures only. Historical simulation, retained responses, p
 exports and observation-based performance metrics remain enabled. `input_maps` defaults to `true`;
 `forcing_figures` to `false` and `scales` to `[basin]`. `locations` controls both reporting-location and
 associated upstream-subbasin figures; basin-scale figures always render. The forcing comparison
-(`forcing_comparison/`) always renders with two or more forcing sets. Since t037, `simulation_window`,
-`engine`, `plotting.spatial`, `.forcing` and `.location` are refused with their new names. Turning a family off leaves its previously generated files intact;
-the workflow no longer requests them. Turning it on requests any missing products through the usual runner.
+(`forcing_comparison/`) always renders with two or more forcing sets. Earlier keys are refused; see
+[renamed settings](changes-and-migration.md#renamed-configuration-settings). Turning a family off leaves its
+previously generated files intact; the workflow no longer requests them. Turning it on requests any missing
+products through the usual run command.
 
 Shared `plotting.annotation` remains in the project YAML. Legacy `forcing_plots`,
 `evaluation.station_plots` and `evaluation.subbasin_plots` are accepted with deprecation warnings;

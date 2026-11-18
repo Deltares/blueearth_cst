@@ -19,9 +19,8 @@ delta_change:
 ```
 
 The ensemble follows analyze_projections (CMIP6), and an omitted `schema_version` is `delta-change/3`.
-Since t037, `projections: {ensemble, future_windows}` and `pet: {mode: projection_ratio}` are refused in
-favour of `future_periods` and `scale_pet: true`; they compose to exactly the former settings, so
-existing identities are unchanged.
+Earlier delta-change keys are refused; see
+[renamed settings](changes-and-migration.md#renamed-configuration-settings).
 
 The basin starter carries this block, commented, at the end of its generation file. Everything else is
 derived from the case:
