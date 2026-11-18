@@ -13,16 +13,14 @@ The example uses a small catchment in Gabon, a limited temperature × precipitat
 their completion and explore the results. The short simulation period and small sample are intended for
 learning the toolbox; they are insufficient for estimating basin flood or drought return levels.
 
-Complete the [installation guide](install.md), including the installation check and data-access
-checks. The example requires datasets on the Deltares P-drive and internet access for CMIP6 data.
-Installing the software does not download these input datasets.
+**Data access:** the example reads datasets on the Deltares P-drive and downloads CMIP6 data from the
+internet. Installing the software does not download these datasets. Without P-drive access the example
+cannot run as supplied; follow [Creating a project](new-case.md) to configure sources available to you.
 
-Run the commands below in PowerShell from the `blueearth_cst` folder created during installation.
-Run time depends on downloads, data access and your computer's capacity. You will also need disk space
-for the model, climate series and simulation outputs.
-
-If you do not have access to the supplied data sources, follow
-[Creating a project](new-case.md) to configure sources available to you before running workflows.
+Complete the [installation guide](install.md), including the installation and data-access checks. Run the
+commands below in PowerShell from the `blueearth_cst` folder created during installation. Run time depends
+on downloads, data access and your computer's capacity. You will also need disk space for the model,
+climate series and simulation outputs.
 
 ## 1. Understand what the example runs
 

@@ -75,7 +75,6 @@ website:
           contents:
             - guide/calibrated-model.qmd
             - guide/advanced-tasks.qmd
-            - guide/notebooks.qmd
         - section: "Reference"
           contents:
             - guide/glossary.qmd
