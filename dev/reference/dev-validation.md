@@ -117,6 +117,10 @@ or fixture issues; never hide an access failure with a longer workflow timeout.
 - Snakefile edits that move admission, DAG construction, outputs or execution/journaling work between
   parse time and `onstart`/`onsuccess`/`onerror` owe `test-contract`: fast excludes lifecycle tests.
   Include any other affected contract tests excluded from fast.
+- A config-contract change (renaming, retiring or reshaping a key, or a composition translation) owes
+  the contract tests that author or read the changed keys in every commit that changes them, not only at
+  the batch gate. Find them with `git grep -l <old-key> -- tests` and run the hits with
+  `-m "workflow_contract or process_isolation"`. Fast passes alone missed 12 stale contract tests in t037.
 - Console-only layout and terminal-handler changes, including presentation timing across those hooks,
   need affected console/launcher tests and lifecycle contract cases, plus one representative output
   inspection. Cover dry-run, no-op, early errors and detailed file-log preservation when affected.
