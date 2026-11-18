@@ -4,7 +4,8 @@ execute:
 engine: markdown
 toc: true
 toc-depth: 3
-number-sections: false
+number-sections: true
+number-depth: 3
 format:
   html:
     theme: cosmo

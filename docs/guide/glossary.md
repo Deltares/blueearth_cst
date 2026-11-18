@@ -1,6 +1,7 @@
 ---
 title: "Glossary"
 subtitle: "Terms used in the toolbox"
+number-sections: false
 ---
 
 Each heading gives the preferred term. Where a setting or file holds the value, it is shown in code font.

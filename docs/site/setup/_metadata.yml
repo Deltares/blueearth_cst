@@ -1,0 +1,2 @@
+# Setup notes carry their title as a first-level heading, which would be numbered as a section.
+number-sections: false

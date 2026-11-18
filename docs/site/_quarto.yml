@@ -171,15 +171,19 @@ format:
       dark: [cosmo, styles/theme.scss, styles/theme-dark.scss]
     toc: true
     toc-depth: 3
-    number-sections: false
+    # Numbers come from the renderer; never type them into headings. Pages opt out in their
+    # front matter or a folder `_metadata.yml`.
+    number-sections: true
+    number-depth: 2
     code-copy: true
     code-overflow: wrap
 
 language:
   search-text-placeholder: Search
 
-# Website prose refers directly to nearby illustrations instead of numbered floats.
-crossref: false
+# Website prose refers directly to nearby illustrations instead of numbered floats: give figures
+# and tables no `fig-`/`tbl-` ids. `crossref: false` is not set because Quarto 1.9 then prints
+# every section number twice.
 
 filters:
   - ../../dev/scripts/publication_links.lua
