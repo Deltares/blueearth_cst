@@ -15,10 +15,9 @@ configuration files and generator settings read during execution.
 
 The project top level accepts only `schema_version`, `project`, `basin`, `climate`, `model`, `plotting`,
 `workflows` and `workflow_configs`. `workflows.<name>` is a YAML boolean that selects the workflow;
-`workflow_configs.<name>` is the optional path of its settings file. Keep declared files readable even
-when their workflow is disabled. For the earlier form, see
-[renamed settings](changes-and-migration.md#renamed-configuration-settings).
-Omitting the file gives an empty settings mapping; workflow-required fields still apply when enabled.
+`workflow_configs.<name>` is the optional path of its settings file. Keep declared files readable even when
+their workflow is disabled. Omitting the file gives an empty settings mapping; workflow-required fields still
+apply when enabled.
 
 Workflow files hold that workflow's settings. Shared section names and shared leaf names cannot be placed
 there to override the project. Combining the settings reads each declared file and adds the workflow's switch
@@ -46,7 +45,6 @@ versions. It is never a `--configfile` target. Only its listed keys are accepted
 
 `schema_version: 3` resolves enumerated file fields beside the YAML declaring them. `workflow_configs` paths
 are always relative to the project file. Supported schema numbers are integers 2 and 3; other values fail.
-For schema 2, see [schema 2 path rules](changes-and-migration.md#schema-2-path-rules).
 
 | Declaring file | File fields resolved by schema 3 |
 |---|---|
@@ -79,10 +77,22 @@ The case creation command creates `<case>/<trial>/project_config.yml`, defaultin
 trial may have another name, but later creation then needs `--from-trial` until a default trial exists. It
 writes `project.project_dir: outputs` and a shared outlet reference `../data/output_locations.csv`.
 
-`--from-trial` requires schema 3, preserves scientific settings and workflow enablement, and copies
-referenced authored trial inputs. Shared case data stay shared; external inputs are reported. References to
-saved products must be removed from a working source copy before creating a fresh trial. `--catalog` uses
-destination-YAML-relative paths or `toolbox:` resources. See [case creation](../guide/new-case.md).
+`--from-trial` requires schema 3, preserves scientific settings and workflow enablement, and copies referenced
+authored trial inputs. Shared case data stay shared; external inputs are reported. Missing inputs, links,
+cross-trial inputs outside shared `data/` and references to saved products are refused with guidance; remove
+references to saved products from a working source copy before creating a fresh trial. `--catalog` uses
+destination-YAML-relative paths or `toolbox:` resources.
+
+Catalogs do not bundle their datasets: review catalog-internal dataset paths and access separately, and keep
+catalogs with relative dataset paths together with their datasets in shared case `data/`. Copying a
+trial-local catalog with relative dataset dependencies is refused, rather than rewriting HydroMT's catalog
+semantics or silently leaving datasets behind.
+
+Creation adds one row to the case README's Trial/Purpose/Status table, initially `working`. No central
+registry is updated. Change status manually to `retained` or `complete`; complete means the declared scope was
+reviewed, not that every workflow ran. Preserve saved evidence for new
+[experiments](../guide/glossary.md#experiment). Toolbox revision, source trial and run-note fields stay with
+each trial. See [case creation](../guide/new-case.md).
 
 ## Shared fields
 
@@ -138,8 +148,6 @@ Discharge is daily mean m³/s over midnight-to-midnight UTC days, one column per
 ([format](input-formats.md)); `interval_start` labels are shifted one day before the model evaluation,
 historical forcing comparison and Budyko screening read them. Discharge evaluation needs
 `river discharge` in `model.outvars`. Unknown entries and keys are refused.
-Earlier locations of these settings are refused; see
-[renamed settings](changes-and-migration.md#renamed-configuration-settings).
 
 ### Historical forcing sets {#historical-forcing-recipe}
 
@@ -177,12 +185,6 @@ set. With one set, model outputs use the single-set layout (`historical/default/
 several, model building simulates `build_model.historical_forcings` (default: the default set) in the per-set
 layout described in [forcing-set comparison](forcing-comparison.md#named-recipes), and simulation selects one
 set through `simulate_system.historical_forcing`.
-
-#### Earlier keys
-
-The earlier `climate.sources`, `climate.selected` and `climate.forcing` keys are refused;
-[renamed settings](changes-and-migration.md#renamed-configuration-settings) explains the conversion and its
-one-time reruns.
 
 #### Forcing-set keys
 
@@ -273,8 +275,8 @@ Sources are only read.
   window; the requested window is then sliced from it and has the content of a fresh extraction.
 - Catalog entries are compared without the catalog root, but the shipped P-drive and local-mirror catalogs
   describe ERA5 and CHIRPS differently, so reuse works between trials that use the same catalog.
-- Stores extracted before records existed, or by other extraction code, are never reused.
-- A CMIP6 raw slice is reused when its recorded hash matches, including slices fetched before this feature.
+- Stores without an extraction record, or extracted by other extraction code, are never reused.
+- A CMIP6 raw slice is reused when its recorded hash matches.
 
 Each decision is logged by the extraction or fetch rule; reuse changes no rerun decision and no run's record
 of inputs.

@@ -19,8 +19,6 @@ delta_change:
 ```
 
 The ensemble follows analyze_projections (CMIP6), and an omitted `schema_version` is `delta-change/3`.
-Earlier delta-change keys are refused; see
-[renamed settings](changes-and-migration.md#renamed-configuration-settings).
 
 The basin starter carries this block, commented, at the end of its generation file. Everything else is
 derived from the case:
@@ -159,7 +157,3 @@ intervals) and monthly basin-map panels per run and variable on one colour scale
 analysis annual changes as a model × scenario map matrix (`--member-summary median|mean`); cells with withheld
 dry-month ratios cannot be mapped there.
 
-## Migrating from delta-change/1 and /2 {#migrating-from-delta-change1-and-2}
-
-Versions 1 and 2 are read-only. See [delta-change/1 and /2](changes-and-migration.md#delta-change-1-and-2) to
-regenerate a set with the current method.

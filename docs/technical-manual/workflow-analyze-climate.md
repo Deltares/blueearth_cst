@@ -53,8 +53,7 @@ optional subbasin figures. The annotated template is
 The reference period defaults to the climate window, and the comparison period defaults to the
 reference period. Missing-day tolerances come from `climate.map_reference` and seasons from
 `climate.seasons` in the project file; the precipitation–temperature diagnostics always use ERA5
-temperature. Earlier keys in this file are refused; see
-[renamed settings](changes-and-migration.md#renamed-configuration-settings).
+temperature.
 
 ### Figure selection
 
@@ -211,11 +210,6 @@ source. Two shared outputs support the analysis.
 - **Basin geometry (`data/spatial/`).** GeoJSON basin, subbasin, river and location vectors.
 - **Map reference (`data/climate/historical/_engine/map_reference.json`).** Shared display extent and
   color classes, also used by model building.
-
-### Map preparation records
-
-If historical climate analysis reports `stale preparation identity`, follow
-[map preparation after an upgrade](changes-and-migration.md#map-preparation-after-an-upgrade).
 
 ### Map display and file names
 

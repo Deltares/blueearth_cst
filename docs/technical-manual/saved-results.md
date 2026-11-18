@@ -15,7 +15,7 @@ Relative paths below start at `project_dir`, unless an experiment folder is name
 
 | Product | Immutable data and authoritative record |
 |---|---|
-| Scenario collection | `scenarios/<name>/`; marker `scenarios/<name>/_engine/collection.json` (earlier versions: `scenarios/_engine/data/<id>/`, `scenarios/_engine/collections/<id>/`) |
+| Scenario collection | `scenarios/<name>/`; marker `scenarios/<name>/_engine/collection.json` |
 | Simulation | `experiments/<name>/_engine/simulation.json`; per-variable `simulations/<run_id>/` and `_engine/response_inventory.json` inside that experiment |
 | Indicator set | Experiment `_engine/indicator_sets/<id>/indicators.json` (hashes); its tables only in `results/indicator_sets/<set-id>/` |
 | Named indicator view | Experiment `results/indicator_sets/<set-id>/`; committed by `_engine/indicator_sets/names/<set-id>/current.json` |

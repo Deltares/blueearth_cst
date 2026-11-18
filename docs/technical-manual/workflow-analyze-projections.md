@@ -66,7 +66,6 @@ precipitation problem.
 Each projection is compared with its own modeled historical reference, independently of the observed
 record used for model building. Temperature changes are additive in °C; precipitation changes are
 relative. Seasonal results use DJF, MAM, JJA and SON; `climate.seasons` does not apply here yet.
-Earlier keys are refused; see [renamed settings](changes-and-migration.md#renamed-configuration-settings).
 See [execution and run management](configuration-and-execution.md) for running the workflow.
 
 A custom variable is listed in `variables` and declared under `variable_options` with `source` (the

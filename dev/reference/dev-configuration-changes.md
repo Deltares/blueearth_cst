@@ -84,8 +84,9 @@ consumers and checks, following
 [naming conventions §7](dev-naming-conventions.md#7-rename-only-with-a-migration-note).
 Add the old path to `RETIRED_KEYS` in `config_composition.py` with the sentence that tells a user where it
 went; the loader refuses it by name. Update every live reference, including templates, seeds, docs and
-comments. Write a user-facing guide only when users must act. Version-1 project files are refused with a
-pointer to the `v0.3.0` release, which still ships the migrator.
+comments. Record the old-to-new mapping in [pre-release migration notes](pre-release-migration.md), not on
+public pages. Version-1 project files are refused with a pointer to the `v0.3.0` release, which still ships
+the migrator.
 
 ## Verification
 

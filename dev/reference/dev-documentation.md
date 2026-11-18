@@ -52,6 +52,8 @@ from:".
 
 ## Content and sources
 
+- Public pages describe current behaviour only. Pre-release migration, renamed-setting and deprecation
+  notes live in [pre-release migration notes](pre-release-migration.md).
 - Keep the homepage focused on purpose and navigation. Introduce climate vulnerability and
   water-system robustness before software or datasets. Put the five workflows' responsibilities,
   dependencies and execution order in the User Guide. Do not add a homepage Downloads button or PDF

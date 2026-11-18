@@ -161,8 +161,3 @@ Julia step reports a missing Julia version, install that version with `juliaup a
 [Install the required software](#install-the-required-software).
 
 Then repeat the installation check in [Check the installation](#check-the-installation).
-
-The [run commands](glossary.md#run-command) may refuse an [output directory](glossary.md#output-directory)
-written by an older toolbox version; see
-[Changes and migration](../technical-manual/changes-and-migration.md#output-directory-layout-versions) for
-what to do.

@@ -1,30 +1,10 @@
----
-title: "Changes and migration"
-format: html
----
+# Pre-release migration notes
 
-This reference covers moving existing cases and output directories to the current toolbox structure,
-renamed and deprecated configuration settings, outputs written by earlier versions, and the rules that apply
-when a trial is copied. The User Guide explains
-how to [create a case and add a trial](../guide/new-case.md#create-the-case-files).
+Last updated: 2026-11-18
 
-## Copying a trial
-
-[Trial](../guide/glossary.md#trial) copying with `--from-trial` refuses inputs it cannot carry over safely.
-Missing inputs, links, cross-trial inputs outside shared `data/`, references to saved products and schema-2
-sources are refused with guidance. Migrate a schema-2 copy explicitly before using it as a source.
-Review catalog-internal dataset paths and access separately; catalogs do not bundle their datasets.
-Keep catalogs with relative dataset paths together with their datasets in shared case `data/`.
-Copying a trial-local catalog with relative dataset dependencies is refused, rather than rewriting
-HydroMT's catalog semantics or silently leaving datasets behind.
-
-## The case README trial table
-
-Creation adds one row to the case README's Trial/Purpose/Status table, initially `working`. No central
-registry is updated. Change status manually to `retained` or `complete`; complete means the declared scope was
-reviewed, not that every workflow ran. Preserve saved evidence for new
-[experiments](../guide/glossary.md#experiment). Toolbox revision, source trial and run-note fields stay with
-each trial.
+Owner notes for cases, settings and output directories written by pre-release toolbox versions. Public
+documentation describes current behaviour only; renamed-setting, deprecation and migration notes live here.
+See [documentation content rules](dev-documentation.md#content-and-sources).
 
 ## Copy and verify an existing case
 
@@ -35,7 +15,7 @@ Migration is a separate, non-destructive operation:
 1. Copy authored configurations and accompanying files into a new case directory with a `default/` trial.
    Preserve the original configurations and results until verification is complete.
 2. For schema 2, resolve each file path using its original base before explicitly changing the copy
-   to schema 3. Review the [path reference](configuration.md#how-paths-are-read).
+   to schema 3. Review the [path reference](../../docs/technical-manual/configuration.md#how-paths-are-read).
 3. Set the copied trial's output root to `outputs`, and update copied YAML-relative input references.
    Keep shared inputs in case `data/`, with distinct inputs under the trial. Keep `toolbox:` paths.
 4. Combine every workflow's settings, inspect resolved input paths, and preview with the all-workflow run
@@ -48,7 +28,7 @@ archive additionally requires the referenced datasets, catalogs and software env
 external dependencies. Git ignore rules are not backups, and moving YAML alone does not relocate runtime
 paths embedded in historical outputs.
 
-## Renamed configuration settings {#renamed-configuration-settings}
+## Renamed configuration settings
 
 The current configuration uses simpler names and moves some settings into the project file. A settings
 file that still uses an earlier key is refused with a message naming its replacement. Settings that were
@@ -78,8 +58,9 @@ bytes and meaning.
 Some changes cause one-time reruns or changed outputs:
 
 - A project that compared several datasets but used only one as forcing now declares one forcing set per
-  dataset. Model building reruns once in the [per-set layout](forcing-comparison.md#named-recipes); start a
-  new simulation experiment afterwards.
+  dataset. Model building reruns once in the
+  [per-set layout](../../docs/technical-manual/forcing-comparison.md#named-recipes); start a new simulation
+  experiment afterwards.
 - Every compared dataset can now drive the model, so each must cover at least 16 years.
 - Climate indices gain seasonal rows; set `climate.seasons: {}` to keep annual values only. Historical
   climate analysis always calculates the subbasin tables.
@@ -88,7 +69,7 @@ Some changes cause one-time reruns or changed outputs:
 - The bundled weather-generator settings file is now `config/defaults/weathergenr_config.yml`. Rerun
   scenario generation before running hydrological simulation on its own.
 
-## Deprecated settings {#deprecated-settings}
+## Deprecated settings
 
 These settings are still accepted; replace or remove them.
 
@@ -106,7 +87,7 @@ These settings are still accepted; replace or remove them.
   use climate.forcing.temp_source`; with several forcing sets it is accepted without a warning.
 - **Scenario-set selection.** `scenario_collection.manifest_path` in the simulation file is deprecated.
 
-## Schema 2 and earlier file forms {#schema-2-path-rules}
+## Schema 2 and earlier file forms
 
 - `schema_version: 2` keeps file bases relative to the directory the command runs from. `workflow_configs`
   paths are always relative to the project file, including schema 2. Rain-gauge files under
@@ -118,9 +99,9 @@ These settings are still accepted; replace or remove them.
 - Legacy source files remain supported with migration notices, and run-record archives keep their original
   bytes.
 
-## Outputs from earlier versions {#outputs-from-earlier-versions}
+## Outputs from earlier versions
 
-### Historical climate analysis {#earlier-historical-climate-outputs}
+### Historical climate analysis
 
 - Older saved figure metadata remains readable in place. Rerendering reads projects written before layout 3
   from their per-table files.
@@ -135,7 +116,7 @@ These settings are still accepted; replace or remove them.
   existing case evidence. Spatial index maps are no longer generated; previously inventoried index maps are
   retired after successful rendering, and unrelated files are preserved.
 
-### Map preparation after an upgrade {#map-preparation-after-an-upgrade}
+### Map preparation after an upgrade
 
 Map preparation records normalize Python source line endings to LF, so equivalent toolbox folders on Windows
 share code hashes. Input data, catalogs and environment locks keep byte-exact hashes. After upgrading from
@@ -151,7 +132,7 @@ byte-exact Python hashes, regenerate the prepared fields once. If historical cli
 
 This rebuilds map fields and their reference without forcing climate extraction.
 
-### Projection analysis {#earlier-projection-outputs}
+### Projection analysis
 
 - Individual `cmip6_delta_monthly_*.png` curve sheets are no longer produced. Previously managed copies are
   removed when their figure directory is regenerated.
@@ -163,20 +144,20 @@ This rebuilds map fields and their reference without forcing climate extraction.
 - Delta-change generation needs gridded changes of inventory schema 2 or later. Run projection analysis alone
   with `-- --forcerun prepare_projection_analysis` to rewrite older gridded changes (inventory schema 1).
 
-### Scenario sets {#earlier-scenario-sets}
+### Scenario sets
 
 - Sets from earlier versions stay where they are (`scenarios/_engine/data/<id>/`) and are listed in the index
   as `retained-<id>`.
 - Projects generated before the current scenario-set layout may still hold top-level copies and
   `scenarios/_engine/current.json`; these are no longer refreshed and can be deleted.
 
-### Hydrological simulation {#earlier-simulation-outputs}
+### Hydrological simulation
 
 - Old native-only results are not upgraded or rewritten: create new historical runs/experiments.
 - Existing native-grid inventories keep their original checksum and reader semantics.
 - Older run records without measured elapsed seconds remain unavailable.
 
-## Delta-change/1 and /2 {#delta-change-1-and-2}
+## Delta-change/1 and /2
 
 Versions 1 and 2 (explicit historical and projection files, `reader`, `simulation_window`) are read-only:
 their saved collections under `scenarios/_engine/collections/` stay readable and selectable by
@@ -185,9 +166,10 @@ them, and `scripts/generate_delta_scenarios.py` is retired. To regenerate:
 
 1. Run `analyze_projections` for the ensemble and horizons you used as projection files.
 2. Replace the settings with the `delta-change/3` block in
-   [delta-change scenarios](delta-change-scenarios.md#configure). `historical_path`, `source_like`, `reader`,
-   `reference_period`, `future_period`, `members` and `factor_layout` are removed; `simulation_window`
-   becomes the projection-analysis reference period (or `historical_override.period`).
+   [delta-change scenarios](../../docs/technical-manual/delta-change-scenarios.md#configure).
+   `historical_path`, `source_like`, `reader`, `reference_period`, `future_period`, `members` and
+   `factor_layout` are removed; `simulation_window` becomes the projection-analysis reference period (or
+   `historical_override.period`).
 3. Generate through the run command. Periods and members now follow projection analysis, so the new set
    differs from the old one.
 
@@ -196,7 +178,29 @@ regenerated.
 
 ## Output-directory layout versions
 
-A new output directory records the [layout](../guide/glossary.md#layout) it was written with in
+A new output directory records the [layout](../../docs/guide/glossary.md#layout) it was written with in
 `config/_engine/layout.json` (layout 5 for this toolbox version); a directory without it uses layout 1. The
-[run commands](../guide/glossary.md#run-command) refuse a directory written with a different layout: set
-`project.project_dir` to a new folder and rerun. Existing directories are not converted.
+[run commands](../../docs/guide/glossary.md#run-command) refuse a directory written with a different layout:
+set `project.project_dir` to a new folder and rerun. Existing directories are not converted.
+
+## Notes removed from public pages
+
+- **Copying a trial.** Schema-2 sources are refused by `--from-trial` with guidance. Migrate a schema-2 copy
+  explicitly before using it as a source.
+- **Case creation errors.** `Legacy split-layout case exists` or `Legacy flat case detected` means a case with
+  this name already exists in an older layout: under `applications/` or `runs/` in the cases folder, or with
+  `project_config.yml` directly in the case folder. Choose a new case name, or first copy the old case into a
+  named trial, following [Copy and verify an existing case](#copy-and-verify-an-existing-case).
+- **Earlier configuration keys.** Earlier keys in the workflow files, the earlier locations of the observation
+  settings, the earlier `climate.sources`, `climate.selected` and `climate.forcing` keys and earlier
+  delta-change keys are refused; [renamed configuration settings](#renamed-configuration-settings) explains
+  the conversion and its one-time reruns.
+- **Map preparation.** If historical climate analysis reports `stale preparation identity`, follow
+  [map preparation after an upgrade](#map-preparation-after-an-upgrade).
+- **Model building `historical_run`.** The setting is ignored; see
+  [deprecated settings](#deprecated-settings).
+- **Saved scenario sets.** Sets from earlier versions are kept in `scenarios/_engine/data/<id>/` and
+  `scenarios/_engine/collections/<id>/`.
+- **Reuse of older stores and slices** (moved from the configuration reference's data-reuse list):
+  "Stores extracted before records existed, or by other extraction code, are never reused." "A CMIP6 raw
+  slice is reused when its recorded hash matches, including slices fetched before this feature."

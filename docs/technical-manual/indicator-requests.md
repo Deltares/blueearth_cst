@@ -16,8 +16,6 @@ or change their units, calendars, missing-data rules or aggregation methods.
 
 In the hydrological simulation file, `steps: {simulations, indicators}` switches each step on or off.
 Each defaults to `true`; setting both to `false` fails.
-Earlier keys such as `operations` and `indicator_sets` are refused; see
-[renamed settings](changes-and-migration.md#renamed-configuration-settings).
 Simulations alone validate request structure without opening set files. Indicators alone require saved
 responses and do not launch Wflow.
 

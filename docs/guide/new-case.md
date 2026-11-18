@@ -78,7 +78,7 @@ pixi run create-case my-basin --cases-root C:/cst-cases --trial alternative-forc
 Remove `--dry-run` to create it, and give each trial its own purpose. A new trial starts with no outputs and
 its own `notes.md`. Copying takes the source trial's own input files, keeps references to shared case data and
 lists any files outside the case; it never copies outputs or run history. See
-[Changes and migration](../technical-manual/changes-and-migration.md#copying-a-trial) for the inputs that
+[case creation](../technical-manual/configuration.md#case-scaffolder) for the inputs that
 copying refuses and for the trial table in the case README.
 
 **Edit your case files.** Shared settings belong in `project_config.yml`; workflow settings belong in the
@@ -318,6 +318,3 @@ for execution options and recovery.
 
 For case-creation problems, unexpected basin boundaries or workflow failures, see
 [Troubleshooting](troubleshooting.md).
-
-To move a case created with an older toolbox layout, see
-[Copy and verify an existing case](../technical-manual/changes-and-migration.md#copy-and-verify-an-existing-case).

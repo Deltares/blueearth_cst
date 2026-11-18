@@ -114,7 +114,6 @@ plotting:
 - Turning a family off leaves its previously generated files intact; the workflow no longer requests them.
   Turning it on requests any missing products through the usual run command.
 
-Earlier keys are refused; see [renamed settings](changes-and-migration.md#renamed-configuration-settings).
 Shared `plotting.annotation` remains in the project YAML. Unknown plotting keys and nonboolean switches
 are errors.
 
@@ -188,11 +187,6 @@ cyclic, waterbody and initial-state inputs, including forcing variable bindings,
 excludes the forcing file contents and pointer, simulation dates, output configuration and logging paths,
 which have separate source and compatibility checks. NetCDF inputs use content hashes independent of
 compression and container timestamps.
-
-### Retired setting
-
-The `historical_run` setting is ignored; see
-[deprecated settings](changes-and-migration.md#deprecated-settings).
 
 ## Named forcing sets {#named-recipes}
 

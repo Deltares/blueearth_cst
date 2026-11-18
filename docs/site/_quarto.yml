@@ -158,7 +158,6 @@ website:
         - section: "Appendices"
           contents:
             - technical-manual/workflow-rule-reference.qmd
-            - technical-manual/changes-and-migration.qmd
   search:
     location: navbar
     type: textbox

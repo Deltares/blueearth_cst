@@ -19,6 +19,7 @@ owning reference when behavior changes; executable sources retain exact schemas,
 | Git branch, tag or commit conventions | [dev-git-conventions.md](dev-git-conventions.md) |
 | Release/version decisions | [dev-versioning.md](dev-versioning.md) |
 | CST documentation content, presentation and publishing | [dev-documentation.md](dev-documentation.md) |
+| Cases, settings and outputs from pre-release versions | [pre-release-migration.md](pre-release-migration.md) |
 
 ## Architecture and implementation
 

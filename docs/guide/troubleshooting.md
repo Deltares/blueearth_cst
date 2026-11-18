@@ -70,11 +70,6 @@ to check it without writing.
   hyphens, such as `my-basin` or `v2`. Names the toolbox uses for its own folders (`data`, `outputs`, `logs`,
   `cache`, `applications`, `runs`, `trials`, `templates`) and Windows device names such as `con` or `nul` are
   refused.
-- **`Legacy split-layout case exists`** or **`Legacy flat case detected`.** A case with this name already
-  exists in an older layout: under `applications/` or `runs/` in the cases folder, or with
-  `project_config.yml` directly in the case folder. Choose a new case name, or first copy the old case into a
-  named trial, following
-  [Copy and verify an existing case](../technical-manual/changes-and-migration.md#copy-and-verify-an-existing-case).
 - **`A new case requires --longitude and --latitude`.** Supply both coordinates when creating the first trial
   of a case. For a later trial, omit them or repeat the case's own values; different coordinates are refused.
 

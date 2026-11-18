@@ -60,7 +60,6 @@ Detailed references provide the [configuration rules](configuration.md),
 [indicator selection](indicator-requests.md), [saved-result tables](saved-results.md),
 [run records](run-records.md), [resource measurements](runtime-and-resources.md),
 [projection-result transfer](results-transfer.md) and [custom indicators](indicator-extension.md). The
-appendices hold the [processing rule reference](workflow-rule-reference.md) and
-[changes and migration](changes-and-migration.md).
+Appendices section holds the [processing rule reference](workflow-rule-reference.md).
 
 For installation and a first run, start with the [user guide](../guide/quick-start.md).
