@@ -143,15 +143,9 @@ def test_product_predicates_preserve_partial_ensemble_and_window_identity():
     available = analysis.product_availability(tables, windows=records)
     assert len(available) == 20  # fourteen window products and six full_period products
     window = available.loc[available.folder == "period_2036_2065"].set_index("filename")
-    assert window.loc[
-        "cmip6_precip_temp_change_cloud_basin.png", "available"
-    ]
-    assert not window.loc[
-        "cmip6_precip_temp_sign_agreement_basin.png", "available"
-    ]
-    assert not window.loc[
-        "cmip6_precip_temp_variability_ratio_basin.png", "available"
-    ]
+    assert window.loc["cmip6_precip_temp_change_cloud_basin.png", "available"]
+    assert not window.loc["cmip6_precip_temp_sign_agreement_basin.png", "available"]
+    assert not window.loc["cmip6_precip_temp_variability_ratio_basin.png", "available"]
     assert window.loc["cmip6_temp_monthly_cycle_basin.png", "available"]
     bad = dict(tables, models=pd.DataFrame({"model": ["bad"]}))
     with pytest.raises(ValueError, match="missing availability columns"):
