@@ -86,7 +86,8 @@ or invoking workflows. Source files, unrelated paths, logs and attempt history s
 After a failed or interrupted attempt, existing files remain evidence rather than proof of readiness.
 An identity mismatch calls for a separate experiment; forced scheduling never makes incompatible inputs
 equivalent. Reservation recovery is checked by `experiment/reservation.py` and `reservation_context.py`;
-it is not a general overwrite switch.
+it is not a general overwrite switch, nor a repair tool for partial weather generation or damaged
+model-response files.
 
 ## Run status and elapsed time {#timing-and-attempt-lifecycle}
 
