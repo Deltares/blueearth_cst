@@ -232,7 +232,10 @@ def generation_configuration(config, repository, *, stage=True):
         )
     _, _, count = stress_test_grid(cfg["climate_perturbations"])
     realizations = cfg.get("n_realizations", 1)
-    template = cfg.get("weathergen_config", "config/defaults/weathergenr_config.yml")
+    template = cfg.get(
+        "weathergen_config",
+        (Path(repository) / "config/defaults/weathergenr_config.yml").as_posix(),
+    )
     from blueearth_cst.experiment.method_revisions import STOCHASTIC, method_revision
 
     # Checks the live generator code against its pin before any identity uses it.
