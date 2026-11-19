@@ -1,13 +1,24 @@
 # Changelog
 
-Personal fork of `Deltares/blueearth_cst`. Release history follows
+Release history for the BlueEarth Climate Stress Testing Toolbox follows
 [Keep a Changelog](https://keepachangelog.com/) loosely.
 
-Releases follow the [manual toolbox versioning policy](dev/reference/versioning.md):
+Releases follow the [manual toolbox versioning policy](dev/reference/dev-versioning.md):
 Git release tags are authoritative; milestone tags are development checkpoints.
 Milestone detail lives in `dev/roadmap.md` and `dev/records/milestones/`.
 
 ## [Unreleased]
+
+## [v0.5.0] — 2026-11-19
+
+This release updates the User Guide and Technical Manual and changes the project YAML interface and several saved output paths. Before upgrading an existing case, preserve its authored inputs and saved results, then follow the [migration notes](dev/reference/pre-release-migration.md). Use the [configuration templates annex](docs/technical-manual/configuration-templates.md) for the project and workflow YAMLs.
+
+Named historical forcing sets, stochastic and projection-conditioned scenario collections, and saved-response indicators are covered in the new documentation. The following change history records the changes since v0.4.1. Where an earlier entry uses an older setting or layout, follow the migration notes and current templates.
+
+### Changes since v0.4.1
+
+- Historical forcing settings appear once under the first consuming workflow. Simulation console rows show each run ID once and summarize concurrency and Julia threads.
+- Historical model evaluation writes location plots under `plots/locations/`. New historical comparisons write `tables/locations.csv`; the rerender command still reads saved comparisons with the earlier table name. Rain-gauge comparisons also handle coordinate rounding when matching gauges to reporting locations.
 
 - **Documentation revised (t036).** The User Guide is rewritten page by page with a new stress-test results
   page; the Technical Manual gives the optional analyses their own pages, moves developer reference to
