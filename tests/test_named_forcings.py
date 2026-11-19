@@ -266,7 +266,7 @@ def test_runner_summary_names_the_active_recipe(tmp_path):
     import scripts.run_workflows as rw
 
     rows = rw._consumer_forcing_rows(str(_named(tmp_path)), "build_model")
-    assert rows[0] == "> Historical forcing: chirps (default)"
+    assert rows[0] == "Historical forcing: chirps (default)"
     assert any("CHIRPS" in row for row in rows)
 
 
