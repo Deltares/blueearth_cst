@@ -157,6 +157,7 @@ website:
             - technical-manual/indicator-extension.qmd
         - section: "Appendices"
           contents:
+            - technical-manual/configuration-templates.qmd
             - technical-manual/workflow-rule-reference.qmd
   search:
     location: navbar
