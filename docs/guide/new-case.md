@@ -92,8 +92,7 @@ files below. Pass `project_config.yml` to the [run command](glossary.md#run-comm
 | `project_config_generate_scenarios.yml` | Weather realizations, perturbations, periods and seed |
 | `project_config_simulate_system.yml` | Experiment, steps, indicator sets and resources |
 
-The commented case files and [technical reference](../technical-manual/configuration.md) cover
-settings beyond the key choices below.
+The [configuration templates annex](../technical-manual/configuration-templates.md) contains the complete annotated YAML files. The [configuration reference](../technical-manual/configuration.md) explains how those files are combined.
 
 ## Define the catchment and data sources {#define-the-catchment-and-data-sources}
 

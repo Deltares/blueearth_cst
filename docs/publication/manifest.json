@@ -67,6 +67,7 @@
         "docs/technical-manual/runtime-and-resources.md",
         "docs/technical-manual/results-transfer.md",
         "docs/technical-manual/indicator-extension.md",
+        "docs/technical-manual/configuration-templates.md",
         "docs/technical-manual/workflow-rule-reference.md"
       ],
       "include_appendices": false

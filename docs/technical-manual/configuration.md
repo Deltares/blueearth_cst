@@ -6,8 +6,7 @@ format: html
 This reference specifies how project and workflow settings are combined, how file paths are resolved,
 and which constraints apply. [Shared configuration](shared-configuration.md) introduces the assessment
 choices; [Creating a project](../guide/new-case.md) explains how to prepare a case.
-The annotated starter is under `config/templates/example-basin/`; `config/defaults/` contains the build
-configuration files and generator settings read during execution.
+The [configuration templates annex](configuration-templates.md) shows the complete annotated example-basin YAML files. The `config/defaults/` directory contains the build configuration files and generator settings read during execution.
 
 ## How configuration settings are combined {#composition-and-precedence}
 

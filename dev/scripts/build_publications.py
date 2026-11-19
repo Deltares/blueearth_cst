@@ -235,6 +235,16 @@ def prepare_publications(source_root: Path) -> tuple[dict[str, bytes], dict[str,
             metadata, body = _split_source(
                 read(path).decode("utf-8").replace("\r\n", "\n")
             )
+            body = re.sub(
+                r"^<!-- include-yaml: (config/templates/example-basin/[a-z0-9_-]+\.yml) -->$",
+                lambda match: (
+                    "```yaml\n"
+                    + read(match[1]).decode("utf-8").rstrip("\r\n")
+                    + "\n```"
+                ),
+                body,
+                flags=re.MULTILINE,
+            )
             title = metadata.get("title")
             if not title:
                 first = re.match(r"# ([^\n]+)\n", body)
