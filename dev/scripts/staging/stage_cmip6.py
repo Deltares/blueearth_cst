@@ -34,7 +34,7 @@ digest recipe, never a second way to read the store.
 
 Configuration
 -------------
-All knobs live in a YAML file (default: ``dev/scripts/stage_cmip6.yml``)::
+All knobs live in a YAML file (default: ``dev/scripts/staging/stage_cmip6.yml``)::
 
     region: C:/basins/gabon/region.geojson
     target_root: C:/data/cmip6_slices
@@ -55,12 +55,12 @@ a staged slice covers the window the pipeline expects.
 
 Usage
 -----
-    python dev/scripts/stage_cmip6.py
-    python dev/scripts/stage_cmip6.py --config my_basin.yml
-    python dev/scripts/stage_cmip6.py --dry-run          # list jobs, fetch none
-    python dev/scripts/stage_cmip6.py --models NOAA-GFDL/GFDL-ESM4
-    python dev/scripts/stage_cmip6.py --workers 8        # 4 slices at once by default
-    python dev/scripts/stage_cmip6.py --workers 1        # serial, for a real traceback
+    python dev/scripts/staging/stage_cmip6.py
+    python dev/scripts/staging/stage_cmip6.py --config my_basin.yml
+    python dev/scripts/staging/stage_cmip6.py --dry-run          # list jobs, fetch none
+    python dev/scripts/staging/stage_cmip6.py --models NOAA-GFDL/GFDL-ESM4
+    python dev/scripts/staging/stage_cmip6.py --workers 8        # 4 slices at once by default
+    python dev/scripts/staging/stage_cmip6.py --workers 1        # serial, for a real traceback
 
 The requested cross product is PRE-FILTERED against the catalog, which already
 records which (model, scenario) pairs exist and which members each carries. Much
@@ -122,7 +122,7 @@ from pathlib import Path
 
 import yaml
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
@@ -133,12 +133,7 @@ from blueearth_cst.projections.fetch_gcm_raw import (  # noqa: E402
     resolve_entry_name,
 )
 from blueearth_cst.shared.snake_utils import tee_to_log  # noqa: E402
-
-# `console.py` sits beside this file, and `stage_data.py` reaches it exactly
-# this way. The two staging tools share one console vocabulary, so they share
-# its implementation rather than each growing colour helpers of its own.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from console import (  # noqa: E402
+from dev.scripts.console import (  # noqa: E402
     banner,
     bold,
     cyan,

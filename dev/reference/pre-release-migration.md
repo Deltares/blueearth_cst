@@ -151,6 +151,11 @@ This rebuilds map fields and their reference without forcing climate extraction.
 - Projects generated before the current scenario-set layout may still hold top-level copies and
   `scenarios/_engine/current.json`; these are no longer refreshed and can be deleted.
 
+### Historical model evaluation and comparison
+
+- Per-run discharge figures now generate under `plots/locations/`, with inventories under `_engine/plots/locations/`. Rerun model evaluation with location figures enabled to regenerate them. Earlier `plots/stations/` figures and `_engine/plots/stations/` inventories remain on disk and can be archived after verifying the replacements.
+- New historical forcing and model comparisons write `tables/locations.csv`. The `historical-hydrology` rerender command still reads saved comparisons that record `tables/stations.csv` in their checksums. Keep the saved table paths and manifest together.
+
 ### Hydrological simulation
 
 - Old native-only results are not upgraded or rewritten: create new historical runs/experiments.

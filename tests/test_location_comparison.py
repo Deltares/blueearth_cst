@@ -45,7 +45,7 @@ def test_location_views_sample_native_points_and_retain_observations(
             "location_role": ["automatic_outlet", "control"],
             "subbasin_id": [101, 101],
             "original_x": [0.2, 0.3],
-            "original_y": [0.2, 0.3],
+            "original_y": [0.2000003333, 0.3],
         },
         geometry=[Point(0.2, 0.2), Point(0.3, 0.3)],
         crs=4326,
@@ -129,6 +129,7 @@ def test_location_views_sample_native_points_and_retain_observations(
     }
     assert registry.loc["location_1010", "gauge_id"] == ("001" if with_gauges else "")
     assert registry.loc["location_1010", "location_code"] == "B001-S01-L01"
+    assert registry.loc["location_1010", "y"] == (0.2 if with_gauges else 0.2000003333)
     # One long table per kind of result, keyed by location_id (layout 3, R15).
     table_root = root / "tables/locations"
     assert not (table_root / "location_1010").exists()

@@ -26,7 +26,7 @@ from blueearth_cst.climate_analysis.climate_figures import figure_names
 # above: the output list comes from the registry the plotter iterates, so a
 # figure cannot be added in one place and forgotten in the other.
 from blueearth_cst.shared.plot_spatial_maps import figure_paths
-from blueearth_cst.shared.plot_evaluation import STATION_PLOT_DIRNAME
+from blueearth_cst.shared.plot_evaluation import LOCATION_PLOT_DIRNAME
 # Recognises both "unset" spellings (YAML null and the legacy "None" string),
 # so an unset observation key never becomes a declared input.
 from blueearth_cst.shared.gauges import is_unset
@@ -1213,7 +1213,7 @@ if not isinstance(_evaluation_cfg, dict):
     raise ValueError("build_model.evaluation must be a mapping")
 _subbasin_plots = _plotting["location"]
 # `view: comparison` (default): with several forcing sets rule 1.13b redraws the
-# per-run discharge figures, so the per-run `stations/` set is dropped (t037).
+# per-run discharge figures, so the per-run `locations/` set is omitted (t037).
 _station_plots = _plotting["location"] and not (
     COMPARE_FORCINGS and _plotting.get("view", "comparison") == "comparison"
 )
@@ -1399,7 +1399,7 @@ for _k in FORCING_KEYS:
                 if _subbasin_plots and _basavg_pngs(_k) else []
             ),
             station_plots = (
-                [directory(f"{_hp(_k, 'evaluation_dir')}/plots/{STATION_PLOT_DIRNAME}")]
+                [directory(f"{_hp(_k, 'evaluation_dir')}/plots/{LOCATION_PLOT_DIRNAME}")]
                 if _station_plots else []
             ),
         params:

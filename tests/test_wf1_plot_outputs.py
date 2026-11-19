@@ -9,7 +9,7 @@
   That claim USED to be scoped to configs without extra gauges, because the
   per-station sheets stayed undeclared: their count is the model's
   outlet/subcatchment count, a build product unknown at parse time. Since
-  2026-08-18 (t2608071206) rule 1.15 declares the ``plots/stations/`` bin as a
+  2026-08-18 (t2608071206) rule 1.15 declares the per-location plot folder as a
   ``directory()``, so they are reachable too and the scope caveat is gone. The
   control file below moved with it — it has to be something still genuinely
   undeclared, or the assertion stops discriminating.
@@ -106,14 +106,14 @@ def fabricated_project(tmp_path):
     # that --delete-all-output now reaches it.
     expected.append(
         project_dir
-        / "models/hydrology/wflow/historical/default/plots/stations/hydrograph_1010.png"
+        / "models/hydrology/wflow/historical/default/plots/locations/hydrograph_1010.png"
     )
     # Knowingly UNDECLARED (config-dependent): it must survive, which is what
     # makes the assertion below a discriminating check rather than a tautology
     # about an emptied directory.
     # A stray directly in plots/ -- that directory is NOT declared, only the
-    # basavg files and the stations/ bin inside it are, so this survives.
-    # It used to be `signatures_wflow_1.png`, which the stations/ bin now
+    # basavg files and the locations/ folder inside it are, so this survives.
+    # It used to be `signatures_wflow_1.png`, which the locations/ folder now
     # covers; leaving it there would have made the control a tautology.
     undeclared = (
         project_dir

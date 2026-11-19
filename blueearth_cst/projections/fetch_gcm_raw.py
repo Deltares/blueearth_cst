@@ -107,7 +107,7 @@ def hns_switch_row(value):
 #: hydromt's own phrase for the refusal this module routes around
 #: (``hydromt/gis/raster.py:441`` -- ``np.allclose(dys, dys[0], atol=5e-4)``).
 #: Matched on the MESSAGE rather than on ``ValueError``, which is far too common
-#: a type to key on; ``dev/scripts/stage_cmip6.py`` classifies the same phrase.
+#: a type to key on; ``dev/scripts/staging/stage_cmip6.py`` classifies the same phrase.
 IRREGULAR_GRID_PHRASE = "only applies to regular grids"
 
 
@@ -124,7 +124,7 @@ def is_irregular_grid_error(error):
     return IRREGULAR_GRID_PHRASE in str(error)
 
 
-#: The phrase a multi-version refusal carries, so `dev/scripts/stage_cmip6.py`
+#: The phrase a multi-version refusal carries, so `dev/scripts/staging/stage_cmip6.py`
 #: can bucket it without matching an exception type. Same contract as
 #: :data:`IRREGULAR_GRID_PHRASE` and for the same reason: the type here is
 #: whatever xarray raised while combining, which is far too general to key on.
@@ -981,7 +981,7 @@ def fetch_raw_slice(
     """Fetch ONE raw slice of the remote store, or return early on a cache hit.
 
     Extracted from the `if "snakemake"` block on 2026-08-18 so a second caller
-    could exist without a second implementation. `dev/scripts/stage_cmip6.py`
+    could exist without a second implementation. `dev/scripts/staging/stage_cmip6.py`
     stages slices outside a project with it; the Snakemake adapter below is the
     only other caller. Everything the two share -- the buffer and time
     semantics, the D8 duplicate-time check, the D12 pin, the units adapter, the

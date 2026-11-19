@@ -24,6 +24,8 @@ from blueearth_cst.shared.wf3_science import (
 
 METRICS = ("KGE", "NSE", "NSElog", "RMSE", "MSE", "Pbias", "VE")
 SCHEMA = "historical-comparison/1"
+LOCATION_TABLE_FILENAME = "locations.csv"
+LEGACY_LOCATION_TABLE_FILENAME = "stations.csv"
 
 
 def _daily_index(index: pd.Index, context: str) -> pd.DatetimeIndex:
@@ -366,6 +368,8 @@ SUPPORTING = {"support"}
 
 
 def _table_path(key: str) -> str:
+    if key == "stations":
+        return LOCATION_TABLE_FILENAME
     return f"supporting/{key}.csv" if key in SUPPORTING else f"{key}.csv"
 
 
@@ -547,9 +551,8 @@ def read_comparison(root: Path) -> tuple[dict, dict[str, pd.DataFrame]]:
     if not record.is_file():
         record = root / "comparison.json"  # before layout 4
     metadata = json.loads(record.read_text(encoding="utf-8"))
-    supporting = "supporting/" if record.parent.name == "_engine" else ""
     expected = {
-        f"{supporting}{name}.csv" if name in SUPPORTING else f"{name}.csv"
+        _table_path(name)
         for name in (
             "coverage",
             "performance",
@@ -562,17 +565,21 @@ def read_comparison(root: Path) -> tuple[dict, dict[str, pd.DataFrame]]:
             "inventory",
         )
     }
-    if (
-        metadata.get("schema_version") != SCHEMA
-        or set(metadata.get("table_hashes", {})) != expected
-    ):
+    if record.parent == root:
+        expected = {Path(name).name for name in expected}
+    hashes = metadata.get("table_hashes", {})
+    if LEGACY_LOCATION_TABLE_FILENAME in hashes:
+        expected.remove(LOCATION_TABLE_FILENAME)
+        expected.add(LEGACY_LOCATION_TABLE_FILENAME)
+    if metadata.get("schema_version") != SCHEMA or set(hashes) != expected:
         raise ValueError("incomplete or unsupported historical comparison")
     tables = {}
-    for name, digest in metadata["table_hashes"].items():
+    for name, digest in hashes.items():
         path = root / "tables" / name
         if path.is_symlink() or file_sha256(path) != digest:
             raise ValueError(f"damaged comparison table: {name}")
-        tables[Path(name).stem] = pd.read_csv(
+        key = "stations" if name == LOCATION_TABLE_FILENAME else Path(name).stem
+        tables[key] = pd.read_csv(
             path, dtype={"wflow_id": str}, float_precision="round_trip"
         )
     return metadata, tables

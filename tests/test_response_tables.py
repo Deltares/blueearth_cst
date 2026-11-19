@@ -1,6 +1,8 @@
 """Retained responses are rounded once, verified, and readable without raw output."""
 
 import json
+import runpy
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -13,6 +15,24 @@ from blueearth_cst.shared.response_tables import (
     read_table_record,
 )
 from tests.test_wflow_response_reader import native as native
+
+
+@pytest.mark.parametrize("forcing_id", [None, "era5"])
+def test_render_hydrograph_from_retained_historical_run(native, tmp_path, forcing_id):
+    project = tmp_path / "project"
+    run = project / "models/hydrology/wflow/historical" / (forcing_id or "default")
+    publish_response_tables(native, run / "run")
+    native.csv_path.unlink()
+    out = tmp_path / "review"
+    script = Path(__file__).resolve().parents[1] / "scripts/render_figures.py"
+    main = runpy.run_path(str(script))["main"]
+    args = ["hydrograph", "--project", str(project), "--out", str(out)]
+    if forcing_id is not None:
+        args.extend(["--forcing-id", forcing_id])
+    assert main(args) == 0
+    assert sorted(p.name for p in (out / "plots").glob("*.png")) == ["hydrograph_9.png"]
+    assert (out / "_engine/plots/figure_captions.json").is_file()
+    assert not (run / "plots").exists()
 
 
 @pytest.mark.parametrize("places", [0, 5, 8, 15])

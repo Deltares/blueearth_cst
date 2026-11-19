@@ -1,21 +1,19 @@
 """The local-first overlay catalog stays generated from its two sources."""
 
-import sys
 from pathlib import Path
 
 import yaml
 
-REPO = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO / "dev/scripts"))
+from dev.scripts.staging import write_staged_catalog as staged
 
-import write_staged_catalog as staged  # noqa: E402
+REPO = Path(__file__).resolve().parents[1]
 
 
 def test_the_committed_overlay_is_current():
     # Line endings follow the checkout (`*.yml text`); content must match.
     committed = staged.OUTPUT.read_text(encoding="utf-8").replace("\r\n", "\n")
     assert committed == staged.staged_catalog(), (
-        "run python dev/scripts/write_staged_catalog.py"
+        "run python dev/scripts/staging/write_staged_catalog.py"
     )
 
 

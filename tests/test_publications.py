@@ -14,6 +14,23 @@ from dev.scripts.build_publications import stage_publications
 from dev.scripts.stage_site_guides import stage_guides
 
 REPO = Path(__file__).resolve().parents[1]
+INTERACTIVE_DIAGRAM = REPO / "tests/fixtures/publications/shape-of-a-run.html"
+
+
+def test_static_fallback_covers_svg_workflows_and_all_details() -> None:
+    asset = INTERACTIVE_DIAGRAM.read_text(encoding="utf-8")
+    svg, fallback = build_publications.diagram_fallback(asset)
+    details = re.findall(r'wf\d: \["([^"]+)", "([^"]+)", "([^"]+)"\]', asset)
+    assert len(details) == 5
+    for label, title, body in details:
+        assert f"### {label}: {title}" in fallback
+        assert body in fallback
+    assert "Dashed arrows show order, not data dependencies." in fallback
+    assert "DASHED ARROWS = RUN ORDER, NOT DATA DEPENDENCIES" in svg
+    with pytest.raises(ValueError, match="all five"):
+        build_publications.diagram_fallback(
+            asset.replace('data-id="wf4"', 'data-id="unexpected"')
+        )
 
 
 @pytest.fixture
@@ -36,7 +53,7 @@ def publication_source(tmp_path: Path) -> Path:
         target = source / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         original = (
-            REPO / "tests/fixtures/docs-pilot/shape-of-a-run.html"
+            INTERACTIVE_DIAGRAM
             if relative == "docs/guide/assets/shape-of-a-run.html"
             else REPO / relative
         )

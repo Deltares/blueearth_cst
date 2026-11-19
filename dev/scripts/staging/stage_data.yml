@@ -1,4 +1,4 @@
-# Config for dev/scripts/stage_data.py
+# Config for dev/scripts/staging/stage_data.py
 #
 # Stages a bbox-clipped subset of a remote data root onto a local path,
 # mirroring the directory tree so an existing data catalog can simply have

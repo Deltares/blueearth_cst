@@ -155,7 +155,7 @@ select = ["E4", "E7", "E9", "F", "I", "TC004"]
 # (the comment block at the top of the file explains why it matters on SMB).
 # A file-level ignore rather than five inline noqas, because the reason is a
 # property of the file, not of any one line.
-"dev/scripts/stage_data.py" = ["E402"]
+"dev/scripts/staging/stage_data.py" = ["E402"]
 
 [tool.ruff.format]
 # Black-compatible, and a CI gate since ADR 0005 (2026-08-09).

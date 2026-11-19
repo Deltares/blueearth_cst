@@ -111,5 +111,5 @@ a separate checkout or network access. Existing scientific pages remain availabl
 this publication does not claim a completed new scientific-approach volume or a supported
 response-surface construction tutorial.
 
-The retained [P3 pilot](../publishing-pilot/README.md) remains a separate review fixture.
+The [P3 pilot record](../publishing-pilot/README.md) points to the earlier prototype in Git history.
 Full publication assembly does not replace its source or retained review evidence.

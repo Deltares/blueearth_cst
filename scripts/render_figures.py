@@ -29,6 +29,42 @@ def _historical_hydrology(args):
     return {"historical-hydrology": args.out / "plots"}
 
 
+def _hydrograph(args):
+    import xarray as xr
+
+    from blueearth_cst.experiment.wflow_response_reader import ResponseRequest
+    from blueearth_cst.shared.model_registry import model_root, recipe_key
+    from blueearth_cst.shared.named_forcings import FORCING_ID, HistoricalLayout
+    from blueearth_cst.shared.plot_evaluation import Station, plot_hydrograph
+    from blueearth_cst.shared.response_tables import open_table_responses
+
+    if args.forcing_id is not None and not FORCING_ID.fullmatch(args.forcing_id):
+        raise ValueError(f"Invalid forcing set ID: {args.forcing_id!r}")
+    model = model_root(args.project, args.model_name)
+    layout = HistoricalLayout(recipe_key(model, args.forcing_id))
+    responses = open_table_responses(
+        "hydrograph", model / layout.response_record, ResponseRequest(("q",))
+    )
+    if not responses:
+        raise ValueError("The retained run contains no discharge series")
+    response = responses[0]
+    discharge = xr.DataArray(
+        response.values,
+        coords={"time": response.time.to_numpy()},
+        dims=("time",),
+        name="Q",
+    )
+    plot_dir = args.out / "plots"
+    plot_dir.mkdir(parents=True, exist_ok=True)
+    path = plot_hydrograph(
+        discharge,
+        Station(int(response.location_id)),
+        str(plot_dir),
+        annotation=args.annotation,
+    )
+    return {"hydrograph": path}
+
+
 def _wf0(args):
     from blueearth_cst.climate_analysis.diagnostic_rerender import rerender_sources
 
@@ -121,6 +157,10 @@ def _wf2(args):
 #: Family name -> (what it renders, renderer). Add a family by pointing it at a
 #: re-render function that sits beside its rule adapter in ``blueearth_cst``.
 FAMILIES = {
+    "hydrograph": (
+        "Simulated hydrograph for the first saved discharge location",
+        _hydrograph,
+    ),
     "historical-hydrology": (
         "Fixed-model historical discharge from retained comparison tables",
         _historical_hydrology,
@@ -174,6 +214,7 @@ def main(argv=None):
     parser.add_argument(
         "--model-name", default="wflow", help="model folder under models/hydrology/"
     )
+    parser.add_argument("--forcing-id", help="hydrograph: named historical forcing set")
     parser.add_argument("--traceback", action="store_true")
     args = parser.parse_args(argv)
     if args.list:
@@ -186,6 +227,10 @@ def main(argv=None):
         parser.error("--out must lie outside the run so retained figures stay intact")
     if args.scenario and args.family != "wf2":
         parser.error("--scenario applies to wf2 only")
+    if args.forcing_id is not None and args.family != "hydrograph":
+        parser.error("--forcing-id applies to hydrograph only")
+    if args.source and args.family == "hydrograph":
+        parser.error("--source does not apply to hydrograph. Use --forcing-id.")
     try:
         written = FAMILIES[args.family][1](args)
     except (OSError, KeyError, ValueError) as exc:

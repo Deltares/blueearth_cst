@@ -41,9 +41,9 @@ import os
 
 # matplotlib, numpy and scipy are DEFERRED into the eight functions that draw.
 # `build_model.smk` imports this module at PARSE time for exactly one name --
-# STATION_PLOT_DIRNAME, the string below -- and a module-level import therefore
+# LOCATION_PLOT_DIRNAME, the string below -- and a module-level import therefore
 # bought matplotlib + scipy (~4.7s) on every WF1 dry-run and every real run in
-# order to learn the word "stations". The constant stays HERE, beside the code
+# order to learn the output folder name. The constant stays HERE, beside the code
 # that draws into the bin, for the reason its own comment gives; it is the
 # imports that move.
 from blueearth_cst.plotting.figure_titles import (
@@ -66,7 +66,7 @@ from blueearth_cst.shared.snake_utils import save_figure
 #: declared. That is what lets ``--delete-all-output`` reach them
 #: (R7-5 / t2608071206); WF0's ``subbasins/`` bin is the same device for
 #: the same reason.
-STATION_PLOT_DIRNAME = "stations"
+LOCATION_PLOT_DIRNAME = "locations"
 
 # ===========================================================================
 # TUNABLE CONSTANTS
@@ -1401,7 +1401,7 @@ def plot_station_evaluation(
 
 
 __all__ = [
-    "STATION_PLOT_DIRNAME",
+    "LOCATION_PLOT_DIRNAME",
     "Station",
     "annual_extremes",
     "plot_extremes",

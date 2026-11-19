@@ -83,7 +83,7 @@ simulations; logs, benchmarks and configuration archives are described in [run r
   tables.
 - **Evaluation (`models/hydrology/wflow/historical/default/plots/` and `tables/`).** Model-response
   figures and scores where observations are available, including `tables/performance_indicators.csv`
-  and station discharge summaries under `plots/stations/` when `plotting.scales` includes `locations`
+  and discharge summaries under `plots/locations/` when `plotting.scales` includes `locations`
   (with several forcing sets and `view: comparison`, these are drawn across runs in `forcing_comparison/`).
 
 ### Native grids

@@ -52,12 +52,13 @@ if _DUMP_SECS > 0:
     faulthandler.enable()
     faulthandler.dump_traceback_later(_DUMP_SECS, repeat=True, exit=False)
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "dev" / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import dask  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
-import stage_data as sd  # noqa: E402
 import xarray as xr  # noqa: E402
+
+from dev.scripts.staging import stage_data as sd  # noqa: E402
 
 
 def _stage(cfg):

@@ -12,7 +12,7 @@ inside the requested bbox. Without that option, no-overlap vectors are skipped.
 
 Configuration
 -------------
-All knobs live in a YAML file (default: ``dev/scripts/stage_data.yml``):
+All knobs live in a YAML file (default: ``dev/scripts/staging/stage_data.yml``):
 
     source_root: P:/wflow_global/hydromt
     target_root: C:/data/wflow_global/hydromt
@@ -29,9 +29,9 @@ All knobs live in a YAML file (default: ``dev/scripts/stage_data.yml``):
 
 Usage
 -----
-    python dev/scripts/stage_data.py
-    python dev/scripts/stage_data.py --config dev/scripts/stage_data.yml
-    python dev/scripts/stage_data.py --bbox 8 -1 12 2     # CLI overrides
+    python dev/scripts/staging/stage_data.py
+    python dev/scripts/staging/stage_data.py --config dev/scripts/staging/stage_data.yml
+    python dev/scripts/staging/stage_data.py --bbox 8 -1 12 2     # CLI overrides
 """
 
 from __future__ import annotations
@@ -89,9 +89,12 @@ try:
 except ImportError:
     tqdm = None  # type: ignore[assignment]
 
-# Make `console.py` importable when running from the repo root.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from console import (
+# Allow direct execution while using the shared, vendored console module.
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from dev.scripts.console import (
     banner,
     bold,
     cyan,

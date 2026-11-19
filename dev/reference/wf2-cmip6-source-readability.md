@@ -28,7 +28,7 @@ This reuse is local to one fetch and does not infer geometry from model names or
 The fallback requires ordered one-dimensional axes; it is not an unstructured-mesh reader. A successful
 coordinate probe does not prove that data can be staged. Missing values and time coverage have separate
 admission checks. Use [`probe_cmip6_grids.py`](../../dev/scripts/probe_cmip6_grids.py) to inspect geometry and
-[`stage_cmip6.py`](../../dev/scripts/stage_cmip6.py) to exercise actual staging.
+[`stage_cmip6.py`](../../dev/scripts/staging/stage_cmip6.py) to exercise actual staging.
 
 ## 2. Published-version multiplicity
 
